@@ -12,8 +12,8 @@ using ProjectManagement.Data;
 namespace ProjectManagement.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250906181243_InitialPostgres")]
-    partial class InitialPostgres
+    [Migration("20250906182651_NoEmailVerification")]
+    partial class NoEmailVerification
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
