@@ -1,5 +1,6 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Models;
 
 namespace ProjectManagement.Data
 {
@@ -9,5 +10,7 @@ namespace ProjectManagement.Data
             : base(options)
         {
         }
+
+        public DbSet<Project> Projects { get; set; } = default!;
     }
 }
