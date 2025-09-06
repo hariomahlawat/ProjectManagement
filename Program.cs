@@ -23,12 +23,13 @@ builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 AppContext.SetSwitch("Npgsql.DisableDateTimeInfinityConversions", true);
 
-// ---------- Identity (email confirmation, stricter passwords) ----------
+// ---------- Identity (username/password without email confirmation) ----------
 builder.Services
     .AddDefaultIdentity<IdentityUser>(options =>
     {
-        options.SignIn.RequireConfirmedAccount = true;
-        options.User.RequireUniqueEmail = true;
+        // Use simple username/password sign-up without email confirmation.
+        options.SignIn.RequireConfirmedAccount = false;
+        options.User.RequireUniqueEmail = false;
         options.Password.RequireDigit = true;
         options.Password.RequireNonAlphanumeric = true;
         options.Password.RequireUppercase = true;
