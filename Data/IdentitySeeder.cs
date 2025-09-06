@@ -1,0 +1,31 @@
+using Microsoft.AspNetCore.Identity;
+using ProjectManagement.Models;
+
+namespace ProjectManagement.Data
+{
+    public static class IdentitySeeder
+    {
+        public static async Task SeedAsync(IServiceProvider services)
+        {
+            var roles = new[] { "Admin", "HoD", "TeamLead", "User" };
+            var roleMgr = services.GetRequiredService<RoleManager<IdentityRole>>();
+            foreach (var r in roles)
+                if (!await roleMgr.RoleExistsAsync(r))
+                    await roleMgr.CreateAsync(new IdentityRole(r));
+
+            var userMgr = services.GetRequiredService<UserManager<ApplicationUser>>();
+            var admin = await userMgr.FindByNameAsync("admin");
+            if (admin == null)
+            {
+                admin = new ApplicationUser
+                {
+                    UserName = "admin",
+                    EmailConfirmed = true,
+                    MustChangePassword = false
+                };
+                await userMgr.CreateAsync(admin, "ChangeMe!123");
+                await userMgr.AddToRoleAsync(admin, "Admin");
+            }
+        }
+    }
+}

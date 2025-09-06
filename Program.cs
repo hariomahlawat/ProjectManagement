@@ -2,7 +2,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 using ProjectManagement.Services;
+using ProjectManagement.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -26,19 +28,19 @@ AppContext.SetSwitch("Npgsql.DisableDateTimeInfinityConversions", true);
 
 // ---------- Identity (username/password without email confirmation) ----------
 builder.Services
-    .AddDefaultIdentity<IdentityUser>(options =>
+    .AddIdentity<ApplicationUser, IdentityRole>(o =>
     {
-        // Use simple username/password sign-up without email confirmation.
-        options.SignIn.RequireConfirmedAccount = false;
-        options.User.RequireUniqueEmail = false;
-        options.Password.RequireDigit = true;
-        options.Password.RequireNonAlphanumeric = true;
-        options.Password.RequireUppercase = true;
-        options.Password.RequireLowercase = true;
-        options.Password.RequiredLength = 8;
-        options.Lockout.MaxFailedAccessAttempts = 5;
+        o.SignIn.RequireConfirmedAccount = false;
+        o.User.RequireUniqueEmail = false;
+        o.Password.RequireDigit = false;
+        o.Password.RequireNonAlphanumeric = false;
+        o.Password.RequireUppercase = false;
+        o.Password.RequireLowercase = true;
+        o.Password.RequiredLength = 6;
+        o.Lockout.MaxFailedAccessAttempts = 5;
     })
-    .AddEntityFrameworkStores<ApplicationDbContext>();
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddDefaultTokenProviders();
 
 builder.Services.ConfigureApplicationCookie(opt =>
 {
@@ -57,7 +59,12 @@ else
     builder.Services.AddSingleton<IEmailSender, ProjectManagement.Services.NoOpEmailSender>();
 }
 
-builder.Services.AddRazorPages();
+builder.Services.AddScoped<EnforcePasswordChangeFilter>();
+builder.Services.AddRazorPages(options =>
+{
+    options.Conventions.AuthorizeFolder("/");
+})
+    .AddMvcOptions(o => o.Filters.Add<EnforcePasswordChangeFilter>());
 
 var app = builder.Build();
 
@@ -83,5 +90,9 @@ app.UseAuthentication();   // <-- required for Identity
 app.UseAuthorization();
 
 app.MapRazorPages();
+
+// seed roles and first admin
+using (var scope = app.Services.CreateScope())
+    await ProjectManagement.Data.IdentitySeeder.SeedAsync(scope.ServiceProvider);
 
 app.Run();
