@@ -21,18 +21,12 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
         {
         }
 
-        public async Task<IActionResult> OnPost(string? returnUrl = null)
+        public async Task<IActionResult> OnPost()
         {
             await _signInManager.SignOutAsync();
+            HttpContext.Session.Clear();
             _logger.LogInformation("User logged out.");
-            if (returnUrl != null)
-            {
-                return LocalRedirect(returnUrl);
-            }
-            else
-            {
-                return RedirectToPage();
-            }
+            return RedirectToPage("/Account/Login", new { area = "Identity" });
         }
     }
 }

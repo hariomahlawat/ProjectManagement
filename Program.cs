@@ -49,6 +49,9 @@ builder.Services.ConfigureApplicationCookie(opt =>
     opt.SlidingExpiration = true;
 });
 
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddSession();
+
 // Register email sender
 if (!string.IsNullOrWhiteSpace(builder.Configuration["Email:Smtp:Host"]))
 {
@@ -85,6 +88,8 @@ app.UseHttpsRedirection();
 
 app.UseStaticFiles();
 app.UseRouting();
+
+app.UseSession();
 
 app.UseAuthentication();   // <-- required for Identity
 app.UseAuthorization();
