@@ -20,6 +20,7 @@ namespace ProjectManagement.Data
                 .Build();
 
             var connectionString = configuration.GetConnectionString("DefaultConnection")
+                                  ?? Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
                                   ?? Environment.GetEnvironmentVariable("DefaultConnection");
 
             if (string.IsNullOrWhiteSpace(connectionString))
