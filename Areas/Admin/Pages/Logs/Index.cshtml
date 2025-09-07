@@ -1,63 +1,227 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Logs.IndexModel
+@using ProjectManagement.Infrastructure
+@using Microsoft.AspNetCore.Html
+@using System.Text.Json
 @{
-  ViewData["Title"] = "Logs";
+    ViewData["Title"] = "Logs";
 }
+
 <h3 class="mb-3">Logs</h3>
 
-<form method="get" class="row g-2 mb-3">
-  <div class="col-md-2"><input name="Level" value="@Model.Level" class="form-control" placeholder="Level (Info/Warning/Error)" /></div>
-  <div class="col-md-2"><input name="Action" value="@Model.Action" class="form-control" placeholder="Action (e.g., LoginSuccess)" /></div>
-  <div class="col-md-2"><input name="User"   value="@Model.User"   class="form-control" placeholder="User" /></div>
-  <div class="col-md-2"><input type="date" name="From" value="@(Model.From?.ToString("yyyy-MM-dd"))" class="form-control" /></div>
-  <div class="col-md-2"><input type="date" name="To" value="@(Model.To?.ToString("yyyy-MM-dd"))" class="form-control" /></div>
-  <div class="col-md-2 d-grid"><button class="btn btn-outline-secondary" type="submit">Filter</button></div>
+<form method="get" class="row g-2 mb-3 align-items-end">
+  <div class="col-sm-2">
+    <label class="form-label">Level</label>
+    <select name="Level" class="form-select">
+      <option value="" selected="@(string.IsNullOrEmpty(Model.Level) ? "selected" : null)">All</option>
+      <option value="Info" selected="@(Model.Level=="Info" ? "selected" : null)">Info</option>
+      <option value="Warning" selected="@(Model.Level=="Warning" ? "selected" : null)">Warning</option>
+      <option value="Error" selected="@(Model.Level=="Error" ? "selected" : null)">Error</option>
+    </select>
+  </div>
+
+  <div class="col-sm-2">
+    <label class="form-label">Action</label>
+    <input name="Action" class="form-control" list="action-list" value="@Model.Action" placeholder="e.g. LoginSuccess" />
+    <datalist id="action-list">
+      @foreach (var a in Model.ActionOptions) { <option value="@a"></option> }
+    </datalist>
+  </div>
+
+  <div class="col-sm-2">
+    <label class="form-label">User</label>
+    <input name="User" class="form-control" value="@Model.User" />
+  </div>
+
+  <div class="col-sm-2">
+    <label class="form-label">IP</label>
+    <input name="Ip" class="form-control" value="@Model.Ip" />
+  </div>
+
+  <div class="col-sm-2">
+    <label class="form-label">Contains</label>
+    <input name="Contains" class="form-control" value="@Model.Contains" placeholder="Message or JSON" />
+  </div>
+
+  <div class="col-sm-2">
+    <label class="form-label">From</label>
+    <input type="date" name="From" class="form-control" value="@(Model.From?.ToString("yyyy-MM-dd"))" />
+  </div>
+
+  <div class="col-sm-2">
+    <label class="form-label">To</label>
+    <input type="date" name="To" class="form-control" value="@(Model.To?.ToString("yyyy-MM-dd"))" />
+  </div>
+
+  <div class="col-sm-2">
+    <label class="form-label">Page size</label>
+    <select name="PageSize" class="form-select">
+      @foreach (var n in new[]{25,50,100,200})
+      {
+        <option value="@n" selected="@(Model.PageSize==n ? "selected" : null)">@n</option>
+      }
+    </select>
+  </div>
+
+  <div class="col-sm-2 d-grid">
+    <label class="form-label">&nbsp;</label>
+    <button class="btn btn-primary" type="submit">Filter</button>
+  </div>
+
+  <div class="col-sm-6">
+    <div class="btn-group btn-group-sm mt-2 mt-sm-0" role="group" aria-label="Quick ranges">
+      <button type="button" class="btn btn-outline-secondary log-preset" data-days="1">Last 24h</button>
+      <button type="button" class="btn btn-outline-secondary log-preset" data-days="7">7 days</button>
+      <button type="button" class="btn btn-outline-secondary log-preset" data-days="30">30 days</button>
+    </div>
+  </div>
 </form>
 
-<div class="mb-3">
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <div>
+    <strong>@Model.Total</strong> result(s)
+    @if (Model.Total > 0)
+    {
+      var start = (Model.PageNo - 1) * Model.PageSize + 1;
+      var end = Math.Min(Model.PageNo * Model.PageSize, Model.Total);
+      <span class="text-muted"> • showing @start–@end</span>
+    }
+  </div>
+
   <div class="btn-group btn-group-sm" role="group">
-    <button type="button" class="btn btn-outline-secondary log-preset" data-days="0">Today</button>
-    <button type="button" class="btn btn-outline-secondary log-preset" data-days="7">7d</button>
-    <button type="button" class="btn btn-outline-secondary log-preset" data-days="30">30d</button>
+    <a class="btn btn-outline-secondary"
+       href="@Url.Page(null, null, new { handler = "ExportCsv", Level = Model.Level, Action = Model.Action, User = Model.User, Ip = Model.Ip, Contains = Model.Contains, From = Model.From?.ToString("yyyy-MM-dd"), To = Model.To?.ToString("yyyy-MM-dd") }, null)">
+      <i class="bi bi-filetype-csv me-1"></i> Export CSV
+    </a>
   </div>
 </div>
 
-<div class="pm-card pm-shadow p-2">
-  <table class="table table-sm table-hover align-middle mb-0">
-    <thead class="table-light">
-      <tr><th>Time (IST)</th><th>Level</th><th>Action</th><th>User</th><th>IP</th><th>Message</th></tr>
+@if (Model.SeriesLabels.Count > 0)
+{
+  <div class="pm-card pm-shadow p-3 mb-3">
+    <h6 class="mb-2">Events per day</h6>
+    <canvas id="logsPerDay"
+            data-labels="@JsonSerializer.Serialize(Model.SeriesLabels)"
+            data-values="@JsonSerializer.Serialize(Model.SeriesCounts)"></canvas>
+  </div>
+}
+
+<div class="table-responsive">
+  <table class="table table-sm align-middle">
+    <thead>
+      <tr>
+        @* sortable headers *@
+        <th>@SortLink("Time", "Time", Model.Sort, Model.Dir)</th>
+        <th>@SortLink("Level", "Level", Model.Sort, Model.Dir)</th>
+        <th>@SortLink("Action", "Action", Model.Sort, Model.Dir)</th>
+        <th>@SortLink("User", "User", Model.Sort, Model.Dir)</th>
+        <th>@SortLink("IP", "Ip", Model.Sort, Model.Dir)</th>
+        <th>Message</th>
+        <th style="width: 1%"></th>
+      </tr>
     </thead>
     <tbody>
-      @foreach (var r in Model.Rows)
-      {
-        <tr>
-          <td>@r.Time.ToString("yyyy-MM-dd HH:mm:ss")</td>
-          <td><span class="pm-badge @(r.Level=="Error" ? "pm-badge-warn" : r.Level=="Warning" ? "pm-badge-warn" : "")">@r.Level</span></td>
-          <td>@r.Action</td>
-          <td>@r.UserName</td>
-          <td>@r.Ip</td>
-          <td>@r.Message</td>
-        </tr>
-      }
+    @foreach (var r in Model.Rows)
+    {
+      <tr>
+        <td class="text-nowrap">@IstClock.ToIst(r.TimeUtc).ToString("yyyy-MM-dd HH:mm")</td>
+        <td>
+          <span class="badge bg-@LevelColor(r.Level)">@r.Level</span>
+        </td>
+        <td class="text-nowrap">@r.Action</td>
+        <td class="text-nowrap">@r.UserName</td>
+        <td class="text-monospace">@r.Ip</td>
+        <td style="max-width: 420px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">@r.Message</td>
+        <td>
+          @if (!string.IsNullOrWhiteSpace(r.DataJson))
+          {
+            <button type="button" class="btn btn-outline-secondary btn-sm view-json"
+                    data-bs-toggle="modal" data-bs-target="#jsonModal"
+                    data-json="@r.DataJson">
+              Details
+            </button>
+          }
+        </td>
+      </tr>
+    }
     </tbody>
   </table>
 </div>
 
-<nav class="mt-2">
-  @{
-    var pages = (int)Math.Ceiling((double)Model.Total / Model.PageSize);
-    if (pages < 1) pages = 1;
+@{
+  var pages = (int)Math.Ceiling((double)Model.Total / Model.PageSize);
+  string qs(string sort = "", string dir = "") =>
+    Url.Page(null, null, new {
+      Level = Model.Level, Action = Model.Action, User = Model.User, Ip = Model.Ip, Contains = Model.Contains,
+      From = Model.From?.ToString("yyyy-MM-dd"), To = Model.To?.ToString("yyyy-MM-dd"),
+      PageNo = Model.PageNo, PageSize = Model.PageSize,
+      Sort = string.IsNullOrEmpty(sort) ? Model.Sort : sort,
+      Dir = string.IsNullOrEmpty(dir) ? Model.Dir : dir
+    }, null) ?? "#";
+}
+
+@if (pages > 1)
+{
+  <nav aria-label="Pages">
+    <ul class="pagination pagination-sm">
+      @for (var i = 1; i <= pages; i++)
+      {
+        <li class="page-item @(i==Model.PageNo?"active":"")">
+          <a class="page-link" href="@Url.Page(null, null, new {
+               Level = Model.Level, Action = Model.Action, User = Model.User, Ip = Model.Ip, Contains = Model.Contains,
+               From = Model.From?.ToString("yyyy-MM-dd"), To = Model.To?.ToString("yyyy-MM-dd"),
+               PageNo = i, PageSize = Model.PageSize, Sort = Model.Sort, Dir = Model.Dir }, null)">@i</a>
+        </li>
+      }
+    </ul>
+  </nav>
+}
+
+@functions {
+  string LevelColor(string level) => level switch
+  {
+    "Error" => "danger",
+    "Warning" => "warning",
+    _ => "secondary"
+  };
+
+  IHtmlContent SortLink(string text, string col, string curSort, string curDir)
+  {
+    var nextDir = (curSort == col && curDir == "asc") ? "desc" : "asc";
+    var url = Url.Page(null, null, new {
+      Level = Model.Level, Action = Model.Action, User = Model.User, Ip = Model.Ip, Contains = Model.Contains,
+      From = Model.From?.ToString("yyyy-MM-dd"), To = Model.To?.ToString("yyyy-MM-dd"),
+      PageNo = 1, PageSize = Model.PageSize, Sort = col, Dir = nextDir
+    }, null) ?? "#";
+
+    var icon = curSort == col
+      ? (curDir == "asc" ? "bi-caret-up-fill" : "bi-caret-down-fill")
+      : "bi-caret-down";
+
+    return new HtmlString($@"<a class=""link-dark text-decoration-none"" href=""{url}"">{text} <i class=""bi {icon}""></i></a>");
   }
-  <ul class="pagination pagination-sm">
-    @for (var i=1; i<=pages; i++)
-    {
-      <li class="page-item @(i==Model.PageNo?"active":"")">
-        <a class="page-link" href="?Level=@Model.Level&Action=@Model.Action&User=@Model.User&From=@(Model.From?.ToString("yyyy-MM-dd"))&To=@(Model.To?.ToString("yyyy-MM-dd"))&PageNo=@i">@i</a>
-      </li>
-    }
-  </ul>
-</nav>
+}
+
+@* JSON details modal *@
+<div class="modal fade" id="jsonModal" tabindex="-1" aria-labelledby="jsonModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="jsonModalLabel">Log details</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <pre class="mb-0"><code id="jsonContent"></code></pre>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="copyJson"><i class="bi bi-clipboard"></i> Copy</button>
+        <button type="button" class="btn btn-primary btn-sm" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 @section Scripts {
-    <script type="module" src="~/js/logs/index.js" asp-append-version="true"></script>
+  <script src="~/lib/chart.js/chart.umd.js"></script>
+  <script type="module" src="~/js/logs/index.js" asp-append-version="true"></script>
 }
