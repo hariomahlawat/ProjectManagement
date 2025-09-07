@@ -25,7 +25,7 @@
           <span class="badge badge-role me-1">@r</span>
         }
       </td>
-      <td>@(row.LastLoginUtc?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
+      <td>@(row.LastLogin?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
       <td>@row.LoginCount</td>
       <td>
         <span class="badge @(row.IsActive ? "badge-ok" : "badge-bad")">@(row.IsActive ? "Active" : "Disabled")</span>

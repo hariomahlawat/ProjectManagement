@@ -25,13 +25,13 @@
 <div class="pm-card pm-shadow p-2">
   <table class="table table-sm table-hover align-middle mb-0">
     <thead class="table-light">
-      <tr><th>Time (UTC)</th><th>Level</th><th>Action</th><th>User</th><th>IP</th><th>Message</th></tr>
+      <tr><th>Time (IST)</th><th>Level</th><th>Action</th><th>User</th><th>IP</th><th>Message</th></tr>
     </thead>
     <tbody>
       @foreach (var r in Model.Rows)
       {
         <tr>
-          <td>@r.TimeUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+          <td>@r.Time.ToString("yyyy-MM-dd HH:mm:ss")</td>
           <td><span class="pm-badge @(r.Level=="Error" ? "pm-badge-warn" : r.Level=="Warning" ? "pm-badge-warn" : "")">@r.Level</span></td>
           <td>@r.Action</td>
           <td>@r.UserName</td>
