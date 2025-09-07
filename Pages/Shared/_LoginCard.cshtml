@@ -1,6 +1,3 @@
-@using Microsoft.AspNetCore.Antiforgery
-@inject IAntiforgery Antiforgery
-
 <div class="pm-login-card shadow-sm bg-white rounded-4 p-4">
   <h3 class="h5 fw-bold mb-3 text-center">Sign in</h3>
 
@@ -9,10 +6,6 @@
         asp-page="/Account/Login"
         asp-route-returnUrl="/Dashboard/Index"
         class="needs-validation" novalidate>
-
-    <input name="__RequestVerificationToken"
-           type="hidden"
-           value="@Antiforgery.GetTokens(Context).RequestToken" />
 
     <div class="mb-3">
       <label for="lpUserName" class="form-label">Username</label>
