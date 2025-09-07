@@ -1,7 +1,8 @@
 ﻿@page
 @model ProjectManagement.Pages.IndexModel
 @using Microsoft.AspNetCore.Identity
-@inject SignInManager<IdentityUser> SignInManager
+@using ProjectManagement.Models
+@inject SignInManager<ApplicationUser> SignInManager
 @{
     ViewData["Title"] = "ProjectManagement";
 }
