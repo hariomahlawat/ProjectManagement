@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Services;
@@ -9,34 +10,35 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
     [Authorize(Roles = "Admin")]
     public class IndexModel : PageModel
     {
-        private readonly IUserManagementService _userService;
-        public IList<UserViewModel> Users { get; private set; } = new List<UserViewModel>();
-        public IndexModel(IUserManagementService userService) => _userService = userService;
+        private readonly IUserManagementService _users;
+        public IndexModel(IUserManagementService users) => _users = users;
 
-        public async Task OnGetAsync()
+        public IList<UserRow> Users { get; private set; } = new List<UserRow>();
+
+        public class UserRow
         {
-            var users = await _userService.GetUsersAsync();
-            var list = new List<UserViewModel>();
-            foreach (var u in users)
-            {
-                var roles = await _userService.GetUserRolesAsync(u.Id);
-                list.Add(new UserViewModel
-                {
-                    Id = u.Id,
-                    UserName = u.UserName!,
-                    IsActive = !u.LockoutEnd.HasValue || u.LockoutEnd <= DateTimeOffset.UtcNow,
-                    Roles = string.Join(", ", roles)
-                });
-            }
-            Users = list;
+            public string Id { get; set; } = "";
+            public string UserName { get; set; } = "";
+            public string Roles { get; set; } = "";
+            public bool IsActive { get; set; }
         }
 
-        public class UserViewModel
+        public async Task OnGet()
         {
-            public string Id { get; set; } = string.Empty;
-            public string UserName { get; set; } = string.Empty;
-            public bool IsActive { get; set; }
-            public string Roles { get; set; } = string.Empty;
+            var all = await _users.GetUsersAsync();
+            var rows = new List<UserRow>();
+            foreach (var u in all)
+            {
+                var roles = await _users.GetUserRolesAsync(u.Id);
+                rows.Add(new UserRow
+                {
+                    Id = u.Id,
+                    UserName = u.UserName ?? "",
+                    Roles = string.Join(", ", roles.OrderBy(r => r)),
+                    IsActive = !u.LockoutEnd.HasValue || u.LockoutEnd <= DateTimeOffset.UtcNow
+                });
+            }
+            Users = rows;
         }
     }
 }

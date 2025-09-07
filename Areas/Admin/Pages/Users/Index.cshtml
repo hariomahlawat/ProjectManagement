@@ -5,16 +5,16 @@
 <table class="table table-sm">
   <thead><tr><th>UserName</th><th>Roles</th><th>Status</th><th>Actions</th></tr></thead>
   <tbody>
-  @foreach (var u in Model.Users)
+  @foreach (var row in Model.Users)
   {
     <tr>
-      <td>@u.UserName</td>
-      <td>@u.Roles</td>
-      <td>@(u.IsActive ? "Active" : "Disabled")</td>
+      <td>@row.UserName</td>
+      <td>@row.Roles</td>
+      <td>@(row.IsActive ? "Active" : "Disabled")</td>
       <td>
-        <a asp-page="Edit" asp-route-id="@u.Id">Edit</a> |
-        <a asp-page="Reset" asp-route-id="@u.Id">Reset password</a> |
-        <a asp-page="Delete" asp-route-id="@u.Id">Delete</a>
+        <a asp-page="Edit" asp-route-id="@row.Id">Edit</a> |
+        <a asp-page="Reset" asp-route-id="@row.Id">Reset password</a> |
+        <a asp-page="Delete" asp-route-id="@row.Id">Delete</a>
       </td>
     </tr>
   }

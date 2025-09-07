@@ -1,23 +1,32 @@
 @page "{id}"
 @model ProjectManagement.Areas.Admin.Pages.Users.EditModel
-<h3>Edit user</h3>
+@{
+    ViewData["Title"] = "Edit user";
+}
 <div class="pm-card pm-shadow p-4 p-md-5">
+  <h3 class="mb-4">Edit user @Model.UserName</h3>
+
   <form method="post">
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
     <input type="hidden" asp-for="Input.Id" />
-    <div class="visually-hidden" aria-live="polite">
-      <span asp-validation-summary="ModelOnly"></span>
-    </div>
-    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
     <div class="mb-3">
-      <label asp-for="Input.Role" class="form-label"></label>
-      <select asp-for="Input.Role" asp-items="new SelectList(Model.Roles)" class="form-select"></select>
-      <span asp-validation-for="Input.Role" class="text-danger"></span>
+      <label asp-for="Input.Roles" class="form-label"></label>
+      <select asp-for="Input.Roles"
+              asp-items="new MultiSelectList(Model.Roles, Model.Input.Roles)"
+              class="form-select" multiple size="4"></select>
+      <span asp-validation-for="Input.Roles" class="text-danger"></span>
     </div>
+
     <div class="form-check mb-3">
-      <input asp-for="Input.IsActive" class="form-check-input" />
-      <label asp-for="Input.IsActive" class="form-check-label">Active</label>
+      <input class="form-check-input" type="checkbox" asp-for="Input.IsActive" id="isActiveChk" />
+      <label class="form-check-label" for="isActiveChk">Active</label>
     </div>
-    <button class="btn pm-btn-primary" type="submit">Save</button>
-    <a asp-page="Index" class="btn btn-secondary">Cancel</a>
+
+    <div class="d-flex gap-2">
+      <button class="btn pm-btn-primary" type="submit">Save</button>
+      <a asp-page="Index" class="btn btn-secondary">Cancel</a>
+    </div>
   </form>
 </div>
+

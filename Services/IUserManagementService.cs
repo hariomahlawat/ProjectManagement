@@ -9,8 +9,10 @@ namespace ProjectManagement.Services
         Task<ApplicationUser?> GetUserByIdAsync(string userId);
         Task<IList<string>> GetRolesAsync();
         Task<IList<string>> GetUserRolesAsync(string userId);
-        Task<IdentityResult> CreateUserAsync(string userName, string password, string role);
-        Task<IdentityResult> UpdateUserRoleAsync(string userId, string role);
+
+        // Multi-role support
+        Task<IdentityResult> CreateUserAsync(string userName, string password, IEnumerable<string> roles);
+        Task<IdentityResult> UpdateUserRolesAsync(string userId, IEnumerable<string> roles);
         Task ToggleUserActivationAsync(string userId, bool isActive);
         Task<IdentityResult> ResetPasswordAsync(string userId, string newPassword);
         Task<IdentityResult> DeleteUserAsync(string userId);
