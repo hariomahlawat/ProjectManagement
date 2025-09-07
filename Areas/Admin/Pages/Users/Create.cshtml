@@ -18,7 +18,15 @@
 
     <div class="mb-3">
       <label asp-for="Input.Password" class="form-label"></label>
-      <input asp-for="Input.Password" class="form-control" autocomplete="new-password" />
+      <div class="password-container">
+        <input asp-for="Input.Password" class="form-control" autocomplete="new-password" />
+        <button type="button" class="password-toggle" aria-label="Show password">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/>
+            <circle cx="8" cy="8" r="3"/>
+          </svg>
+        </button>
+      </div>
       <div class="mt-2 d-flex gap-2">
         <button type="button" id="generatePwd" class="btn btn-sm btn-outline-secondary">Generate</button>
         <button type="button" id="copyPwd" class="btn btn-sm btn-outline-secondary">Copy</button>
