@@ -7,11 +7,19 @@ function bindPresets() {
     btn.addEventListener('click', () => {
       const days = parseInt(btn.dataset.days, 10);
       const now = new Date();
-      const toStr = now.toISOString().slice(0, 10);
+
+      const formatDate = (d) => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      };
+
+      const toStr = formatDate(now);
 
       let fromDate = new Date(now);
       if (days > 0) fromDate.setDate(now.getDate() - (days - 1));
-      const fromStr = fromDate.toISOString().slice(0, 10);
+      const fromStr = formatDate(fromDate);
 
       from.value = fromStr;
       to.value = toStr;
