@@ -68,7 +68,12 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
                 return Page();
             }
 
-            await _users.ToggleUserActivationAsync(Input.Id, Input.IsActive);
+            var activeRes = await _users.ToggleUserActivationAsync(Input.Id, Input.IsActive);
+            if (!activeRes.Succeeded)
+            {
+                foreach (var e in activeRes.Errors) ModelState.AddModelError(string.Empty, e.Description);
+                return Page();
+            }
 
             _logger.LogInformation("Admin {Admin} updated user {UserId}: roles {Roles}; active {Active}", User.Identity?.Name, Input.Id, string.Join(',', Input.Roles), Input.IsActive);
 

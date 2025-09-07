@@ -24,6 +24,15 @@ namespace ProjectManagement.Services
             _http = httpContextAccessor;
         }
 
+        private static bool IsActive(ApplicationUser user) =>
+            !user.LockoutEnd.HasValue || user.LockoutEnd <= DateTimeOffset.UtcNow;
+
+        private async Task<int> CountActiveAdminsAsync()
+        {
+            var admins = await _userManager.GetUsersInRoleAsync("Admin");
+            return admins.Count(IsActive);
+        }
+
         public async Task<IList<ApplicationUser>> GetUsersAsync() =>
             await _userManager.Users.OrderBy(u => u.UserName).ToListAsync();
 
@@ -78,6 +87,16 @@ namespace ProjectManagement.Services
             var toRemove = current.Where(r => !target.Contains(r)).ToArray();
             var toAdd    = target.Where(r => !current.Contains(r, StringComparer.OrdinalIgnoreCase)).ToArray();
 
+            if (toRemove.Contains("Admin", StringComparer.OrdinalIgnoreCase))
+            {
+                if (IsActive(user))
+                {
+                    var activeAdmins = await CountActiveAdminsAsync();
+                    if (activeAdmins <= 1)
+                        return IdentityResult.Failed(new IdentityError { Description = "Cannot remove the Admin role from the last active Admin." });
+                }
+            }
+
             if (toRemove.Length > 0)
             {
                 var rr = await _userManager.RemoveFromRolesAsync(user, toRemove);
@@ -93,17 +112,38 @@ namespace ProjectManagement.Services
             return IdentityResult.Success;
         }
 
-        public async Task ToggleUserActivationAsync(string userId, bool isActive)
+        public async Task<IdentityResult> ToggleUserActivationAsync(string userId, bool isActive)
         {
             var user = await _userManager.FindByIdAsync(userId);
-            if (user == null) return;
+            if (user == null)
+                return IdentityResult.Failed(new IdentityError { Description = "User not found." });
+
+            if (!isActive)
+            {
+                var currentUserName = _http.HttpContext?.User?.Identity?.Name;
+                if (!string.IsNullOrEmpty(currentUserName) &&
+                    string.Equals(currentUserName, user.UserName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return IdentityResult.Failed(new IdentityError { Description = "You cannot disable your own account." });
+                }
+
+                var roles = await _userManager.GetRolesAsync(user);
+                if (roles.Contains("Admin") && IsActive(user))
+                {
+                    var activeAdmins = await CountActiveAdminsAsync();
+                    if (activeAdmins <= 1)
+                        return IdentityResult.Failed(new IdentityError { Description = "Cannot disable the last active Admin." });
+                }
+            }
 
             // Keep lockout mechanism active
             user.LockoutEnabled = true;
             user.LockoutEnd = isActive ? null : DateTimeOffset.MaxValue;
 
-            await _userManager.UpdateAsync(user);
-            await _userManager.UpdateSecurityStampAsync(user);
+            var res = await _userManager.UpdateAsync(user);
+            if (res.Succeeded)
+                await _userManager.UpdateSecurityStampAsync(user);
+            return res;
         }
 
         public async Task<IdentityResult> ResetPasswordAsync(string userId, string newPassword)
@@ -128,13 +168,13 @@ namespace ProjectManagement.Services
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null) return IdentityResult.Failed(new IdentityError { Description = "User not found" });
 
-            // Prevent deleting the last Admin
+            // Prevent deleting the last active Admin
             var roles = await _userManager.GetRolesAsync(user);
-            if (roles.Contains("Admin"))
+            if (roles.Contains("Admin") && IsActive(user))
             {
-                var admins = await _userManager.GetUsersInRoleAsync("Admin");
-                if (admins.Count <= 1)
-                    return IdentityResult.Failed(new IdentityError { Description = "Cannot delete the only Admin user." });
+                var activeAdmins = await CountActiveAdminsAsync();
+                if (activeAdmins <= 1)
+                    return IdentityResult.Failed(new IdentityError { Description = "Cannot delete the last active Admin." });
             }
 
             // Prevent self-delete from the UI flow

@@ -13,7 +13,7 @@ namespace ProjectManagement.Services
         // Multi-role support
         Task<IdentityResult> CreateUserAsync(string userName, string password, IEnumerable<string> roles);
         Task<IdentityResult> UpdateUserRolesAsync(string userId, IEnumerable<string> roles);
-        Task ToggleUserActivationAsync(string userId, bool isActive);
+        Task<IdentityResult> ToggleUserActivationAsync(string userId, bool isActive);
         Task<IdentityResult> ResetPasswordAsync(string userId, string newPassword);
         Task<IdentityResult> DeleteUserAsync(string userId);
     }
