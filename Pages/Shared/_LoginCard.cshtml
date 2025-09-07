@@ -1,6 +1,5 @@
 ﻿@using Microsoft.AspNetCore.Antiforgery  
 @inject IAntiforgery Antiforgery  
-@inject Microsoft.AspNetCore.Http.IHttpContextAccessor HttpContextAccessor  
 
 <div class="pm-login-card shadow-sm bg-white rounded-4 p-4">  
     <h3 class="h5 fw-bold mb-3 text-center">Sign in</h3>  
@@ -11,7 +10,7 @@
           class="needs-validation" novalidate>  
         <input name="__RequestVerificationToken"
                type="hidden"
-               value="@Antiforgery.GetTokens(HttpContextAccessor.HttpContext).RequestToken" />  
+               value="@Antiforgery.GetTokens(Context).RequestToken" />
         <div class="mb-3">  
             <label for="lpEmail" class="form-label">Email</label>  
             <input id="lpEmail" name="Input.Email" type="email" class="form-control" autocomplete="username" required />  
