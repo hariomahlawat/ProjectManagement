@@ -4,6 +4,7 @@
 <div class="pm-card pm-shadow p-4 p-md-5">
   <p>Are you sure you want to delete @Model.UserName?</p>
   <form method="post">
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
     <button class="btn btn-danger" type="submit">Delete</button>
     <a asp-page="Index" class="btn btn-secondary">Cancel</a>
   </form>
