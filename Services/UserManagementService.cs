@@ -13,15 +13,18 @@ namespace ProjectManagement.Services
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IHttpContextAccessor _http;
+        private readonly IAuditService _audit;
 
         public UserManagementService(
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager,
-            IHttpContextAccessor httpContextAccessor)
+            IHttpContextAccessor httpContextAccessor,
+            IAuditService audit)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _http = httpContextAccessor;
+            _audit = audit;
         }
 
         private static bool IsActive(ApplicationUser user) =>
@@ -69,6 +72,7 @@ namespace ProjectManagement.Services
 
             // Important: invalidate any cached tokens/sessions after role change
             await _userManager.UpdateSecurityStampAsync(user);
+            await _audit.LogAsync("AdminUserCreated", userId: user.Id, userName: user.UserName, data: new { Roles = targetRoles });
             return result;
         }
 
@@ -109,6 +113,8 @@ namespace ProjectManagement.Services
             }
 
             await _userManager.UpdateSecurityStampAsync(user);
+            await _audit.LogAsync("AdminUserRolesUpdated", userId: user.Id, userName: user.UserName,
+                data: new { Added = toAdd, Removed = toRemove });
             return IdentityResult.Success;
         }
 
@@ -142,7 +148,11 @@ namespace ProjectManagement.Services
 
             var res = await _userManager.UpdateAsync(user);
             if (res.Succeeded)
+            {
                 await _userManager.UpdateSecurityStampAsync(user);
+                await _audit.LogAsync("AdminUserActivationChanged", userId: user.Id, userName: user.UserName,
+                    data: new { IsActive = isActive });
+            }
             return res;
         }
 
@@ -159,6 +169,7 @@ namespace ProjectManagement.Services
                 user.MustChangePassword = true;
                 await _userManager.UpdateAsync(user);
                 await _userManager.UpdateSecurityStampAsync(user);
+                await _audit.LogAsync("AdminUserPasswordReset", userId: user.Id, userName: user.UserName);
             }
             return res;
         }
@@ -185,7 +196,10 @@ namespace ProjectManagement.Services
                 return IdentityResult.Failed(new IdentityError { Description = "You cannot delete your own account." });
             }
 
-            return await _userManager.DeleteAsync(user);
+            var result = await _userManager.DeleteAsync(user);
+            if (result.Succeeded)
+                await _audit.LogAsync("AdminUserDeleted", userId: user.Id, userName: user.UserName);
+            return result;
         }
     }
 }

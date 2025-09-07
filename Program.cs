@@ -55,6 +55,7 @@ builder.Services.ConfigureApplicationCookie(opt =>
 
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IAuditService, AuditService>();
 
 // Register email sender
 if (!string.IsNullOrWhiteSpace(builder.Configuration["Email:Smtp:Host"]))
@@ -112,8 +113,13 @@ app.UseAuthorization();
 
 app.MapRazorPages();
 
-// seed roles and first admin
+// seed roles, first admin and purge old audit logs
 using (var scope = app.Services.CreateScope())
+{
     await ProjectManagement.Data.IdentitySeeder.SeedAsync(scope.ServiceProvider);
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var cutoff = DateTime.UtcNow.AddDays(-90);
+    db.AuditLogs.Where(a => a.TimeUtc < cutoff).ExecuteDelete();
+}
 
 app.Run();

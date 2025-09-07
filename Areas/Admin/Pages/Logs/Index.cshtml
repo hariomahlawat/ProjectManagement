@@ -1,0 +1,51 @@
+@page
+@model ProjectManagement.Areas.Admin.Pages.Logs.IndexModel
+@{
+  ViewData["Title"] = "Logs";
+}
+<h3 class="mb-3">Logs</h3>
+
+<form method="get" class="row g-2 mb-3">
+  <div class="col-md-2"><input name="Level" value="@Model.Level" class="form-control" placeholder="Level (Info/Warning/Error)" /></div>
+  <div class="col-md-2"><input name="Action" value="@Model.Action" class="form-control" placeholder="Action (e.g., LoginSuccess)" /></div>
+  <div class="col-md-2"><input name="User"   value="@Model.User"   class="form-control" placeholder="User" /></div>
+  <div class="col-md-2"><input type="date" name="From" value="@(Model.From?.ToString("yyyy-MM-dd"))" class="form-control" /></div>
+  <div class="col-md-2"><input type="date" name="To" value="@(Model.To?.ToString("yyyy-MM-dd"))" class="form-control" /></div>
+  <div class="col-md-2 d-grid"><button class="btn btn-outline-secondary" type="submit">Filter</button></div>
+</form>
+
+<div class="pm-card pm-shadow p-2">
+  <table class="table table-sm table-hover align-middle mb-0">
+    <thead class="table-light">
+      <tr><th>Time (UTC)</th><th>Level</th><th>Action</th><th>User</th><th>IP</th><th>Message</th></tr>
+    </thead>
+    <tbody>
+      @foreach (var r in Model.Rows)
+      {
+        <tr>
+          <td>@r.TimeUtc.ToString("yyyy-MM-dd HH:mm:ss")</td>
+          <td><span class="pm-badge @(r.Level=="Error" ? "pm-badge-warn" : r.Level=="Warning" ? "pm-badge-warn" : "")">@r.Level</span></td>
+          <td>@r.Action</td>
+          <td>@r.UserName</td>
+          <td>@r.Ip</td>
+          <td>@r.Message</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>
+
+<nav class="mt-2">
+  @{
+    var pages = (int)Math.Ceiling((double)Model.Total / Model.PageSize);
+    if (pages < 1) pages = 1;
+  }
+  <ul class="pagination pagination-sm">
+    @for (var i=1; i<=pages; i++)
+    {
+      <li class="page-item @(i==Model.PageNo?"active":"")">
+        <a class="page-link" href="?Level=@Model.Level&Action=@Model.Action&User=@Model.User&From=@(Model.From?.ToString("yyyy-MM-dd"))&To=@(Model.To?.ToString("yyyy-MM-dd"))&PageNo=@i">@i</a>
+      </li>
+    }
+  </ul>
+</nav>

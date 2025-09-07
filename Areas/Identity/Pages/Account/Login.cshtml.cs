@@ -4,7 +4,9 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 using ProjectManagement.Models;
+using ProjectManagement.Services;
 
 namespace ProjectManagement.Areas.Identity.Pages.Account
 {
@@ -66,6 +68,12 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
             if (result.Succeeded)
             {
                 await _signInManager.SignInAsync(user, Input.RememberMe);
+                user.LastLoginUtc = DateTime.UtcNow;
+                user.LoginCount = user.LoginCount + 1;
+                await _signInManager.UserManager.UpdateAsync(user);
+                await HttpContext.RequestServices.GetRequiredService<IAuditService>()
+                    .LogAsync("LoginSuccess", userName: user.UserName, userId: user.Id, http: HttpContext);
+
                 _logger.LogInformation("User logged in.");
                 return LocalRedirect(returnUrl);
             }
@@ -75,10 +83,16 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
             }
             if (result.IsLockedOut)
             {
+                await HttpContext.RequestServices.GetRequiredService<IAuditService>()
+                    .LogAsync("LoginLockedOut", message: Input.UserName, level: "Warning",
+                              userName: Input.UserName, http: HttpContext);
                 _logger.LogWarning("User account locked out.");
                 return RedirectToPage("./Lockout");
             }
 
+            await HttpContext.RequestServices.GetRequiredService<IAuditService>()
+                .LogAsync("LoginFailed", message: $"Invalid password for {Input.UserName}", level: "Warning",
+                          userName: Input.UserName, http: HttpContext);
             _logger.LogWarning("Invalid password for {UserName}", Input.UserName);
             ModelState.AddModelError(string.Empty, "Invalid username or password.");
             return Page();
