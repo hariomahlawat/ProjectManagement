@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
+using ProjectManagement.Infrastructure;
 
 namespace ProjectManagement.Areas.Identity.Pages.Account
 {
@@ -57,7 +58,7 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
                 ModelState.AddModelError(string.Empty, "Invalid username or password.");
                 return Page();
             }
-            if (user.LockoutEnd.HasValue && user.LockoutEnd.Value > DateTimeOffset.UtcNow)
+            if (user.LockoutEnd.HasValue && user.LockoutEnd.Value > IstClock.NowOffset)
             {
                 _logger.LogWarning("Login attempt for disabled user {UserName}", Input.UserName);
                 ModelState.AddModelError(string.Empty, "Account is disabled.");
@@ -68,7 +69,7 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
             if (result.Succeeded)
             {
                 await _signInManager.SignInAsync(user, Input.RememberMe);
-                user.LastLoginUtc = DateTime.UtcNow;
+                user.LastLoginUtc = IstClock.Now;
                 user.LoginCount = user.LoginCount + 1;
                 await _signInManager.UserManager.UpdateAsync(user);
                 await HttpContext.RequestServices.GetRequiredService<IAuditService>()

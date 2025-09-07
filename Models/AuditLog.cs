@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using ProjectManagement.Infrastructure;
 
 namespace ProjectManagement.Models
 {
@@ -8,7 +9,7 @@ namespace ProjectManagement.Models
         public long Id { get; set; }
 
         [Required]
-        public DateTime TimeUtc { get; set; } = DateTime.UtcNow;
+        public DateTime TimeUtc { get; set; } = IstClock.Now;
 
         [Required, StringLength(16)]
         public string Level { get; set; } = "Info"; // Info, Warning, Error

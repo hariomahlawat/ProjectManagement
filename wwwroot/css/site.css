@@ -22,16 +22,16 @@ body {
 }
 
 :root{
-  --pm-bg:#fafafa; --pm-card:#fff; --pm-text:#202124;
-  --pm-accent:#1a73e8; --pm-border:#e6e6e6; --pm-muted:#5f6368; --pm-radius:14px;
+  --pm-bg:#f9fbfd; --pm-card:#fff; --pm-text:#333;
+  --pm-accent:#a3cfff; --pm-border:#e3e6ea; --pm-muted:#7f8c8d; --pm-radius:14px;
 }
 body{background:var(--pm-bg);color:var(--pm-text)}
 .pm-card{background:var(--pm-card);border:1px solid var(--pm-border);border-radius:var(--pm-radius)}
 .pm-shadow{box-shadow:0 10px 24px rgba(0,0,0,.08)}
-.pm-btn-primary{background:var(--pm-accent);border-color:var(--pm-accent);color:#fff}
+.pm-btn-primary{background:var(--pm-accent);border-color:var(--pm-accent);color:#333}
 .pm-btn-primary:hover,
-.pm-btn-primary:focus{filter:brightness(.95);color:#fff}
-.pm-btn-primary:disabled{opacity:.65;color:#fff}
+.pm-btn-primary:focus{filter:brightness(.95);color:#333}
+.pm-btn-primary:disabled{opacity:.65;color:#333}
 .pm-field-hint{color:var(--pm-muted);font-size:.85rem}
 
 .password-container{position:relative}
@@ -46,7 +46,7 @@ body{background:var(--pm-bg);color:var(--pm-text)}
   color: var(--pm-text);
 }
 
-.badge-role { background: rgba(26,115,232,.10); color:#1a73e8; border:1px solid rgba(26,115,232,.35); }
-.badge-ok   { background: rgba(25,135,84,.10);  color:#198754; border:1px solid rgba(25,135,84,.35); }
-.badge-bad  { background: rgba(220,53,69,.10);  color:#dc3545; border:1px solid rgba(220,53,69,.35); }
+.badge-role { background: #e0f0ff; color:#4a76a8; border:1px solid #b3d7ff; }
+.badge-ok   { background: #e7f9ed;  color:#2d7a36; border:1px solid #b1e5c4; }
+.badge-bad  { background: #fdecea;  color:#b32d2e; border:1px solid #f5c6c7; }
 

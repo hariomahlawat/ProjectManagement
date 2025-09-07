@@ -4,6 +4,7 @@ using System.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Services;
+using ProjectManagement.Infrastructure;
 
 namespace ProjectManagement.Areas.Admin.Pages.Users
 {
@@ -37,7 +38,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
                     Id = u.Id,
                     UserName = u.UserName ?? "",
                     Roles = roles.OrderBy(r => r).ToList(),
-                    IsActive = !u.LockoutEnd.HasValue || u.LockoutEnd <= DateTimeOffset.UtcNow,
+                    IsActive = !u.LockoutEnd.HasValue || u.LockoutEnd <= IstClock.NowOffset,
                     LastLoginUtc = u.LastLoginUtc,
                     LoginCount = u.LoginCount
                 });

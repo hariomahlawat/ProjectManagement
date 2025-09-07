@@ -118,7 +118,7 @@ using (var scope = app.Services.CreateScope())
 {
     await ProjectManagement.Data.IdentitySeeder.SeedAsync(scope.ServiceProvider);
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    var cutoff = DateTime.UtcNow.AddDays(-90);
+    var cutoff = IstClock.Now.AddDays(-90);
     db.AuditLogs.Where(a => a.TimeUtc < cutoff).ExecuteDelete();
 }
 

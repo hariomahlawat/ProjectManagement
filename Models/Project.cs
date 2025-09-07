@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using ProjectManagement.Infrastructure;
 
 namespace ProjectManagement.Models
 {
@@ -14,6 +15,6 @@ namespace ProjectManagement.Models
         [MaxLength(1000)]
         public string? Description { get; set; }
 
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } = IstClock.Now;
     }
 }
