@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
@@ -19,13 +21,31 @@ namespace ProjectManagement.Services
             _http = http;
         }
 
+        private static readonly string[] SensitiveKeys = new[]
+        {
+            "password", "pwd", "pass", "token", "authorization", "cookie", "secret",
+            "apikey", "api_key", "client_secret", "otp", "code", "privatekey", "private_key"
+        };
+
+        private static IDictionary<string, string?> Scrub(IDictionary<string, string?> data)
+        {
+            return data.ToDictionary(
+                kvp => kvp.Key,
+                kvp => SensitiveKeys.Any(sk => kvp.Key.Contains(sk, StringComparison.OrdinalIgnoreCase))
+                    ? "***redacted***"
+                    : kvp.Value
+            );
+        }
+
         public async Task LogAsync(string action, string? message = null, string level = "Info",
                                    string? userId = null, string? userName = null,
-                                   object? data = null, HttpContext? http = null)
+                                   IDictionary<string, string?>? data = null, HttpContext? http = null)
         {
             http ??= _http.HttpContext;
             var ip = http?.Connection?.RemoteIpAddress?.MapToIPv4().ToString();
             var ua = http?.Request?.Headers["User-Agent"].ToString();
+
+            var clean = data is null ? null : Scrub(data);
 
             var log = new AuditLog
             {
@@ -37,7 +57,7 @@ namespace ProjectManagement.Services
                 Ip = ip,
                 UserAgent = ua,
                 Message = message,
-                DataJson = data == null ? null : JsonSerializer.Serialize(data)
+                DataJson = clean is null ? null : JsonSerializer.Serialize(clean)
             };
 
             _db.AuditLogs.Add(log);

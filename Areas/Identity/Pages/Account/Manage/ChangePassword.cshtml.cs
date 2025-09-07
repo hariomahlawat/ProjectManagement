@@ -9,6 +9,7 @@ using ProjectManagement.Models;
 namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
 {
     [Authorize]
+    [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
     public class ChangePasswordModel : PageModel
     {
         private readonly UserManager<ApplicationUser> _userManager;
