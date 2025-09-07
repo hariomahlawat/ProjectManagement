@@ -52,8 +52,9 @@ namespace ProjectManagement.Tests
                 httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Name, currentUserName) }, "test"));
             }
             var accessor = new HttpContextAccessor { HttpContext = httpContext };
+            var audit = new AuditService(context, accessor);
 
-            return new UserManagementService(userManager, roleManager, accessor);
+            return new UserManagementService(userManager, roleManager, accessor, audit);
         }
 
         [Fact]
