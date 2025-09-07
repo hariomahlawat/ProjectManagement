@@ -49,10 +49,10 @@ namespace ProjectManagement.Areas.Admin.Pages.Analytics
             TopUsers = await users
                 .OrderByDescending(u => u.LoginCount)
                 .Take(10)
-                .Select(u => new { u.UserName, u.LastLoginUtc, u.LoginCount })
+                .Select(u => new { u.UserName, LastLogin = u.LastLoginUtc, u.LoginCount })
                 .AsNoTracking()
                 .ToListAsync()
-                .ContinueWith(t => t.Result.Select(x => (x.UserName!, x.LastLoginUtc, x.LoginCount)).ToList());
+                .ContinueWith(t => t.Result.Select(x => (x.UserName!, x.LastLogin, x.LoginCount)).ToList());
         }
     }
 }

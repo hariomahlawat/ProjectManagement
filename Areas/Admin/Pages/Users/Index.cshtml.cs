@@ -22,7 +22,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             public string UserName { get; set; } = "";
             public IList<string> Roles { get; set; } = new List<string>();
             public bool IsActive { get; set; }
-            public DateTime? LastLoginUtc { get; set; }
+            public DateTime? LastLogin { get; set; }
             public int LoginCount { get; set; }
         }
 
@@ -39,7 +39,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
                     UserName = u.UserName ?? "",
                     Roles = roles.OrderBy(r => r).ToList(),
                     IsActive = !u.LockoutEnd.HasValue || u.LockoutEnd <= IstClock.NowOffset,
-                    LastLoginUtc = u.LastLoginUtc,
+                    LastLogin = u.LastLoginUtc,
                     LoginCount = u.LoginCount
                 });
             }

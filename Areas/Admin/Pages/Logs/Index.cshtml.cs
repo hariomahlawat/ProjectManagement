@@ -25,7 +25,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Logs
 
         public class LogRow
         {
-            public DateTime TimeUtc { get; set; }
+            public DateTime Time { get; set; }
             public string Level { get; set; } = string.Empty;
             public string Action { get; set; } = string.Empty;
             public string? UserName { get; set; }
@@ -45,7 +45,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Logs
             Total = await q.CountAsync();
             Rows = await q.Skip((PageNo-1)*PageSize).Take(PageSize)
                 .Select(x => new LogRow {
-                    TimeUtc = x.TimeUtc, Level = x.Level, Action = x.Action,
+                    Time = x.TimeUtc, Level = x.Level, Action = x.Action,
                     UserName = x.UserName, Ip = x.Ip, Message = x.Message
                 }).ToListAsync();
         }
