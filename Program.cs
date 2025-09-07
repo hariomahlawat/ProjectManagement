@@ -52,6 +52,8 @@ builder.Services.ConfigureApplicationCookie(opt =>
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession();
 
+builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+
 // Register email sender
 if (!string.IsNullOrWhiteSpace(builder.Configuration["Email:Smtp:Host"]))
 {

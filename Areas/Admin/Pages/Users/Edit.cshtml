@@ -1,0 +1,17 @@
+@page "{id}"
+@model ProjectManagement.Areas.Admin.Pages.Users.EditModel
+<h3>Edit user</h3>
+<form method="post">
+  <input type="hidden" asp-for="Input.Id" />
+  <div class="mb-3">
+    <label asp-for="Input.Role" class="form-label"></label>
+    <select asp-for="Input.Role" asp-items="new SelectList(Model.Roles)" class="form-select"></select>
+    <span asp-validation-for="Input.Role" class="text-danger"></span>
+  </div>
+  <div class="form-check mb-3">
+    <input asp-for="Input.IsActive" class="form-check-input" />
+    <label asp-for="Input.IsActive" class="form-check-label">Active</label>
+  </div>
+  <button class="btn btn-primary" type="submit">Save</button>
+  <a asp-page="Index" class="btn btn-secondary">Cancel</a>
+</form>
