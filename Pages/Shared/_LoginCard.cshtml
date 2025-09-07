@@ -8,6 +8,7 @@
           asp-page="/Account/Login"  
           asp-route-returnUrl="/Dashboard/Index"  
           class="needs-validation" novalidate>  
+
         <input name="__RequestVerificationToken"
                type="hidden"
                value="@Antiforgery.GetTokens(Context).RequestToken" />
@@ -16,6 +17,7 @@
             <input id="lpEmail" name="Input.Email" type="email" class="form-control" autocomplete="username" required />  
             <div class="invalid-feedback">Please enter a valid email.</div>  
         </div>  
+
         <div class="mb-3">  
             <label for="lpPassword" class="form-label">Password</label>  
             <input id="lpPassword" name="Input.Password" type="password" class="form-control" autocomplete="current-password" required />  
@@ -28,13 +30,12 @@
             </div>  
             <a class="small" asp-area="Identity" asp-page="/Account/ForgotPassword">Forgot password</a>  
         </div>  
-        <button type="submit" class="btn btn-primary w-100">Sign in</button>  
-        <div class="text-center mt-3 small">  
-            New here  
-            <a asp-area="Identity" asp-page="/Account/Register">Create account</a>  
-        </div>  
-    </form>  
-</div>  
+        <button type="submit" class="btn btn-primary w-100">Sign in</button>
+        <div class="text-center mt-3 small">
+            Contact your administrator for access.
+        </div>
+    </form>
+</div>
 
 @section Scripts {  
     <script>  

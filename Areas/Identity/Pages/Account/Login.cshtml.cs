@@ -44,7 +44,7 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
 
         public async Task<IActionResult> OnPostAsync(string? returnUrl = null)
         {
-            returnUrl ??= Url.Content("~/");
+            returnUrl ??= Url.Content("~/Dashboard/Index");
 
             if (!ModelState.IsValid)
             {

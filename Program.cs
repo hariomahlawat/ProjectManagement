@@ -71,6 +71,7 @@ builder.Services.AddScoped<EnforcePasswordChangeFilter>();
 builder.Services.AddRazorPages(options =>
 {
     options.Conventions.AuthorizeFolder("/");
+    options.Conventions.AllowAnonymousToPage("/Index");
 })
     .AddViewOptions(options =>
     {
