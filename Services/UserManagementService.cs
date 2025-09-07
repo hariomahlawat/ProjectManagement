@@ -72,7 +72,8 @@ namespace ProjectManagement.Services
 
             // Important: invalidate any cached tokens/sessions after role change
             await _userManager.UpdateSecurityStampAsync(user);
-            await _audit.LogAsync("AdminUserCreated", userId: user.Id, userName: user.UserName, data: new { Roles = targetRoles });
+            await _audit.LogAsync("AdminUserCreated", userId: user.Id, userName: user.UserName,
+                data: new Dictionary<string, string?> { ["Roles"] = string.Join(",", targetRoles) });
             return result;
         }
 
@@ -114,7 +115,11 @@ namespace ProjectManagement.Services
 
             await _userManager.UpdateSecurityStampAsync(user);
             await _audit.LogAsync("AdminUserRolesUpdated", userId: user.Id, userName: user.UserName,
-                data: new { Added = toAdd, Removed = toRemove });
+                data: new Dictionary<string, string?>
+                {
+                    ["Added"] = string.Join(",", toAdd),
+                    ["Removed"] = string.Join(",", toRemove)
+                });
             return IdentityResult.Success;
         }
 
@@ -151,7 +156,7 @@ namespace ProjectManagement.Services
             {
                 await _userManager.UpdateSecurityStampAsync(user);
                 await _audit.LogAsync("AdminUserActivationChanged", userId: user.Id, userName: user.UserName,
-                    data: new { IsActive = isActive });
+                    data: new Dictionary<string, string?> { ["IsActive"] = isActive.ToString() });
             }
             return res;
         }

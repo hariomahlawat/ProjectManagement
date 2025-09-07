@@ -1,13 +1,30 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using System.Threading.RateLimiting;
+using System.IO;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
+
+var keysDir = Environment.GetEnvironmentVariable("DP_KEYS_DIR");
+if (string.IsNullOrWhiteSpace(keysDir))
+{
+    keysDir = builder.Environment.IsDevelopment()
+        ? Path.Combine(AppContext.BaseDirectory, "keys")
+        : "/var/pm/keys";
+}
+
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(keysDir))
+    .SetApplicationName("ProjectManagement_SDD");
 
 // ---------- Database (PostgreSQL) ----------
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -47,12 +64,38 @@ builder.Services.ConfigureApplicationCookie(opt =>
 {
     opt.LoginPath = "/Identity/Account/Login";
     opt.AccessDeniedPath = "/Identity/Account/AccessDenied";
-    opt.SlidingExpiration = true;
+    opt.Cookie.Name = "__Host-PMAuth";
+    opt.Cookie.Path = "/";
     opt.Cookie.HttpOnly = true;
-    opt.Cookie.SameSite = SameSiteMode.Lax;
-    opt.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
-        ? CookieSecurePolicy.None
-        : CookieSecurePolicy.Always;
+    opt.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    opt.Cookie.SameSite = SameSiteMode.Strict;
+    opt.ExpireTimeSpan = TimeSpan.FromMinutes(60);
+    opt.SlidingExpiration = true;
+});
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("login", o =>
+    {
+        o.PermitLimit = 10;
+        o.Window = TimeSpan.FromMinutes(5);
+        o.QueueLimit = 0;
+        o.AutoReplenishment = true;
+    });
+});
+
+builder.Services.AddHsts(o =>
+{
+    o.Preload = true;
+    o.IncludeSubDomains = true;
+    o.MaxAge = TimeSpan.FromDays(365);
+});
+
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    o.KnownNetworks.Clear();
+    o.KnownProxies.Clear();
 });
 
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
@@ -86,6 +129,8 @@ builder.Services.AddRazorPages(options =>
 
 var app = builder.Build();
 
+app.UseForwardedHeaders();
+
 // ---------- HTTP pipeline ----------
 if (app.Environment.IsDevelopment())
 {
@@ -97,24 +142,34 @@ else
     app.UseHsts();
 }
 
-// If you're on a sealed LAN and testing without TLS, you can temporarily disable HTTPS redirection.
-// Otherwise, keep it on (recommended if you have a cert or a reverse proxy).
 app.UseHttpsRedirection();
 
 app.Use(async (ctx, next) =>
 {
-    ctx.Response.Headers.TryAdd("X-Content-Type-Options", "nosniff");
-    ctx.Response.Headers.TryAdd("X-Frame-Options", "DENY");
-    ctx.Response.Headers.TryAdd("Referrer-Policy", "no-referrer");
-    ctx.Response.Headers.TryAdd("Content-Security-Policy",
-        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self';");
+    var h = ctx.Response.Headers;
+    h["X-Content-Type-Options"] = "nosniff";
+    h["Referrer-Policy"] = "no-referrer";
+    h["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), browsing-topics=()";
+    h["Cross-Origin-Opener-Policy"] = "same-origin";
+    h["Cross-Origin-Resource-Policy"] = "same-origin";
+    h["Content-Security-Policy"] =
+        "default-src 'self'; " +
+        "base-uri 'self'; " +
+        "frame-ancestors 'none'; " +
+        "img-src 'self' data:; " +
+        "script-src 'self'; " +
+        "style-src 'self' 'unsafe-inline'; " +
+        "font-src 'self' data:; " +
+        "connect-src 'self';";
     await next();
 });
 
 app.UseStaticFiles();
 app.UseRouting();
 
-app.UseAuthentication();   // <-- required for Identity
+app.UseRateLimiter();
+
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapRazorPages();
