@@ -14,6 +14,14 @@
   <div class="col-md-2 d-grid"><button class="btn btn-outline-secondary" type="submit">Filter</button></div>
 </form>
 
+<div class="mb-3">
+  <div class="btn-group btn-group-sm" role="group">
+    <button type="button" class="btn btn-outline-secondary log-preset" data-days="0">Today</button>
+    <button type="button" class="btn btn-outline-secondary log-preset" data-days="7">7d</button>
+    <button type="button" class="btn btn-outline-secondary log-preset" data-days="30">30d</button>
+  </div>
+</div>
+
 <div class="pm-card pm-shadow p-2">
   <table class="table table-sm table-hover align-middle mb-0">
     <thead class="table-light">
@@ -49,3 +57,7 @@
     }
   </ul>
 </nav>
+
+@section Scripts {
+    <script type="module" src="~/js/logs/index.js" asp-append-version="true"></script>
+}

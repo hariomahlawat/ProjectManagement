@@ -363,3 +363,6 @@ MigrationBackup/
 FodyWeavers.xsd
 !Areas/Admin/Pages/Logs/
 !Areas/Admin/Pages/Logs/**
+!wwwroot/js/logs/
+!wwwroot/js/logs/**
+!wwwroot/js/logs/**
