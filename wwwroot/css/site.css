@@ -120,6 +120,30 @@ body {
         border-color: var(--pm-primary-hover);
     }
 
+/* ---------- Password visibility toggle ---------- */
+.password-container {
+    position: relative;
+}
+
+.password-container input {
+    padding-right: 2.5rem;
+}
+
+.password-toggle {
+    position: absolute;
+    top: 50%;
+    right: .75rem;
+    transform: translateY(-50%);
+    border: none;
+    background: none;
+    padding: 0;
+    color: var(--pm-text-secondary);
+}
+
+.password-toggle .bi {
+    font-size: 1rem;
+}
+
 /* Responsive behaviour */
 @media (max-width: 992px) {
   .hero {
