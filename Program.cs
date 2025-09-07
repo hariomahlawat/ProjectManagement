@@ -50,7 +50,9 @@ builder.Services.ConfigureApplicationCookie(opt =>
     opt.SlidingExpiration = true;
     opt.Cookie.HttpOnly = true;
     opt.Cookie.SameSite = SameSiteMode.Lax;
-    opt.Cookie.SecurePolicy = CookieSecurePolicy.None; // change to Always if you terminate TLS
+    opt.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.None
+        : CookieSecurePolicy.Always;
 });
 
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
@@ -122,7 +124,7 @@ using (var scope = app.Services.CreateScope())
 {
     await ProjectManagement.Data.IdentitySeeder.SeedAsync(scope.ServiceProvider);
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    var cutoff = IstClock.Now.AddDays(-90);
+    var cutoff = DateTime.UtcNow.AddDays(-90);
     db.AuditLogs.Where(a => a.TimeUtc < cutoff).ExecuteDelete();
 }
 

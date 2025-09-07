@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
-using ProjectManagement.Infrastructure;
 using System.Net;
 
 namespace ProjectManagement.Services
@@ -30,7 +29,7 @@ namespace ProjectManagement.Services
 
             var log = new AuditLog
             {
-                TimeUtc = IstClock.Now,
+                TimeUtc = DateTime.UtcNow,
                 Level = level,
                 Action = action,
                 UserId = userId,

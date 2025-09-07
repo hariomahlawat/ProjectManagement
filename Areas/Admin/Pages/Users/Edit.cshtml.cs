@@ -8,7 +8,6 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Services;
-using ProjectManagement.Infrastructure;
 
 namespace ProjectManagement.Areas.Admin.Pages.Users
 {
@@ -51,7 +50,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             {
                 Id = id,
                 Roles = userRoles.ToList(),
-                IsActive = !user.LockoutEnd.HasValue || user.LockoutEnd <= IstClock.NowOffset
+                IsActive = !user.LockoutEnd.HasValue || user.LockoutEnd <= DateTimeOffset.UtcNow
             };
             UserName = user.UserName;
             return Page();

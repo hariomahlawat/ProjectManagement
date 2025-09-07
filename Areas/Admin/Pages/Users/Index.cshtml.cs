@@ -38,8 +38,8 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
                     Id = u.Id,
                     UserName = u.UserName ?? "",
                     Roles = roles.OrderBy(r => r).ToList(),
-                    IsActive = !u.LockoutEnd.HasValue || u.LockoutEnd <= IstClock.NowOffset,
-                    LastLogin = u.LastLoginUtc,
+                    IsActive = !u.LockoutEnd.HasValue || u.LockoutEnd <= DateTimeOffset.UtcNow,
+                    LastLogin = IstClock.ToIst(u.LastLoginUtc),
                     LoginCount = u.LoginCount
                 });
             }
