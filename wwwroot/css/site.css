@@ -43,7 +43,7 @@ body {
 }
 
 .hero-art {
-  max-width: clamp(280px, 34vw, 460px);
+  max-width: clamp(240px, 30vw, 360px);
   height: auto;
   /* keep it visible; never behind the card */
 }
@@ -131,6 +131,6 @@ body {
   }
   /* Show card first, art below on tablets/phones */
   .hero-card { order: 1; width: 100%; }
-  .hero-art  { order: 2; max-width: clamp(260px, 60vw, 420px); }
+  .hero-art  { order: 2; max-width: clamp(220px, 50vw, 340px); }
 }
 

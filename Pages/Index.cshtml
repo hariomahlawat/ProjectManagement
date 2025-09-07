@@ -32,9 +32,12 @@
 
   <aside class="hero-right">
     <img class="hero-art" src="~/img/sdd.webp" alt="Gold archer symbolising decisive delivery" />
-    <div class="hero-card">
-      <partial name="_LoginCard" />
-    </div>
+    @if (!SignInManager.IsSignedIn(User))
+    {
+      <div class="hero-card">
+        <partial name="_LoginCard" />
+      </div>
+    }
   </aside>
 </section>
 
