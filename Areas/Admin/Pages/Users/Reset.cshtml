@@ -3,14 +3,17 @@
 <h3>Reset password</h3>
 <div class="pm-card pm-shadow p-4 p-md-5">
   <form method="post">
+    <div class="visually-hidden" aria-live="polite">
+      <span asp-validation-summary="ModelOnly"></span>
+    </div>
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
     <div class="mb-3">
       <label class="form-label">New password</label>
       <input asp-for="NewPassword" class="form-control" autocomplete="new-password" />
+      <span class="form-text pm-field-hint">Minimum 8 characters. No special rules enforced.</span>
       <span asp-validation-for="NewPassword" class="text-danger"></span>
     </div>
     <button class="btn btn-danger" type="submit">Reset</button>
     <a asp-page="Index" class="btn btn-secondary">Cancel</a>
   </form>
 </div>
-
-@section Scripts { <partial name="_ValidationScriptsPartial" /> }

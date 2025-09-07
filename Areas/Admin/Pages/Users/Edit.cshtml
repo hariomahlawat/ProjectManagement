@@ -4,6 +4,10 @@
 <div class="pm-card pm-shadow p-4 p-md-5">
   <form method="post">
     <input type="hidden" asp-for="Input.Id" />
+    <div class="visually-hidden" aria-live="polite">
+      <span asp-validation-summary="ModelOnly"></span>
+    </div>
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
     <div class="mb-3">
       <label asp-for="Input.Role" class="form-label"></label>
       <select asp-for="Input.Role" asp-items="new SelectList(Model.Roles)" class="form-select"></select>
@@ -17,5 +21,3 @@
     <a asp-page="Index" class="btn btn-secondary">Cancel</a>
   </form>
 </div>
-
-@section Scripts { <partial name="_ValidationScriptsPartial" /> }

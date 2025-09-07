@@ -28,5 +28,9 @@ body {
 body{background:var(--pm-bg);color:var(--pm-text)}
 .pm-card{background:var(--pm-card);border:1px solid var(--pm-border);border-radius:var(--pm-radius)}
 .pm-shadow{box-shadow:0 10px 24px rgba(0,0,0,.08)}
-.pm-btn-primary{background:var(--pm-accent);border-color:var(--pm-accent)}
+.pm-btn-primary{background:var(--pm-accent);border-color:var(--pm-accent);color:#fff}
+.pm-btn-primary:hover,
+.pm-btn-primary:focus{filter:brightness(.95);color:#fff}
+.pm-btn-primary:disabled{opacity:.65;color:#fff}
 .pm-field-hint{color:var(--pm-muted);font-size:.85rem}
+
