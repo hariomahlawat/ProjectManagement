@@ -9,15 +9,8 @@
       <div class="password-container">
         <input asp-for="NewPassword" class="form-control" autocomplete="new-password" />
         <button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false">
-          <svg class="eye-open" viewBox="0 0 16 16" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
-            <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/>
-            <circle cx="8" cy="8" r="3"/>
-          </svg>
-          <svg class="eye-closed" viewBox="0 0 16 16" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg" hidden>
-            <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/>
-            <circle cx="8" cy="8" r="3"/>
-            <path d="M1 1l14 14"/>
-          </svg>
+          <i class="eye-open bi bi-eye"></i>
+          <i class="eye-closed bi bi-eye-slash" hidden></i>
         </button>
       </div>
       <div class="mt-2 d-flex gap-2">
