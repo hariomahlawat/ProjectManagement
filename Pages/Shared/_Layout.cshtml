@@ -1,6 +1,7 @@
 @using Microsoft.AspNetCore.Identity
-@inject SignInManager<IdentityUser> SignInManager
-@inject UserManager<IdentityUser> UserManager
+@using ProjectManagement.Models
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -45,7 +46,7 @@
 
     <footer class="pm-footer border-top py-3">
         <div class="container small text-muted d-flex justify-content-between">
-            <span>© @DateTime.UtcNow.Year — ProjectManagement</span>
+            <span>Â© @DateTime.UtcNow.Year â€” ProjectManagement</span>
             <a class="text-muted" asp-page="/Privacy">Privacy</a>
         </div>
     </footer>
