@@ -77,6 +77,9 @@ Concrete implementation backed by `UserManager<ApplicationUser>` and `RoleManage
 * `Areas/Identity/Pages/Account/Logout.cshtml` – simple confirmation page after logout.
 * `Areas/Identity/Pages/Account/Logout.cshtml.cs` – signs the user out and clears the session.
 
+### Account management
+* `Areas/Identity/Pages/Account/Manage/Index.cshtml` – entry point for signed-in users to manage their account, including password changes.
+
 ### Change Password
 * `Areas/Identity/Pages/Account/Manage/ChangePassword.cshtml` – form for updating the current user's password.
 * `Areas/Identity/Pages/Account/Manage/ChangePassword.cshtml.cs` – validates the old password, updates it, clears the `MustChangePassword` flag and refreshes the sign‑in cookie.
