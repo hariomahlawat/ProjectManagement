@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
@@ -36,7 +37,7 @@ builder.Services
         o.Password.RequireNonAlphanumeric = false;
         o.Password.RequireUppercase = false;
         o.Password.RequireLowercase = true;
-        o.Password.RequiredLength = 6;
+        o.Password.RequiredLength = 8;
         o.Lockout.MaxFailedAccessAttempts = 5;
     })
     .AddEntityFrameworkStores<ApplicationDbContext>()
@@ -47,12 +48,13 @@ builder.Services.ConfigureApplicationCookie(opt =>
     opt.LoginPath = "/Identity/Account/Login";
     opt.AccessDeniedPath = "/Identity/Account/AccessDenied";
     opt.SlidingExpiration = true;
+    opt.Cookie.HttpOnly = true;
+    opt.Cookie.SameSite = SameSiteMode.Lax;
+    opt.Cookie.SecurePolicy = CookieSecurePolicy.None; // change to Always if you terminate TLS
 });
 
-builder.Services.AddDistributedMemoryCache();
-builder.Services.AddSession();
-
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+builder.Services.AddHttpContextAccessor();
 
 // Register email sender
 if (!string.IsNullOrWhiteSpace(builder.Configuration["Email:Smtp:Host"]))
@@ -88,10 +90,18 @@ else
 // Otherwise, keep it on (recommended if you have a cert or a reverse proxy).
 app.UseHttpsRedirection();
 
+app.Use(async (ctx, next) =>
+{
+    ctx.Response.Headers.TryAdd("X-Content-Type-Options", "nosniff");
+    ctx.Response.Headers.TryAdd("X-Frame-Options", "DENY");
+    ctx.Response.Headers.TryAdd("Referrer-Policy", "no-referrer");
+    ctx.Response.Headers.TryAdd("Content-Security-Policy",
+        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self';");
+    await next();
+});
+
 app.UseStaticFiles();
 app.UseRouting();
-
-app.UseSession();
 
 app.UseAuthentication();   // <-- required for Identity
 app.UseAuthorization();

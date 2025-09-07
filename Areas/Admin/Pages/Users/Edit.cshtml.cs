@@ -49,10 +49,16 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             Roles = await _userService.GetRolesAsync();
             if (!ModelState.IsValid) return Page();
 
-            await _userService.UpdateUserRoleAsync(Input.Id, Input.Role);
-            await _userService.ToggleUserActivationAsync(Input.Id, Input.IsActive);
+            var result = await _userService.UpdateUserRoleAsync(Input.Id, Input.Role);
+            if (result.Succeeded)
+            {
+                await _userService.ToggleUserActivationAsync(Input.Id, Input.IsActive);
+                TempData["ok"] = "User updated.";
+                return RedirectToPage("Index");
+            }
 
-            return RedirectToPage("Index");
+            foreach (var e in result.Errors) ModelState.AddModelError(string.Empty, e.Description);
+            return Page();
         }
     }
 }

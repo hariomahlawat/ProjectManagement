@@ -36,6 +36,8 @@
         </nav>
     </header>
     <div class="container">
+        @if (TempData["ok"] is string ok) { <div class="alert alert-success">@ok</div> }
+        @if (TempData["err"] is string err) { <div class="alert alert-danger">@err</div> }
         <main role="main" class="pb-3">
             @RenderBody()
         </main>

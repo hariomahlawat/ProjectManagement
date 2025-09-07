@@ -1,4 +1,6 @@
+using System;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Models;
 
@@ -8,11 +10,16 @@ namespace ProjectManagement.Services
     {
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly IHttpContextAccessor _contextAccessor;
 
-        public UserManagementService(UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager)
+        public UserManagementService(
+            UserManager<ApplicationUser> userManager,
+            RoleManager<IdentityRole> roleManager,
+            IHttpContextAccessor contextAccessor)
         {
             _userManager = userManager;
             _roleManager = roleManager;
+            _contextAccessor = contextAccessor;
         }
 
         public async Task<IList<ApplicationUser>> GetUsersAsync()
@@ -61,8 +68,11 @@ namespace ProjectManagement.Services
         {
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null) return;
+
+            // Keep lockout mechanism active
+            user.LockoutEnabled = true;
             user.LockoutEnd = isActive ? null : DateTimeOffset.MaxValue;
-            user.LockoutEnabled = !isActive;
+
             await _userManager.UpdateAsync(user);
         }
 
@@ -84,6 +94,24 @@ namespace ProjectManagement.Services
         {
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null) return IdentityResult.Failed(new IdentityError { Description = "User not found" });
+
+            // Prevent deleting the last Admin
+            var roles = await _userManager.GetRolesAsync(user);
+            if (roles.Contains("Admin"))
+            {
+                var admins = await _userManager.GetUsersInRoleAsync("Admin");
+                if (admins.Count <= 1)
+                    return IdentityResult.Failed(new IdentityError { Description = "Cannot delete the only Admin user." });
+            }
+
+            // Prevent self-delete from the UI flow
+            var currentUser = _contextAccessor.HttpContext?.User?.Identity?.Name;
+            if (!string.IsNullOrEmpty(currentUser) &&
+                string.Equals(currentUser, user.UserName, StringComparison.OrdinalIgnoreCase))
+            {
+                return IdentityResult.Failed(new IdentityError { Description = "You cannot delete your own account." });
+            }
+
             return await _userManager.DeleteAsync(user);
         }
     }

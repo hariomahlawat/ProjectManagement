@@ -1,12 +1,16 @@
 @page "{id}"
 @model ProjectManagement.Areas.Admin.Pages.Users.ResetModel
 <h3>Reset password</h3>
-<form method="post">
-  <div class="mb-3">
-    <label class="form-label">New password</label>
-    <input asp-for="NewPassword" class="form-control" />
-    <span asp-validation-for="NewPassword" class="text-danger"></span>
-  </div>
-  <button class="btn btn-danger" type="submit">Reset</button>
-  <a asp-page="Index" class="btn btn-secondary">Cancel</a>
-</form>
+<div class="pm-card pm-shadow p-4 p-md-5">
+  <form method="post">
+    <div class="mb-3">
+      <label class="form-label">New password</label>
+      <input asp-for="NewPassword" class="form-control" autocomplete="new-password" />
+      <span asp-validation-for="NewPassword" class="text-danger"></span>
+    </div>
+    <button class="btn btn-danger" type="submit">Reset</button>
+    <a asp-page="Index" class="btn btn-secondary">Cancel</a>
+  </form>
+</div>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

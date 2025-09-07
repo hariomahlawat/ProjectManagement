@@ -20,9 +20,10 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
         public class InputModel
         {
             [Required, StringLength(32, MinimumLength = 3)]
+            [RegularExpression(@"^[a-zA-Z0-9_.-]+$", ErrorMessage = "Only letters, numbers, dot, underscore and hyphen.")]
             public string UserName { get; set; } = string.Empty;
 
-            [Required, StringLength(100, MinimumLength = 6)]
+            [Required, StringLength(100, MinimumLength = 8)]
             [DataType(DataType.Password)]
             public string Password { get; set; } = "ChangeMe!123";
 
@@ -41,7 +42,11 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             if (!ModelState.IsValid) return Page();
 
             var result = await _userService.CreateUserAsync(Input.UserName, Input.Password, Input.Role);
-            if (result.Succeeded) return RedirectToPage("Index");
+            if (result.Succeeded)
+            {
+                TempData["ok"] = "User created.";
+                return RedirectToPage("Index");
+            }
 
             foreach (var e in result.Errors) ModelState.AddModelError(string.Empty, e.Description);
             return Page();
