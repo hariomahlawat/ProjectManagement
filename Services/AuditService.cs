@@ -4,6 +4,8 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Infrastructure;
+using System.Net;
 
 namespace ProjectManagement.Services
 {
@@ -23,12 +25,12 @@ namespace ProjectManagement.Services
                                    object? data = null, HttpContext? http = null)
         {
             http ??= _http.HttpContext;
-            var ip = http?.Connection?.RemoteIpAddress?.ToString();
+            var ip = http?.Connection?.RemoteIpAddress?.MapToIPv4().ToString();
             var ua = http?.Request?.Headers["User-Agent"].ToString();
 
             var log = new AuditLog
             {
-                TimeUtc = DateTime.UtcNow,
+                TimeUtc = IstClock.Now,
                 Level = level,
                 Action = action,
                 UserId = userId,

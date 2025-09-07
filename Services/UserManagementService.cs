@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Models;
+using ProjectManagement.Infrastructure;
 
 namespace ProjectManagement.Services
 {
@@ -28,7 +29,7 @@ namespace ProjectManagement.Services
         }
 
         private static bool IsActive(ApplicationUser user) =>
-            !user.LockoutEnd.HasValue || user.LockoutEnd <= DateTimeOffset.UtcNow;
+            !user.LockoutEnd.HasValue || user.LockoutEnd <= IstClock.NowOffset;
 
         private async Task<int> CountActiveAdminsAsync()
         {

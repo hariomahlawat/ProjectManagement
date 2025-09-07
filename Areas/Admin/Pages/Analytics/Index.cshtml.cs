@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 
 namespace ProjectManagement.Areas.Admin.Pages.Analytics
 {
@@ -22,11 +23,11 @@ namespace ProjectManagement.Areas.Admin.Pages.Analytics
         {
             var users = _db.Users.AsNoTracking();
             TotalUsers = await users.CountAsync();
-            var now = DateTimeOffset.UtcNow;
+            var now = IstClock.NowOffset;
             ActiveUsers = await users.CountAsync(u => !u.LockoutEnd.HasValue || u.LockoutEnd <= now);
             DisabledUsers = TotalUsers - ActiveUsers;
 
-            var since = DateTime.UtcNow.Date.AddDays(-30);
+            var since = IstClock.Now.Date.AddDays(-30);
             var raw = await _db.AuditLogs.AsNoTracking()
                 .Where(a => a.Action == "LoginSuccess" && a.TimeUtc >= since)
                 .GroupBy(a => a.TimeUtc.Date)
