@@ -20,7 +20,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Logs
         // ---------- Filters (GET-bound) ----------
         [BindProperty(SupportsGet = true)] public string? Level { get; set; }
         [BindProperty(SupportsGet = true)] public string? Action { get; set; }
-        [BindProperty(SupportsGet = true)] public string? User { get; set; }
+        [BindProperty(SupportsGet = true, Name = "User")] public string? UserName { get; set; }
         [BindProperty(SupportsGet = true)] public string? Ip { get; set; }
         [BindProperty(SupportsGet = true)] public string? Contains { get; set; }
         [BindProperty(SupportsGet = true)] [DataType(DataType.Date)] public DateTime? From { get; set; }
@@ -129,7 +129,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Logs
         {
             if (!string.IsNullOrWhiteSpace(Level)) q = q.Where(x => x.Level == Level);
             if (!string.IsNullOrWhiteSpace(Action)) q = q.Where(x => x.Action == Action);
-            if (!string.IsNullOrWhiteSpace(User)) q = q.Where(x => x.UserName != null && x.UserName.Contains(User));
+            if (!string.IsNullOrWhiteSpace(UserName)) q = q.Where(x => x.UserName != null && x.UserName.Contains(UserName));
             if (!string.IsNullOrWhiteSpace(Ip)) q = q.Where(x => x.Ip != null && x.Ip.Contains(Ip));
 
             if (!string.IsNullOrWhiteSpace(Contains))

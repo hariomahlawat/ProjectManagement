@@ -30,7 +30,7 @@
 
   <div class="col-sm-2">
     <label class="form-label">User</label>
-    <input name="User" class="form-control" value="@Model.User" />
+    <input name="User" class="form-control" value="@Model.UserName" />
   </div>
 
   <div class="col-sm-2">
@@ -90,7 +90,7 @@
 
   <div class="btn-group btn-group-sm" role="group">
     <a class="btn btn-outline-secondary"
-       href="@Url.Page(null, null, new { handler = "ExportCsv", Level = Model.Level, Action = Model.Action, User = Model.User, Ip = Model.Ip, Contains = Model.Contains, From = Model.From?.ToString("yyyy-MM-dd"), To = Model.To?.ToString("yyyy-MM-dd") }, null)">
+       href="@Url.Page(null, null, new { handler = "ExportCsv", Level = Model.Level, Action = Model.Action, User = Model.UserName, Ip = Model.Ip, Contains = Model.Contains, From = Model.From?.ToString("yyyy-MM-dd"), To = Model.To?.ToString("yyyy-MM-dd") }, null)">
       <i class="bi bi-filetype-csv me-1"></i> Export CSV
     </a>
   </div>
@@ -152,14 +152,6 @@
 
 @{
   var pages = (int)Math.Ceiling((double)Model.Total / Model.PageSize);
-  string qs(string sort = "", string dir = "") =>
-    Url.Page(null, null, new {
-      Level = Model.Level, Action = Model.Action, User = Model.User, Ip = Model.Ip, Contains = Model.Contains,
-      From = Model.From?.ToString("yyyy-MM-dd"), To = Model.To?.ToString("yyyy-MM-dd"),
-      PageNo = Model.PageNo, PageSize = Model.PageSize,
-      Sort = string.IsNullOrEmpty(sort) ? Model.Sort : sort,
-      Dir = string.IsNullOrEmpty(dir) ? Model.Dir : dir
-    }, null) ?? "#";
 }
 
 @if (pages > 1)
@@ -170,7 +162,7 @@
       {
         <li class="page-item @(i==Model.PageNo?"active":"")">
           <a class="page-link" href="@Url.Page(null, null, new {
-               Level = Model.Level, Action = Model.Action, User = Model.User, Ip = Model.Ip, Contains = Model.Contains,
+               Level = Model.Level, Action = Model.Action, User = Model.UserName, Ip = Model.Ip, Contains = Model.Contains,
                From = Model.From?.ToString("yyyy-MM-dd"), To = Model.To?.ToString("yyyy-MM-dd"),
                PageNo = i, PageSize = Model.PageSize, Sort = Model.Sort, Dir = Model.Dir }, null)">@i</a>
         </li>
@@ -191,7 +183,7 @@
   {
     var nextDir = (curSort == col && curDir == "asc") ? "desc" : "asc";
     var url = Url.Page(null, null, new {
-      Level = Model.Level, Action = Model.Action, User = Model.User, Ip = Model.Ip, Contains = Model.Contains,
+      Level = Model.Level, Action = Model.Action, User = Model.UserName, Ip = Model.Ip, Contains = Model.Contains,
       From = Model.From?.ToString("yyyy-MM-dd"), To = Model.To?.ToString("yyyy-MM-dd"),
       PageNo = 1, PageSize = Model.PageSize, Sort = col, Dir = nextDir
     }, null) ?? "#";
