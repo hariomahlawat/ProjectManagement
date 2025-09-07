@@ -17,7 +17,15 @@
     </div>
     <div class="mb-3">
       <label asp-for="Input.Password" class="form-label"></label>
-      <input asp-for="Input.Password" class="form-control" autocomplete="current-password" />
+      <div class="password-container">
+        <input asp-for="Input.Password" class="form-control" autocomplete="current-password" />
+        <button type="button" class="password-toggle" aria-label="Show password">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/>
+            <circle cx="8" cy="8" r="3"/>
+          </svg>
+        </button>
+      </div>
       <span asp-validation-for="Input.Password" class="text-danger"></span>
     </div>
     <div class="mb-3 form-check">
