@@ -71,6 +71,10 @@ builder.Services.AddRazorPages(options =>
 {
     options.Conventions.AuthorizeFolder("/");
 })
+    .AddViewOptions(options =>
+    {
+        options.HtmlHelperOptions.ClientValidationEnabled = true;
+    })
     .AddMvcOptions(o => o.Filters.Add<EnforcePasswordChangeFilter>());
 
 var app = builder.Build();

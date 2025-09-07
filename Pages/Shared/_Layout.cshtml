@@ -36,8 +36,18 @@
         </nav>
     </header>
     <div class="container">
-        @if (TempData["ok"] is string ok) { <div class="alert alert-success">@ok</div> }
-        @if (TempData["err"] is string err) { <div class="alert alert-danger">@err</div> }
+        @if (TempData["ok"] is string ok) {
+          <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @ok
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        }
+        @if (TempData["err"] is string err) {
+          <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @err
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        }
         <main role="main" class="pb-3">
             @RenderBody()
         </main>
@@ -53,6 +63,7 @@
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
 
+    <partial name="_ValidationScriptsPartial" />
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

@@ -6,6 +6,10 @@
 <h1>@ViewData["Title"]</h1>
 <div class="pm-card pm-shadow p-4 p-md-5">
   <form method="post">
+    <div class="visually-hidden" aria-live="polite">
+      <span asp-validation-summary="ModelOnly"></span>
+    </div>
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
     <div class="mb-3">
       <label asp-for="Input.UserName" class="form-label"></label>
       <input asp-for="Input.UserName" class="form-control" autocomplete="username" />
@@ -23,5 +27,3 @@
     <button type="submit" class="btn pm-btn-primary">Log in</button>
   </form>
 </div>
-
-@section Scripts { <partial name="_ValidationScriptsPartial" /> }

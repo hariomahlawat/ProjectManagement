@@ -3,6 +3,10 @@
 <h3>Create user</h3>
 <div class="pm-card pm-shadow p-4 p-md-5">
   <form method="post">
+    <div class="visually-hidden" aria-live="polite">
+      <span asp-validation-summary="ModelOnly"></span>
+    </div>
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
     <div class="mb-3">
       <label asp-for="Input.UserName" class="form-label"></label>
       <input asp-for="Input.UserName" class="form-control" maxlength="32" pattern="^[a-zA-Z0-9_.-]+$" autocomplete="username" />
@@ -11,6 +15,7 @@
     <div class="mb-3">
       <label asp-for="Input.Password" class="form-label"></label>
       <input asp-for="Input.Password" class="form-control" autocomplete="new-password" />
+      <span class="form-text pm-field-hint">Minimum 8 characters. No special rules enforced.</span>
       <span class="form-text pm-field-hint">Share this with the user. They will be forced to change it.</span>
       <span asp-validation-for="Input.Password" class="text-danger"></span>
     </div>
@@ -23,5 +28,3 @@
     <a asp-page="Index" class="btn btn-secondary">Cancel</a>
   </form>
 </div>
-
-@section Scripts { <partial name="_ValidationScriptsPartial" /> }
