@@ -16,6 +16,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Analytics
         public int DisabledUsers { get; private set; }
         public List<(DateTime Date, int Count)> LoginsPerDay { get; private set; } = new();
         public List<(string UserName, DateTime? LastLogin, int Count)> TopUsers { get; private set; } = new();
+        public int[] LoginsLast30Days { get; private set; } = Array.Empty<int>();
 
         public async Task OnGet()
         {
@@ -30,9 +31,19 @@ namespace ProjectManagement.Areas.Admin.Pages.Analytics
                 .Where(a => a.Action == "LoginSuccess" && a.TimeUtc >= since)
                 .GroupBy(a => a.TimeUtc.Date)
                 .Select(g => new { Date = g.Key, Count = g.Count() })
-                .OrderBy(x => x.Date)
                 .ToListAsync();
-            LoginsPerDay = raw.Select(x => (x.Date, x.Count)).ToList();
+            var dict = raw.ToDictionary(x => x.Date, x => x.Count);
+            var list = new List<(DateTime Date, int Count)>();
+            var arr = new int[30];
+            for (int i = 0; i < 30; i++)
+            {
+                var d = since.AddDays(i);
+                dict.TryGetValue(d, out var c);
+                list.Add((d, c));
+                arr[i] = c;
+            }
+            LoginsPerDay = list;
+            LoginsLast30Days = arr;
 
             TopUsers = await users
                 .OrderByDescending(u => u.LoginCount)

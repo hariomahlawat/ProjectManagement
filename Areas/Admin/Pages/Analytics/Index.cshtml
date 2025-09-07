@@ -6,9 +6,22 @@
 <h3 class="mb-3">Analytics</h3>
 
 <div class="row g-3 mb-4">
-  <div class="col-md-4"><div class="pm-card pm-shadow p-3"><div class="text-muted">Total users</div><div class="fs-3">@Model.TotalUsers</div></div></div>
-  <div class="col-md-4"><div class="pm-card pm-shadow p-3"><div class="text-muted">Active</div><div class="fs-3">@Model.ActiveUsers</div></div></div>
-  <div class="col-md-4"><div class="pm-card pm-shadow p-3"><div class="text-muted">Disabled</div><div class="fs-3">@Model.DisabledUsers</div></div></div>
+  <div class="col-md-3">
+    <div class="pm-card pm-shadow p-3">
+      <div class="text-muted">Logins today</div>
+      <div class="d-flex justify-content-between align-items-end">
+        <div class="fs-3">
+          @{ var loginsToday = Model.LoginsLast30Days[^1]; var loginsYesterday = Model.LoginsLast30Days.Length > 1 ? Model.LoginsLast30Days[^2] : 0; var diff = loginsToday - loginsYesterday; }
+          @loginsToday
+          <span class="fs-6 text-muted">@(diff >= 0 ? "▲" : "▼")@Math.Abs(diff)</span>
+        </div>
+        <div class="sparkline" data-points="@string.Join(',', Model.LoginsLast30Days.Skip(Math.Max(0, Model.LoginsLast30Days.Length-7)))"></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3"><div class="pm-card pm-shadow p-3"><div class="text-muted">Total users</div><div class="fs-3">@Model.TotalUsers</div></div></div>
+  <div class="col-md-3"><div class="pm-card pm-shadow p-3"><div class="text-muted">Active</div><div class="fs-3">@Model.ActiveUsers</div></div></div>
+  <div class="col-md-3"><div class="pm-card pm-shadow p-3"><div class="text-muted">Disabled</div><div class="fs-3">@Model.DisabledUsers</div></div></div>
 </div>
 
 <div class="pm-card pm-shadow p-3 mb-4">

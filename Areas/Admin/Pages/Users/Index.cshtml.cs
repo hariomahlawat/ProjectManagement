@@ -21,6 +21,8 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             public string UserName { get; set; } = "";
             public IList<string> Roles { get; set; } = new List<string>();
             public bool IsActive { get; set; }
+            public DateTime? LastLoginUtc { get; set; }
+            public int LoginCount { get; set; }
         }
 
         public async Task OnGet()
@@ -35,7 +37,9 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
                     Id = u.Id,
                     UserName = u.UserName ?? "",
                     Roles = roles.OrderBy(r => r).ToList(),
-                    IsActive = !u.LockoutEnd.HasValue || u.LockoutEnd <= DateTimeOffset.UtcNow
+                    IsActive = !u.LockoutEnd.HasValue || u.LockoutEnd <= DateTimeOffset.UtcNow,
+                    LastLoginUtc = u.LastLoginUtc,
+                    LoginCount = u.LoginCount
                 });
             }
             Users = rows;
