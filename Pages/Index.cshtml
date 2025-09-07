@@ -7,7 +7,7 @@
   <div class="hero-left">
     <h1 class="display-4 fw-bold mb-2">Plan. Track. Deliver.</h1>
     <p class="lead text-muted mb-4">
-      Role-based project control for teams, leads, and heads of department.
+      Project management for defence R&D. Track milestones, approvals and progress by role.
     </p>
 
     <ul class="list-unstyled mb-4">
@@ -22,10 +22,7 @@
     }
     else
     {
-      <a class="btn btn-primary btn-lg me-2"
-         asp-area="Identity"
-         asp-page="/Account/Login"
-         asp-route-returnUrl="/Dashboard/Index">Sign in</a>
+      <a class="btn btn-primary btn-lg me-2" href="#login-card">Sign in</a>
       <a class="link-primary" href="#features">Explore features</a>
     }
   </div>
@@ -34,7 +31,7 @@
     @* <img class="hero-art" src="~/img/sdd.webp" alt="Eklavya sybolising self learning" /> *@
     @if (!SignInManager.IsSignedIn(User))
     {
-      <div class="hero-card">
+      <div class="hero-card" id="login-card">
         <partial name="_LoginCard" />
       </div>
     }
