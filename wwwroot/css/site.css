@@ -23,15 +23,15 @@ body {
 
 :root{
   --pm-bg:#f9fbfd; --pm-card:#fff; --pm-text:#333;
-  --pm-accent:#a3cfff; --pm-border:#e3e6ea; --pm-muted:#7f8c8d; --pm-radius:14px;
+  --pm-accent:#1a73e8; --pm-border:#e3e6ea; --pm-muted:#7f8c8d; --pm-radius:14px;
 }
 body{background:var(--pm-bg);color:var(--pm-text)}
 .pm-card{background:var(--pm-card);border:1px solid var(--pm-border);border-radius:var(--pm-radius)}
 .pm-shadow{box-shadow:0 10px 24px rgba(0,0,0,.08)}
-.pm-btn-primary{background:var(--pm-accent);border-color:var(--pm-accent);color:#333}
+.pm-btn-primary{background:var(--pm-accent);border-color:var(--pm-accent);color:#fff}
 .pm-btn-primary:hover,
-.pm-btn-primary:focus{filter:brightness(.95);color:#333}
-.pm-btn-primary:disabled{opacity:.65;color:#333}
+.pm-btn-primary:focus,
+.pm-btn-primary:disabled{color:#fff;filter:brightness(.95)}
 .pm-field-hint{color:var(--pm-muted);font-size:.85rem}
 
 .password-container{position:relative}
