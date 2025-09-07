@@ -23,7 +23,7 @@
         <a asp-page="Edit" asp-route-id="@row.Id" class="btn btn-sm btn-outline-secondary me-1">Edit</a>
         <a asp-page="Reset" asp-route-id="@row.Id" class="btn btn-sm btn-outline-secondary me-1">Reset</a>
         <form method="post" asp-page="Delete" asp-route-id="@row.Id" class="d-inline">
-          <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete user @row.UserName?');">Delete</button>
+          <button type="submit" class="btn btn-sm btn-outline-danger delete-user-btn" data-username="@row.UserName">Delete</button>
         </form>
       </td>
     </tr>
@@ -31,12 +31,6 @@
   </tbody>
 </table>
 
-<script>
-  document.getElementById('userSearch').addEventListener('input', function () {
-    const term = this.value.toLowerCase();
-    document.querySelectorAll('#usersTable tbody tr').forEach(row => {
-      const text = row.textContent.toLowerCase();
-      row.style.display = text.includes(term) ? '' : 'none';
-    });
-  });
-</script>
+@section Scripts {
+    <script type="module" src="~/js/users/index.js" asp-append-version="true"></script>
+}

@@ -27,19 +27,6 @@
   </form>
 </div>
 
-<script>
-  function rndPwd(){
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let pwd = "";
-    for(let i=0;i<12;i++) pwd += chars[Math.floor(Math.random()*chars.length)];
-    return pwd;
-  }
-  document.getElementById('genPwd').addEventListener('click',()=>{
-    const inp=document.getElementById('NewPassword');
-    inp.value=rndPwd();
-  });
-  document.getElementById('cpyPwd').addEventListener('click',()=>{
-    const inp=document.getElementById('NewPassword');
-    navigator.clipboard.writeText(inp.value);
-  });
-</script>
+@section Scripts {
+    <script type="module" src="~/js/users/reset.js" asp-append-version="true"></script>
+}
