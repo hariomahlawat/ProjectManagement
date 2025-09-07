@@ -1,52 +1,146 @@
-html {
-  font-size: 14px;
-}
-
-@media (min-width: 768px) {
-  html {
-    font-size: 16px;
-  }
-}
-
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
-}
-
-html {
-  position: relative;
-  min-height: 100%;
+/* ---------- Base tokens ---------- */
+:root {
+    --pm-primary: #2d6cdf;
+    --pm-primary-hover: #2558c6;
+    --pm-text: #0b1220;
+    --pm-text-secondary: #4b5563;
+    --pm-muted: #6b7280;
+    --pm-border: #e5e7eb;
+    --pm-surface: #ffffff;
+    --pm-card: #f8fafc;
+    --pm-shadow: 0 8px 20px rgba(0,0,0,.06);
 }
 
 body {
-  margin-bottom: 60px;
+    color: var(--pm-text);
 }
 
-:root{
-  --pm-bg:#f9fbfd; --pm-card:#fff; --pm-text:#333;
-  --pm-accent:#1a73e8; --pm-border:#e3e6ea; --pm-muted:#7f8c8d; --pm-radius:14px;
-}
-body{background:var(--pm-bg);color:var(--pm-text)}
-.pm-card{background:var(--pm-card);border:1px solid var(--pm-border);border-radius:var(--pm-radius)}
-.pm-shadow{box-shadow:0 10px 24px rgba(0,0,0,.08)}
-.pm-btn-primary{background:var(--pm-accent);border-color:var(--pm-accent);color:#fff}
-.pm-btn-primary:hover,
-.pm-btn-primary:focus,
-.pm-btn-primary:disabled{color:#fff;filter:brightness(.95)}
-.pm-field-hint{color:var(--pm-muted);font-size:.85rem}
-
-.password-container{position:relative}
-.password-toggle{background:none;border:none;position:absolute;top:50%;right:.75rem;transform:translateY(-50%);color:var(--pm-muted);padding:0;line-height:0}
-.password-toggle:focus{outline:none}
-.password-toggle svg{width:1.25rem;height:1.25rem}
-
-.sparkline {
-  display: block;
-  width: 120px;
-  height: 24px;
-  color: var(--pm-text);
+/* ---------- Header & footer ---------- */
+.pm-header .navbar-brand {
+    letter-spacing: .2px;
 }
 
-.badge-role { background: #e0f0ff; color:#4a76a8; border:1px solid #b3d7ff; }
-.badge-ok   { background: #e7f9ed;  color:#2d7a36; border:1px solid #b1e5c4; }
-.badge-bad  { background: #fdecea;  color:#b32d2e; border:1px solid #f5c6c7; }
+.pm-footer {
+    background: #fff;
+}
 
+/* ---------- Hero ---------- */
+.pm-hero {
+    position: relative;
+}
+
+.pm-bullets {
+    list-style: none;
+    padding-left: 0;
+    margin: 0 0 1rem 0;
+}
+
+    .pm-bullets li {
+        padding-left: 1.2rem;
+        position: relative;
+        margin: .25rem 0;
+    }
+
+        .pm-bullets li::before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: var(--pm-text);
+            opacity: .6;
+        }
+
+.pm-hero-art {
+    position: relative;
+    min-height: 340px;
+    background: radial-gradient(120px 120px at 70% 35%, #eef2ff 0%, transparent 70%);
+    border-radius: 1.25rem;
+}
+
+.pm-hero-img {
+    max-height: 420px;
+    object-fit: contain;
+    display: block;
+    margin-left: auto;
+}
+
+/* ---------- Login card ---------- */
+.pm-login-card {
+    position: absolute;
+    right: 1rem;
+    bottom: -1rem;
+    width: min(420px, 100%);
+    border: 1px solid var(--pm-border);
+    box-shadow: var(--pm-shadow);
+}
+
+/* ---------- Feature cards ---------- */
+.card {
+    border-color: var(--pm-border);
+}
+
+    .card:hover {
+        transform: translateY(-2px);
+        transition: transform .15s ease-out;
+    }
+
+/* ---------- Steps ---------- */
+.pm-steps {
+    padding-left: 1.25rem;
+}
+
+    .pm-steps li {
+        margin: .5rem 0;
+    }
+
+/* ---------- Security strip ---------- */
+.pm-security-strip {
+    border: 1px solid var(--pm-border);
+}
+
+.pm-inline-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+    .pm-inline-list li {
+        padding-left: 1.2rem;
+        position: relative;
+    }
+
+        .pm-inline-list li::before {
+            content: "";
+            width: 8px;
+            height: 8px;
+            background: var(--pm-primary);
+            border-radius: 50%;
+            position: absolute;
+            left: 0;
+            top: .45rem;
+        }
+
+/* ---------- Buttons ---------- */
+.btn-primary {
+    background: var(--pm-primary);
+    border-color: var(--pm-primary);
+}
+
+    .btn-primary:hover {
+        background: var(--pm-primary-hover);
+        border-color: var(--pm-primary-hover);
+    }
+
+/* ---------- Responsive tweaks ---------- */
+@media (max-width: 991.98px) {
+    .pm-login-card {
+        position: static;
+        margin-top: 1rem;
+    }
+
+    .pm-hero-img {
+        margin: 0 auto;
+    }
+}

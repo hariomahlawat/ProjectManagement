@@ -1,3 +1,6 @@
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<IdentityUser> SignInManager
+@inject UserManager<IdentityUser> UserManager
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,65 +9,48 @@
     <title>@ViewData["Title"] - ProjectManagement</title>
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/ProjectManagement.styles.css" asp-append-version="true" />
-    @await RenderSectionAsync("Styles", required: false)
+    <link rel="icon" type="image/png" href="~/favicon.png" />
 </head>
 <body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-light bg-white border-bottom box-shadow mb-3">
+    <header class="pm-header border-bottom">
+        <nav class="navbar navbar-expand-sm navbar-light bg-white">
             <div class="container">
-                <a class="navbar-brand" asp-area="" asp-page="/Index">ProjectManagement</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+                <a class="navbar-brand fw-semibold" asp-area="" asp-page="/Index">ProjectManagement</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#pmNavbar">
                     <span class="navbar-toggler-icon"></span>
                 </button>
-                <div class="collapse navbar-collapse justify-content-between" id="navbarSupportedContent">
-                    <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Index">Home</a>
-                        </li>
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Privacy">Privacy</a>
-                        </li>
-                        <authorize roles="Admin">
-                          <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="Admin" asp-page="/Index">Admin</a>
-                          </li>
-                        </authorize>
+                <div id="pmNavbar" class="collapse navbar-collapse">
+                    <ul class="navbar-nav me-auto mb-2 mb-sm-0">
+                        <li class="nav-item"><a class="nav-link" asp-page="/Index#features">Features</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-page="/Index#security">Security</a></li>
+                        <li class="nav-item"><a class="nav-link" asp-page="/Privacy">Contact</a></li>
+                        @if (SignInManager.IsSignedIn(User))
+                        {
+                            <li class="nav-item">
+                                <a class="nav-link" asp-page="/Dashboard/Index">Dashboard</a>
+                            </li>
+                        }
                     </ul>
                     <partial name="_LoginPartial" />
                 </div>
             </div>
         </nav>
     </header>
-    <div class="container">
-        @if (TempData["ok"] is string ok) {
-          <div class="alert alert-success alert-dismissible fade show" role="alert">
-            @ok
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-          </div>
-        }
-        @if (TempData["err"] is string err) {
-          <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            @err
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-          </div>
-        }
-        <main role="main" class="pb-3">
-            @RenderBody()
-        </main>
-    </div>
 
-    <footer class="border-top footer text-muted">
+    <main role="main" class="pb-5">
         <div class="container">
-            &copy; 2025 - ProjectManagement - <a asp-area="" asp-page="/Privacy">Privacy</a>
+            @RenderBody()
+        </div>
+    </main>
+
+    <footer class="pm-footer border-top py-3">
+        <div class="container small text-muted d-flex justify-content-between">
+            <span>© @DateTime.UtcNow.Year — ProjectManagement</span>
+            <a class="text-muted" asp-page="/Privacy">Privacy</a>
         </div>
     </footer>
 
-    <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-    <script type="module" src="~/js/site.js" asp-append-version="true"></script>
-
-    <partial name="_ValidationScriptsPartial" />
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

@@ -1,10 +1,71 @@
 ﻿@page
-@model IndexModel
+@model ProjectManagement.Pages.IndexModel
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<IdentityUser> SignInManager
 @{
-    ViewData["Title"] = "Home page";
+    ViewData["Title"] = "ProjectManagement";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
-</div>
+<section class="pm-hero py-5">
+    <div class="row align-items-center g-4">
+        <!-- Left: headline and bullets -->
+        <div class="col-12 col-lg-6">
+            <h1 class="display-5 fw-bold mb-3">Plan. Track. Deliver.</h1>
+            <p class="lead text-secondary mb-4">
+                Role-based project control for teams, leads, and heads of department.
+            </p>
+
+            <ul class="pm-bullets mb-4">
+                <li>Custom dashboards per role</li>
+                <li>Tasks, comments, and file attachments</li>
+                <li>Progress boards and timelines</li>
+            </ul>
+
+            @if (!SignInManager.IsSignedIn(User))
+            {
+                <div class="d-flex flex-wrap gap-3 mb-4">
+                    <a class="btn btn-primary btn-lg"
+                       asp-area="Identity"
+                       asp-page="/Account/Login"
+                       asp-route-returnUrl="/Dashboard/Index">Sign in</a>
+                    <a class="btn btn-outline-primary btn-lg"
+                       asp-area="Identity"
+                       asp-page="/Account/Register">Create account</a>
+                    <a class="btn btn-link btn-lg" href="#features">Explore features</a>
+                </div>
+            }
+            else
+            {
+                <a class="btn btn-success btn-lg mb-4" asp-page="/Dashboard/Index">Go to your dashboard</a>
+            }
+        </div>
+
+        <!-- Right: archer + login card -->
+        <div class="col-12 col-lg-6 position-relative">
+            <div class="pm-hero-art">
+                <picture>
+                    <source srcset="~/img/hero-archer.webp" type="image/webp" />
+                    <img src="~/img/hero-archer.png" class="img-fluid pm-hero-img" alt="Gold archer launching an arrow above a laptop, symbolising decisive delivery">
+                </picture>
+            </div>
+
+            @if (!SignInManager.IsSignedIn(User))
+            {
+                <partial name="_LoginCard" />
+            }
+        </div>
+    </div>
+</section>
+
+<section id="features" class="py-5 border-top">
+    <h2 class="h3 fw-bold mb-4">Feature highlights</h2>
+    <partial name="_FeatureGrid" />
+</section>
+
+<section class="py-5">
+    <partial name="_HowItWorks" />
+</section>
+
+<section id="security" class="py-5 border-top">
+    <partial name="_SecurityStrip" />
+</section>

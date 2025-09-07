@@ -5,7 +5,7 @@
 namespace ProjectManagement.Migrations
 {
     /// <inheritdoc />
-    public partial class IdentityCleanUp2 : Migration
+    public partial class UserAnalytics : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
