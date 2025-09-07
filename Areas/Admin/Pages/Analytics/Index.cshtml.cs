@@ -23,14 +23,14 @@ namespace ProjectManagement.Areas.Admin.Pages.Analytics
         {
             var users = _db.Users.AsNoTracking();
             TotalUsers = await users.CountAsync();
-            var now = IstClock.NowOffset;
+            var now = DateTimeOffset.UtcNow;
             ActiveUsers = await users.CountAsync(u => !u.LockoutEnd.HasValue || u.LockoutEnd <= now);
             DisabledUsers = TotalUsers - ActiveUsers;
 
             // Include today in the 30 day window by starting 29 days ago
-            var since = IstClock.Now.Date.AddDays(-29);
+            var sinceUtc = DateTime.UtcNow.Date.AddDays(-29);
             var raw = await _db.AuditLogs.AsNoTracking()
-                .Where(a => a.Action == "LoginSuccess" && a.TimeUtc >= since)
+                .Where(a => a.Action == "LoginSuccess" && a.TimeUtc >= sinceUtc)
                 .GroupBy(a => a.TimeUtc.Date)
                 .Select(g => new { Date = g.Key, Count = g.Count() })
                 .ToListAsync();
@@ -39,9 +39,9 @@ namespace ProjectManagement.Areas.Admin.Pages.Analytics
             var arr = new int[30];
             for (int i = 0; i < 30; i++)
             {
-                var d = since.AddDays(i);
+                var d = sinceUtc.AddDays(i);
                 dict.TryGetValue(d, out var c);
-                list.Add((d, c));
+                list.Add((IstClock.ToIst(d), c));
                 arr[i] = c;
             }
             LoginsPerDay = list;
@@ -50,10 +50,10 @@ namespace ProjectManagement.Areas.Admin.Pages.Analytics
             TopUsers = await users
                 .OrderByDescending(u => u.LoginCount)
                 .Take(10)
-                .Select(u => new { u.UserName, LastLogin = u.LastLoginUtc, u.LoginCount })
+                .Select(u => new { u.UserName, u.LastLoginUtc, u.LoginCount })
                 .AsNoTracking()
                 .ToListAsync()
-                .ContinueWith(t => t.Result.Select(x => (x.UserName!, x.LastLogin, x.LoginCount)).ToList());
+                .ContinueWith(t => t.Result.Select(x => (x.UserName!, IstClock.ToIst(x.LastLoginUtc), x.LoginCount)).ToList());
         }
     }
 }
