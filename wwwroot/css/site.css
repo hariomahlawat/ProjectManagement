@@ -43,7 +43,7 @@ body {
 }
 
 .hero-art {
-  max-width: clamp(240px, 30vw, 360px);
+  max-width: clamp(150px, 30vw, 150px);
   height: auto;
   /* keep it visible; never behind the card */
 }
