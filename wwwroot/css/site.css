@@ -20,3 +20,13 @@ html {
 body {
   margin-bottom: 60px;
 }
+
+:root{
+  --pm-bg:#fafafa; --pm-card:#fff; --pm-text:#202124;
+  --pm-accent:#1a73e8; --pm-border:#e6e6e6; --pm-muted:#5f6368; --pm-radius:14px;
+}
+body{background:var(--pm-bg);color:var(--pm-text)}
+.pm-card{background:var(--pm-card);border:1px solid var(--pm-border);border-radius:var(--pm-radius)}
+.pm-shadow{box-shadow:0 10px 24px rgba(0,0,0,.08)}
+.pm-btn-primary{background:var(--pm-accent);border-color:var(--pm-accent)}
+.pm-field-hint{color:var(--pm-muted);font-size:.85rem}

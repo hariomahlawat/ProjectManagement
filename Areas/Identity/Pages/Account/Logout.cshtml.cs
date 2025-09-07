@@ -24,7 +24,6 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
         public async Task<IActionResult> OnPost()
         {
             await _signInManager.SignOutAsync();
-            HttpContext.Session.Clear();
             _logger.LogInformation("User logged out.");
             return RedirectToPage("/Account/Login", new { area = "Identity" });
         }

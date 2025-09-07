@@ -52,7 +52,7 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
             if (user == null)
             {
                 _logger.LogWarning("Login failed for non-existent user {UserName}", Input.UserName);
-                ModelState.AddModelError(string.Empty, "User does not exist.");
+                ModelState.AddModelError(string.Empty, "Invalid username or password.");
                 return Page();
             }
             if (user.LockoutEnd.HasValue && user.LockoutEnd.Value > DateTimeOffset.UtcNow)
@@ -80,7 +80,7 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
             }
 
             _logger.LogWarning("Invalid password for {UserName}", Input.UserName);
-            ModelState.AddModelError(string.Empty, "Invalid password.");
+            ModelState.AddModelError(string.Empty, "Invalid username or password.");
             return Page();
         }
     }

@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Services;
+using System.Linq;
 
 namespace ProjectManagement.Areas.Admin.Pages.Users
 {
@@ -23,7 +24,15 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
 
         public async Task<IActionResult> OnPostAsync(string id)
         {
-            await _userService.DeleteUserAsync(id);
+            var result = await _userService.DeleteUserAsync(id);
+            if (result.Succeeded)
+            {
+                TempData["ok"] = "User deleted.";
+            }
+            else
+            {
+                TempData["err"] = string.Join(", ", result.Errors.Select(e => e.Description));
+            }
             return RedirectToPage("Index");
         }
     }
