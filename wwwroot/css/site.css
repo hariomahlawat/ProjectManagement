@@ -134,3 +134,9 @@ body {
   .hero-art  { order: 2; max-width: clamp(220px, 50vw, 340px); }
 }
 
+/* Password toggle focus ring */
+.password-toggle:focus-visible {
+  outline: 2px solid var(--bs-primary);
+  outline-offset: 2px;
+}
+

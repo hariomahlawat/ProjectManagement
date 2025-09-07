@@ -5,18 +5,21 @@
   <form method="post">
     <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
     <div class="mb-3">
-      <label class="form-label">New password</label>
-      <div class="password-container">
-        <input asp-for="NewPassword" class="form-control" autocomplete="new-password" />
-        <button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false">
-          <svg class="eye-open" viewBox="0 0 16 16" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg">
-            <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/>
-            <circle cx="8" cy="8" r="3"/>
-          </svg>
-          <svg class="eye-closed" viewBox="0 0 16 16" fill="none" stroke="currentColor" xmlns="http://www.w3.org/2000/svg" hidden>
-            <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/>
-            <circle cx="8" cy="8" r="3"/>
-            <path d="M1 1l14 14"/>
+      <label for="NewPassword" class="form-label">New password</label>
+      <div class="input-group">
+        <input asp-for="NewPassword"
+               class="form-control"
+               id="NewPassword"
+               data-pw-input
+               autocomplete="new-password" />
+        <button type="button"
+                class="btn btn-outline-secondary password-toggle"
+                data-target="#NewPassword"
+                aria-label="Show password"
+                aria-pressed="false"
+                title="Show password">
+          <svg class="bi" aria-hidden="true">
+            <use href="@(Url.Content("~/lib/bootstrap-icons/bootstrap-icons.svg") + "#eye")"></use>
           </svg>
         </button>
       </div>
@@ -33,6 +36,5 @@
 </div>
 
 @section Scripts {
-    <script type="module" src="~/js/utils/password-toggle.js"></script>
     <script type="module" src="~/js/users/reset.js" asp-append-version="true"></script>
 }
