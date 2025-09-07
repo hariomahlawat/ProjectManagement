@@ -1,4 +1,18 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.IndexModel
+@{
+    ViewData["Title"] = "Admin dashboard";
+}
+
 <h3>Admin dashboard</h3>
-<p><a class="btn btn-primary" asp-area="Admin" asp-page="/Users/Index">Manage users</a></p>
+
+<div class="row row-cols-1 row-cols-md-3 g-4 mt-3">
+    @foreach (var card in Model.Cards)
+    {
+        <partial name="_AdminCard" model="card" />
+    }
+</div>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/admin.css" asp-append-version="true" />
+}

@@ -1,0 +1,22 @@
+.admin-card {
+    color: #fff;
+    min-height: 8rem;
+    transition: transform 0.2s ease-in-out;
+}
+
+.admin-card.users {
+    background-color: #0078d7;
+}
+
+.admin-card.analytics {
+    background-color: #2d7d9a;
+}
+
+.admin-card.logs {
+    background-color: #e81123;
+}
+
+.admin-card:hover {
+    text-decoration: none;
+    transform: scale(1.03);
+}
