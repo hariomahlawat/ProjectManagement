@@ -1,73 +1,57 @@
-﻿@page
+@page
 @model ProjectManagement.Pages.IndexModel
 @using Microsoft.AspNetCore.Identity
-@using ProjectManagement.Models
-@inject SignInManager<ApplicationUser> SignInManager
-@{
-    ViewData["Title"] = "ProjectManagement";
-}
+@inject SignInManager<ProjectManagement.Models.ApplicationUser> SignInManager
 
-<section class="pm-hero py-5">
-    <div class="row align-items-center g-4">
-        <!-- Left: headline and bullets -->
-        <div class="col-12 col-lg-6">
-            <h1 class="display-5 fw-bold mb-3">Plan. Track. Deliver.</h1>
-            <p class="lead text-secondary mb-4">
-                Role-based project control for teams, leads, and heads of department.
-            </p>
+<section class="hero container-xxl">
+  <div class="hero-left">
+    <h1 class="display-4 fw-bold mb-2">Plan. Track. Deliver.</h1>
+    <p class="lead text-muted mb-4">
+      Role-based project control for teams, leads, and heads of department.
+    </p>
 
-            <ul class="pm-bullets mb-4">
-                <li>Custom dashboards per role</li>
-                <li>Tasks, comments, and file attachments</li>
-                <li>Progress boards and timelines</li>
-            </ul>
+    <ul class="list-unstyled mb-4">
+      <li class="mb-2">✦ Custom dashboards per role</li>
+      <li class="mb-2">✦ Tasks, comments, and file attachments</li>
+      <li class="mb-2">✦ Progress boards and timelines</li>
+    </ul>
 
-            @if (!SignInManager.IsSignedIn(User))
-            {
-                <div class="d-flex flex-wrap gap-3 mb-4">
-                    <a class="btn btn-primary btn-lg"
-                       asp-area="Identity"
-                       asp-page="/Account/Login"
-                       asp-route-returnUrl="/Dashboard/Index">Sign in</a>
-                    <a class="btn btn-link btn-lg" href="#features">Explore features</a>
-                </div>
-            }
-            else
-            {
-                <a class="btn btn-success btn-lg mb-4" asp-page="/Dashboard/Index">Go to your dashboard</a>
-            }
-        </div>
+    @if (SignInManager.IsSignedIn(User))
+    {
+      <a class="btn btn-success btn-lg" asp-page="/Dashboard/Index">Go to your dashboard</a>
+    }
+    else
+    {
+      <a class="btn btn-primary btn-lg me-2"
+         asp-area="Identity"
+         asp-page="/Account/Login"
+         asp-route-returnUrl="/Dashboard/Index">Sign in</a>
+      <a class="link-primary" href="#features">Explore features</a>
+    }
+  </div>
 
-        <!-- Right: illustration + login card -->
-        <div class="col-12 col-lg-6 position-relative">
-            <div class="pm-hero-art">
-                <picture>
-                    <img src="~/img/sdd.png" class="img-fluid pm-hero-img" alt="Gold archer launching an arrow above a laptop, symbolising decisive delivery">
-                </picture>
-            </div>
-
-            @if (!SignInManager.IsSignedIn(User))
-            {
-                <partial name="_LoginCard" />
-            }
-        </div>
+  <aside class="hero-right">
+    <img class="hero-art" src="~/img/sdd.webp" alt="Gold archer symbolising decisive delivery" />
+    <div class="hero-card">
+      <partial name="_LoginCard" />
     </div>
+  </aside>
 </section>
 
-<section id="features" class="py-5 border-top">
-    <h2 class="h3 fw-bold mb-4">Feature highlights</h2>
-    <partial name="_FeatureGrid" />
+<section id="features" class="container-xxl mt-5">
+  <h2 class="h3 fw-bold mb-4">Feature highlights</h2>
+  <partial name="_FeatureGrid" />
 </section>
 
 <section class="py-5">
-    <partial name="_HowItWorks" />
+  <partial name="_HowItWorks" />
 </section>
 
 <section id="security" class="py-5 border-top">
-    <partial name="_SecurityStrip" />
+  <partial name="_SecurityStrip" />
 </section>
 
 @section Scripts {
-    <script type="module" src="~/js/utils/password-toggle.js"></script>
-    <script type="module" src="~/js/utils/login-card.js"></script>
+  <script type="module" src="~/js/utils/password-toggle.js"></script>
+  <script type="module" src="~/js/utils/login-card.js"></script>
 }
