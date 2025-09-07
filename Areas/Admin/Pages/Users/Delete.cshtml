@@ -1,0 +1,8 @@
+@page "{id}"
+@model ProjectManagement.Areas.Admin.Pages.Users.DeleteModel
+<h3>Delete user</h3>
+<p>Are you sure you want to delete @Model.UserName?</p>
+<form method="post">
+  <button class="btn btn-danger" type="submit">Delete</button>
+  <a asp-page="Index" class="btn btn-secondary">Cancel</a>
+</form>

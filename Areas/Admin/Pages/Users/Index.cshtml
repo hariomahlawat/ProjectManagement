@@ -3,15 +3,18 @@
 <h3>Users</h3>
 <p><a class="btn btn-success" asp-page="Create">Create user</a></p>
 <table class="table table-sm">
-  <thead><tr><th>UserName</th><th>MustChangePassword</th><th>Actions</th></tr></thead>
+  <thead><tr><th>UserName</th><th>Roles</th><th>Status</th><th>Actions</th></tr></thead>
   <tbody>
   @foreach (var u in Model.Users)
   {
     <tr>
       <td>@u.UserName</td>
-      <td>@u.MustChangePassword</td>
+      <td>@u.Roles</td>
+      <td>@(u.IsActive ? "Active" : "Disabled")</td>
       <td>
-        <a asp-page="Reset" asp-route-id="@u.Id">Reset password</a>
+        <a asp-page="Edit" asp-route-id="@u.Id">Edit</a> |
+        <a asp-page="Reset" asp-route-id="@u.Id">Reset password</a> |
+        <a asp-page="Delete" asp-route-id="@u.Id">Delete</a>
       </td>
     </tr>
   }

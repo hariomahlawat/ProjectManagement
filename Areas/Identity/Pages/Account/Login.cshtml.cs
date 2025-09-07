@@ -48,10 +48,24 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
                 return Page();
             }
 
-            var result = await _signInManager.PasswordSignInAsync(Input.UserName, Input.Password, Input.RememberMe, lockoutOnFailure: true);
+            var user = await _signInManager.UserManager.FindByNameAsync(Input.UserName);
+            if (user == null)
+            {
+                _logger.LogWarning("Login failed for non-existent user {UserName}", Input.UserName);
+                ModelState.AddModelError(string.Empty, "User does not exist.");
+                return Page();
+            }
+            if (user.LockoutEnd.HasValue && user.LockoutEnd.Value > DateTimeOffset.UtcNow)
+            {
+                _logger.LogWarning("Login attempt for disabled user {UserName}", Input.UserName);
+                ModelState.AddModelError(string.Empty, "Account is disabled.");
+                return Page();
+            }
 
+            var result = await _signInManager.CheckPasswordSignInAsync(user, Input.Password, lockoutOnFailure: true);
             if (result.Succeeded)
             {
+                await _signInManager.SignInAsync(user, Input.RememberMe);
                 _logger.LogInformation("User logged in.");
                 return LocalRedirect(returnUrl);
             }
@@ -64,11 +78,10 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
                 _logger.LogWarning("User account locked out.");
                 return RedirectToPage("./Lockout");
             }
-            else
-            {
-                ModelState.AddModelError(string.Empty, "Invalid login attempt.");
-                return Page();
-            }
+
+            _logger.LogWarning("Invalid password for {UserName}", Input.UserName);
+            ModelState.AddModelError(string.Empty, "Invalid password.");
+            return Page();
         }
     }
 }

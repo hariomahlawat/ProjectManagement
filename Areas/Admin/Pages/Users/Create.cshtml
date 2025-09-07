@@ -13,6 +13,11 @@
     <span class="form-text">Share this with the user. They will be forced to change it.</span>
     <span asp-validation-for="Input.Password" class="text-danger"></span>
   </div>
+  <div class="mb-3">
+    <label asp-for="Input.Role" class="form-label"></label>
+    <select asp-for="Input.Role" asp-items="new SelectList(Model.Roles)" class="form-select"></select>
+    <span asp-validation-for="Input.Role" class="text-danger"></span>
+  </div>
   <button class="btn btn-primary" type="submit">Create</button>
   <a asp-page="Index" class="btn btn-secondary">Cancel</a>
 </form>
