@@ -1,22 +1,42 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Users.IndexModel
 <h3>Users</h3>
-<p><a class="btn btn-success" asp-page="Create">Create user</a></p>
-<table class="table table-sm">
+<p><a class="btn pm-btn-primary" asp-page="Create">Create user</a></p>
+<input id="userSearch" class="form-control mb-3" type="search" placeholder="Search by username or role" />
+<table class="table table-sm" id="usersTable">
   <thead><tr><th>UserName</th><th>Roles</th><th>Status</th><th>Actions</th></tr></thead>
   <tbody>
   @foreach (var row in Model.Users)
   {
     <tr>
       <td>@row.UserName</td>
-      <td>@row.Roles</td>
-      <td>@(row.IsActive ? "Active" : "Disabled")</td>
       <td>
-        <a asp-page="Edit" asp-route-id="@row.Id">Edit</a> |
-        <a asp-page="Reset" asp-route-id="@row.Id">Reset password</a> |
-        <a asp-page="Delete" asp-route-id="@row.Id">Delete</a>
+        @foreach (var r in row.Roles)
+        {
+          <span class="badge bg-secondary me-1">@r</span>
+        }
+      </td>
+      <td>
+        <span class="badge @(row.IsActive ? "bg-success" : "bg-danger")">@(row.IsActive ? "Active" : "Disabled")</span>
+      </td>
+      <td class="text-nowrap">
+        <a asp-page="Edit" asp-route-id="@row.Id" class="btn btn-sm btn-outline-secondary me-1">Edit</a>
+        <a asp-page="Reset" asp-route-id="@row.Id" class="btn btn-sm btn-outline-secondary me-1">Reset</a>
+        <form method="post" asp-page="Delete" asp-route-id="@row.Id" class="d-inline">
+          <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('Delete user @row.UserName?');">Delete</button>
+        </form>
       </td>
     </tr>
   }
   </tbody>
 </table>
+
+<script>
+  document.getElementById('userSearch').addEventListener('input', function () {
+    const term = this.value.toLowerCase();
+    document.querySelectorAll('#usersTable tbody tr').forEach(row => {
+      const text = row.textContent.toLowerCase();
+      row.style.display = text.includes(term) ? '' : 'none';
+    });
+  });
+</script>

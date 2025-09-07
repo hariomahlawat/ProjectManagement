@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using System.ComponentModel.DataAnnotations;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Services;
 
 namespace ProjectManagement.Areas.Admin.Pages.Users
@@ -10,7 +11,12 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
     public class ResetModel : PageModel
     {
         private readonly IUserManagementService _userService;
-        public ResetModel(IUserManagementService userService) => _userService = userService;
+        private readonly ILogger<ResetModel> _logger;
+        public ResetModel(IUserManagementService userService, ILogger<ResetModel> logger)
+        {
+            _userService = userService;
+            _logger = logger;
+        }
 
         [BindProperty, Required, StringLength(100, MinimumLength = 8)]
         [DataType(DataType.Password)]
@@ -21,6 +27,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             var result = await _userService.ResetPasswordAsync(id, NewPassword);
             if (result.Succeeded)
             {
+                _logger.LogInformation("Admin {Admin} reset password for user {UserId}", User.Identity?.Name, id);
                 TempData["ok"] = "Password reset.";
                 return RedirectToPage("Index");
             }

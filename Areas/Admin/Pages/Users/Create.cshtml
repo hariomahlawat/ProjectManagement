@@ -19,17 +19,25 @@
     <div class="mb-3">
       <label asp-for="Input.Password" class="form-label"></label>
       <input asp-for="Input.Password" class="form-control" autocomplete="new-password" />
+      <div class="mt-2 d-flex gap-2">
+        <button type="button" id="generatePwd" class="btn btn-sm btn-outline-secondary">Generate</button>
+        <button type="button" id="copyPwd" class="btn btn-sm btn-outline-secondary">Copy</button>
+      </div>
       <span class="form-text pm-field-hint">Minimum 8 characters. The user will be forced to change it at first login.</span>
       <span asp-validation-for="Input.Password" class="text-danger"></span>
     </div>
 
-    <div class="mb-3">
-      <label asp-for="Input.Roles" class="form-label"></label>
-      <select asp-for="Input.Roles"
-              asp-items="new MultiSelectList(Model.Roles)"
-              class="form-select" multiple size="4"></select>
+    <fieldset class="mb-3">
+      <legend class="form-label">Roles</legend>
+      @foreach (var role in Model.Roles)
+      {
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="Input.Roles" value="@role" id="create-role-@role" @(Model.Input.Roles.Contains(role) ? "checked" : null) />
+          <label class="form-check-label" for="create-role-@role">@role</label>
+        </div>
+      }
       <span asp-validation-for="Input.Roles" class="text-danger"></span>
-    </div>
+    </fieldset>
 
     <div class="d-flex gap-2">
       <button class="btn pm-btn-primary" type="submit">Create</button>
@@ -37,4 +45,21 @@
     </div>
   </form>
 </div>
+
+<script>
+  function randomPwd() {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let pwd = "";
+    for (let i = 0; i < 12; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
+    return pwd;
+  }
+  document.getElementById('generatePwd').addEventListener('click', () => {
+    const input = document.getElementById('Input_Password');
+    input.value = randomPwd();
+  });
+  document.getElementById('copyPwd').addEventListener('click', () => {
+    const input = document.getElementById('Input_Password');
+    navigator.clipboard.writeText(input.value);
+  });
+</script>
 

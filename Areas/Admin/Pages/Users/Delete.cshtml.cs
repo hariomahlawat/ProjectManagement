@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Services;
 using System.Linq;
+using Microsoft.Extensions.Logging;
 
 namespace ProjectManagement.Areas.Admin.Pages.Users
 {
@@ -10,7 +11,12 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
     public class DeleteModel : PageModel
     {
         private readonly IUserManagementService _userService;
-        public DeleteModel(IUserManagementService userService) => _userService = userService;
+        private readonly ILogger<DeleteModel> _logger;
+        public DeleteModel(IUserManagementService userService, ILogger<DeleteModel> logger)
+        {
+            _userService = userService;
+            _logger = logger;
+        }
 
         public string UserName { get; set; } = string.Empty;
 
@@ -27,6 +33,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             var result = await _userService.DeleteUserAsync(id);
             if (result.Succeeded)
             {
+                _logger.LogInformation("Admin {Admin} deleted user {UserId}", User.Identity?.Name, id);
                 TempData["ok"] = "User deleted.";
             }
             else

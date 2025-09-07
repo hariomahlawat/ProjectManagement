@@ -19,7 +19,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
         {
             public string Id { get; set; } = "";
             public string UserName { get; set; } = "";
-            public string Roles { get; set; } = "";
+            public IList<string> Roles { get; set; } = new List<string>();
             public bool IsActive { get; set; }
         }
 
@@ -34,7 +34,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
                 {
                     Id = u.Id,
                     UserName = u.UserName ?? "",
-                    Roles = string.Join(", ", roles.OrderBy(r => r)),
+                    Roles = roles.OrderBy(r => r).ToList(),
                     IsActive = !u.LockoutEnd.HasValue || u.LockoutEnd <= DateTimeOffset.UtcNow
                 });
             }

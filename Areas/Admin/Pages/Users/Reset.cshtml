@@ -3,13 +3,14 @@
 <h3>Reset password</h3>
 <div class="pm-card pm-shadow p-4 p-md-5">
   <form method="post">
-    <div class="visually-hidden" aria-live="polite">
-      <span asp-validation-summary="ModelOnly"></span>
-    </div>
-    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
     <div class="mb-3">
       <label class="form-label">New password</label>
       <input asp-for="NewPassword" class="form-control" autocomplete="new-password" />
+      <div class="mt-2 d-flex gap-2">
+        <button type="button" id="genPwd" class="btn btn-sm btn-outline-secondary">Generate</button>
+        <button type="button" id="cpyPwd" class="btn btn-sm btn-outline-secondary">Copy</button>
+      </div>
       <span class="form-text pm-field-hint">Minimum 8 characters. No special rules enforced.</span>
       <span asp-validation-for="NewPassword" class="text-danger"></span>
     </div>
@@ -17,3 +18,20 @@
     <a asp-page="Index" class="btn btn-secondary">Cancel</a>
   </form>
 </div>
+
+<script>
+  function rndPwd(){
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let pwd = "";
+    for(let i=0;i<12;i++) pwd += chars[Math.floor(Math.random()*chars.length)];
+    return pwd;
+  }
+  document.getElementById('genPwd').addEventListener('click',()=>{
+    const inp=document.getElementById('NewPassword');
+    inp.value=rndPwd();
+  });
+  document.getElementById('cpyPwd').addEventListener('click',()=>{
+    const inp=document.getElementById('NewPassword');
+    navigator.clipboard.writeText(inp.value);
+  });
+</script>

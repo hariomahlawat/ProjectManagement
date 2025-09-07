@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Services;
 
 namespace ProjectManagement.Areas.Admin.Pages.Users
@@ -12,8 +13,13 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
     public class CreateModel : PageModel
     {
         private readonly IUserManagementService _users;
+        private readonly ILogger<CreateModel> _logger;
 
-        public CreateModel(IUserManagementService users) => _users = users;
+        public CreateModel(IUserManagementService users, ILogger<CreateModel> logger)
+        {
+            _users = users;
+            _logger = logger;
+        }
 
         [BindProperty] public InputModel Input { get; set; } = new();
         public IList<string> Roles { get; private set; } = new List<string>();
@@ -43,6 +49,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             var res = await _users.CreateUserAsync(Input.UserName, Input.Password, Input.Roles);
             if (res.Succeeded)
             {
+                _logger.LogInformation("Admin {Admin} created user {User} with roles {Roles}", User.Identity?.Name, Input.UserName, string.Join(',', Input.Roles));
                 TempData["ok"] = "User created.";
                 return RedirectToPage("Index");
             }

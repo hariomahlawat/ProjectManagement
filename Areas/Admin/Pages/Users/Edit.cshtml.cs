@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Services;
 
 namespace ProjectManagement.Areas.Admin.Pages.Users
@@ -14,8 +15,13 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
     public class EditModel : PageModel
     {
         private readonly IUserManagementService _users;
+        private readonly ILogger<EditModel> _logger;
 
-        public EditModel(IUserManagementService users) => _users = users;
+        public EditModel(IUserManagementService users, ILogger<EditModel> logger)
+        {
+            _users = users;
+            _logger = logger;
+        }
 
         [BindProperty] public InputModel Input { get; set; } = new();
         public IList<string> Roles { get; private set; } = new List<string>();
@@ -63,6 +69,8 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             }
 
             await _users.ToggleUserActivationAsync(Input.Id, Input.IsActive);
+
+            _logger.LogInformation("Admin {Admin} updated user {UserId}: roles {Roles}; active {Active}", User.Identity?.Name, Input.Id, string.Join(',', Input.Roles), Input.IsActive);
 
             TempData["ok"] = "User updated.";
             return RedirectToPage("Index");
