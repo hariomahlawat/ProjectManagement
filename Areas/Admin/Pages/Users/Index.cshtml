@@ -1,7 +1,7 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Users.IndexModel
 <h3>Users</h3>
-<p><a class="btn pm-btn-primary" asp-page="Create">Create user</a></p>
+<p><a class="btn btn-primary" asp-page="Create">Create user</a></p>
 <input id="userSearch" class="form-control mb-3" type="search" placeholder="Search by username or role" />
 <table class="table table-sm" id="usersTable">
   <thead>
@@ -22,13 +22,13 @@
       <td class="text-start">
         @foreach (var r in row.Roles)
         {
-          <span class="badge badge-role me-1">@r</span>
+          <span class="badge bg-secondary me-1">@r</span>
         }
       </td>
       <td>@(row.LastLogin?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
       <td>@row.LoginCount</td>
       <td>
-        <span class="badge @(row.IsActive ? "badge-ok" : "badge-bad")">@(row.IsActive ? "Active" : "Disabled")</span>
+        <span class="badge @(row.IsActive ? "bg-success" : "bg-danger")">@(row.IsActive ? "Active" : "Disabled")</span>
       </td>
       <td class="text-end">
         <div class="d-flex justify-content-end gap-1">

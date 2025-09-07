@@ -22,3 +22,6 @@ export function initPasswordToggles() {
     setVisible(false);
   });
 }
+
+// initialize toggles on load
+initPasswordToggles();
