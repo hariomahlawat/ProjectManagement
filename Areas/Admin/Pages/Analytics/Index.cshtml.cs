@@ -27,7 +27,8 @@ namespace ProjectManagement.Areas.Admin.Pages.Analytics
             ActiveUsers = await users.CountAsync(u => !u.LockoutEnd.HasValue || u.LockoutEnd <= now);
             DisabledUsers = TotalUsers - ActiveUsers;
 
-            var since = IstClock.Now.Date.AddDays(-30);
+            // Include today in the 30 day window by starting 29 days ago
+            var since = IstClock.Now.Date.AddDays(-29);
             var raw = await _db.AuditLogs.AsNoTracking()
                 .Where(a => a.Action == "LoginSuccess" && a.TimeUtc >= since)
                 .GroupBy(a => a.TimeUtc.Date)
