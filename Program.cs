@@ -70,7 +70,7 @@ else
 builder.Services.AddScoped<EnforcePasswordChangeFilter>();
 builder.Services.AddRazorPages(options =>
 {
-    options.Conventions.AuthorizeFolder("/");
+    options.Conventions.AuthorizeFolder("/Dashboard");
     options.Conventions.AuthorizeAreaFolder("Admin", "/");
     options.Conventions.AllowAnonymousToPage("/Index");
     options.Conventions.AllowAnonymousToPage("/Privacy");
