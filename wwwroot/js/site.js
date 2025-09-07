@@ -1,8 +1,6 @@
-import { initPasswordToggles } from './utils/password-toggle.js';
 import { initSparklines } from './charts/sparkline.js';
 
 function boot() {
-  initPasswordToggles();
   initSparklines();
 }
 
