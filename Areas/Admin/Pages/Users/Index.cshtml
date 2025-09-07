@@ -22,13 +22,13 @@
       <td class="text-start">
         @foreach (var r in row.Roles)
         {
-          <span class="badge bg-secondary me-1">@r</span>
+          <span class="badge badge-role me-1">@r</span>
         }
       </td>
       <td>@(row.LastLoginUtc?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
       <td>@row.LoginCount</td>
       <td>
-        <span class="badge @(row.IsActive ? "bg-success" : "bg-danger")">@(row.IsActive ? "Active" : "Disabled")</span>
+        <span class="badge @(row.IsActive ? "badge-ok" : "badge-bad")">@(row.IsActive ? "Active" : "Disabled")</span>
       </td>
       <td class="text-end">
         <div class="d-flex justify-content-end gap-1">
