@@ -5,16 +5,24 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Services;
 using ProjectManagement.Infrastructure;
+using Microsoft.AspNetCore.Mvc;
 
 namespace ProjectManagement.Areas.Admin.Pages.Users
 {
     [Authorize(Roles = "Admin")]
+    [ResponseCache(NoStore = true)]
     public class IndexModel : PageModel
     {
         private readonly IUserManagementService _users;
-        public IndexModel(IUserManagementService users) => _users = users;
+        private readonly UserLifecycleOptions _opts;
+        public IndexModel(IUserManagementService users, Microsoft.Extensions.Options.IOptions<UserLifecycleOptions> opts)
+        {
+            _users = users;
+            _opts = opts.Value;
+        }
 
         public IList<UserRow> Users { get; private set; } = new List<UserRow>();
+        public UserLifecycleOptions Options => _opts;
 
         public class UserRow
         {
@@ -26,6 +34,9 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             public bool IsActive { get; set; }
             public DateTime? LastLogin { get; set; }
             public int LoginCount { get; set; }
+            public bool PendingDeletion { get; set; }
+            public DateTime? DeletionRequestedUtc { get; set; }
+            public DateTime CreatedUtc { get; set; }
         }
 
         public async Task OnGet()
@@ -42,7 +53,10 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
                     FullName = u.FullName,
                     Rank = u.Rank,
                     Roles = roles.OrderBy(r => r).ToList(),
-                    IsActive = !u.LockoutEnd.HasValue || u.LockoutEnd <= DateTimeOffset.UtcNow,
+                    IsActive = !u.IsDisabled && !u.PendingDeletion,
+                    PendingDeletion = u.PendingDeletion,
+                    DeletionRequestedUtc = u.DeletionRequestedUtc,
+                    CreatedUtc = u.CreatedUtc,
                     LastLogin = IstClock.ToIst(u.LastLoginUtc),
                     LoginCount = u.LoginCount
                 });

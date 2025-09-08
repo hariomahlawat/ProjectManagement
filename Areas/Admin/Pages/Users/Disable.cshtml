@@ -1,0 +1,15 @@
+@page "{id}"
+@model ProjectManagement.Areas.Admin.Pages.Users.DisableModel
+<h3>Disable user</h3>
+<div class="pm-card pm-shadow p-4 p-md-5">
+  <p>Are you sure you want to disable @Model.UserEntity?.UserName?</p>
+  <form method="post">
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+    <div class="mb-3">
+      <label asp-for="Reason" class="form-label">Reason (optional)</label>
+      <textarea asp-for="Reason" class="form-control"></textarea>
+    </div>
+    <button class="btn btn-warning" type="submit">Disable</button>
+    <a asp-page="Index" class="btn btn-secondary">Cancel</a>
+  </form>
+</div>
