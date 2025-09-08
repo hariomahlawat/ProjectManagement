@@ -7,7 +7,17 @@ namespace ProjectManagement.Data
     {
         public static async Task SeedAsync(IServiceProvider services)
         {
-            var roles = new[] { "Admin", "HoD", "TeamLead", "User" };
+            var roles = new[]
+            {
+                "Project Officer",
+                "HoD",
+                "Comdt",
+                "Admin",
+                "TA",
+                "MCO",
+                "Project Office",
+                "Main Office"
+            };
             var roleMgr = services.GetRequiredService<RoleManager<IdentityRole>>();
             foreach (var r in roles)
                 if (!await roleMgr.RoleExistsAsync(r))
