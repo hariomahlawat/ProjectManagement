@@ -9,16 +9,16 @@
     <li class="breadcrumb-item active" aria-current="page">Help</li>
   </ol>
 </nav>
-<div class="container py-3">
+<div class="py-3">
   <!-- Hero -->
   <div class="pb-3 mb-3 border-bottom">
     <h3 class="mb-1">Admin Help and Guidance</h3>
     <p class="text-muted mb-0">Essential how-tos for user lifecycle, security and audits. Short and practical.</p>
   </div>
 
-  <div class="row g-4">
+  <div class="row g-4" id="user-lifecycle">
     <!-- Main -->
-    <div class="col-lg-8">
+    <div class="col-md-8">
       <!-- Quick start -->
       <div class="row g-3">
         <div class="col-md-4">
@@ -53,7 +53,7 @@
         </div>
       </div>
 
-      <!-- Decision guide -->
+      @* Decision guide text that matches current capabilities *@
       <div id="disable-vs-delete" class="mt-4">
         <h5 class="mb-2">When to use what</h5>
         <div class="accordion" id="adminGuide">
@@ -65,7 +65,8 @@
             </h2>
             <div id="resetBody" class="accordion-collapse collapse" data-bs-parent="#adminGuide">
               <div class="accordion-body small">
-                Use for forgotten password or if the account may be compromised. Consider forcing password change at next sign-in.
+                Users cannot reset passwords themselves. If a user forgets the password, contact an administrator.
+                The administrator can set a temporary password and mark the account to require password change at next sign-in.
               </div>
             </div>
           </div>
@@ -77,7 +78,8 @@
             </h2>
             <div id="disableBody" class="accordion-collapse collapse show" data-bs-parent="#adminGuide">
               <div class="accordion-body small">
-                Temporary suspension. Preserves all associated data like projects, remarks and tasks. Reversible at any time.
+                Temporarily suspends sign-in while preserving all associated data such as projects, remarks and tasks.
+                Use when access must be paused. Re-enable to restore access.
               </div>
             </div>
           </div>
@@ -89,26 +91,27 @@
             </h2>
             <div id="deleteBody" class="accordion-collapse collapse" data-bs-parent="#adminGuide">
               <div class="accordion-body small">
-                Permanent removal after policy checks and retention periods. Irreversible. Use only when mandated.
+                Permanently removes the account after policy checks and retention periods.
+                This action cannot be undone.
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Security checklist -->
+      @* Security checklist — only what exists today *@
       <div id="security" class="mt-4">
         <h5 class="mb-2">Security checklist</h5>
         <ul class="small mb-0">
-          <li>Strong passwords and change on first sign-in for new users</li>
-          <li>Enable two-factor for admin accounts</li>
-          <li>Review audit logs weekly and purge per policy</li>
+          <li>Use strong passwords</li>
+          <li>Set “Require password change at next sign-in” for new or reset accounts</li>
+          <li>Review audit logs weekly and address any errors</li>
         </ul>
       </div>
     </div>
 
     <!-- Right rail -->
-    <div class="col-lg-4">
+    <div class="col-md-4">
       <div class="card shadow-sm sticky-top" style="top: 88px;">
         <div class="card-body">
           <h6 class="card-title">On this page</h6>

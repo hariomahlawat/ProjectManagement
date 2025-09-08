@@ -1,5 +1,5 @@
 @page
-@model ProjectManagement.Areas.Admin.Pages.IndexModel
+@model ProjectManagement.Areas.Admin.Pages.AdminIndexModel
 @{
     ViewData["Title"] = "Admin dashboard";
 }
@@ -11,54 +11,119 @@
 </nav>
 <h3 class="mb-3">Admin dashboard</h3>
 
-<div class="row g-3">
-  <div class="col-sm-4">
-    <div class="card shadow-sm">
+@* Top metrics row: always visible without scrolling *@
+<div class="row g-3 mb-3">
+  <div class="col-md-4">
+    <div class="card shadow-sm h-100">
       <div class="card-body">
-        <div class="small text-muted">Total users</div>
-        <div class="fs-4 fw-semibold">@Model.Metrics.TotalUsers</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-sm-4">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <div class="small text-muted">Disabled</div>
-        <div class="fs-4 fw-semibold">@Model.Metrics.DisabledUsers</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-sm-4">
-    <div class="card shadow-sm">
-      <div class="card-body">
-        <div class="small text-muted">Must change password</div>
-        <div class="fs-4 fw-semibold">@Model.Metrics.MustChangePwd</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="card shadow-sm mt-3">
-  <div class="card-header py-2"><strong>Recent admin actions</strong></div>
-  <div class="list-group list-group-flush">
-    @foreach (var a in Model.RecentAdminActions)
-    {
-      <div class="list-group-item d-flex justify-content-between align-items-center">
-        <div class="small">
-          <span class="badge bg-secondary me-2">@a.Level</span>
-          @a.Message
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <div class="small text-muted">Manage Users</div>
+          <a asp-area="Admin" asp-page="/Users/Index" class="small text-decoration-none">Open</a>
         </div>
-        <span class="text-muted small">@a.WhenLocal</span>
+        <div class="fs-4 fw-semibold">@Model.Metrics.TotalUsers</div>
+        <div class="small text-muted">Total users</div>
+
+        <div class="mt-3 small">
+          <div class="d-flex justify-content-between"><span>Disabled</span><span>@Model.Metrics.DisabledUsers</span></div>
+          <div class="progress" style="height:6px;">
+            <div class="progress-bar" role="progressbar" style="width:@Model.Metrics.DisabledPct%"></div>
+          </div>
+          <div class="d-flex justify-content-between mt-2"><span>Must change password</span><span>@Model.Metrics.MustChangePwd</span></div>
+          <div class="progress" style="height:6px;">
+            <div class="progress-bar" role="progressbar" style="width:@Model.Metrics.MustChangePwdPct%"></div>
+          </div>
+        </div>
       </div>
-    }
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <div class="small text-muted">Analytics</div>
+          <a asp-area="Admin" asp-page="/Analytics/Index" class="small text-decoration-none">Open</a>
+        </div>
+        <div class="fs-4 fw-semibold">@Model.Metrics.LoginsLast7d</div>
+        <div class="small text-muted">Logins last 7 days</div>
+
+        <div class="mt-3 small">
+          <div class="d-flex justify-content-between"><span>Unique users</span><span>@Model.Metrics.UniqueLoginsLast7d</span></div>
+          <div class="progress" style="height:6px;">
+            <div class="progress-bar" role="progressbar" style="width:@Model.Metrics.UniqueLoginPct%"></div>
+          </div>
+          <div class="d-flex justify-content-between mt-2"><span>Failed attempts</span><span>@Model.Metrics.FailedLoginsLast7d</span></div>
+          <div class="progress" style="height:6px;">
+            <div class="progress-bar" role="progressbar" style="width:@Model.Metrics.FailedLoginPct%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <div class="small text-muted">Logs</div>
+          <a asp-area="Admin" asp-page="/Logs/Index" class="small text-decoration-none">Open</a>
+        </div>
+        <div class="fs-4 fw-semibold">@Model.Metrics.AuditEvents24h</div>
+        <div class="small text-muted">Audit events in last 24 hours</div>
+
+        <div class="mt-3 small">
+          <div class="d-flex justify-content-between"><span>Warnings</span><span>@Model.Metrics.WarningEvents24h</span></div>
+          <div class="progress" style="height:6px;">
+            <div class="progress-bar" role="progressbar" style="width:@Model.Metrics.WarningPct%"></div>
+          </div>
+          <div class="d-flex justify-content-between mt-2"><span>Errors</span><span>@Model.Metrics.ErrorEvents24h</span></div>
+          <div class="progress" style="height:6px;">
+            <div class="progress-bar" role="progressbar" style="width:@Model.Metrics.ErrorPct%"></div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
-<div class="row row-cols-1 row-cols-md-3 g-4 mt-3">
-    @foreach (var card in Model.Cards)
-    {
-        <partial name="_AdminCard" model="card" />
-    }
+@* Attention band (only if something needs admin action) *@
+@if (Model.Attention.Items.Any())
+{
+  <div class="alert alert-warning d-flex align-items-center" role="alert">
+    <div class="me-2">Attention needed:</div>
+    <ul class="mb-0">
+      @foreach (var i in Model.Attention.Items)
+      {
+        <li class="mb-0">@i.Text @if (!string.IsNullOrEmpty(i.LinkText)) { <a class="ms-1" href="@i.Href">@i.LinkText</a> }</li>
+      }
+    </ul>
+  </div>
+}
+
+@* Two-column lower row: compact recent actions on the right *@
+<div class="row g-3">
+  <div class="col-lg-8">
+    @* Place any secondary content or keep empty for now *@
+  </div>
+  <div class="col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-header py-2"><strong>Recent admin actions</strong></div>
+      <div class="list-group list-group-flush" style="max-height: 320px; overflow:auto;">
+        @foreach (var a in Model.RecentAdminActions)
+        {
+          <div class="list-group-item d-flex justify-content-between align-items-center">
+            <div class="small">
+              <span class="badge bg-secondary me-2">@a.Level</span>@a.Message
+            </div>
+            <span class="text-muted small">@a.WhenLocal</span>
+          </div>
+        }
+      </div>
+      <div class="card-footer text-end py-2">
+        <a asp-area="Admin" asp-page="/Logs/Index" class="small text-decoration-none">View all logs</a>
+      </div>
+    </div>
+  </div>
 </div>
 
 @section Styles {
