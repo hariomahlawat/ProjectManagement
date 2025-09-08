@@ -3,20 +3,37 @@
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
 
-<ul class="navbar-nav ms-auto align-items-center">
-    @if (SignInManager.IsSignedIn(User))
-    {
-        <li class="nav-item">
-            <span class="nav-link p-0">Hello @User.Identity?.Name!</span>
-        </li>
-        <li class="nav-item">
-            <form class="form-inline" asp-area="Identity" asp-page="/Account/Logout" asp-route-returnUrl="/" method="post">
-                <button type="submit" class="btn btn-link nav-link p-0">Sign out</button>
-            </form>
-        </li>
-    }
-    else
-    {
-        <li class="nav-item"><a class="btn btn-primary ms-2" asp-area="Identity" asp-page="/Account/Login" asp-route-returnUrl="/Dashboard/Index">Sign in</a></li>
-    }
+<ul class="navbar-nav ms-auto">
+@if (SignInManager.IsSignedIn(User))
+{
+    var name = User.Identity?.Name ?? "User";
+    var parts = name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+    var initials = parts.Length >= 2 ? $"{parts[0][0]}{parts[^1][0]}" : $"{name[0]}";
+    <li class="nav-item dropdown">
+        <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <span class="avatar me-2 text-uppercase">@initials</span>
+            <span class="d-none d-sm-inline">@name</span>
+        </a>
+        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+            <li><a class="dropdown-item" asp-area="Identity" asp-page="/Account/Manage/Index">Profile</a></li>
+            @if (User.IsInRole("Admin"))
+            {
+                <li><a class="dropdown-item" asp-area="Admin" asp-page="/Index">Admin</a></li>
+            }
+            <li><hr class="dropdown-divider" /></li>
+            <li>
+                <form class="px-3 py-1" asp-area="Identity" asp-page="/Account/Logout" asp-route-returnUrl="~/" method="post">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary w-100">Sign out</button>
+                </form>
+            </li>
+        </ul>
+    </li>
+}
+else
+{
+    <li class="nav-item">
+        <a class="nav-link" asp-area="Identity" asp-page="/Account/Login">Sign in</a>
+    </li>
+}
 </ul>
+

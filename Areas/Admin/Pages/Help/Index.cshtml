@@ -1,42 +1,120 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Help.IndexModel
 @{
-    ViewData["Title"] = "Admin Help & Guidance";
+    ViewData["Title"] = "Admin Help";
 }
-<h3 class="mb-3">Admin Help & Guidance</h3>
+<div class="container py-3">
+  <!-- Hero -->
+  <div class="pb-3 mb-3 border-bottom">
+    <h3 class="mb-1">Admin Help and Guidance</h3>
+    <p class="text-muted mb-0">Essential how-tos for user lifecycle, security and audits. Short and practical.</p>
+  </div>
 
-<section id="user-lifecycle" class="pm-card pm-shadow p-3 mb-3">
-  <h5>User lifecycle</h5>
-  <ol>
-    <li>Create user → assign roles → first login forces password change (configurable).</li>
-    <li>Disable user to suspend access (reversible); Delete only when policy requires.</li>
-  </ol>
-</section>
+  <div class="row g-4">
+    <!-- Main -->
+    <div class="col-lg-8">
+      <!-- Quick start -->
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="card h-100 shadow-sm">
+            <div class="card-body">
+              <h6 class="card-title mb-2">Create a user</h6>
+              <ol class="small mb-0 ps-3">
+                <li>Go to <strong>Admin → Users</strong></li>
+                <li>Click <strong>Add User</strong></li>
+                <li>Assign roles and save</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card h-100 shadow-sm">
+            <div class="card-body">
+              <h6 class="card-title mb-2">Suspend access</h6>
+              <p class="small mb-2">Use <strong>Disable</strong> to suspend sign-in while keeping all data.</p>
+              <a class="small" href="#disable-vs-delete">Learn when to use what →</a>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="card h-100 shadow-sm">
+            <div class="card-body">
+              <h6 class="card-title mb-2">Reset password</h6>
+              <p class="small mb-0">For forgotten or suspected compromise. Sends a reset link or enforces change on next sign-in.</p>
+            </div>
+          </div>
+        </div>
+      </div>
 
-<section id="when-to-use-what" class="pm-card pm-shadow p-3 mb-3">
-  <h5>When to use what</h5>
-  <ul class="mb-0">
-    <li><strong>Reset password</strong>: Forgotten or suspected compromise.</li>
-    <li><strong>Disable</strong>: Temporary suspension; retains projects and remarks.</li>
-    <li><strong>Delete</strong>: Irreversible removal after retention checks.</li>
-  </ul>
-</section>
+      <!-- Decision guide -->
+      <div id="disable-vs-delete" class="mt-4">
+        <h5 class="mb-2">When to use what</h5>
+        <div class="accordion" id="adminGuide">
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="resetHead">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#resetBody">
+                Reset password
+              </button>
+            </h2>
+            <div id="resetBody" class="accordion-collapse collapse" data-bs-parent="#adminGuide">
+              <div class="accordion-body small">
+                Use for forgotten password or if the account may be compromised. Consider forcing password change at next sign-in.
+              </div>
+            </div>
+          </div>
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="disableHead">
+              <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#disableBody">
+                Disable
+              </button>
+            </h2>
+            <div id="disableBody" class="accordion-collapse collapse show" data-bs-parent="#adminGuide">
+              <div class="accordion-body small">
+                Temporary suspension. Preserves all associated data like projects, remarks and tasks. Reversible at any time.
+              </div>
+            </div>
+          </div>
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="deleteHead">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#deleteBody">
+                Delete
+              </button>
+            </h2>
+            <div id="deleteBody" class="accordion-collapse collapse" data-bs-parent="#adminGuide">
+              <div class="accordion-body small">
+                Permanent removal after policy checks and retention periods. Irreversible. Use only when mandated.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-<section id="analytics" class="pm-card pm-shadow p-3 mb-3">
-  <h5>Analytics</h5>
-  <p class="mb-0">Charts help you track user activity. Use them to spot usage trends and unusual login spikes.</p>
-</section>
+      <!-- Security checklist -->
+      <div id="security" class="mt-4">
+        <h5 class="mb-2">Security checklist</h5>
+        <ul class="small mb-0">
+          <li>Strong passwords and change on first sign-in for new users</li>
+          <li>Enable two-factor for admin accounts</li>
+          <li>Review audit logs weekly and purge per policy</li>
+        </ul>
+      </div>
+    </div>
 
-<section id="logs" class="pm-card pm-shadow p-3 mb-3">
-  <h5>Audit logs</h5>
-  <p class="mb-0">Filter by level, action or user to investigate events. Logs older than retention are purged automatically.</p>
-</section>
+    <!-- Right rail -->
+    <div class="col-lg-4">
+      <div class="card shadow-sm sticky-top" style="top: 88px;">
+        <div class="card-body">
+          <h6 class="card-title">On this page</h6>
+          <div class="list-group list-group-flush">
+            <a class="list-group-item list-group-item-action py-2" href="#disable-vs-delete">When to use what</a>
+            <a class="list-group-item list-group-item-action py-2" href="#resetHead">Reset password</a>
+            <a class="list-group-item list-group-item-action py-2" href="#disableHead">Disable</a>
+            <a class="list-group-item list-group-item-action py-2" href="#deleteHead">Delete</a>
+            <a class="list-group-item list-group-item-action py-2" href="#security">Security checklist</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-<section id="security" class="pm-card pm-shadow p-3">
-  <h5>Security checklist</h5>
-  <ul class="mb-0">
-    <li>Enforce strong passwords &amp; mandatory change on first login.</li>
-    <li>Enable MFA for admins.</li>
-    <li>Review Audit Logs weekly.</li>
-  </ul>
-</section>

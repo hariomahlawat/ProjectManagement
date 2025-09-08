@@ -16,14 +16,14 @@
 </head>
 <body>
     <header class="pm-header border-bottom">
-        <nav class="navbar navbar-expand-sm navbar-light bg-white">
+        <nav class="navbar navbar-expand-lg navbar-light bg-light shadow-sm">
             <div class="container">
                 <a class="navbar-brand fw-semibold" asp-area="" asp-page="/Index">ProjectManagement</a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#pmNavbar">
                     <span class="navbar-toggler-icon"></span>
                 </button>
                 <div id="pmNavbar" class="collapse navbar-collapse">
-                    <ul class="navbar-nav me-auto mb-2 mb-sm-0">
+                    <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                         @if (SignInManager.IsSignedIn(User))
                         {
                             <li class="nav-item">
