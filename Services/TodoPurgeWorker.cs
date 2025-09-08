@@ -24,17 +24,24 @@ namespace ProjectManagement.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            while (!stoppingToken.IsCancellationRequested)
+            try
             {
-                using var scope = _sp.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                var cutoff = DateTimeOffset.UtcNow.AddDays(-RetentionDays);
-                var deleted = await db.TodoItems
-                    .Where(t => t.DeletedUtc != null && t.DeletedUtc < cutoff)
-                    .ExecuteDeleteAsync(stoppingToken);
-                if (deleted > 0)
-                    _log.LogInformation("Purged {Count} todo items", deleted);
-                await Task.Delay(TimeSpan.FromDays(7), stoppingToken);
+                while (!stoppingToken.IsCancellationRequested)
+                {
+                    using var scope = _sp.CreateScope();
+                    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    var cutoff = DateTimeOffset.UtcNow.AddDays(-RetentionDays);
+                    var deleted = await db.TodoItems
+                        .Where(t => t.DeletedUtc != null && t.DeletedUtc < cutoff)
+                        .ExecuteDeleteAsync(stoppingToken);
+                    if (deleted > 0)
+                        _log.LogInformation("Purged {Count} todo items", deleted);
+                    await Task.Delay(TimeSpan.FromDays(7), stoppingToken);
+                }
+            }
+            catch (TaskCanceledException)
+            {
+                // Ignore cancellation exceptions to allow graceful shutdown
             }
         }
     }
