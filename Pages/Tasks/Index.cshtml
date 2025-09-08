@@ -1,0 +1,15 @@
+@page
+@model ProjectManagement.Pages.Tasks.IndexModel
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@{
+    ViewData["Title"] = "My Tasks";
+}
+<nav aria-label="breadcrumb" class="mb-2">
+  <ol class="breadcrumb small mb-0">
+    <li class="breadcrumb-item"><a asp-page="/Dashboard/Index">Dashboard</a></li>
+    <li class="breadcrumb-item active" aria-current="page">My Tasks</li>
+  </ol>
+</nav>
+
+<h4 class="mb-2">My Tasks</h4>
+<p class="text-muted">Full management view can be added next. The dashboard widget is fully functional.</p>
