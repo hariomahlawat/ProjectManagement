@@ -101,6 +101,10 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.Configure<UserLifecycleOptions>(
+    builder.Configuration.GetSection("UserLifecycle"));
+builder.Services.AddScoped<IUserLifecycleService, UserLifecycleService>();
+builder.Services.AddHostedService<UserPurgeWorker>();
 
 // Register email sender
 if (!string.IsNullOrWhiteSpace(builder.Configuration["Email:Smtp:Host"]))

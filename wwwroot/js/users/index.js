@@ -11,13 +11,6 @@ function boot() {
     });
   }
 
-  // Ensure delete confirm is wired
-  document.querySelectorAll('.delete-user-btn').forEach(btn => {
-    btn.addEventListener('click', e => {
-      const username = btn.dataset.username || 'this user';
-      if (!confirm(`Delete ${username}?`)) e.preventDefault();
-    });
-  });
 }
 
 if (document.readyState === 'loading') {

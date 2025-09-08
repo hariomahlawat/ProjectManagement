@@ -1,11 +1,46 @@
 @page "{id}"
 @model ProjectManagement.Areas.Admin.Pages.Users.DeleteModel
-<h3>Delete user</h3>
+<h3>Delete account?</h3>
+@if (Model.UserEntity?.PendingDeletion ?? false)
+{
+    var due = Model.UserEntity.DeletionRequestedUtc!.Value.AddMinutes(Model.Options.UndoWindowMinutes);
+    <div class="alert alert-warning">
+        Account scheduled for deletion at @due.ToString("yyyy-MM-dd HH:mm").
+    </div>
+    @if (DateTime.UtcNow < due)
+    {
+        <form method="post" asp-page-handler="Undo">
+            <button class="btn btn-danger" type="submit">Undo</button>
+            <a asp-page="Index" class="btn btn-secondary">Back</a>
+        </form>
+    }
+    else
+    {
+        <a asp-page="Index" class="btn btn-secondary">Back</a>
+    }
+}
+else if (Model.UserEntity is not null)
+{
 <div class="pm-card pm-shadow p-4 p-md-5">
-  <p>Are you sure you want to delete @Model.UserName?</p>
+  <p>Deleting an account permanently removes the user’s sign-in and access. Business records previously created by this user will <strong>not</strong> be removed, but they may lose their owner/author link. Only delete accounts that were created by mistake. For all other cases, <strong>disable</strong> the account instead.</p>
+  <p>This action can be undone for the next <strong>@Model.Options.UndoWindowMinutes minutes</strong>, after which it is irreversible.</p>
   <form method="post">
     <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-    <button class="btn btn-danger" type="submit">Delete</button>
+    <input id="confirmUser" asp-for="ConfirmUser" class="form-control" placeholder="Type username to confirm" />
+    <div class="form-check mt-2">
+      <input class="form-check-input" asp-for="Ack" id="ack" />
+      <label class="form-check-label" for="ack">I understand this is permanent after the undo window.</label>
+    </div>
+    <button id="btnDelete" class="btn btn-danger" type="submit" disabled>Delete account</button>
     <a asp-page="Index" class="btn btn-secondary">Cancel</a>
   </form>
 </div>
+<script>
+  const expected='@Model.UserEntity.UserName';
+  const input=document.getElementById('confirmUser');
+  const ack=document.getElementById('ack');
+  const btn=document.getElementById('btnDelete');
+  function update(){ btn.disabled = !(input.value===expected && ack.checked); }
+  input.addEventListener('input',update); ack.addEventListener('change',update);
+</script>
+}
