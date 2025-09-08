@@ -2,7 +2,7 @@
 @model ProjectManagement.Areas.Admin.Pages.Users.DisableModel
 <h3>Disable user</h3>
 <div class="pm-card pm-shadow p-4 p-md-5">
-  <p>Disabling an account prevents the user from signing in. Project records previously created by this user will not be removed, but they may lose their owner/author link while the account is disabled. Use this when a member leaves or is temporarily away. You can enable the account later.</p>
+  <p>Disabling an account prevents the user from signing in. All associated data such as projects, remarks and tasks is preserved. Use this when a member leaves or is temporarily away. Use Delete only when policy requires permanent removal.</p>
   <form method="post">
     <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
     <div class="mb-3">

@@ -138,5 +138,14 @@ namespace ProjectManagement.Tests
             Assert.Null(await um.FindByIdAsync(user.Id));
             Assert.Equal(1, await ctx.Projects.CountAsync());
         }
+
+        [Fact]
+        public async Task CannotDisableOwnAccount()
+        {
+            var svc = CreateService(null, out var ctx, out var um, out var rm);
+            var user = new ApplicationUser { UserName = "u", CreatedUtc = DateTime.UtcNow };
+            await um.CreateAsync(user, "Passw0rd!");
+            await Assert.ThrowsAsync<InvalidOperationException>(() => svc.DisableAsync(user.Id, user.Id, "reason"));
+        }
     }
 }

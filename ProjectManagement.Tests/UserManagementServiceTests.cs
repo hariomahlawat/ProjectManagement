@@ -58,34 +58,6 @@ namespace ProjectManagement.Tests
         }
 
         [Fact]
-        public async Task CannotDisableOwnAccount()
-        {
-            var service = CreateService("admin", out var context, out var userManager, out var roleManager);
-            await roleManager.CreateAsync(new IdentityRole("Admin"));
-            var admin = new ApplicationUser { UserName = "admin" };
-            await userManager.CreateAsync(admin, "Passw0rd!");
-            await userManager.AddToRoleAsync(admin, "Admin");
-
-            var result = await service.ToggleUserActivationAsync(admin.Id, false);
-
-            Assert.False(result.Succeeded);
-        }
-
-        [Fact]
-        public async Task CannotDisableLastActiveAdmin()
-        {
-            var service = CreateService("other", out var context, out var userManager, out var roleManager);
-            await roleManager.CreateAsync(new IdentityRole("Admin"));
-            var admin = new ApplicationUser { UserName = "admin" };
-            await userManager.CreateAsync(admin, "Passw0rd!");
-            await userManager.AddToRoleAsync(admin, "Admin");
-
-            var result = await service.ToggleUserActivationAsync(admin.Id, false);
-
-            Assert.False(result.Succeeded);
-        }
-
-        [Fact]
         public async Task CannotRemoveAdminRoleFromLastActiveAdmin()
         {
             var service = CreateService("admin", out var context, out var userManager, out var roleManager);

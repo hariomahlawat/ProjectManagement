@@ -34,6 +34,12 @@
                                 <li class="nav-item">
                                     <a class="nav-link" asp-area="Admin" asp-page="/Index">Admin Panel</a>
                                 </li>
+                                if ((ViewContext.RouteData.Values["area"]?.ToString() ?? "") == "Admin")
+                                {
+                                    <li class="nav-item">
+                                        <a class="nav-link" asp-area="Admin" asp-page="/Help/Index">Help</a>
+                                    </li>
+                                }
                             }
                         }
                     </ul>
