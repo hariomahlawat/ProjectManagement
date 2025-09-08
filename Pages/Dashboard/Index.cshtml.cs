@@ -14,6 +14,7 @@ namespace ProjectManagement.Pages.Dashboard
     {
         private readonly ITodoService _todo;
         private readonly UserManager<ApplicationUser> _users;
+        private static readonly TimeZoneInfo IST = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
 
         public IndexModel(ITodoService todo, UserManager<ApplicationUser> users)
         {
@@ -43,7 +44,14 @@ namespace ProjectManagement.Pages.Dashboard
             var uid = _users.GetUserId(User);
             if (uid == null) return Unauthorized();
 
-            await _todo.CreateAsync(uid, NewTitle.Trim());
+            try
+            {
+                await _todo.CreateAsync(uid, NewTitle.Trim());
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
             return RedirectToPage();
         }
 
@@ -51,8 +59,15 @@ namespace ProjectManagement.Pages.Dashboard
         {
             var uid = _users.GetUserId(User);
             if (uid == null) return Unauthorized();
-            // Widget shows only Open items; toggling marks them done.
-            await _todo.ToggleDoneAsync(uid, id, done: true);
+            try
+            {
+                // Widget shows only Open items; toggling marks them done.
+                await _todo.ToggleDoneAsync(uid, id, done: true);
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
             return RedirectToPage();
         }
 
@@ -60,7 +75,14 @@ namespace ProjectManagement.Pages.Dashboard
         {
             var uid = _users.GetUserId(User);
             if (uid == null) return Unauthorized();
-            await _todo.DeleteAsync(uid, id);
+            try
+            {
+                await _todo.DeleteAsync(uid, id);
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
             return RedirectToPage();
         }
 
@@ -68,7 +90,31 @@ namespace ProjectManagement.Pages.Dashboard
         {
             var uid = _users.GetUserId(User);
             if (uid == null) return Unauthorized();
-            await _todo.EditAsync(uid, id, pinned: pin);
+            try
+            {
+                await _todo.EditAsync(uid, id, pinned: pin);
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+            return RedirectToPage();
+        }
+
+        public async Task<IActionResult> OnPostEditAsync(Guid id, string priority)
+        {
+            var uid = _users.GetUserId(User);
+            if (uid == null) return Unauthorized();
+            TodoPriority prio = TodoPriority.Normal;
+            Enum.TryParse(priority, out prio);
+            try
+            {
+                await _todo.EditAsync(uid, id, priority: prio);
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
             return RedirectToPage();
         }
 
@@ -79,22 +125,30 @@ namespace ProjectManagement.Pages.Dashboard
 
             DateTimeOffset? dueLocal = preset switch
             {
-                "today_pm" => TodayAt(18, 0),
-                "tom_am" => TodayAt(10, 0).AddDays(1),
+                "today_pm" => NextOccurrenceTodayOrTomorrow(18, 0),          // Today 6 PM or tomorrow if passed
+                "tom_am"   => NextOccurrenceTodayOrTomorrow(10, 0).AddDays(1),
                 "next_mon" => NextMondayAt(10, 0),
-                "clear" => null,
-                _ => null
+                "clear"    => null,
+                _          => null
             };
-            await _todo.EditAsync(uid, id, dueAtLocal: dueLocal);
+            try
+            {
+                await _todo.EditAsync(uid, id, dueAtLocal: dueLocal);
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
             return RedirectToPage();
         }
 
-        private static DateTimeOffset TodayAt(int h, int m)
+        private static DateTimeOffset NextOccurrenceTodayOrTomorrow(int h, int m)
         {
-            var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
-            var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ist);
-            var dt = new DateTimeOffset(nowIst.Year, nowIst.Month, nowIst.Day, h, m, 0, nowIst.Offset);
-            return dt;
+            var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IST);
+            var candidate = new DateTimeOffset(nowIst.Year, nowIst.Month, nowIst.Day, h, m, 0, nowIst.Offset);
+            // If time already passed (with a tiny 1-minute grace), bump to next day
+            if (candidate <= nowIst.AddMinutes(1)) candidate = candidate.AddDays(1);
+            return candidate;
         }
 
         private static DateTimeOffset NextMondayAt(int h, int m)

@@ -162,6 +162,20 @@ namespace ProjectManagement.Tests
             Assert.Equal(nextMon.ToUniversalTime(), stored3!.DueAtUtc);
         }
 
+        [Fact]
+        public async Task DeleteSoftDeletesCompleted()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var service = new TodoService(context, audit);
+            var item = await service.CreateAsync("alice", "Task");
+            await service.ToggleDoneAsync("alice", item.Id, true);
+            await service.DeleteAsync("alice", item.Id);
+            var stored = await context.TodoItems.FirstOrDefaultAsync(x => x.Id == item.Id);
+            Assert.NotNull(stored);
+            Assert.NotNull(stored!.DeletedUtc);
+        }
+
         private static DateTimeOffset TodayAt(int h, int m)
         {
             var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");

@@ -75,6 +75,16 @@
                 </button>
               </form>
 
+              <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Edit" class="m-0 p-0">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@t.Id" />
+                <select class="form-select form-select-sm" name="priority" aria-label="Priority" onchange="this.form.submit()">
+                  <option value="Low" selected="@(t.Priority==TodoPriority.Low)">L</option>
+                  <option value="Normal" selected="@(t.Priority==TodoPriority.Normal)">N</option>
+                  <option value="High" selected="@(t.Priority==TodoPriority.High)">H</option>
+                </select>
+              </form>
+
               <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Snooze" class="m-0 p-0">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="id" value="@t.Id" />

@@ -3,8 +3,13 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @using ProjectManagement.Services
 @using ProjectManagement.Models
-@{ 
+@{
     ViewData["Title"] = "Dashboard";
+}
+
+@if (TempData["Error"] is string err && !string.IsNullOrWhiteSpace(err))
+{
+  <div class="alert alert-warning py-2"><i class="bi bi-exclamation-triangle-fill me-2"></i>@err</div>
 }
 
 @if (Model.TodoWidget != null && (Model.TodoWidget.OverdueCount > 0 || Model.TodoWidget.TodayCount > 0))

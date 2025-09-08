@@ -106,6 +106,7 @@ builder.Services.Configure<UserLifecycleOptions>(
 builder.Services.AddScoped<IUserLifecycleService, UserLifecycleService>();
 builder.Services.AddHostedService<UserPurgeWorker>();
 builder.Services.AddScoped<ITodoService, TodoService>();
+builder.Services.AddHostedService<TodoPurgeWorker>();
 
 // Register email sender
 if (!string.IsNullOrWhiteSpace(builder.Configuration["Email:Smtp:Host"]))

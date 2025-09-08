@@ -29,11 +29,15 @@ namespace ProjectManagement.Pages.Tasks
         public Row[] Items { get; set; } = Array.Empty<Row>();
         [BindProperty(SupportsGet = true)] public string Tab { get; set; } = "all"; // all | today | upcoming | completed
         [BindProperty(SupportsGet = true)] public string? Q { get; set; }
+        [BindProperty(SupportsGet = true)] public int Page { get; set; } = 1;
+        [BindProperty(SupportsGet = true)] public int PageSize { get; set; } = 25;
+        public int TotalItems { get; set; }
+        public int TotalPages => (int)Math.Ceiling(TotalItems / (double)PageSize);
 
         public async Task OnGetAsync()
         {
             var uid = _users.GetUserId(User);
-            var q = _db.TodoItems.AsNoTracking().Where(x => x.OwnerId == uid);
+            var q = _db.TodoItems.AsNoTracking().Where(x => x.OwnerId == uid && x.DeletedUtc == null);
 
             var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Ist);
             var startTodayIst = new DateTimeOffset(nowIst.Date, nowIst.Offset);
@@ -63,7 +67,11 @@ namespace ProjectManagement.Pages.Tasks
                 .ThenBy(x => x.OrderIndex)
                 .ThenBy(x => x.CreatedUtc);
 
-            Items = await q.Select(x => new Row(x.Id, x.Title, x.Priority, x.IsPinned, x.Status, x.DueAtUtc, x.CompletedUtc, x.Notes)).ToArrayAsync();
+            TotalItems = await q.CountAsync();
+            Items = await q
+                .Skip((Page - 1) * PageSize)
+                .Take(PageSize)
+                .Select(x => new Row(x.Id, x.Title, x.Priority, x.IsPinned, x.Status, x.DueAtUtc, x.CompletedUtc, x.Notes)).ToArrayAsync();
         }
 
         // Actions
@@ -71,15 +79,29 @@ namespace ProjectManagement.Pages.Tasks
         {
             if (string.IsNullOrWhiteSpace(title)) return RedirectToPage(new { Tab, Q });
             var uid = _users.GetUserId(User);
-            await _todo.CreateAsync(uid!, title.Trim());
-            return RedirectToPage(new { Tab, Q });
+            try
+            {
+                await _todo.CreateAsync(uid!, title.Trim());
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+            return RedirectToPage(new { Tab, Q, Page, PageSize });
         }
 
         public async Task<IActionResult> OnPostToggleAsync(Guid id, bool done)
         {
             var uid = _users.GetUserId(User);
-            await _todo.ToggleDoneAsync(uid!, id, done);
-            return RedirectToPage(new { Tab, Q });
+            try
+            {
+                await _todo.ToggleDoneAsync(uid!, id, done);
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+            return RedirectToPage(new { Tab, Q, Page, PageSize });
         }
 
         public async Task<IActionResult> OnPostEditAsync(Guid id, string? title, string? priority, DateTimeOffset? dueLocal, bool? pin, string? notes)
@@ -87,28 +109,87 @@ namespace ProjectManagement.Pages.Tasks
             var uid = _users.GetUserId(User);
             TodoPriority? prio = null;
             if (!string.IsNullOrEmpty(priority) && Enum.TryParse<TodoPriority>(priority, out var p)) prio = p;
-            await _todo.EditAsync(uid!, id,
-                title: string.IsNullOrWhiteSpace(title) ? null : title.Trim(),
-                notes: notes,
-                dueAtLocal: dueLocal,
-                priority: prio,
-                pinned: pin);
-            return RedirectToPage(new { Tab, Q });
+            try
+            {
+                await _todo.EditAsync(uid!, id,
+                    title: string.IsNullOrWhiteSpace(title) ? null : title.Trim(),
+                    notes: notes,
+                    dueAtLocal: dueLocal,
+                    priority: prio,
+                    pinned: pin);
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+            return RedirectToPage(new { Tab, Q, Page, PageSize });
         }
 
         public async Task<IActionResult> OnPostReorderAsync([FromForm] Guid[] ids)
         {
             var uid = _users.GetUserId(User);
             if (uid is null || ids is null || ids.Length == 0) return new OkResult();
-            await _todo.ReorderAsync(uid, ids);
+            try
+            {
+                await _todo.ReorderAsync(uid, ids);
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
             return new OkResult();
         }
 
         public async Task<IActionResult> OnPostDeleteAsync(Guid id)
         {
             var uid = _users.GetUserId(User);
-            await _todo.DeleteAsync(uid!, id);
-            return RedirectToPage(new { Tab, Q });
+            try
+            {
+                await _todo.DeleteAsync(uid!, id);
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+            return RedirectToPage(new { Tab, Q, Page, PageSize });
+        }
+
+        public async Task<IActionResult> OnPostBatchDoneAsync([FromForm] Guid[] ids)
+        {
+            var uid = _users.GetUserId(User);
+            if (uid == null || ids == null || ids.Length == 0) return RedirectToPage(new { Tab, Q, Page, PageSize });
+            foreach (var id in ids)
+            {
+                try
+                {
+                    await _todo.ToggleDoneAsync(uid, id, true);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    TempData["Error"] = ex.Message;
+                    break;
+                }
+            }
+            return RedirectToPage(new { Tab, Q, Page, PageSize });
+        }
+
+        public async Task<IActionResult> OnPostBatchDeleteAsync([FromForm] Guid[] ids)
+        {
+            var uid = _users.GetUserId(User);
+            if (uid == null || ids == null || ids.Length == 0) return RedirectToPage(new { Tab, Q, Page, PageSize });
+            foreach (var id in ids)
+            {
+                try
+                {
+                    await _todo.DeleteAsync(uid, id);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    TempData["Error"] = ex.Message;
+                    break;
+                }
+            }
+            return RedirectToPage(new { Tab, Q, Page, PageSize });
         }
     }
 }

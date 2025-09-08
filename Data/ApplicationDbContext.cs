@@ -34,6 +34,7 @@ namespace ProjectManagement.Data
             {
                 e.HasIndex(x => new { x.OwnerId, x.Status, x.IsPinned, x.DueAtUtc });
                 e.HasIndex(x => new { x.OwnerId, x.OrderIndex });
+                e.HasIndex(x => x.DeletedUtc);
                 e.Property(x => x.Title).IsRequired().HasMaxLength(160);
                 e.Property(x => x.Priority).HasDefaultValue(TodoPriority.Normal);
                 e.Property(x => x.Status).HasDefaultValue(TodoStatus.Open);

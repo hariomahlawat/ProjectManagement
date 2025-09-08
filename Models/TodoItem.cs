@@ -52,6 +52,8 @@ namespace ProjectManagement.Models
 
         public DateTimeOffset? CompletedUtc { get; set; }
 
+        public DateTimeOffset? DeletedUtc { get; set; }
+
         [Timestamp]
         public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     }
