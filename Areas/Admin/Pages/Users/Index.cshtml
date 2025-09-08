@@ -53,7 +53,14 @@
           <a asp-page="Reset" asp-route-id="@row.Id" class="btn btn-sm btn-outline-secondary" title="Reset password">Reset</a>
           @if (!row.PendingDeletion)
           {
-            <a asp-page="Disable" asp-route-id="@row.Id" class="btn btn-sm btn-outline-warning" title="Disable user">Disable</a>
+            if (row.IsActive)
+            {
+                <a asp-page="Disable" asp-route-id="@row.Id" class="btn btn-sm btn-outline-warning" title="Disable user">Disable</a>
+            }
+            else
+            {
+                <a asp-page="Enable" asp-route-id="@row.Id" class="btn btn-sm btn-outline-success" title="Enable user">Enable</a>
+            }
             if ((DateTime.UtcNow - row.CreatedUtc).TotalHours <= Model.Options.HardDeleteWindowHours)
             {
                 <a asp-page="Delete" asp-route-id="@row.Id" class="btn btn-sm btn-outline-danger" title="Delete user">Delete</a>

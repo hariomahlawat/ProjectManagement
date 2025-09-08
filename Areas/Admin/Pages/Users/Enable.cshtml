@@ -1,0 +1,19 @@
+@page "{id}"
+@model ProjectManagement.Areas.Admin.Pages.Users.EnableModel
+<h3>Enable user</h3>
+<div class="pm-card pm-shadow p-4 p-md-5">
+  <p>Enabling an account restores the user's access to the system.</p>
+  <form method="post">
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+    <input id="confirmUser" asp-for="ConfirmUser" class="form-control" placeholder="Type username to confirm" data-expected="@Model.UserEntity?.UserName" data-button="btnEnable" />
+    <div class="form-check mt-2">
+      <input class="form-check-input" asp-for="Ack" id="ack" />
+      <label class="form-check-label" for="ack">I understand this will restore access to this user.</label>
+    </div>
+    <button id="btnEnable" class="btn btn-success" type="submit" disabled>Enable user</button>
+    <a asp-page="Index" class="btn btn-secondary">Cancel</a>
+  </form>
+</div>
+@section Scripts {
+  <script type="module" src="~/js/users/confirm-user.js" asp-append-version="true"></script>
+}

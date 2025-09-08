@@ -57,6 +57,25 @@ namespace ProjectManagement.Services
                 data: new Dictionary<string, string?> { ["Reason"] = reason, ["Actor"] = actorUserId });
         }
 
+        public async Task EnableAsync(string targetUserId, string actorUserId)
+        {
+            var user = await _userManager.FindByIdAsync(targetUserId) ??
+                throw new InvalidOperationException("User not found.");
+            if (!user.IsDisabled)
+                return;
+
+            user.IsDisabled = false;
+            user.DisabledUtc = null;
+            user.DisabledByUserId = null;
+            user.LockoutEnd = null;
+            user.LockoutEnabled = false;
+
+            await _userManager.UpdateAsync(user);
+            await _userManager.UpdateSecurityStampAsync(user);
+            await _audit.LogAsync("AdminUserEnabled", userId: user.Id, userName: user.UserName,
+                data: new Dictionary<string, string?> { ["Actor"] = actorUserId });
+        }
+
         public async Task<(bool Allowed, string? ReasonBlocked, DateTime? ScheduledPurgeUtc)> RequestHardDeleteAsync(string targetUserId, string actorUserId)
         {
             if (targetUserId == actorUserId)
