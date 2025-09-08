@@ -181,7 +181,9 @@ body {
 .table-sm td, .table-sm th { vertical-align: middle; }
 .badge { letter-spacing: .2px; }
 
-/* Todo priority dots */
+/* Widget compactness */
+.todo-list .list-group-item { padding-top: .35rem; padding-bottom: .35rem; }
+.todo-actions .btn { padding: .15rem .4rem; line-height: 1; }
 .todo-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .todo-dot-low { background: #6c757d; }
 .todo-dot-normal { background: #0d6efd; }
