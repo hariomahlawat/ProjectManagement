@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
-using System.Net;
+using ProjectManagement.Helpers;
 
 namespace ProjectManagement.Services
 {
@@ -42,7 +42,7 @@ namespace ProjectManagement.Services
                                    IDictionary<string, string?>? data = null, HttpContext? http = null)
         {
             http ??= _http.HttpContext;
-            var ip = http?.Connection?.RemoteIpAddress?.MapToIPv4().ToString();
+            var ip = ClientIp.Get(http);
             var ua = http?.Request?.Headers["User-Agent"].ToString();
 
             var clean = data is null ? null : Scrub(data);
@@ -54,7 +54,7 @@ namespace ProjectManagement.Services
                 Action = action,
                 UserId = userId,
                 UserName = userName,
-                Ip = ip,
+                Ip = string.IsNullOrWhiteSpace(ip) ? null : ip,
                 UserAgent = ua,
                 Message = message,
                 DataJson = clean is null ? null : JsonSerializer.Serialize(clean)
