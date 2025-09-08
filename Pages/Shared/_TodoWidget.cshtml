@@ -1,0 +1,97 @@
+@using ProjectManagement.Services
+@using ProjectManagement.Models
+@model ProjectManagement.Services.TodoWidgetResult
+
+@if (Model is null)
+{
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="text-muted small">Loading tasks…</div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="card shadow-sm">
+        <div class="card-header d-flex align-items-center justify-content-between py-2">
+            <strong>My Tasks</strong>
+            <div class="d-flex align-items-center gap-2 small">
+                @if (Model.OverdueCount > 0)
+                {
+                    <span class="badge bg-warning text-dark" title="Overdue">@Model.OverdueCount</span>
+                }
+                @if (Model.TodayCount > 0)
+                {
+                    <span class="badge bg-info text-dark" title="Due today">@Model.TodayCount</span>
+                }
+                <a asp-page="/Tasks/Index" class="text-decoration-none">View all</a>
+            </div>
+        </div>
+        <div class="card-body">
+            <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Add" class="mb-2">
+                <div class="input-group input-group-sm">
+                    <input name="NewTitle" class="form-control" placeholder="Add a task…" />
+                    <button class="btn btn-primary">Add</button>
+                </div>
+                @Html.AntiForgeryToken()
+            </form>
+
+            @if (Model.Items.Count == 0)
+            {
+                <div class="text-muted small">No open tasks. You’re all caught up.</div>
+            }
+            else
+            {
+                <ul class="list-group list-group-flush" style="max-height: 320px; overflow:auto;">
+                @{
+                    var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+                    var todayIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ist).Date;
+                }
+                @foreach (var t in Model.Items)
+                {
+                    var dueBadge = "";
+                    if (t.DueAtUtc.HasValue)
+                    {
+                        var dueDate = TimeZoneInfo.ConvertTime(t.DueAtUtc.Value, ist).Date;
+                        if (dueDate < todayIst) dueBadge = "Overdue";
+                        else if (dueDate == todayIst) dueBadge = "Today";
+                        else if (dueDate == todayIst.AddDays(1)) dueBadge = "Tomorrow";
+                    }
+
+                    <li class="list-group-item d-flex align-items-center justify-content-between py-2">
+                        <div class="d-flex align-items-center gap-2">
+                            <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Toggle" class="m-0 p-0">
+                                <input type="hidden" name="id" value="@t.Id" />
+                                @Html.AntiForgeryToken()
+                                <input class="form-check-input" type="checkbox" title="Mark done" onchange="this.form.submit()" />
+                            </form>
+                            <span>@t.Title</span>
+                            @if (!string.IsNullOrEmpty(dueBadge))
+                            {
+                                <span class="badge rounded-pill bg-light text-dark border">@dueBadge</span>
+                            }
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Pin" class="m-0 p-0 d-inline">
+                                <input type="hidden" name="id" value="@t.Id" />
+                                <input type="hidden" name="pin" value="@(!t.IsPinned)" />
+                                @Html.AntiForgeryToken()
+                                <button class="btn btn-link btn-sm text-decoration-none" title="@(t.IsPinned ? "Unpin" : "Pin")">
+                                    <i class="bi @(t.IsPinned ? "bi-pin-angle-fill" : "bi-pin-angle")"></i>
+                                </button>
+                            </form>
+                            <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Delete" class="m-0 p-0 d-inline" onsubmit="return confirm('Delete this task?');">
+                                <input type="hidden" name="id" value="@t.Id" />
+                                @Html.AntiForgeryToken()
+                                <button class="btn btn-link btn-sm text-danger text-decoration-none" title="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </li>
+                }
+                </ul>
+            }
+        </div>
+    </div>
+}
