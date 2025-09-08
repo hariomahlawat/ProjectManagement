@@ -11,6 +11,7 @@ namespace ProjectManagement.Data
 
         public DbSet<Project> Projects { get; set; } = default!;
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+        public DbSet<TodoItem> TodoItems => Set<TodoItem>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -27,6 +28,17 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Level).HasMaxLength(16);
                 e.Property(x => x.Action).HasMaxLength(64);
                 e.Property(x => x.Message).HasMaxLength(1024);
+            });
+
+            builder.Entity<TodoItem>(e =>
+            {
+                e.HasIndex(x => new { x.OwnerId, x.Status, x.IsPinned, x.DueAtUtc });
+                e.HasIndex(x => new { x.OwnerId, x.OrderIndex });
+                e.Property(x => x.Title).IsRequired().HasMaxLength(160);
+                e.Property(x => x.Priority).HasDefaultValue(TodoPriority.Normal);
+                e.Property(x => x.Status).HasDefaultValue(TodoStatus.Open);
+                e.Property(x => x.IsPinned).HasDefaultValue(false);
+                e.Property(x => x.OrderIndex).HasDefaultValue(0);
             });
         }
     }
