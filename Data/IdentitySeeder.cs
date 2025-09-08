@@ -31,7 +31,9 @@ namespace ProjectManagement.Data
                 {
                     UserName = "admin",
                     EmailConfirmed = true,
-                    MustChangePassword = true
+                    MustChangePassword = true,
+                    FullName = "Administrator",
+                    Rank = "Admin"
                 };
                 await userMgr.CreateAsync(admin, "ChangeMe!123");
                 await userMgr.AddToRoleAsync(admin, "Admin");
