@@ -7,11 +7,17 @@
     ViewData["Title"] = "Logs";
 }
 
-<h3 class="mb-3">Logs
+<nav aria-label="breadcrumb" class="mb-2">
+  <ol class="breadcrumb small mb-0">
+    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Logs</li>
+  </ol>
+</nav>
+<h4 class="mb-2">Logs
   <a class="ms-1 text-decoration-none" asp-area="Admin" asp-page="/Help/Index" asp-fragment="logs" title="Help">
     <i class="bi bi-question-circle"></i>
   </a>
-</h3>
+</h4>
 
 <form method="get" class="row g-2 mb-3 align-items-end">
   <div class="col-sm-2">
