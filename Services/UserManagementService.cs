@@ -143,43 +143,6 @@ namespace ProjectManagement.Services
             return IdentityResult.Success;
         }
 
-        public async Task<IdentityResult> ToggleUserActivationAsync(string userId, bool isActive)
-        {
-            var user = await _userManager.FindByIdAsync(userId);
-            if (user == null)
-                return IdentityResult.Failed(new IdentityError { Description = "User not found." });
-
-            if (!isActive)
-            {
-                var currentUserName = _http.HttpContext?.User?.Identity?.Name;
-                if (!string.IsNullOrEmpty(currentUserName) &&
-                    string.Equals(currentUserName, user.UserName, StringComparison.OrdinalIgnoreCase))
-                {
-                    return IdentityResult.Failed(new IdentityError { Description = "You cannot disable your own account." });
-                }
-
-                var roles = await _userManager.GetRolesAsync(user);
-                if (roles.Contains("Admin") && IsActive(user))
-                {
-                    var activeAdmins = await CountActiveAdminsAsync();
-                    if (activeAdmins <= 1)
-                        return IdentityResult.Failed(new IdentityError { Description = "Cannot disable the last active Admin." });
-                }
-            }
-
-            // Keep lockout mechanism active
-            user.LockoutEnabled = true;
-            user.LockoutEnd = isActive ? null : DateTimeOffset.MaxValue;
-
-            var res = await _userManager.UpdateAsync(user);
-            if (res.Succeeded)
-            {
-                await _userManager.UpdateSecurityStampAsync(user);
-                await _audit.LogAsync("AdminUserActivationChanged", userId: user.Id, userName: user.UserName,
-                    data: new Dictionary<string, string?> { ["IsActive"] = isActive.ToString() });
-            }
-            return res;
-        }
 
         public async Task<IdentityResult> ResetPasswordAsync(string userId, string newPassword)
         {

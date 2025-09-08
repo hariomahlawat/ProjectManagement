@@ -1,0 +1,42 @@
+@page
+@model ProjectManagement.Areas.Admin.Pages.Help.IndexModel
+@{
+    ViewData["Title"] = "Admin Help & Guidance";
+}
+<h3 class="mb-3">Admin Help & Guidance</h3>
+
+<section id="user-lifecycle" class="pm-card pm-shadow p-3 mb-3">
+  <h5>User lifecycle</h5>
+  <ol>
+    <li>Create user → assign roles → first login forces password change (configurable).</li>
+    <li>Disable user to suspend access (reversible); Delete only when policy requires.</li>
+  </ol>
+</section>
+
+<section id="when-to-use-what" class="pm-card pm-shadow p-3 mb-3">
+  <h5>When to use what</h5>
+  <ul class="mb-0">
+    <li><strong>Reset password</strong>: Forgotten or suspected compromise.</li>
+    <li><strong>Disable</strong>: Temporary suspension; retains projects and remarks.</li>
+    <li><strong>Delete</strong>: Irreversible removal after retention checks.</li>
+  </ul>
+</section>
+
+<section id="analytics" class="pm-card pm-shadow p-3 mb-3">
+  <h5>Analytics</h5>
+  <p class="mb-0">Charts help you track user activity. Use them to spot usage trends and unusual login spikes.</p>
+</section>
+
+<section id="logs" class="pm-card pm-shadow p-3 mb-3">
+  <h5>Audit logs</h5>
+  <p class="mb-0">Filter by level, action or user to investigate events. Logs older than retention are purged automatically.</p>
+</section>
+
+<section id="security" class="pm-card pm-shadow p-3">
+  <h5>Security checklist</h5>
+  <ul class="mb-0">
+    <li>Enforce strong passwords &amp; mandatory change on first login.</li>
+    <li>Enable MFA for admins.</li>
+    <li>Review Audit Logs weekly.</li>
+  </ul>
+</section>

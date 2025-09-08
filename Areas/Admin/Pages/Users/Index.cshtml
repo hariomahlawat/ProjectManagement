@@ -1,6 +1,10 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Users.IndexModel
-<h3>Users</h3>
+<h3>Users
+  <a class="ms-1 text-decoration-none" asp-area="Admin" asp-page="/Help/Index" asp-fragment="user-lifecycle" title="Help">
+    <i class="bi bi-question-circle"></i>
+  </a>
+</h3>
 <p><a class="btn btn-primary" asp-page="Create">Create user</a></p>
 <input id="userSearch" class="form-control mb-3" type="search" placeholder="Search by username or role" />
 <table class="table table-sm" id="usersTable">

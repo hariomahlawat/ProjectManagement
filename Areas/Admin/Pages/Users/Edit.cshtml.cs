@@ -5,7 +5,6 @@ using System.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Services;
 
@@ -42,8 +41,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             [Required, Display(Name = "Roles")]
             public List<string> Roles { get; set; } = new();
 
-            [Display(Name = "Active")]
-            public bool IsActive { get; set; }
+            public bool IsDisabled { get; set; }
         }
 
         public async Task<IActionResult> OnGetAsync(string id)
@@ -60,7 +58,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
                 FullName = user.FullName,
                 Rank = user.Rank,
                 Roles = userRoles.ToList(),
-                IsActive = !user.LockoutEnd.HasValue || user.LockoutEnd <= DateTimeOffset.UtcNow
+                IsDisabled = user.IsDisabled
             };
             UserName = user.UserName;
             return Page();
@@ -85,15 +83,8 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
                 return Page();
             }
 
-            var activeRes = await _users.ToggleUserActivationAsync(Input.Id, Input.IsActive);
-            if (!activeRes.Succeeded)
-            {
-                foreach (var e in activeRes.Errors) ModelState.AddModelError(string.Empty, e.Description);
-                return Page();
-            }
-
-            _logger.LogInformation("Admin {Admin} updated user {UserId}: name {FullName}; rank {Rank}; roles {Roles}; active {Active}",
-                User.Identity?.Name, Input.Id, Input.FullName, Input.Rank, string.Join(',', Input.Roles), Input.IsActive);
+            _logger.LogInformation("Admin {Admin} updated user {UserId}: name {FullName}; rank {Rank}; roles {Roles}",
+                User.Identity?.Name, Input.Id, Input.FullName, Input.Rank, string.Join(',', Input.Roles));
 
             TempData["ok"] = "User updated.";
             return RedirectToPage("Index");

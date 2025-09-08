@@ -34,9 +34,20 @@
       <span asp-validation-for="Input.Roles" class="text-danger"></span>
     </fieldset>
 
-    <div class="form-check mb-3">
-      <input class="form-check-input" type="checkbox" asp-for="Input.IsActive" id="isActiveChk" />
-      <label class="form-check-label" for="isActiveChk">Active</label>
+    <div class="mb-3">
+      <label class="form-label">Status</label>
+      <div>
+        @if (Model.Input.IsDisabled)
+        {
+          <span class="badge bg-danger">Disabled</span>
+          <a class="btn btn-sm btn-outline-success ms-2" asp-page="Enable" asp-route-id="@Model.Input.Id">Change…</a>
+        }
+        else
+        {
+          <span class="badge bg-success">Active</span>
+          <a class="btn btn-sm btn-outline-warning ms-2" asp-page="Disable" asp-route-id="@Model.Input.Id">Change…</a>
+        }
+      </div>
     </div>
 
     <div class="d-flex gap-2">
