@@ -24,24 +24,31 @@ namespace ProjectManagement.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            while (!stoppingToken.IsCancellationRequested)
+            try
             {
-                using var scope = _sp.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                var opts = scope.ServiceProvider.GetRequiredService<IOptions<UserLifecycleOptions>>().Value;
-                var due = await db.Users
-                    .Where(u => u.PendingDeletion && u.DeletionRequestedUtc != null &&
-                                DateTime.UtcNow >= u.DeletionRequestedUtc.Value.AddMinutes(opts.UndoWindowMinutes))
-                    .Select(u => u.Id)
-                    .ToListAsync(stoppingToken);
-
-                var svc = scope.ServiceProvider.GetRequiredService<IUserLifecycleService>();
-                foreach (var id in due)
+                while (!stoppingToken.IsCancellationRequested)
                 {
-                    if (await svc.PurgeIfDueAsync(id))
-                        _log.LogInformation("Purged user {UserId}", id);
+                    using var scope = _sp.CreateScope();
+                    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                    var opts = scope.ServiceProvider.GetRequiredService<IOptions<UserLifecycleOptions>>().Value;
+                    var due = await db.Users
+                        .Where(u => u.PendingDeletion && u.DeletionRequestedUtc != null &&
+                                    DateTime.UtcNow >= u.DeletionRequestedUtc.Value.AddMinutes(opts.UndoWindowMinutes))
+                        .Select(u => u.Id)
+                        .ToListAsync(stoppingToken);
+
+                    var svc = scope.ServiceProvider.GetRequiredService<IUserLifecycleService>();
+                    foreach (var id in due)
+                    {
+                        if (await svc.PurgeIfDueAsync(id))
+                            _log.LogInformation("Purged user {UserId}", id);
+                    }
+                    await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
                 }
-                await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
+            }
+            catch (TaskCanceledException)
+            {
+                // Ignore cancellation exceptions to allow graceful shutdown
             }
         }
     }
