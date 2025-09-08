@@ -19,4 +19,4 @@ Seeds initial roles (`Project Officer`, `HoD`, `Comdt`, `Admin`, `TA`, `MCO`, `P
 Extends `IdentityUser` with a `MustChangePassword` flag. New accounts are created with the flag set to `true`, forcing a password change on first login via `EnforcePasswordChangeFilter`.
 
 ### `Models/TodoItem.cs`
-Represents a personal task owned by a user. Each item records a title, optional notes, due date (stored in UTC), priority, pin state, order index and timestamps for creation, updates and completion.
+Represents a personal task owned by a user. Each item records a title, optional notes, due date (stored in UTC), priority, pin state, order index and timestamps for creation, updates and completion. A `RowVersion` concurrency token is used to detect conflicting edits.

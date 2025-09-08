@@ -21,10 +21,10 @@ namespace ProjectManagement.Tests
             }
         }
 
-        private ApplicationDbContext CreateContext()
+        private ApplicationDbContext CreateContext(string? name = null)
         {
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .UseInMemoryDatabase(name ?? Guid.NewGuid().ToString())
                 .Options;
             return new ApplicationDbContext(options);
         }
@@ -111,6 +111,102 @@ namespace ProjectManagement.Tests
             var a = await service.CreateAsync("alice", "A1");
             var b = await service.CreateAsync("bob", "B1");
             var ok = await service.ReorderAsync("alice", new List<Guid> { a.Id, b.Id });
+            Assert.False(ok);
+        }
+
+        [Fact]
+        public async Task NotesPersist()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var service = new TodoService(context, audit);
+            var item = await service.CreateAsync("alice", "Task", notes: "first\nsecond");
+            var stored = await context.TodoItems.FindAsync(item.Id);
+            Assert.Equal("first\nsecond", stored!.Notes);
+        }
+
+        [Fact]
+        public async Task ReorderSkipsCompleted()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var service = new TodoService(context, audit);
+            var a = await service.CreateAsync("alice", "A1");
+            var b = await service.CreateAsync("alice", "A2");
+            await service.ToggleDoneAsync("alice", b.Id, true);
+            var ok = await service.ReorderAsync("alice", new List<Guid> { b.Id, a.Id });
+            Assert.False(ok);
+        }
+
+        [Fact]
+        public async Task SnoozePresets()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var service = new TodoService(context, audit);
+            var item = await service.CreateAsync("alice", "Task");
+
+            var todayPm = TodayAt(18, 0);
+            await service.EditAsync("alice", item.Id, dueAtLocal: todayPm);
+            var stored1 = await context.TodoItems.FindAsync(item.Id);
+            Assert.Equal(TodayAt(18,0).ToUniversalTime(), stored1!.DueAtUtc);
+
+            var tomAm = TodayAt(10,0).AddDays(1);
+            await service.EditAsync("alice", item.Id, dueAtLocal: tomAm);
+            var stored2 = await context.TodoItems.FindAsync(item.Id);
+            Assert.Equal(tomAm.ToUniversalTime(), stored2!.DueAtUtc);
+
+            var nextMon = NextMondayAt(10,0);
+            await service.EditAsync("alice", item.Id, dueAtLocal: nextMon);
+            var stored3 = await context.TodoItems.FindAsync(item.Id);
+            Assert.Equal(nextMon.ToUniversalTime(), stored3!.DueAtUtc);
+        }
+
+        private static DateTimeOffset TodayAt(int h, int m)
+        {
+            var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+            var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ist);
+            return new DateTimeOffset(nowIst.Year, nowIst.Month, nowIst.Day, h, m, 0, nowIst.Offset);
+        }
+
+        private static DateTimeOffset NextMondayAt(int h, int m)
+        {
+            var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+            var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ist);
+            int daysToMon = ((int)DayOfWeek.Monday - (int)nowIst.DayOfWeek + 7) % 7;
+            if (daysToMon == 0) daysToMon = 7;
+            var next = nowIst.Date.AddDays(daysToMon).AddHours(h).AddMinutes(m);
+            return new DateTimeOffset(next, nowIst.Offset);
+        }
+
+        [Fact(Skip = "InMemory provider does not enforce concurrency tokens")]
+        public async Task ConcurrencyConflictThrows()
+        {
+            var dbName = Guid.NewGuid().ToString();
+            using var context1 = CreateContext(dbName);
+            using var context2 = CreateContext(dbName);
+            var item = new TodoItem { Id = Guid.NewGuid(), OwnerId = "alice", Title = "Task" };
+            context1.TodoItems.Add(item);
+            await context1.SaveChangesAsync();
+
+            var entity1 = await context1.TodoItems.FindAsync(item.Id);
+            var entity2 = await context2.TodoItems.FindAsync(item.Id);
+
+            entity1!.Title = "first";
+            await context1.SaveChangesAsync();
+
+            entity2!.Title = "second";
+            await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => context2.SaveChangesAsync());
+        }
+
+        [Fact]
+        public async Task IdorPrevention()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var service = new TodoService(context, audit);
+            var item = await service.CreateAsync("alice", "Task");
+            var ok = await service.EditAsync("bob", item.Id, title: "Hack");
             Assert.False(ok);
         }
 
