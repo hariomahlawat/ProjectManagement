@@ -20,10 +20,12 @@ namespace ProjectManagement.Services
             _audit = audit;
         }
 
-        private static DateTimeOffset? ToUtc(DateTimeOffset? local)
+        private static DateTimeOffset? ToUtc(DateTimeOffset? localIst)
         {
-            if (!local.HasValue) return null;
-            return TimeZoneInfo.ConvertTime(local.Value, TimeZoneInfo.Utc);
+            if (localIst is null) return null;
+            var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+            var istOffset = new DateTimeOffset(localIst.Value.DateTime, ist.GetUtcOffset(localIst.Value));
+            return TimeZoneInfo.ConvertTime(istOffset, TimeZoneInfo.Utc);
         }
 
         public async Task<TodoWidgetResult> GetWidgetAsync(string ownerId, int take = 20)
@@ -63,6 +65,7 @@ namespace ProjectManagement.Services
                                    TodoPriority priority = TodoPriority.Normal, bool pinned = false, string? notes = null)
         {
             var utcDue = ToUtc(dueAtLocal);
+            var last = await _db.TodoItems.Where(x => x.OwnerId == ownerId).MaxAsync(x => (int?)x.OrderIndex) ?? -1;
             var item = new TodoItem
             {
                 Id = Guid.NewGuid(),
@@ -73,7 +76,7 @@ namespace ProjectManagement.Services
                 Priority = priority,
                 IsPinned = pinned,
                 Status = TodoStatus.Open,
-                OrderIndex = 0,
+                OrderIndex = last + 1,
                 CreatedUtc = DateTimeOffset.UtcNow,
                 UpdatedUtc = DateTimeOffset.UtcNow
             };

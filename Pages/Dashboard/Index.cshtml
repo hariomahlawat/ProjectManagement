@@ -3,8 +3,31 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @using ProjectManagement.Services
 @using ProjectManagement.Models
-@{
+@{ 
     ViewData["Title"] = "Dashboard";
+}
+
+@if (Model.TodoWidget != null && (Model.TodoWidget.OverdueCount > 0 || Model.TodoWidget.TodayCount > 0))
+{
+  <div class="alert alert-warning d-flex align-items-center py-2" role="alert">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    <div class="small">
+      You have
+      @if (Model.TodoWidget.OverdueCount > 0)
+      {
+        <strong>@Model.TodoWidget.OverdueCount overdue</strong>
+      }
+      @if (Model.TodoWidget.OverdueCount > 0 && Model.TodoWidget.TodayCount > 0)
+      {
+        @:and
+      }
+      @if (Model.TodoWidget.TodayCount > 0)
+      {
+        <strong>@Model.TodoWidget.TodayCount due today</strong>
+      }
+      tasks. <a asp-page="/Tasks/Index" class="ms-1">Review</a>
+    </div>
+  </div>
 }
 
 <div class="row g-3">

@@ -11,5 +11,105 @@
   </ol>
 </nav>
 
-<h4 class="mb-2">My Tasks</h4>
-<p class="text-muted">Full management view can be added next. The dashboard widget is fully functional.</p>
+<h4 class="mb-3">My Tasks</h4>
+
+<form method="get" class="row g-2 align-items-end mb-3">
+  <div class="col-md-3">
+    <label class="form-label small">View</label>
+    <select class="form-select form-select-sm" name="tab">
+      <option value="all" selected="@(Model.Tab=="all")">Open - All</option>
+      <option value="today" selected="@(Model.Tab=="today")">Due today</option>
+      <option value="upcoming" selected="@(Model.Tab=="upcoming")">Upcoming</option>
+      <option value="completed" selected="@(Model.Tab=="completed")">Completed</option>
+    </select>
+  </div>
+  <div class="col-md-5">
+    <label class="form-label small">Search</label>
+    <input class="form-control form-control-sm" name="q" value="@Model.Q" placeholder="Title or notes">
+  </div>
+  <div class="col-md-2 d-grid">
+    <button class="btn btn-sm btn-primary">Apply</button>
+  </div>
+  <div class="col-md-2 d-grid">
+    <a class="btn btn-sm btn-outline-secondary" asp-page="Index">Reset</a>
+  </div>
+</form>
+
+<form method="post" asp-page-handler="Add" class="mb-3">
+  @Html.AntiForgeryToken()
+  <div class="input-group">
+    <input class="form-control" name="title" placeholder="Add a task…" maxlength="160" required>
+    <button class="btn btn-primary">Add</button>
+  </div>
+</form>
+
+@if (Model.Items.Length == 0)
+{
+  <div class="alert alert-light border text-muted">No tasks found for this view.</div>
+}
+else
+{
+  <div class="table-responsive">
+    <table class="table table-sm align-middle">
+      <thead>
+        <tr>
+          <th style="width:40px;"></th>
+          <th>Title</th>
+          <th style="width:140px;">Due</th>
+          <th style="width:110px;">Priority</th>
+          <th style="width:90px;">Pinned</th>
+          <th style="width:110px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+      @foreach (var t in Model.Items)
+      {
+        var formId = $"edit-{t.Id}";
+        <tr>
+          <td>
+            <form method="post" asp-page-handler="Toggle" class="m-0 p-0">
+              @Html.AntiForgeryToken()
+              <input type="hidden" name="id" value="@t.Id" />
+              <input type="hidden" name="done" value="@(t.Status == ProjectManagement.Models.TodoStatus.Open ? "true" : "false")" />
+              <input class="form-check-input" type="checkbox" title="Mark done" onchange="this.form.submit()" @(t.Status == ProjectManagement.Models.TodoStatus.Done ? "checked" : "") />
+            </form>
+          </td>
+          <td>
+              <input class="form-control form-control-sm" name="title" value="@t.Title" maxlength="160" form="@formId" />
+          </td>
+          <td>
+              <input class="form-control form-control-sm" type="date"
+                     name="dueLocal"
+                     form="@formId"
+                     value="@(t.DueAtUtc.HasValue ? TimeZoneInfo.ConvertTime(t.DueAtUtc.Value, TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata")).ToString("yyyy-MM-dd") : "")" />
+          </td>
+          <td>
+              <select class="form-select form-select-sm" name="priority" form="@formId">
+                <option value="Low" selected="@(t.Priority==ProjectManagement.Models.TodoPriority.Low)">Low</option>
+                <option value="Normal" selected="@(t.Priority==ProjectManagement.Models.TodoPriority.Normal)">Normal</option>
+                <option value="High" selected="@(t.Priority==ProjectManagement.Models.TodoPriority.High)">High</option>
+              </select>
+          </td>
+          <td>
+              <input class="form-check-input" type="checkbox" name="pin" value="true" @(t.IsPinned ? "checked" : "") form="@formId" />
+          </td>
+          <td class="text-end">
+              <form id="@formId" method="post" asp-page-handler="Edit" class="d-inline">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@t.Id" />
+                <button class="btn btn-sm btn-outline-primary">Save</button>
+                <a href="#" class="btn btn-sm btn-outline-secondary" onclick="event.preventDefault(); this.closest('tr').querySelector('input[name=title]').value='@t.Title';">Cancel</a>
+              </form>
+              <form method="post" asp-page-handler="Delete" class="d-inline" onsubmit="return confirm('Delete this task?');">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@t.Id" />
+                <button class="btn btn-sm btn-outline-danger">Delete</button>
+              </form>
+          </td>
+        </tr>
+      }
+      </tbody>
+    </table>
+  </div>
+}
+

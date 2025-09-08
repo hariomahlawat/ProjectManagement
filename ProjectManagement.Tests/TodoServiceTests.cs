@@ -61,5 +61,74 @@ namespace ProjectManagement.Tests
             Assert.Equal(TodoStatus.Done, stored!.Status);
             Assert.NotNull(stored.CompletedUtc);
         }
+
+        [Fact]
+        public async Task CreateSetsOrderIndex()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var service = new TodoService(context, audit);
+            var a = await service.CreateAsync("alice", "A");
+            var b = await service.CreateAsync("alice", "B");
+            Assert.Equal(0, a.OrderIndex);
+            Assert.Equal(1, b.OrderIndex);
+        }
+
+        [Fact]
+        public async Task IstToUtcConversion()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var service = new TodoService(context, audit);
+            var local = new DateTimeOffset(2023, 1, 1, 14, 0, 0, TimeSpan.FromHours(5.5));
+            var item = await service.CreateAsync("alice", "Task", dueAtLocal: local);
+            var stored = await context.TodoItems.FindAsync(item.Id);
+            Assert.Equal(new DateTimeOffset(2023, 1, 1, 8, 30, 0, TimeSpan.Zero), stored!.DueAtUtc);
+        }
+
+        [Fact]
+        public async Task EditUpdatesFields()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var service = new TodoService(context, audit);
+            var item = await service.CreateAsync("alice", "Old");
+            var dueLocal = new DateTimeOffset(2023, 2, 1, 10, 0, 0, TimeSpan.FromHours(5.5));
+            await service.EditAsync("alice", item.Id, title: "New", priority: TodoPriority.High, dueAtLocal: dueLocal, pinned: true);
+            var stored = await context.TodoItems.FindAsync(item.Id);
+            Assert.Equal("New", stored!.Title);
+            Assert.Equal(TodoPriority.High, stored.Priority);
+            Assert.Equal(new DateTimeOffset(2023, 2, 1, 4, 30, 0, TimeSpan.Zero), stored.DueAtUtc);
+            Assert.True(stored.IsPinned);
+        }
+
+        [Fact]
+        public async Task ReorderRespectsOwnership()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var service = new TodoService(context, audit);
+            var a = await service.CreateAsync("alice", "A1");
+            var b = await service.CreateAsync("bob", "B1");
+            var ok = await service.ReorderAsync("alice", new List<Guid> { a.Id, b.Id });
+            Assert.False(ok);
+        }
+
+        [Fact]
+        public async Task ToggleDoneTwice()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var service = new TodoService(context, audit);
+            var item = await service.CreateAsync("alice", "Task");
+            await service.ToggleDoneAsync("alice", item.Id, true);
+            var mid = await context.TodoItems.FindAsync(item.Id);
+            Assert.Equal(TodoStatus.Done, mid!.Status);
+            Assert.NotNull(mid.CompletedUtc);
+            await service.ToggleDoneAsync("alice", item.Id, false);
+            var stored = await context.TodoItems.FindAsync(item.Id);
+            Assert.Equal(TodoStatus.Open, stored!.Status);
+            Assert.Null(stored.CompletedUtc);
+        }
     }
 }

@@ -18,8 +18,8 @@ This module summarises the UI components exposed to end users.
 * `Areas/Identity/Pages/Account/Manage/ChangePassword.cshtml.cs` – validates the old password, updates it, clears the `MustChangePassword` flag and refreshes the sign-in cookie.
 
 ## Dashboard
-* `Pages/Dashboard/Index.cshtml` – landing page after sign-in. It renders the **My Tasks** widget on the right column alongside placeholder content for future widgets.
-* `Pages/Shared/_TodoWidget.cshtml` – partial responsible for listing, adding, pinning, completing and deleting tasks without requiring JavaScript.
+* `Pages/Dashboard/Index.cshtml` – landing page after sign-in. It shows an attention band when tasks are overdue or due today and renders the **My Tasks** widget on the right column alongside placeholder content for future widgets.
+* `Pages/Shared/_TodoWidget.cshtml` – partial responsible for listing, adding, pinning, completing and deleting tasks without requiring JavaScript, now with priority dots and due badges.
 
 ## Tasks
-* `Pages/Tasks/Index.cshtml` – placeholder page linked from the dashboard widget's "View all" link. A full management interface can be built here later.
+* `Pages/Tasks/Index.cshtml` – full management interface with tabs, search, add, inline edits for title, priority, due date, pinning, mark done and delete.
