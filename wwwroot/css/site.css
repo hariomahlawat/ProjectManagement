@@ -177,15 +177,37 @@ body {
   border: 1px solid rgba(0,0,0,.06);
 }
 
-/* Admin tables & badges */
-.table-sm td, .table-sm th { vertical-align: middle; }
+/* ===== Density & scale (small, professional) ===== */
+:root{
+  --pm-card-pad-y: .6rem;
+  --pm-card-pad-x: .75rem;
+  --pm-gap: .35rem;
+  --pm-btn-icon: 28px;
+}
+
+/* Headings: calmer */
+h1, .h1 { font-size: 1.25rem; }
+.card-header { padding: .45rem .6rem; }
+.card-body   { padding: var(--pm-card-pad-y) var(--pm-card-pad-x); }
+
+/* Tables & forms: compact */
+.table-sm td, .table-sm th { padding: .45rem .5rem; vertical-align: middle; }
+.form-control-sm, .form-select-sm { padding-top: .25rem; padding-bottom: .25rem; }
 .badge { letter-spacing: .2px; }
 
-/* Widget compactness */
-.todo-list .list-group-item { padding-top: .35rem; padding-bottom: .35rem; }
-.todo-actions .btn { padding: .15rem .4rem; line-height: 1; }
+/* Widget row compactness */
+.todo-list .list-group-item { padding: .3rem .5rem; }
+.todo-actions .btn { padding: 0; width: var(--pm-btn-icon); height: var(--pm-btn-icon); display: inline-flex; align-items: center; justify-content: center; }
+
+/* Priority dots */
 .todo-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
 .todo-dot-low { background: #6c757d; }
 .todo-dot-normal { background: #0d6efd; }
 .todo-dot-high { background: #dc3545; }
+
+/* Truncation helper for titles so icons never wrap */
+.todo-title { max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Dropdown menu small */
+.dropdown-menu { font-size: .875rem; }
 
