@@ -45,7 +45,7 @@ namespace ProjectManagement.Services
             var todayEndUtc = TimeZoneInfo.ConvertTime(todayEndIst, TimeZoneInfo.Utc);
 
             var query = _db.TodoItems.AsNoTracking()
-                .Where(x => x.OwnerId == ownerId && x.Status == TodoStatus.Open);
+                .Where(x => x.OwnerId == ownerId && x.Status == TodoStatus.Open && x.DeletedUtc == null);
 
             var overdueCount = await query.Where(x => x.DueAtUtc < nowUtc).CountAsync();
             var todayCount = await query.Where(x => x.DueAtUtc >= todayStartUtc && x.DueAtUtc <= todayEndUtc).CountAsync();
@@ -71,7 +71,7 @@ namespace ProjectManagement.Services
                                    TodoPriority priority = TodoPriority.Normal, bool pinned = false, string? notes = null)
         {
             var utcDue = ToUtc(dueAtLocal);
-            var last = await _db.TodoItems.Where(x => x.OwnerId == ownerId).MaxAsync(x => (int?)x.OrderIndex) ?? -1;
+            var last = await _db.TodoItems.Where(x => x.OwnerId == ownerId && x.DeletedUtc == null).MaxAsync(x => (int?)x.OrderIndex) ?? -1;
             var item = new TodoItem
             {
                 Id = Guid.NewGuid(),
@@ -94,7 +94,7 @@ namespace ProjectManagement.Services
 
         public async Task<bool> ToggleDoneAsync(string ownerId, Guid id, bool done)
         {
-            var item = await _db.TodoItems.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == ownerId);
+            var item = await _db.TodoItems.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == ownerId && x.DeletedUtc == null);
             if (item == null) return false;
             if (done && item.Status == TodoStatus.Open)
             {
@@ -123,7 +123,7 @@ namespace ProjectManagement.Services
         public async Task<bool> EditAsync(string ownerId, Guid id, string? title = null, string? notes = null,
                               DateTimeOffset? dueAtLocal = null, TodoPriority? priority = null, bool? pinned = null)
         {
-            var item = await _db.TodoItems.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == ownerId);
+            var item = await _db.TodoItems.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == ownerId && x.DeletedUtc == null);
             if (item == null) return false;
             if (title != null) item.Title = title;
             if (notes != null) item.Notes = notes;
@@ -149,10 +149,19 @@ namespace ProjectManagement.Services
 
         public async Task<bool> DeleteAsync(string ownerId, Guid id)
         {
-            var item = await _db.TodoItems.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == ownerId);
+            var item = await _db.TodoItems.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == ownerId && x.DeletedUtc == null);
             if (item == null) return false;
-            _db.TodoItems.Remove(item);
-            await _db.SaveChangesAsync();
+            if (item.Status == TodoStatus.Done)
+            {
+                item.DeletedUtc = DateTimeOffset.UtcNow;
+                item.UpdatedUtc = DateTimeOffset.UtcNow;
+                await _db.SaveChangesAsync();
+            }
+            else
+            {
+                _db.TodoItems.Remove(item);
+                await _db.SaveChangesAsync();
+            }
             await _audit.LogAsync("Todo.Delete", userId: ownerId, data: new Dictionary<string, string?> { ["Id"] = id.ToString() });
             return true;
         }
@@ -160,7 +169,7 @@ namespace ProjectManagement.Services
         public async Task<bool> ReorderAsync(string ownerId, IList<Guid> orderedIds)
         {
             var items = await _db.TodoItems
-                .Where(x => x.OwnerId == ownerId && orderedIds.Contains(x.Id) && x.Status == TodoStatus.Open)
+                .Where(x => x.OwnerId == ownerId && orderedIds.Contains(x.Id) && x.Status == TodoStatus.Open && x.DeletedUtc == null)
                 .ToListAsync();
             if (items.Count != orderedIds.Count) return false;
             for (int i = 0; i < orderedIds.Count; i++)

@@ -13,6 +13,11 @@
 
 <h4 class="mb-3">My Tasks</h4>
 
+@if (TempData["Error"] is string err && !string.IsNullOrWhiteSpace(err))
+{
+  <div class="alert alert-warning py-2"><i class="bi bi-exclamation-triangle-fill me-2"></i>@err</div>
+}
+
 <form method="get" class="row g-2 align-items-end mb-3">
   <div class="col-md-3">
     <label class="form-label small">View</label>
@@ -23,9 +28,17 @@
       <option value="completed" selected="@(Model.Tab=="completed")">Completed</option>
     </select>
   </div>
-  <div class="col-md-5">
+  <div class="col-md-3">
     <label class="form-label small">Search</label>
     <input class="form-control form-control-sm" name="q" value="@Model.Q" placeholder="Title or notes">
+  </div>
+  <div class="col-md-2">
+    <label class="form-label small">Page size</label>
+    <select class="form-select form-select-sm" name="PageSize">
+      <option value="10" selected="@(Model.PageSize==10)">10</option>
+      <option value="25" selected="@(Model.PageSize==25)">25</option>
+      <option value="50" selected="@(Model.PageSize==50)">50</option>
+    </select>
   </div>
   <div class="col-md-2 d-grid">
     <button class="btn btn-sm btn-primary">Apply</button>
@@ -49,11 +62,19 @@
 }
 else
 {
+  <form method="post" id="batchForm">
+    @Html.AntiForgeryToken()
+    <div class="mb-2">
+      <button class="btn btn-sm btn-outline-primary" formaction="?handler=BatchDone" aria-label="Mark selected done">Mark done</button>
+      <button class="btn btn-sm btn-outline-danger" formaction="?handler=BatchDelete" onclick="return confirm('Delete selected tasks?');" aria-label="Delete selected">Delete</button>
+    </div>
+  </form>
   <div class="table-responsive">
     <table class="table table-sm align-middle">
       <thead>
         <tr>
           <th style="width:24px;"></th>
+          <th style="width:24px;"><input type="checkbox" id="selectAll" form="batchForm" aria-label="Select all" /></th>
           <th style="width:40px;"></th>
           <th>Title / Notes</th>
           <th style="width:140px;">Due</th>
@@ -65,9 +86,10 @@ else
       <tbody>
       @foreach (var t in Model.Items)
       {
-        var formId = $"edit-{t.Id}";
+        var formId = $"f-{t.Id}";
         <tr draggable="@(Model.Tab=="completed" ? "false" : "true")" data-id="@t.Id" class="todo-row">
-          <td class="text-muted"><i class="bi bi-grip-vertical" title="Drag to reorder"></i></td>
+          <td class="text-muted"><i class="bi bi-grip-vertical" title="Drag to reorder (order is applied within the same due group)"></i></td>
+          <td><input class="form-check-input" type="checkbox" name="ids" value="@t.Id" form="batchForm" aria-label="Select task" /></td>
           <td>
             <form method="post" asp-page-handler="Toggle" class="m-0 p-0">
               @Html.AntiForgeryToken()
@@ -101,7 +123,7 @@ else
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="id" value="@t.Id" />
                 <button class="btn btn-sm btn-outline-primary">Save</button>
-                <a href="#" class="btn btn-sm btn-outline-secondary" onclick="event.preventDefault();">Cancel</a>
+                <button type="reset" form="@formId" class="btn btn-sm btn-outline-secondary">Cancel</button>
               </form>
               <form method="post" asp-page-handler="Delete" class="d-inline" onsubmit="return confirm('Delete this task?');">
                 @Html.AntiForgeryToken()
@@ -114,6 +136,19 @@ else
       </tbody>
     </table>
   </div>
+  @if (Model.TotalPages > 1)
+  {
+    <nav class="mt-2">
+      <ul class="pagination pagination-sm mb-0">
+        @for (var p = 1; p <= Model.TotalPages; p++)
+        {
+          <li class="page-item @(p==Model.Page ? "active" : "")">
+            <a class="page-link" href="@Url.Page(null, new { tab = Model.Tab, q = Model.Q, page = p, pageSize = Model.PageSize })">@p</a>
+          </li>
+        }
+      </ul>
+    </nav>
+  }
 }
 
 <script>
@@ -151,6 +186,12 @@ else
 
     await fetch("?handler=Reorder", { method: "POST", body: formData });
   });
+  const selectAll = document.getElementById("selectAll");
+  if (selectAll) {
+    selectAll.addEventListener("change", e => {
+      document.querySelectorAll("input[name='ids']").forEach(cb => cb.checked = selectAll.checked);
+    });
+  }
 })();
 </script>
 
