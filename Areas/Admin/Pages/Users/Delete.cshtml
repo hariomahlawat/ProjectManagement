@@ -22,11 +22,11 @@
 else if (Model.UserEntity is not null)
 {
 <div class="pm-card pm-shadow p-4 p-md-5">
-  <p>Deleting an account permanently removes the user’s sign-in and access. Business records previously created by this user will <strong>not</strong> be removed, but they may lose their owner/author link. Only delete accounts that were created by mistake. For all other cases, <strong>disable</strong> the account instead.</p>
+  <p>Deleting an account permanently removes the user’s sign-in and access. Project records previously created by this user will <strong>not</strong> be removed, but they may lose their owner/author link and any remarks or comments may lose their association. Only delete accounts that were created by mistake. For all other cases, <strong>disable</strong> the account instead.</p>
   <p>This action can be undone for the next <strong>@Model.Options.UndoWindowMinutes minutes</strong>, after which it is irreversible.</p>
   <form method="post">
     <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-    <input id="confirmUser" asp-for="ConfirmUser" class="form-control" placeholder="Type username to confirm" />
+    <input id="confirmUser" asp-for="ConfirmUser" class="form-control" placeholder="Type username to confirm" data-expected="@Model.UserEntity.UserName" data-button="btnDelete" />
     <div class="form-check mt-2">
       <input class="form-check-input" asp-for="Ack" id="ack" />
       <label class="form-check-label" for="ack">I understand this is permanent after the undo window.</label>
@@ -35,12 +35,7 @@ else if (Model.UserEntity is not null)
     <a asp-page="Index" class="btn btn-secondary">Cancel</a>
   </form>
 </div>
-<script>
-  const expected='@Model.UserEntity.UserName';
-  const input=document.getElementById('confirmUser');
-  const ack=document.getElementById('ack');
-  const btn=document.getElementById('btnDelete');
-  function update(){ btn.disabled = !(input.value===expected && ack.checked); }
-  input.addEventListener('input',update); ack.addEventListener('change',update);
-</script>
+@section Scripts {
+  <script type="module" src="~/js/users/confirm-user.js" asp-append-version="true"></script>
+}
 }

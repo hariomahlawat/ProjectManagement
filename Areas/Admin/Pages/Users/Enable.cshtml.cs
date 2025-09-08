@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -11,21 +10,18 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
 {
     [Authorize(Roles = "Admin")]
     [ResponseCache(NoStore = true)]
-    public class DisableModel : PageModel
+    public class EnableModel : PageModel
     {
         private readonly IUserLifecycleService _lifecycle;
         private readonly UserManager<ApplicationUser> _userManager;
 
-        public DisableModel(IUserLifecycleService lifecycle, UserManager<ApplicationUser> userManager)
+        public EnableModel(IUserLifecycleService lifecycle, UserManager<ApplicationUser> userManager)
         {
             _lifecycle = lifecycle;
             _userManager = userManager;
         }
 
         public ApplicationUser? UserEntity { get; private set; }
-
-        [BindProperty]
-        public string Reason { get; set; } = string.Empty;
 
         [BindProperty]
         public string ConfirmUser { get; set; } = string.Empty;
@@ -37,9 +33,9 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
         {
             UserEntity = await _userManager.FindByIdAsync(id);
             if (UserEntity == null) return NotFound();
-            if (UserEntity.IsDisabled)
+            if (!UserEntity.IsDisabled)
             {
-                TempData["ok"] = "User already disabled.";
+                TempData["ok"] = "User already active.";
                 return RedirectToPage("Index");
             }
             return Page();
@@ -49,7 +45,6 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
         {
             UserEntity = await _userManager.FindByIdAsync(id);
             if (UserEntity == null) return NotFound();
-
             if (ConfirmUser != UserEntity.UserName)
             {
                 ModelState.AddModelError("ConfirmUser", "Username mismatch.");
@@ -62,12 +57,11 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             {
                 return Page();
             }
-
             var actorId = _userManager.GetUserId(User) ?? string.Empty;
             try
             {
-                await _lifecycle.DisableAsync(id, actorId, Reason);
-                TempData["ok"] = "User disabled.";
+                await _lifecycle.EnableAsync(id, actorId);
+                TempData["ok"] = "User enabled.";
                 return RedirectToPage("Index");
             }
             catch (System.Exception ex)
