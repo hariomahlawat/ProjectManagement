@@ -23,9 +23,15 @@ namespace ProjectManagement.Services
         private static DateTimeOffset? ToUtc(DateTimeOffset? localIst)
         {
             if (localIst is null) return null;
-            var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
-            var istOffset = new DateTimeOffset(localIst.Value.DateTime, ist.GetUtcOffset(localIst.Value));
-            return TimeZoneInfo.ConvertTime(istOffset, TimeZoneInfo.Utc);
+            var stamp = new DateTimeOffset(
+                localIst.Value.Year,
+                localIst.Value.Month,
+                localIst.Value.Day,
+                localIst.Value.Hour,
+                localIst.Value.Minute,
+                0,
+                Ist.GetUtcOffset(localIst.Value));
+            return TimeZoneInfo.ConvertTime(stamp, TimeZoneInfo.Utc);
         }
 
         public async Task<TodoWidgetResult> GetWidgetAsync(string ownerId, int take = 20)
@@ -38,7 +44,7 @@ namespace ProjectManagement.Services
             var todayStartUtc = TimeZoneInfo.ConvertTime(todayStartIst, TimeZoneInfo.Utc);
             var todayEndUtc = TimeZoneInfo.ConvertTime(todayEndIst, TimeZoneInfo.Utc);
 
-            var query = _db.TodoItems.AsQueryable()
+            var query = _db.TodoItems.AsNoTracking()
                 .Where(x => x.OwnerId == ownerId && x.Status == TodoStatus.Open);
 
             var overdueCount = await query.Where(x => x.DueAtUtc < nowUtc).CountAsync();
@@ -103,7 +109,14 @@ namespace ProjectManagement.Services
                 await _audit.LogAsync("Todo.Undone", userId: ownerId, data: new Dictionary<string, string?> { ["Id"] = id.ToString() });
             }
             item.UpdatedUtc = DateTimeOffset.UtcNow;
-            await _db.SaveChangesAsync();
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                throw new InvalidOperationException("This task was modified by another session. Please refresh and try again.");
+            }
             return true;
         }
 
@@ -122,7 +135,14 @@ namespace ProjectManagement.Services
                 await _audit.LogAsync(pinned.Value ? "Todo.Pin" : "Todo.Unpin", userId: ownerId, data: new Dictionary<string, string?> { ["Id"] = id.ToString() });
             }
             item.UpdatedUtc = DateTimeOffset.UtcNow;
-            await _db.SaveChangesAsync();
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                throw new InvalidOperationException("This task was modified by another session. Please refresh and try again.");
+            }
             await _audit.LogAsync("Todo.Update", userId: ownerId, data: new Dictionary<string, string?> { ["Id"] = id.ToString() });
             return true;
         }
@@ -139,7 +159,9 @@ namespace ProjectManagement.Services
 
         public async Task<bool> ReorderAsync(string ownerId, IList<Guid> orderedIds)
         {
-            var items = await _db.TodoItems.Where(x => x.OwnerId == ownerId && orderedIds.Contains(x.Id)).ToListAsync();
+            var items = await _db.TodoItems
+                .Where(x => x.OwnerId == ownerId && orderedIds.Contains(x.Id) && x.Status == TodoStatus.Open)
+                .ToListAsync();
             if (items.Count != orderedIds.Count) return false;
             for (int i = 0; i < orderedIds.Count; i++)
             {

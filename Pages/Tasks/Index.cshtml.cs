@@ -25,7 +25,7 @@ namespace ProjectManagement.Pages.Tasks
             _db = db; _todo = todo; _users = users;
         }
 
-        public record Row(Guid Id, string Title, TodoPriority Priority, bool IsPinned, TodoStatus Status, DateTimeOffset? DueAtUtc, DateTimeOffset? CompletedUtc);
+        public record Row(Guid Id, string Title, TodoPriority Priority, bool IsPinned, TodoStatus Status, DateTimeOffset? DueAtUtc, DateTimeOffset? CompletedUtc, string? Notes);
         public Row[] Items { get; set; } = Array.Empty<Row>();
         [BindProperty(SupportsGet = true)] public string Tab { get; set; } = "all"; // all | today | upcoming | completed
         [BindProperty(SupportsGet = true)] public string? Q { get; set; }
@@ -63,7 +63,7 @@ namespace ProjectManagement.Pages.Tasks
                 .ThenBy(x => x.OrderIndex)
                 .ThenBy(x => x.CreatedUtc);
 
-            Items = await q.Select(x => new Row(x.Id, x.Title, x.Priority, x.IsPinned, x.Status, x.DueAtUtc, x.CompletedUtc)).ToArrayAsync();
+            Items = await q.Select(x => new Row(x.Id, x.Title, x.Priority, x.IsPinned, x.Status, x.DueAtUtc, x.CompletedUtc, x.Notes)).ToArrayAsync();
         }
 
         // Actions
@@ -82,17 +82,26 @@ namespace ProjectManagement.Pages.Tasks
             return RedirectToPage(new { Tab, Q });
         }
 
-        public async Task<IActionResult> OnPostEditAsync(Guid id, string? title, string? priority, DateTimeOffset? dueLocal, bool? pin)
+        public async Task<IActionResult> OnPostEditAsync(Guid id, string? title, string? priority, DateTimeOffset? dueLocal, bool? pin, string? notes)
         {
             var uid = _users.GetUserId(User);
             TodoPriority? prio = null;
             if (!string.IsNullOrEmpty(priority) && Enum.TryParse<TodoPriority>(priority, out var p)) prio = p;
             await _todo.EditAsync(uid!, id,
                 title: string.IsNullOrWhiteSpace(title) ? null : title.Trim(),
+                notes: notes,
                 dueAtLocal: dueLocal,
                 priority: prio,
                 pinned: pin);
             return RedirectToPage(new { Tab, Q });
+        }
+
+        public async Task<IActionResult> OnPostReorderAsync([FromForm] Guid[] ids)
+        {
+            var uid = _users.GetUserId(User);
+            if (uid is null || ids is null || ids.Length == 0) return new OkResult();
+            await _todo.ReorderAsync(uid, ids);
+            return new OkResult();
         }
 
         public async Task<IActionResult> OnPostDeleteAsync(Guid id)

@@ -19,7 +19,7 @@ This module summarises the UI components exposed to end users.
 
 ## Dashboard
 * `Pages/Dashboard/Index.cshtml` – landing page after sign-in. It shows an attention band when tasks are overdue or due today and renders the **My Tasks** widget on the right column alongside placeholder content for future widgets.
-* `Pages/Shared/_TodoWidget.cshtml` – partial responsible for listing, adding, pinning, completing and deleting tasks without requiring JavaScript, now with priority dots and due badges.
+* `Pages/Shared/_TodoWidget.cshtml` – partial responsible for listing, adding, pinning, completing, snoozing and deleting tasks without requiring JavaScript, with priority dots and due badges.
 
 ## Tasks
-* `Pages/Tasks/Index.cshtml` – full management interface with tabs, search, add, inline edits for title, priority, due date, pinning, mark done and delete.
+* `Pages/Tasks/Index.cshtml` – full management interface with tabs, search, add, inline edits for title, notes, priority, due date, pinning, mark done, delete and drag-and-drop reordering of open tasks.

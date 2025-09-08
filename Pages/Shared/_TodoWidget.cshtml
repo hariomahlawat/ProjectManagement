@@ -16,7 +16,7 @@
     <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Add" class="mb-2">
       @Html.AntiForgeryToken()
       <div class="input-group input-group-sm">
-        <input name="NewTitle" class="form-control" placeholder="Add a task…" maxlength="160" required />
+        <input name="NewTitle" class="form-control" placeholder="Add a task…" maxlength="160" required aria-label="Task title" />
         <button class="btn btn-primary">Add</button>
       </div>
     </form>
@@ -55,7 +55,7 @@
               <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Toggle" class="m-0 p-0">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="id" value="@t.Id" />
-                <input class="form-check-input" type="checkbox" title="Mark done" onchange="this.form.submit()" />
+                <input class="form-check-input" type="checkbox" title="Mark done" aria-label="Mark done" onchange="this.form.submit()" />
               </form>
               <span class="todo-dot @prioClass" title="@t.Priority"></span>
               <span>@t.Title</span>
@@ -65,20 +65,36 @@
               }
             </div>
 
-            <div class="d-flex align-items-center gap-1">
+            <div class="btn-group btn-group-sm" role="group" aria-label="Task actions">
               <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Pin" class="m-0 p-0">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="id" value="@t.Id" />
                 <input type="hidden" name="pin" value="@(!t.IsPinned)" />
-                <button class="btn btn-link btn-sm text-decoration-none" title="@(t.IsPinned ? "Unpin" : "Pin")">
+                <button class="btn btn-outline-secondary" title="@(t.IsPinned ? "Unpin" : "Pin")">
                   <i class="bi @(t.IsPinned ? "bi-pin-angle-fill" : "bi-pin-angle")"></i>
                 </button>
+              </form>
+
+              <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Snooze" class="m-0 p-0">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@t.Id" />
+                <div class="dropdown">
+                  <button class="btn btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" title="Snooze">
+                    <i class="bi bi-alarm"></i>
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    <li><button class="dropdown-item" name="preset" value="today_pm" formaction="?handler=Snooze">Today 6:00 PM</button></li>
+                    <li><button class="dropdown-item" name="preset" value="tom_am" formaction="?handler=Snooze">Tomorrow 10:00 AM</button></li>
+                    <li><button class="dropdown-item" name="preset" value="next_mon" formaction="?handler=Snooze">Next Monday 10:00 AM</button></li>
+                    <li><button class="dropdown-item" name="preset" value="clear" formaction="?handler=Snooze">Clear due date</button></li>
+                  </ul>
+                </div>
               </form>
 
               <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Delete" class="m-0 p-0" onsubmit="return confirm('Delete this task?');">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="id" value="@t.Id" />
-                <button class="btn btn-link btn-sm text-danger text-decoration-none" title="Delete">
+                <button class="btn btn-outline-danger" title="Delete">
                   <i class="bi bi-trash"></i>
                 </button>
               </form>

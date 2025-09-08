@@ -51,6 +51,9 @@ namespace ProjectManagement.Models
         public DateTimeOffset UpdatedUtc { get; set; } = DateTimeOffset.UtcNow;
 
         public DateTimeOffset? CompletedUtc { get; set; }
+
+        [Timestamp]
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     }
 }
 

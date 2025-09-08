@@ -71,5 +71,40 @@ namespace ProjectManagement.Pages.Dashboard
             await _todo.EditAsync(uid, id, pinned: pin);
             return RedirectToPage();
         }
+
+        public async Task<IActionResult> OnPostSnoozeAsync(Guid id, string preset)
+        {
+            var uid = _users.GetUserId(User);
+            if (uid == null) return Unauthorized();
+
+            DateTimeOffset? dueLocal = preset switch
+            {
+                "today_pm" => TodayAt(18, 0),
+                "tom_am" => TodayAt(10, 0).AddDays(1),
+                "next_mon" => NextMondayAt(10, 0),
+                "clear" => null,
+                _ => null
+            };
+            await _todo.EditAsync(uid, id, dueAtLocal: dueLocal);
+            return RedirectToPage();
+        }
+
+        private static DateTimeOffset TodayAt(int h, int m)
+        {
+            var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+            var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ist);
+            var dt = new DateTimeOffset(nowIst.Year, nowIst.Month, nowIst.Day, h, m, 0, nowIst.Offset);
+            return dt;
+        }
+
+        private static DateTimeOffset NextMondayAt(int h, int m)
+        {
+            var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+            var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ist);
+            int daysToMon = ((int)DayOfWeek.Monday - (int)nowIst.DayOfWeek + 7) % 7;
+            if (daysToMon == 0) daysToMon = 7;
+            var next = nowIst.Date.AddDays(daysToMon).AddHours(h).AddMinutes(m);
+            return new DateTimeOffset(next, nowIst.Offset);
+        }
     }
 }

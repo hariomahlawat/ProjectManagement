@@ -27,4 +27,4 @@ Concrete implementation backed by `UserManager<ApplicationUser>` and `RoleManage
 * `Services/SmtpEmailSender.cs` – sends HTML email via SMTP using configuration values (`Email:Smtp:Host`, `Port`, `Username`, `Password`, `Email:From`).
 
 ### `Services/ITodoService` and `TodoService`
-`ITodoService` abstracts operations on personal To-Do items such as creation, completion, pinning and deletion. `TodoService` implements the interface using `ApplicationDbContext` for persistence and `IAuditService` for logging. Time calculations are normalised to the `Asia/Kolkata` time zone to ensure consistent due date handling.
+`ITodoService` abstracts operations on personal To-Do items such as creation, completion, pinning, snoozing, editing notes and reordering. `TodoService` implements the interface using `ApplicationDbContext` for persistence and `IAuditService` for logging. Time calculations are normalised to the `Asia/Kolkata` time zone to ensure consistent due date handling and `RowVersion` is used to detect concurrent edits.
