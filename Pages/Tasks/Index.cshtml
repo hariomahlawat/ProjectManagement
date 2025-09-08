@@ -88,9 +88,9 @@ else
       {
         var formId = $"f-{t.Id}";
         <tr draggable="@(Model.Tab=="completed" ? "false" : "true")" data-id="@t.Id" class="todo-row">
-          <td class="text-muted"><i class="bi bi-grip-vertical" title="Drag to reorder (order is applied within the same due group)"></i></td>
-          <td><input class="form-check-input" type="checkbox" name="ids" value="@t.Id" form="batchForm" aria-label="Select task" /></td>
-          <td>
+          <td class="text-muted align-middle"><i class="bi bi-grip-vertical" title="Drag to reorder (order is applied within the same due group)"></i></td>
+          <td class="align-middle"><input class="form-check-input" type="checkbox" name="ids" value="@t.Id" form="batchForm" aria-label="Select task" /></td>
+          <td class="align-middle">
             <form method="post" asp-page-handler="Toggle" class="m-0 p-0">
               @Html.AntiForgeryToken()
               <input type="hidden" name="id" value="@t.Id" />
@@ -98,33 +98,37 @@ else
               <input class="form-check-input" type="checkbox" title="Mark done" aria-label="Mark done" onchange="this.form.submit()" @(t.Status == ProjectManagement.Models.TodoStatus.Done ? "checked" : "") />
             </form>
           </td>
-          <td>
-              <input class="form-control form-control-sm mb-1" name="title" value="@t.Title" maxlength="160" form="@formId" aria-label="Title" />
-              <textarea class="form-control form-control-sm" name="notes" rows="2" placeholder="Notes (optional)" form="@formId" aria-label="Notes">@t.Notes</textarea>
+          <td class="align-middle">
+            <form id="@formId" method="post" asp-page-handler="Edit" class="row g-2 m-0 p-0">
+              @Html.AntiForgeryToken()
+              <input type="hidden" name="id" value="@t.Id" />
+              <div class="col-12">
+                <input class="form-control form-control-sm" name="title" value="@t.Title" maxlength="160" aria-label="Title">
+              </div>
+              <div class="col-12">
+                <textarea class="form-control form-control-sm" name="notes" rows="2" placeholder="Notes (optional)" aria-label="Notes">@t.Notes</textarea>
+              </div>
+            </form>
           </td>
-          <td>
+          <td class="align-middle">
               <input class="form-control form-control-sm" type="date"
-                     name="dueLocal"
                      form="@formId"
+                     name="dueLocal"
                      value="@(t.DueAtUtc.HasValue ? TimeZoneInfo.ConvertTime(t.DueAtUtc.Value, TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata")).ToString("yyyy-MM-dd") : "")" />
           </td>
-          <td>
-              <select class="form-select form-select-sm" name="priority" form="@formId">
+          <td class="align-middle">
+              <select class="form-select form-select-sm" form="@formId" name="priority">
                 <option value="Low" selected="@(t.Priority==ProjectManagement.Models.TodoPriority.Low)">Low</option>
                 <option value="Normal" selected="@(t.Priority==ProjectManagement.Models.TodoPriority.Normal)">Normal</option>
                 <option value="High" selected="@(t.Priority==ProjectManagement.Models.TodoPriority.High)">High</option>
               </select>
           </td>
-          <td class="text-center">
-              <input class="form-check-input" type="checkbox" name="pin" value="true" @(t.IsPinned ? "checked" : "") form="@formId" />
+          <td class="align-middle text-center">
+              <input class="form-check-input" form="@formId" type="checkbox" name="pin" value="true" @(t.IsPinned ? "checked" : "") />
           </td>
-          <td class="text-end">
-              <form id="@formId" method="post" asp-page-handler="Edit" class="d-inline">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="id" value="@t.Id" />
-                <button class="btn btn-sm btn-outline-primary">Save</button>
-                <button type="reset" form="@formId" class="btn btn-sm btn-outline-secondary">Cancel</button>
-              </form>
+          <td class="align-middle text-end">
+              <button form="@formId" class="btn btn-sm btn-outline-primary">Save</button>
+              <button type="reset" form="@formId" class="btn btn-sm btn-outline-secondary">Cancel</button>
               <form method="post" asp-page-handler="Delete" class="d-inline" onsubmit="return confirm('Delete this task?');">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="id" value="@t.Id" />

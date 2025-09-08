@@ -2,7 +2,6 @@
 @using ProjectManagement.Models
 @inject SignInManager<ApplicationUser> SignInManager
 @inject UserManager<ApplicationUser> UserManager
-@inject ProjectManagement.Services.ITodoService TodoService
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -44,32 +43,7 @@
                             }
                         }
                     </ul>
-                    @if (SignInManager.IsSignedIn(User))
-                    {
-                        var widget = await TodoService.GetWidgetAsync(UserManager.GetUserId(User)!, take:20);
-                        var count = widget.OverdueCount + widget.TodayCount;
-                        <button class="btn btn-link position-relative me-2" data-bs-toggle="offcanvas" data-bs-target="#todoCanvas" aria-label="My Tasks">
-                            <i class="bi bi-bell"></i>
-                            @if (count > 0)
-                            {
-                                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">@count</span>
-                            }
-                        </button>
-                        <partial name="_LoginPartial" />
-                        <div class="offcanvas offcanvas-end" tabindex="-1" id="todoCanvas" aria-labelledby="todoCanvasLabel">
-                            <div class="offcanvas-header">
-                                <h5 class="offcanvas-title" id="todoCanvasLabel">My Tasks</h5>
-                                <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-                            </div>
-                            <div class="offcanvas-body">
-                                @await Html.PartialAsync("_TodoWidget", widget)
-                            </div>
-                        </div>
-                    }
-                    else
-                    {
-                        <partial name="_LoginPartial" />
-                    }
+                    <partial name="_LoginPartial" />
                 </div>
             </div>
         </nav>
