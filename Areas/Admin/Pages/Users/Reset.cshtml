@@ -1,6 +1,13 @@
 @page "{id}"
 @model ProjectManagement.Areas.Admin.Pages.Users.ResetModel
-<h3>Reset password</h3>
+<nav aria-label="breadcrumb" class="mb-2">
+  <ol class="breadcrumb small mb-0">
+    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
+    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Users/Index">Users</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Reset password</li>
+  </ol>
+</nav>
+<h4 class="mb-2">Reset password</h4>
 <div class="pm-card pm-shadow p-4 p-md-5">
   <form method="post">
     <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>

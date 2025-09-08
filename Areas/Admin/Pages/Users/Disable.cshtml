@@ -1,9 +1,16 @@
 @page "{id}"
 @model ProjectManagement.Areas.Admin.Pages.Users.DisableModel
-<h3>Disable user</h3>
+<nav aria-label="breadcrumb" class="mb-2">
+  <ol class="breadcrumb small mb-0">
+    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
+    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Users/Index">Users</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Disable</li>
+  </ol>
+</nav>
+<h4 class="mb-2">Disable user</h4>
 <div class="pm-card pm-shadow p-4 p-md-5">
   <p>Disabling an account prevents the user from signing in. All associated data such as projects, remarks and tasks is preserved. Use this when a member leaves or is temporarily away. Use Delete only when policy requires permanent removal.</p>
-  <form method="post">
+  <form method="post" id="disableForm">
     <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
     <div class="mb-3">
       <label asp-for="Reason" class="form-label">Reason (optional)</label>
@@ -14,9 +21,10 @@
       <input class="form-check-input" asp-for="Ack" id="ack" />
       <label class="form-check-label" for="ack">I understand this will prevent the user from signing in.</label>
     </div>
-    <button id="btnDisable" class="btn btn-warning" type="submit" disabled>Disable</button>
-    <a asp-page="Index" class="btn btn-secondary">Cancel</a>
+    <button id="btnDisable" type="button" class="btn btn-warning mt-3" data-bs-toggle="modal" data-bs-target="#confirmDisable" disabled>Disable</button>
+    <a asp-page="Index" class="btn btn-secondary mt-3">Cancel</a>
   </form>
+  <partial name="../Shared/_ConfirmModal" model="@(new ConfirmModal("confirmDisable", "Disable user", "The user will no longer be able to sign in.", "disableForm", "Disable"))" />
 </div>
 @section Scripts {
   <script type="module" src="~/js/users/confirm-user.js" asp-append-version="true"></script>

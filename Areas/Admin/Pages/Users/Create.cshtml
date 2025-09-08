@@ -3,9 +3,15 @@
 @{
     ViewData["Title"] = "Create user";
 }
+<nav aria-label="breadcrumb" class="mb-2">
+  <ol class="breadcrumb small mb-0">
+    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
+    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Users/Index">Users</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Create</li>
+  </ol>
+</nav>
+<h4 class="mb-2">Create user</h4>
 <div class="pm-card pm-shadow p-4 p-md-5">
-  <h3 class="mb-4">Create user</h3>
-
   <form method="post">
     <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
@@ -62,7 +68,7 @@
       <a asp-page="Index" class="btn btn-secondary">Cancel</a>
     </div>
   </form>
-  </div>
+</div>
 
 @section Scripts {
     <script type="module" src="~/js/utils/password-toggle.js"></script>
