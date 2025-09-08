@@ -26,22 +26,33 @@ namespace ProjectManagement.Services
         {
             try
             {
-                while (!stoppingToken.IsCancellationRequested)
+                using var timer = new PeriodicTimer(TimeSpan.FromHours(24));
+                while (await timer.WaitForNextTickAsync(stoppingToken))
                 {
                     using var scope = _sp.CreateScope();
                     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+                    var hasDeletedUtc = await db.Database.ExecuteSqlRawAsync(
+                        "SELECT 1 FROM information_schema.columns WHERE table_name='TodoItems' AND column_name='DeletedUtc'") > 0;
+                    if (!hasDeletedUtc)
+                    {
+                        _log.LogWarning("TodoItems.DeletedUtc missing; skipping purge.");
+                        continue;
+                    }
+
                     var cutoff = DateTimeOffset.UtcNow.AddDays(-RetentionDays);
                     var deleted = await db.TodoItems
                         .Where(t => t.DeletedUtc != null && t.DeletedUtc < cutoff)
                         .ExecuteDeleteAsync(stoppingToken);
                     if (deleted > 0)
                         _log.LogInformation("Purged {Count} todo items", deleted);
-                    await Task.Delay(TimeSpan.FromDays(7), stoppingToken);
                 }
             }
-            catch (TaskCanceledException)
+            catch (TaskCanceledException) { }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
             {
-                // Ignore cancellation exceptions to allow graceful shutdown
+                _log.LogError(ex, "Todo purge worker failed.");
             }
         }
     }
