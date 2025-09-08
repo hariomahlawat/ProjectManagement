@@ -31,6 +31,14 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             [RegularExpression(@"^[a-zA-Z0-9_.-]+$", ErrorMessage = "Only letters, numbers, dot, underscore and hyphen.")]
             public string UserName { get; set; } = string.Empty;
 
+            [Required, Display(Name = "Full name")]
+            [StringLength(100)]
+            public string FullName { get; set; } = string.Empty;
+
+            [Required, Display(Name = "Rank")]
+            [StringLength(32)]
+            public string Rank { get; set; } = string.Empty;
+
             [Required, DataType(DataType.Password)]
             [StringLength(100, MinimumLength = 8)]
             public string Password { get; set; } = "ChangeMe!123";
@@ -46,10 +54,10 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             Roles = await _users.GetRolesAsync();
             if (!ModelState.IsValid) return Page();
 
-            var res = await _users.CreateUserAsync(Input.UserName, Input.Password, Input.Roles);
+            var res = await _users.CreateUserAsync(Input.UserName, Input.Password, Input.FullName, Input.Rank, Input.Roles);
             if (res.Succeeded)
             {
-                _logger.LogInformation("Admin {Admin} created user {User} with roles {Roles}", User.Identity?.Name, Input.UserName, string.Join(',', Input.Roles));
+                _logger.LogInformation("Admin {Admin} created user {User} ({Rank}) with roles {Roles}", User.Identity?.Name, Input.UserName, Input.Rank, string.Join(',', Input.Roles));
                 TempData["ok"] = "User created.";
                 return RedirectToPage("Index");
             }

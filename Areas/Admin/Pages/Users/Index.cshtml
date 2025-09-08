@@ -7,6 +7,8 @@
   <thead>
     <tr>
       <th scope="col">UserName</th>
+      <th scope="col">Rank</th>
+      <th scope="col">Full Name</th>
       <th scope="col">Roles</th>
       <th scope="col">Last login</th>
       <th scope="col">Total logins</th>
@@ -19,6 +21,8 @@
   {
     <tr>
       <td class="text-start">@row.UserName</td>
+      <td>@row.Rank</td>
+      <td>@row.FullName</td>
       <td class="text-start">
         @foreach (var r in row.Roles)
         {

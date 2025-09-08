@@ -17,6 +17,18 @@
     </div>
 
     <div class="mb-3">
+      <label asp-for="Input.Rank" class="form-label"></label>
+      <input asp-for="Input.Rank" class="form-control" maxlength="32" />
+      <span asp-validation-for="Input.Rank" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+      <label asp-for="Input.FullName" class="form-label"></label>
+      <input asp-for="Input.FullName" class="form-control" maxlength="100" />
+      <span asp-validation-for="Input.FullName" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
       <label asp-for="Input.Password" class="form-label"></label>
       <div class="password-container">
         <input asp-for="Input.Password" class="form-control" autocomplete="new-password" />

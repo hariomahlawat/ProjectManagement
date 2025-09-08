@@ -53,9 +53,9 @@ namespace ProjectManagement.Services
         }
 
         // -------- multi-role aware create ----------
-        public async Task<IdentityResult> CreateUserAsync(string userName, string password, IEnumerable<string> roles)
+        public async Task<IdentityResult> CreateUserAsync(string userName, string password, string fullName, string rank, IEnumerable<string> roles)
         {
-            var user = new ApplicationUser { UserName = userName, MustChangePassword = true };
+            var user = new ApplicationUser { UserName = userName, MustChangePassword = true, FullName = fullName, Rank = rank };
             var result = await _userManager.CreateAsync(user, password);
             if (!result.Succeeded) return result;
 
@@ -73,8 +73,28 @@ namespace ProjectManagement.Services
             // Important: invalidate any cached tokens/sessions after role change
             await _userManager.UpdateSecurityStampAsync(user);
             await _audit.LogAsync("AdminUserCreated", userId: user.Id, userName: user.UserName,
-                data: new Dictionary<string, string?> { ["Roles"] = string.Join(",", targetRoles) });
+                data: new Dictionary<string, string?>
+                {
+                    ["Roles"] = string.Join(",", targetRoles),
+                    ["FullName"] = fullName,
+                    ["Rank"] = rank
+                });
             return result;
+        }
+
+        public async Task<IdentityResult> UpdateUserDetailsAsync(string userId, string fullName, string rank)
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+                return IdentityResult.Failed(new IdentityError { Description = "User not found." });
+
+            user.FullName = fullName;
+            user.Rank = rank;
+            var res = await _userManager.UpdateAsync(user);
+            if (res.Succeeded)
+                await _audit.LogAsync("AdminUserDetailsUpdated", userId: user.Id, userName: user.UserName,
+                    data: new Dictionary<string, string?> { ["FullName"] = fullName, ["Rank"] = rank });
+            return res;
         }
 
         // -------- multi-role update ----------

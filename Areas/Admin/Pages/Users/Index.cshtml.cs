@@ -20,6 +20,8 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
         {
             public string Id { get; set; } = "";
             public string UserName { get; set; } = "";
+            public string FullName { get; set; } = "";
+            public string Rank { get; set; } = "";
             public IList<string> Roles { get; set; } = new List<string>();
             public bool IsActive { get; set; }
             public DateTime? LastLogin { get; set; }
@@ -37,6 +39,8 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
                 {
                     Id = u.Id,
                     UserName = u.UserName ?? "",
+                    FullName = u.FullName,
+                    Rank = u.Rank,
                     Roles = roles.OrderBy(r => r).ToList(),
                     IsActive = !u.LockoutEnd.HasValue || u.LockoutEnd <= DateTimeOffset.UtcNow,
                     LastLogin = IstClock.ToIst(u.LastLoginUtc),

@@ -31,6 +31,14 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
         {
             [Required] public string Id { get; set; } = string.Empty;
 
+            [Required, Display(Name = "Full name")]
+            [StringLength(100)]
+            public string FullName { get; set; } = string.Empty;
+
+            [Required, Display(Name = "Rank")]
+            [StringLength(32)]
+            public string Rank { get; set; } = string.Empty;
+
             [Required, Display(Name = "Roles")]
             public List<string> Roles { get; set; } = new();
 
@@ -49,6 +57,8 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
             Input = new InputModel
             {
                 Id = id,
+                FullName = user.FullName,
+                Rank = user.Rank,
                 Roles = userRoles.ToList(),
                 IsActive = !user.LockoutEnd.HasValue || user.LockoutEnd <= DateTimeOffset.UtcNow
             };
@@ -60,6 +70,13 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
         {
             Roles = await _users.GetRolesAsync();
             if (!ModelState.IsValid) return Page();
+
+            var detailsRes = await _users.UpdateUserDetailsAsync(Input.Id, Input.FullName, Input.Rank);
+            if (!detailsRes.Succeeded)
+            {
+                foreach (var e in detailsRes.Errors) ModelState.AddModelError(string.Empty, e.Description);
+                return Page();
+            }
 
             var rolesRes = await _users.UpdateUserRolesAsync(Input.Id, Input.Roles);
             if (!rolesRes.Succeeded)
@@ -75,7 +92,8 @@ namespace ProjectManagement.Areas.Admin.Pages.Users
                 return Page();
             }
 
-            _logger.LogInformation("Admin {Admin} updated user {UserId}: roles {Roles}; active {Active}", User.Identity?.Name, Input.Id, string.Join(',', Input.Roles), Input.IsActive);
+            _logger.LogInformation("Admin {Admin} updated user {UserId}: name {FullName}; rank {Rank}; roles {Roles}; active {Active}",
+                User.Identity?.Name, Input.Id, Input.FullName, Input.Rank, string.Join(',', Input.Roles), Input.IsActive);
 
             TempData["ok"] = "User updated.";
             return RedirectToPage("Index");
