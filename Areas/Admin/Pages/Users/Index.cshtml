@@ -1,13 +1,54 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Users.IndexModel
-<h3>Users
+
+<nav aria-label="breadcrumb" class="mb-2">
+  <ol class="breadcrumb small mb-0">
+    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Users</li>
+  </ol>
+</nav>
+<h3 class="mb-2">Users
   <a class="ms-1 text-decoration-none" asp-area="Admin" asp-page="/Help/Index" asp-fragment="user-lifecycle" title="Help">
     <i class="bi bi-question-circle"></i>
   </a>
 </h3>
-<p><a class="btn btn-primary" asp-page="Create">Create user</a></p>
-<input id="userSearch" class="form-control mb-3" type="search" placeholder="Search by username or role" />
-<table class="table table-sm" id="usersTable">
+
+<form method="get" class="row g-2 align-items-end mb-2">
+  <div class="col-md-5">
+    <label class="form-label small">Search</label>
+    <input name="q" value="@Model.Q" class="form-control form-control-sm" placeholder="Name or email">
+  </div>
+  <div class="col-md-3">
+    <label class="form-label small">Role</label>
+    <select name="role" class="form-select form-select-sm">
+      <option value="">All</option>
+      @foreach (var r in Model.AllRoles) {
+        <option value="@r" selected="@(Model.Role==r)">@r</option>
+      }
+    </select>
+  </div>
+  <div class="col-md-2">
+    <label class="form-label small">Status</label>
+    <select name="status" class="form-select form-select-sm">
+      <option value="">All</option>
+      <option value="active" selected="@(Model.Status=="active")">Active</option>
+      <option value="disabled" selected="@(Model.Status=="disabled")">Disabled</option>
+    </select>
+  </div>
+  <div class="col-md-2 d-grid">
+    <button class="btn btn-sm btn-primary">Apply</button>
+  </div>
+</form>
+
+<div class="d-flex justify-content-between mb-2">
+  <a class="btn btn-primary btn-sm" asp-page="Create">Create user</a>
+  <a class="btn btn-sm btn-outline-secondary"
+     asp-page-handler="Export" asp-route-q="@Model.Q" asp-route-role="@Model.Role" asp-route-status="@Model.Status">
+    Export CSV
+  </a>
+</div>
+
+<table class="table table-sm">
   <thead>
     <tr>
       <th scope="col">UserName</th>
@@ -30,63 +71,48 @@
       <td class="text-start">
         @foreach (var r in row.Roles)
         {
-          <span class="badge bg-secondary me-1">@r</span>
+          <span class="badge bg-light text-dark border me-1">@r</span>
         }
       </td>
-      <td>@(row.LastLogin?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td>
+      <td>@TimeFmt.ToIst(row.LastLogin)</td>
       <td>@row.LoginCount</td>
       <td>
-        @if (row.PendingDeletion && row.DeletionRequestedUtc.HasValue)
-        {
-            var due = row.DeletionRequestedUtc.Value.AddMinutes(Model.Options.UndoWindowMinutes);
-            <span class="badge bg-warning">Pending deletion</span>
-            <small class="text-muted">@due.ToString("yyyy-MM-dd HH:mm")</small>
-        }
-        else if (row.IsActive)
-        {
-            <span class="badge bg-success">Active</span>
-        }
+        @if (row.IsDisabled)
+        { <span class="badge bg-danger">Disabled</span> }
         else
-        {
-            <span class="badge bg-danger">Disabled</span>
-        }
+        { <span class="badge bg-success">Active</span> }
       </td>
       <td class="text-end">
-        <div class="d-flex justify-content-end gap-1">
-          <a asp-page="Edit" asp-route-id="@row.Id" class="btn btn-sm btn-outline-secondary" title="Edit user">Edit</a>
-          <a asp-page="Reset" asp-route-id="@row.Id" class="btn btn-sm btn-outline-secondary" title="Reset password">Reset</a>
-          @if (!row.PendingDeletion)
-          {
-            if (row.IsActive)
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">Actions</button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" asp-page="Edit" asp-route-id="@row.Id">Edit</a></li>
+            <li><a class="dropdown-item" asp-page="Reset" asp-route-id="@row.Id">Reset password</a></li>
+            @if (row.IsDisabled)
             {
-                <a asp-page="Disable" asp-route-id="@row.Id" class="btn btn-sm btn-outline-warning" title="Disable user">Disable</a>
+              <li><a class="dropdown-item" asp-page="Enable" asp-route-id="@row.Id">Enable</a></li>
             }
             else
             {
-                <a asp-page="Enable" asp-route-id="@row.Id" class="btn btn-sm btn-outline-success" title="Enable user">Enable</a>
+              <li><a class="dropdown-item" asp-page="Disable" asp-route-id="@row.Id">Disable</a></li>
             }
-            if ((DateTime.UtcNow - row.CreatedUtc).TotalHours <= Model.Options.HardDeleteWindowHours)
+            @if ((DateTime.UtcNow - row.CreatedUtc).TotalHours <= Model.Options.HardDeleteWindowHours)
             {
-                <a asp-page="Delete" asp-route-id="@row.Id" class="btn btn-sm btn-outline-danger" title="Delete user">Delete</a>
+              <li><hr class="dropdown-divider" /></li>
+              <li><a class="dropdown-item text-danger" asp-page="Delete" asp-route-id="@row.Id">Delete</a></li>
             }
-          }
-          else if (row.DeletionRequestedUtc.HasValue)
-          {
-            var due = row.DeletionRequestedUtc.Value.AddMinutes(Model.Options.UndoWindowMinutes);
-            if (DateTime.UtcNow < due)
-            {
-                <form method="post" asp-page="Delete" asp-page-handler="Undo" asp-route-id="@row.Id" class="d-inline">
-                  <button type="submit" class="btn btn-sm btn-outline-danger" title="Undo delete">Undo</button>
-                </form>
-            }
-          }
+          </ul>
         </div>
+      </td>
+    </tr>
+  }
+  @if (!Model.Users.Any())
+  {
+    <tr>
+      <td colspan="8" class="text-center text-muted py-4">
+        No users match your filters. Adjust filters or <a asp-page="Create">create a user</a>.
       </td>
     </tr>
   }
   </tbody>
 </table>
-
-@section Scripts {
-    <script type="module" src="~/js/users/index.js" asp-append-version="true"></script>
-}

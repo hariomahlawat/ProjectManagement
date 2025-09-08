@@ -3,6 +3,12 @@
 @{
     ViewData["Title"] = "Admin Help";
 }
+<nav aria-label="breadcrumb" class="mb-2">
+  <ol class="breadcrumb small mb-0">
+    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Help</li>
+  </ol>
+</nav>
 <div class="container py-3">
   <!-- Hero -->
   <div class="pb-3 mb-3 border-bottom">
@@ -38,6 +44,7 @@
         </div>
         <div class="col-md-4">
           <div class="card h-100 shadow-sm">
+            <div class="card h-100 shadow-sm">
             <div class="card-body">
               <h6 class="card-title mb-2">Reset password</h6>
               <p class="small mb-0">For forgotten or suspected compromise. Sends a reset link or enforces change on next sign-in.</p>
@@ -117,4 +124,3 @@
     </div>
   </div>
 </div>
-

@@ -4,12 +4,17 @@
 @{
   ViewData["Title"] = "Analytics";
 }
+<nav aria-label="breadcrumb" class="mb-2">
+  <ol class="breadcrumb small mb-0">
+    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Analytics</li>
+  </ol>
+</nav>
 <h3 class="mb-3">Analytics
   <a class="ms-1 text-decoration-none" asp-area="Admin" asp-page="/Help/Index" asp-fragment="analytics" title="Help">
     <i class="bi bi-question-circle"></i>
   </a>
 </h3>
-
 <div class="row g-3 mb-4">
   <div class="col-md-3">
     <div class="pm-card pm-shadow p-3">
@@ -49,7 +54,7 @@
     <thead><tr><th>User</th><th>Last login</th><th>Total logins</th></tr></thead>
     <tbody>
       @foreach (var u in Model.TopUsers)
-      { <tr><td>@u.UserName</td><td>@(u.LastLogin?.ToString("yyyy-MM-dd HH:mm") ?? "-")</td><td>@u.Count</td></tr> }
+      { <tr><td>@u.UserName</td><td>@TimeFmt.ToIst(u.LastLogin)</td><td>@u.Count</td></tr> }
     </tbody>
   </table>
 </div>

@@ -1,6 +1,13 @@
 @page "{id}"
 @model ProjectManagement.Areas.Admin.Pages.Users.EnableModel
-<h3>Enable user</h3>
+<nav aria-label="breadcrumb" class="mb-2">
+  <ol class="breadcrumb small mb-0">
+    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
+    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Users/Index">Users</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Enable</li>
+  </ol>
+</nav>
+<h4 class="mb-2">Enable user</h4>
 <div class="pm-card pm-shadow p-4 p-md-5">
   <p>Enabling an account restores the user's access to the system.</p>
   <form method="post">
