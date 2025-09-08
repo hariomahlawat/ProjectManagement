@@ -158,3 +158,22 @@ body {
   .hero-art  { order: 2; max-width: clamp(220px, 50vw, 340px); }
 }
 
+/* Help page micro-polish */
+.card h6 { font-weight: 600; }
+.accordion-button { font-weight: 600; }
+.list-group-item-action { font-size: .925rem; }
+
+/* Avatar */
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bs-secondary-bg, #f1f3f5);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: .85rem;
+  border: 1px solid rgba(0,0,0,.06);
+}
+
