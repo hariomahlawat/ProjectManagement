@@ -50,7 +50,7 @@
 
 <form method="post" asp-page-handler="Add" class="mb-3">
   @Html.AntiForgeryToken()
-  <div class="input-group">
+  <div class="input-group input-group-sm">
     <input class="form-control" name="title" placeholder="Add a task…" maxlength="160" required>
     <button class="btn btn-primary">Add</button>
   </div>
