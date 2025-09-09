@@ -21,7 +21,8 @@ namespace ProjectManagement.Models
         public string Name { get; set; } = string.Empty;
 
         [StringLength(120)]
-        public string? PartnerName { get; set; }
+        [Display(Name = "Spouse Name (Optional)")]
+        public string? SpouseName { get; set; }
 
         [Range(1,31)]
         public byte Day { get; set; }
