@@ -24,6 +24,6 @@ namespace ProjectManagement.Services
     {
         public IList<TodoItem> Items { get; set; } = new List<TodoItem>();
         public int OverdueCount { get; set; }
-        public int TodayCount { get; set; }
+        public int DueTodayCount { get; set; }
     }
 }

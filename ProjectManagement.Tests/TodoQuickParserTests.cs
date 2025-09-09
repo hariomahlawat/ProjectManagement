@@ -1,5 +1,6 @@
 using System;
 using ProjectManagement.Helpers;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using Xunit;
 
@@ -21,7 +22,7 @@ namespace ProjectManagement.Tests
             }
             else
             {
-                var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+                var ist = IstClock.TimeZone;
                 var today = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ist).Date;
                 Assert.Equal(today.AddDays(daysAhead), due?.Date);
             }

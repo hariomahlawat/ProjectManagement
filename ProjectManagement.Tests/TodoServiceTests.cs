@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
+using ProjectManagement.Helpers;
 using Xunit;
 
 namespace ProjectManagement.Tests
@@ -21,6 +23,12 @@ namespace ProjectManagement.Tests
             }
         }
 
+        private class FakeClock : IClock
+        {
+            public DateTimeOffset UtcNow { get; set; }
+            public FakeClock(DateTimeOffset now) => UtcNow = now;
+        }
+
         private ApplicationDbContext CreateContext(string? name = null)
         {
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -34,7 +42,8 @@ namespace ProjectManagement.Tests
         {
             using var context = CreateContext();
             var audit = new FakeAudit();
-            var service = new TodoService(context, audit);
+            var clock = new FakeClock(DateTimeOffset.UtcNow);
+            var service = new TodoService(context, audit, clock);
 
             context.TodoItems.Add(new TodoItem { Id = Guid.NewGuid(), OwnerId = "alice", Title = "A" });
             context.TodoItems.Add(new TodoItem { Id = Guid.NewGuid(), OwnerId = "bob", Title = "B" });
@@ -50,7 +59,8 @@ namespace ProjectManagement.Tests
         {
             using var context = CreateContext();
             var audit = new FakeAudit();
-            var service = new TodoService(context, audit);
+            var clock = new FakeClock(DateTimeOffset.UtcNow);
+            var service = new TodoService(context, audit, clock);
             var item = new TodoItem { Id = Guid.NewGuid(), OwnerId = "alice", Title = "Test" };
             context.TodoItems.Add(item);
             context.SaveChanges();
@@ -67,7 +77,8 @@ namespace ProjectManagement.Tests
         {
             using var context = CreateContext();
             var audit = new FakeAudit();
-            var service = new TodoService(context, audit);
+            var clock = new FakeClock(DateTimeOffset.UtcNow);
+            var service = new TodoService(context, audit, clock);
             var a = await service.CreateAsync("alice", "A");
             var b = await service.CreateAsync("alice", "B");
             Assert.Equal(0, a.OrderIndex);
@@ -79,7 +90,8 @@ namespace ProjectManagement.Tests
         {
             using var context = CreateContext();
             var audit = new FakeAudit();
-            var service = new TodoService(context, audit);
+            var clock = new FakeClock(DateTimeOffset.UtcNow);
+            var service = new TodoService(context, audit, clock);
             var local = new DateTimeOffset(2023, 1, 1, 14, 0, 0, TimeSpan.FromHours(5.5));
             var item = await service.CreateAsync("alice", "Task", dueAtLocal: local);
             var stored = await context.TodoItems.FindAsync(item.Id);
@@ -91,7 +103,8 @@ namespace ProjectManagement.Tests
         {
             using var context = CreateContext();
             var audit = new FakeAudit();
-            var service = new TodoService(context, audit);
+            var clock = new FakeClock(DateTimeOffset.UtcNow);
+            var service = new TodoService(context, audit, clock);
             var item = await service.CreateAsync("alice", "Old");
             var dueLocal = new DateTimeOffset(2023, 2, 1, 10, 0, 0, TimeSpan.FromHours(5.5));
             await service.EditAsync("alice", item.Id, title: "New", priority: TodoPriority.High, dueAtLocal: dueLocal, pinned: true);
@@ -107,7 +120,8 @@ namespace ProjectManagement.Tests
         {
             using var context = CreateContext();
             var audit = new FakeAudit();
-            var service = new TodoService(context, audit);
+            var clock = new FakeClock(DateTimeOffset.UtcNow);
+            var service = new TodoService(context, audit, clock);
             var a = await service.CreateAsync("alice", "A1");
             var b = await service.CreateAsync("bob", "B1");
             var ok = await service.ReorderAsync("alice", new List<Guid> { a.Id, b.Id });
@@ -119,7 +133,8 @@ namespace ProjectManagement.Tests
         {
             using var context = CreateContext();
             var audit = new FakeAudit();
-            var service = new TodoService(context, audit);
+            var clock = new FakeClock(DateTimeOffset.UtcNow);
+            var service = new TodoService(context, audit, clock);
             var a = await service.CreateAsync("alice", "A1");
             var b = await service.CreateAsync("alice", "A2");
             await service.ToggleDoneAsync("alice", b.Id, true);
@@ -128,11 +143,109 @@ namespace ProjectManagement.Tests
         }
 
         [Fact]
+        public async Task DueEarlierTodayIsOverdue()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var now = new DateTimeOffset(2023, 1, 1, 11, 30, 0, TimeSpan.Zero); // 17:00 IST
+            var clock = new FakeClock(now);
+            var service = new TodoService(context, audit, clock);
+            var dueLocal = new DateTimeOffset(2023, 1, 1, 8, 0, 0, TimeSpan.FromHours(5.5));
+            await service.CreateAsync("alice", "Task", dueLocal);
+            var result = await service.GetWidgetAsync("alice");
+            Assert.Equal(1, result.OverdueCount);
+            Assert.Equal(0, result.DueTodayCount);
+            Assert.Equal("Overdue", TodoViewHelpers.DueBadge(result.Items[0].DueAtUtc, now));
+        }
+
+        [Fact]
+        public async Task DueLaterTodayCountsAsToday()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var now = new DateTimeOffset(2023, 1, 1, 11, 30, 0, TimeSpan.Zero); // 17:00 IST
+            var clock = new FakeClock(now);
+            var service = new TodoService(context, audit, clock);
+            var dueLocal = new DateTimeOffset(2023, 1, 1, 23, 0, 0, TimeSpan.FromHours(5.5));
+            await service.CreateAsync("alice", "Task", dueLocal);
+            var result = await service.GetWidgetAsync("alice");
+            Assert.Equal(0, result.OverdueCount);
+            Assert.Equal(1, result.DueTodayCount);
+            Assert.Equal("Today", TodoViewHelpers.DueBadge(result.Items[0].DueAtUtc, now));
+        }
+
+        [Fact]
+        public async Task DueYesterdayIsOverdue()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var now = new DateTimeOffset(2023, 1, 2, 11, 30, 0, TimeSpan.Zero); // 17:00 IST
+            var clock = new FakeClock(now);
+            var service = new TodoService(context, audit, clock);
+            var dueLocal = new DateTimeOffset(2023, 1, 1, 10, 0, 0, TimeSpan.FromHours(5.5));
+            await service.CreateAsync("alice", "Task", dueLocal);
+            var result = await service.GetWidgetAsync("alice");
+            Assert.Equal(1, result.OverdueCount);
+            Assert.Equal(0, result.DueTodayCount);
+        }
+
+        [Fact]
+        public async Task DueTomorrowCountsNone()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var now = new DateTimeOffset(2023, 1, 1, 11, 30, 0, TimeSpan.Zero); // 17:00 IST
+            var clock = new FakeClock(now);
+            var service = new TodoService(context, audit, clock);
+            var dueLocal = new DateTimeOffset(2023, 1, 2, 10, 0, 0, TimeSpan.FromHours(5.5));
+            await service.CreateAsync("alice", "Task", dueLocal);
+            var result = await service.GetWidgetAsync("alice");
+            Assert.Equal(0, result.OverdueCount);
+            Assert.Equal(0, result.DueTodayCount);
+        }
+
+        [Fact]
+        public async Task CompletedTasksNotCounted()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var now = new DateTimeOffset(2023, 1, 1, 11, 30, 0, TimeSpan.Zero);
+            var clock = new FakeClock(now);
+            var service = new TodoService(context, audit, clock);
+            var dueLocal = new DateTimeOffset(2023, 1, 1, 23, 0, 0, TimeSpan.FromHours(5.5));
+            var item = await service.CreateAsync("alice", "Task", dueLocal);
+            await service.ToggleDoneAsync("alice", item.Id, true);
+            var result = await service.GetWidgetAsync("alice");
+            Assert.Equal(0, result.OverdueCount);
+            Assert.Equal(0, result.DueTodayCount);
+        }
+
+        [Fact]
+        public async Task DateOnlyTaskDueEndOfDay()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var now = new DateTimeOffset(2023, 1, 1, 11, 30, 0, TimeSpan.Zero); // 17:00 IST
+            var clock = new FakeClock(now);
+            var service = new TodoService(context, audit, clock);
+            var dateOnly = new DateTimeOffset(2023, 1, 1, 0, 0, 0, TimeSpan.FromHours(5.5));
+            var item = await service.CreateAsync("alice", "Task", dateOnly);
+            var stored = await context.TodoItems.FindAsync(item.Id);
+            var endOfDayLocal = new DateTimeOffset(2023, 1, 1, 23, 59, 59, TimeSpan.FromHours(5.5)).AddTicks(9999999);
+            Assert.Equal(endOfDayLocal.ToUniversalTime(), stored!.DueAtUtc);
+            var result = await service.GetWidgetAsync("alice");
+            Assert.Equal(0, result.OverdueCount);
+            Assert.Equal(1, result.DueTodayCount);
+            Assert.Equal("Today", TodoViewHelpers.DueBadge(result.Items[0].DueAtUtc, now));
+        }
+
+        [Fact]
         public async Task SnoozePresets()
         {
             using var context = CreateContext();
             var audit = new FakeAudit();
-            var service = new TodoService(context, audit);
+            var clock = new FakeClock(DateTimeOffset.UtcNow);
+            var service = new TodoService(context, audit, clock);
             var item = await service.CreateAsync("alice", "Task");
 
             var todayPm = TodayAt(18, 0);
@@ -156,7 +269,8 @@ namespace ProjectManagement.Tests
         {
             using var context = CreateContext();
             var audit = new FakeAudit();
-            var service = new TodoService(context, audit);
+            var clock = new FakeClock(DateTimeOffset.UtcNow);
+            var service = new TodoService(context, audit, clock);
             var item = await service.CreateAsync("alice", "Task");
             await service.ToggleDoneAsync("alice", item.Id, true);
             await service.DeleteAsync("alice", item.Id);
@@ -170,7 +284,8 @@ namespace ProjectManagement.Tests
         {
             using var context = CreateContext();
             var audit = new FakeAudit();
-            var service = new TodoService(context, audit);
+            var clock = new FakeClock(DateTimeOffset.UtcNow);
+            var service = new TodoService(context, audit, clock);
             var a = await service.CreateAsync("alice", "A1");
             var b = await service.CreateAsync("alice", "A2");
             await service.ToggleDoneAsync("alice", a.Id, true);
@@ -185,14 +300,14 @@ namespace ProjectManagement.Tests
 
         private static DateTimeOffset TodayAt(int h, int m)
         {
-            var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+            var ist = IstClock.TimeZone;
             var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ist);
             return new DateTimeOffset(nowIst.Year, nowIst.Month, nowIst.Day, h, m, 0, nowIst.Offset);
         }
 
         private static DateTimeOffset NextMondayAt(int h, int m)
         {
-            var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+            var ist = IstClock.TimeZone;
             var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ist);
             int daysToMon = ((int)DayOfWeek.Monday - (int)nowIst.DayOfWeek + 7) % 7;
             if (daysToMon == 0) daysToMon = 7;
@@ -225,7 +340,8 @@ namespace ProjectManagement.Tests
         {
             using var context = CreateContext();
             var audit = new FakeAudit();
-            var service = new TodoService(context, audit);
+            var clock = new FakeClock(DateTimeOffset.UtcNow);
+            var service = new TodoService(context, audit, clock);
             var item = await service.CreateAsync("alice", "Task");
             var ok = await service.EditAsync("bob", item.Id, title: "Hack");
             Assert.False(ok);
@@ -236,7 +352,8 @@ namespace ProjectManagement.Tests
         {
             using var context = CreateContext();
             var audit = new FakeAudit();
-            var service = new TodoService(context, audit);
+            var clock = new FakeClock(DateTimeOffset.UtcNow);
+            var service = new TodoService(context, audit, clock);
             var item = await service.CreateAsync("alice", "Task");
             await service.ToggleDoneAsync("alice", item.Id, true);
             var mid = await context.TodoItems.FindAsync(item.Id);

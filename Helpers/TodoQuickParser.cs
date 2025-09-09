@@ -1,4 +1,5 @@
 using System;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 
 namespace ProjectManagement.Helpers
@@ -9,7 +10,7 @@ namespace ProjectManagement.Helpers
     /// </summary>
     public static class TodoQuickParser
     {
-        private static readonly TimeZoneInfo Ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+        private static readonly TimeZoneInfo Ist = IstClock.TimeZone;
 
         public static void Parse(string input, out string title, out DateTimeOffset? dueLocal, out TodoPriority priority)
         {
