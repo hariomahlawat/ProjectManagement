@@ -166,6 +166,46 @@ namespace ProjectManagement.Services
             return true;
         }
 
+        public async Task MarkDoneAsync(string ownerId, IList<Guid> ids)
+        {
+            var items = await _db.TodoItems
+                .Where(x => x.OwnerId == ownerId && ids.Contains(x.Id) && x.Status == TodoStatus.Open && x.DeletedUtc == null)
+                .ToListAsync();
+            if (items.Count == 0) return;
+            var now = DateTimeOffset.UtcNow;
+            foreach (var item in items)
+            {
+                item.Status = TodoStatus.Done;
+                item.CompletedUtc = now;
+                item.UpdatedUtc = now;
+            }
+            await _db.SaveChangesAsync();
+            await _audit.LogAsync("Todo.MarkDoneMany", userId: ownerId);
+        }
+
+        public async Task DeleteManyAsync(string ownerId, IList<Guid> ids)
+        {
+            var items = await _db.TodoItems
+                .Where(x => x.OwnerId == ownerId && ids.Contains(x.Id) && x.DeletedUtc == null)
+                .ToListAsync();
+            if (items.Count == 0) return;
+            var now = DateTimeOffset.UtcNow;
+            foreach (var item in items)
+            {
+                if (item.Status == TodoStatus.Done)
+                {
+                    item.DeletedUtc = now;
+                    item.UpdatedUtc = now;
+                }
+                else
+                {
+                    _db.TodoItems.Remove(item);
+                }
+            }
+            await _db.SaveChangesAsync();
+            await _audit.LogAsync("Todo.DeleteMany", userId: ownerId);
+        }
+
         public async Task<int> ClearCompletedAsync(string ownerId)
         {
             var items = await _db.TodoItems

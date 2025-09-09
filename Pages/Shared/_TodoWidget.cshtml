@@ -49,10 +49,10 @@
             <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Toggle" class="m-0 p-0">
               @Html.AntiForgeryToken()
               <input type="hidden" name="id" value="@t.Id" />
-              <input type="hidden" name="done" value="false" />
-              <input class="form-check-input" type="checkbox" name="done" value="true"
+              <input class="form-check-input js-done-checkbox" type="checkbox" name="done" value="true"
                      @(t.Status==TodoStatus.Done ? "checked" : "")
-                     title="Mark done" aria-label="Mark done" onchange="this.form.requestSubmit()" />
+                     title="Mark done" aria-label="Mark done" />
+              <input type="hidden" name="done" value="false" />
             </form>
             <span class="todo-dot @prioClass" title="@t.Priority"></span>
             <span class="todo-title">@t.Title</span>
@@ -62,7 +62,7 @@
             }
           </div>
           <div class="dropdown dropstart">
-            <button type="button" class="btn todo-kebab dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="More actions" data-bs-placement="left">
+            <button type="button" class="btn todo-kebab dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="More actions">
               <i class="bi bi-three-dots"></i>
             </button>
             <ul class="dropdown-menu">

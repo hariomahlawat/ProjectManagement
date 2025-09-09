@@ -45,9 +45,10 @@
   <a class="btn btn-sm btn-outline-secondary" asp-page="Index">Reset</a>
 </form>
 
-<form method="post" asp-page-handler="Add" class="mb-3">
+<form method="post" asp-page-handler="Add" class="input-group input-group-sm mb-2" style="max-width:520px">
   @Html.AntiForgeryToken()
-  <input class="form-control form-control-sm" name="title" placeholder="Add a task…" maxlength="160" required>
+  <input class="form-control" name="NewTitle" placeholder="Add a task…" maxlength="160" required />
+  <button class="btn btn-primary">Add</button>
 </form>
 
 @if (Model.Tab=="completed" && Model.Groups.Length > 0 && Model.Groups[0].Items.Length > 0)
@@ -59,11 +60,13 @@
 }
 
 <div class="mb-2">
-  <button type="button" id="selectToggle" class="btn btn-sm btn-outline-secondary">Select</button>
-  <form method="post" id="batchForm" class="d-inline d-none">
+  <button id="btnSelectMode" type="button" class="btn btn-sm btn-outline-secondary">Select</button>
+  <form id="bulkForm" method="post" asp-page-handler="Bulk" class="d-inline-block ms-2 d-none">
     @Html.AntiForgeryToken()
-    <button class="btn btn-sm btn-outline-primary" formaction="?handler=BatchDone">Mark done</button>
-    <button class="btn btn-sm btn-outline-danger" formaction="?handler=BatchDelete" onclick="return confirm('Delete selected tasks?');">Delete</button>
+    <input type="hidden" name="action" id="bulkAction" />
+    <input type="hidden" name="ids" id="bulkIds" />
+    <button type="button" class="btn btn-sm btn-outline-primary" onclick="submitBulk('done')">Mark done</button>
+    <button type="button" class="btn btn-sm btn-outline-danger" onclick="submitBulk('delete')">Delete</button>
   </form>
 </div>
 
@@ -127,17 +130,27 @@ document.querySelectorAll('li.todo-row').forEach(row => {
   });
 })();
 
-// select mode toggle
-const selectToggle = document.getElementById('selectToggle');
-const batchForm = document.getElementById('batchForm');
-selectToggle?.addEventListener('click', () => {
-  const show = batchForm.classList.contains('d-none');
-  batchForm.classList.toggle('d-none', !show);
-  document.querySelectorAll('.select-box').forEach(cb => {
-    cb.classList.toggle('d-none', !show);
-    if (!show) cb.checked = false;
+// select mode and bulk actions
+(() => {
+  const selectBtn = document.getElementById('btnSelectMode');
+  const bulkForm  = document.getElementById('bulkForm');
+  if (!selectBtn || !bulkForm) return;
+
+  let selecting = false;
+  selectBtn.addEventListener('click', () => {
+    selecting = !selecting;
+    selectBtn.classList.toggle('active', selecting);
+    bulkForm.classList.toggle('d-none', !selecting);
+    document.querySelectorAll('.task-select').forEach(cb => cb.classList.toggle('d-none', !selecting));
   });
-  selectToggle.textContent = show ? 'Cancel' : 'Select';
-});
+
+  window.submitBulk = (action) => {
+    const ids = [...document.querySelectorAll('.task-select:checked')].map(cb => cb.value);
+    if (ids.length === 0) { alert('Select at least one task.'); return; }
+    document.getElementById('bulkAction').value = action;
+    document.getElementById('bulkIds').value = ids.join(',');
+    bulkForm.requestSubmit();
+  };
+})();
 </script>
 

@@ -118,14 +118,14 @@ namespace ProjectManagement.Pages.Tasks
         }
 
         // Actions
-        public async Task<IActionResult> OnPostAddAsync(string title)
+        public async Task<IActionResult> OnPostAddAsync(string NewTitle)
         {
-            if (string.IsNullOrWhiteSpace(title)) return Back();
             var uid = _users.GetUserId(User);
-            TodoQuickParser.Parse(title, out var clean, out var dueLocal, out var prio);
+            if (string.IsNullOrWhiteSpace(NewTitle) || uid == null) return Back();
+            TodoQuickParser.Parse(NewTitle, out var clean, out var dueLocal, out var prio);
             try
             {
-                await _todo.CreateAsync(uid!, clean, dueLocal, prio);
+                await _todo.CreateAsync(uid, clean, dueLocal, prio);
             }
             catch (InvalidOperationException ex)
             {
@@ -172,7 +172,7 @@ namespace ProjectManagement.Pages.Tasks
             {
                 await _todo.EditAsync(uid!, id,
                     title: string.IsNullOrWhiteSpace(title) ? null : title.Trim(),
-                    notes: notes,
+                    notes: string.IsNullOrWhiteSpace(notes) ? null : notes.Trim(),
                     dueAtLocal: dueLocal,
                     priority: prio,
                     pinned: pin);
@@ -238,40 +238,23 @@ namespace ProjectManagement.Pages.Tasks
             return Back();
         }
 
-        public async Task<IActionResult> OnPostBatchDoneAsync([FromForm] Guid[] ids)
+        public async Task<IActionResult> OnPostBulkAsync(string action, string ids)
         {
             var uid = _users.GetUserId(User);
-            if (uid == null || ids == null || ids.Length == 0) return Back();
-            foreach (var id in ids)
+            if (uid == null) return Back();
+            var list = (ids ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(Guid.Parse)
+                .ToList();
+            if (list.Count == 0) return Back();
+            try
             {
-                try
-                {
-                    await _todo.ToggleDoneAsync(uid, id, true);
-                }
-                catch (InvalidOperationException ex)
-                {
-                    TempData["Error"] = ex.Message;
-                    break;
-                }
+                if (action == "done") await _todo.MarkDoneAsync(uid, list);
+                else if (action == "delete") await _todo.DeleteManyAsync(uid, list);
             }
-            return Back();
-        }
-
-        public async Task<IActionResult> OnPostBatchDeleteAsync([FromForm] Guid[] ids)
-        {
-            var uid = _users.GetUserId(User);
-            if (uid == null || ids == null || ids.Length == 0) return Back();
-            foreach (var id in ids)
+            catch (InvalidOperationException ex)
             {
-                try
-                {
-                    await _todo.DeleteAsync(uid, id);
-                }
-                catch (InvalidOperationException ex)
-                {
-                    TempData["Error"] = ex.Message;
-                    break;
-                }
+                TempData["Error"] = ex.Message;
             }
             return Back();
         }
