@@ -68,8 +68,11 @@
           </div>
 
           <div class="dropdown">
-            <button type="button" class="btn btn-outline-secondary btn-kebab dropdown-toggle"
-                    data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="More actions" aria-label="More actions">⋯</button>
+            <button type="button" class="btn todo-kebab dropdown-toggle"
+                    data-bs-toggle="dropdown" data-bs-display="static" data-bs-auto-close="outside"
+                    aria-expanded="false" aria-label="More actions">
+              <i class="bi bi-three-dots"></i>
+            </button>
             <ul class="dropdown-menu dropdown-menu-end">
               <li>
                 <form method="post" asp-page-handler="Pin" class="m-0 p-0">
