@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
+using ProjectManagement.Helpers;
 
 namespace ProjectManagement.Pages.Tasks
 {
@@ -121,9 +122,10 @@ namespace ProjectManagement.Pages.Tasks
         {
             if (string.IsNullOrWhiteSpace(title)) return RedirectToPage(new { Tab, Q });
             var uid = _users.GetUserId(User);
+            TodoQuickParser.Parse(title, out var clean, out var dueLocal, out var prio);
             try
             {
-                await _todo.CreateAsync(uid!, title.Trim());
+                await _todo.CreateAsync(uid!, clean, dueLocal, prio);
             }
             catch (InvalidOperationException ex)
             {

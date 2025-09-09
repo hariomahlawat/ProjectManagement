@@ -41,7 +41,7 @@
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" value="@t.Id" />
             <input type="hidden" name="done" value="@(t.Status==TodoStatus.Open ? "true" : "false")" />
-            <input class="form-check-input" type="checkbox" @(t.Status == TodoStatus.Done ? "checked" : "") title="Mark done" onchange="this.form.submit()" />
+            <input class="form-check-input" type="checkbox" @(t.Status == TodoStatus.Done ? "checked" : "") title="Mark done" aria-label="Mark done" onchange="this.form.submit()" />
           </form>
 
           <span class="todo-dot @(Dot(t.Priority))" title="@t.Priority"></span>
@@ -69,7 +69,7 @@
 
           <div class="dropdown">
             <button class="btn btn-outline-secondary btn-kebab dropdown-toggle"
-                    data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="More actions">⋯</button>
+                    data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="More actions" aria-label="More actions">⋯</button>
             <ul class="dropdown-menu dropdown-menu-end">
               <li class="dropdown-header small">Priority</li>
               <li><button class="dropdown-item" form="@formId" name="priority" value="High">High</button></li>

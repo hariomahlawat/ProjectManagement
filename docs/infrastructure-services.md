@@ -28,3 +28,6 @@ Concrete implementation backed by `UserManager<ApplicationUser>` and `RoleManage
 
 ### `Services/ITodoService` and `TodoService`
 `ITodoService` abstracts operations on personal To-Do items such as creation, completion, pinning, snoozing, editing notes and reordering. `TodoService` implements the interface using `ApplicationDbContext` for persistence and `IAuditService` for logging. Time calculations are normalised to the `Asia/Kolkata` time zone to ensure consistent due date handling and `RowVersion` is used to detect concurrent edits.
+
+### `Services/TodoPurgeWorker`
+Background worker that permanently deletes soft-deleted to-do items after a retention period. The retention window is configured via `Todo:RetentionDays` in `appsettings.json` (defaults to 7 days) and the worker safely handles cancellation tokens.
