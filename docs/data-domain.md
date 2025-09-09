@@ -20,3 +20,6 @@ Extends `IdentityUser` with a `MustChangePassword` flag. New accounts are create
 
 ### `Models/TodoItem.cs`
 Represents a personal task owned by a user. Each item records a title, due date (stored in UTC), priority, pin state, order index and timestamps for creation, updates, completion and soft deletion. A `RowVersion` concurrency token is used to detect conflicting edits. Items marked completed are soft-deleted by setting `DeletedUtc`; a background worker purges entries older than the configured retention period.
+
+### `Models/Celebration.cs`
+Stores birthdays and anniversaries with minimal fields for annual recurrence. Each row tracks the event type, name(s), day and month, optional year, creator metadata and soft-delete timestamp. Indexes on `(EventType, Month, Day)` enable fast upcoming lookups and a filtered index on `DeletedUtc` hides removed entries. Leap day events are rendered on 28 February in non-leap years.

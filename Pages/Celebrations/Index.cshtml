@@ -1,0 +1,122 @@
+@page
+@model ProjectManagement.Pages.Celebrations.IndexModel
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@{
+    ViewData["Title"] = "Celebrations";
+}
+
+<h2 class="h5 fw-semibold mb-3">Celebrations</h2>
+<form method="get" class="row g-2 mb-3">
+    <div class="col-sm-2">
+        <select name="Type" class="form-select form-select-sm">
+            @if (Model.Type=="birthday")
+            {
+                <option value="all">All</option>
+                <option value="birthday" selected>Birthday</option>
+                <option value="anniversary">Anniversary</option>
+            }
+            else if (Model.Type=="anniversary")
+            {
+                <option value="all">All</option>
+                <option value="birthday">Birthday</option>
+                <option value="anniversary" selected>Anniversary</option>
+            }
+            else
+            {
+                <option value="all" selected>All</option>
+                <option value="birthday">Birthday</option>
+                <option value="anniversary">Anniversary</option>
+            }
+        </select>
+    </div>
+    <div class="col-sm-2">
+        <select name="Window" class="form-select form-select-sm">
+            @switch(Model.Window)
+            {
+                case "today":
+                    <text>
+                    <option value="all">All</option>
+                    <option value="today" selected>Today</option>
+                    <option value="7">7 days</option>
+                    <option value="15">15 days</option>
+                    <option value="30">30 days</option>
+                    </text>; break;
+                case "7":
+                    <text>
+                    <option value="all">All</option>
+                    <option value="today">Today</option>
+                    <option value="7" selected>7 days</option>
+                    <option value="15">15 days</option>
+                    <option value="30">30 days</option>
+                    </text>; break;
+                case "15":
+                    <text>
+                    <option value="all">All</option>
+                    <option value="today">Today</option>
+                    <option value="7">7 days</option>
+                    <option value="15" selected>15 days</option>
+                    <option value="30">30 days</option>
+                    </text>; break;
+                case "30":
+                    <text>
+                    <option value="all">All</option>
+                    <option value="today">Today</option>
+                    <option value="7">7 days</option>
+                    <option value="15">15 days</option>
+                    <option value="30" selected>30 days</option>
+                    </text>; break;
+                default:
+                    <text>
+                    <option value="all" selected>All</option>
+                    <option value="today">Today</option>
+                    <option value="7">7 days</option>
+                    <option value="15">15 days</option>
+                    <option value="30">30 days</option>
+                    </text>; break;
+            }
+        </select>
+    </div>
+    <div class="col-sm-4">
+        <input type="text" name="Q" value="@Model.Q" class="form-control form-control-sm" placeholder="Search name" />
+    </div>
+    <div class="col-sm-2">
+        <button type="submit" class="btn btn-sm btn-primary w-100">Filter</button>
+    </div>
+    @if (Model.CanEdit)
+    {
+        <div class="col-sm-2 text-end">
+            <a asp-page="Edit" class="btn btn-sm btn-success w-100">Add new</a>
+        </div>
+    }
+</form>
+
+<table class="table table-sm">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Next</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var r in Model.Items)
+    {
+        <tr>
+            <td>@r.Name</td>
+            <td>@r.EventType</td>
+            <td>@r.NextOccurrence.ToString("dd MMM") (@(r.DaysAway==0?"today":$"{r.DaysAway}d"))</td>
+            <td class="text-end">
+                @if (Model.CanEdit)
+                {
+                    <a asp-page="Edit" asp-route-id="@r.Id" class="btn btn-sm btn-link">Edit</a>
+                    <form method="post" asp-page-handler="Delete" asp-route-id="@r.Id" class="d-inline">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-sm btn-link text-danger">Delete</button>
+                    </form>
+                }
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>
