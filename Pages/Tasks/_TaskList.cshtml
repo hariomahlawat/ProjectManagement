@@ -1,0 +1,113 @@
+@using ProjectManagement.Models
+@model ProjectManagement.Pages.Tasks.IndexModel
+
+@functions{
+    string DueChip(DateTimeOffset? dueUtc) {
+        if (dueUtc is null) return "";
+        var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+        var d = TimeZoneInfo.ConvertTime(dueUtc.Value, ist);
+        var today = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ist).Date;
+        if (d.Date < today) return "Overdue";
+        if (d.Date == today) return "Today";
+        if (d.Date == today.AddDays(1)) return "Tomorrow";
+        return d.ToString("dd-MMM");
+    }
+    string Dot(TodoPriority p) => p == TodoPriority.High ? "todo-dot-high" : p == TodoPriority.Low ? "todo-dot-low" : "todo-dot-normal";
+}
+
+@foreach (var grp in Model.Groups)
+{
+  <div class="mb-2 mt-3 small text-uppercase text-muted fw-semibold">@grp.Title</div>
+
+  @if (grp.Items.Length == 0)
+  {
+    <div class="text-muted small mb-3">No tasks here.</div>
+  }
+  else
+  {
+    <ul class="list-group todo-list">
+    @foreach (var t in grp.Items)
+    {
+      var formId = $"f-{t.Id}";
+      var chip = DueChip(t.DueAtUtc);
+
+      <li class="list-group-item d-flex align-items-start justify-content-between py-2 todo-row" data-id="@t.Id" draggable="@(Model.Tab=="completed" ? "false" : "true")">
+        <div class="d-flex align-items-center gap-2 flex-grow-1">
+          <span class="text-muted draggable-handle" title="Drag to reorder"><i class="bi bi-grip-vertical"></i></span>
+
+          <input class="form-check-input select-box d-none" type="checkbox" name="ids" value="@t.Id" form="batchForm" aria-label="Select task" />
+
+          <form method="post" asp-page-handler="Toggle" class="m-0 p-0">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@t.Id" />
+            <input type="hidden" name="done" value="@(t.Status==TodoStatus.Open ? "true" : "false")" />
+            <input class="form-check-input" type="checkbox" @(t.Status == TodoStatus.Done ? "checked" : "") title="Mark done" onchange="this.form.submit()" />
+          </form>
+
+          <span class="todo-dot @(Dot(t.Priority))" title="@t.Priority"></span>
+
+          <form id="@formId" method="post" asp-page-handler="Edit" class="flex-grow-1">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="id" value="@t.Id" />
+            <input name="title" class="form-control form-control-sm border-0 ps-0 todo-title" value="@t.Title" maxlength="160" aria-label="Title" />
+            <details class="mt-1"><summary class="small text-muted" role="button">Notes</summary>
+              <textarea class="form-control form-control-sm" name="notes" rows="2" placeholder="Notes (optional)">@t.Notes</textarea>
+            </details>
+          </form>
+
+          @if (!string.IsNullOrEmpty(chip))
+          {
+            <span class="badge rounded-pill bg-light text-dark border">@chip</span>
+          }
+        </div>
+
+        <div class="d-flex align-items-center gap-3">
+          <div class="row-actions d-none">
+            <button form="@formId" class="btn btn-link btn-sm p-0">Save</button>
+            <button type="reset" form="@formId" class="btn btn-link btn-sm p-0 text-muted">Cancel</button>
+          </div>
+
+          <div class="dropdown">
+            <button class="btn btn-outline-secondary btn-kebab dropdown-toggle"
+                    data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="More actions">⋯</button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li class="dropdown-header small">Priority</li>
+              <li><button class="dropdown-item" form="@formId" name="priority" value="High">High</button></li>
+              <li><button class="dropdown-item" form="@formId" name="priority" value="Normal">Normal</button></li>
+              <li><button class="dropdown-item" form="@formId" name="priority" value="Low">Low</button></li>
+              <li><hr class="dropdown-divider" /></li>
+              <li class="dropdown-header small">Snooze</li>
+              <li><form method="post" asp-page-handler="Snooze" class="m-0 p-0">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@t.Id" />
+                    <button class="dropdown-item" name="preset" value="today_pm">Today 6:00 PM</button>
+                  </form></li>
+              <li><form method="post" asp-page-handler="Snooze" class="m-0 p-0">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@t.Id" />
+                    <button class="dropdown-item" name="preset" value="tom_am">Tomorrow 10:00 AM</button>
+                  </form></li>
+              <li><form method="post" asp-page-handler="Snooze" class="m-0 p-0">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@t.Id" />
+                    <button class="dropdown-item" name="preset" value="next_mon">Next Monday 10:00 AM</button>
+                  </form></li>
+              <li><form method="post" asp-page-handler="Snooze" class="m-0 p-0">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@t.Id" />
+                    <button class="dropdown-item" name="preset" value="clear">Clear due date</button>
+                  </form></li>
+              <li><hr class="dropdown-divider" /></li>
+              <li><form method="post" asp-page-handler="Delete" class="m-0 p-0" onsubmit="return confirm('Delete this task?');">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@t.Id" />
+                    <button class="dropdown-item text-danger">Delete</button>
+                  </form></li>
+            </ul>
+          </div>
+        </div>
+      </li>
+    }
+    </ul>
+  }
+}
