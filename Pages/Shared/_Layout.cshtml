@@ -68,20 +68,26 @@
     <script>
     document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.todo-kebab[data-bs-toggle="dropdown"]').forEach(btn => {
+        // Always render outside scrolling cards
         new bootstrap.Dropdown(btn, {
           container: document.body,
-          popperConfig: { strategy: 'fixed' }
+          popperConfig: {
+            strategy: 'fixed',
+            modifiers: [
+              { name: 'preventOverflow', options: { boundary: 'viewport' } },
+              { name: 'flip', options: { fallbackPlacements: ['left','top','bottom'] } }
+            ]
+          }
         });
 
+        // Auto flip for any kebab; widget already uses dropstart, but this is a safe guard
         btn.addEventListener('show.bs.dropdown', () => {
           const dd = btn.closest('.dropdown');
           if (!dd) return;
-          const r = btn.getBoundingClientRect();
-          const menuWidth = 320;
-          const hasRoomRight = (window.innerWidth - r.right) > menuWidth;
-          if (!dd.classList.contains('dropstart')) {
-            dd.classList.toggle('dropstart', !hasRoomRight);
-          }
+          const rect = btn.getBoundingClientRect();
+          const menuWidth = 320; // safe maximum
+          const roomRight = (window.innerWidth - rect.right) > menuWidth;
+          dd.classList.toggle('dropstart', !roomRight);
         });
       });
     });

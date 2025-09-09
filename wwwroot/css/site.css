@@ -224,8 +224,12 @@ h1, .h1 { font-size: 1.25rem; }
 .todo-kebab:active{ background: rgba(0,0,0,.12); }
 .todo-kebab:focus{ outline: none; box-shadow: 0 0 0 .2rem rgba(13,110,253,.25); }
 
-/* Keep list items from clipping dropdowns */
-.list-group-item { overflow: visible; }
+/* Our kebab is icon-only; kill Bootstrap caret triangles */
+.todo-kebab.dropdown-toggle::after,
+.dropstart .todo-kebab.dropdown-toggle::before { display: none !important; }
+
+/* Avoid clipping near right edge */
+.card, .card-body, .list-group-item { overflow: visible; }
 
 .todo-row.done .todo-title { text-decoration: line-through; color: #6c757d; }
 .todo-row.done { opacity: .85; }
