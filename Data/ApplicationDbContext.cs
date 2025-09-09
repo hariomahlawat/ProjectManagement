@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Npgsql.EntityFrameworkCore.PostgreSQL;
 using ProjectManagement.Models;
 
 namespace ProjectManagement.Data
@@ -33,6 +34,7 @@ namespace ProjectManagement.Data
 
             builder.Entity<TodoItem>(e =>
             {
+                e.UseXminAsConcurrencyToken();
                 e.HasIndex(x => new { x.OwnerId, x.Status, x.IsPinned, x.DueAtUtc });
                 e.HasIndex(x => new { x.OwnerId, x.OrderIndex });
                 e.HasIndex(x => x.DeletedUtc);
@@ -41,9 +43,6 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Status).HasDefaultValue(TodoStatus.Open);
                 e.Property(x => x.IsPinned).HasDefaultValue(false);
                 e.Property(x => x.OrderIndex).HasDefaultValue(0);
-                e.Property(x => x.RowVersion)
-                    .IsRowVersion()
-                    .HasDefaultValue(new byte[0]);
             });
 
             builder.Entity<Celebration>(e =>
