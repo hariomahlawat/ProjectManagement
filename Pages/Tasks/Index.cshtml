@@ -4,6 +4,11 @@
 @{
     ViewData["Title"] = "My Tasks";
 }
+
+@section Styles {
+  <link rel="stylesheet" href="~/css/tasks.css" asp-append-version="true" />
+}
+
 <nav aria-label="breadcrumb" class="mb-2">
   <ol class="breadcrumb small mb-0">
     <li class="breadcrumb-item"><a asp-page="/Dashboard/Index">Dashboard</a></li>

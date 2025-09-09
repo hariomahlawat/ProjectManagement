@@ -1,0 +1,75 @@
+/* wwwroot/css/tasks.css */
+/* Compact, modern task list styling */
+
+.todo-list {
+  --pm-gap: 0.6rem;
+}
+
+.todo-list .list-group-item {
+  padding-top: 0.6rem;
+  padding-bottom: 0.6rem;
+  border-left: 3px solid transparent;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+
+.todo-list .list-group-item:hover {
+  background-color: rgba(0,0,0,.02);
+}
+
+.todo-list .list-group-item[data-priority="High"] {
+  border-left-color: #dc3545;
+}
+.todo-list .list-group-item[data-priority="Normal"] {
+  border-left-color: #0d6efd;
+}
+.todo-list .list-group-item[data-priority="Low"] {
+  border-left-color: #198754;
+}
+
+.draggable-handle {
+  cursor: grab;
+}
+
+.todo-title {
+  font-weight: 500;
+}
+
+.todo-title.done {
+  text-decoration: line-through;
+  opacity: .6;
+}
+
+.todo-notes {
+  font-size: .9rem;
+  color: #6c757d;
+  max-width: 60ch;
+}
+
+.todo-chip {
+  font-size: .75rem;
+  padding: .2rem .5rem;
+}
+
+.todo-kebab {
+  border: 0;
+  background: transparent;
+  padding: .125rem .25rem;
+}
+
+.row-actions .btn {
+  font-size: .85rem;
+}
+
+#bulkForm.sticky {
+  position: sticky;
+  top: .5rem;
+  z-index: 1020;
+  background: var(--bs-body-bg);
+  border: 1px dashed var(--bs-border-color);
+  border-radius: .5rem;
+  padding: .5rem;
+}
+
+@media (max-width: 576px) {
+  .todo-notes { max-width: 100%; }
+}

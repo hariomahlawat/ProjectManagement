@@ -8,7 +8,7 @@
 
   // ---- 1) Show row actions whenever a row's edit form changes ----
   function initRowActionReveal() {
-    qsa('li.todo-row').forEach(row => {
+    qsa('li[data-id]').forEach(row => {
       const form = qs('form[method="post"][id^="f-"]', row);
       const actions = qs('.row-actions', row);
       if (!form || !actions) return;
@@ -55,7 +55,7 @@
         if (dragEl) dragEl.classList.remove('opacity-50');
         dragEl = null;
         // Only include draggable rows (i.e., open items)
-        const ids = qsa('.todo-row[draggable="true"]', list).map(r => r.dataset.id);
+        const ids = qsa('li[draggable="true"][data-id]', list).map(r => r.dataset.id);
         if (ids.length === 0) return;
         const fd = new FormData();
         ids.forEach(id => fd.append('ids', id));
@@ -98,15 +98,28 @@
     });
   }
 
+  
+  // ---- 0) Auto-submit done/undo checkboxes ----
+  function initDoneAutosubmit() {
+    document.addEventListener('change', (e) => {
+      const cb = e.target.closest('.js-done-checkbox');
+      if (!cb) return;
+      const form = cb.closest('form');
+      if (form) form.requestSubmit();
+    }, { passive: true });
+  }
+
   // Kick everything off
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       initRowActionReveal();
+      initDoneAutosubmit();
       initDragReorder();
       initBulkActions();
     });
   } else {
     initRowActionReveal();
+      initDoneAutosubmit();
     initDragReorder();
     initBulkActions();
   }
