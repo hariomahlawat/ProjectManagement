@@ -2,148 +2,162 @@
 @model ProjectManagement.Services.TodoWidgetResult
 
 <div class="card shadow-sm">
-  <div class="card-header d-flex align-items-center justify-content-between py-2">
-    <span class="fw-semibold">My Tasks</span>
-    <div class="d-flex align-items-center gap-2 small">
-      @if (Model?.OverdueCount > 0) { <span class="badge bg-warning text-dark" title="Overdue">@Model.OverdueCount</span> }
-      @if (Model?.TodayCount > 0)   { <span class="badge bg-info text-dark" title="Due today">@Model.TodayCount</span> }
-      <a asp-page="/Tasks/Index" class="text-decoration-none">View all</a>
-    </div>
-  </div>
-
-  <div class="card-body">
-    <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Add" class="mb-2">
-      @Html.AntiForgeryToken()
-      <input name="NewTitle" class="form-control form-control-sm" placeholder="Add a task…" maxlength="160" required aria-label="Task title">
-    </form>
-
-    @if (Model is null || Model.Items.Count == 0)
-    {
-      <div class="text-muted small">No open tasks. You are all caught up.</div>
-    }
-    else
-    {
-      <ul class="list-group list-group-flush todo-list pm-scroll">
-        @{
-          var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
-          var todayIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ist).Date;
-        }
-        @foreach (var t in Model.Items)
-        {
-          var badge = "";
-          if (t.DueAtUtc.HasValue)
-          {
-            var dueDate = TimeZoneInfo.ConvertTime(t.DueAtUtc.Value, ist).Date;
-            if      (dueDate <  todayIst) badge = "Overdue";
-            else if (dueDate == todayIst) badge = "Today";
-            else if (dueDate == todayIst.AddDays(1)) badge = "Tomorrow";
-          }
-          string prioClass = t.Priority switch
-          {
-            TodoPriority.Low    => "todo-dot-low",
-            TodoPriority.High   => "todo-dot-high",
-            _                   => "todo-dot-normal"
-          };
-        <li class="list-group-item d-flex align-items-center justify-content-between py-1 todo-row @(t.Status==TodoStatus.Done ? "done" : "")">
-          <div class="d-flex align-items-center gap-2">
-            <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Toggle" class="m-0 p-0">
-              @Html.AntiForgeryToken()
-              <input type="hidden" name="id" value="@t.Id" />
-
-              <input type="hidden" name="done" value="false" />
-              <input class="form-check-input js-done-checkbox" type="checkbox" name="done" value="true"
-                     @(t.Status==TodoStatus.Done ? "checked" : "")
-                     title="Mark done" aria-label="Mark done" />
-            </form>
-            <span class="todo-dot @prioClass" title="@t.Priority"></span>
-            <span class="todo-title">@t.Title</span>
-            @if (!string.IsNullOrEmpty(badge))
+    <div class="card-header d-flex align-items-center justify-content-between py-2">
+        <span class="fw-semibold">My Tasks</span>
+        <div class="d-flex align-items-center gap-2 small">
+            @if (Model?.OverdueCount > 0)
             {
-              <span class="badge rounded-pill bg-light text-dark border">@badge</span>
+                <span class="badge bg-warning text-dark" title="Overdue">@Model.OverdueCount</span>
             }
-          </div>
-          <div class="dropdown dropstart">
-            <button type="button" class="btn todo-kebab dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="More actions">
-              <i class="bi bi-three-dots"></i>
-            </button>
-            <ul class="dropdown-menu">
-              <li>
-                <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Pin" class="m-0 p-0">
-                  @Html.AntiForgeryToken()
-                  <input type="hidden" name="id" value="@t.Id" />
-                  <input type="hidden" name="pin" value="@(!t.IsPinned)" />
-                  <button type="submit" class="dropdown-item">@(t.IsPinned ? "Unpin" : "Pin")</button>
-                </form>
-              </li>
+            @if (Model?.TodayCount > 0)
+            {
+                <span class="badge bg-info text-dark" title="Due today">@Model.TodayCount</span>
+            }
+            <a asp-page="/Tasks/Index" class="text-decoration-none">View all</a>
+        </div>
+    </div>
 
-              <li><hr class="dropdown-divider" /></li>
-              <li class="dropdown-header small">Priority</li>
-              <li>
-                <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Edit" class="m-0 p-0">
-                  @Html.AntiForgeryToken()
-                  <input type="hidden" name="id" value="@t.Id" />
-                  <button type="submit" class="dropdown-item" name="priority" value="High">High</button>
-                </form>
-              </li>
-              <li>
-                <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Edit" class="m-0 p-0">
-                  @Html.AntiForgeryToken()
-                  <input type="hidden" name="id" value="@t.Id" />
-                  <button type="submit" class="dropdown-item" name="priority" value="Normal">Normal</button>
-                </form>
-              </li>
-              <li>
-                <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Edit" class="m-0 p-0">
-                  @Html.AntiForgeryToken()
-                  <input type="hidden" name="id" value="@t.Id" />
-                  <button type="submit" class="dropdown-item" name="priority" value="Low">Low</button>
-                </form>
-              </li>
+    <div class="card-body">
+        <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Add" class="mb-2">
+            @Html.AntiForgeryToken()
+            <input name="NewTitle" class="form-control form-control-sm" placeholder="Add a task…" maxlength="160" required aria-label="Task title" />
+        </form>
 
-              <li><hr class="dropdown-divider" /></li>
-              <li class="dropdown-header small">Snooze</li>
-              <li>
-                <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Snooze" class="m-0 p-0">
-                  @Html.AntiForgeryToken()
-                  <input type="hidden" name="id" value="@t.Id" />
-                  <button type="submit" class="dropdown-item" name="preset" value="today_pm">Today 6:00 PM</button>
-                </form>
-              </li>
-              <li>
-                <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Snooze" class="m-0 p-0">
-                  @Html.AntiForgeryToken()
-                  <input type="hidden" name="id" value="@t.Id" />
-                  <button type="submit" class="dropdown-item" name="preset" value="tom_am">Tomorrow 10:00 AM</button>
-                </form>
-              </li>
-              <li>
-                <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Snooze" class="m-0 p-0">
-                  @Html.AntiForgeryToken()
-                  <input type="hidden" name="id" value="@t.Id" />
-                  <button type="submit" class="dropdown-item" name="preset" value="next_mon">Next Monday 10:00 AM</button>
-                </form>
-              </li>
-              <li>
-                <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Snooze" class="m-0 p-0">
-                  @Html.AntiForgeryToken()
-                  <input type="hidden" name="id" value="@t.Id" />
-                  <button type="submit" class="dropdown-item" name="preset" value="clear">Clear due date</button>
-                </form>
-              </li>
-
-              <li><hr class="dropdown-divider" /></li>
-              <li>
-                <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Delete" class="m-0 p-0">
-                  @Html.AntiForgeryToken()
-                  <input type="hidden" name="id" value="@t.Id" />
-                  <button type="submit" class="dropdown-item text-danger js-confirm-delete" data-confirm="Delete this task?">Delete</button>
-                </form>
-              </li>
-            </ul>
-          </div>
-        </li>
+        @if (Model is null || Model.Items.Count == 0)
+        {
+            <div class="text-muted small">No open tasks. You are all caught up.</div>
         }
-      </ul>
-    }
-  </div>
+        else
+        {
+            <ul class="list-group list-group-flush todo-list pm-scroll">
+                @{
+                    var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+                    var todayIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ist).Date;
+                }
+                @foreach (var t in Model.Items)
+                {
+                    var badge = "";
+                    if (t.DueAtUtc.HasValue)
+                    {
+                        var dueDate = TimeZoneInfo.ConvertTime(t.DueAtUtc.Value, ist).Date;
+                        if (dueDate < todayIst) badge = "Overdue";
+                        else if (dueDate == todayIst) badge = "Today";
+                        else if (dueDate == todayIst.AddDays(1)) badge = "Tomorrow";
+                    }
+                    string prioClass = t.Priority switch
+                    {
+                        TodoPriority.Low => "todo-dot-low",
+                        TodoPriority.High => "todo-dot-high",
+                        _ => "todo-dot-normal"
+                    };
+                    <li class="list-group-item d-flex align-items-center justify-content-between py-1 todo-row @(t.Status == TodoStatus.Done ? "done" : "")">
+                        <div class="d-flex align-items-center gap-2">
+                            <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Toggle" class="m-0 p-0">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@t.Id" />
+                                <!-- CHECKBOX FIRST -->
+                                <input class="form-check-input js-done-checkbox"
+                                       type="checkbox"
+                                       name="done"
+                                       value="true"
+                                       @(t.Status == TodoStatus.Done ? "checked" : "")
+                                       title="Mark done"
+                                       aria-label="Mark done" />
+                                <!-- HIDDEN FALLBACK AFTER -->
+                                <input type="hidden" name="done" value="false" />
+                            </form>
+
+                            <span class="todo-dot @prioClass" title="@t.Priority"></span>
+                            <span class="todo-title">@t.Title</span>
+
+                            @if (!string.IsNullOrEmpty(badge))
+                            {
+                                <span class="badge rounded-pill bg-light text-dark border">@badge</span>
+                            }
+                        </div>
+
+                        <div class="dropdown dropstart">
+                            <button type="button" class="btn todo-kebab dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="More actions">
+                                <i class="bi bi-three-dots"></i>
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li>
+                                    <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Pin" class="m-0 p-0">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@t.Id" />
+                                        <input type="hidden" name="pin" value="@(!t.IsPinned)" />
+                                        <button type="submit" class="dropdown-item">@(t.IsPinned ? "Unpin" : "Pin")</button>
+                                    </form>
+                                </li>
+
+                                <li><hr class="dropdown-divider" /></li>
+                                <li class="dropdown-header small">Priority</li>
+                                <li>
+                                    <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Edit" class="m-0 p-0">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@t.Id" />
+                                        <button type="submit" class="dropdown-item" name="priority" value="High">High</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Edit" class="m-0 p-0">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@t.Id" />
+                                        <button type="submit" class="dropdown-item" name="priority" value="Normal">Normal</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Edit" class="m-0 p-0">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@t.Id" />
+                                        <button type="submit" class="dropdown-item" name="priority" value="Low">Low</button>
+                                    </form>
+                                </li>
+
+                                <li><hr class="dropdown-divider" /></li>
+                                <li class="dropdown-header small">Snooze</li>
+                                <li>
+                                    <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Snooze" class="m-0 p-0">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@t.Id" />
+                                        <button type="submit" class="dropdown-item" name="preset" value="today_pm">Today 6:00 PM</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Snooze" class="m-0 p-0">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@t.Id" />
+                                        <button type="submit" class="dropdown-item" name="preset" value="tom_am">Tomorrow 10:00 AM</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Snooze" class="m-0 p-0">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@t.Id" />
+                                        <button type="submit" class="dropdown-item" name="preset" value="next_mon">Next Monday 10:00 AM</button>
+                                    </form>
+                                </li>
+                                <li>
+                                    <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Snooze" class="m-0 p-0">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@t.Id" />
+                                        <button type="submit" class="dropdown-item" name="preset" value="clear">Clear due date</button>
+                                    </form>
+                                </li>
+
+                                <li><hr class="dropdown-divider" /></li>
+                                <li>
+                                    <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Delete" class="m-0 p-0">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@t.Id" />
+                                        <button type="submit" class="dropdown-item text-danger js-confirm-delete" data-confirm="Delete this task?">Delete</button>
+                                    </form>
+                                </li>
+                            </ul>
+                        </div>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
 </div>
