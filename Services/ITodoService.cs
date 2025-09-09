@@ -14,6 +14,7 @@ namespace ProjectManagement.Services
         Task<bool> EditAsync(string ownerId, Guid id, string? title = null, string? notes = null,
                               DateTimeOffset? dueAtLocal = null, TodoPriority? priority = null, bool? pinned = null);
         Task<bool> DeleteAsync(string ownerId, Guid id);
+        Task<int> ClearCompletedAsync(string ownerId);
         Task<bool> ReorderAsync(string ownerId, IList<Guid> orderedIds);
     }
 

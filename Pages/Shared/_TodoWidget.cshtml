@@ -44,12 +44,15 @@
             TodoPriority.High   => "todo-dot-high",
             _                   => "todo-dot-normal"
           };
-        <li class="list-group-item d-flex align-items-center justify-content-between py-1">
+        <li class="list-group-item d-flex align-items-center justify-content-between py-1 todo-row @(t.Status==TodoStatus.Done ? "done" : "")">
           <div class="d-flex align-items-center gap-2">
             <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Toggle" class="m-0 p-0">
               @Html.AntiForgeryToken()
               <input type="hidden" name="id" value="@t.Id" />
-              <input class="form-check-input" type="checkbox" title="Mark done" aria-label="Mark done" onchange="this.form.submit()" />
+              <input type="hidden" name="done" value="false" />
+              <input class="form-check-input" type="checkbox" name="done" value="true"
+                     @(t.Status==TodoStatus.Done ? "checked" : "")
+                     title="Mark done" aria-label="Mark done" onchange="this.form.submit()" />
             </form>
             <span class="todo-dot @prioClass" title="@t.Priority"></span>
             <span class="todo-title">@t.Title</span>
@@ -58,7 +61,7 @@
               <span class="badge rounded-pill bg-light text-dark border">@badge</span>
             }
           </div>
-          <div class="dropdown">
+          <div class="dropdown dropstart">
             <button type="button" class="btn todo-kebab dropdown-toggle" data-bs-toggle="dropdown" data-bs-display="static" data-bs-auto-close="outside" aria-expanded="false" aria-label="More actions" data-bs-placement="left">
               <i class="bi bi-three-dots"></i>
             </button>

@@ -58,14 +58,14 @@ namespace ProjectManagement.Pages.Dashboard
             return RedirectToPage();
         }
 
-        public async Task<IActionResult> OnPostToggleAsync(Guid id)
+        public async Task<IActionResult> OnPostToggleAsync(Guid id, bool done)
         {
             var uid = _users.GetUserId(User);
             if (uid == null) return Unauthorized();
             try
             {
-                // Widget shows only Open items; toggling marks them done.
-                await _todo.ToggleDoneAsync(uid, id, done: true);
+                await _todo.ToggleDoneAsync(uid, id, done);
+                if (done) TempData["UndoId"] = id.ToString();
             }
             catch (InvalidOperationException ex)
             {

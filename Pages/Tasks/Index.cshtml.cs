@@ -276,6 +276,21 @@ namespace ProjectManagement.Pages.Tasks
             return Back();
         }
 
+        public async Task<IActionResult> OnPostClearCompletedAsync()
+        {
+            var uid = _users.GetUserId(User);
+            if (uid == null) return Back();
+            try
+            {
+                await _todo.ClearCompletedAsync(uid);
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+            return Back();
+        }
+
         public async Task<IActionResult> OnPostPinAsync(Guid id, bool pin)
         {
             var uid = _users.GetUserId(User);

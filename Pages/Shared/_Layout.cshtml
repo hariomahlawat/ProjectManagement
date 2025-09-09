@@ -67,17 +67,20 @@
     @await RenderSectionAsync("Scripts", required: false)
     <script>
     document.addEventListener('DOMContentLoaded', () => {
-      // Initialize all task kebab dropdowns (widget + My Tasks)
-      document.querySelectorAll('.todo-kebab[data-bs-toggle="dropdown"]').forEach(el => {
-        new bootstrap.Dropdown(el, {
+      document.querySelectorAll('.todo-kebab[data-bs-toggle="dropdown"]').forEach(btn => {
+        new bootstrap.Dropdown(btn, {
           container: document.body,
-          // keep stable, and flip if near edges
-          popperConfig: {
-            strategy: 'fixed',
-            modifiers: [
-              { name: 'preventOverflow', options: { boundary: 'viewport' } },
-              { name: 'flip', options: { fallbackPlacements: ['left', 'top', 'bottom'] } }
-            ]
+          popperConfig: { strategy: 'fixed' }
+        });
+
+        btn.addEventListener('show.bs.dropdown', () => {
+          const dd = btn.closest('.dropdown');
+          if (!dd) return;
+          const r = btn.getBoundingClientRect();
+          const menuWidth = 320;
+          const hasRoomRight = (window.innerWidth - r.right) > menuWidth;
+          if (!dd.classList.contains('dropstart')) {
+            dd.classList.toggle('dropstart', !hasRoomRight);
           }
         });
       });

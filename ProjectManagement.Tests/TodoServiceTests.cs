@@ -176,6 +176,24 @@ namespace ProjectManagement.Tests
             Assert.NotNull(stored!.DeletedUtc);
         }
 
+        [Fact]
+        public async Task ClearCompletedRemovesAllDone()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var service = new TodoService(context, audit);
+            var a = await service.CreateAsync("alice", "A1");
+            var b = await service.CreateAsync("alice", "A2");
+            await service.ToggleDoneAsync("alice", a.Id, true);
+            await service.ToggleDoneAsync("alice", b.Id, true);
+            var cleared = await service.ClearCompletedAsync("alice");
+            Assert.Equal(2, cleared);
+            var sa = await context.TodoItems.FindAsync(a.Id);
+            var sb = await context.TodoItems.FindAsync(b.Id);
+            Assert.NotNull(sa!.DeletedUtc);
+            Assert.NotNull(sb!.DeletedUtc);
+        }
+
         private static DateTimeOffset TodayAt(int h, int m)
         {
             var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
