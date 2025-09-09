@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -25,33 +26,37 @@ namespace ProjectManagement.Pages.Tasks
             _db = db; _todo = todo; _users = users;
         }
 
-        public record Row(Guid Id, string Title, TodoPriority Priority, bool IsPinned, TodoStatus Status, DateTimeOffset? DueAtUtc, DateTimeOffset? CompletedUtc, string? Notes);
-        public Row[] Items { get; set; } = Array.Empty<Row>();
-        [BindProperty(SupportsGet = true)] public string Tab { get; set; } = "all"; // all | today | upcoming | completed
+        public record Row(Guid Id, string Title, string? Notes, TodoPriority Priority, bool IsPinned,
+                          TodoStatus Status, DateTimeOffset? DueAtUtc, DateTimeOffset? CompletedUtc);
+        public record Group(string Title, Row[] Items);
+        public Group[] Groups { get; set; } = Array.Empty<Group>();
+
+        [BindProperty(SupportsGet = true)] public string Tab { get; set; } = "all";   // all | today | upcoming | completed
         [BindProperty(SupportsGet = true)] public string? Q { get; set; }
-        [BindProperty(SupportsGet = true)] public int Page { get; set; } = 1;
-        [BindProperty(SupportsGet = true)] public int PageSize { get; set; } = 25;
+        [BindProperty(SupportsGet = true)] public new int Page { get; set; } = 1;
+        [BindProperty(SupportsGet = true)] public int PageSize { get; set; } = 50;
+
         public int TotalItems { get; set; }
         public int TotalPages => (int)Math.Ceiling(TotalItems / (double)PageSize);
 
         public async Task OnGetAsync()
         {
             var uid = _users.GetUserId(User);
-            var q = _db.TodoItems.AsNoTracking().Where(x => x.OwnerId == uid && x.DeletedUtc == null);
-
-            var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Ist);
-            var startTodayIst = new DateTimeOffset(nowIst.Date, nowIst.Offset);
-            var endTodayIst = startTodayIst.AddDays(1).AddTicks(-1);
-            var startTodayUtc = TimeZoneInfo.ConvertTime(startTodayIst, TimeZoneInfo.Utc);
-            var endTodayUtc = TimeZoneInfo.ConvertTime(endTodayIst, TimeZoneInfo.Utc);
+            var q = _db.TodoItems.AsNoTracking().Where(x => x.OwnerId == uid);
 
             if (!string.IsNullOrWhiteSpace(Q))
             {
-                var qnorm = Q.Trim();
-                q = q.Where(x => EF.Functions.Like(x.Title, $"%{qnorm}%") || (x.Notes != null && EF.Functions.Like(x.Notes, $"%{qnorm}%")));
+                var s = Q.Trim();
+                q = q.Where(x => EF.Functions.ILike(x.Title, $"%{s}%") || (x.Notes != null && EF.Functions.ILike(x.Notes, $"%{s}%")));
             }
 
-            Tab = Tab?.ToLowerInvariant() ?? "all";
+            var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Ist);
+            var startTodayIst = new DateTimeOffset(nowIst.Date, nowIst.Offset);
+            var endTodayIst   = startTodayIst.AddDays(1).AddTicks(-1);
+            var startTodayUtc = TimeZoneInfo.ConvertTime(startTodayIst, TimeZoneInfo.Utc);
+            var endTodayUtc   = TimeZoneInfo.ConvertTime(endTodayIst, TimeZoneInfo.Utc);
+
+            // Filter tab
             q = Tab switch
             {
                 "today"     => q.Where(x => x.Status == TodoStatus.Open && x.DueAtUtc >= startTodayUtc && x.DueAtUtc <= endTodayUtc),
@@ -60,18 +65,55 @@ namespace ProjectManagement.Pages.Tasks
                 _           => q.Where(x => x.Status == TodoStatus.Open)
             };
 
-            q = q
+            // Order for stable grouping: pinned first, then due, then orderindex
+            var rows = await q
                 .OrderByDescending(x => x.Status == TodoStatus.Open && x.IsPinned)
                 .ThenBy(x => x.Status == TodoStatus.Open && x.DueAtUtc == null) // nulls last for open
                 .ThenBy(x => x.DueAtUtc)
                 .ThenBy(x => x.OrderIndex)
-                .ThenBy(x => x.CreatedUtc);
+                .ThenBy(x => x.CreatedUtc)
+                .Select(x => new Row(x.Id, x.Title, x.Notes, x.Priority, x.IsPinned, x.Status, x.DueAtUtc, x.CompletedUtc))
+                .ToListAsync();
 
-            TotalItems = await q.CountAsync();
-            Items = await q
-                .Skip((Page - 1) * PageSize)
-                .Take(PageSize)
-                .Select(x => new Row(x.Id, x.Title, x.Priority, x.IsPinned, x.Status, x.DueAtUtc, x.CompletedUtc, x.Notes)).ToArrayAsync();
+            // Group client-side (fast enough for a single user’s page)
+            var overdue   = new List<Row>();
+            var today     = new List<Row>();
+            var upcoming  = new List<Row>();
+            var completed = new List<Row>();
+
+            foreach (var r in rows)
+            {
+                if (r.Status == TodoStatus.Done) { completed.Add(r); continue; }
+                if (r.DueAtUtc is null) { upcoming.Add(r); continue; }
+
+                var dueDateIst = TimeZoneInfo.ConvertTime(r.DueAtUtc.Value, Ist).Date;
+                if      (dueDateIst <  nowIst.Date) overdue.Add(r);
+                else if (dueDateIst == nowIst.Date) today.Add(r);
+                else                                upcoming.Add(r);
+            }
+
+            // Simple paging on the whole list (keeps code light). Keep Completed unpaged unless Tab=completed.
+            var list = Tab == "completed" ? completed : overdue.Concat(today).Concat(upcoming).ToList();
+            TotalItems = list.Count;
+            list = list.Skip((Page - 1) * PageSize).Take(PageSize).ToList();
+
+            var g = new List<Group>();
+            if (Tab == "completed")
+            {
+                if (list.Count > 0) g.Add(new Group("Completed", list.ToArray()));
+            }
+            else
+            {
+                var pagedOverdue = list.Where(r => overdue.Contains(r)).ToArray();
+                var pagedToday = list.Where(r => today.Contains(r)).ToArray();
+                var pagedUpcoming = list.Where(r => upcoming.Contains(r)).ToArray();
+
+                if (pagedOverdue.Length  > 0) g.Add(new Group("Overdue",  pagedOverdue));
+                if (pagedToday.Length    > 0) g.Add(new Group("Today",    pagedToday));
+                if (pagedUpcoming.Length > 0) g.Add(new Group("Upcoming", pagedUpcoming));
+                if (g.Count == 0) g.Add(new Group("Open", Array.Empty<Row>()));
+            }
+            Groups = g.ToArray();
         }
 
         // Actions
@@ -96,6 +138,21 @@ namespace ProjectManagement.Pages.Tasks
             try
             {
                 await _todo.ToggleDoneAsync(uid!, id, done);
+                if (done) TempData["UndoId"] = id.ToString();
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+            return RedirectToPage(new { Tab, Q, Page, PageSize });
+        }
+
+        public async Task<IActionResult> OnPostUndoAsync(Guid id)
+        {
+            var uid = _users.GetUserId(User);
+            try
+            {
+                await _todo.ToggleDoneAsync(uid!, id, false);
             }
             catch (InvalidOperationException ex)
             {
@@ -117,6 +174,31 @@ namespace ProjectManagement.Pages.Tasks
                     dueAtLocal: dueLocal,
                     priority: prio,
                     pinned: pin);
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+            return RedirectToPage(new { Tab, Q, Page, PageSize });
+        }
+
+        public async Task<IActionResult> OnPostSnoozeAsync(Guid id, string preset)
+        {
+            var uid = _users.GetUserId(User);
+            if (uid == null) return Unauthorized();
+
+            DateTimeOffset? dueLocal = preset switch
+            {
+                "today_pm" => NextOccurrenceTodayOrTomorrow(18, 0),
+                "tom_am"   => NextOccurrenceTodayOrTomorrow(10, 0).AddDays(1),
+                "next_mon" => NextMondayAt(10, 0),
+                "clear"    => null,
+                _          => null
+            };
+
+            try
+            {
+                await _todo.EditAsync(uid, id, dueAtLocal: dueLocal);
             }
             catch (InvalidOperationException ex)
             {
@@ -190,6 +272,23 @@ namespace ProjectManagement.Pages.Tasks
                 }
             }
             return RedirectToPage(new { Tab, Q, Page, PageSize });
+        }
+
+        private static DateTimeOffset NextOccurrenceTodayOrTomorrow(int h, int m)
+        {
+            var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Ist);
+            var candidate = new DateTimeOffset(nowIst.Year, nowIst.Month, nowIst.Day, h, m, 0, nowIst.Offset);
+            if (candidate <= nowIst.AddMinutes(1)) candidate = candidate.AddDays(1);
+            return candidate;
+        }
+
+        private static DateTimeOffset NextMondayAt(int h, int m)
+        {
+            var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Ist);
+            int daysToMon = ((int)DayOfWeek.Monday - (int)nowIst.DayOfWeek + 7) % 7;
+            if (daysToMon == 0) daysToMon = 7;
+            var next = nowIst.Date.AddDays(daysToMon).AddHours(h).AddMinutes(m);
+            return new DateTimeOffset(next, nowIst.Offset);
         }
     }
 }

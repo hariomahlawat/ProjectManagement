@@ -18,6 +18,24 @@
   <div class="alert alert-warning py-2"><i class="bi bi-exclamation-triangle-fill me-2"></i>@err</div>
 }
 
+@if (TempData["UndoId"] is string undoId)
+{
+  <div class="toast-container position-fixed top-0 start-50 translate-middle-x p-3" style="z-index:1080;">
+    <div id="undoToast" class="toast show align-items-center text-bg-secondary border-0" role="alert" aria-live="assertive" aria-atomic="true">
+      <div class="d-flex">
+        <div class="toast-body">Task completed.</div>
+        <form method="post" asp-page-handler="Undo" class="me-2">
+          @Html.AntiForgeryToken()
+          <input type="hidden" name="id" value="@undoId" />
+          <button class="btn btn-sm btn-link text-white">Undo</button>
+        </form>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+      </div>
+    </div>
+  </div>
+  <script>new bootstrap.Toast(document.getElementById('undoToast'), { delay: 5000 }).show();</script>
+}
+
 <form method="get" class="d-flex flex-wrap gap-2 align-items-center mb-3">
   <select class="form-select form-select-sm w-auto" name="tab">
     <option value="all" selected="@(Model.Tab=="all")">All</option>
@@ -40,146 +58,91 @@
   <input class="form-control form-control-sm" name="title" placeholder="Add a task…" maxlength="160" required>
 </form>
 
-@if (Model.Items.Length == 0)
-{
-  <div class="alert alert-light border text-muted">No tasks found for this view.</div>
-}
-else
-{
-  <form method="post" id="batchForm">
+<div class="mb-2">
+  <button type="button" id="selectToggle" class="btn btn-sm btn-outline-secondary">Select</button>
+  <form method="post" id="batchForm" class="d-inline d-none">
     @Html.AntiForgeryToken()
-    <div class="mb-2">
-      <button class="btn btn-sm btn-outline-primary" formaction="?handler=BatchDone" aria-label="Mark selected done">Mark done</button>
-      <button class="btn btn-sm btn-outline-danger" formaction="?handler=BatchDelete" onclick="return confirm('Delete selected tasks?');" aria-label="Delete selected">Delete</button>
-    </div>
+    <button class="btn btn-sm btn-outline-primary" formaction="?handler=BatchDone">Mark done</button>
+    <button class="btn btn-sm btn-outline-danger" formaction="?handler=BatchDelete" onclick="return confirm('Delete selected tasks?');">Delete</button>
   </form>
-  <div class="table-responsive">
-    <table class="table table-sm align-middle">
-      <thead>
-        <tr>
-          <th style="width:24px;"></th>
-          <th style="width:24px;"><input type="checkbox" id="selectAll" form="batchForm" aria-label="Select all" /></th>
-          <th style="width:40px;"></th>
-          <th>Title / Notes</th>
-          <th style="width:140px;">Due</th>
-          <th style="width:110px;">Priority</th>
-          <th style="width:90px;">Pinned</th>
-          <th style="width:110px;">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-      @foreach (var t in Model.Items)
+</div>
+
+<div id="taskListContainer">
+  <partial name="_TaskList" model="Model" />
+</div>
+
+@if (Model.TotalPages > 1)
+{
+  <nav class="mt-2">
+    <ul class="pagination pagination-sm mb-0">
+      @for (var p = 1; p <= Model.TotalPages; p++)
       {
-        var formId = $"f-{t.Id}";
-        <tr draggable="@(Model.Tab=="completed" ? "false" : "true")" data-id="@t.Id" class="todo-row">
-          <td class="text-muted align-middle"><i class="bi bi-grip-vertical" title="Drag to reorder (order is applied within the same due group)"></i></td>
-          <td class="align-middle"><input class="form-check-input" type="checkbox" name="ids" value="@t.Id" form="batchForm" aria-label="Select task" /></td>
-          <td class="align-middle">
-            <form method="post" asp-page-handler="Toggle" class="m-0 p-0">
-              @Html.AntiForgeryToken()
-              <input type="hidden" name="id" value="@t.Id" />
-              <input type="hidden" name="done" value="@(t.Status == ProjectManagement.Models.TodoStatus.Open ? "true" : "false")" />
-              <input class="form-check-input" type="checkbox" title="Mark done" aria-label="Mark done" onchange="this.form.submit()" @(t.Status == ProjectManagement.Models.TodoStatus.Done ? "checked" : "") />
-            </form>
-          </td>
-          <td class="align-middle">
-            <form id="@formId" method="post" asp-page-handler="Edit" class="row g-2 m-0 p-0">
-              @Html.AntiForgeryToken()
-              <input type="hidden" name="id" value="@t.Id" />
-              <div class="col-12">
-                <input class="form-control form-control-sm" name="title" value="@t.Title" maxlength="160" aria-label="Title">
-              </div>
-              <div class="col-12">
-                <textarea class="form-control form-control-sm" name="notes" rows="2" placeholder="Notes (optional)" aria-label="Notes">@t.Notes</textarea>
-              </div>
-            </form>
-          </td>
-          <td class="align-middle">
-              <input class="form-control form-control-sm" type="date"
-                     form="@formId"
-                     name="dueLocal"
-                     value="@(t.DueAtUtc.HasValue ? TimeZoneInfo.ConvertTime(t.DueAtUtc.Value, TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata")).ToString("yyyy-MM-dd") : "")" />
-          </td>
-          <td class="align-middle">
-              <select class="form-select form-select-sm" form="@formId" name="priority">
-                <option value="Low" selected="@(t.Priority==ProjectManagement.Models.TodoPriority.Low)">Low</option>
-                <option value="Normal" selected="@(t.Priority==ProjectManagement.Models.TodoPriority.Normal)">Normal</option>
-                <option value="High" selected="@(t.Priority==ProjectManagement.Models.TodoPriority.High)">High</option>
-              </select>
-          </td>
-          <td class="align-middle text-center">
-              <input class="form-check-input" form="@formId" type="checkbox" name="pin" value="true" @(t.IsPinned ? "checked" : "") />
-          </td>
-          <td class="align-middle text-end">
-              <button form="@formId" class="btn btn-sm btn-outline-primary">Save</button>
-              <button type="reset" form="@formId" class="btn btn-sm btn-outline-secondary">Cancel</button>
-              <form method="post" asp-page-handler="Delete" class="d-inline" onsubmit="return confirm('Delete this task?');">
-                @Html.AntiForgeryToken()
-                <input type="hidden" name="id" value="@t.Id" />
-                <button class="btn btn-sm btn-outline-danger">Delete</button>
-              </form>
-          </td>
-        </tr>
+        <li class="page-item @(p==Model.Page ? "active" : "")">
+          <a class="page-link" href="@Url.Page(null, new { tab = Model.Tab, q = Model.Q, page = p, pageSize = Model.PageSize })">@p</a>
+        </li>
       }
-      </tbody>
-    </table>
-  </div>
-  @if (Model.TotalPages > 1)
-  {
-    <nav class="mt-2">
-      <ul class="pagination pagination-sm mb-0">
-        @for (var p = 1; p <= Model.TotalPages; p++)
-        {
-          <li class="page-item @(p==Model.Page ? "active" : "")">
-            <a class="page-link" href="@Url.Page(null, new { tab = Model.Tab, q = Model.Q, page = p, pageSize = Model.PageSize })">@p</a>
-          </li>
-        }
-      </ul>
-    </nav>
-  }
+    </ul>
+  </nav>
 }
 
 <script>
-(function(){
-  const tbody = document.querySelector("table tbody");
-  if (!tbody) return;
+// show actions when inputs change
+document.querySelectorAll('li.todo-row').forEach(row => {
+  const form = row.querySelector('form[method="post"][id^="f-"]');
+  const actions = row.querySelector('.row-actions');
+  if (!form || !actions) return;
+  const show = () => actions.classList.remove('d-none');
+  const hide = () => actions.classList.add('d-none');
+  hide();
+  form.addEventListener('input', show);
+  form.addEventListener('reset', () => setTimeout(hide, 0));
+  form.addEventListener('keydown', e => { if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); form.submit(); } });
+});
+
+// drag reorder (Open items)
+(() => {
+  const lists = document.querySelectorAll('.todo-list');
+  if (lists.length === 0) return;
   let dragEl;
-
-  tbody.addEventListener("dragstart", e => {
-    const row = e.target.closest(".todo-row");
-    if (!row) return;
-    dragEl = row;
-    e.dataTransfer.effectAllowed = "move";
-    row.classList.add("opacity-50");
-  });
-
-  tbody.addEventListener("dragover", e => {
-    e.preventDefault();
-    const row = e.target.closest(".todo-row");
-    if (!row || row === dragEl) return;
-    const rect = row.getBoundingClientRect();
-    const before = (e.clientY - rect.top) < rect.height / 2;
-    row.parentNode.insertBefore(dragEl, before ? row : row.nextSibling);
-  });
-
-  tbody.addEventListener("dragend", async e => {
-    if (dragEl) dragEl.classList.remove("opacity-50");
-    const ids = Array.from(tbody.querySelectorAll(".todo-row")).map(r => r.dataset.id);
-    if (ids.length === 0) return;
-
-    const formData = new FormData();
-    ids.forEach(id => formData.append("ids", id));
-    const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
-    formData.append("__RequestVerificationToken", token);
-
-    await fetch("?handler=Reorder", { method: "POST", body: formData });
-  });
-  const selectAll = document.getElementById("selectAll");
-  if (selectAll) {
-    selectAll.addEventListener("change", e => {
-      document.querySelectorAll("input[name='ids']").forEach(cb => cb.checked = selectAll.checked);
+  lists.forEach(list => {
+    list.addEventListener('dragstart', e => {
+      const li = e.target.closest('.todo-row'); if (!li) return;
+      dragEl = li; e.dataTransfer.effectAllowed = 'move'; li.classList.add('opacity-50');
     });
-  }
+    list.addEventListener('dragover', e => {
+      e.preventDefault();
+      const li = e.target.closest('.todo-row'); if (!li || li===dragEl) return;
+      const rect = li.getBoundingClientRect();
+      const before = (e.clientY - rect.top) < rect.height/2;
+      li.parentNode.insertBefore(dragEl, before ? li : li.nextSibling);
+    });
+    list.addEventListener('dragend', async e => {
+      if (dragEl) dragEl.classList.remove('opacity-50');
+      const ids = Array.from(document.querySelectorAll('.todo-row')).map(r => r.dataset.id);
+      const fd = new FormData(); ids.forEach(id => fd.append('ids', id));
+      const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+      if (token) fd.append('__RequestVerificationToken', token);
+      await fetch('?handler=Reorder', { method: 'POST', body: fd });
+    });
+  });
 })();
+
+// bootstrap dropdowns inside scrollers -> render to body
+document.querySelectorAll('.btn-kebab.dropdown-toggle').forEach(el => {
+  new bootstrap.Dropdown(el, { container: 'body', popperConfig: { strategy: 'fixed' }});
+});
+
+// select mode toggle
+const selectToggle = document.getElementById('selectToggle');
+const batchForm = document.getElementById('batchForm');
+selectToggle?.addEventListener('click', () => {
+  const show = batchForm.classList.contains('d-none');
+  batchForm.classList.toggle('d-none', !show);
+  document.querySelectorAll('.select-box').forEach(cb => {
+    cb.classList.toggle('d-none', !show);
+    if (!show) cb.checked = false;
+  });
+  selectToggle.textContent = show ? 'Cancel' : 'Select';
+});
 </script>
 

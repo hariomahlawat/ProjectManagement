@@ -196,7 +196,7 @@ h1, .h1 { font-size: 1.25rem; }
 .badge { letter-spacing: .2px; }
 
 /* Widget row compactness */
-.todo-list .list-group-item { padding: .3rem .5rem; }
+.todo-list .list-group-item { padding: .35rem .6rem; }
 .todo-actions .btn { padding: 0; width: var(--pm-btn-icon); height: var(--pm-btn-icon); display: inline-flex; align-items: center; justify-content: center; }
 
 /* Priority dots */
@@ -206,7 +206,7 @@ h1, .h1 { font-size: 1.25rem; }
 .todo-dot-high { background: #dc3545; }
 
 /* Truncation helper for titles so icons never wrap */
-.todo-title { max-width: 240px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.todo-title { max-width: 420px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Dropdown menu small */
 .dropdown-menu { font-size: .875rem; }
@@ -220,4 +220,6 @@ h1, .h1 { font-size: 1.25rem; }
   align-items: center;
   justify-content: center;
 }
+
+.draggable-handle{cursor:grab}
 
