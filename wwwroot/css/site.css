@@ -211,3 +211,13 @@ h1, .h1 { font-size: 1.25rem; }
 /* Dropdown menu small */
 .dropdown-menu { font-size: .875rem; }
 
+/* Kebab button */
+.btn-kebab {
+  width: var(--pm-btn-icon);
+  height: var(--pm-btn-icon);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+

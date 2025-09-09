@@ -18,42 +18,26 @@
   <div class="alert alert-warning py-2"><i class="bi bi-exclamation-triangle-fill me-2"></i>@err</div>
 }
 
-<form method="get" class="row g-2 align-items-end mb-3">
-  <div class="col-md-3">
-    <label class="form-label small">View</label>
-    <select class="form-select form-select-sm" name="tab">
-      <option value="all" selected="@(Model.Tab=="all")">Open - All</option>
-      <option value="today" selected="@(Model.Tab=="today")">Due today</option>
-      <option value="upcoming" selected="@(Model.Tab=="upcoming")">Upcoming</option>
-      <option value="completed" selected="@(Model.Tab=="completed")">Completed</option>
-    </select>
-  </div>
-  <div class="col-md-3">
-    <label class="form-label small">Search</label>
-    <input class="form-control form-control-sm" name="q" value="@Model.Q" placeholder="Title or notes">
-  </div>
-  <div class="col-md-2">
-    <label class="form-label small">Page size</label>
-    <select class="form-select form-select-sm" name="PageSize">
-      <option value="10" selected="@(Model.PageSize==10)">10</option>
-      <option value="25" selected="@(Model.PageSize==25)">25</option>
-      <option value="50" selected="@(Model.PageSize==50)">50</option>
-    </select>
-  </div>
-  <div class="col-md-2 d-grid">
-    <button class="btn btn-sm btn-primary">Apply</button>
-  </div>
-  <div class="col-md-2 d-grid">
-    <a class="btn btn-sm btn-outline-secondary" asp-page="Index">Reset</a>
-  </div>
+<form method="get" class="d-flex flex-wrap gap-2 align-items-center mb-3">
+  <select class="form-select form-select-sm w-auto" name="tab">
+    <option value="all" selected="@(Model.Tab=="all")">All</option>
+    <option value="today" selected="@(Model.Tab=="today")">Today</option>
+    <option value="upcoming" selected="@(Model.Tab=="upcoming")">Upcoming</option>
+    <option value="completed" selected="@(Model.Tab=="completed")">Completed</option>
+  </select>
+  <input class="form-control form-control-sm w-auto" name="q" value="@Model.Q" placeholder="Search">
+  <select class="form-select form-select-sm w-auto" name="PageSize">
+    <option value="10" selected="@(Model.PageSize==10)">10</option>
+    <option value="25" selected="@(Model.PageSize==25)">25</option>
+    <option value="50" selected="@(Model.PageSize==50)">50</option>
+  </select>
+  <button class="btn btn-sm btn-primary">Apply</button>
+  <a class="btn btn-sm btn-outline-secondary" asp-page="Index">Reset</a>
 </form>
 
 <form method="post" asp-page-handler="Add" class="mb-3">
   @Html.AntiForgeryToken()
-  <div class="input-group input-group-sm">
-    <input class="form-control" name="title" placeholder="Add a task…" maxlength="160" required>
-    <button class="btn btn-primary">Add</button>
-  </div>
+  <input class="form-control form-control-sm" name="title" placeholder="Add a task…" maxlength="160" required>
 </form>
 
 @if (Model.Items.Length == 0)
