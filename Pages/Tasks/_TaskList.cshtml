@@ -40,8 +40,8 @@
           <form method="post" asp-page-handler="Toggle" class="m-0 p-0">
             @Html.AntiForgeryToken()
             <input type="hidden" name="id" value="@t.Id" />
-            <input type="hidden" name="done" value="false" />
             <input class="form-check-input js-done-checkbox" type="checkbox" name="done" value="true"
+            <input type="hidden" name="done" value="false" />
                    @(t.Status == TodoStatus.Done ? "checked" : "")
                    title="Mark done" aria-label="Mark done" />
           </form>

@@ -89,11 +89,34 @@
     }
   });
 
+  
+  // ---------- Done checkbox: autosubmit + instant visual feedback ----------
+  function initDoneAutosubmit() {
+    document.addEventListener('change', (e) => {
+      const cb = e.target.closest('.js-done-checkbox');
+      if (!cb) return;
+      // Visual: toggle .done on the closest .todo-row (used in widget), and data-status on li[data-id] (used in Tasks page)
+      const row = cb.closest('li.todo-row, li[data-id]');
+      if (row) {
+        if (cb.checked) {
+          row.classList.add('done');
+          row.setAttribute('data-status','done');
+        } else {
+          row.classList.remove('done');
+          row.removeAttribute('data-status');
+        }
+      }
+      // Submit the form to persist
+      const form = cb.closest('form');
+      if (form) form.requestSubmit();
+    }, { passive: true });
+  }
+
   // ---------- Kick things off ----------
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initDropdowns);
+    document.addEventListener('DOMContentLoaded', function(){ initDropdowns(); initDoneAutosubmit(); initDoneAutosubmit(); });
   } else {
-    initDropdowns();
+    initDropdowns(); initDoneAutosubmit();
   }
 })();
 
