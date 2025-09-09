@@ -28,8 +28,6 @@ namespace ProjectManagement.Models
         [Required, StringLength(160)]
         public string Title { get; set; } = string.Empty;
 
-        public string? Notes { get; set; }
-
         public DateTimeOffset? DueAtUtc { get; set; }
 
         [Required]

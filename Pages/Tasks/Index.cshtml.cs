@@ -27,7 +27,7 @@ namespace ProjectManagement.Pages.Tasks
             _db = db; _todo = todo; _users = users;
         }
 
-        public record Row(Guid Id, string Title, string? Notes, TodoPriority Priority, bool IsPinned,
+        public record Row(Guid Id, string Title, TodoPriority Priority, bool IsPinned,
                           TodoStatus Status, DateTimeOffset? DueAtUtc, DateTimeOffset? CompletedUtc);
         public record Group(string Title, Row[] Items);
         public Group[] Groups { get; set; } = Array.Empty<Group>();
@@ -48,7 +48,7 @@ namespace ProjectManagement.Pages.Tasks
             if (!string.IsNullOrWhiteSpace(Q))
             {
                 var s = Q.Trim();
-                q = q.Where(x => EF.Functions.ILike(x.Title, $"%{s}%") || (x.Notes != null && EF.Functions.ILike(x.Notes, $"%{s}%")));
+                q = q.Where(x => EF.Functions.ILike(x.Title, $"%{s}%"));
             }
 
             var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Ist);
@@ -73,7 +73,7 @@ namespace ProjectManagement.Pages.Tasks
                 .ThenBy(x => x.DueAtUtc)
                 .ThenBy(x => x.OrderIndex)
                 .ThenBy(x => x.CreatedUtc)
-                .Select(x => new Row(x.Id, x.Title, x.Notes, x.Priority, x.IsPinned, x.Status, x.DueAtUtc, x.CompletedUtc))
+                .Select(x => new Row(x.Id, x.Title, x.Priority, x.IsPinned, x.Status, x.DueAtUtc, x.CompletedUtc))
                 .ToListAsync();
 
             // Group client-side (fast enough for a single user’s page)
@@ -163,7 +163,7 @@ namespace ProjectManagement.Pages.Tasks
             return Back();
         }
 
-        public async Task<IActionResult> OnPostEditAsync(Guid id, string? title, string? priority, DateTimeOffset? dueLocal, bool? pin, string? notes)
+        public async Task<IActionResult> OnPostEditAsync(Guid id, string? title, string? priority, DateTimeOffset? dueLocal, bool? pin)
         {
             var uid = _users.GetUserId(User);
             TodoPriority? prio = null;
@@ -172,7 +172,6 @@ namespace ProjectManagement.Pages.Tasks
             {
                 await _todo.EditAsync(uid!, id,
                     title: string.IsNullOrWhiteSpace(title) ? null : title.Trim(),
-                    notes: notes,
                     dueAtLocal: dueLocal,
                     priority: prio,
                     pinned: pin);

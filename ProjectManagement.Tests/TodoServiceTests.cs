@@ -115,17 +115,6 @@ namespace ProjectManagement.Tests
         }
 
         [Fact]
-        public async Task NotesPersist()
-        {
-            using var context = CreateContext();
-            var audit = new FakeAudit();
-            var service = new TodoService(context, audit);
-            var item = await service.CreateAsync("alice", "Task", notes: "first\nsecond");
-            var stored = await context.TodoItems.FindAsync(item.Id);
-            Assert.Equal("first\nsecond", stored!.Notes);
-        }
-
-        [Fact]
         public async Task ReorderSkipsCompleted()
         {
             using var context = CreateContext();

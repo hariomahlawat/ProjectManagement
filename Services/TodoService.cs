@@ -68,7 +68,7 @@ namespace ProjectManagement.Services
         }
 
         public async Task<TodoItem> CreateAsync(string ownerId, string title, DateTimeOffset? dueAtLocal = null,
-                                   TodoPriority priority = TodoPriority.Normal, bool pinned = false, string? notes = null)
+                                   TodoPriority priority = TodoPriority.Normal, bool pinned = false)
         {
             var utcDue = ToUtc(dueAtLocal);
             var last = await _db.TodoItems.Where(x => x.OwnerId == ownerId && x.DeletedUtc == null).MaxAsync(x => (int?)x.OrderIndex) ?? -1;
@@ -77,7 +77,6 @@ namespace ProjectManagement.Services
                 Id = Guid.NewGuid(),
                 OwnerId = ownerId,
                 Title = title,
-                Notes = notes,
                 DueAtUtc = utcDue,
                 Priority = priority,
                 IsPinned = pinned,
@@ -120,13 +119,12 @@ namespace ProjectManagement.Services
             return true;
         }
 
-        public async Task<bool> EditAsync(string ownerId, Guid id, string? title = null, string? notes = null,
+        public async Task<bool> EditAsync(string ownerId, Guid id, string? title = null,
                               DateTimeOffset? dueAtLocal = null, TodoPriority? priority = null, bool? pinned = null)
         {
             var item = await _db.TodoItems.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == ownerId && x.DeletedUtc == null);
             if (item == null) return false;
             if (title != null) item.Title = title;
-            if (notes != null) item.Notes = notes;
             if (dueAtLocal.HasValue) item.DueAtUtc = ToUtc(dueAtLocal);
             if (priority.HasValue) item.Priority = priority.Value;
             if (pinned.HasValue && item.IsPinned != pinned.Value)

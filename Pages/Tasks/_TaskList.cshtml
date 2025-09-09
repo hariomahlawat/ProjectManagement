@@ -59,10 +59,6 @@
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="id" value="@t.Id" />
                             <input name="title" class="form-control form-control-sm border-0 ps-0 todo-title" value="@t.Title" maxlength="160" aria-label="Title" />
-                            <details class="mt-1">
-                                <summary class="small text-muted" role="button">Add notes…</summary>
-                                <textarea class="form-control form-control-sm" name="notes" rows="2" placeholder="Notes (optional)">@t.Notes</textarea>
-                            </details>
                         </form>
 
                         @if (!string.IsNullOrEmpty(chip))

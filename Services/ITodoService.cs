@@ -9,9 +9,9 @@ namespace ProjectManagement.Services
     {
         Task<TodoWidgetResult> GetWidgetAsync(string ownerId, int take = 20);
         Task<TodoItem> CreateAsync(string ownerId, string title, DateTimeOffset? dueAtLocal = null,
-                                   TodoPriority priority = TodoPriority.Normal, bool pinned = false, string? notes = null);
+                                   TodoPriority priority = TodoPriority.Normal, bool pinned = false);
         Task<bool> ToggleDoneAsync(string ownerId, Guid id, bool done);
-        Task<bool> EditAsync(string ownerId, Guid id, string? title = null, string? notes = null,
+        Task<bool> EditAsync(string ownerId, Guid id, string? title = null,
                               DateTimeOffset? dueAtLocal = null, TodoPriority? priority = null, bool? pinned = null);
         Task<bool> DeleteAsync(string ownerId, Guid id);
         Task<int> ClearCompletedAsync(string ownerId);
