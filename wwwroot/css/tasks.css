@@ -39,12 +39,6 @@
   opacity: .6;
 }
 
-.todo-notes {
-  font-size: .9rem;
-  color: #6c757d;
-  max-width: 60ch;
-}
-
 .todo-chip {
   font-size: .75rem;
   padding: .2rem .5rem;
@@ -58,10 +52,6 @@
 
 .row-actions .btn {
   font-size: .85rem;
-}
-
-@media (max-width: 576px) {
-  .todo-notes { max-width: 100%; }
 }
 
 
