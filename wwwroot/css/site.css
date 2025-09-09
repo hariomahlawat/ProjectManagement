@@ -235,6 +235,11 @@ h1, .h1 { font-size: 1.25rem; }
   z-index: 1046; /* > fixed(1030)/sticky(1020)/offcanvas(1045), < modal-backdrop(1050)/modal(1055) */
 }
 
+/* Kebab menus moved to <body> need their own elevation */
+.dropdown-menu.todo-menu {
+  z-index: 1046;
+}
+
 /* If any card/section had overflow clipping, turn it off at the outer wrapper */
 .dashboard .card,
 .dashboard .card > .card-body {
