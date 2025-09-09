@@ -6,16 +6,15 @@
 
   // ---------- Dropdowns: render menus in <body> & flip safely ----------
   function initDropdowns() {
-    document.querySelectorAll('.todo-kebab[data-bs-toggle="dropdown"]').forEach(btn => {
+    document.querySelectorAll('[data-bs-toggle="dropdown"]').forEach(btn => {
       // Mount menus to body so scrollable cards don't clip them
-      new bootstrap.Dropdown(btn, {
+      bootstrap.Dropdown.getOrCreateInstance(btn, {
         container: document.body,
         popperConfig: {
           strategy: 'fixed',
           modifiers: [
             { name: 'preventOverflow', options: { boundary: 'viewport' } },
-            { name: 'flip', options: { fallbackPlacements: ['left','top','bottom'] } },
-            { name: 'offset', options: { offset: [0, 6] } },
+            { name: 'offset', options: { offset: [0, 6] } }
           ]
         }
       });
@@ -34,11 +33,10 @@
 
   // Close any other open dropdown when a new one opens
   document.addEventListener('show.bs.dropdown', (e) => {
-    document.querySelectorAll('.dropdown-menu.show').forEach(m => {
-      const toggle = m.previousElementSibling;
-      if (!toggle || toggle !== e.target) {
-        const inst = toggle ? bootstrap.Dropdown.getInstance(toggle) : null;
-        inst && inst.hide();
+    document.querySelectorAll('[data-bs-toggle="dropdown"]').forEach(btn => {
+      if (btn !== e.target) {
+        const inst = bootstrap.Dropdown.getInstance(btn);
+        if (inst) inst.hide();
       }
     });
   });
@@ -125,9 +123,13 @@
 
   // ---------- Kick things off ----------
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function(){ initDropdowns(); initDoneAutosubmit(); initDoneAutosubmit(); });
+    document.addEventListener('DOMContentLoaded', () => {
+      initDropdowns();
+      initDoneAutosubmit();
+    });
   } else {
-    initDropdowns(); initDoneAutosubmit();
+    initDropdowns();
+    initDoneAutosubmit();
   }
 })();
 
