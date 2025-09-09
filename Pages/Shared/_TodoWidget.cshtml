@@ -59,83 +59,78 @@
             }
           </div>
           <div class="dropdown">
-            <button class="btn btn-link text-muted btn-kebab" data-bs-toggle="dropdown" data-bs-auto-close="outside" data-bs-container="body" aria-expanded="false" title="More actions">
-              <i class="bi bi-three-dots-vertical"></i>
-            </button>
+            <button type="button" class="btn btn-outline-secondary btn-kebab dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" title="More actions">⋯</button>
             <ul class="dropdown-menu dropdown-menu-end">
               <li>
                 <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Pin" class="m-0 p-0">
                   @Html.AntiForgeryToken()
                   <input type="hidden" name="id" value="@t.Id" />
                   <input type="hidden" name="pin" value="@(!t.IsPinned)" />
-                  <button class="dropdown-item">@(t.IsPinned ? "Unpin" : "Pin")</button>
+                  <button type="submit" class="dropdown-item">@(t.IsPinned ? "Unpin" : "Pin")</button>
                 </form>
               </li>
-              <li class="dropstart">
-                <button class="dropdown-item dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside">Priority</button>
-                <ul class="dropdown-menu">
-                  <li>
-                    <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Edit" class="m-0 p-0">
-                      @Html.AntiForgeryToken()
-                      <input type="hidden" name="id" value="@t.Id" />
-                      <button class="dropdown-item" name="priority" value="High">High</button>
-                    </form>
-                  </li>
-                  <li>
-                    <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Edit" class="m-0 p-0">
-                      @Html.AntiForgeryToken()
-                      <input type="hidden" name="id" value="@t.Id" />
-                      <button class="dropdown-item" name="priority" value="Normal">Normal</button>
-                    </form>
-                  </li>
-                  <li>
-                    <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Edit" class="m-0 p-0">
-                      @Html.AntiForgeryToken()
-                      <input type="hidden" name="id" value="@t.Id" />
-                      <button class="dropdown-item" name="priority" value="Low">Low</button>
-                    </form>
-                  </li>
-                </ul>
+
+              <li><hr class="dropdown-divider" /></li>
+              <li class="dropdown-header small">Priority</li>
+              <li>
+                <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Edit" class="m-0 p-0">
+                  @Html.AntiForgeryToken()
+                  <input type="hidden" name="id" value="@t.Id" />
+                  <button type="submit" class="dropdown-item" name="priority" value="High">High</button>
+                </form>
               </li>
-              <li class="dropstart">
-                <button class="dropdown-item dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside">Snooze</button>
-                <ul class="dropdown-menu">
-                  <li>
-                    <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Snooze" class="m-0 p-0">
-                      @Html.AntiForgeryToken()
-                      <input type="hidden" name="id" value="@t.Id" />
-                      <button class="dropdown-item" name="preset" value="today_pm">Today 6:00 PM</button>
-                    </form>
-                  </li>
-                  <li>
-                    <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Snooze" class="m-0 p-0">
-                      @Html.AntiForgeryToken()
-                      <input type="hidden" name="id" value="@t.Id" />
-                      <button class="dropdown-item" name="preset" value="tom_am">Tomorrow 10:00 AM</button>
-                    </form>
-                  </li>
-                  <li>
-                    <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Snooze" class="m-0 p-0">
-                      @Html.AntiForgeryToken()
-                      <input type="hidden" name="id" value="@t.Id" />
-                      <button class="dropdown-item" name="preset" value="next_mon">Next Monday 10:00 AM</button>
-                    </form>
-                  </li>
-                  <li>
-                    <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Snooze" class="m-0 p-0">
-                      @Html.AntiForgeryToken()
-                      <input type="hidden" name="id" value="@t.Id" />
-                      <button class="dropdown-item" name="preset" value="clear">Clear due date</button>
-                    </form>
-                  </li>
-                </ul>
+              <li>
+                <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Edit" class="m-0 p-0">
+                  @Html.AntiForgeryToken()
+                  <input type="hidden" name="id" value="@t.Id" />
+                  <button type="submit" class="dropdown-item" name="priority" value="Normal">Normal</button>
+                </form>
               </li>
+              <li>
+                <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Edit" class="m-0 p-0">
+                  @Html.AntiForgeryToken()
+                  <input type="hidden" name="id" value="@t.Id" />
+                  <button type="submit" class="dropdown-item" name="priority" value="Low">Low</button>
+                </form>
+              </li>
+
+              <li><hr class="dropdown-divider" /></li>
+              <li class="dropdown-header small">Snooze</li>
+              <li>
+                <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Snooze" class="m-0 p-0">
+                  @Html.AntiForgeryToken()
+                  <input type="hidden" name="id" value="@t.Id" />
+                  <button type="submit" class="dropdown-item" name="preset" value="today_pm">Today 6:00 PM</button>
+                </form>
+              </li>
+              <li>
+                <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Snooze" class="m-0 p-0">
+                  @Html.AntiForgeryToken()
+                  <input type="hidden" name="id" value="@t.Id" />
+                  <button type="submit" class="dropdown-item" name="preset" value="tom_am">Tomorrow 10:00 AM</button>
+                </form>
+              </li>
+              <li>
+                <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Snooze" class="m-0 p-0">
+                  @Html.AntiForgeryToken()
+                  <input type="hidden" name="id" value="@t.Id" />
+                  <button type="submit" class="dropdown-item" name="preset" value="next_mon">Next Monday 10:00 AM</button>
+                </form>
+              </li>
+              <li>
+                <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Snooze" class="m-0 p-0">
+                  @Html.AntiForgeryToken()
+                  <input type="hidden" name="id" value="@t.Id" />
+                  <button type="submit" class="dropdown-item" name="preset" value="clear">Clear due date</button>
+                </form>
+              </li>
+
               <li><hr class="dropdown-divider" /></li>
               <li>
                 <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Delete" class="m-0 p-0" onsubmit="return confirm('Delete this task?');">
                   @Html.AntiForgeryToken()
                   <input type="hidden" name="id" value="@t.Id" />
-                  <button class="dropdown-item text-danger">Delete</button>
+                  <button type="submit" class="dropdown-item text-danger">Delete</button>
                 </form>
               </li>
             </ul>

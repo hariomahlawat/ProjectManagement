@@ -120,7 +120,7 @@ namespace ProjectManagement.Pages.Tasks
         // Actions
         public async Task<IActionResult> OnPostAddAsync(string title)
         {
-            if (string.IsNullOrWhiteSpace(title)) return RedirectToPage(new { Tab, Q });
+            if (string.IsNullOrWhiteSpace(title)) return Back();
             var uid = _users.GetUserId(User);
             TodoQuickParser.Parse(title, out var clean, out var dueLocal, out var prio);
             try
@@ -131,7 +131,7 @@ namespace ProjectManagement.Pages.Tasks
             {
                 TempData["Error"] = ex.Message;
             }
-            return RedirectToPage(new { Tab, Q, Page, PageSize });
+            return Back();
         }
 
         public async Task<IActionResult> OnPostToggleAsync(Guid id, bool done)
@@ -146,7 +146,7 @@ namespace ProjectManagement.Pages.Tasks
             {
                 TempData["Error"] = ex.Message;
             }
-            return RedirectToPage(new { Tab, Q, Page, PageSize });
+            return Back();
         }
 
         public async Task<IActionResult> OnPostUndoAsync(Guid id)
@@ -160,7 +160,7 @@ namespace ProjectManagement.Pages.Tasks
             {
                 TempData["Error"] = ex.Message;
             }
-            return RedirectToPage(new { Tab, Q, Page, PageSize });
+            return Back();
         }
 
         public async Task<IActionResult> OnPostEditAsync(Guid id, string? title, string? priority, DateTimeOffset? dueLocal, bool? pin, string? notes)
@@ -181,7 +181,7 @@ namespace ProjectManagement.Pages.Tasks
             {
                 TempData["Error"] = ex.Message;
             }
-            return RedirectToPage(new { Tab, Q, Page, PageSize });
+            return Back();
         }
 
         public async Task<IActionResult> OnPostSnoozeAsync(Guid id, string preset)
@@ -206,7 +206,7 @@ namespace ProjectManagement.Pages.Tasks
             {
                 TempData["Error"] = ex.Message;
             }
-            return RedirectToPage(new { Tab, Q, Page, PageSize });
+            return Back();
         }
 
         public async Task<IActionResult> OnPostReorderAsync([FromForm] Guid[] ids)
@@ -235,13 +235,13 @@ namespace ProjectManagement.Pages.Tasks
             {
                 TempData["Error"] = ex.Message;
             }
-            return RedirectToPage(new { Tab, Q, Page, PageSize });
+            return Back();
         }
 
         public async Task<IActionResult> OnPostBatchDoneAsync([FromForm] Guid[] ids)
         {
             var uid = _users.GetUserId(User);
-            if (uid == null || ids == null || ids.Length == 0) return RedirectToPage(new { Tab, Q, Page, PageSize });
+            if (uid == null || ids == null || ids.Length == 0) return Back();
             foreach (var id in ids)
             {
                 try
@@ -254,13 +254,13 @@ namespace ProjectManagement.Pages.Tasks
                     break;
                 }
             }
-            return RedirectToPage(new { Tab, Q, Page, PageSize });
+            return Back();
         }
 
         public async Task<IActionResult> OnPostBatchDeleteAsync([FromForm] Guid[] ids)
         {
             var uid = _users.GetUserId(User);
-            if (uid == null || ids == null || ids.Length == 0) return RedirectToPage(new { Tab, Q, Page, PageSize });
+            if (uid == null || ids == null || ids.Length == 0) return Back();
             foreach (var id in ids)
             {
                 try
@@ -273,8 +273,24 @@ namespace ProjectManagement.Pages.Tasks
                     break;
                 }
             }
-            return RedirectToPage(new { Tab, Q, Page, PageSize });
+            return Back();
         }
+
+        public async Task<IActionResult> OnPostPinAsync(Guid id, bool pin)
+        {
+            var uid = _users.GetUserId(User);
+            try
+            {
+                await _todo.EditAsync(uid!, id, pinned: pin);
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+            return Back();
+        }
+
+        private IActionResult Back() => RedirectToPage("Index", new { Tab, Q, Page, PageSize });
 
         private static DateTimeOffset NextOccurrenceTodayOrTomorrow(int h, int m)
         {

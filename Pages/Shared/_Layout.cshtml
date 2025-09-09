@@ -67,7 +67,7 @@
     @await RenderSectionAsync("Scripts", required: false)
     <script>
     document.addEventListener('DOMContentLoaded', () => {
-      document.querySelectorAll('.todo-actions .dropdown-toggle').forEach(el => {
+      document.querySelectorAll('.btn-kebab.dropdown-toggle').forEach(el => {
         new bootstrap.Dropdown(el, { container: 'body', popperConfig: { strategy: 'fixed' }});
       });
     });

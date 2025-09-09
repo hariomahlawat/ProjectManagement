@@ -127,11 +127,6 @@ document.querySelectorAll('li.todo-row').forEach(row => {
   });
 })();
 
-// bootstrap dropdowns inside scrollers -> render to body
-document.querySelectorAll('.btn-kebab.dropdown-toggle').forEach(el => {
-  new bootstrap.Dropdown(el, { container: 'body', popperConfig: { strategy: 'fixed' }});
-});
-
 // select mode toggle
 const selectToggle = document.getElementById('selectToggle');
 const batchForm = document.getElementById('batchForm');

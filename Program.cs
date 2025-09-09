@@ -11,8 +11,14 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Infrastructure;
+using Microsoft.Extensions.Logging;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
+builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Model.Validation", LogLevel.Warning);
+builder.Logging.AddFilter("ProjectManagement.Services.TodoService", LogLevel.None);
+builder.Logging.AddFilter("ProjectManagement.Services.TodoPurgeWorker", LogLevel.Warning);
 
 var keysDir = Environment.GetEnvironmentVariable("DP_KEYS_DIR");
 if (string.IsNullOrWhiteSpace(keysDir))
