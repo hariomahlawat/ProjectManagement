@@ -18,7 +18,10 @@ Program.cs                        Application bootstrap and Identity configurati
 ## Bootstrapping and configuration
 
 ### `Program.cs`
-* Configures the `ApplicationDbContext` connection string and enables the PostgreSQL provider.
+* Configures the `ApplicationDbContext` connection string from configuration or environment variables and enables the PostgreSQL provider.
+* Adds console logging and reports the target host and database at startup.
+* In Development, logs the current database and PostgreSQL server version and enables rich provider errors via `Include Error Detail=true`.
+* Asserts that migration `20250909153316_UseXminForTodoItem` has run; logs a warning if not.
 * Registers ASP.NET Core Identity with relaxed password rules and a username/password flow only (`AddIdentity<ApplicationUser, IdentityRole>`).
 * Customises the application cookie paths and enables session state.
 * Registers `IUserManagementService` (`UserManagementService` implementation) and an email sender (`SmtpEmailSender` when SMTP settings are present or `NoOpEmailSender` otherwise).
