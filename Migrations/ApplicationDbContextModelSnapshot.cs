@@ -427,7 +427,8 @@ namespace ProjectManagement.Migrations
                         .IsConcurrencyToken()
                         .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("bytea");
+                        .HasColumnType("bytea")
+                        .HasDefaultValue(new byte[0]);
 
                     b.Property<byte>("Status")
                         .ValueGeneratedOnAdd()
