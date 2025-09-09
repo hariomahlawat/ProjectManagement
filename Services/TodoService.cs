@@ -200,5 +200,21 @@ namespace ProjectManagement.Services
             await _audit.LogAsync("Todo.Reorder", userId: ownerId);
             return true;
         }
+
+        public async Task MarkDoneAsync(string ownerId, IList<Guid> ids)
+        {
+            foreach (var id in ids)
+            {
+                await ToggleDoneAsync(ownerId, id, true);
+            }
+        }
+
+        public async Task DeleteManyAsync(string ownerId, IList<Guid> ids)
+        {
+            foreach (var id in ids)
+            {
+                await DeleteAsync(ownerId, id);
+            }
+        }
     }
 }

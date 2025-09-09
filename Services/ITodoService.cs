@@ -16,6 +16,8 @@ namespace ProjectManagement.Services
         Task<bool> DeleteAsync(string ownerId, Guid id);
         Task<int> ClearCompletedAsync(string ownerId);
         Task<bool> ReorderAsync(string ownerId, IList<Guid> orderedIds);
+        Task MarkDoneAsync(string ownerId, IList<Guid> ids);
+        Task DeleteManyAsync(string ownerId, IList<Guid> ids);
     }
 
     public class TodoWidgetResult

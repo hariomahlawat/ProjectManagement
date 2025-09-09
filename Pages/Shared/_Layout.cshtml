@@ -62,34 +62,65 @@
         </div>
     </footer>
 
+    <div class="modal fade" id="confirmCompleteModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+          <div class="modal-body">Mark this task as completed?</div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">No</button>
+            <button type="button" class="btn btn-sm btn-primary" id="confirmCompleteBtn">Yes</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script type="module" src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
     <script>
     document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('.todo-kebab[data-bs-toggle="dropdown"]').forEach(btn => {
-        // Always render outside scrolling cards
         new bootstrap.Dropdown(btn, {
           container: document.body,
           popperConfig: {
             strategy: 'fixed',
             modifiers: [
               { name: 'preventOverflow', options: { boundary: 'viewport' } },
-              { name: 'flip', options: { fallbackPlacements: ['left','top','bottom'] } }
+              { name: 'flip', options: { fallbackPlacements: ['left','top','bottom'] } },
+              { name: 'offset', options: { offset: [0,6] } }
             ]
           }
         });
 
-        // Auto flip for any kebab; widget already uses dropstart, but this is a safe guard
         btn.addEventListener('show.bs.dropdown', () => {
-          const dd = btn.closest('.dropdown');
-          if (!dd) return;
-          const rect = btn.getBoundingClientRect();
-          const menuWidth = 320; // safe maximum
-          const roomRight = (window.innerWidth - rect.right) > menuWidth;
+          const dd = btn.closest('.dropdown'); if (!dd) return;
+          const r = btn.getBoundingClientRect();
+          const roomRight = (innerWidth - r.right) > 320;
           dd.classList.toggle('dropstart', !roomRight);
         });
       });
+
+      const modalEl = document.getElementById('confirmCompleteModal');
+      const modal = new bootstrap.Modal(modalEl);
+      let pendingCb = null;
+
+      document.addEventListener('click', (e) => {
+        const cb = e.target.closest('.js-done-checkbox');
+        if (!cb) return;
+        e.preventDefault();
+        pendingCb = cb;
+        modal.show();
+      });
+
+      document.getElementById('confirmCompleteBtn').addEventListener('click', () => {
+        if (!pendingCb) return;
+        pendingCb.checked = !pendingCb.checked;
+        pendingCb.form?.requestSubmit();
+        modal.hide();
+        pendingCb = null;
+      });
+
+      modalEl.addEventListener('hidden.bs.modal', () => { pendingCb = null; });
     });
     </script>
 </body>
