@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Helpers;
@@ -15,7 +16,7 @@ namespace ProjectManagement.Pages.Dashboard
     {
         private readonly ITodoService _todo;
         private readonly UserManager<ApplicationUser> _users;
-        private static readonly TimeZoneInfo IST = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+        private static readonly TimeZoneInfo IST = IstClock.TimeZone;
 
         public IndexModel(ITodoService todo, UserManager<ApplicationUser> users)
         {
@@ -156,7 +157,7 @@ namespace ProjectManagement.Pages.Dashboard
 
         private static DateTimeOffset NextMondayAt(int h, int m)
         {
-            var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+            var ist = IST;
             var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ist);
             int daysToMon = ((int)DayOfWeek.Monday - (int)nowIst.DayOfWeek + 7) % 7;
             if (daysToMon == 0) daysToMon = 7;

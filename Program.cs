@@ -111,6 +111,7 @@ builder.Services.Configure<UserLifecycleOptions>(
     builder.Configuration.GetSection("UserLifecycle"));
 builder.Services.AddScoped<IUserLifecycleService, UserLifecycleService>();
 builder.Services.AddHostedService<UserPurgeWorker>();
+builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddScoped<ITodoService, TodoService>();
 builder.Services.Configure<TodoOptions>(
     builder.Configuration.GetSection("Todo"));

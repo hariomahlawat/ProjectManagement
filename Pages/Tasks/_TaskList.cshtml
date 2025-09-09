@@ -1,18 +1,8 @@
 @using ProjectManagement.Models
+@using ProjectManagement.Helpers
 @model ProjectManagement.Pages.Tasks.IndexModel
 
 @functions {
-    string DueChip(DateTimeOffset? dueUtc)
-    {
-        if (dueUtc is null) return "";
-        var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
-        var d = TimeZoneInfo.ConvertTime(dueUtc.Value, ist);
-        var today = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ist).Date;
-        if (d.Date < today) return "Overdue";
-        if (d.Date == today) return "Today";
-        if (d.Date == today.AddDays(1)) return "Tomorrow";
-        return d.ToString("dd-MMM");
-    }
     string Dot(TodoPriority p) => p == TodoPriority.High ? "todo-dot-high" : p == TodoPriority.Low ? "todo-dot-low" : "todo-dot-normal";
 }
 
@@ -30,7 +20,7 @@
             @foreach (var t in grp.Items)
             {
                 var formId = $"f-{t.Id}";
-                var chip = DueChip(t.DueAtUtc);
+                var chip = TodoViewHelpers.DueBadge(t.DueAtUtc);
 
                 <li class="list-group-item d-flex align-items-start justify-content-between py-2 todo-row @(t.Status == TodoStatus.Done ? "done" : "")" data-id="@t.Id" draggable="@(Model.Tab == "completed" ? "false" : "true")" data-priority="@t.Priority">
                     <div class="d-flex align-items-center gap-2 flex-grow-1">

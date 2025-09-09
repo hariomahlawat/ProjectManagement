@@ -1,4 +1,5 @@
 @using ProjectManagement.Models
+@using ProjectManagement.Helpers
 @model ProjectManagement.Services.TodoWidgetResult
 
 <div class="card shadow-sm">
@@ -9,9 +10,9 @@
             {
                 <span class="badge bg-warning text-dark" title="Overdue">@Model.OverdueCount</span>
             }
-            @if (Model?.TodayCount > 0)
+            @if (Model?.DueTodayCount > 0)
             {
-                <span class="badge bg-info text-dark" title="Due today">@Model.TodayCount</span>
+                <span class="badge bg-info text-dark" title="Due today">@Model.DueTodayCount</span>
             }
             <a asp-page="/Tasks/Index" class="text-decoration-none">View all</a>
         </div>
@@ -30,20 +31,9 @@
         else
         {
             <ul class="list-group list-group-flush todo-list pm-scroll">
-                @{
-                    var ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
-                    var todayIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ist).Date;
-                }
                 @foreach (var t in Model.Items)
                 {
-                    var badge = "";
-                    if (t.DueAtUtc.HasValue)
-                    {
-                        var dueDate = TimeZoneInfo.ConvertTime(t.DueAtUtc.Value, ist).Date;
-                        if (dueDate < todayIst) badge = "Overdue";
-                        else if (dueDate == todayIst) badge = "Today";
-                        else if (dueDate == todayIst.AddDays(1)) badge = "Tomorrow";
-                    }
+                    var badge = TodoViewHelpers.DueBadge(t.DueAtUtc);
                     string prioClass = t.Priority switch
                     {
                         TodoPriority.Low => "todo-dot-low",

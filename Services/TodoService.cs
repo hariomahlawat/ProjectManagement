@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 
 namespace ProjectManagement.Services
@@ -12,45 +13,44 @@ namespace ProjectManagement.Services
     {
         private readonly ApplicationDbContext _db;
         private readonly IAuditService _audit;
-        private static readonly TimeZoneInfo Ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+        private readonly IClock _clock;
+        private static readonly TimeZoneInfo Ist = IstClock.TimeZone;
 
-        public TodoService(ApplicationDbContext db, IAuditService audit)
+        public TodoService(ApplicationDbContext db, IAuditService audit, IClock clock)
         {
             _db = db;
             _audit = audit;
+            _clock = clock;
         }
 
         private static DateTimeOffset? ToUtc(DateTimeOffset? localIst)
         {
             if (localIst is null) return null;
-            var stamp = new DateTimeOffset(
-                localIst.Value.Year,
-                localIst.Value.Month,
-                localIst.Value.Day,
-                localIst.Value.Hour,
-                localIst.Value.Minute,
-                0,
-                Ist.GetUtcOffset(localIst.Value));
+            var l = localIst.Value;
+            var hasTime = l.TimeOfDay != TimeSpan.Zero;
+            var stamp = hasTime
+                ? new DateTimeOffset(l.Year, l.Month, l.Day, l.Hour, l.Minute, l.Second, Ist.GetUtcOffset(l))
+                : new DateTimeOffset(l.Year, l.Month, l.Day, 23, 59, 59, Ist.GetUtcOffset(l)).AddTicks(9999999);
             return TimeZoneInfo.ConvertTime(stamp, TimeZoneInfo.Utc);
         }
 
         public async Task<TodoWidgetResult> GetWidgetAsync(string ownerId, int take = 20)
         {
-            var nowUtc = DateTimeOffset.UtcNow;
-            var nowIst = TimeZoneInfo.ConvertTime(nowUtc, Ist);
-            var todayStartIst = new DateTimeOffset(nowIst.Year, nowIst.Month, nowIst.Day, 0, 0, 0, Ist.BaseUtcOffset);
-            var todayEndIst = todayStartIst.AddDays(1).AddTicks(-1);
+            var nowUtc = _clock.UtcNow;
+            var nowLocal = TimeZoneInfo.ConvertTime(nowUtc, Ist);
+            var startOfTodayLocal = nowLocal.Date;
+            var endOfTodayLocal = startOfTodayLocal.AddDays(1);
+            var startOfTodayUtc = TimeZoneInfo.ConvertTime(new DateTimeOffset(startOfTodayLocal, nowLocal.Offset), TimeZoneInfo.Utc);
+            var endOfTodayUtc = TimeZoneInfo.ConvertTime(new DateTimeOffset(endOfTodayLocal, nowLocal.Offset), TimeZoneInfo.Utc);
 
-            var todayStartUtc = TimeZoneInfo.ConvertTime(todayStartIst, TimeZoneInfo.Utc);
-            var todayEndUtc = TimeZoneInfo.ConvertTime(todayEndIst, TimeZoneInfo.Utc);
-
-            var query = _db.TodoItems.AsNoTracking()
+            var baseQuery = _db.TodoItems.AsNoTracking()
                 .Where(x => x.OwnerId == ownerId && x.Status == TodoStatus.Open && x.DeletedUtc == null);
 
-            var overdueCount = await query.Where(x => x.DueAtUtc < nowUtc).CountAsync();
-            var todayCount = await query.Where(x => x.DueAtUtc >= todayStartUtc && x.DueAtUtc <= todayEndUtc).CountAsync();
+            var dueQuery = baseQuery.Where(x => x.DueAtUtc != null);
+            var overdueCount = await dueQuery.CountAsync(t => t.DueAtUtc < nowUtc);
+            var dueTodayCount = await dueQuery.CountAsync(t => t.DueAtUtc >= nowUtc && t.DueAtUtc < endOfTodayUtc);
 
-            var items = await query
+            var items = await baseQuery
                 .OrderByDescending(x => x.IsPinned)
                 .ThenBy(x => x.DueAtUtc == null)
                 .ThenBy(x => x.DueAtUtc)
@@ -63,7 +63,7 @@ namespace ProjectManagement.Services
             {
                 Items = items,
                 OverdueCount = overdueCount,
-                TodayCount = todayCount
+                DueTodayCount = dueTodayCount
             };
         }
 
@@ -82,8 +82,8 @@ namespace ProjectManagement.Services
                 IsPinned = pinned,
                 Status = TodoStatus.Open,
                 OrderIndex = last + 1,
-                CreatedUtc = DateTimeOffset.UtcNow,
-                UpdatedUtc = DateTimeOffset.UtcNow
+                CreatedUtc = _clock.UtcNow,
+                UpdatedUtc = _clock.UtcNow
             };
             _db.TodoItems.Add(item);
             await _db.SaveChangesAsync();
@@ -98,7 +98,7 @@ namespace ProjectManagement.Services
             if (done && item.Status == TodoStatus.Open)
             {
                 item.Status = TodoStatus.Done;
-                item.CompletedUtc = DateTimeOffset.UtcNow;
+                item.CompletedUtc = _clock.UtcNow;
                 await _audit.LogAsync("Todo.Done", userId: ownerId, data: new Dictionary<string, string?> { ["Id"] = id.ToString() });
             }
             else if (!done && item.Status == TodoStatus.Done)
@@ -107,7 +107,7 @@ namespace ProjectManagement.Services
                 item.CompletedUtc = null;
                 await _audit.LogAsync("Todo.Undone", userId: ownerId, data: new Dictionary<string, string?> { ["Id"] = id.ToString() });
             }
-            item.UpdatedUtc = DateTimeOffset.UtcNow;
+            item.UpdatedUtc = _clock.UtcNow;
             try
             {
                 await _db.SaveChangesAsync();
@@ -132,7 +132,7 @@ namespace ProjectManagement.Services
                 item.IsPinned = pinned.Value;
                 await _audit.LogAsync(pinned.Value ? "Todo.Pin" : "Todo.Unpin", userId: ownerId, data: new Dictionary<string, string?> { ["Id"] = id.ToString() });
             }
-            item.UpdatedUtc = DateTimeOffset.UtcNow;
+            item.UpdatedUtc = _clock.UtcNow;
             try
             {
                 await _db.SaveChangesAsync();
@@ -151,8 +151,8 @@ namespace ProjectManagement.Services
             if (item == null) return false;
             if (item.Status == TodoStatus.Done)
             {
-                item.DeletedUtc = DateTimeOffset.UtcNow;
-                item.UpdatedUtc = DateTimeOffset.UtcNow;
+                item.DeletedUtc = _clock.UtcNow;
+                item.UpdatedUtc = _clock.UtcNow;
                 await _db.SaveChangesAsync();
             }
             else
@@ -170,7 +170,7 @@ namespace ProjectManagement.Services
                 .Where(x => x.OwnerId == ownerId && x.Status == TodoStatus.Done && x.DeletedUtc == null)
                 .ToListAsync();
             if (items.Count == 0) return 0;
-            var now = DateTimeOffset.UtcNow;
+            var now = _clock.UtcNow;
             foreach (var item in items)
             {
                 item.DeletedUtc = now;
@@ -192,7 +192,7 @@ namespace ProjectManagement.Services
                 var id = orderedIds[i];
                 var item = items.First(x => x.Id == id);
                 item.OrderIndex = i;
-                item.UpdatedUtc = DateTimeOffset.UtcNow;
+                item.UpdatedUtc = _clock.UtcNow;
             }
             await _db.SaveChangesAsync();
             await _audit.LogAsync("Todo.Reorder", userId: ownerId);

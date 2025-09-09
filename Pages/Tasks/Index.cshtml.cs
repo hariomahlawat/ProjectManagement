@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Helpers;
@@ -20,7 +21,7 @@ namespace ProjectManagement.Pages.Tasks
         private readonly ApplicationDbContext _db;
         private readonly ITodoService _todo;
         private readonly UserManager<ApplicationUser> _users;
-        private static readonly TimeZoneInfo Ist = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+        private static readonly TimeZoneInfo Ist = IstClock.TimeZone;
 
         public IndexModel(ApplicationDbContext db, ITodoService todo, UserManager<ApplicationUser> users)
         {
@@ -51,17 +52,17 @@ namespace ProjectManagement.Pages.Tasks
                 q = q.Where(x => EF.Functions.ILike(x.Title, $"%{s}%"));
             }
 
-            var nowIst = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Ist);
-            var startTodayIst = new DateTimeOffset(nowIst.Date, nowIst.Offset);
-            var endTodayIst   = startTodayIst.AddDays(1).AddTicks(-1);
-            var startTodayUtc = TimeZoneInfo.ConvertTime(startTodayIst, TimeZoneInfo.Utc);
-            var endTodayUtc   = TimeZoneInfo.ConvertTime(endTodayIst, TimeZoneInfo.Utc);
+            var nowLocal = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Ist);
+            var startTodayLocal = nowLocal.Date;
+            var endTodayLocal = startTodayLocal.AddDays(1);
+            var startTodayUtc = TimeZoneInfo.ConvertTime(new DateTimeOffset(startTodayLocal, nowLocal.Offset), TimeZoneInfo.Utc);
+            var endTodayUtc = TimeZoneInfo.ConvertTime(new DateTimeOffset(endTodayLocal, nowLocal.Offset), TimeZoneInfo.Utc);
 
             // Filter tab
             q = Tab switch
             {
-                "today"     => q.Where(x => x.Status == TodoStatus.Open && x.DueAtUtc >= startTodayUtc && x.DueAtUtc <= endTodayUtc),
-                "upcoming"  => q.Where(x => x.Status == TodoStatus.Open && x.DueAtUtc > endTodayUtc),
+                "today"     => q.Where(x => x.Status == TodoStatus.Open && x.DueAtUtc >= startTodayUtc && x.DueAtUtc < endTodayUtc),
+                "upcoming"  => q.Where(x => x.Status == TodoStatus.Open && x.DueAtUtc >= endTodayUtc),
                 "completed" => q.Where(x => x.Status == TodoStatus.Done),
                 _           => q.Where(x => x.Status == TodoStatus.Open)
             };
@@ -87,10 +88,10 @@ namespace ProjectManagement.Pages.Tasks
                 if (r.Status == TodoStatus.Done) { completed.Add(r); continue; }
                 if (r.DueAtUtc is null) { upcoming.Add(r); continue; }
 
-                var dueDateIst = TimeZoneInfo.ConvertTime(r.DueAtUtc.Value, Ist).Date;
-                if      (dueDateIst <  nowIst.Date) overdue.Add(r);
-                else if (dueDateIst == nowIst.Date) today.Add(r);
-                else                                upcoming.Add(r);
+                var dueLocal = TimeZoneInfo.ConvertTime(r.DueAtUtc.Value, Ist);
+                if      (dueLocal < nowLocal) overdue.Add(r);
+                else if (dueLocal < endTodayLocal) today.Add(r);
+                else                              upcoming.Add(r);
             }
 
             // Simple paging on the whole list (keeps code light). Keep Completed unpaged unless Tab=completed.
