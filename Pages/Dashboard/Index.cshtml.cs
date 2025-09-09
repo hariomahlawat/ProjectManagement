@@ -14,19 +14,24 @@ namespace ProjectManagement.Pages.Dashboard
     public class IndexModel : PageModel
     {
         private readonly ITodoService _todo;
+        private readonly INoteService _notes;
         private readonly UserManager<ApplicationUser> _users;
         private static readonly TimeZoneInfo IST = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
 
-        public IndexModel(ITodoService todo, UserManager<ApplicationUser> users)
+        public IndexModel(ITodoService todo, INoteService notes, UserManager<ApplicationUser> users)
         {
             _todo = todo;
+            _notes = notes;
             _users = users;
         }
 
         public TodoWidgetResult? TodoWidget { get; set; }
+        public IList<Note> Notes { get; set; } = new List<Note>();
 
         [BindProperty]
         public string? NewTitle { get; set; }
+        [BindProperty]
+        public string? NewNoteTitle { get; set; }
 
         public async Task OnGetAsync()
         {
@@ -34,6 +39,7 @@ namespace ProjectManagement.Pages.Dashboard
             if (uid != null)
             {
                 TodoWidget = await _todo.GetWidgetAsync(uid, take: 20);
+                Notes = await _notes.ListStandaloneAsync(uid);
             }
         }
 
@@ -55,6 +61,16 @@ namespace ProjectManagement.Pages.Dashboard
             {
                 TempData["Error"] = ex.Message;
             }
+            return RedirectToPage();
+        }
+
+        public async Task<IActionResult> OnPostQuickNoteAddAsync()
+        {
+            if (string.IsNullOrWhiteSpace(NewNoteTitle))
+                return RedirectToPage();
+            var uid = _users.GetUserId(User);
+            if (uid == null) return Unauthorized();
+            await _notes.CreateAsync(uid, null, NewNoteTitle.Trim(), null);
             return RedirectToPage();
         }
 

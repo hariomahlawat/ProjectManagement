@@ -60,6 +60,12 @@
   font-size: .85rem;
 }
 
+.row-quick-actions { visibility: hidden; }
+.todo-list li:hover .row-quick-actions { visibility: visible; }
+@media (max-width: 576px) {
+  .row-quick-actions { visibility: visible; }
+}
+
 @media (max-width: 576px) {
   .todo-notes { max-width: 100%; }
 }

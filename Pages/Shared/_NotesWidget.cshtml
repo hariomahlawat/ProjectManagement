@@ -1,0 +1,27 @@
+@using ProjectManagement.Models
+@model IList<Note>
+
+<div class="card shadow-sm">
+    <div class="card-header d-flex align-items-center justify-content-between py-2">
+        <span class="fw-semibold">My Notes</span>
+    </div>
+    <div class="card-body">
+        <form method="post" asp-page="/Dashboard/Index" asp-page-handler="QuickNoteAdd" class="mb-2">
+            @Html.AntiForgeryToken()
+            <input name="NewNoteTitle" class="form-control form-control-sm" placeholder="Add a note…" maxlength="160" required aria-label="Note title" />
+        </form>
+        @if (Model == null || Model.Count == 0)
+        {
+            <div class="text-muted small">No notes yet.</div>
+        }
+        else
+        {
+            <ul class="list-group list-group-flush pm-scroll">
+                @foreach (var n in Model)
+                {
+                    <li class="list-group-item py-1">@n.Title</li>
+                }
+            </ul>
+        }
+    </div>
+</div>

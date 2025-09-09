@@ -63,20 +63,7 @@
 
   // ---------- Event delegation for checkboxes & delete ----------
   document.addEventListener('click', (e) => {
-    // A) Complete task checkbox with confirmation
-    const cb = e.target.closest('.js-done-checkbox');
-    if (cb) {
-      e.preventDefault(); // don't toggle immediately
-      askConfirm('Mark this task as completed?', () => {
-        // apply intended toggle then submit reliably
-        cb.checked = !cb.checked;
-        if (cb.form && cb.form.requestSubmit) cb.form.requestSubmit();
-        else if (cb.form) cb.form.submit();
-      });
-      return;
-    }
-
-    // B) Delete button (within a form). We use the button class, not inline onsubmit.
+    // Delete button (within a form). We use the button class, not inline onsubmit.
     const delBtn = e.target.closest('.js-confirm-delete');
     if (delBtn && delBtn.form) {
       e.preventDefault();
@@ -92,29 +79,27 @@
   
   // ---------- Done checkbox: autosubmit + instant visual feedback ----------
   function initDoneAutosubmit() {
-    document.addEventListener('change', (e) => {
+    const widget = document.querySelector('.todo-widget');
+    if (!widget) return;
+    widget.addEventListener('change', (e) => {
       const cb = e.target.closest('.js-done-checkbox');
       if (!cb) return;
-      // Visual: toggle .done on the closest .todo-row (used in widget), and data-status on li[data-id] (used in Tasks page)
-      const row = cb.closest('li.todo-row, li[data-id]');
+      const row = cb.closest('li.todo-row');
       if (row) {
-        if (cb.checked) {
-          row.classList.add('done');
-          row.setAttribute('data-status','done');
-        } else {
-          row.classList.remove('done');
-          row.removeAttribute('data-status');
-        }
+        if (cb.checked) { row.classList.add('done'); } else { row.classList.remove('done'); }
       }
-      // Submit the form to persist
       const form = cb.closest('form');
       if (form) form.requestSubmit();
     }, { passive: true });
   }
 
+  // expose confirm for other modules
+  window.pm = window.pm || {};
+  window.pm.askConfirm = askConfirm;
+
   // ---------- Kick things off ----------
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function(){ initDropdowns(); initDoneAutosubmit(); initDoneAutosubmit(); });
+    document.addEventListener('DOMContentLoaded', function(){ initDropdowns(); initDoneAutosubmit(); });
   } else {
     initDropdowns(); initDoneAutosubmit();
   }

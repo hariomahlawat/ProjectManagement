@@ -7,11 +7,13 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using System.Threading.RateLimiting;
 using System.IO;
+using System.Linq;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Infrastructure;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Antiforgery;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -112,6 +114,7 @@ builder.Services.Configure<UserLifecycleOptions>(
 builder.Services.AddScoped<IUserLifecycleService, UserLifecycleService>();
 builder.Services.AddHostedService<UserPurgeWorker>();
 builder.Services.AddScoped<ITodoService, TodoService>();
+builder.Services.AddScoped<INoteService, NoteService>();
 builder.Services.Configure<TodoOptions>(
     builder.Configuration.GetSection("Todo"));
 builder.Services.AddHostedService<TodoPurgeWorker>();
@@ -188,6 +191,46 @@ app.UseAuthorization();
 
 app.MapRazorPages();
 
+app.MapGet("/tasks/{id:guid}/notes", async (Guid id, HttpContext ctx, INoteService notes, UserManager<ApplicationUser> users) =>
+{
+    var uid = users.GetUserId(ctx.User);
+    if (uid == null) return Results.Unauthorized();
+    var list = await notes.ListForTodoAsync(uid, id);
+    var dto = list.Select(n => new NoteDto(n.Id, n.TodoId, n.Title, n.Body, n.IsPinned, n.CreatedUtc, n.UpdatedUtc));
+    return Results.Json(dto);
+}).RequireAuthorization();
+
+app.MapPost("/notes", async (HttpContext ctx, INoteService notes, UserManager<ApplicationUser> users, IAntiforgery antiforgery) =>
+{
+    await antiforgery.ValidateRequestAsync(ctx);
+    var uid = users.GetUserId(ctx.User);
+    if (uid == null) return Results.Unauthorized();
+    var payload = await ctx.Request.ReadFromJsonAsync<NoteCreateDto>();
+    if (payload == null || string.IsNullOrWhiteSpace(payload.Title)) return Results.BadRequest();
+    var note = await notes.CreateAsync(uid, payload.TodoId, payload.Title.Trim(), payload.Body);
+    return Results.Json(new NoteDto(note.Id, note.TodoId, note.Title, note.Body, note.IsPinned, note.CreatedUtc, note.UpdatedUtc));
+}).RequireAuthorization();
+
+app.MapPut("/notes/{id:guid}", async (Guid id, HttpContext ctx, INoteService notes, UserManager<ApplicationUser> users, IAntiforgery antiforgery) =>
+{
+    await antiforgery.ValidateRequestAsync(ctx);
+    var uid = users.GetUserId(ctx.User);
+    if (uid == null) return Results.Unauthorized();
+    var payload = await ctx.Request.ReadFromJsonAsync<NoteUpdateDto>();
+    if (payload == null) return Results.BadRequest();
+    var ok = await notes.EditAsync(uid, id, payload.Title, payload.Body, payload.IsPinned);
+    return ok ? Results.Ok() : Results.NotFound();
+}).RequireAuthorization();
+
+app.MapDelete("/notes/{id:guid}", async (Guid id, HttpContext ctx, INoteService notes, UserManager<ApplicationUser> users, IAntiforgery antiforgery) =>
+{
+    await antiforgery.ValidateRequestAsync(ctx);
+    var uid = users.GetUserId(ctx.User);
+    if (uid == null) return Results.Unauthorized();
+    var ok = await notes.DeleteAsync(uid, id);
+    return ok ? Results.Ok() : Results.NotFound();
+}).RequireAuthorization();
+
 // seed roles, first admin and purge old audit logs
 using (var scope = app.Services.CreateScope())
 {
@@ -198,3 +241,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+public record NoteDto(Guid Id, Guid? TodoId, string Title, string? Body, bool IsPinned, DateTimeOffset CreatedUtc, DateTimeOffset UpdatedUtc);
+public record NoteCreateDto(Guid? TodoId, string Title, string? Body);
+public record NoteUpdateDto(string? Title, string? Body, bool? IsPinned);

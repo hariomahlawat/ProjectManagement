@@ -58,11 +58,8 @@
                         <form id="@formId" method="post" asp-page-handler="Edit" class="flex-grow-1">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="id" value="@t.Id" />
+                            <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(t.RowVersion)" />
                             <input name="title" class="form-control form-control-sm border-0 ps-0 todo-title" value="@t.Title" maxlength="160" aria-label="Title" />
-                            <details class="mt-1">
-                                <summary class="small text-muted" role="button">Add notes…</summary>
-                                <textarea class="form-control form-control-sm" name="notes" rows="2" placeholder="Notes (optional)">@t.Notes</textarea>
-                            </details>
                         </form>
 
                         @if (!string.IsNullOrEmpty(chip))
@@ -75,6 +72,24 @@
                         <div class="row-actions d-none">
                             <button form="@formId" type="submit" class="btn btn-link btn-sm p-0">Save</button>
                             <button type="reset" form="@formId" class="btn btn-link btn-sm p-0 text-muted">Cancel</button>
+                        </div>
+                        <div class="row-quick-actions d-flex align-items-center">
+                            <button type="button"
+                                    class="btn btn-link btn-sm p-0 me-2 js-open-notes"
+                                    data-todo-id="@t.Id" title="Notes" aria-label="Notes">
+                                <i class="bi bi-journal-text"></i>
+                                @if (t.NoteCount > 0)
+                                {
+                                    <span class="badge bg-secondary ms-1">@t.NoteCount</span>
+                                }
+                            </button>
+                            <form method="post" asp-page-handler="Delete" class="m-0 p-0">
+                                @Html.AntiForgeryToken()
+                                <input type="hidden" name="id" value="@t.Id" />
+                                <button type="submit" class="btn btn-link btn-sm text-danger js-confirm-delete" data-confirm="Delete this task?" title="Delete" aria-label="Delete">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </form>
                         </div>
 
                         <div class="dropdown">
@@ -145,15 +160,6 @@
                                         @Html.AntiForgeryToken()
                                         <input type="hidden" name="id" value="@t.Id" />
                                         <button type="submit" class="dropdown-item" name="preset" value="clear">Clear due date</button>
-                                    </form>
-                                </li>
-
-                                <li><hr class="dropdown-divider" /></li>
-                                <li>
-                                    <form method="post" asp-page-handler="Delete" class="m-0 p-0">
-                                        @Html.AntiForgeryToken()
-                                        <input type="hidden" name="id" value="@t.Id" />
-                                        <button type="submit" class="dropdown-item text-danger js-confirm-delete" data-confirm="Delete this task?">Delete</button>
                                     </form>
                                 </li>
                             </ul>

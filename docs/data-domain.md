@@ -20,3 +20,6 @@ Extends `IdentityUser` with a `MustChangePassword` flag. New accounts are create
 
 ### `Models/TodoItem.cs`
 Represents a personal task owned by a user. Each item records a title, optional notes, due date (stored in UTC), priority, pin state, order index and timestamps for creation, updates, completion and soft deletion. A `RowVersion` concurrency token is used to detect conflicting edits. Items marked completed are soft-deleted by setting `DeletedUtc`; a background worker purges entries older than the configured retention period.
+
+### `Models/Note.cs`
+Stores free-form notes that may be linked to a `TodoItem` or stand alone on the dashboard. Each note has its own title and optional body, pin flag and timestamps for creation, updates and soft deletion. Notes are scoped to their owner and enforced in `NoteService`.

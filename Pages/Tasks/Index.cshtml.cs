@@ -27,8 +27,9 @@ namespace ProjectManagement.Pages.Tasks
             _db = db; _todo = todo; _users = users;
         }
 
-        public record Row(Guid Id, string Title, string? Notes, TodoPriority Priority, bool IsPinned,
-                          TodoStatus Status, DateTimeOffset? DueAtUtc, DateTimeOffset? CompletedUtc);
+        public record Row(Guid Id, string Title, TodoPriority Priority, bool IsPinned,
+                          TodoStatus Status, DateTimeOffset? DueAtUtc, DateTimeOffset? CompletedUtc,
+                          byte[] RowVersion, int NoteCount);
         public record Group(string Title, Row[] Items);
         public Group[] Groups { get; set; } = Array.Empty<Group>();
 
@@ -73,8 +74,16 @@ namespace ProjectManagement.Pages.Tasks
                 .ThenBy(x => x.DueAtUtc)
                 .ThenBy(x => x.OrderIndex)
                 .ThenBy(x => x.CreatedUtc)
-                .Select(x => new Row(x.Id, x.Title, x.Notes, x.Priority, x.IsPinned, x.Status, x.DueAtUtc, x.CompletedUtc))
+                .Select(x => new Row(x.Id, x.Title, x.Priority, x.IsPinned, x.Status, x.DueAtUtc, x.CompletedUtc, x.RowVersion, 0))
                 .ToListAsync();
+
+            var ids = rows.Select(r => r.Id).ToList();
+            var noteCounts = await _db.Notes.AsNoTracking()
+                .Where(n => n.OwnerId == uid && n.TodoId != null && ids.Contains(n.TodoId.Value) && n.DeletedUtc == null)
+                .GroupBy(n => n.TodoId!.Value)
+                .Select(g => new { g.Key, C = g.Count() })
+                .ToDictionaryAsync(x => x.Key, x => x.C);
+            rows = rows.Select(r => r with { NoteCount = noteCounts.TryGetValue(r.Id, out var c) ? c : 0 }).ToList();
 
             // Group client-side (fast enough for a single user’s page)
             var overdue   = new List<Row>();
@@ -163,19 +172,22 @@ namespace ProjectManagement.Pages.Tasks
             return Back();
         }
 
-        public async Task<IActionResult> OnPostEditAsync(Guid id, string? title, string? priority, DateTimeOffset? dueLocal, bool? pin, string? notes)
+        public async Task<IActionResult> OnPostEditAsync(Guid id, string? title, string? priority, DateTimeOffset? dueLocal, bool? pin, string? notes, string? rowVersion)
         {
             var uid = _users.GetUserId(User);
             TodoPriority? prio = null;
             if (!string.IsNullOrEmpty(priority) && Enum.TryParse<TodoPriority>(priority, out var p)) prio = p;
             try
             {
+                byte[]? rv = null;
+                if (!string.IsNullOrEmpty(rowVersion)) rv = Convert.FromBase64String(rowVersion);
                 await _todo.EditAsync(uid!, id,
                     title: string.IsNullOrWhiteSpace(title) ? null : title.Trim(),
                     notes: notes,
                     dueAtLocal: dueLocal,
                     priority: prio,
-                    pinned: pin);
+                    pinned: pin,
+                    rowVersion: rv);
             }
             catch (InvalidOperationException ex)
             {

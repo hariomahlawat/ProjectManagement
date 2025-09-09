@@ -12,6 +12,7 @@ namespace ProjectManagement.Data
         public DbSet<Project> Projects { get; set; } = default!;
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<TodoItem> TodoItems => Set<TodoItem>();
+        public DbSet<Note> Notes => Set<Note>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -40,6 +41,12 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Status).HasDefaultValue(TodoStatus.Open);
                 e.Property(x => x.IsPinned).HasDefaultValue(false);
                 e.Property(x => x.OrderIndex).HasDefaultValue(0);
+            });
+
+            builder.Entity<Note>(e =>
+            {
+                e.HasIndex(x => new { x.OwnerId, x.TodoId, x.IsPinned, x.DeletedUtc });
+                e.Property(x => x.Title).IsRequired().HasMaxLength(160);
             });
         }
     }

@@ -93,16 +93,118 @@
     }, { passive: true });
   }
 
+  // ---- Notes modal ----
+  function initNotes() {
+    const modalEl = qs('#noteEditor');
+    if (!modalEl || !window.bootstrap) return;
+    const modal = new bootstrap.Modal(modalEl);
+    const listEl = qs('#notesList', modalEl);
+    const form = qs('#noteEditorForm', modalEl);
+    const titleInput = qs('#noteTitle', form);
+    const bodyInput = qs('#noteBody', form);
+    const idInput = qs('#noteId', form);
+    const todoIdInput = qs('#noteTodoId', form);
+    const token = qs('input[name="__RequestVerificationToken"]')?.value;
+
+    const esc = s => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+
+    async function loadNotes(todoId){
+      listEl.innerHTML='';
+      let notes=[];
+      try{
+        const res=await fetch(`/tasks/${todoId}/notes`);
+        if(res.ok) notes=await res.json();
+      }catch(_){ }
+      if(notes.length===0){ listEl.innerHTML='<div class="text-muted small">No notes yet.</div>'; }
+      notes.forEach(n=>{
+        const div=document.createElement('div');
+        div.className='border rounded p-2 mb-2';
+        div.dataset.id=n.id;
+        div.innerHTML=`<div class="d-flex justify-content-between align-items-start"><div><div class="fw-semibold">${esc(n.title)}</div>${n.body?`<div class=\"small text-muted\">${esc(n.body.substring(0,100))}</div>`:''}</div><div class="btn-group btn-group-sm"><button class="btn btn-outline-secondary js-note-edit">Edit</button><button class="btn btn-outline-danger js-note-delete">Delete</button></div></div>`;
+        listEl.appendChild(div);
+      });
+    }
+
+    function updateBadge(btn,count){
+      if(!btn) return;
+      let badge=btn.querySelector('.badge');
+      if(count>0){
+        if(!badge){
+          badge=document.createElement('span');
+          badge.className='badge bg-secondary ms-1';
+          btn.appendChild(badge);
+        }
+        badge.textContent=count;
+      } else if(badge){ badge.remove(); }
+    }
+
+    document.addEventListener('click', async e=>{
+      const openBtn=e.target.closest('.js-open-notes');
+      if(openBtn){
+        const todoId=openBtn.dataset.todoId;
+        todoIdInput.value=todoId;
+        idInput.value=''; titleInput.value=''; bodyInput.value='';
+        await loadNotes(todoId);
+        modal.show();
+        return;
+      }
+      const editBtn=e.target.closest('.js-note-edit');
+      if(editBtn){
+        const row=editBtn.closest('[data-id]');
+        const noteId=row?.dataset.id;
+        if(!noteId) return;
+        const res=await fetch(`/tasks/${todoIdInput.value}/notes`);
+        const notes=res.ok?await res.json():[];
+        const note=notes.find(n=>n.id===noteId);
+        if(!note) return;
+        idInput.value=note.id;
+        titleInput.value=note.title;
+        bodyInput.value=note.body||'';
+        return;
+      }
+      const delBtn=e.target.closest('.js-note-delete');
+      if(delBtn){
+        const row=delBtn.closest('[data-id]');
+        if(!row) return;
+        window.pm?.askConfirm('Delete this note?', async ()=>{
+          await fetch(`/notes/${row.dataset.id}`, { method:'DELETE', headers:{'RequestVerificationToken':token} });
+          await loadNotes(todoIdInput.value);
+          const btn=document.querySelector(`.js-open-notes[data-todo-id="${todoIdInput.value}"]`);
+          updateBadge(btn, listEl.querySelectorAll('[data-id]').length);
+        });
+      }
+    });
+
+    form.addEventListener('submit', async e=>{
+      e.preventDefault();
+      const data={ TodoId: todoIdInput.value || null, Title: titleInput.value.trim(), Body: bodyInput.value };
+      const id=idInput.value;
+      const res=await fetch(id?`/notes/${id}`:'/notes', {
+        method:id?'PUT':'POST',
+        headers:{'Content-Type':'application/json','RequestVerificationToken':token},
+        body:JSON.stringify(data)
+      });
+      if(res.ok){
+        await loadNotes(todoIdInput.value);
+        const btn=document.querySelector(`.js-open-notes[data-todo-id="${todoIdInput.value}"]`);
+        updateBadge(btn, listEl.querySelectorAll('[data-id]').length);
+        idInput.value=''; titleInput.value=''; bodyInput.value='';
+      }
+    });
+  }
+
   // Kick everything off
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       initRowActionReveal();
       initDoneAutosubmit();
       initDragReorder();
+      initNotes();
     });
   } else {
     initRowActionReveal();
     initDoneAutosubmit();
     initDragReorder();
+    initNotes();
   }
 })();
