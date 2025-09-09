@@ -209,17 +209,23 @@ h1, .h1 { font-size: 1.25rem; }
 .todo-title { max-width: 420px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* Dropdown menu small */
-.dropdown-menu { font-size: .875rem; }
+.dropdown-menu{ z-index: 1080; font-size: .875rem; }
 
-/* Kebab button */
-.btn-kebab {
-  width: var(--pm-btn-icon);
-  height: var(--pm-btn-icon);
+/* Icon-only ghost button for kebab menus */
+.todo-kebab{
+  width: 28px; height: 28px;
   padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  display: inline-flex; align-items: center; justify-content: center;
 }
+.todo-kebab:hover{ background: rgba(0,0,0,.06); }
+.todo-kebab:active{ background: rgba(0,0,0,.12); }
+.todo-kebab:focus{ outline: none; box-shadow: 0 0 0 .2rem rgba(13,110,253,.25); }
+
+/* Keep list items from clipping dropdowns */
+.list-group-item { overflow: visible; }
 
 .draggable-handle{cursor:grab}
 
