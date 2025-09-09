@@ -73,3 +73,27 @@
 @media (max-width: 576px) {
   .todo-notes { max-width: 100%; }
 }
+
+
+/* Done state styling (instant visual feedback) */
+.todo-list li[data-status="done"] input.todo-title {
+  text-decoration: line-through;
+  opacity: .6;
+}
+
+.todo-list li[data-status="done"] .todo-dot {
+  opacity: .4;
+}
+
+/* Fallback: style based on checkbox state without extra classes */
+.js-done-checkbox:checked ~ form input.todo-title {
+  text-decoration: line-through;
+  opacity: .6;
+}
+
+/* Subtle vanish animation for items being completed in non-completed tabs */
+.todo-list li.vanish {
+  opacity: 0;
+  transform: translateX(6px);
+  transition: opacity .18s ease, transform .18s ease;
+}

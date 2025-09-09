@@ -101,8 +101,23 @@
   
   // ---- 0) Auto-submit done/undo checkboxes ----
   function initDoneAutosubmit() {
+    function markVisualDone(cb) {
+      const row = cb.closest('li[data-id]');
+      if (!row) return;
+      if (cb.checked) {
+        row.setAttribute('data-status', 'done');
+        // If this is a non-completed tab (rows are draggable), give an instant vanish hint.
+        if (row.getAttribute('draggable') === 'true') {
+          row.classList.add('vanish');
+        }
+      } else {
+        row.removeAttribute('data-status');
+        row.classList.remove('vanish');
+      }
+    }
     document.addEventListener('change', (e) => {
       const cb = e.target.closest('.js-done-checkbox');
+      if (cb) markVisualDone(cb);
       if (!cb) return;
       const form = cb.closest('form');
       if (form) form.requestSubmit();
