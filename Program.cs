@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.EntityFrameworkCore;
 using System.Threading.RateLimiting;
 using System.IO;
+using System.Linq;
+using Npgsql;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
@@ -17,6 +19,7 @@ using ProjectManagement.Helpers;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Logging.AddConsole();
 builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
 builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Model.Validation", LogLevel.Warning);
 builder.Logging.AddFilter("ProjectManagement.Services.TodoService", LogLevel.None);
@@ -43,8 +46,9 @@ if (string.IsNullOrWhiteSpace(connectionString))
         ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 }
 
+var csb = new NpgsqlConnectionStringBuilder(connectionString);
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(connectionString));
+    options.UseNpgsql(csb.ConnectionString));
 
 builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
@@ -146,6 +150,8 @@ builder.Services.AddRazorPages(options =>
 
 var app = builder.Build();
 
+app.Logger.LogInformation("Using database {Database} on host {Host}", csb.Database, csb.Host);
+
 app.UseForwardedHeaders();
 
 // ---------- HTTP pipeline ----------
@@ -237,7 +243,29 @@ using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var db = services.GetRequiredService<ApplicationDbContext>();
+    if (app.Environment.IsDevelopment())
+    {
+        var conn = db.Database.GetDbConnection();
+        await conn.OpenAsync();
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = "select current_database(), version()";
+            await using var reader = await cmd.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+            {
+                app.Logger.LogInformation("Connected to database {Database}; {Version}", reader.GetString(0), reader.GetString(1));
+            }
+        }
+        await conn.CloseAsync();
+    }
+
     await db.Database.MigrateAsync();
+    var migrations = await db.Database.GetAppliedMigrationsAsync();
+    if (!migrations.Contains("20250909153316_UseXminForTodoItem"))
+    {
+        app.Logger.LogWarning("Migration 20250909153316_UseXminForTodoItem not applied. TodoItems may still have a RowVersion column.");
+    }
+
     await ProjectManagement.Data.IdentitySeeder.SeedAsync(services);
     var cutoff = DateTime.UtcNow.AddDays(-90);
     db.AuditLogs.Where(a => a.TimeUtc < cutoff).ExecuteDelete();
