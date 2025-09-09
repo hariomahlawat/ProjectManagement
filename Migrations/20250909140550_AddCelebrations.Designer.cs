@@ -346,7 +346,7 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)");
 
-                    b.Property<string>("PartnerName")
+                    b.Property<string>("SpouseName")
                         .HasMaxLength(120)
                         .HasColumnType("character varying(120)");
 

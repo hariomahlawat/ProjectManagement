@@ -40,7 +40,7 @@ namespace ProjectManagement.Pages.Celebrations
             if (!string.IsNullOrWhiteSpace(Q))
             {
                 var s = Q.Trim();
-                q = q.Where(x => EF.Functions.ILike(x.Name, $"%{s}%") || (x.PartnerName != null && EF.Functions.ILike(x.PartnerName, $"%{s}%")));
+                q = q.Where(x => EF.Functions.ILike(x.Name, $"%{s}%") || (x.SpouseName != null && EF.Functions.ILike(x.SpouseName, $"%{s}%")));
             }
 
             var nowLocal = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Ist);

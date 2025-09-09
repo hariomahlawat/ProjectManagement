@@ -33,7 +33,8 @@ namespace ProjectManagement.Pages.Celebrations
             [Required, StringLength(120)]
             public string Name { get; set; } = string.Empty;
             [StringLength(120)]
-            public string? PartnerName { get; set; }
+            [Display(Name = "Spouse Name (Optional)")]
+            public string? SpouseName { get; set; }
             [Range(1,31)]
             public byte Day { get; set; }
             [Range(1,12)]
@@ -52,7 +53,7 @@ namespace ProjectManagement.Pages.Celebrations
                     Id = c.Id,
                     EventType = c.EventType,
                     Name = c.Name,
-                    PartnerName = c.PartnerName,
+                    SpouseName = c.SpouseName,
                     Day = c.Day,
                     Month = c.Month,
                     Year = c.Year
@@ -89,7 +90,7 @@ namespace ProjectManagement.Pages.Celebrations
 
             entity.EventType = Input.EventType;
             entity.Name = Input.Name.Trim();
-            entity.PartnerName = string.IsNullOrWhiteSpace(Input.PartnerName) ? null : Input.PartnerName.Trim();
+            entity.SpouseName = string.IsNullOrWhiteSpace(Input.SpouseName) ? null : Input.SpouseName.Trim();
             entity.Day = Input.Day;
             entity.Month = Input.Month;
             entity.Year = Input.Year;

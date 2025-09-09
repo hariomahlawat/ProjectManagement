@@ -18,7 +18,7 @@ namespace ProjectManagement.Migrations
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     EventType = table.Column<byte>(type: "smallint", nullable: false),
                     Name = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: false),
-                    PartnerName = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: true),
+                    SpouseName = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: true),
                     Day = table.Column<byte>(type: "smallint", nullable: false),
                     Month = table.Column<byte>(type: "smallint", nullable: false),
                     Year = table.Column<short>(type: "smallint", nullable: true),

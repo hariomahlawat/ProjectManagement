@@ -49,7 +49,7 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => new { x.EventType, x.Month, x.Day });
                 e.Property(x => x.EventType).ValueGeneratedNever();
                 e.Property(x => x.Name).IsRequired().HasMaxLength(120);
-                e.Property(x => x.PartnerName).HasMaxLength(120);
+                e.Property(x => x.SpouseName).HasMaxLength(120);
             });
         }
     }

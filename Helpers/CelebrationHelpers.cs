@@ -38,8 +38,8 @@ namespace ProjectManagement.Helpers
         }
 
         public static string DisplayName(Celebration c) =>
-            c.EventType == CelebrationType.Anniversary && !string.IsNullOrWhiteSpace(c.PartnerName)
-                ? $"{c.Name} & {c.PartnerName}"
+            c.EventType == CelebrationType.Anniversary && !string.IsNullOrWhiteSpace(c.SpouseName)
+                ? $"{c.Name} & {c.SpouseName}"
                 : c.Name;
     }
 }
