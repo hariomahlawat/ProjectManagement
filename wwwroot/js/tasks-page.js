@@ -1,5 +1,5 @@
 // wwwroot/js/tasks-page.js
-// Handles: inline-actions visibility, drag reordering, and bulk actions
+// Handles: inline-actions visibility, drag reordering, and done checkbox auto-submit
 // Requires: Bootstrap (for CSS only), Anti-forgery token in forms
 
 (function () {
@@ -68,37 +68,6 @@
     });
   }
 
-  // ---- 3) Bulk select mode & actions (no inline onclick) ----
-  function initBulkActions() {
-    const selectBtn = qs('#btnSelectMode');
-    const bulkForm = qs('#bulkForm');
-    if (!selectBtn || !bulkForm) return;
-
-    let selecting = false;
-    selectBtn.addEventListener('click', () => {
-      selecting = !selecting;
-      selectBtn.classList.toggle('active', selecting);
-      bulkForm.classList.toggle('d-none', !selecting);
-      qsa('.task-select').forEach(cb => cb.classList.toggle('d-none', !selecting));
-    });
-
-    // Attach to any button with data-bulk-action
-    qsa('[data-bulk-action]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const action = btn.getAttribute('data-bulk-action');
-        const ids = qsa('.task-select:checked').map(cb => cb.value);
-        if (ids.length === 0) {
-          alert('Select at least one task.');
-          return;
-        }
-        qs('#bulkAction').value = action;
-        qs('#bulkIds').value = ids.join(',');
-        bulkForm.requestSubmit();
-      });
-    });
-  }
-
-  
   // ---- 0) Auto-submit done/undo checkboxes ----
   function initDoneAutosubmit() {
     function markVisualDone(cb) {
@@ -130,12 +99,10 @@
       initRowActionReveal();
       initDoneAutosubmit();
       initDragReorder();
-      initBulkActions();
     });
   } else {
     initRowActionReveal();
-      initDoneAutosubmit();
+    initDoneAutosubmit();
     initDragReorder();
-    initBulkActions();
   }
 })();

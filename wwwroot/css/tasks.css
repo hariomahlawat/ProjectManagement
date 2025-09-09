@@ -60,16 +60,6 @@
   font-size: .85rem;
 }
 
-#bulkForm.sticky {
-  position: sticky;
-  top: .5rem;
-  z-index: 1020;
-  background: var(--bs-body-bg);
-  border: 1px dashed var(--bs-border-color);
-  border-radius: .5rem;
-  padding: .5rem;
-}
-
 @media (max-width: 576px) {
   .todo-notes { max-width: 100%; }
 }

@@ -64,18 +64,6 @@
     </form>
 }
 
-<div class="mb-2">
-  <button id="btnSelectMode" type="button" class="btn btn-sm btn-outline-secondary ms-2">Select</button>
-
-  <form id="bulkForm" method="post" asp-page-handler="Bulk" class="d-inline-block ms-2 d-none">
-    @Html.AntiForgeryToken()
-    <input type="hidden" name="action" id="bulkAction" />
-    <input type="hidden" name="ids" id="bulkIds" />
-    <button type="button" class="btn btn-sm btn-outline-primary js-bulk" data-bulk-action="done">Mark done</button>
-    <button type="button" class="btn btn-sm btn-outline-danger js-bulk" data-bulk-action="delete">Delete</button>
-  </form>
-</div>
-
 <div id="taskListContainer">
   <partial name="_TaskList" model="Model" />
 </div>
