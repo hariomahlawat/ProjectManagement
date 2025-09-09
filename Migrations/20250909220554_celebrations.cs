@@ -136,7 +136,7 @@ namespace ProjectManagement.Migrations
                     UpdatedUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
                     CompletedUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     DeletedUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                    xmin = table.Column<uint>(type: "xid", rowVersion: true, nullable: false)
                 },
                 constraints: table =>
                 {

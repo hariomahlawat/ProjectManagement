@@ -12,7 +12,7 @@ using ProjectManagement.Data;
 namespace ProjectManagement.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250909153926_celebrations")]
+    [Migration("20250909220554_celebrations")]
     partial class celebrations
     {
         /// <inheritdoc />
@@ -426,12 +426,6 @@ namespace ProjectManagement.Migrations
                     b.Property<byte>("Priority")
                         .HasColumnType("smallint");
 
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("bytea");
-
                     b.Property<byte>("Status")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("smallint")
@@ -444,6 +438,12 @@ namespace ProjectManagement.Migrations
 
                     b.Property<DateTimeOffset>("UpdatedUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<uint>("xmin")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.HasKey("Id");
 
