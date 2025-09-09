@@ -41,6 +41,9 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Status).HasDefaultValue(TodoStatus.Open);
                 e.Property(x => x.IsPinned).HasDefaultValue(false);
                 e.Property(x => x.OrderIndex).HasDefaultValue(0);
+                e.Property(x => x.RowVersion)
+                    .IsRowVersion()
+                    .HasDefaultValue(new byte[0]);
             });
 
             builder.Entity<Celebration>(e =>
