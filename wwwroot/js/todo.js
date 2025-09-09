@@ -32,6 +32,17 @@
     });
   }
 
+  // Close any other open dropdown when a new one opens
+  document.addEventListener('show.bs.dropdown', (e) => {
+    document.querySelectorAll('.dropdown-menu.show').forEach(m => {
+      const toggle = m.previousElementSibling;
+      if (!toggle || toggle !== e.target) {
+        const inst = toggle ? bootstrap.Dropdown.getInstance(toggle) : null;
+        inst && inst.hide();
+      }
+    });
+  });
+
   // ---------- Shared confirm modal ----------
   const modalEl = document.getElementById('appConfirmModal');
   const confirmTextEl = document.getElementById('appConfirmText');

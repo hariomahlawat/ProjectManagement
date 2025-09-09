@@ -2,7 +2,7 @@
 @using ProjectManagement.Helpers
 @model ProjectManagement.Services.TodoWidgetResult
 
-<div class="card shadow-sm">
+<div class="card shadow-sm todo-widget">
     <div class="card-header d-flex align-items-center justify-content-between py-2">
         <span class="fw-semibold">My Tasks</span>
         <div class="d-flex align-items-center gap-2 small">
@@ -67,7 +67,7 @@
                         </div>
 
                         <div class="dropdown dropstart">
-                            <button type="button" class="btn todo-kebab dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false" aria-label="More actions">
+                            <button type="button" class="btn todo-kebab dropdown-toggle" data-bs-toggle="dropdown" data-bs-auto-close="outside" data-bs-display="dynamic" data-bs-boundary="viewport" aria-expanded="false" aria-label="More actions">
                                 <i class="bi bi-three-dots"></i>
                             </button>
                             <ul class="dropdown-menu">
