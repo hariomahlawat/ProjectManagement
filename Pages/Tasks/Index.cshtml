@@ -53,10 +53,10 @@
 
 @if (Model.Tab=="completed" && Model.Groups.Length > 0 && Model.Groups[0].Items.Length > 0)
 {
-  <form method="post" asp-page-handler="ClearCompleted" class="mb-2">
-    @Html.AntiForgeryToken()
-    <button class="btn btn-sm btn-outline-danger">Clear all completed</button>
-  </form>
+    <form method="post" asp-page-handler="ClearCompleted" class="mb-2">
+      @Html.AntiForgeryToken()
+      <button class="btn btn-sm btn-outline-danger" data-confirm="Clear all completed tasks?">Clear all completed</button>
+    </form>
 }
 
 <div class="mb-2">
@@ -66,8 +66,8 @@
     @Html.AntiForgeryToken()
     <input type="hidden" name="action" id="bulkAction" />
     <input type="hidden" name="ids" id="bulkIds" />
-    <button type="button" class="btn btn-sm btn-outline-primary" onclick="submitBulk('done')">Mark done</button>
-    <button type="button" class="btn btn-sm btn-outline-danger"  onclick="submitBulk('delete')">Delete</button>
+    <button type="button" class="btn btn-sm btn-outline-primary js-bulk" data-bulk-action="done">Mark done</button>
+    <button type="button" class="btn btn-sm btn-outline-danger js-bulk" data-bulk-action="delete">Delete</button>
   </form>
 </div>
 
@@ -87,71 +87,10 @@
       }
     </ul>
   </nav>
+
 }
 
-<script>
-// show actions when inputs change
-document.querySelectorAll('li.todo-row').forEach(row => {
-  const form = row.querySelector('form[method="post"][id^="f-"]');
-  const actions = row.querySelector('.row-actions');
-  if (!form || !actions) return;
-  const show = () => actions.classList.remove('d-none');
-  const hide = () => actions.classList.add('d-none');
-  hide();
-  form.addEventListener('input', show);
-  form.addEventListener('reset', () => setTimeout(hide, 0));
-  form.addEventListener('keydown', e => { if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); form.submit(); } });
-});
-
-// drag reorder (Open items)
-(() => {
-  const lists = document.querySelectorAll('.todo-list');
-  if (lists.length === 0) return;
-  let dragEl;
-  lists.forEach(list => {
-    list.addEventListener('dragstart', e => {
-      const li = e.target.closest('.todo-row'); if (!li) return;
-      dragEl = li; e.dataTransfer.effectAllowed = 'move'; li.classList.add('opacity-50');
-    });
-    list.addEventListener('dragover', e => {
-      e.preventDefault();
-      const li = e.target.closest('.todo-row'); if (!li || li===dragEl) return;
-      const rect = li.getBoundingClientRect();
-      const before = (e.clientY - rect.top) < rect.height/2;
-      li.parentNode.insertBefore(dragEl, before ? li : li.nextSibling);
-    });
-    list.addEventListener('dragend', async e => {
-      if (dragEl) dragEl.classList.remove('opacity-50');
-      const ids = Array.from(document.querySelectorAll('.todo-row')).map(r => r.dataset.id);
-      const fd = new FormData(); ids.forEach(id => fd.append('ids', id));
-      const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
-      if (token) fd.append('__RequestVerificationToken', token);
-      await fetch('?handler=Reorder', { method: 'POST', body: fd });
-    });
-  });
-})();
-
-// select mode and bulk actions
-(() => {
-  const selectBtn = document.getElementById('btnSelectMode');
-  const bulkForm  = document.getElementById('bulkForm');
-  if (!selectBtn || !bulkForm) return;
-
-  let selecting = false;
-  selectBtn.addEventListener('click', () => {
-    selecting = !selecting;
-    selectBtn.classList.toggle('active', selecting);
-    bulkForm.classList.toggle('d-none', !selecting);
-    document.querySelectorAll('.task-select').forEach(cb => cb.classList.toggle('d-none', !selecting));
-  });
-
-  window.submitBulk = (action) => {
-    const ids = [...document.querySelectorAll('.task-select:checked')].map(cb => cb.value);
-    if (ids.length === 0) { alert('Select at least one task.'); return; }
-    document.getElementById('bulkAction').value = action;
-    document.getElementById('bulkIds').value = ids.join(',');
-    bulkForm.requestSubmit();
-  };
-})();
-</script>
+@section Scripts {
+  <script src="~/js/tasks-page.js" asp-append-version="true" defer></script>
+}
 
