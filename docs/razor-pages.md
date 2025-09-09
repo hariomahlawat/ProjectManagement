@@ -23,3 +23,4 @@ This module summarises the UI components exposed to end users.
 
 ## Tasks
 * `Pages/Tasks/Index.cshtml` – full management interface with filter tabs, search and page size selection. Tasks are shown in a grouped list (Overdue / Today / Upcoming / Completed) with priority dots, due-date chips and calm overflow menus. Rows support inline edits, drag-and-drop reordering and a select mode for batch mark-done or delete. Completing a task surfaces an undo toast.
+  The quick-add box understands simple tokens like `tomorrow`, `today`, `mon`, `next mon`, `!high` and `!low` to set due dates and priority while stripping them from the final title.

@@ -6,7 +6,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 
 namespace ProjectManagement.Services
 {
@@ -14,12 +16,13 @@ namespace ProjectManagement.Services
     {
         private readonly IServiceProvider _sp;
         private readonly ILogger<TodoPurgeWorker> _log;
-        private const int RetentionDays = 7;
+        private readonly int _retentionDays;
 
-        public TodoPurgeWorker(IServiceProvider sp, ILogger<TodoPurgeWorker> log)
+        public TodoPurgeWorker(IServiceProvider sp, ILogger<TodoPurgeWorker> log, IOptions<TodoOptions> options)
         {
             _sp = sp;
             _log = log;
+            _retentionDays = options.Value.RetentionDays;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -40,7 +43,7 @@ namespace ProjectManagement.Services
                         continue;
                     }
 
-                    var cutoff = DateTimeOffset.UtcNow.AddDays(-RetentionDays);
+                    var cutoff = DateTimeOffset.UtcNow.AddDays(-_retentionDays);
                     var deleted = await db.TodoItems
                         .Where(t => t.DeletedUtc != null && t.DeletedUtc < cutoff)
                         .ExecuteDeleteAsync(stoppingToken);
