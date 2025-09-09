@@ -43,7 +43,7 @@
             <input type="hidden" name="done" value="false" />
             <input class="form-check-input" type="checkbox" name="done" value="true"
                    @(t.Status == TodoStatus.Done ? "checked" : "")
-                   title="Mark done" aria-label="Mark done" onchange="this.form.submit()" />
+                   title="Mark done" aria-label="Mark done" onchange="this.form.requestSubmit()" />
           </form>
 
           <span class="todo-dot @(Dot(t.Priority))" title="@t.Priority"></span>
@@ -71,7 +71,7 @@
 
           <div class="dropdown">
             <button type="button" class="btn todo-kebab dropdown-toggle"
-                    data-bs-toggle="dropdown" data-bs-display="static" data-bs-auto-close="outside"
+                    data-bs-toggle="dropdown" data-bs-auto-close="outside"
                     aria-expanded="false" aria-label="More actions">
               <i class="bi bi-three-dots"></i>
             </button>
