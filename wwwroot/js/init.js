@@ -11,10 +11,21 @@
     document.head.appendChild(s);
   }
 
+  function loadCelebrations() {
+    if (!document.querySelector('.celebrations-widget')) return;
+    const script = document.currentScript;
+    const src = script?.dataset.celeSrc || '/js/celebrations.js';
+    const s = document.createElement('script');
+    s.src = src;
+    s.defer = true;
+    document.head.appendChild(s);
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', loadTodo);
+    document.addEventListener('DOMContentLoaded', () => { loadTodo(); loadCelebrations(); });
   } else {
     loadTodo();
+    loadCelebrations();
   }
 })();
 

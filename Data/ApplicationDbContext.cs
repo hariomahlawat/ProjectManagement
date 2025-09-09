@@ -12,6 +12,7 @@ namespace ProjectManagement.Data
         public DbSet<Project> Projects { get; set; } = default!;
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<TodoItem> TodoItems => Set<TodoItem>();
+        public DbSet<Celebration> Celebrations => Set<Celebration>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -40,6 +41,15 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Status).HasDefaultValue(TodoStatus.Open);
                 e.Property(x => x.IsPinned).HasDefaultValue(false);
                 e.Property(x => x.OrderIndex).HasDefaultValue(0);
+            });
+
+            builder.Entity<Celebration>(e =>
+            {
+                e.HasIndex(x => x.DeletedUtc).HasFilter("\"DeletedUtc\" IS NULL");
+                e.HasIndex(x => new { x.EventType, x.Month, x.Day });
+                e.Property(x => x.EventType).ValueGeneratedNever();
+                e.Property(x => x.Name).IsRequired().HasMaxLength(120);
+                e.Property(x => x.PartnerName).HasMaxLength(120);
             });
         }
     }

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.EntityFrameworkCore;
 using System.Threading.RateLimiting;
 using System.IO;
@@ -12,6 +13,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Infrastructure;
 using Microsoft.Extensions.Logging;
+using ProjectManagement.Helpers;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -188,6 +190,47 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapRazorPages();
+
+// Celebrations endpoints
+app.MapGet("/celebrations/upcoming", async (HttpContext ctx, int? window, ApplicationDbContext db) =>
+{
+    if (!ctx.User.Identity?.IsAuthenticated ?? true) return Results.Unauthorized();
+    var ist = IstClock.TimeZone;
+    var nowLocal = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ist);
+    var today = DateOnly.FromDateTime(nowLocal.DateTime);
+    var win = window is 7 or 15 or 30 ? window.Value : 30;
+    var items = await db.Celebrations.AsNoTracking().Where(x => x.DeletedUtc == null).ToListAsync();
+    var list = items.Select(c =>
+    {
+        var next = CelebrationHelpers.NextOccurrenceLocal(c, today);
+        var daysAway = CelebrationHelpers.DaysAway(today, next);
+        return new
+        {
+            id = c.Id,
+            eventType = c.EventType.ToString(),
+            name = CelebrationHelpers.DisplayName(c),
+            nextOccurrenceLocal = next.ToString("yyyy-MM-dd"),
+            daysAway
+        };
+    }).Where(x => x.daysAway < win).OrderBy(x => x.nextOccurrenceLocal).ThenBy(x => x.name).ToArray();
+    return Results.Json(list);
+}).RequireAuthorization();
+
+app.MapPost("/celebrations/{id:guid}/task", async (Guid id, HttpContext ctx, ApplicationDbContext db, ITodoService todo, UserManager<ApplicationUser> users, IAntiforgery anti) =>
+{
+    await anti.ValidateRequestAsync(ctx);
+    var uid = users.GetUserId(ctx.User);
+    if (uid == null) return Results.Unauthorized();
+    var celebration = await db.Celebrations.FirstOrDefaultAsync(x => x.Id == id && x.DeletedUtc == null);
+    if (celebration == null) return Results.NotFound();
+    var ist = IstClock.TimeZone;
+    var nowLocal = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ist);
+    var today = DateOnly.FromDateTime(nowLocal.DateTime);
+    var next = CelebrationHelpers.NextOccurrenceLocal(celebration, today);
+    var dueLocal = CelebrationHelpers.ToLocalDateTime(next);
+    await todo.CreateAsync(uid, $"Wish {CelebrationHelpers.DisplayName(celebration)}", dueLocal);
+    return Results.Ok();
+}).RequireAuthorization();
 
 // seed roles, first admin and purge old audit logs
 using (var scope = app.Services.CreateScope())
