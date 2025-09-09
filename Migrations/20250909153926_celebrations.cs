@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ProjectManagement.Migrations
 {
     /// <inheritdoc />
-    public partial class Initial : Migration
+    public partial class celebrations : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -32,6 +32,17 @@ namespace ProjectManagement.Migrations
                 {
                     Id = table.Column<string>(type: "text", nullable: false),
                     MustChangePassword = table.Column<bool>(type: "boolean", nullable: false),
+                    FullName = table.Column<string>(type: "text", nullable: false),
+                    Rank = table.Column<string>(type: "text", nullable: false),
+                    LastLoginUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    LoginCount = table.Column<int>(type: "integer", nullable: false),
+                    CreatedUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    IsDisabled = table.Column<bool>(type: "boolean", nullable: false),
+                    DisabledUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    DisabledByUserId = table.Column<string>(type: "text", nullable: true),
+                    PendingDeletion = table.Column<bool>(type: "boolean", nullable: false),
+                    DeletionRequestedUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    DeletionRequestedByUserId = table.Column<string>(type: "text", nullable: true),
                     UserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
                     NormalizedUserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
                     Email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
@@ -53,6 +64,48 @@ namespace ProjectManagement.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "AuditLogs",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    TimeUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    Level = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
+                    Action = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    UserId = table.Column<string>(type: "text", nullable: true),
+                    UserName = table.Column<string>(type: "text", nullable: true),
+                    Ip = table.Column<string>(type: "text", nullable: true),
+                    UserAgent = table.Column<string>(type: "text", nullable: true),
+                    Message = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: true),
+                    DataJson = table.Column<string>(type: "text", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AuditLogs", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Celebrations",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    EventType = table.Column<byte>(type: "smallint", nullable: false),
+                    Name = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: false),
+                    SpouseName = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: true),
+                    Day = table.Column<byte>(type: "smallint", nullable: false),
+                    Month = table.Column<byte>(type: "smallint", nullable: false),
+                    Year = table.Column<short>(type: "smallint", nullable: true),
+                    CreatedById = table.Column<string>(type: "text", nullable: false),
+                    CreatedUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    UpdatedUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    DeletedUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Celebrations", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Projects",
                 columns: table => new
                 {
@@ -65,6 +118,29 @@ namespace ProjectManagement.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Projects", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TodoItems",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    OwnerId = table.Column<string>(type: "text", nullable: false),
+                    Title = table.Column<string>(type: "character varying(160)", maxLength: 160, nullable: false),
+                    DueAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    Priority = table.Column<byte>(type: "smallint", nullable: false),
+                    IsPinned = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
+                    Status = table.Column<byte>(type: "smallint", nullable: false, defaultValue: (byte)0),
+                    OrderIndex = table.Column<int>(type: "integer", nullable: false, defaultValue: 0),
+                    CreatedUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    UpdatedUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    CompletedUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    DeletedUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TodoItems", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -209,6 +285,62 @@ namespace ProjectManagement.Migrations
                 table: "AspNetUsers",
                 column: "NormalizedUserName",
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AuditLogs_Action",
+                table: "AuditLogs",
+                column: "Action");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AuditLogs_Ip",
+                table: "AuditLogs",
+                column: "Ip");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AuditLogs_Level",
+                table: "AuditLogs",
+                column: "Level");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AuditLogs_TimeUtc",
+                table: "AuditLogs",
+                column: "TimeUtc");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AuditLogs_UserId",
+                table: "AuditLogs",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AuditLogs_UserName",
+                table: "AuditLogs",
+                column: "UserName");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Celebrations_DeletedUtc",
+                table: "Celebrations",
+                column: "DeletedUtc",
+                filter: "\"DeletedUtc\" IS NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Celebrations_EventType_Month_Day",
+                table: "Celebrations",
+                columns: new[] { "EventType", "Month", "Day" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TodoItems_DeletedUtc",
+                table: "TodoItems",
+                column: "DeletedUtc");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TodoItems_OwnerId_OrderIndex",
+                table: "TodoItems",
+                columns: new[] { "OwnerId", "OrderIndex" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TodoItems_OwnerId_Status_IsPinned_DueAtUtc",
+                table: "TodoItems",
+                columns: new[] { "OwnerId", "Status", "IsPinned", "DueAtUtc" });
         }
 
         /// <inheritdoc />
@@ -230,7 +362,16 @@ namespace ProjectManagement.Migrations
                 name: "AspNetUserTokens");
 
             migrationBuilder.DropTable(
+                name: "AuditLogs");
+
+            migrationBuilder.DropTable(
+                name: "Celebrations");
+
+            migrationBuilder.DropTable(
                 name: "Projects");
+
+            migrationBuilder.DropTable(
+                name: "TodoItems");
 
             migrationBuilder.DropTable(
                 name: "AspNetRoles");

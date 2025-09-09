@@ -12,8 +12,8 @@ using ProjectManagement.Data;
 namespace ProjectManagement.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250908170213_AddTodoItem")]
-    partial class AddTodoItem
+    [Migration("20250909153926_celebrations")]
+    partial class celebrations
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -316,6 +316,56 @@ namespace ProjectManagement.Migrations
                     b.ToTable("AuditLogs");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Celebration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CreatedById")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("CreatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<byte>("Day")
+                        .HasColumnType("smallint");
+
+                    b.Property<DateTimeOffset?>("DeletedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<byte>("EventType")
+                        .HasColumnType("smallint");
+
+                    b.Property<byte>("Month")
+                        .HasColumnType("smallint");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<string>("SpouseName")
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTimeOffset>("UpdatedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<short?>("Year")
+                        .HasColumnType("smallint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DeletedUtc")
+                        .HasFilter("\"DeletedUtc\" IS NULL");
+
+                    b.HasIndex("EventType", "Month", "Day");
+
+                    b.ToTable("Celebrations");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Project", b =>
                 {
                     b.Property<int>("Id")
@@ -353,6 +403,9 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTimeOffset>("CreatedUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("DeletedUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTimeOffset?>("DueAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -360,9 +413,6 @@ namespace ProjectManagement.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
-
-                    b.Property<string>("Notes")
-                        .HasColumnType("text");
 
                     b.Property<int>("OrderIndex")
                         .ValueGeneratedOnAdd()
@@ -374,9 +424,13 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("text");
 
                     b.Property<byte>("Priority")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("smallint")
-                        .HasDefaultValue((byte)1);
+                        .HasColumnType("smallint");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea");
 
                     b.Property<byte>("Status")
                         .ValueGeneratedOnAdd()
@@ -392,6 +446,8 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DeletedUtc");
 
                     b.HasIndex("OwnerId", "OrderIndex");
 
