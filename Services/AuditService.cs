@@ -41,6 +41,11 @@ namespace ProjectManagement.Services
                                    string? userId = null, string? userName = null,
                                    IDictionary<string, string?>? data = null, HttpContext? http = null)
         {
+            if (action.StartsWith("Todo.", StringComparison.OrdinalIgnoreCase))
+            {
+                return; // Skip noisy Todo logs
+            }
+
             http ??= _http.HttpContext;
             var ip = ClientIp.Get(http);
             var ua = http?.Request?.Headers["User-Agent"].ToString();

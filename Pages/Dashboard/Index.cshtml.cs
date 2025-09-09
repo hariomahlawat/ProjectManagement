@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
+using ProjectManagement.Helpers;
 using System;
 using System.Threading.Tasks;
 
@@ -44,9 +45,11 @@ namespace ProjectManagement.Pages.Dashboard
             var uid = _users.GetUserId(User);
             if (uid == null) return Unauthorized();
 
+            TodoQuickParser.Parse(NewTitle, out var clean, out var dueLocal, out var prio);
+
             try
             {
-                await _todo.CreateAsync(uid, NewTitle.Trim());
+                await _todo.CreateAsync(uid, clean, dueLocal, prio);
             }
             catch (InvalidOperationException ex)
             {
