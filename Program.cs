@@ -232,11 +232,13 @@ app.MapPost("/celebrations/{id:guid}/task", async (Guid id, HttpContext ctx, App
     return Results.Ok();
 }).RequireAuthorization();
 
-// seed roles, first admin and purge old audit logs
+// ensure database is up-to-date, seed roles and purge old audit logs
 using (var scope = app.Services.CreateScope())
 {
-    await ProjectManagement.Data.IdentitySeeder.SeedAsync(scope.ServiceProvider);
-    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    var services = scope.ServiceProvider;
+    var db = services.GetRequiredService<ApplicationDbContext>();
+    await db.Database.MigrateAsync();
+    await ProjectManagement.Data.IdentitySeeder.SeedAsync(services);
     var cutoff = DateTime.UtcNow.AddDays(-90);
     db.AuditLogs.Where(a => a.TimeUtc < cutoff).ExecuteDelete();
 }
