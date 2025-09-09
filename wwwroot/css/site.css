@@ -229,9 +229,20 @@ h1, .h1 { font-size: 1.25rem; }
 .todo-kebab.dropdown-toggle::after,
 .dropstart .todo-kebab.dropdown-toggle::before{ display:none !important }
 
-/* Menus above everything; prevent accidental clipping */
-.dropdown-menu{ z-index:1080; font-size:.875rem }
-.card, .card-body, .list-group-item{ overflow:visible }
+/* Keep dropdowns above any cards/sections on the dashboard */
+.dashboard .dropdown-menu,
+.todo-widget .dropdown-menu {
+  z-index: 1046; /* > fixed(1030)/sticky(1020)/offcanvas(1045), < modal-backdrop(1050)/modal(1055) */
+}
+
+/* If any card/section had overflow clipping, turn it off at the outer wrapper */
+.dashboard .card,
+.dashboard .card > .card-body {
+  overflow: visible;
+}
+
+/* Base menu tweaks */
+.dropdown-menu{ font-size:.875rem }
 
 .todo-row.done .todo-title { text-decoration: line-through; color: #6c757d; }
 .todo-row.done { opacity: .85; }
