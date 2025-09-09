@@ -227,5 +227,8 @@ h1, .h1 { font-size: 1.25rem; }
 /* Keep list items from clipping dropdowns */
 .list-group-item { overflow: visible; }
 
+.todo-row.done .todo-title { text-decoration: line-through; color: #6c757d; }
+.todo-row.done { opacity: .85; }
+
 .draggable-handle{cursor:grab}
 

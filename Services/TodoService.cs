@@ -166,6 +166,23 @@ namespace ProjectManagement.Services
             return true;
         }
 
+        public async Task<int> ClearCompletedAsync(string ownerId)
+        {
+            var items = await _db.TodoItems
+                .Where(x => x.OwnerId == ownerId && x.Status == TodoStatus.Done && x.DeletedUtc == null)
+                .ToListAsync();
+            if (items.Count == 0) return 0;
+            var now = DateTimeOffset.UtcNow;
+            foreach (var item in items)
+            {
+                item.DeletedUtc = now;
+                item.UpdatedUtc = now;
+            }
+            await _db.SaveChangesAsync();
+            await _audit.LogAsync("Todo.ClearCompleted", userId: ownerId);
+            return items.Count;
+        }
+
         public async Task<bool> ReorderAsync(string ownerId, IList<Guid> orderedIds)
         {
             var items = await _db.TodoItems
