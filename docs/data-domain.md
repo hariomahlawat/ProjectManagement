@@ -5,7 +5,7 @@ This module covers the persistence layer and core domain types.
 ## Data layer
 
 ### `Data/ApplicationDbContext.cs`
-Derives from `IdentityDbContext<ApplicationUser>` and exposes the `Projects` and `TodoItems` tables. Indexes on `TodoItem` enforce fast lookups by owner and due date. Identity tables (users, roles, claims, etc.) are provided by the base class.
+Derives from `IdentityDbContext<ApplicationUser>` and exposes the `Projects`, `TodoItems`, `Celebrations` and `Events` tables. Indexes on `TodoItem` enforce fast lookups by owner and due date, while `Events` carries filtered indexes on `IsDeleted` and `(StartUtc, EndUtc)` for range queries. Identity tables (users, roles, claims, etc.) are provided by the base class.
 
 ### `Data/DesignTimeDbContextFactory.cs`
 Provides a design-time factory so Entity Framework tooling can create the context when running migrations. It reads configuration from `appsettings.json`, `appsettings.Development.json`, or environment variables.
@@ -23,6 +23,9 @@ Represents a personal task owned by a user. Each item records a title, due date 
 
 ### `Models/Celebration.cs`
 Stores birthdays and anniversaries with minimal fields for annual recurrence. Each row tracks the event type, name(s), day and month, optional year, creator metadata and soft-delete timestamp. Indexes on `(EventType, Month, Day)` enable fast upcoming lookups and a filtered index on `DeletedUtc` hides removed entries. Leap day events are rendered on 28 February in non-leap years.
+
+### `Models/CalendarEvent.cs`
+Represents an organisation event. Fields include title, optional description (Markdown), category, location, start and end UTC timestamps, an all-day flag and audit metadata. Rows are soft deleted via `IsDeleted`.
 
 ### `Models/AuthEvent.cs`
 Records successful authentication events. Each row stores the user ID, timestamp (UTC), IP address and user agent for audit and analytics. Indexed by event name and time for efficient querying.

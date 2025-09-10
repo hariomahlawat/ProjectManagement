@@ -16,6 +16,9 @@ using ProjectManagement.Services;
 using ProjectManagement.Infrastructure;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Helpers;
+using Markdig;
+using Ganss.Xss;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -121,6 +124,10 @@ builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddScoped<ITodoService, TodoService>();
 builder.Services.Configure<TodoOptions>(
     builder.Configuration.GetSection("Todo"));
+builder.Services.ConfigureHttpJsonOptions(o =>
+{
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 builder.Services.AddScoped<ILoginAnalyticsService, LoginAnalyticsService>();
 builder.Services.AddHostedService<LoginAggregationWorker>();
 builder.Services.AddHostedService<TodoPurgeWorker>();
@@ -151,6 +158,9 @@ builder.Services.AddRazorPages(options =>
     .AddMvcOptions(o => o.Filters.Add<EnforcePasswordChangeFilter>());
 
 var app = builder.Build();
+
+var markdownPipeline = new MarkdownPipelineBuilder().UseAdvancedExtensions().Build();
+var htmlSanitizer = new HtmlSanitizer();
 
 app.Logger.LogInformation("Using database {Database} on host {Host}", csb.Database, csb.Host);
 
@@ -199,11 +209,113 @@ app.UseAuthorization();
 
 app.MapRazorPages();
 
-app.MapGet("/calendar/events", () => Results.Json(Array.Empty<object>())).RequireAuthorization();
+app.MapGet("/calendar/events", async (DateTimeOffset start, DateTimeOffset end, ApplicationDbContext db) =>
+{
+    var items = await db.Events.AsNoTracking()
+        .Where(e => !e.IsDeleted && e.EndUtc > start && e.StartUtc < end)
+        .Select(e => new
+        {
+            id = e.Id,
+            title = e.Title,
+            start = e.StartUtc,
+            end = e.EndUtc,
+            allDay = e.IsAllDay,
+            category = e.Category.ToString(),
+            location = e.Location
+        }).ToListAsync();
+    return Results.Json(items);
+}).RequireAuthorization();
 
-app.MapPut("/calendar/events/{id}", async (Guid id, HttpContext ctx, IAntiforgery anti) =>
+app.MapGet("/calendar/events/{id:guid}", async (Guid id, ApplicationDbContext db) =>
+{
+    var ev = await db.Events.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+    if (ev == null) return Results.NotFound();
+    var html = htmlSanitizer.Sanitize(Markdown.ToHtml(ev.Description ?? string.Empty, markdownPipeline));
+    return Results.Json(new
+    {
+        id = ev.Id,
+        title = ev.Title,
+        start = ev.StartUtc,
+        end = ev.EndUtc,
+        allDay = ev.IsAllDay,
+        category = ev.Category.ToString(),
+        location = ev.Location,
+        description = ev.Description,
+        descriptionHtml = html
+    });
+}).RequireAuthorization();
+
+
+app.MapPost("/calendar/events", async (EventRequest req, HttpContext ctx, ApplicationDbContext db, UserManager<ApplicationUser> users, IClock clock, IAntiforgery anti) =>
 {
     await anti.ValidateRequestAsync(ctx);
+    if (req.EndUtc <= req.StartUtc) return Results.BadRequest();
+    var uid = users.GetUserId(ctx.User);
+    if (uid == null) return Results.Unauthorized();
+    var now = clock.UtcNow;
+    var ev = new CalendarEvent
+    {
+        Id = Guid.NewGuid(),
+        Title = req.Title,
+        Description = req.Description,
+        Category = req.Category,
+        Location = req.Location,
+        StartUtc = req.StartUtc,
+        EndUtc = req.EndUtc,
+        IsAllDay = req.IsAllDay,
+        CreatedById = uid,
+        UpdatedById = uid,
+        CreatedAt = now,
+        UpdatedAt = now
+    };
+    db.Events.Add(ev);
+    await db.SaveChangesAsync();
+    return Results.Json(new { id = ev.Id });
+}).RequireAuthorization(policy => policy.RequireRole("Admin", "TA", "HOD"));
+
+app.MapPut("/calendar/events/{id:guid}", async (Guid id, EventUpdateRequest req, HttpContext ctx, ApplicationDbContext db, UserManager<ApplicationUser> users, IClock clock, IAntiforgery anti) =>
+{
+    await anti.ValidateRequestAsync(ctx);
+    var ev = await db.Events.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+    if (ev == null) return Results.NotFound();
+    var uid = users.GetUserId(ctx.User);
+    if (uid == null) return Results.Unauthorized();
+    if (req.EndUtc <= req.StartUtc) return Results.BadRequest();
+    if (req.Title != null) ev.Title = req.Title;
+    if (req.Description != null) ev.Description = req.Description;
+    if (req.Category.HasValue) ev.Category = req.Category.Value;
+    if (req.Location != null) ev.Location = req.Location;
+    ev.StartUtc = req.StartUtc;
+    ev.EndUtc = req.EndUtc;
+    ev.IsAllDay = req.IsAllDay;
+    ev.UpdatedById = uid;
+    ev.UpdatedAt = clock.UtcNow;
+    await db.SaveChangesAsync();
+    return Results.Ok();
+}).RequireAuthorization(policy => policy.RequireRole("Admin", "TA", "HOD"));
+
+app.MapDelete("/calendar/events/{id:guid}", async (Guid id, HttpContext ctx, ApplicationDbContext db, UserManager<ApplicationUser> users, IClock clock, IAntiforgery anti) =>
+{
+    await anti.ValidateRequestAsync(ctx);
+    var ev = await db.Events.FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+    if (ev == null) return Results.NotFound();
+    var uid = users.GetUserId(ctx.User);
+    if (uid == null) return Results.Unauthorized();
+    ev.IsDeleted = true;
+    ev.UpdatedById = uid;
+    ev.UpdatedAt = clock.UtcNow;
+    await db.SaveChangesAsync();
+    return Results.Ok();
+}).RequireAuthorization(policy => policy.RequireRole("Admin", "TA", "HOD"));
+
+app.MapPost("/calendar/events/{id:guid}/task", async (Guid id, HttpContext ctx, ApplicationDbContext db, ITodoService todo, UserManager<ApplicationUser> users, IAntiforgery anti) =>
+{
+    await anti.ValidateRequestAsync(ctx);
+    var uid = users.GetUserId(ctx.User);
+    if (uid == null) return Results.Unauthorized();
+    var ev = await db.Events.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id && !x.IsDeleted);
+    if (ev == null) return Results.NotFound();
+    await todo.CreateAsync(uid, ev.Title, ev.StartUtc);
     return Results.Ok();
 }).RequireAuthorization();
 
