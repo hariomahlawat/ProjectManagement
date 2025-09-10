@@ -61,14 +61,14 @@ body {
 }
 
 /* ---------- Feature cards ---------- */
-.card {
+#features .card {
     border-color: var(--pm-border);
 }
 
-    .card:hover {
-        transform: translateY(-2px);
-        transition: transform .15s ease-out;
-    }
+#features .card:hover {
+    transform: translateY(-2px);
+    transition: transform .15s ease-out;
+}
 
 /* ---------- Steps ---------- */
 .pm-steps {
