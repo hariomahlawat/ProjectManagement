@@ -39,6 +39,7 @@
     firstDay: 1, // Monday
     slotMinTime: '08:00:00',
     slotMaxTime: '18:00:00',
+    scrollTime: '08:00:00',
     editable: !!formCanvas, // editors only (page rendered form offcanvas if can edit)
     selectable: !!formCanvas,
     eventSources: [{
@@ -112,7 +113,6 @@
     const payload = {
       id,
       title: info.event.title,
-      description: info.event.extendedProps.description || null,
       category: toCategoryEnum(info.event.extendedProps.category),
       location: info.event.extendedProps.location || null,
       isAllDay: allDay,
@@ -263,6 +263,8 @@
       if (!s || !ed) { alert('Select start and end time.'); return; }
       startUtc = new Date(s); endUtc = new Date(ed);
     }
+
+    if (endUtc <= startUtc) { alert('End must be after start.'); return; }
 
     const payload = {
       title: (fd.get('title')||'').toString().trim(),

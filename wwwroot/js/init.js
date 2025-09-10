@@ -14,7 +14,7 @@
   function loadCelebrations() {
     if (!document.querySelector('.celebrations-widget')) return;
     const script = document.currentScript;
-    const src = script?.dataset.celeSrc || '/js/celebrations.js';
+    const src = script?.dataset.celebrationsSrc || '/js/celebrations.js';
     const s = document.createElement('script');
     s.src = src;
     s.defer = true;

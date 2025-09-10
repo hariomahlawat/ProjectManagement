@@ -84,6 +84,9 @@
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script type="module" src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
-    <script src="~/js/init.js" data-todo-src="@Url.Content("~/js/todo.js")" data-cele-src="@Url.Content("~/js/celebrations.js")" asp-append-version="true" defer></script>
+    <script src="~/js/init.js"
+            data-todo-src="@Url.Content("~/js/todo.js")"
+            data-celebrations-src="@Url.Content("~/js/celebrations.js")"
+            asp-append-version="true" defer></script>
 </body>
 </html>

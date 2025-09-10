@@ -309,7 +309,8 @@ editors.MapPut("/{id:guid}", async ([FromServices] ApplicationDbContext db,
     var uid = users.GetUserId(ctx.User);
 
     ev.Title = input.Title.Trim();
-    ev.Description = input.Description;
+    if (input.Description != null)
+        ev.Description = input.Description;
     ev.Category = input.Category;
     ev.Location = input.Location;
     ev.StartUtc = input.StartUtc.ToUniversalTime();
