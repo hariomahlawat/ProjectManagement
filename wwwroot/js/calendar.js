@@ -17,7 +17,8 @@ const formCanvas = formCanvasEl && window.bootstrap
   : null;
 const eventForm = document.getElementById('eventForm');
 let editingId = null;
-const calendar = new window.FullCalendar.Calendar(el, {
+const FC = window.FullCalendar; // convenience
+const calendar = new FC.Calendar(el, {
   timeZone: 'Asia/Kolkata',
   initialView: 'dayGridMonth',
   headerToolbar: false,     // we use our own header
@@ -28,12 +29,12 @@ const calendar = new window.FullCalendar.Calendar(el, {
   expandRows: true,
   weekends: true,
 
-  // plugins are globally registered by the FullCalendar script files
+  // plugins are exposed on the FullCalendar global
   plugins: [
-    'dayGrid',
-    'timeGrid',
-    'list',
-    'interaction'
+    FC.DayGrid,
+    FC.TimeGrid,
+    FC.List,
+    FC.Interaction
   ],
 
   editable: canEdit,
