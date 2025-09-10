@@ -199,6 +199,15 @@ app.UseAuthorization();
 
 app.MapRazorPages();
 
+app.MapGet("/calendar/events", () => Results.Json(Array.Empty<object>())).RequireAuthorization();
+
+app.MapPut("/calendar/events/{id}", async (Guid id, HttpContext ctx, IAntiforgery anti) =>
+{
+    await anti.ValidateRequestAsync(ctx);
+    return Results.Ok();
+}).RequireAuthorization();
+
+
 // Celebrations endpoints
 app.MapGet("/celebrations/upcoming", async (HttpContext ctx, int? window, ApplicationDbContext db) =>
 {
