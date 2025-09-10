@@ -1,4 +1,4 @@
-import { Chart } from '/lib/chart.js/chart.umd.js';
+// Chart is loaded globally via script tag
 
 const elCanvas = document.getElementById('loginsScatter');
 const elLookback = document.getElementById('lookback');
@@ -20,8 +20,8 @@ const BandAndLines = {
     ctx.fillStyle = 'rgba(46, 204, 113, 0.12)';
     ctx.fillRect(chartArea.left, yTop, chartArea.right - chartArea.left, yBot - yTop);
 
-    drawLine(y.getPixelForValue(p50Min), 'Median');
-    drawLine(y.getPixelForValue(p90Min), 'P90');
+    if (Number.isFinite(p50Min)) drawLine(y.getPixelForValue(p50Min), 'Median');
+    if (Number.isFinite(p90Min)) drawLine(y.getPixelForValue(p90Min), 'P90');
 
     ctx.restore();
 
@@ -45,7 +45,7 @@ async function load() {
   const days = parseInt(elLookback.value, 10) || 30;
   const weekendOdd = elWeekend.checked;
   const user = elUser.value;
-  const res = await fetch(`?handler=Data&days=${days}&weekendOdd=${weekendOdd}&user=${encodeURIComponent(user)}`, { headers: { 'Accept':'application/json' }});
+  const res = await fetch(`?handler=Data&days=${days}&weekendOdd=${weekendOdd}&user=${encodeURIComponent(user)}`, { headers: { 'Accept':'application/json' } });
   const data = await res.json();
 
   const normal = [];
@@ -55,6 +55,10 @@ async function load() {
     const point = { x: d.getTime(), y: p.m, reason: p.reason, user: p.user, iso: p.t };
     (p.odd ? odd : normal).push(point);
   }
+
+  const n = data.points.length;
+  const p50 = n ? data.p50Min : null;
+  const p90 = n ? data.p90Min : null;
 
   const cfg = {
     type: 'scatter',
@@ -88,6 +92,7 @@ async function load() {
         }
       },
       plugins: {
+        decimation: { enabled: true, algorithm: 'min-max' },
         legend: { position: 'bottom' },
         tooltip: {
           callbacks: {
@@ -103,8 +108,8 @@ async function load() {
         bandAndLines: {
           workStartMin: data.workStartMin,
           workEndMin: data.workEndMin,
-          p50Min: data.p50Min,
-          p90Min: data.p90Min
+          p50Min: p50,
+          p90Min: p90
         }
       }
     },
