@@ -13,11 +13,17 @@
     <li class="breadcrumb-item active" aria-current="page">Logs</li>
   </ol>
 </nav>
-<h4 class="mb-2">Logs
-  <a class="ms-1 text-decoration-none" asp-area="Admin" asp-page="/Help/Index" asp-fragment="logs" title="Help">
-    <i class="bi bi-question-circle"></i>
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h4 class="mb-0">Logs
+    <a class="ms-1 text-decoration-none" asp-area="Admin" asp-page="/Help/Index" asp-fragment="logs" title="Help">
+      <i class="bi bi-question-circle"></i>
+    </a>
+  </h4>
+  <a class="btn btn-sm btn-outline-primary"
+     asp-area="Admin" asp-page="/Analytics/Logins">
+    View login scatter
   </a>
-</h4>
+</div>
 
 <form method="get" class="row g-2 mb-3 align-items-end">
   <div class="col-sm-2">
