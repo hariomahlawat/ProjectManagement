@@ -232,12 +232,12 @@ h1, .h1 { font-size: 1.25rem; }
 /* Keep dropdowns above any cards/sections on the dashboard */
 .dashboard .dropdown-menu,
 .todo-widget .dropdown-menu {
-  z-index: 1046; /* > fixed(1030)/sticky(1020)/offcanvas(1045), < modal-backdrop(1050)/modal(1055) */
+  z-index: 1080; /* ensure menus overlay dashboard widgets */
 }
 
 /* Menus we move to <body> must sit above dashboard cards */
 .dropdown-menu.todo-menu {
-  z-index: 1051; /* > card/overlays (<=1045), < modal/backdrop (1055/1050) */
+  z-index: 1085; /* extra boost once detached to <body> */
 }
 
 /* If any card/section had overflow clipping, turn it off at the outer wrapper */
