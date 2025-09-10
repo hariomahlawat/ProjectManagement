@@ -1,3 +1,4 @@
+
 (() => {
   const { Chart } = window;
   if (!Chart) {
@@ -18,6 +19,7 @@
       const { workStartMin, workEndMin, p50Min, p90Min } = opts;
       const { ctx, chartArea, scales: { x, y } } = chart;
       if (!x || !y) return;
+
 
     const yTop = y.getPixelForValue(workEndMin);
     const yBot = y.getPixelForValue(workStartMin);
