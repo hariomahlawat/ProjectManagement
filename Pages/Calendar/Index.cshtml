@@ -1,0 +1,152 @@
+@page
+@model ProjectManagement.Pages.Calendar.IndexModel
+@{
+    ViewData["Title"] = "Calendar";
+}
+
+@section Styles {
+  <link rel="stylesheet" href="~/css/calendar.css" asp-append-version="true" />
+}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h1 class="h4 mb-0">Calendar</h1>
+
+  @if (Model.CanEdit)
+  {
+    <button class="btn btn-sm btn-primary" id="btnNewEvent" type="button" data-bs-toggle="offcanvas" data-bs-target="#eventFormCanvas" aria-controls="eventFormCanvas">
+      <i class="bi bi-plus-lg"></i> New event
+    </button>
+  }
+</div>
+
+<div class="d-flex gap-2 mb-3">
+  <div class="btn-group" role="group" aria-label="View">
+    <button class="btn btn-outline-secondary btn-sm" data-view="dayGridMonth">Month</button>
+    <button class="btn btn-outline-secondary btn-sm" data-view="timeGridWeek">Week</button>
+    <button class="btn btn-outline-secondary btn-sm" data-view="listMonth">List</button>
+  </div>
+  <button class="btn btn-outline-secondary btn-sm" id="btnToday">Today</button>
+
+  <div class="ms-auto d-flex gap-2 align-items-center">
+    <span class="small text-muted">Category:</span>
+    <div class="btn-group btn-group-sm" role="group" aria-label="Category filter" id="categoryFilters">
+      <button class="btn btn-outline-secondary active" data-cat="">All</button>
+      <button class="btn btn-outline-secondary" data-cat="Visit">Visit</button>
+      <button class="btn btn-outline-secondary" data-cat="Inspection">Inspection</button>
+      <button class="btn btn-outline-secondary" data-cat="Conference">Conference</button>
+      <button class="btn btn-outline-secondary" data-cat="Training">Training</button>
+      <button class="btn btn-outline-secondary" data-cat="Holiday">Holiday</button>
+      <button class="btn btn-outline-secondary" data-cat="Other">Other</button>
+    </div>
+  </div>
+</div>
+
+<div id="calendar" class="shadow-sm border rounded-3 bg-white"></div>
+
+<!-- Offcanvas: Event details -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="eventDetailsCanvas" aria-labelledby="eventDetailsLabel">
+  <div class="offcanvas-header">
+    <h5 id="eventDetailsLabel" class="offcanvas-title">Event</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body">
+    <div id="eventDetailsBody" class="small">
+      <!-- filled by JS -->
+    </div>
+    <div class="d-flex gap-2 mt-3">
+      <button class="btn btn-outline-secondary btn-sm" id="btnAddToTasks">
+        <i class="bi bi-check2-square"></i> Add to My Tasks
+      </button>
+      @if (Model.CanEdit)
+      {
+        <button class="btn btn-outline-primary btn-sm" id="btnEditEvent">Edit</button>
+        <button class="btn btn-outline-danger btn-sm" id="btnDeleteEvent">Delete</button>
+      }
+    </div>
+  </div>
+</div>
+
+<!-- Offcanvas: Create / Edit form -->
+@if (Model.CanEdit)
+{
+<div class="offcanvas offcanvas-end" tabindex="-1" id="eventFormCanvas" aria-labelledby="eventFormLabel">
+  <div class="offcanvas-header">
+    <h5 id="eventFormLabel" class="offcanvas-title">New event</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form id="eventForm" class="vstack gap-3">
+      <input type="hidden" name="id" />
+      <div>
+        <label class="form-label">Title</label>
+        <input class="form-control" name="title" maxlength="160" required />
+      </div>
+      <div class="row g-2">
+        <div class="col-6">
+          <label class="form-label">Category</label>
+          <select class="form-select" name="category">
+            <option>Visit</option>
+            <option>Inspection</option>
+            <option>Conference</option>
+            <option>Training</option>
+            <option>Holiday</option>
+            <option selected>Other</option>
+          </select>
+        </div>
+        <div class="col-6">
+          <label class="form-label">Location</label>
+          <input class="form-control" name="location" maxlength="160" />
+        </div>
+      </div>
+
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch" id="toggleAllDay" name="isAllDay">
+        <label class="form-check-label" for="toggleAllDay">All-day</label>
+      </div>
+
+      <div class="row g-2" id="timePickers">
+        <div class="col-6">
+          <label class="form-label">Start</label>
+          <input type="datetime-local" class="form-control" name="start" />
+        </div>
+        <div class="col-6">
+          <label class="form-label">End</label>
+          <input type="datetime-local" class="form-control" name="end" />
+        </div>
+      </div>
+
+      <div class="row g-2 d-none" id="datePickers">
+        <div class="col-6">
+          <label class="form-label">Start date</label>
+          <input type="date" class="form-control" name="startDate" />
+        </div>
+        <div class="col-6">
+          <label class="form-label">End date</label>
+          <input type="date" class="form-control" name="endDate" />
+        </div>
+      </div>
+
+      <div>
+        <label class="form-label">Description (Markdown)</label>
+        <textarea class="form-control" rows="4" name="description"></textarea>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button class="btn btn-primary" id="btnSaveEvent" type="submit">Save</button>
+        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="offcanvas">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+}
+
+@section Scripts {
+  <script src="~/lib/fullcalendar/core/index.global.min.js"></script>
+  <script src="~/lib/fullcalendar/daygrid/index.global.min.js"></script>
+  <script src="~/lib/fullcalendar/timegrid/index.global.min.js"></script>
+  <script src="~/lib/fullcalendar/list/index.global.min.js"></script>
+  <script src="~/lib/fullcalendar/interaction/index.global.min.js"></script>
+
+  <script src="~/js/calendar-page.js" asp-append-version="true"></script>
+}
+

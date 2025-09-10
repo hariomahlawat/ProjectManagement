@@ -5,6 +5,8 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Threading.RateLimiting;
 using System.IO;
@@ -198,6 +200,156 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapRazorPages();
+
+// ---------- Calendar endpoints ----------
+
+var cal = app.MapGroup("/calendar");
+cal.RequireAuthorization(); // everyone can view
+
+static (DateTimeOffset from, DateTimeOffset to) CoerceWindow(HttpContext ctx)
+{
+    // FullCalendar passes ISO in local TZ; treat as DateTimeOffset if possible.
+    var startRaw = ctx.Request.Query["start"].ToString();
+    var endRaw   = ctx.Request.Query["end"].ToString();
+
+    if (!DateTimeOffset.TryParse(startRaw, out var start)) start = DateTimeOffset.UtcNow.AddMonths(-1);
+    if (!DateTimeOffset.TryParse(endRaw, out var end))     end   = DateTimeOffset.UtcNow.AddMonths(2);
+
+    // Safety: cap range
+    if (end - start > TimeSpan.FromDays(400)) end = start.AddDays(400);
+    return (start.ToUniversalTime(), end.ToUniversalTime());
+}
+
+// List feed for visible window
+cal.MapGet("/events", async ([FromServices] ApplicationDbContext db, HttpContext ctx) =>
+{
+    var (from, to) = CoerceWindow(ctx);
+    var list = await db.Events
+        .Where(e => e.StartUtc < to && e.EndUtc > from)
+        .OrderBy(e => e.StartUtc)
+        .Select(e => new {
+            id = e.Id,
+            title = e.Title,
+            start = e.StartUtc, // ISO
+            end = e.EndUtc,     // ISO (exclusive)
+            allDay = e.IsAllDay,
+            category = e.Category.ToString(),
+            location = e.Location
+        })
+        .AsNoTracking()
+        .ToListAsync();
+
+    return Results.Ok(list);
+});
+
+// Full details (for offcanvas)
+cal.MapGet("/events/{id:guid}", async ([FromServices] ApplicationDbContext db, Guid id) =>
+{
+    var e = await db.Events.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+    if (e is null) return Results.NotFound();
+
+    // Localize for display
+    var tz = IstClock.TimeZone;
+    var startLocal = TimeZoneInfo.ConvertTime(e.StartUtc, tz);
+    var endLocal   = TimeZoneInfo.ConvertTime(e.EndUtc, tz);
+
+    return Results.Ok(new {
+        id = e.Id,
+        title = e.Title,
+        description = e.Description, // markdown; render on client or in server later
+        category = e.Category.ToString(),
+        location = e.Location,
+        isAllDay = e.IsAllDay,
+        startLocal, endLocal,
+        startUtc = e.StartUtc, endUtc = e.EndUtc
+    });
+});
+
+// Editors only
+var editors = cal.MapGroup("/events").RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HoD" });
+
+// Create
+editors.MapPost("", async ([FromServices] ApplicationDbContext db,
+                           [FromServices] UserManager<ApplicationUser> users,
+                           HttpContext ctx,
+                           [FromBody] OrgEvent input) =>
+{
+    if (input.EndUtc <= input.StartUtc) return Results.BadRequest("EndUtc must be after StartUtc.");
+    var uid = users.GetUserId(ctx.User) ?? "";
+
+    var ev = new OrgEvent {
+        Id = Guid.NewGuid(),
+        Title = input.Title.Trim(),
+        Description = input.Description,
+        Category = input.Category,
+        Location = input.Location,
+        StartUtc = input.StartUtc.ToUniversalTime(),
+        EndUtc   = input.EndUtc.ToUniversalTime(),
+        IsAllDay = input.IsAllDay,
+        CreatedById = uid,
+        UpdatedById = uid,
+        CreatedAt = DateTimeOffset.UtcNow,
+        UpdatedAt = DateTimeOffset.UtcNow
+    };
+    db.Events.Add(ev);
+    await db.SaveChangesAsync();
+    return Results.Created($"/calendar/events/{ev.Id}", new { id = ev.Id });
+});
+
+// Update
+editors.MapPut("/{id:guid}", async ([FromServices] ApplicationDbContext db,
+                                    [FromServices] UserManager<ApplicationUser> users,
+                                    HttpContext ctx,
+                                    Guid id,
+                                    [FromBody] OrgEvent input) =>
+{
+    var ev = await db.Events.FirstOrDefaultAsync(x => x.Id == id);
+    if (ev is null) return Results.NotFound();
+    if (input.EndUtc <= input.StartUtc) return Results.BadRequest("EndUtc must be after StartUtc.");
+    var uid = users.GetUserId(ctx.User);
+
+    ev.Title = input.Title.Trim();
+    ev.Description = input.Description;
+    ev.Category = input.Category;
+    ev.Location = input.Location;
+    ev.StartUtc = input.StartUtc.ToUniversalTime();
+    ev.EndUtc   = input.EndUtc.ToUniversalTime();
+    ev.IsAllDay = input.IsAllDay;
+    ev.UpdatedById = uid;
+    ev.UpdatedAt = DateTimeOffset.UtcNow;
+
+    await db.SaveChangesAsync();
+    return Results.NoContent();
+});
+
+// Soft delete
+editors.MapDelete("/{id:guid}", async ([FromServices] ApplicationDbContext db, Guid id) =>
+{
+    var ev = await db.Events.FirstOrDefaultAsync(x => x.Id == id);
+    if (ev is null) return Results.NotFound();
+    ev.IsDeleted = true;
+    await db.SaveChangesAsync();
+    return Results.NoContent();
+});
+
+// Add to My Tasks (due at start time, normal priority)
+cal.MapPost("/events/{id:guid}/add-to-task", async (
+    [FromServices] ApplicationDbContext db,
+    [FromServices] ITodoService todos,
+    [FromServices] UserManager<ApplicationUser> users,
+    HttpContext ctx,
+    Guid id) =>
+{
+    var ev = await db.Events.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+    if (ev is null) return Results.NotFound();
+
+    var uid = users.GetUserId(ctx.User);
+    if (string.IsNullOrEmpty(uid)) return Results.Unauthorized();
+
+    var startLocal = TimeZoneInfo.ConvertTime(ev.StartUtc, IstClock.TimeZone);
+    await todos.CreateAsync(uid, ev.Title, startLocal);
+    return Results.Ok(new { added = true });
+});
 
 // Celebrations endpoints
 app.MapGet("/celebrations/upcoming", async (HttpContext ctx, int? window, ApplicationDbContext db) =>

@@ -9,6 +9,31 @@
     {
       "library": "bootstrap@5.3.8",
       "destination": "wwwroot/lib/bootstrap/"
+    },
+    {
+      "library": "@fullcalendar/core@6.1.15",
+      "destination": "wwwroot/lib/fullcalendar/core/",
+      "files": [ "index.global.min.js" ]
+    },
+    {
+      "library": "@fullcalendar/daygrid@6.1.15",
+      "destination": "wwwroot/lib/fullcalendar/daygrid/",
+      "files": [ "index.global.min.js" ]
+    },
+    {
+      "library": "@fullcalendar/timegrid@6.1.15",
+      "destination": "wwwroot/lib/fullcalendar/timegrid/",
+      "files": [ "index.global.min.js" ]
+    },
+    {
+      "library": "@fullcalendar/list@6.1.15",
+      "destination": "wwwroot/lib/fullcalendar/list/",
+      "files": [ "index.global.min.js" ]
+    },
+    {
+      "library": "@fullcalendar/interaction@6.1.15",
+      "destination": "wwwroot/lib/fullcalendar/interaction/",
+      "files": [ "index.global.min.js" ]
     }
   ]
 }
