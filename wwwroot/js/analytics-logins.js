@@ -1,19 +1,23 @@
-import '../lib/chart.js/chart.umd.js';
+(() => {
+  const { Chart } = window;
+  if (!Chart) {
+    console.error('Chart.js failed to load');
+    return;
+  }
 
-const Chart = window.Chart;
-const elCanvas = document.getElementById('loginsScatter');
-const elLookback = document.getElementById('lookback');
-const elWeekend = document.getElementById('weekendOdd');
-const elUser = document.getElementById('user');
-const elExport = document.getElementById('export');
-let chart;
+  const elCanvas = document.getElementById('loginsScatter');
+  const elLookback = document.getElementById('lookback');
+  const elWeekend = document.getElementById('weekendOdd');
+  const elUser = document.getElementById('user');
+  const elExport = document.getElementById('export');
+  let chart;
 
-const BandAndLines = {
-  id: 'bandAndLines',
-  afterDraw(chart, args, opts) {
-    const { workStartMin, workEndMin, p50Min, p90Min } = opts;
-    const { ctx, chartArea, scales: { x, y } } = chart;
-    if (!x || !y) return;
+  const BandAndLines = {
+    id: 'bandAndLines',
+    afterDraw(chart, args, opts) {
+      const { workStartMin, workEndMin, p50Min, p90Min } = opts;
+      const { ctx, chartArea, scales: { x, y } } = chart;
+      if (!x || !y) return;
 
     const yTop = y.getPixelForValue(workEndMin);
     const yBot = y.getPixelForValue(workStartMin);
@@ -40,14 +44,14 @@ const BandAndLines = {
       ctx.fillText(label, chartArea.right - 48, yPix - 4);
     }
   }
-};
+  };
 
-async function load() {
-  const days = parseInt(elLookback.value, 10) || 30;
-  const weekendOdd = elWeekend.checked;
-  const user = elUser.value;
-  const res = await fetch(`?handler=Data&days=${days}&weekendOdd=${weekendOdd}&user=${encodeURIComponent(user)}`, { headers: { 'Accept':'application/json' } });
-  const data = await res.json();
+  async function load() {
+    const days = parseInt(elLookback.value, 10) || 30;
+    const weekendOdd = elWeekend.checked;
+    const user = elUser.value;
+    const res = await fetch(`?handler=Data&days=${days}&weekendOdd=${weekendOdd}&user=${encodeURIComponent(user)}`, { headers: { 'Accept':'application/json' } });
+    const data = await res.json();
 
   const normal = [];
   const odd = [];
@@ -129,30 +133,31 @@ async function load() {
     }
   };
 
-  renderOddTable(data.points.filter(p => p.odd));
-}
+    renderOddTable(data.points.filter(p => p.odd));
+  }
 
-function renderOddTable(rows) {
-  const host = document.getElementById('oddRows');
-  host.innerHTML = '';
-  for (const r of rows) {
-    const d = new Date(r.t);
-    const hh = String(d.getHours()).padStart(2,'0');
+  function renderOddTable(rows) {
+    const host = document.getElementById('oddRows');
+    host.innerHTML = '';
+    for (const r of rows) {
+      const d = new Date(r.t);
+      const hh = String(d.getHours()).padStart(2,'0');
     const mm = String(d.getMinutes()).padStart(2,'0');
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${d.toLocaleDateString()} ${hh}:${mm}</td><td>${r.user}</td><td>${r.reason || ''}</td>`;
-    host.appendChild(tr);
+      host.appendChild(tr);
+    }
   }
-}
 
-function exportCsv() {
-  const days = parseInt(elLookback.value, 10) || 30;
-  const weekendOdd = elWeekend.checked;
-  const user = elUser.value;
-  elExport.href = `?handler=ExportCsv&days=${days}&weekendOdd=${weekendOdd}&user=${encodeURIComponent(user)}`;
-}
+  function exportCsv() {
+    const days = parseInt(elLookback.value, 10) || 30;
+    const weekendOdd = elWeekend.checked;
+    const user = elUser.value;
+    elExport.href = `?handler=ExportCsv&days=${days}&weekendOdd=${weekendOdd}&user=${encodeURIComponent(user)}`;
+  }
 
-document.getElementById('refresh')?.addEventListener('click', () => { load(); exportCsv(); });
-[elLookback, elWeekend, elUser].forEach(el => el?.addEventListener('change', () => { load(); exportCsv(); }));
-exportCsv();
-load();
+  document.getElementById('refresh')?.addEventListener('click', () => { load(); exportCsv(); });
+  [elLookback, elWeekend, elUser].forEach(el => el?.addEventListener('change', () => { load(); exportCsv(); }));
+  exportCsv();
+  load();
+})();
