@@ -13,20 +13,11 @@
         popperConfig: {
           strategy: 'fixed',
           modifiers: [
+            { name: 'flip', options: { fallbackPlacements: ['bottom-end','top-end','top-start','bottom-start'] } },
             { name: 'preventOverflow', options: { boundary: 'viewport' } },
             { name: 'offset', options: { offset: [0, 6] } }
           ]
         }
-      });
-
-      // If there's not enough room to the right, open to the left (dropstart)
-      btn.addEventListener('show.bs.dropdown', () => {
-        const dd = btn.closest('.dropdown');
-        if (!dd) return;
-        const r = btn.getBoundingClientRect();
-        const roomRight = (window.innerWidth - r.right) > 320; // ~menu width
-        // Only toggle for widgets tight to the right; OK on My Tasks too
-        dd.classList.toggle('dropstart', !roomRight);
       });
     });
   }
