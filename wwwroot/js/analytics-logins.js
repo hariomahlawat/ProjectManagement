@@ -69,8 +69,9 @@ async function load() {
       ]
     },
     options: {
-      parsing: false,
+      responsive: true,
       maintainAspectRatio: false,
+      parsing: false,
       scales: {
         x: {
           type: 'linear',

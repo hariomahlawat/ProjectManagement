@@ -158,6 +158,20 @@ body {
   .hero-art  { order: 2; max-width: clamp(220px, 50vw, 340px); }
 }
 
+/* Fixed-height wrapper for responsive Chart.js canvases */
+.chart-container-320 {
+  position: relative;
+  height: 320px;
+  width: 100%;
+}
+
+/* Ensure the canvas fills the wrapper, not the page */
+#loginsScatter {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
 /* Help page micro-polish */
 .card h6 { font-weight: 600; }
 .accordion-button { font-weight: 600; }
