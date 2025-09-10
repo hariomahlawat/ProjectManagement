@@ -80,7 +80,7 @@ namespace ProjectManagement.Areas.Identity.Pages.Account.Manage
             }
 
             TempData["ok"] = "Password changed.";
-            return RedirectToPage();
+            return LocalRedirect(Url.Content("~/Dashboard"));
         }
     }
 }
