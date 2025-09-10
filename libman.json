@@ -18,17 +18,17 @@
     {
       "library": "@fullcalendar/daygrid@6.1.15",
       "destination": "wwwroot/lib/fullcalendar/daygrid/",
-      "files": [ "index.global.min.js" ]
+      "files": [ "index.global.min.js", "index.global.min.css" ]
     },
     {
       "library": "@fullcalendar/timegrid@6.1.15",
       "destination": "wwwroot/lib/fullcalendar/timegrid/",
-      "files": [ "index.global.min.js" ]
+      "files": [ "index.global.min.js", "index.global.min.css" ]
     },
     {
       "library": "@fullcalendar/list@6.1.15",
       "destination": "wwwroot/lib/fullcalendar/list/",
-      "files": [ "index.global.min.js" ]
+      "files": [ "index.global.min.js", "index.global.min.css" ]
     },
     {
       "library": "@fullcalendar/interaction@6.1.15",
