@@ -1,5 +1,6 @@
-// Chart is loaded globally via script tag
+import '../lib/chart.js/chart.umd.js';
 
+const Chart = window.Chart;
 const elCanvas = document.getElementById('loginsScatter');
 const elLookback = document.getElementById('lookback');
 const elWeekend = document.getElementById('weekendOdd');
