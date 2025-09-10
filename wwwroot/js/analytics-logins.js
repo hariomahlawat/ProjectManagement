@@ -1,5 +1,4 @@
-import '../lib/chart.js/chart.umd.js';
-
+// Chart is provided globally by Logins.cshtml
 const Chart = window.Chart;
 const elCanvas = document.getElementById('loginsScatter');
 const elLookback = document.getElementById('lookback');
