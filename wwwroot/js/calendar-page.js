@@ -8,6 +8,15 @@
   const listPlugin = window.FullCalendar.list;
   const interactionPlugin = window.FullCalendar.interaction;
 
+  function pad(n){ return String(n).padStart(2, '0'); }
+  function toLocalInputValue(date){
+    return date.getFullYear() + '-' +
+           pad(date.getMonth()+1) + '-' +
+           pad(date.getDate()) + 'T' +
+           pad(date.getHours()) + ':' +
+           pad(date.getMinutes());
+  }
+
   const el = document.getElementById('calendar');
   if (!el) return;
 
@@ -143,8 +152,7 @@
         catFilters.querySelectorAll('button').forEach(x => x.classList.remove('active'));
         btn.classList.add('active');
         activeCategory = btn.getAttribute('data-cat') || "";
-        calendar.refetchEvents(); // will re-run eventDidMount filtering
-        // Also toggle visibility for already-rendered events:
+        // Toggle visibility for already-rendered events:
         calendar.getEvents().forEach(ev => {
           const el = ev.el;
           if (!el) return;
@@ -227,8 +235,8 @@
       form.querySelector('[name="endDate"]').value = inclEnd.toISOString().substring(0,10);
     } else {
       const s = new Date(e.startLocal); const ed = new Date(e.endLocal);
-      form.querySelector('[name="start"]').value = s.toISOString().slice(0,16);
-      form.querySelector('[name="end"]').value = ed.toISOString().slice(0,16);
+      form.querySelector('[name="start"]').value = toLocalInputValue(s);
+      form.querySelector('[name="end"]').value = toLocalInputValue(ed);
     }
     document.getElementById('eventFormLabel').textContent = 'Edit event';
     formCanvas && formCanvas.show();
