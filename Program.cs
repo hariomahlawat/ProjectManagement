@@ -16,6 +16,9 @@ using ProjectManagement.Services;
 using ProjectManagement.Infrastructure;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Helpers;
+using Markdig;
+using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Authorization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -240,6 +243,129 @@ app.MapPost("/celebrations/{id:guid}/task", async (Guid id, HttpContext ctx, App
     return Results.Ok();
 }).RequireAuthorization();
 
+var mdPipeline = new MarkdownPipelineBuilder().Build();
+
+string SanitizeMarkdown(string? md)
+{
+    var html = Markdown.ToHtml(md ?? string.Empty, mdPipeline);
+    html = Regex.Replace(html, "<script[^>]*>.*?</script>", string.Empty, RegexOptions.Singleline | RegexOptions.IgnoreCase);
+    html = Regex.Replace(html, "on\\w+=\"[^\"]*\"", string.Empty, RegexOptions.IgnoreCase);
+    return html;
+}
+
+app.MapGet("/calendar/events", async (HttpContext ctx, DateTimeOffset start, DateTimeOffset end, ApplicationDbContext db) =>
+{
+    if (!ctx.User.Identity?.IsAuthenticated ?? true) return Results.Unauthorized();
+    var events = await db.CalendarEvents.AsNoTracking()
+        .Where(e => !e.IsDeleted && e.StartUtc < end && e.EndUtc > start)
+        .OrderBy(e => e.StartUtc)
+        .Select(e => new
+        {
+            id = e.Id,
+            title = e.Title,
+            start = e.StartUtc,
+            end = e.EndUtc,
+            allDay = e.IsAllDay,
+            category = e.Category.ToString(),
+            location = e.Location
+        }).ToListAsync();
+    return Results.Json(events);
+}).RequireAuthorization();
+
+app.MapGet("/calendar/events/{id:guid}", async (HttpContext ctx, Guid id, ApplicationDbContext db) =>
+{
+    if (!ctx.User.Identity?.IsAuthenticated ?? true) return Results.Unauthorized();
+    var ev = await db.CalendarEvents.AsNoTracking().FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
+    if (ev == null) return Results.NotFound();
+    var html = SanitizeMarkdown(ev.Description);
+    return Results.Json(new
+    {
+        id = ev.Id,
+        title = ev.Title,
+        start = ev.StartUtc,
+        end = ev.EndUtc,
+        allDay = ev.IsAllDay,
+        category = ev.Category.ToString(),
+        location = ev.Location,
+        description = ev.Description,
+        descriptionHtml = html
+    });
+}).RequireAuthorization();
+
+app.MapPost("/calendar/events", async (HttpContext ctx, CalendarEventDto dto, ApplicationDbContext db, UserManager<ApplicationUser> users, IAntiforgery anti) =>
+{
+    await anti.ValidateRequestAsync(ctx);
+    var uid = users.GetUserId(ctx.User);
+    if (uid == null) return Results.Unauthorized();
+    if (dto.EndUtc <= dto.StartUtc) return Results.BadRequest("End must be after Start");
+    var ev = new CalendarEvent
+    {
+        Id = Guid.NewGuid(),
+        Title = dto.Title,
+        Description = dto.Description,
+        Category = dto.Category,
+        Location = dto.Location,
+        StartUtc = dto.StartUtc,
+        EndUtc = dto.EndUtc,
+        IsAllDay = dto.IsAllDay,
+        CreatedById = uid,
+        UpdatedById = uid,
+        CreatedAt = DateTimeOffset.UtcNow,
+        UpdatedAt = DateTimeOffset.UtcNow,
+        IsDeleted = false
+    };
+    db.CalendarEvents.Add(ev);
+    await db.SaveChangesAsync();
+    return Results.Json(new { id = ev.Id });
+}).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HOD" });
+
+app.MapPut("/calendar/events/{id:guid}", async (Guid id, HttpContext ctx, CalendarEventDto dto, ApplicationDbContext db, UserManager<ApplicationUser> users, IAntiforgery anti) =>
+{
+    await anti.ValidateRequestAsync(ctx);
+    var uid = users.GetUserId(ctx.User);
+    if (uid == null) return Results.Unauthorized();
+    if (dto.EndUtc <= dto.StartUtc) return Results.BadRequest("End must be after Start");
+    var ev = await db.CalendarEvents.FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
+    if (ev == null) return Results.NotFound();
+    ev.Title = dto.Title;
+    ev.Description = dto.Description;
+    ev.Category = dto.Category;
+    ev.Location = dto.Location;
+    ev.StartUtc = dto.StartUtc;
+    ev.EndUtc = dto.EndUtc;
+    ev.IsAllDay = dto.IsAllDay;
+    ev.UpdatedById = uid;
+    ev.UpdatedAt = DateTimeOffset.UtcNow;
+    await db.SaveChangesAsync();
+    return Results.Ok();
+}).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HOD" });
+
+app.MapDelete("/calendar/events/{id:guid}", async (Guid id, HttpContext ctx, ApplicationDbContext db, UserManager<ApplicationUser> users, IAntiforgery anti) =>
+{
+    await anti.ValidateRequestAsync(ctx);
+    var uid = users.GetUserId(ctx.User);
+    if (uid == null) return Results.Unauthorized();
+    var ev = await db.CalendarEvents.FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
+    if (ev == null) return Results.NotFound();
+    ev.IsDeleted = true;
+    ev.UpdatedById = uid;
+    ev.UpdatedAt = DateTimeOffset.UtcNow;
+    await db.SaveChangesAsync();
+    return Results.Ok();
+}).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HOD" });
+
+app.MapPost("/calendar/events/{id:guid}/task", async (Guid id, HttpContext ctx, ApplicationDbContext db, ITodoService todo, UserManager<ApplicationUser> users, IAntiforgery anti) =>
+{
+    await anti.ValidateRequestAsync(ctx);
+    var uid = users.GetUserId(ctx.User);
+    if (uid == null) return Results.Unauthorized();
+    var ev = await db.CalendarEvents.AsNoTracking().FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
+    if (ev == null) return Results.NotFound();
+    var localStart = TimeZoneInfo.ConvertTime(ev.StartUtc, IstClock.TimeZone);
+    await todo.CreateAsync(uid, $"Attend {ev.Title}", localStart);
+    return Results.Ok();
+}).RequireAuthorization();
+
 // ensure database is up-to-date, seed roles and purge old audit logs
 using (var scope = app.Services.CreateScope())
 {
@@ -274,3 +400,5 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+record CalendarEventDto(string Title, string? Description, EventCategory Category, string? Location, DateTimeOffset StartUtc, DateTimeOffset EndUtc, bool IsAllDay);

@@ -1,0 +1,11 @@
+@using ProjectManagement.Models
+<div class="card calendar-widget mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center py-2">
+    <span class="fw-semibold">Upcoming events</span>
+    <a href="/Calendar" class="small">View full calendar</a>
+  </div>
+  <div class="card-body">
+    <ul class="list-unstyled mb-0" id="calendar-widget-list"></ul>
+  </div>
+</div>
+<script type="module" src="~/js/calendar-widget.js" asp-append-version="true"></script>

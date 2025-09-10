@@ -7,5 +7,6 @@ The documentation for authentication and user management has been split into foc
 - [Infrastructure and Services](infrastructure-services.md)
 - [Razor Pages](razor-pages.md)
 - [Extending the Module](extending.md)
+- [Calendar](calendar.md)
 
 Each file can be maintained independently to keep the guides concise and easier to navigate.

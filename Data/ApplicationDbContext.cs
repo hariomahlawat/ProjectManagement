@@ -16,6 +16,7 @@ namespace ProjectManagement.Data
         public DbSet<Celebration> Celebrations => Set<Celebration>();
         public DbSet<AuthEvent> AuthEvents => Set<AuthEvent>();
         public DbSet<DailyLoginStat> DailyLoginStats => Set<DailyLoginStat>();
+        public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -65,6 +66,15 @@ namespace ProjectManagement.Data
             builder.Entity<DailyLoginStat>(e =>
             {
                 e.HasIndex(x => x.Date).IsUnique();
+            });
+
+            builder.Entity<CalendarEvent>(e =>
+            {
+                e.HasIndex(x => new { x.StartUtc, x.EndUtc });
+                e.HasIndex(x => x.IsDeleted).HasFilter("\"IsDeleted\" = false");
+                e.Property(x => x.Title).IsRequired().HasMaxLength(160);
+                e.Property(x => x.Category).ValueGeneratedNever();
+                e.Property(x => x.Location).HasMaxLength(160);
             });
         }
     }

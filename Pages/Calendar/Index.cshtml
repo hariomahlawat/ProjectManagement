@@ -1,0 +1,96 @@
+@page
+@model ProjectManagement.Pages.Calendar.IndexModel
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@using ProjectManagement.Models
+@{
+    ViewData["Title"] = "Calendar";
+    var canEdit = Model.CanEdit;
+}
+
+
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <h2 class="h5 fw-semibold mb-0">Calendar</h2>
+  @if (canEdit)
+  {
+    <button class="btn btn-primary" id="btn-new">New event</button>
+  }
+</div>
+<div id="calendar" data-editable="@(canEdit.ToString().ToLowerInvariant())"></div>
+<form id="calendar-token">@Html.AntiForgeryToken()</form>
+
+<div class="offcanvas offcanvas-end" tabindex="-1" id="event-details">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="detail-title"></h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <div id="detail-info"></div>
+    <div class="mt-3 d-flex gap-2" id="detail-actions">
+      <button class="btn btn-sm btn-outline-primary" id="add-task-btn" type="button">Add to My Tasks</button>
+      @if (canEdit)
+      {
+        <button class="btn btn-sm btn-outline-secondary" id="edit-btn" type="button">Edit</button>
+        <button class="btn btn-sm btn-outline-danger" id="delete-btn" type="button">Delete</button>
+      }
+    </div>
+  </div>
+</div>
+
+<div class="offcanvas offcanvas-end" tabindex="-1" id="event-form">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="form-title"></h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form id="event-form-element">
+      <div class="mb-2">
+        <label class="form-label">Title</label>
+        <input type="text" class="form-control" name="title" required maxlength="160" />
+      </div>
+      <div class="mb-2">
+        <label class="form-label">Category</label>
+        <select class="form-select" name="category">
+          @foreach (var cat in Enum.GetValues<EventCategory>())
+          {
+            <option value="@cat">@cat</option>
+          }
+        </select>
+      </div>
+      <div class="mb-2">
+        <label class="form-label">Location</label>
+        <input type="text" class="form-control" name="location" maxlength="160" />
+      </div>
+      <div class="form-check form-switch mb-2">
+        <input class="form-check-input" type="checkbox" id="allDaySwitch" name="isAllDay">
+        <label class="form-check-label" for="allDaySwitch">All day</label>
+      </div>
+      <div class="row mb-2">
+        <div class="col">
+          <label class="form-label">Start</label>
+          <input type="datetime-local" class="form-control" name="start" required />
+        </div>
+        <div class="col">
+          <label class="form-label">End</label>
+          <input type="datetime-local" class="form-control" name="end" required />
+        </div>
+      </div>
+      <div class="mb-2">
+        <label class="form-label">Description</label>
+        <textarea class="form-control" name="description" rows="4"></textarea>
+      </div>
+      <div class="d-flex gap-2 mt-3">
+        <button class="btn btn-primary" type="submit">Save</button>
+        <button class="btn btn-secondary" type="button" data-bs-dismiss="offcanvas">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index:11">
+  <div id="calendar-toast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="toast-body"></div>
+  </div>
+</div>
+
+<script type="module" src="~/js/calendar.js" asp-append-version="true"></script>
