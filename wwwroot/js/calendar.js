@@ -1,5 +1,6 @@
 // No imports; FullCalendar globals are already on window from the script tags
 
+(() => {
 const el = document.getElementById('orgCalendar');
 if (!el) return;
 
@@ -264,3 +265,4 @@ eventForm?.addEventListener('submit', async e => {
     console.error(err);
   }
 });
+})();
