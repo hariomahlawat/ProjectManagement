@@ -7,12 +7,16 @@ const canEdit = document.getElementById('btnNewEvent') !== null; // crude but fi
 let currentEventId = null;
 let currentEventData = null;
 const detailsCanvasEl = document.getElementById('eventDetails');
-const detailsCanvas = detailsCanvasEl ? new bootstrap.Offcanvas(detailsCanvasEl) : null;
+const detailsCanvas = detailsCanvasEl && window.bootstrap
+  ? new window.bootstrap.Offcanvas(detailsCanvasEl)
+  : null;
 const formCanvasEl = document.getElementById('eventFormCanvas');
-const formCanvas = formCanvasEl ? new bootstrap.Offcanvas(formCanvasEl) : null;
+const formCanvas = formCanvasEl && window.bootstrap
+  ? new window.bootstrap.Offcanvas(formCanvasEl)
+  : null;
 const eventForm = document.getElementById('eventForm');
 let editingId = null;
-const calendar = new FullCalendar.Calendar(el, {
+const calendar = new window.FullCalendar.Calendar(el, {
   timeZone: 'Asia/Kolkata',
   initialView: 'dayGridMonth',
   headerToolbar: false,     // we use our own header
@@ -24,7 +28,12 @@ const calendar = new FullCalendar.Calendar(el, {
   weekends: true,
 
   // plugins come from global builds; just reference the names
-  plugins: [ dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin ],
+  plugins: [
+    window.dayGridPlugin,
+    window.timeGridPlugin,
+    window.listPlugin,
+    window.interactionPlugin
+  ],
 
   editable: canEdit,
   selectable: false,
