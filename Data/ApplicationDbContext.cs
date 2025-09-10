@@ -14,6 +14,8 @@ namespace ProjectManagement.Data
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<TodoItem> TodoItems => Set<TodoItem>();
         public DbSet<Celebration> Celebrations => Set<Celebration>();
+        public DbSet<AuthEvent> AuthEvents => Set<AuthEvent>();
+        public DbSet<DailyLoginStat> DailyLoginStats => Set<DailyLoginStat>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -52,6 +54,17 @@ namespace ProjectManagement.Data
                 e.Property(x => x.EventType).ValueGeneratedNever();
                 e.Property(x => x.Name).IsRequired().HasMaxLength(120);
                 e.Property(x => x.SpouseName).HasMaxLength(120);
+            });
+
+            builder.Entity<AuthEvent>(e =>
+            {
+                e.HasIndex(x => new { x.Event, x.WhenUtc });
+                e.Property(x => x.Event).HasMaxLength(32).IsRequired();
+            });
+
+            builder.Entity<DailyLoginStat>(e =>
+            {
+                e.HasIndex(x => x.Date).IsUnique();
             });
         }
     }

@@ -20,3 +20,7 @@
     text-decoration: none;
     transform: scale(1.03);
 }
+
+#loginsScatter {
+    min-height: 280px;
+}

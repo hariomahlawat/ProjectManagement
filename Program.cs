@@ -121,6 +121,8 @@ builder.Services.AddSingleton<IClock, SystemClock>();
 builder.Services.AddScoped<ITodoService, TodoService>();
 builder.Services.Configure<TodoOptions>(
     builder.Configuration.GetSection("Todo"));
+builder.Services.AddScoped<ILoginAnalyticsService, LoginAnalyticsService>();
+builder.Services.AddHostedService<LoginAggregationWorker>();
 builder.Services.AddHostedService<TodoPurgeWorker>();
 
 // Register email sender

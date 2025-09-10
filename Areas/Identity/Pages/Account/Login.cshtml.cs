@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.RateLimiting;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
+using ProjectManagement.Data;
 
 namespace ProjectManagement.Areas.Identity.Pages.Account
 {
@@ -18,11 +19,13 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
     {
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly ILogger<LoginModel> _logger;
+        private readonly ApplicationDbContext _db;
 
-        public LoginModel(SignInManager<ApplicationUser> signInManager, ILogger<LoginModel> logger)
+        public LoginModel(SignInManager<ApplicationUser> signInManager, ILogger<LoginModel> logger, ApplicationDbContext db)
         {
             _signInManager = signInManager;
             _logger = logger;
+            _db = db;
         }
 
         [BindProperty]
@@ -58,11 +61,25 @@ namespace ProjectManagement.Areas.Identity.Pages.Account
                 var user = await _signInManager.UserManager.FindByNameAsync(Input.UserName);
                 if (user != null)
                 {
+                    var when = DateTimeOffset.UtcNow;
+                    var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+                    var ua = Request.Headers.UserAgent.ToString();
+
                     user.LastLoginUtc = DateTime.UtcNow;
                     user.LoginCount = user.LoginCount + 1;
                     await _signInManager.UserManager.UpdateAsync(user);
                     await HttpContext.RequestServices.GetRequiredService<IAuditService>()
                         .LogAsync("LoginSuccess", userName: user.UserName, userId: user.Id, http: HttpContext);
+
+                    _db.AuthEvents.Add(new AuthEvent
+                    {
+                        UserId = user.Id,
+                        WhenUtc = when,
+                        Event = "LoginSucceeded",
+                        Ip = ip,
+                        UserAgent = ua
+                    });
+                    await _db.SaveChangesAsync();
                 }
                 _logger.LogInformation("User logged in.");
                 return LocalRedirect(returnUrl);
