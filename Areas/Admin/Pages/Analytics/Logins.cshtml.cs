@@ -50,7 +50,8 @@ namespace ProjectManagement.Areas.Admin.Pages.Analytics
                     m = p.MinutesOfDay,
                     odd = p.IsOdd,
                     reason = p.Reason,
-                    user = p.UserId
+                    user = p.UserId,
+                    userName = p.UserName
                 })
             };
             return new JsonResult(payload);
@@ -63,10 +64,11 @@ namespace ProjectManagement.Areas.Admin.Pages.Analytics
             var workEnd = new TimeSpan(18, 0, 0);
             var dto = await _svc.GetAsync(days, weekendOdd, tz, workStart, workEnd, user);
             var sb = new StringBuilder();
-            sb.AppendLine("When,User,MinutesOfDay,IsOdd,Reason");
+            sb.AppendLine("When,UserId,UserName,MinutesOfDay,IsOdd,Reason");
+            static string CsvEscape(string s) => $"\"{s.Replace("\"", "\"\"")}\"";
             foreach (var p in dto.Points)
             {
-                sb.AppendLine($"{p.Local:u},{p.UserId},{p.MinutesOfDay},{p.IsOdd},{p.Reason}");
+                sb.AppendLine($"{p.Local:u},{p.UserId},{CsvEscape(p.UserName)},{p.MinutesOfDay},{p.IsOdd},{CsvEscape(p.Reason)}");
             }
             var bytes = Encoding.UTF8.GetBytes(sb.ToString());
             return File(bytes, "text/csv", "logins.csv");
