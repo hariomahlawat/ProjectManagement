@@ -7,7 +7,7 @@ using ProjectManagement.Data;
 
 namespace ProjectManagement.Services
 {
-    public record LoginPoint(string UserId, DateTimeOffset Local, int MinutesOfDay, bool IsOdd, string Reason);
+    public record LoginPoint(string UserId, string UserName, DateTimeOffset Local, int MinutesOfDay, bool IsOdd, string Reason);
     public record LoginAnalyticsDto(
         string TimeZone, int WorkStartMin, int WorkEndMin, int P50Min, int P90Min,
         IReadOnlyList<LoginPoint> Points);
@@ -38,6 +38,10 @@ namespace ProjectManagement.Services
                 .Select(e => new { e.UserId, e.WhenUtc })
                 .ToListAsync();
 
+            var userNames = await _db.Users
+                .Select(u => new { u.Id, u.FullName, u.UserName, u.Email })
+                .ToDictionaryAsync(x => x.Id, x => x.FullName ?? x.UserName ?? x.Email ?? "(deleted)");
+
             var points = new List<LoginPoint>(rows.Count);
             var mins = new List<int>(rows.Count);
 
@@ -50,7 +54,8 @@ namespace ProjectManagement.Services
                 var weekend = local.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
                 var isOdd = outsideHours || (markWeekendOdd && weekend);
                 var reason = isOdd ? (outsideHours ? "Outside working hours" : "Weekend") : string.Empty;
-                points.Add(new LoginPoint(r.UserId, local, m, isOdd, reason));
+                var name = userNames.TryGetValue(r.UserId, out var n) ? n : "(deleted)";
+                points.Add(new LoginPoint(r.UserId, name, local, m, isOdd, reason));
                 mins.Add(m);
             }
 

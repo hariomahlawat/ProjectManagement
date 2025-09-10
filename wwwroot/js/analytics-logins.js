@@ -52,7 +52,7 @@ async function load() {
   const odd = [];
   for (const p of data.points) {
     const d = new Date(p.t);
-    const point = { x: d.getTime(), y: p.m, reason: p.reason, user: p.user, iso: p.t };
+    const point = { x: d.getTime(), y: p.m, reason: p.reason, userId: p.user, userName: p.userName, iso: p.t };
     (p.odd ? odd : normal).push(point);
   }
 
@@ -102,7 +102,7 @@ async function load() {
               const mm = String(ctx.raw.y%60).padStart(2,'0');
               const d = new Date(ctx.raw.x);
               const date = d.toLocaleDateString();
-              return `${date} ${hh}:${mm}${ctx.raw.reason ? ' — '+ctx.raw.reason : ''}`;
+              return `${date} ${hh}:${mm} — ${ctx.raw.userName}${ctx.raw.reason ? ' · '+ctx.raw.reason : ''}`;
             }
           }
         },
@@ -125,7 +125,7 @@ async function load() {
     if (points.length) {
       const p = chart.data.datasets[points[0].datasetIndex].data[points[0].index];
       const from = new Date(p.iso).toISOString();
-      window.location.href = `/Admin/Logs?User=${encodeURIComponent(p.user)}&From=${from}&To=${from}`;
+      window.location.href = `/Admin/Logs?User=${encodeURIComponent(p.userId)}&From=${from}&To=${from}`;
     }
   };
 
@@ -140,7 +140,13 @@ function renderOddTable(rows) {
     const hh = String(d.getHours()).padStart(2,'0');
     const mm = String(d.getMinutes()).padStart(2,'0');
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${d.toLocaleDateString()} ${hh}:${mm}</td><td>${r.user}</td><td>${r.reason || ''}</td>`;
+    const tdDate = document.createElement('td');
+    tdDate.textContent = `${d.toLocaleDateString()} ${hh}:${mm}`;
+    const tdUser = document.createElement('td');
+    tdUser.textContent = r.userName;
+    const tdReason = document.createElement('td');
+    tdReason.textContent = r.reason || '';
+    tr.append(tdDate, tdUser, tdReason);
     host.appendChild(tr);
   }
 }

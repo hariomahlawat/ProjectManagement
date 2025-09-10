@@ -33,7 +33,7 @@ Concrete implementation backed by `UserManager<ApplicationUser>` and `RoleManage
 Background worker that permanently deletes soft-deleted to-do items after a retention period. The retention window is configured via `Todo:RetentionDays` in `appsettings.json` (defaults to 7 days) and the worker safely handles cancellation tokens.
 
 ### `Services/LoginAnalyticsService`
-Calculates percentile lines and flags odd login events for the admin scatter chart. It loads `AuthEvents` from the database, applies working-hour rules and returns points annotated with reasons for anomalies.
+Calculates percentile lines and flags odd login events for the admin scatter chart. It loads `AuthEvents` from the database, joins them to user records to supply friendly names (falling back to email or "(deleted)"), applies working-hour rules and returns points annotated with reasons for anomalies.
 
 ### `Services/LoginAggregationWorker`
 Nightly background service that aggregates the previous day's successful logins into `DailyLoginStats` to keep reporting queries fast.
