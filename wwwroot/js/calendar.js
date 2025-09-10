@@ -28,12 +28,12 @@ const calendar = new window.FullCalendar.Calendar(el, {
   expandRows: true,
   weekends: true,
 
-  // plugins come from global builds; just reference the names
+  // plugins come from global builds under the FullCalendar namespace
   plugins: [
-    window.dayGridPlugin,
-    window.timeGridPlugin,
-    window.listPlugin,
-    window.interactionPlugin
+    window.FullCalendar.DayGrid,
+    window.FullCalendar.TimeGrid,
+    window.FullCalendar.List,
+    window.FullCalendar.Interaction
   ],
 
   editable: canEdit,
