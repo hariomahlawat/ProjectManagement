@@ -16,6 +16,7 @@ namespace ProjectManagement.Data
         public DbSet<Celebration> Celebrations => Set<Celebration>();
         public DbSet<AuthEvent> AuthEvents => Set<AuthEvent>();
         public DbSet<DailyLoginStat> DailyLoginStats => Set<DailyLoginStat>();
+        public DbSet<OrgEvent> Events => Set<OrgEvent>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -65,6 +66,17 @@ namespace ProjectManagement.Data
             builder.Entity<DailyLoginStat>(e =>
             {
                 e.HasIndex(x => x.Date).IsUnique();
+            });
+
+            builder.Entity<OrgEvent>(e =>
+            {
+                e.HasIndex(x => new { x.StartUtc, x.EndUtc });
+                e.HasIndex(x => x.IsDeleted);
+                e.Property(x => x.Category).HasConversion<byte>().ValueGeneratedNever();
+                e.Property(x => x.Title).IsRequired().HasMaxLength(160);
+                e.Property(x => x.Location).HasMaxLength(160);
+                // Global filter to hide soft-deleted:
+                e.HasQueryFilter(x => !x.IsDeleted);
             });
         }
     }

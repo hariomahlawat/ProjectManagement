@@ -1,0 +1,17 @@
+/* Category chips */
+.pm-cal-chip { background-color: #eef2ff; border: 1px solid #c7d2fe; color: #3730a3; }
+
+/* Category color accents for event blocks */
+.fc-event.pm-cal-cat-visit      { border-left: 4px solid #0ea5e9; }
+.fc-event.pm-cal-cat-inspection { border-left: 4px solid #f97316; }
+.fc-event.pm-cal-cat-conference { border-left: 4px solid #8b5cf6; }
+.fc-event.pm-cal-cat-training   { border-left: 4px solid #22c55e; }
+.fc-event.pm-cal-cat-holiday    { border-left: 4px solid #ef4444; }
+.fc-event.pm-cal-cat-other      { border-left: 4px solid #64748b; }
+
+@media print {
+  .navbar, .pm-footer, #eventDetailsCanvas, #eventFormCanvas { display: none !important; }
+  #calendar { box-shadow: none; border: none; }
+  .fc .fc-toolbar { display: none; }
+}
+
