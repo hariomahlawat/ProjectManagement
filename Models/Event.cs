@@ -37,6 +37,13 @@ namespace ProjectManagement.Models
 
         public bool IsAllDay { get; set; }
 
+        [StringLength(256)]
+        public string? RecurrenceRule { get; set; }
+
+        public DateTimeOffset? RecurrenceUntilUtc { get; set; }
+
+        public string? RecurrenceExDates { get; set; }
+
         [StringLength(450)]
         public string? CreatedById { get; set; }
 

@@ -7,5 +7,7 @@ public record CalendarEventDto(
     string? Location,
     DateTimeOffset StartUtc,
     DateTimeOffset EndUtc,
-    bool IsAllDay
+    bool IsAllDay,
+    string? RecurrenceRule,
+    DateTimeOffset? RecurrenceUntilUtc
 );
