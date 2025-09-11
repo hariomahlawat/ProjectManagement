@@ -34,10 +34,10 @@ This module summarises the UI components exposed to end users.
   * A filter pill group toggles visibility by category without refetching.
   * Prev/next buttons and a dynamic title show the current range.
   * View buttons retain an active state and small screens automatically switch to a list view.
-  * Business hours highlight 08:00–18:00 on weekdays and an empty message appears when no events are visible.
+  * Business hours highlight 08:00–18:00 Monday–Saturday and Sundays get a light tint; an empty message appears when no events are visible.
   * Categories include Training, Holiday, TownHall, Hiring and Other; unknown strings from the client default to Other.
-  * Local times are respected when editing; all-day events use date-only inputs.
-  * Events include accessible titles and tooltips, and a toast with an Undo action appears after changes.
+  * Local times are respected when editing; all-day events use date-only inputs. Clicking an event pre-fills the form and shows a Delete option, while **New Event** clears any stale data.
+  * Saving or moving an event surfaces a toast with an Undo action, and non-editors see a read-only offcanvas with Markdown details and an **Add to My Tasks** button.
   * Print styles hide chrome so month grids can be printed cleanly.
   * FullCalendar's global bundle injects its own styles at runtime, so no separate CSS links are required.
   * `calendar.js` detects which FullCalendar plugins are present and only registers those, allowing either the single bundle or individual plugin globals. Load Bootstrap's bundle, then FullCalendar, then the page script.

@@ -28,6 +28,88 @@
     return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
   };
 
+  const toLocalDateInputValue = (d) => {
+    const dt = new Date(d);
+    return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+  };
+
+  // cache form elements
+  const form = document.getElementById('eventForm');
+  const titleBox = form ? form.querySelector('[name="title"]') : null;
+  const idBox = form ? form.querySelector('[name="id"]') : null;
+  const catBox = form ? form.querySelector('[name="category"]') : null;
+  const locBox = form ? form.querySelector('[name="location"]') : null;
+  const descBox = form ? form.querySelector('[name="description"]') : null;
+  const isAllDayBox = document.getElementById('toggleAllDay');
+  const timePickers = document.getElementById('timePickers');
+  const datePickers = document.getElementById('datePickers');
+  const btnDelete = document.getElementById('btnDeleteEvent');
+  function setAllDayUI(on) {
+    if (!timePickers || !datePickers) return;
+    if (on) { timePickers.classList.add('d-none'); datePickers.classList.remove('d-none'); }
+    else    { datePickers.classList.add('d-none'); timePickers.classList.remove('d-none'); }
+  }
+  isAllDayBox && isAllDayBox.addEventListener('change', () => setAllDayUI(isAllDayBox.checked));
+
+  // undo toast
+  const undoToastEl = document.getElementById('undoToast');
+  const undoMessageEl = document.getElementById('undoMessage');
+  const undoBtn = document.getElementById('btnUndo');
+  const undoToast = undoToastEl ? new bootstrap.Toast(undoToastEl, { autohide: true, delay: 5000 }) : null;
+  let undoHandler = null;
+  undoBtn && undoBtn.addEventListener('click', async () => {
+    if (undoHandler) await undoHandler();
+    undoToast && undoToast.hide();
+    calendar && calendar.refetchEvents();
+  });
+  function showUndo(msg, handler) {
+    if (!undoToast || !undoMessageEl) return;
+    undoHandler = handler;
+    undoMessageEl.textContent = msg;
+    undoToast.show();
+  }
+
+  async function saveMoveResize(info) {
+    const id = info.event.id;
+    const payload = {
+      title: info.event.title,
+      category: info.event.extendedProps.category,
+      location: info.event.extendedProps.location || null,
+      isAllDay: info.event.allDay,
+      startUtc: info.event.start.toISOString(),
+      endUtc: info.event.end.toISOString()
+      // do not send description here to avoid wiping it
+    };
+    const prev = info.oldEvent;
+    const undoPayload = {
+      title: prev.title,
+      category: prev.extendedProps.category,
+      location: prev.extendedProps.location || null,
+      isAllDay: prev.allDay,
+      startUtc: prev.start.toISOString(),
+      endUtc: prev.end.toISOString()
+    };
+    const res = await fetch(`/calendar/events/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+      let msg = await res.text();
+      try { const j = JSON.parse(msg); msg = j.detail || j.title || j; } catch {}
+      info.revert();
+      alert(`Update failed: ${msg || res.status}`);
+    } else {
+      showUndo('Event updated.', async () => {
+        await fetch(`/calendar/events/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(undoPayload)
+        });
+      });
+    }
+  }
+
   const opts = {
     initialView: 'dayGridMonth',
     headerToolbar: false,
@@ -38,7 +120,7 @@
     editable: canEdit,
     selectable: canEdit,
     businessHours: {
-      daysOfWeek: [1, 2, 3, 4, 5], // Mon-Fri
+      daysOfWeek: [1, 2, 3, 4, 5, 6], // Mon–Sat
       startTime: '08:00',
       endTime: '18:00'
     },
@@ -56,13 +138,13 @@
       if (activeCategory && info.event.extendedProps.category !== activeCategory) {
         info.el.style.display = 'none';
       }
-    },
-    eventClick: async (_arg) => {
-      // hook up offcanvas details here if you want
-    },
-    eventDrop: (info) => saveMoveResize(info),
-    eventResize: (info) => saveMoveResize(info)
+    }
   };
+
+  if (canEdit) {
+    opts.eventDrop = (info) => saveMoveResize(info);
+    opts.eventResize = (info) => saveMoveResize(info);
+  }
 
   // Only add `plugins` if we actually detected any.
   if (pluginList.length) opts.plugins = pluginList;
@@ -151,15 +233,48 @@
 
   // Offcanvas form handling (create/edit) — only if editors
   if (canEdit) {
-    const form = document.getElementById('eventForm');
-    const toggleAllDay = document.getElementById('toggleAllDay');
-    const timePickers = document.getElementById('timePickers');
-    const datePickers = document.getElementById('datePickers');
-    const setAllDayUI = (on) => {
-      if (on) { timePickers.classList.add('d-none'); datePickers.classList.remove('d-none'); }
-      else    { datePickers.classList.add('d-none'); timePickers.classList.remove('d-none'); }
-    };
-    toggleAllDay && toggleAllDay.addEventListener('change', () => setAllDayUI(toggleAllDay.checked));
+    let editingOriginal = null;
+
+    calendar.setOption('eventClick', async (arg) => {
+      if (!form) return;
+      const ev = arg.event;
+      const res = await fetch(`/calendar/events/${ev.id}`);
+      if (!res.ok) { console.error('Failed to load event'); return; }
+      const data = await res.json();
+      editingOriginal = data;
+      idBox.value = data.id;
+      titleBox.value = data.title || '';
+      catBox.value = data.category || 'Other';
+      locBox.value = data.location || '';
+      descBox.value = data.rawDescription || '';
+      isAllDayBox.checked = !!data.allDay;
+      setAllDayUI(isAllDayBox.checked);
+      if (isAllDayBox.checked) {
+        const start = new Date(data.start);
+        const endEx = new Date(data.end); endEx.setDate(endEx.getDate() - 1);
+        form.querySelector('[name="startDate"]').value = toLocalDateInputValue(start);
+        form.querySelector('[name="endDate"]').value = toLocalDateInputValue(endEx);
+      } else {
+        form.querySelector('[name="start"]').value = toLocalInputValue(data.start);
+        form.querySelector('[name="end"]').value = toLocalInputValue(data.end);
+      }
+      document.getElementById('eventFormLabel').textContent = 'Edit event';
+      btnDelete && btnDelete.classList.remove('d-none');
+      bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('eventFormCanvas')).show();
+    });
+
+    const btnNew = document.getElementById('btnNewEvent');
+    btnNew && btnNew.addEventListener('click', () => {
+      if (!form) return;
+      form.reset();
+      editingOriginal = null;
+      idBox.value = '';
+      isAllDayBox.checked = false;
+      setAllDayUI(false);
+      btnDelete && btnDelete.classList.add('d-none');
+      const lbl = document.getElementById('eventFormLabel');
+      lbl && (lbl.textContent = 'New event');
+    });
 
     form && form.addEventListener('submit', async (ev) => {
       ev.preventDefault();
@@ -194,6 +309,19 @@
       const url = id ? `/calendar/events/${id}` : '/calendar/events';
       const method = id ? 'PUT' : 'POST';
 
+      let undoPayload = null;
+      if (id && editingOriginal) {
+        undoPayload = {
+          title: editingOriginal.title,
+          description: editingOriginal.rawDescription,
+          category: editingOriginal.category,
+          location: editingOriginal.location,
+          isAllDay: editingOriginal.allDay,
+          startUtc: new Date(editingOriginal.start).toISOString(),
+          endUtc: new Date(editingOriginal.end).toISOString()
+        };
+      }
+
       const r = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -206,36 +334,82 @@
         return;
       }
 
-      // reset + close
+      let createdId = null;
+      if (!id) {
+        const j = await r.json();
+        createdId = j.id;
+      }
+
       form.reset(); setAllDayUI(false);
+      btnDelete && btnDelete.classList.add('d-none');
       const canvasEl = document.getElementById('eventFormCanvas');
       const canvas = canvasEl ? bootstrap.Offcanvas.getOrCreateInstance(canvasEl) : null;
       canvas && canvas.hide();
+      editingOriginal = null;
       calendar.refetchEvents();
+
+      if (id && undoPayload) {
+        showUndo('Event saved.', async () => {
+          await fetch(`/calendar/events/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(undoPayload)
+          });
+        });
+      } else if (createdId) {
+        showUndo('Event created.', async () => {
+          await fetch(`/calendar/events/${createdId}`, { method: 'DELETE' });
+        });
+      }
     });
 
-    async function saveMoveResize(info) {
-      const id = info.event.id;
-      const payload = {
-        title: info.event.title,
-        category: info.event.extendedProps.category,
-        location: info.event.extendedProps.location || null,
-        isAllDay: info.event.allDay,
-        startUtc: info.event.start.toISOString(),
-        endUtc: info.event.end.toISOString()
-        // do not send description here to avoid wiping it
-      };
-      const res = await fetch(`/calendar/events/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!res.ok) {
-        let msg = await res.text();
-        try { const j = JSON.parse(msg); msg = j.detail || j.title || j; } catch {}
-        info.revert();
-        alert(`Update failed: ${msg || res.status}`);
+    btnDelete && btnDelete.addEventListener('click', async () => {
+      const id = idBox.value;
+      if (!id) return;
+      if (!confirm('Delete this event?')) return;
+      const r = await fetch(`/calendar/events/${id}`, { method: 'DELETE' });
+      if (!r.ok) { alert('Delete failed'); return; }
+      bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('eventFormCanvas')).hide();
+      form.reset(); setAllDayUI(false);
+      btnDelete.classList.add('d-none');
+      calendar.refetchEvents();
+    });
+  } else {
+    // Read-only event details for non-editors
+    const viewCanvas = document.getElementById('eventDetailsCanvas');
+    const viewTitle = document.getElementById('eventDetailsLabel');
+    const viewTime = document.getElementById('eventDetailsTime');
+    const viewCategory = document.getElementById('eventDetailsCategory');
+    const viewLocation = document.getElementById('eventDetailsLocation');
+    const viewDescription = document.getElementById('eventDetailsDescription');
+    const btnAddToTasks = document.getElementById('btnAddToTasks');
+    let viewEventId = null;
+
+    calendar.setOption('eventClick', async (arg) => {
+      const res = await fetch(`/calendar/events/${arg.event.id}`);
+      if (!res.ok) { console.error('Failed to load event'); return; }
+      const data = await res.json();
+      viewEventId = data.id;
+      viewTitle.textContent = data.title;
+      const start = new Date(data.start);
+      const end = new Date(data.end);
+      if (data.allDay) {
+        const endInc = new Date(end); endInc.setDate(endInc.getDate() - 1);
+        viewTime.textContent = `${start.toLocaleDateString()} – ${endInc.toLocaleDateString()}`;
+      } else {
+        viewTime.textContent = `${start.toLocaleString()} – ${end.toLocaleString()}`;
       }
-    }
+      viewCategory.textContent = data.category;
+      viewLocation.textContent = data.location || '';
+      viewDescription.innerHTML = data.description || '';
+      bootstrap.Offcanvas.getOrCreateInstance(viewCanvas).show();
+    });
+
+    btnAddToTasks && btnAddToTasks.addEventListener('click', async () => {
+      if (!viewEventId) return;
+      const r = await fetch(`/calendar/events/${viewEventId}/task`, { method: 'POST' });
+      if (!r.ok) { alert('Failed to add to tasks'); return; }
+      bootstrap.Offcanvas.getOrCreateInstance(viewCanvas).hide();
+    });
   }
 })();
