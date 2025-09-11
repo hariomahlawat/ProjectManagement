@@ -24,6 +24,7 @@ using ProjectManagement.Contracts;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
+using ProjectManagement.Utilities;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -267,7 +268,7 @@ eventsApi.MapGet("/{id:guid}", async (Guid id, ApplicationDbContext db) =>
         start = ev.StartUtc,
         end = ev.EndUtc,
         allDay = ev.IsAllDay,
-        category = ev.Category,
+        category = ev.Category.ToString(),
         location = ev.Location,
         description = html,
         rawDescription = ev.Description,
@@ -284,8 +285,7 @@ eventsApi.MapPost("", async (ApplicationDbContext db,
     if (dto.EndUtc <= dto.StartUtc)
         return Results.BadRequest("EndUtc must be after StartUtc.");
 
-    if (!Enum.TryParse<EventCategory>(dto.Category, true, out var cat))
-        cat = EventCategory.Other;
+    var cat = CategoryParser.ParseOrOther(dto.Category);
 
     var uid = users.GetUserId(ctx.User) ?? "";
 
@@ -322,8 +322,7 @@ eventsApi.MapPut("/{id:guid}", async (ApplicationDbContext db,
     if (ev is null) return Results.NotFound();
     if (dto.EndUtc <= dto.StartUtc) return Results.BadRequest("EndUtc must be after StartUtc.");
 
-    if (!Enum.TryParse<EventCategory>(dto.Category, true, out var cat))
-        cat = EventCategory.Other;
+    var cat = CategoryParser.ParseOrOther(dto.Category);
 
     var uid = users.GetUserId(ctx.User) ?? "";
 
