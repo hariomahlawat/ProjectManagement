@@ -1,12 +1,20 @@
 (function () {
-  // globals provided by index.global.min.js
-  const Calendar = window.FullCalendar && window.FullCalendar.Calendar;
+  // FullCalendar globals from index.global.min.js (bundle or individual files)
+  const FC = window.FullCalendar;
+  const Calendar = FC && FC.Calendar;
   if (!Calendar) { console.error('FullCalendar global bundle missing'); return; }
 
-  const dayGridPlugin     = window.FullCalendar.dayGrid;
-  const timeGridPlugin    = window.FullCalendar.timeGrid;
-  const listPlugin        = window.FullCalendar.list;
-  const interactionPlugin = window.FullCalendar.interaction;
+  // Build a plugin list that only includes plugins that actually exist
+  const pluginList = [];
+  // Prefer FC.<plugin>; fall back to legacy window.FullCalendar<Plugin> globals
+  const dg = (FC && FC.dayGrid) || window.FullCalendarDayGrid;
+  const tg = (FC && FC.timeGrid) || window.FullCalendarTimeGrid;
+  const ls = (FC && FC.list)     || window.FullCalendarList;
+  const ia = (FC && FC.interaction) || window.FullCalendarInteraction;
+  if (dg) pluginList.push(dg);
+  if (tg) pluginList.push(tg);
+  if (ls) pluginList.push(ls);
+  if (ia) pluginList.push(ia);
 
   const calendarEl = document.getElementById('calendar');
   if (!calendarEl) return;
@@ -20,8 +28,7 @@
     return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
   };
 
-  const calendar = new Calendar(calendarEl, {
-    plugins: [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin],
+  const opts = {
     initialView: 'dayGridMonth',
     headerToolbar: false,
     firstDay: 1,
@@ -41,18 +48,21 @@
       const loc = info.event.extendedProps.location;
       info.el.title = info.event.title + (loc ? (' — ' + loc) : '');
       info.el.setAttribute('aria-label', info.el.title);
-      // client-side category filter
       if (activeCategory && info.event.extendedProps.category !== activeCategory) {
         info.el.style.display = 'none';
       }
     },
-    eventClick: async (arg) => {
-      // If you have a details offcanvas, open it here; omitted for brevity.
+    eventClick: async (_arg) => {
+      // hook up offcanvas details here if you want
     },
     eventDrop: (info) => saveMoveResize(info),
     eventResize: (info) => saveMoveResize(info)
-  });
+  };
 
+  // Only add `plugins` if we actually detected any.
+  if (pluginList.length) opts.plugins = pluginList;
+
+  const calendar = new Calendar(calendarEl, opts);
   calendar.render();
 
   // view switches
