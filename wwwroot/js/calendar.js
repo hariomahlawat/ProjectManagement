@@ -1,8 +1,8 @@
-import { Calendar } from '../lib/fullcalendar/core/index.global.min.js';
-import dayGridPlugin from '../lib/fullcalendar/daygrid/index.global.min.js';
-import timeGridPlugin from '../lib/fullcalendar/timegrid/index.global.min.js';
-import listPlugin from '../lib/fullcalendar/list/index.global.min.js';
-import interactionPlugin from '../lib/fullcalendar/interaction/index.global.min.js';
+import { Calendar } from '../lib/fullcalendar/core/index.js';
+import dayGridPlugin from '../lib/fullcalendar/daygrid/index.js';
+import timeGridPlugin from '../lib/fullcalendar/timegrid/index.js';
+import listPlugin from '../lib/fullcalendar/list/index.js';
+import interactionPlugin from '../lib/fullcalendar/interaction/index.js';
 
 const calendarEl = document.getElementById('calendar');
 const canEdit = calendarEl.dataset.canEdit === 'True';
@@ -10,6 +10,9 @@ const canEdit = calendarEl.dataset.canEdit === 'True';
 const calendar = new Calendar(calendarEl, {
     plugins: [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin],
     initialView: 'dayGridMonth',
+    slotMinTime: '08:00:00',
+    slotMaxTime: '18:00:00',
+    scrollTime: '08:00:00',
     editable: canEdit,
     eventSources: [{
         url: '/calendar/events',
@@ -49,6 +52,10 @@ const calendar = new Calendar(calendarEl, {
     },
     eventResize: async function(info) {
         await saveMove(info.event);
+    },
+    eventDidMount: function(info) {
+        const cat = (info.event.extendedProps.category || '').toString().toLowerCase();
+        info.el.classList.add('pm-cat-' + cat);
     }
 });
 calendar.render();
@@ -90,14 +97,34 @@ function openForm(data) {
 document.getElementById('eventFormElement').addEventListener('submit', async e => {
     e.preventDefault();
     const form = e.target;
+    const isAllDay = form.elements['isAllDay'].checked;
+    const startLocal = form.elements['start'].value;
+    const endLocal = form.elements['end'].value;
+
+    let startUtc, endUtc;
+    if (isAllDay) {
+        const startDate = new Date(startLocal);
+        const endDate = new Date(endLocal);
+        const s = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 0, 0, 0);
+        const e = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 0, 0, 0);
+        e.setDate(e.getDate() + 1);
+        startUtc = s.toISOString();
+        endUtc = e.toISOString();
+    } else {
+        startUtc = new Date(startLocal).toISOString();
+        endUtc = new Date(endLocal).toISOString();
+    }
+
+    if (new Date(endUtc) <= new Date(startUtc)) { alert('End must be after start.'); return; }
+
     const dto = {
-        title: form.elements['title'].value,
+        title: form.elements['title'].value.trim(),
         category: form.elements['category'].value,
-        location: form.elements['location'].value,
-        isAllDay: form.elements['isAllDay'].checked,
-        startUtc: form.elements['start'].value,
-        endUtc: form.elements['end'].value,
-        description: form.elements['description'].value
+        location: form.elements['location'].value || null,
+        isAllDay,
+        startUtc,
+        endUtc,
+        description: form.elements['description'].value ?? ''
     };
     const id = form.dataset.id;
     const method = id ? 'PUT' : 'POST';
@@ -120,8 +147,7 @@ async function saveMove(event) {
         location: event.extendedProps.location,
         isAllDay: event.allDay,
         startUtc: event.start.toISOString(),
-        endUtc: event.end.toISOString(),
-        description: event.extendedProps.description
+        endUtc: event.end.toISOString()
     };
     await fetch(`/calendar/events/${event.id}`, {
         method: 'PUT',

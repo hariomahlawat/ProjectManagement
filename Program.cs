@@ -265,7 +265,7 @@ eventsApi.MapPost("", async (EventDto dto, ApplicationDbContext db, IClock clock
     db.Events.Add(ev);
     await db.SaveChangesAsync();
     return Results.Ok(new { id = ev.Id });
-}).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HOD" });
+}).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HoD" });
 
 eventsApi.MapPut("/{id:guid}", async (Guid id, EventDto dto, ApplicationDbContext db, IClock clock, UserManager<ApplicationUser> users, ClaimsPrincipal user) =>
 {
@@ -274,7 +274,8 @@ eventsApi.MapPut("/{id:guid}", async (Guid id, EventDto dto, ApplicationDbContex
     if (ev == null) return Results.NotFound();
     var userId = users.GetUserId(user);
     ev.Title = dto.Title;
-    ev.Description = dto.Description;
+    if (dto.Description is not null)
+        ev.Description = dto.Description;
     ev.Category = dto.Category;
     ev.Location = dto.Location;
     ev.StartUtc = dto.StartUtc;
@@ -284,7 +285,7 @@ eventsApi.MapPut("/{id:guid}", async (Guid id, EventDto dto, ApplicationDbContex
     ev.UpdatedAt = clock.UtcNow;
     await db.SaveChangesAsync();
     return Results.Ok();
-}).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HOD" });
+}).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HoD" });
 
 eventsApi.MapDelete("/{id:guid}", async (Guid id, ApplicationDbContext db, IClock clock, UserManager<ApplicationUser> users, ClaimsPrincipal user) =>
 {
@@ -295,7 +296,7 @@ eventsApi.MapDelete("/{id:guid}", async (Guid id, ApplicationDbContext db, ICloc
     ev.UpdatedById = users.GetUserId(user);
     await db.SaveChangesAsync();
     return Results.Ok();
-}).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HOD" });
+}).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HoD" });
 
 eventsApi.MapPost("/{id:guid}/task", async (Guid id, ApplicationDbContext db, ITodoService todos, UserManager<ApplicationUser> users, ClaimsPrincipal user) =>
 {

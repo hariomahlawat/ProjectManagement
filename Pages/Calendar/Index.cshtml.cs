@@ -10,7 +10,7 @@ namespace ProjectManagement.Pages.Calendar
 
         public void OnGet()
         {
-            CanEdit = User.IsInRole("Admin") || User.IsInRole("TA") || User.IsInRole("HOD");
+            CanEdit = User.IsInRole("Admin") || User.IsInRole("TA") || User.IsInRole("HoD");
         }
     }
 }

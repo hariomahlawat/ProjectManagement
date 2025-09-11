@@ -1,0 +1,6 @@
+/* left-color accents */
+.fc .fc-event.pm-cat-training  { border-left: 4px solid #22c55e; }
+.fc .fc-event.pm-cat-holiday   { border-left: 4px solid #ef4444; }
+.fc .fc-event.pm-cat-townhall  { border-left: 4px solid #0ea5e9; }
+.fc .fc-event.pm-cat-hiring    { border-left: 4px solid #8b5cf6; }
+.fc .fc-event.pm-cat-other     { border-left: 4px solid #64748b; }
