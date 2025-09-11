@@ -76,7 +76,7 @@ namespace ProjectManagement.Tests
             {
                 Id = Guid.NewGuid(),
                 Title = "A",
-                Category = ProjectManagement.Models.EventCategory.Training,
+                Category = ProjectManagement.Models.EventCategory.Visit,
                 StartUtc = DateTime.UtcNow,
                 EndUtc = DateTime.UtcNow.AddHours(1),
                 CreatedAt = DateTime.UtcNow,
@@ -86,7 +86,7 @@ namespace ProjectManagement.Tests
             db.SaveChanges();
 
             var hod = CreateClient("HoD");
-            var put = await hod.PutAsJsonAsync($"/calendar/events/{ev.Id}", new { title = "B", category = "Training", startUtc = DateTime.UtcNow, endUtc = DateTime.UtcNow.AddHours(1), isAllDay = false });
+            var put = await hod.PutAsJsonAsync($"/calendar/events/{ev.Id}", new { title = "B", category = "Visit", startUtc = DateTime.UtcNow, endUtc = DateTime.UtcNow.AddHours(1), isAllDay = false });
             Assert.Equal(System.Net.HttpStatusCode.OK, put.StatusCode);
             var del = await hod.DeleteAsync($"/calendar/events/{ev.Id}");
             Assert.Equal(System.Net.HttpStatusCode.OK, del.StatusCode);

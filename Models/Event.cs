@@ -4,15 +4,6 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace ProjectManagement.Models
 {
-    public enum EventCategory : byte
-    {
-        Training = 0,
-        Holiday = 1,
-        TownHall = 2,
-        Hiring = 3,
-        Other = 4
-    }
-
     public class Event
     {
         [Key]

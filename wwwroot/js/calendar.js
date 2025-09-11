@@ -194,12 +194,17 @@
       failure: (e) => { console.error('Events feed failed', e); alert('Couldn\u2019t load events. See console/Network.'); }
     }],
     eventDidMount(info) {
-      const cat = (info.event.extendedProps.category || '').toString().toLowerCase();
-      info.el.classList.add('pm-cat-' + cat);
+      const cat = (info.event.extendedProps.category || '').toString();
+      const key = ({ visit:'Visit', insp:'Insp', inspection:'Insp', conference:'Conference' }[
+                     cat.toLowerCase() ]) || (cat || 'Other');
+      info.el.classList.add('pm-cat-' + key.toLowerCase());
       const loc = info.event.extendedProps.location;
-      info.el.title = info.event.title + (loc ? (' — ' + loc) : '');
+      info.el.setAttribute('title',
+        info.event.title + (loc ? ' — ' + loc : '')
+      );
       info.el.setAttribute('aria-label', info.el.title);
-      if (activeCategory && info.event.extendedProps.category !== activeCategory) {
+
+      if (activeCategory && key !== activeCategory) {
         info.el.style.display = 'none';
       }
       if (info.event.extendedProps.isRecurring) {

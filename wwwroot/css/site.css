@@ -120,13 +120,6 @@ body {
         border-color: var(--pm-primary-hover);
     }
 
-/* Calendar category colors */
-.fc-event.cat-Training { background-color: #0d6efd; border-color: #0d6efd; }
-.fc-event.cat-Holiday { background-color: #198754; border-color: #198754; }
-.fc-event.cat-TownHall { background-color: #6f42c1; border-color: #6f42c1; }
-.fc-event.cat-Hiring { background-color: #d63384; border-color: #d63384; }
-.fc-event.cat-Other { background-color: #6c757d; border-color: #6c757d; }
-
 /* ---------- Password visibility toggle ---------- */
 .password-container {
     position: relative;

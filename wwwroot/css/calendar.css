@@ -41,12 +41,70 @@
 /* Active view button */
 [data-view].active { color: #fff; }
 
-/* Category accents */
-.fc-event.pm-cat-training  { border-left: 4px solid #22c55e; }
-.fc-event.pm-cat-holiday   { border-left: 4px solid #ef4444; }
-.fc-event.pm-cat-townhall  { border-left: 4px solid #0ea5e9; }
-.fc-event.pm-cat-hiring    { border-left: 4px solid #8b5cf6; }
-.fc-event.pm-cat-other     { border-left: 4px solid #64748b; }
+/* Shared event styling */
+.fc .fc-event {
+  border: 1px solid transparent;
+  border-left-width: 4px;
+  border-radius: .5rem;
+  padding: .125rem .35rem;
+}
+
+/* VISIT — sky */
+.fc-event.pm-cat-visit {
+  --pm-bg: #e0f2fe;
+  --pm-fg: #0c4a6e;
+  --pm-br: #0ea5e9;
+  background: var(--pm-bg);
+  color: var(--pm-fg);
+  border-color: var(--pm-br);
+}
+
+/* INSP — amber */
+.fc-event.pm-cat-insp {
+  --pm-bg: #fef3c7;
+  --pm-fg: #7c2d12;
+  --pm-br: #f59e0b;
+  background: var(--pm-bg);
+  color: var(--pm-fg);
+  border-color: var(--pm-br);
+}
+
+/* CONFERENCE — violet */
+.fc-event.pm-cat-conference {
+  --pm-bg: #ede9fe;
+  --pm-fg: #4c1d95;
+  --pm-br: #8b5cf6;
+  background: var(--pm-bg);
+  color: var(--pm-fg);
+  border-color: var(--pm-br);
+}
+
+/* OTHER — slate */
+.fc-event.pm-cat-other {
+  --pm-bg: #f1f5f9;
+  --pm-fg: #0f172a;
+  --pm-br: #94a3b8;
+  background: var(--pm-bg);
+  color: var(--pm-fg);
+  border-color: var(--pm-br);
+}
+
+/* Improve contrast inside List view rows */
+.fc-list-event-title, .fc-list-event-time, .fc-list-event-graphic {
+  color: inherit;
+}
+
+/* Focus/hover cue */
+.fc .fc-event:hover, .fc .fc-event:focus {
+  box-shadow: 0 0 0 2px var(--pm-br, #94a3b8);
+  outline: none;
+}
+
+/* Optional: small dot in filter pills to match colors */
+#categoryFilters .btn[data-cat="Visit"]::before      { content:"● "; color:#0ea5e9; }
+#categoryFilters .btn[data-cat="Insp"]::before       { content:"● "; color:#f59e0b; }
+#categoryFilters .btn[data-cat="Conference"]::before { content:"● "; color:#8b5cf6; }
+#categoryFilters .btn[data-cat="Other"]::before      { content:"● "; color:#94a3b8; }
 
 .fc-event.pm-recurring::after {
   content: "\21BB";
