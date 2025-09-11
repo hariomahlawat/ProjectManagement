@@ -213,37 +213,45 @@ app.UseAuthorization();
 // Calendar API endpoints
 var eventsApi = app.MapGroup("/calendar/events");
 
-eventsApi.MapGet("", async (ApplicationDbContext db, DateTimeOffset start, DateTimeOffset end) =>
+eventsApi.MapGet("", async (ApplicationDbContext db,
+                             [FromQuery(Name = "start")] DateTimeOffset start,
+                             [FromQuery(Name = "end")]   DateTimeOffset end) =>
 {
-    if ((end - start).TotalDays > 400) end = start.AddDays(400);
+    // Guard against huge windows
+    if ((end - start).TotalDays > 400)
+        end = start.AddDays(400);
 
     var rows = await db.Events
         .Where(e => !e.IsDeleted &&
-            ((e.RecurrenceRule != null && (e.RecurrenceUntilUtc == null || e.RecurrenceUntilUtc > start)) ||
-             (e.RecurrenceRule == null && e.StartUtc < end && e.EndUtc > start)))
+               (e.RecurrenceRule != null || (e.StartUtc < end && e.EndUtc > start)))
         .ToListAsync();
 
     var list = new List<object>();
     foreach (var ev in rows)
     {
-        foreach (var occ in RecurrenceExpander.Expand(ev, start, end))
+        IEnumerable<RecurrenceExpander.Occ> occs;
+        try { occs = RecurrenceExpander.Expand(ev, start, end); }
+        catch { occs = Array.Empty<RecurrenceExpander.Occ>(); }
+
+        foreach (var o in occs)
         {
             list.Add(new
             {
-                id = occ.InstanceId,
+                id = o.InstanceId,
                 seriesId = ev.Id,
                 title = ev.Title,
-                start = occ.Start,
-                end = occ.End,
+                start = o.Start,
+                end   = o.End,
                 allDay = ev.IsAllDay,
                 category = ev.Category.ToString(),
                 location = ev.Location,
-                isRecurring = ev.RecurrenceRule != null
+                isRecurring = !string.IsNullOrWhiteSpace(ev.RecurrenceRule)
             });
         }
     }
 
-    return Results.Ok(list);
+    // sort by start
+    return Results.Ok(list.OrderBy(x => ((DateTimeOffset)x.GetType().GetProperty("start")!.GetValue(x)!)));
 }).RequireAuthorization();
 
 eventsApi.MapGet("/{id:guid}", async (Guid id, ApplicationDbContext db) =>

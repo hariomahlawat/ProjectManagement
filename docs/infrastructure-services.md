@@ -27,7 +27,7 @@ Concrete implementation backed by `UserManager<ApplicationUser>` and `RoleManage
 * `Services/SmtpEmailSender.cs` – sends HTML email via SMTP using configuration values (`Email:Smtp:Host`, `Port`, `Username`, `Password`, `Email:From`).
 
 ### `Services/ITodoService` and `TodoService`
-`ITodoService` abstracts operations on personal To-Do items such as creation, completion, pinning, snoozing, reordering and bulk operations. `TodoService` implements the interface using `ApplicationDbContext` for persistence and `IAuditService` for logging. Time calculations are normalised to the `Asia/Kolkata` time zone to ensure consistent due date handling; date-only inputs are coerced to 23:59:59 IST before conversion to UTC. PostgreSQL's `xmin` system column is used to detect concurrent edits.
+`ITodoService` abstracts operations on personal To-Do items such as creation, completion, pinning, snoozing, reordering and bulk operations. `TodoService` implements the interface using `ApplicationDbContext` for persistence and `IAuditService` for logging. Time calculations are normalised to Indian Standard Time using `TimeZoneHelper` (backed by `TimeZoneConverter`) to ensure consistent due date handling; date-only inputs are coerced to 23:59:59 IST before conversion to UTC. PostgreSQL's `xmin` system column is used to detect concurrent edits.
 
 ### `Services/TodoPurgeWorker`
 Background worker that permanently deletes soft-deleted to-do items after a retention period. The retention window is configured via `Todo:RetentionDays` in `appsettings.json` (defaults to 7 days) and the worker safely handles cancellation tokens.

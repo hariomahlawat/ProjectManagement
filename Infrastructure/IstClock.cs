@@ -1,12 +1,11 @@
 using System;
-using System.Runtime.InteropServices;
+using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Infrastructure
 {
     public static class IstClock
     {
-        private static readonly TimeZoneInfo _ist = TimeZoneInfo.FindSystemTimeZoneById(
-            RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "India Standard Time" : "Asia/Kolkata");
+        private static readonly TimeZoneInfo _ist = TimeZoneHelper.GetIst();
 
         public static TimeZoneInfo TimeZone => _ist;
 
