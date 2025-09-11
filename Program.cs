@@ -218,7 +218,9 @@ eventsApi.MapGet("", async (ApplicationDbContext db, DateTimeOffset start, DateT
     if ((end - start).TotalDays > 400) end = start.AddDays(400);
 
     var rows = await db.Events
-        .Where(e => !e.IsDeleted && (e.RecurrenceRule != null || (e.StartUtc < end && e.EndUtc > start)))
+        .Where(e => !e.IsDeleted &&
+            ((e.RecurrenceRule != null && (e.RecurrenceUntilUtc == null || e.RecurrenceUntilUtc > start)) ||
+             (e.RecurrenceRule == null && e.StartUtc < end && e.EndUtc > start)))
         .ToListAsync();
 
     var list = new List<object>();
