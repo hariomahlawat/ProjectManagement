@@ -29,6 +29,10 @@
     {
       "library": "@fullcalendar/core@6.1.15",
       "destination": "wwwroot/lib/fullcalendar/core/"
+    },
+    {
+      "library": "fullcalendar@6.1.19",
+      "destination": "wwwroot/lib/fullcalendar/"
     }
   ]
 }
