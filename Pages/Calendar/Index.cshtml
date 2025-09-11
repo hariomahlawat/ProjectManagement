@@ -4,111 +4,119 @@
     ViewData["Title"] = "Calendar";
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-        <button class="btn btn-sm btn-outline-primary me-1" data-view="dayGridMonth">Month</button>
-        <button class="btn btn-sm btn-outline-primary me-1" data-view="timeGridWeek">Week</button>
-        <button class="btn btn-sm btn-outline-primary" data-view="listMonth">List</button>
-        <button class="btn btn-sm btn-secondary ms-2" id="todayBtn">Today</button>
-    </div>
-    @if (Model.CanEdit)
-    {
-        <button class="btn btn-sm btn-success" id="newEventBtn">New Event</button>
-    }
-</div>
-
-<div class="btn-group btn-group-sm mb-3" id="catFilters" role="group">
-    <button type="button" class="btn btn-outline-secondary active" data-cat="" aria-pressed="true">All</button>
-    <button type="button" class="btn btn-outline-secondary" data-cat="Training" aria-pressed="false">Training</button>
-    <button type="button" class="btn btn-outline-secondary" data-cat="Holiday" aria-pressed="false">Holiday</button>
-    <button type="button" class="btn btn-outline-secondary" data-cat="TownHall" aria-pressed="false">TownHall</button>
-    <button type="button" class="btn btn-outline-secondary" data-cat="Hiring" aria-pressed="false">Hiring</button>
-    <button type="button" class="btn btn-outline-secondary" data-cat="Other" aria-pressed="false">Other</button>
-</div>
-
-<div id="calendar" data-can-edit="@Model.CanEdit"></div>
-
-<div class="offcanvas offcanvas-end" tabindex="-1" id="eventDetails">
-    <div class="offcanvas-header">
-        <h5 id="detailTitle"></h5>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-    </div>
-    <div class="offcanvas-body">
-        <div id="detailTime" class="mb-2"></div>
-        <div id="detailLocation" class="mb-2"></div>
-        <div id="detailDescription" class="mb-2"></div>
-        <div class="mt-3">
-            <button class="btn btn-sm btn-primary" id="addTaskBtn">Add to My Tasks</button>
-            @if (Model.CanEdit)
-            {
-                <button class="btn btn-sm btn-secondary" id="editBtn">Edit</button>
-                <button class="btn btn-sm btn-danger" id="deleteBtn">Delete</button>
-            }
-        </div>
-    </div>
-</div>
-
-<div class="offcanvas offcanvas-end" tabindex="-1" id="eventForm">
-    <div class="offcanvas-header">
-        <h5 id="formHeading">New Event</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-    </div>
-    <div class="offcanvas-body">
-        <form id="eventFormElement">
-            <div class="mb-2">
-                <label class="form-label">Title</label>
-                <input class="form-control" name="title" required maxlength="160" />
-            </div>
-            <div class="mb-2">
-                <label class="form-label">Category</label>
-                <select class="form-select" name="category">
-                    <option value="Training">Training</option>
-                    <option value="Holiday">Holiday</option>
-                    <option value="TownHall">TownHall</option>
-                    <option value="Hiring">Hiring</option>
-                    <option value="Other">Other</option>
-                </select>
-            </div>
-            <div class="mb-2">
-                <label class="form-label">Location</label>
-                <input class="form-control" name="location" maxlength="160" />
-            </div>
-            <div class="form-check form-switch mb-2">
-                <input class="form-check-input" type="checkbox" id="allDaySwitch" name="isAllDay">
-                <label class="form-check-label" for="allDaySwitch">All day</label>
-            </div>
-            <div class="mb-2 dt-field">
-                <label class="form-label">Start</label>
-                <input class="form-control" type="datetime-local" name="start" required />
-            </div>
-            <div class="mb-2 d-field d-none">
-                <label class="form-label">Start date</label>
-                <input class="form-control" type="date" name="startDate" disabled />
-            </div>
-            <div class="mb-2 dt-field">
-                <label class="form-label">End</label>
-                <input class="form-control" type="datetime-local" name="end" required />
-            </div>
-            <div class="mb-2 d-field d-none">
-                <label class="form-label">End date</label>
-                <input class="form-control" type="date" name="endDate" disabled />
-            </div>
-            <div class="mb-2">
-                <label class="form-label">Description (Markdown)</label>
-                <textarea class="form-control" name="description" rows="4"></textarea>
-            </div>
-            <button type="submit" class="btn btn-primary">Save</button>
-        </form>
-    </div>
-</div>
-
-<div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer"></div>
-
 @section Styles {
-  <link rel="stylesheet" href="~/css/calendar.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/calendar.css" asp-append-version="true" />
+}
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-secondary btn-sm" data-view="dayGridMonth">Month</button>
+    <button class="btn btn-outline-secondary btn-sm" data-view="timeGridWeek">Week</button>
+    <button class="btn btn-outline-secondary btn-sm" data-view="listMonth">List</button>
+    <button class="btn btn-outline-secondary btn-sm" id="btnToday">Today</button>
+  </div>
+
+  @if (Model.CanEdit)
+  {
+    <button class="btn btn-success btn-sm"
+            id="btnNewEvent"
+            type="button"
+            data-bs-toggle="offcanvas"
+            data-bs-target="#eventFormCanvas"
+            aria-controls="eventFormCanvas">New Event</button>
+  }
+</div>
+
+<div class="btn-group btn-group-sm mb-3" id="categoryFilters" role="group" aria-label="Category filter">
+  <button class="btn btn-outline-secondary active" data-cat="">All</button>
+  <button class="btn btn-outline-secondary" data-cat="Training">Training</button>
+  <button class="btn btn-outline-secondary" data-cat="Holiday">Holiday</button>
+  <button class="btn btn-outline-secondary" data-cat="TownHall">TownHall</button>
+  <button class="btn btn-outline-secondary" data-cat="Hiring">Hiring</button>
+  <button class="btn btn-outline-secondary" data-cat="Other">Other</button>
+</div>
+
+<div id="calendar"
+     class="shadow-sm border rounded-3 bg-white"
+     data-can-edit="@Model.CanEdit.ToString().ToLowerInvariant()"></div>
+
+@if (Model.CanEdit)
+{
+  <!-- Offcanvas: Create/Edit -->
+  <div class="offcanvas offcanvas-end" tabindex="-1" id="eventFormCanvas" aria-labelledby="eventFormLabel">
+    <div class="offcanvas-header">
+      <h5 id="eventFormLabel" class="offcanvas-title">New event</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+      <form id="eventForm" class="vstack gap-3">
+        <input type="hidden" name="id" />
+        <div>
+          <label class="form-label">Title</label>
+          <input class="form-control" name="title" maxlength="160" required />
+        </div>
+        <div class="row g-2">
+          <div class="col-6">
+            <label class="form-label">Category</label>
+            <select class="form-select" name="category">
+              <option>Training</option>
+              <option>Holiday</option>
+              <option>TownHall</option>
+              <option>Hiring</option>
+              <option selected>Other</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Location</label>
+            <input class="form-control" name="location" maxlength="160" />
+          </div>
+        </div>
+
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" role="switch" id="toggleAllDay" name="isAllDay">
+          <label class="form-check-label" for="toggleAllDay">All-day</label>
+        </div>
+
+        <div class="row g-2" id="timePickers">
+          <div class="col-6">
+            <label class="form-label">Start</label>
+            <input type="datetime-local" class="form-control" name="start" />
+          </div>
+          <div class="col-6">
+            <label class="form-label">End</label>
+            <input type="datetime-local" class="form-control" name="end" />
+          </div>
+        </div>
+
+        <div class="row g-2 d-none" id="datePickers">
+          <div class="col-6">
+            <label class="form-label">Start date</label>
+            <input type="date" class="form-control" name="startDate" />
+          </div>
+          <div class="col-6">
+            <label class="form-label">End date</label>
+            <input type="date" class="form-control" name="endDate" />
+          </div>
+        </div>
+
+        <div>
+          <label class="form-label">Description (Markdown)</label>
+          <textarea class="form-control" rows="4" name="description"></textarea>
+        </div>
+
+        <div class="d-flex gap-2">
+          <button class="btn btn-primary" id="btnSaveEvent" type="submit">Save</button>
+          <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="offcanvas">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
 }
 
 @section Scripts {
-    <script src="~/lib/fullcalendar/bundle/index.global.min.js" asp-append-version="true"></script>
-    <script type="module" src="~/js/calendar.js" asp-append-version="true"></script>
+  <!-- Order matters: Bootstrap JS → FullCalendar bundle → our page script -->
+  <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="~/lib/fullcalendar/bundle/index.global.min.js"></script>
+  <script src="~/js/calendar.js" asp-append-version="true"></script>
 }
