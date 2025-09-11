@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Identity;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Areas.Admin.Pages.Analytics
 {
@@ -33,7 +34,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Analytics
 
         public async Task<IActionResult> OnGetDataAsync(int days = 30, bool weekendOdd = false, string? user = null)
         {
-            var tz = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+            var tz = TimeZoneHelper.GetIst();
             var workStart = new TimeSpan(8, 0, 0);
             var workEnd = new TimeSpan(18, 0, 0);
             var dto = await _svc.GetAsync(days, weekendOdd, tz, workStart, workEnd, user);
@@ -59,7 +60,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Analytics
 
         public async Task<IActionResult> OnGetExportCsvAsync(int days = 30, bool weekendOdd = false, string? user = null)
         {
-            var tz = TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+            var tz = TimeZoneHelper.GetIst();
             var workStart = new TimeSpan(8, 0, 0);
             var workEnd = new TimeSpan(18, 0, 0);
             var dto = await _svc.GetAsync(days, weekendOdd, tz, workStart, workEnd, user);

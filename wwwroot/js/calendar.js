@@ -191,7 +191,7 @@
     eventSources: [{
       url: '/calendar/events',
       method: 'GET',
-      failure: () => console.error('Failed to load events.')
+      failure: (e) => { console.error('Events feed failed', e); alert('Couldn\u2019t load events. See console/Network.'); }
     }],
     eventDidMount(info) {
       const cat = (info.event.extendedProps.category || '').toString().toLowerCase();
