@@ -37,6 +37,11 @@
     scrollTime: '08:00:00',
     editable: canEdit,
     selectable: canEdit,
+    businessHours: {
+      daysOfWeek: [1, 2, 3, 4, 5], // Mon-Fri
+      startTime: '08:00',
+      endTime: '18:00'
+    },
     eventSources: [{
       url: '/calendar/events',
       method: 'GET',
@@ -63,16 +68,67 @@
   if (pluginList.length) opts.plugins = pluginList;
 
   const calendar = new Calendar(calendarEl, opts);
+
+  // title handling
+  const lblTitle = document.getElementById('calTitle');
+  function updateTitle() {
+    if (lblTitle) lblTitle.textContent = calendar.view?.title || '';
+  }
+  calendar.on('datesSet', updateTitle);
+
+  // empty state handling
+  const emptyEl = document.createElement('div');
+  emptyEl.className = 'text-muted text-center py-5';
+  emptyEl.style.display = 'none';
+  emptyEl.textContent = 'No events in this period.';
+  calendarEl.appendChild(emptyEl);
+  function updateEmptyState() {
+    const has = calendar.getEvents().some(e => {
+      const el = e.el; return el && el.offsetParent !== null;
+    });
+    emptyEl.style.display = has ? 'none' : '';
+  }
+  calendar.on('eventsSet', updateEmptyState);
+  calendar.on('datesSet', () => setTimeout(updateEmptyState, 0));
+
+  // render calendar
   calendar.render();
+  updateTitle();
+
+  // prev/next
+  const btnPrev = document.getElementById('btnPrev');
+  const btnNext = document.getElementById('btnNext');
+  btnPrev && btnPrev.addEventListener('click', () => calendar.prev(), { passive: true });
+  btnNext && btnNext.addEventListener('click', () => calendar.next(), { passive: true });
 
   // view switches
-  document.querySelectorAll('[data-view]').forEach(b => {
+  const viewButtons = document.querySelectorAll('[data-view]');
+  viewButtons.forEach(b => {
     b.addEventListener('click', () => {
       calendar.changeView(b.getAttribute('data-view'));
     }, { passive: true });
   });
   const btnToday = document.getElementById('btnToday');
   btnToday && btnToday.addEventListener('click', () => calendar.today(), { passive: true });
+  function markActiveView() {
+    const v = calendar.view?.type;
+    viewButtons.forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-view') === v);
+      b.classList.toggle('btn-secondary', b.classList.contains('active'));
+    });
+  }
+  calendar.on('datesSet', markActiveView);
+  markActiveView();
+
+  // responsive view switching
+  const mq = window.matchMedia('(max-width: 576px)');
+  function setResponsiveView(e) {
+    const t = calendar.view?.type;
+    if (e.matches && t !== 'listMonth') calendar.changeView('listMonth');
+    else if (!e.matches && t === 'listMonth') calendar.changeView('dayGridMonth');
+  }
+  mq.addEventListener?.('change', setResponsiveView);
+  setResponsiveView(mq);
 
   // category filter
   const catFilters = document.getElementById('categoryFilters');

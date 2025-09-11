@@ -10,11 +10,20 @@
 }
 
 <div class="d-flex align-items-center justify-content-between mb-3">
-  <div class="d-flex gap-2">
-    <button class="btn btn-outline-secondary btn-sm" data-view="dayGridMonth">Month</button>
-    <button class="btn btn-outline-secondary btn-sm" data-view="timeGridWeek">Week</button>
-    <button class="btn btn-outline-secondary btn-sm" data-view="listMonth">List</button>
-    <button class="btn btn-outline-secondary btn-sm" id="btnToday">Today</button>
+  <div class="d-flex gap-2 align-items-center">
+    <div class="btn-group btn-group-sm me-2" role="group" aria-label="View">
+      <button class="btn btn-outline-secondary" data-view="dayGridMonth">Month</button>
+      <button class="btn btn-outline-secondary" data-view="timeGridWeek">Week</button>
+      <button class="btn btn-outline-secondary" data-view="listMonth">List</button>
+      <button class="btn btn-outline-secondary" id="btnToday">Today</button>
+    </div>
+
+    <!-- New: Month title + prev/next -->
+    <div class="d-flex align-items-center gap-2 ms-2">
+      <button class="btn btn-light btn-sm" id="btnPrev" aria-label="Previous"><span aria-hidden="true">‹</span></button>
+      <div id="calTitle" class="h5 mb-0 fw-semibold"></div>
+      <button class="btn btn-light btn-sm" id="btnNext" aria-label="Next"><span aria-hidden="true">›</span></button>
+    </div>
   </div>
 
   @if (Model.CanEdit)
