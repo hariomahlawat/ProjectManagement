@@ -9,6 +9,9 @@ An `IAsyncPageFilter` applied globally. After authentication, it checks `Applica
 
 ## Services
 
+### `Services/IAuditService` and `AuditService`
+Centralised logger that records structured audit entries (timestamp, action, user details, IP and optional data) while scrubbing sensitive fields and skipping noisy Todo events.
+
 ### `Services/IUserManagementService.cs`
 Defines an abstraction for managing users and roles:
 * Query users and roles
@@ -22,6 +25,9 @@ Defines an abstraction for managing users and roles:
 ### `Services/UserManagementService.cs`
 Concrete implementation backed by `UserManager<ApplicationUser>` and `RoleManager<IdentityRole>`. It encapsulates all identity operations used by the administration UI or other features. Developers can extend this service to add new user-related behaviours such as emailing users after role changes or integrating external identity providers.
 
+### `Services/IUserLifecycleService` and `UserLifecycleService`
+Coordinates disabling, enabling and scheduled hard deletes for accounts. Protects against removing the last active admin and logs every operation through `IAuditService`.
+
 ### Email senders
 * `Services/NoOpEmailSender.cs` – a dummy implementation used when SMTP settings are absent (common on private networks).
 * `Services/SmtpEmailSender.cs` – sends HTML email via SMTP using configuration values (`Email:Smtp:Host`, `Port`, `Username`, `Password`, `Email:From`).
@@ -31,6 +37,9 @@ Concrete implementation backed by `UserManager<ApplicationUser>` and `RoleManage
 
 ### `Services/TodoPurgeWorker`
 Background worker that permanently deletes soft-deleted to-do items after a retention period. The retention window is configured via `Todo:RetentionDays` in `appsettings.json` (defaults to 7 days) and the worker safely handles cancellation tokens.
+
+### `Services/UserPurgeWorker`
+Periodic background service that permanently deletes accounts once their deletion undo window has elapsed.
 
 ### `Services/LoginAnalyticsService`
 Calculates percentile lines and flags odd login events for the admin scatter chart. It loads `AuthEvents` from the database, joins them to user records to supply friendly names (falling back to email or "(deleted)"), applies working-hour rules and returns points annotated with reasons for anomalies.

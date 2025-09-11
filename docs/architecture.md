@@ -25,6 +25,8 @@ Program.cs                        Application bootstrap and Identity configurati
 * Registers ASP.NET Core Identity with relaxed password rules and a username/password flow only (`AddIdentity<ApplicationUser, IdentityRole>`).
 * Customises the application cookie paths and enables session state.
 * Registers `IUserManagementService` (`UserManagementService` implementation) and an email sender (`SmtpEmailSender` when SMTP settings are present or `NoOpEmailSender` otherwise).
+* Registers `IAuditService` for structured audit logging.
+* Configures `UserLifecycleOptions`, registers `IUserLifecycleService` and hosts `UserPurgeWorker` to remove accounts past their deletion undo window.
 * Adds the `EnforcePasswordChangeFilter` globally to Razor Pages to force password updates for flagged users.
 * Seeds default roles and a first administrator account at application start through `IdentitySeeder.SeedAsync`.
 
