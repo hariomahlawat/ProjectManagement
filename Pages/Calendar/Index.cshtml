@@ -115,8 +115,19 @@
 }
 
 @section Scripts {
-  <!-- Order matters: Bootstrap JS → FullCalendar bundle → our page script -->
+  <!-- Order matters: Bootstrap JS → FullCalendar → page script -->
   <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- EITHER: single bundle -->
   <script src="~/lib/fullcalendar/bundle/index.global.min.js"></script>
+
+  <!-- OR: individual globals (if you didn’t add the bundle):
+  <script src="~/lib/fullcalendar/core/index.global.min.js"></script>
+  <script src="~/lib/fullcalendar/daygrid/index.global.min.js"></script>
+  <script src="~/lib/fullcalendar/timegrid/index.global.min.js"></script>
+  <script src="~/lib/fullcalendar/list/index.global.min.js"></script>
+  <script src="~/lib/fullcalendar/interaction/index.global.min.js"></script>
+  -->
+
   <script src="~/js/calendar.js" asp-append-version="true"></script>
 }
