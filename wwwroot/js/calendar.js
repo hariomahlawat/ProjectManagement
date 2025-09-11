@@ -138,8 +138,17 @@
       const url = id ? `/calendar/events/${id}` : '/calendar/events';
       const method = id ? 'PUT' : 'POST';
 
-      const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dto) });
-      if (!r.ok) { alert('Save failed.'); return; }
+      const r = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(dto)
+      });
+      if (!r.ok) {
+        let msg = await r.text();
+        try { const j = JSON.parse(msg); msg = j.detail || j.title || j; } catch {}
+        alert(`Save failed: ${msg || r.status}`);
+        return;
+      }
 
       // reset + close
       form.reset(); setAllDayUI(false);
@@ -165,7 +174,12 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      if (!res.ok) { info.revert(); alert('Update failed.'); }
+      if (!res.ok) {
+        let msg = await res.text();
+        try { const j = JSON.parse(msg); msg = j.detail || j.title || j; } catch {}
+        info.revert();
+        alert(`Update failed: ${msg || res.status}`);
+      }
     }
   }
 })();
