@@ -33,8 +33,8 @@
   border-color: #e5e7eb;
 }
 
-/* Light weekend tint (optional) */
-.fc .fc-day-sat, .fc .fc-day-sun {
+/* Light Sunday tint */
+.fc .fc-day-sun {
   background-image: linear-gradient(to bottom, rgba(148,163,184,.06), rgba(148,163,184,.06));
 }
 

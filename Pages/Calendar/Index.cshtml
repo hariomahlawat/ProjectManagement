@@ -117,11 +117,38 @@
         <div class="d-flex gap-2">
           <button class="btn btn-primary" id="btnSaveEvent" type="submit">Save</button>
           <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="offcanvas">Cancel</button>
+          <button class="btn btn-outline-danger ms-auto d-none" id="btnDeleteEvent" type="button">Delete</button>
         </div>
       </form>
     </div>
   </div>
 }
+
+<!-- Offcanvas: View Details -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="eventDetailsCanvas" aria-labelledby="eventDetailsLabel">
+  <div class="offcanvas-header">
+    <h5 id="eventDetailsLabel" class="offcanvas-title"></h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body">
+    <div class="small text-muted mb-2" id="eventDetailsTime"></div>
+    <div class="mb-2"><span class="badge bg-secondary" id="eventDetailsCategory"></span></div>
+    <div class="mb-2" id="eventDetailsLocation"></div>
+    <div class="mb-3" id="eventDetailsDescription"></div>
+    <button class="btn btn-outline-primary btn-sm" id="btnAddToTasks" type="button">Add to My Tasks</button>
+  </div>
+</div>
+
+<!-- Undo toast -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+  <div id="undoToast" class="toast" role="status" aria-live="polite" aria-atomic="true">
+    <div class="d-flex">
+      <div id="undoMessage" class="toast-body"></div>
+      <button id="btnUndo" type="button" class="btn btn-link btn-sm ms-auto">Undo</button>
+      <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  </div>
+</div>
 
 @section Scripts {
   <!-- Order matters: Bootstrap JS → FullCalendar → page script -->
