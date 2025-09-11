@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ProjectManagement.Migrations
 {
     /// <inheritdoc />
-    public partial class celebrations : Migration
+    public partial class calendar : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -85,6 +85,22 @@ namespace ProjectManagement.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "AuthEvents",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<string>(type: "text", nullable: false),
+                    WhenUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    Event = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    Ip = table.Column<string>(type: "text", nullable: true),
+                    UserAgent = table.Column<string>(type: "text", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AuthEvents", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Celebrations",
                 columns: table => new
                 {
@@ -103,6 +119,46 @@ namespace ProjectManagement.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Celebrations", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "DailyLoginStats",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Date = table.Column<DateOnly>(type: "date", nullable: false),
+                    Count = table.Column<int>(type: "integer", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_DailyLoginStats", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Events",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Title = table.Column<string>(type: "character varying(160)", maxLength: 160, nullable: false),
+                    Description = table.Column<string>(type: "text", nullable: true),
+                    Category = table.Column<byte>(type: "smallint", nullable: false),
+                    Location = table.Column<string>(type: "character varying(160)", maxLength: 160, nullable: true),
+                    StartUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    EndUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    IsAllDay = table.Column<bool>(type: "boolean", nullable: false),
+                    RecurrenceRule = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
+                    RecurrenceUntilUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    RecurrenceExDates = table.Column<string>(type: "text", nullable: true),
+                    CreatedById = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
+                    UpdatedById = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Events", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -317,6 +373,11 @@ namespace ProjectManagement.Migrations
                 column: "UserName");
 
             migrationBuilder.CreateIndex(
+                name: "IX_AuthEvents_Event_WhenUtc",
+                table: "AuthEvents",
+                columns: new[] { "Event", "WhenUtc" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Celebrations_DeletedUtc",
                 table: "Celebrations",
                 column: "DeletedUtc",
@@ -326,6 +387,22 @@ namespace ProjectManagement.Migrations
                 name: "IX_Celebrations_EventType_Month_Day",
                 table: "Celebrations",
                 columns: new[] { "EventType", "Month", "Day" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_DailyLoginStats_Date",
+                table: "DailyLoginStats",
+                column: "Date",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Events_EndUtc",
+                table: "Events",
+                column: "EndUtc");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Events_StartUtc",
+                table: "Events",
+                column: "StartUtc");
 
             migrationBuilder.CreateIndex(
                 name: "IX_TodoItems_DeletedUtc",
@@ -365,7 +442,16 @@ namespace ProjectManagement.Migrations
                 name: "AuditLogs");
 
             migrationBuilder.DropTable(
+                name: "AuthEvents");
+
+            migrationBuilder.DropTable(
                 name: "Celebrations");
+
+            migrationBuilder.DropTable(
+                name: "DailyLoginStats");
+
+            migrationBuilder.DropTable(
+                name: "Events");
 
             migrationBuilder.DropTable(
                 name: "Projects");

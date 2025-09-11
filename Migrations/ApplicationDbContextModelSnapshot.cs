@@ -441,6 +441,13 @@ namespace ProjectManagement.Migrations
                     b.Property<bool>("IsAllDay")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
                     b.Property<string>("RecurrenceExDates")
                         .HasColumnType("text");
 
@@ -450,13 +457,6 @@ namespace ProjectManagement.Migrations
 
                     b.Property<DateTimeOffset?>("RecurrenceUntilUtc")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("Location")
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
 
                     b.Property<DateTimeOffset>("StartUtc")
                         .HasColumnType("timestamp with time zone");
