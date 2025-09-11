@@ -31,7 +31,8 @@ This module summarises the UI components exposed to end users.
 
 ## Calendar
 * `Pages/Calendar/Index.cshtml` – FullCalendar-based interface offering month, week and list views. Events load from `/calendar/events` and show details in an offcanvas panel with Markdown rendering and a quick “Add to My Tasks” action. Users in the Admin, TA or HOD roles can create, drag, resize, edit and delete events through a separate offcanvas form.
-  * A filter pill group toggles visibility by category without refetching.
+  * Compact category pills sit in the top bar between view switches and navigation. Each pill shows a coloured dot and live event count, and a legend below the calendar repeats these counts.
+  * Clicking a pill filters existing DOM nodes client-side; “All” restores every event without refetching.
   * Prev/next buttons and a dynamic title show the current range.
   * View buttons retain an active state and small screens automatically switch to a list view.
   * Business hours highlight 08:00–18:00 Monday–Saturday and Sundays get a light tint; an empty message appears when no events are visible.

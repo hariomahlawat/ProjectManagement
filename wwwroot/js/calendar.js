@@ -21,6 +21,13 @@
 
   const canEdit = (calendarEl.dataset.canEdit || '').toLowerCase() === 'true';
 
+  const canonMap = { visit: 'Visit', insp: 'Insp', inspection: 'Insp', conference: 'Conference' };
+  const canon = (raw) => {
+    const str = (raw || '').toString();
+    return canonMap[str.toLowerCase()] || (str || 'Other');
+  };
+  let activeCategory = "";
+
   // helpers
   const pad = (n) => String(n).padStart(2,'0');
   const toLocalInputValue = (d) => {
@@ -194,9 +201,8 @@
       failure: (e) => { console.error('Events feed failed', e); alert('Couldn\u2019t load events. See console/Network.'); }
     }],
     eventDidMount(info) {
-      const cat = (info.event.extendedProps.category || '').toString();
-      const key = ({ visit:'Visit', insp:'Insp', inspection:'Insp', conference:'Conference' }[
-                     cat.toLowerCase() ]) || (cat || 'Other');
+      const key = canon(info.event.extendedProps.category);
+      info.event.setExtendedProp('category', key);
       info.el.classList.add('pm-cat-' + key.toLowerCase());
       const loc = info.event.extendedProps.location;
       info.el.setAttribute('title',
@@ -290,22 +296,44 @@
 
   // category filter
   const catFilters = document.getElementById('categoryFilters');
-  let activeCategory = "";
   if (catFilters) {
-    catFilters.querySelectorAll('button').forEach(btn => {
-      btn.addEventListener('click', () => {
-        catFilters.querySelectorAll('button').forEach(x => x.classList.remove('active'));
-        btn.classList.add('active');
-        activeCategory = btn.getAttribute('data-cat') || "";
-        // toggle visibility of already-rendered events
-        calendar.getEvents().forEach(ev => {
-          const el = ev.el;
-          if (!el) return;
-          el.style.display = (!activeCategory || activeCategory === ev.extendedProps.category) ? '' : 'none';
-        });
-      }, { passive: true });
+    catFilters.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-cat]');
+      if (!btn) return;
+      catFilters.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeCategory = btn.getAttribute('data-cat') || "";
+      calendar.getEvents().forEach(ev => {
+        const key = canon(ev.extendedProps.category);
+        const el = ev.el; if (!el) return;
+        el.style.display = (!activeCategory || key === activeCategory) ? '' : 'none';
+      });
+      updateCounts();
     });
   }
+
+  function updateCounts() {
+    const counts = { Visit:0, Insp:0, Conference:0, Other:0 };
+    calendar.getEvents().forEach(ev => {
+      const key = canon(ev.extendedProps.category);
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    if (catFilters) {
+      catFilters.querySelectorAll('button[data-cat]').forEach(btn => {
+        const cat = btn.getAttribute('data-cat') || "";
+        const count = cat ? counts[cat] || 0 : Object.values(counts).reduce((a,b)=>a+b,0);
+        btn.textContent = `${cat || 'All'} (${count})`;
+      });
+    }
+    const legend = document.getElementById('categoryLegend');
+    if (legend) {
+      legend.innerHTML = Object.entries(counts).map(([cat, n]) =>
+        `<span class="me-3"><span class="legend-dot pm-cat-${cat.toLowerCase()}"></span>${cat} (${n})</span>`
+      ).join('');
+    }
+  }
+  calendar.on('eventsSet', updateCounts);
+  calendar.on('datesSet', () => setTimeout(updateCounts, 0));
 
   // Offcanvas form handling (create/edit) — only if editors
   if (canEdit) {
