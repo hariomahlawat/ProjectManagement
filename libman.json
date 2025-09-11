@@ -11,28 +11,9 @@
       "destination": "wwwroot/lib/bootstrap/"
     },
     {
-      "library": "@fullcalendar/daygrid@6.1.15",
-      "destination": "wwwroot/lib/fullcalendar/daygrid/"
-    },
-    {
-      "library": "@fullcalendar/timegrid@6.1.15",
-      "destination": "wwwroot/lib/fullcalendar/timegrid/"
-    },
-    {
-      "library": "@fullcalendar/list@6.1.15",
-      "destination": "wwwroot/lib/fullcalendar/list/"
-    },
-    {
-      "library": "@fullcalendar/interaction@6.1.15",
-      "destination": "wwwroot/lib/fullcalendar/interaction/"
-    },
-    {
-      "library": "@fullcalendar/core@6.1.15",
-      "destination": "wwwroot/lib/fullcalendar/core/"
-    },
-    {
       "library": "fullcalendar@6.1.19",
-      "destination": "wwwroot/lib/fullcalendar/"
+      "destination": "wwwroot/lib/fullcalendar/bundle/",
+      "files": [ "index.global.min.js" ]
     }
   ]
 }

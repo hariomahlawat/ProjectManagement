@@ -18,12 +18,12 @@
 </div>
 
 <div class="btn-group btn-group-sm mb-3" id="catFilters" role="group">
-    <button type="button" class="btn btn-outline-secondary active" data-cat="">All</button>
-    <button type="button" class="btn btn-outline-secondary" data-cat="Training">Training</button>
-    <button type="button" class="btn btn-outline-secondary" data-cat="Holiday">Holiday</button>
-    <button type="button" class="btn btn-outline-secondary" data-cat="TownHall">TownHall</button>
-    <button type="button" class="btn btn-outline-secondary" data-cat="Hiring">Hiring</button>
-    <button type="button" class="btn btn-outline-secondary" data-cat="Other">Other</button>
+    <button type="button" class="btn btn-outline-secondary active" data-cat="" aria-pressed="true">All</button>
+    <button type="button" class="btn btn-outline-secondary" data-cat="Training" aria-pressed="false">Training</button>
+    <button type="button" class="btn btn-outline-secondary" data-cat="Holiday" aria-pressed="false">Holiday</button>
+    <button type="button" class="btn btn-outline-secondary" data-cat="TownHall" aria-pressed="false">TownHall</button>
+    <button type="button" class="btn btn-outline-secondary" data-cat="Hiring" aria-pressed="false">Hiring</button>
+    <button type="button" class="btn btn-outline-secondary" data-cat="Other" aria-pressed="false">Other</button>
 </div>
 
 <div id="calendar" data-can-edit="@Model.CanEdit"></div>
@@ -105,13 +105,10 @@
 <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer"></div>
 
 @section Styles {
-  <link rel="stylesheet" href="~/lib/fullcalendar/core/index.css" asp-append-version="true" />
-  <link rel="stylesheet" href="~/lib/fullcalendar/daygrid/index.css" asp-append-version="true" />
-  <link rel="stylesheet" href="~/lib/fullcalendar/timegrid/index.css" asp-append-version="true" />
-  <link rel="stylesheet" href="~/lib/fullcalendar/list/index.css" asp-append-version="true" />
   <link rel="stylesheet" href="~/css/calendar.css" asp-append-version="true" />
 }
 
 @section Scripts {
-    <script type="module" src="~/js/calendar.js"></script>
+    <script src="~/lib/fullcalendar/bundle/index.global.min.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/calendar.js" asp-append-version="true"></script>
 }
