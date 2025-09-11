@@ -1,0 +1,28 @@
+@page
+@model ProjectManagement.Areas.Admin.Pages.Calendar.DeletedModel
+@{
+    ViewData["Title"] = "Deleted Events";
+}
+
+<h2 class="h5 mb-3">Deleted Events</h2>
+
+<table class="table table-sm">
+  <thead>
+    <tr><th>Title</th><th>Start</th><th></th></tr>
+  </thead>
+  <tbody>
+  @foreach (var ev in Model.Events)
+  {
+    <tr>
+      <td>@ev.Title</td>
+      <td>@ev.Start</td>
+      <td>
+        <form method="post" asp-page-handler="Restore" asp-route-id="@ev.Id" class="d-inline">
+          <button type="submit" class="btn btn-sm btn-link">Restore</button>
+        </form>
+      </td>
+    </tr>
+  }
+  </tbody>
+</table>
+

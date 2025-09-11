@@ -8,6 +8,8 @@ using ProjectManagement.Services;
 using ProjectManagement.Helpers;
 using System;
 using System.Threading.Tasks;
+using System.Collections.Generic;
+using Microsoft.EntityFrameworkCore;
 
 namespace ProjectManagement.Pages.Dashboard
 {
@@ -16,15 +18,25 @@ namespace ProjectManagement.Pages.Dashboard
     {
         private readonly ITodoService _todo;
         private readonly UserManager<ApplicationUser> _users;
+        private readonly Data.ApplicationDbContext _db;
         private static readonly TimeZoneInfo IST = IstClock.TimeZone;
 
-        public IndexModel(ITodoService todo, UserManager<ApplicationUser> users)
+        public IndexModel(ITodoService todo, UserManager<ApplicationUser> users, Data.ApplicationDbContext db)
         {
             _todo = todo;
             _users = users;
+            _db = db;
         }
 
         public TodoWidgetResult? TodoWidget { get; set; }
+        public List<UpcomingEventVM> UpcomingEvents { get; set; } = new();
+
+        public class UpcomingEventVM
+        {
+            public Guid Id { get; set; }
+            public string Title { get; set; } = string.Empty;
+            public string When { get; set; } = string.Empty;
+        }
 
         [BindProperty]
         public string? NewTitle { get; set; }
@@ -35,6 +47,20 @@ namespace ProjectManagement.Pages.Dashboard
             if (uid != null)
             {
                 TodoWidget = await _todo.GetWidgetAsync(uid, take: 20);
+            }
+
+            var nowUtc = DateTime.UtcNow;
+            var rangeEnd = nowUtc.AddDays(30);
+            var events = await _db.Events.AsNoTracking()
+                .Where(e => !e.IsDeleted && e.StartUtc >= nowUtc && e.StartUtc < rangeEnd)
+                .OrderBy(e => e.StartUtc)
+                .Take(5)
+                .ToListAsync();
+            foreach (var ev in events)
+            {
+                var startLocal = TimeZoneInfo.ConvertTime(ev.StartUtc, IST);
+                var when = ev.IsAllDay ? startLocal.ToString("dd MMM") : startLocal.ToString("dd MMM, HH:mm");
+                UpcomingEvents.Add(new UpcomingEventVM { Id = ev.Id, Title = ev.Title, When = when });
             }
         }
 
