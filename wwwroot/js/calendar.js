@@ -309,6 +309,7 @@
         el.style.display = (!activeCategory || key === activeCategory) ? '' : 'none';
       });
       updateCounts();
+      updateEmptyState();
     });
   }
 
