@@ -17,6 +17,15 @@
     }
 </div>
 
+<div class="btn-group btn-group-sm mb-3" id="catFilters" role="group">
+    <button type="button" class="btn btn-outline-secondary active" data-cat="">All</button>
+    <button type="button" class="btn btn-outline-secondary" data-cat="Training">Training</button>
+    <button type="button" class="btn btn-outline-secondary" data-cat="Holiday">Holiday</button>
+    <button type="button" class="btn btn-outline-secondary" data-cat="TownHall">TownHall</button>
+    <button type="button" class="btn btn-outline-secondary" data-cat="Hiring">Hiring</button>
+    <button type="button" class="btn btn-outline-secondary" data-cat="Other">Other</button>
+</div>
+
 <div id="calendar" data-can-edit="@Model.CanEdit"></div>
 
 <div class="offcanvas offcanvas-end" tabindex="-1" id="eventDetails">
@@ -68,13 +77,21 @@
                 <input class="form-check-input" type="checkbox" id="allDaySwitch" name="isAllDay">
                 <label class="form-check-label" for="allDaySwitch">All day</label>
             </div>
-            <div class="mb-2">
+            <div class="mb-2 dt-field">
                 <label class="form-label">Start</label>
                 <input class="form-control" type="datetime-local" name="start" required />
             </div>
-            <div class="mb-2">
+            <div class="mb-2 d-field d-none">
+                <label class="form-label">Start date</label>
+                <input class="form-control" type="date" name="startDate" disabled />
+            </div>
+            <div class="mb-2 dt-field">
                 <label class="form-label">End</label>
                 <input class="form-control" type="datetime-local" name="end" required />
+            </div>
+            <div class="mb-2 d-field d-none">
+                <label class="form-label">End date</label>
+                <input class="form-control" type="date" name="endDate" disabled />
             </div>
             <div class="mb-2">
                 <label class="form-label">Description (Markdown)</label>
@@ -84,6 +101,8 @@
         </form>
     </div>
 </div>
+
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer"></div>
 
 @section Styles {
   <link rel="stylesheet" href="~/lib/fullcalendar/daygrid/index.css" asp-append-version="true" />

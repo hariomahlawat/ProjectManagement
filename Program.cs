@@ -355,7 +355,7 @@ using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     var db = services.GetRequiredService<ApplicationDbContext>();
-    if (app.Environment.IsDevelopment())
+    if (app.Environment.IsDevelopment() && db.Database.IsRelational())
     {
         var conn = db.Database.GetDbConnection();
         await conn.OpenAsync();
@@ -371,16 +371,21 @@ using (var scope = app.Services.CreateScope())
         await conn.CloseAsync();
     }
 
-    await db.Database.MigrateAsync();
-    var migrations = await db.Database.GetAppliedMigrationsAsync();
-    if (!migrations.Contains("20250909153316_UseXminForTodoItem"))
+    if (db.Database.IsRelational())
     {
-        app.Logger.LogWarning("Migration 20250909153316_UseXminForTodoItem not applied. TodoItems may still have a RowVersion column.");
+        await db.Database.MigrateAsync();
+        var migrations = await db.Database.GetAppliedMigrationsAsync();
+        if (!migrations.Contains("20250909153316_UseXminForTodoItem"))
+        {
+            app.Logger.LogWarning("Migration 20250909153316_UseXminForTodoItem not applied. TodoItems may still have a RowVersion column.");
+        }
+        var cutoff = DateTime.UtcNow.AddDays(-90);
+        db.AuditLogs.Where(a => a.TimeUtc < cutoff).ExecuteDelete();
     }
 
     await ProjectManagement.Data.IdentitySeeder.SeedAsync(services);
-    var cutoff = DateTime.UtcNow.AddDays(-90);
-    db.AuditLogs.Where(a => a.TimeUtc < cutoff).ExecuteDelete();
 }
 
 app.Run();
+
+public partial class Program { }

@@ -4,3 +4,9 @@
 .fc .fc-event.pm-cat-townhall  { border-left: 4px solid #0ea5e9; }
 .fc .fc-event.pm-cat-hiring    { border-left: 4px solid #8b5cf6; }
 .fc .fc-event.pm-cat-other     { border-left: 4px solid #64748b; }
+
+@media print {
+  body * { visibility: hidden; }
+  #calendar, #calendar * { visibility: visible; }
+  #calendar { box-shadow: none !important; }
+}

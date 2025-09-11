@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using System.Linq;
+using System.Security.Claims;
 
 namespace ProjectManagement.Pages.Calendar
 {
@@ -10,7 +12,10 @@ namespace ProjectManagement.Pages.Calendar
 
         public void OnGet()
         {
-            CanEdit = User.IsInRole("Admin") || User.IsInRole("TA") || User.IsInRole("HoD");
+            CanEdit = User.Claims.Where(c => c.Type == ClaimTypes.Role)
+                .Any(r => string.Equals(r.Value, "Admin", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(r.Value, "TA", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(r.Value, "HoD", StringComparison.OrdinalIgnoreCase));
         }
     }
 }

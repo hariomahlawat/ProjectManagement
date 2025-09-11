@@ -4,8 +4,14 @@ import timeGridPlugin from '../lib/fullcalendar/timegrid/index.js';
 import listPlugin from '../lib/fullcalendar/list/index.js';
 import interactionPlugin from '../lib/fullcalendar/interaction/index.js';
 
+function pad(n) { return String(n).padStart(2,'0'); }
+function toLocalInputValue(d) {
+    const dt = new Date(d);
+    return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+}
+
 const calendarEl = document.getElementById('calendar');
-const canEdit = calendarEl.dataset.canEdit === 'True';
+const canEdit = (calendarEl.dataset.canEdit || '').toLowerCase() === 'true';
 
 const calendar = new Calendar(calendarEl, {
     plugins: [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin],
@@ -48,14 +54,20 @@ const calendar = new Calendar(calendarEl, {
         new bootstrap.Offcanvas('#eventDetails').show();
     },
     eventDrop: async function(info) {
-        await saveMove(info.event);
+        await saveMove(info.event, info.oldEvent);
     },
     eventResize: async function(info) {
-        await saveMove(info.event);
+        await saveMove(info.event, info.oldEvent);
     },
     eventDidMount: function(info) {
         const cat = (info.event.extendedProps.category || '').toString().toLowerCase();
         info.el.classList.add('pm-cat-' + cat);
+        if (info.event.extendedProps.location) {
+            info.el.setAttribute('title', `${info.event.title} — ${info.event.extendedProps.location}`);
+        } else {
+            info.el.setAttribute('title', info.event.title);
+        }
+        info.el.setAttribute('aria-label', info.event.title);
     }
 });
 calendar.render();
@@ -74,16 +86,32 @@ if (canEdit) {
     document.getElementById('newEventBtn').addEventListener('click', () => openForm());
 }
 
+function toggleAllDayInputs(isAllDay) {
+    const dtFields = document.querySelectorAll('.dt-field');
+    const dFields = document.querySelectorAll('.d-field');
+    dtFields.forEach(f => f.classList.toggle('d-none', isAllDay));
+    dtFields.forEach(f => f.querySelector('input').disabled = isAllDay);
+    dFields.forEach(f => f.classList.toggle('d-none', !isAllDay));
+    dFields.forEach(f => f.querySelector('input').disabled = !isAllDay);
+}
+
 function openForm(data) {
     const form = document.getElementById('eventFormElement');
     form.reset();
+    toggleAllDayInputs(false);
     if (data) {
         form.elements['title'].value = data.title;
         form.elements['category'].value = data.category;
         form.elements['location'].value = data.location || '';
         form.elements['isAllDay'].checked = data.allDay;
-        form.elements['start'].value = data.start.substring(0,16);
-        form.elements['end'].value = data.end.substring(0,16);
+        if (data.allDay) {
+            form.elements['startDate'].value = toLocalInputValue(data.start).substring(0,10);
+            form.elements['endDate'].value = toLocalInputValue(new Date(new Date(data.end).getTime()-86400000)).substring(0,10);
+            toggleAllDayInputs(true);
+        } else {
+            form.elements['start'].value = toLocalInputValue(data.start);
+            form.elements['end'].value = toLocalInputValue(data.end);
+        }
         form.elements['description'].value = data.rawDescription || '';
         form.dataset.id = data.id;
         document.getElementById('formHeading').textContent = 'Edit Event';
@@ -91,26 +119,30 @@ function openForm(data) {
         delete form.dataset.id;
         document.getElementById('formHeading').textContent = 'New Event';
     }
+    lastFormOldTimes = data ? { id: data.id, startUtc: data.start, endUtc: data.end } : null;
     new bootstrap.Offcanvas('#eventForm').show();
 }
+
+document.getElementById('allDaySwitch').addEventListener('change', e => {
+    toggleAllDayInputs(e.target.checked);
+});
 
 document.getElementById('eventFormElement').addEventListener('submit', async e => {
     e.preventDefault();
     const form = e.target;
     const isAllDay = form.elements['isAllDay'].checked;
-    const startLocal = form.elements['start'].value;
-    const endLocal = form.elements['end'].value;
-
     let startUtc, endUtc;
     if (isAllDay) {
-        const startDate = new Date(startLocal);
-        const endDate = new Date(endLocal);
-        const s = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate(), 0, 0, 0);
-        const e = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 0, 0, 0);
+        const startDate = form.elements['startDate'].value;
+        const endDate = form.elements['endDate'].value;
+        const s = new Date(startDate + 'T00:00');
+        const e = new Date(endDate + 'T00:00');
         e.setDate(e.getDate() + 1);
         startUtc = s.toISOString();
         endUtc = e.toISOString();
     } else {
+        const startLocal = form.elements['start'].value;
+        const endLocal = form.elements['end'].value;
         startUtc = new Date(startLocal).toISOString();
         endUtc = new Date(endLocal).toISOString();
     }
@@ -137,10 +169,31 @@ document.getElementById('eventFormElement').addEventListener('submit', async e =
     if (resp.ok) {
         new bootstrap.Offcanvas('#eventForm').hide();
         calendar.refetchEvents();
+        if (lastFormOldTimes) {
+            showUndoToast('Saved', async () => {
+                await fetch(`/calendar/events/${lastFormOldTimes.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: dto.title,
+                        category: dto.category,
+                        location: dto.location,
+                        isAllDay: dto.isAllDay,
+                        startUtc: lastFormOldTimes.startUtc,
+                        endUtc: lastFormOldTimes.endUtc,
+                        description: dto.description
+                    })
+                });
+                calendar.refetchEvents();
+            });
+        } else {
+            showUndoToast('Saved');
+        }
+        lastFormOldTimes = null;
     }
 });
 
-async function saveMove(event) {
+async function saveMove(event, oldEvent) {
     const dto = {
         title: event.title,
         category: event.extendedProps.category,
@@ -155,4 +208,61 @@ async function saveMove(event) {
         body: JSON.stringify(dto)
     });
     calendar.refetchEvents();
+    if (oldEvent) {
+        const prev = {
+            title: event.title,
+            category: event.extendedProps.category,
+            location: event.extendedProps.location,
+            isAllDay: oldEvent.allDay,
+            startUtc: oldEvent.start.toISOString(),
+            endUtc: oldEvent.end.toISOString(),
+            description: event.extendedProps.description || ''
+        };
+        showUndoToast('Saved', async () => {
+            await fetch(`/calendar/events/${event.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(prev)
+            });
+            calendar.refetchEvents();
+        });
+    } else {
+        showUndoToast('Saved');
+    }
 }
+
+function showUndoToast(message, undo) {
+    const container = document.getElementById('toastContainer');
+    const toastEl = document.createElement('div');
+    toastEl.className = 'toast';
+    toastEl.innerHTML = `<div class="toast-body d-flex justify-content-between align-items-center">${message}` +
+        (undo ? `<button type="button" class="btn btn-link btn-sm ms-2">Undo</button>` : '') +
+        `</div>`;
+    container.appendChild(toastEl);
+    const toast = new bootstrap.Toast(toastEl, { delay: 5000 });
+    if (undo) {
+        toastEl.querySelector('button').addEventListener('click', async () => {
+            await undo();
+            toast.hide();
+        });
+    }
+    toast.show();
+    toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+}
+
+function categoryFilters() {
+    document.querySelectorAll('#catFilters [data-cat]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('#catFilters [data-cat]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            const cat = btn.dataset.cat;
+            calendar.getEvents().forEach(ev => {
+                const match = !cat || ev.extendedProps.category === cat;
+                ev.setProp('display', match ? 'auto' : 'none');
+            });
+        });
+    });
+}
+categoryFilters();
+
+let lastFormOldTimes = null;
