@@ -9,17 +9,30 @@
     <link rel="stylesheet" href="~/css/calendar.css" asp-append-version="true" />
 }
 
-<div class="d-flex align-items-center justify-content-between mb-3">
-  <div class="d-flex gap-2 align-items-center">
-    <div class="btn-group btn-group-sm me-2" role="group" aria-label="View">
+<div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+  <div class="d-flex align-items-center gap-2 flex-wrap">
+    <div class="btn-group btn-group-sm" role="group" aria-label="View">
       <button class="btn btn-outline-secondary" data-view="dayGridMonth">Month</button>
       <button class="btn btn-outline-secondary" data-view="timeGridWeek">Week</button>
       <button class="btn btn-outline-secondary" data-view="listMonth">List</button>
       <button class="btn btn-outline-secondary" id="btnToday">Today</button>
     </div>
 
-    <!-- New: Month title + prev/next -->
-    <div class="d-flex align-items-center gap-2 ms-2">
+    <div class="vr mx-1 d-none d-md-block"></div>
+
+    <!-- Category pills in the top line -->
+    <div class="btn-group btn-group-sm" id="categoryFilters" role="group" aria-label="Filter">
+      <button class="btn btn-outline-secondary active" data-cat="">All</button>
+      <button class="btn btn-outline-secondary" data-cat="Visit">Visit</button>
+      <button class="btn btn-outline-secondary" data-cat="Insp">Insp</button>
+      <button class="btn btn-outline-secondary" data-cat="Conference">Conference</button>
+      <button class="btn btn-outline-secondary" data-cat="Other">Other</button>
+    </div>
+
+    <div class="vr mx-1 d-none d-md-block"></div>
+
+    <!-- Month title + prev/next -->
+    <div class="d-flex align-items-center gap-2">
       <button class="btn btn-light btn-sm" id="btnPrev" aria-label="Previous"><span aria-hidden="true">‹</span></button>
       <div id="calTitle" class="h5 mb-0 fw-semibold"></div>
       <button class="btn btn-light btn-sm" id="btnNext" aria-label="Next"><span aria-hidden="true">›</span></button>
@@ -37,17 +50,11 @@
   }
 </div>
 
-<div class="btn-group btn-group-sm mb-3" id="categoryFilters" role="group" aria-label="Category filter">
-  <button class="btn btn-outline-secondary active" data-cat="">All</button>
-  <button class="btn btn-outline-secondary" data-cat="Visit">Visit</button>
-  <button class="btn btn-outline-secondary" data-cat="Insp">Insp</button>
-  <button class="btn btn-outline-secondary" data-cat="Conference">Conference</button>
-  <button class="btn btn-outline-secondary" data-cat="Other">Other</button>
-</div>
-
 <div id="calendar"
      class="shadow-sm border rounded-3 bg-white"
      data-can-edit="@Model.CanEdit.ToString().ToLowerInvariant()"></div>
+
+<div id="categoryLegend" class="small text-muted mt-2"></div>
 
 @if (Model.CanEdit)
 {

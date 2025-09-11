@@ -38,6 +38,18 @@
   background-image: linear-gradient(to bottom, rgba(148,163,184,.06), rgba(148,163,184,.06));
 }
 
+/* Ensure text inherits our dark color everywhere */
+.fc .fc-event,
+.fc .fc-event-main,
+.fc .fc-event-title,
+.fc .fc-event-time,
+.fc .fc-list-event-title,
+.fc .fc-list-event-time,
+.fc .fc-event a {
+  color: var(--pm-fg, #0f172a) !important;
+  text-decoration: none;
+}
+
 /* Active view button */
 [data-view].active { color: #fff; }
 
@@ -46,7 +58,7 @@
   border: 1px solid transparent;
   border-left-width: 4px;
   border-radius: .5rem;
-  padding: .125rem .35rem;
+  padding: .125rem .4rem;
 }
 
 /* VISIT — sky */
@@ -55,7 +67,6 @@
   --pm-fg: #0c4a6e;
   --pm-br: #0ea5e9;
   background: var(--pm-bg);
-  color: var(--pm-fg);
   border-color: var(--pm-br);
 }
 
@@ -65,7 +76,6 @@
   --pm-fg: #7c2d12;
   --pm-br: #f59e0b;
   background: var(--pm-bg);
-  color: var(--pm-fg);
   border-color: var(--pm-br);
 }
 
@@ -75,7 +85,6 @@
   --pm-fg: #4c1d95;
   --pm-br: #8b5cf6;
   background: var(--pm-bg);
-  color: var(--pm-fg);
   border-color: var(--pm-br);
 }
 
@@ -85,7 +94,6 @@
   --pm-fg: #0f172a;
   --pm-br: #94a3b8;
   background: var(--pm-bg);
-  color: var(--pm-fg);
   border-color: var(--pm-br);
 }
 
@@ -94,17 +102,34 @@
   color: inherit;
 }
 
+/* Improve readability in tight spaces */
+.fc .fc-daygrid-event .fc-event-time { font-weight: 600; }
+.fc .fc-event-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 /* Focus/hover cue */
 .fc .fc-event:hover, .fc .fc-event:focus {
   box-shadow: 0 0 0 2px var(--pm-br, #94a3b8);
   outline: none;
 }
 
-/* Optional: small dot in filter pills to match colors */
-#categoryFilters .btn[data-cat="Visit"]::before      { content:"● "; color:#0ea5e9; }
-#categoryFilters .btn[data-cat="Insp"]::before       { content:"● "; color:#f59e0b; }
-#categoryFilters .btn[data-cat="Conference"]::before { content:"● "; color:#8b5cf6; }
-#categoryFilters .btn[data-cat="Other"]::before      { content:"● "; color:#94a3b8; }
+/* Tiny color dots inside filter pills */
+#categoryFilters .btn[data-cat="Visit"]::before      { content:"• "; color:#0ea5e9; }
+#categoryFilters .btn[data-cat="Insp"]::before       { content:"• "; color:#f59e0b; }
+#categoryFilters .btn[data-cat="Conference"]::before { content:"• "; color:#8b5cf6; }
+#categoryFilters .btn[data-cat="Other"]::before      { content:"• "; color:#94a3b8; }
+
+/* Legend dots */
+.legend-dot {
+  display:inline-block;
+  width:.75rem;
+  height:.75rem;
+  border-radius:50%;
+  margin-right:.25rem;
+}
+.legend-dot.pm-cat-visit      { background:#0ea5e9; }
+.legend-dot.pm-cat-insp       { background:#f59e0b; }
+.legend-dot.pm-cat-conference { background:#8b5cf6; }
+.legend-dot.pm-cat-other      { background:#94a3b8; }
 
 .fc-event.pm-recurring::after {
   content: "\21BB";
