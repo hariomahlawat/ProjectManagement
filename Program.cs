@@ -20,6 +20,9 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Helpers;
+using ProjectManagement.Contracts;
+using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Mvc;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -128,6 +131,11 @@ builder.Services.Configure<TodoOptions>(
 builder.Services.AddScoped<ILoginAnalyticsService, LoginAnalyticsService>();
 builder.Services.AddHostedService<LoginAggregationWorker>();
 builder.Services.AddHostedService<TodoPurgeWorker>();
+
+builder.Services.ConfigureHttpJsonOptions(o =>
+{
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 
 // Register email sender
 if (!string.IsNullOrWhiteSpace(builder.Configuration["Email:Smtp:Host"]))
@@ -243,46 +251,65 @@ eventsApi.MapGet("/{id:guid}", async (Guid id, ApplicationDbContext db) =>
     });
 }).RequireAuthorization();
 
-eventsApi.MapPost("", async (EventDto dto, ApplicationDbContext db, IClock clock, UserManager<ApplicationUser> users, ClaimsPrincipal user) =>
+eventsApi.MapPost("", async (ApplicationDbContext db,
+                           UserManager<ApplicationUser> users,
+                           HttpContext ctx,
+                           [FromBody] CalendarEventDto dto) =>
 {
-    if (dto.EndUtc <= dto.StartUtc) return Results.BadRequest("End must be after start");
-    var userId = users.GetUserId(user);
+    if (dto.EndUtc <= dto.StartUtc)
+        return Results.BadRequest("EndUtc must be after StartUtc.");
+
+    if (!Enum.TryParse<EventCategory>(dto.Category, true, out var cat))
+        cat = EventCategory.Other;
+
+    var uid = users.GetUserId(ctx.User) ?? "";
+
     var ev = new Event
     {
         Id = Guid.NewGuid(),
-        Title = dto.Title,
+        Title = dto.Title.Trim(),
         Description = dto.Description,
-        Category = dto.Category,
+        Category = cat,
         Location = dto.Location,
-        StartUtc = dto.StartUtc,
-        EndUtc = dto.EndUtc,
+        StartUtc = dto.StartUtc.ToUniversalTime(),
+        EndUtc   = dto.EndUtc.ToUniversalTime(),
         IsAllDay = dto.IsAllDay,
-        CreatedById = userId,
-        UpdatedById = userId,
-        CreatedAt = clock.UtcNow,
-        UpdatedAt = clock.UtcNow
+        CreatedById = uid,
+        UpdatedById = uid,
+        CreatedAt = DateTimeOffset.UtcNow,
+        UpdatedAt = DateTimeOffset.UtcNow
     };
+
     db.Events.Add(ev);
     await db.SaveChangesAsync();
-    return Results.Ok(new { id = ev.Id });
+    return Results.Created($"/calendar/events/{ev.Id}", new { id = ev.Id });
 }).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HoD" });
 
-eventsApi.MapPut("/{id:guid}", async (Guid id, EventDto dto, ApplicationDbContext db, IClock clock, UserManager<ApplicationUser> users, ClaimsPrincipal user) =>
+eventsApi.MapPut("/{id:guid}", async (ApplicationDbContext db,
+                                   UserManager<ApplicationUser> users,
+                                   HttpContext ctx,
+                                   Guid id,
+                                   [FromBody] CalendarEventDto dto) =>
 {
-    if (dto.EndUtc <= dto.StartUtc) return Results.BadRequest("End must be after start");
-    var ev = await db.Events.FirstOrDefaultAsync(e => e.Id == id);
-    if (ev == null) return Results.NotFound();
-    var userId = users.GetUserId(user);
-    ev.Title = dto.Title;
-    if (dto.Description is not null)
-        ev.Description = dto.Description;
-    ev.Category = dto.Category;
+    var ev = await db.Events.FirstOrDefaultAsync(x => x.Id == id);
+    if (ev is null) return Results.NotFound();
+    if (dto.EndUtc <= dto.StartUtc) return Results.BadRequest("EndUtc must be after StartUtc.");
+
+    if (!Enum.TryParse<EventCategory>(dto.Category, true, out var cat))
+        cat = EventCategory.Other;
+
+    var uid = users.GetUserId(ctx.User) ?? "";
+
+    ev.Title = dto.Title.Trim();
+    if (dto.Description != null) ev.Description = dto.Description;
+    ev.Category = cat;
     ev.Location = dto.Location;
-    ev.StartUtc = dto.StartUtc;
-    ev.EndUtc = dto.EndUtc;
+    ev.StartUtc = dto.StartUtc.ToUniversalTime();
+    ev.EndUtc   = dto.EndUtc.ToUniversalTime();
     ev.IsAllDay = dto.IsAllDay;
-    ev.UpdatedById = userId;
-    ev.UpdatedAt = clock.UtcNow;
+    ev.UpdatedById = uid;
+    ev.UpdatedAt = DateTimeOffset.UtcNow;
+
     await db.SaveChangesAsync();
     return Results.Ok();
 }).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HoD" });
