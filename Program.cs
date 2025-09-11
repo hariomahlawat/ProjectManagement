@@ -14,6 +14,10 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Infrastructure;
+using Markdig;
+using Ganss.Xss;
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Helpers;
 
@@ -196,6 +200,111 @@ app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Calendar API endpoints
+var eventsApi = app.MapGroup("/calendar/events");
+
+eventsApi.MapGet("", async (DateTimeOffset start, DateTimeOffset end, ApplicationDbContext db) =>
+{
+    var items = await db.Events
+        .Where(e => e.EndUtc > start && e.StartUtc < end)
+        .Select(e => new
+        {
+            id = e.Id,
+            title = e.Title,
+            start = e.StartUtc,
+            end = e.EndUtc,
+            allDay = e.IsAllDay,
+            category = e.Category.ToString(),
+            location = e.Location,
+            description = e.Description,
+            className = "cat-" + e.Category.ToString()
+        }).ToListAsync();
+    return Results.Ok(items);
+}).RequireAuthorization();
+
+eventsApi.MapGet("/{id:guid}", async (Guid id, ApplicationDbContext db) =>
+{
+    var sanitizer = new HtmlSanitizer();
+    var ev = await db.Events.FirstOrDefaultAsync(e => e.Id == id);
+    if (ev == null) return Results.NotFound();
+    var html = ev.Description == null ? null : sanitizer.Sanitize(Markdown.ToHtml(ev.Description));
+    return Results.Ok(new
+    {
+        id = ev.Id,
+        title = ev.Title,
+        start = ev.StartUtc,
+        end = ev.EndUtc,
+        allDay = ev.IsAllDay,
+        category = ev.Category,
+        location = ev.Location,
+        description = html,
+        rawDescription = ev.Description
+    });
+}).RequireAuthorization();
+
+eventsApi.MapPost("", async (EventDto dto, ApplicationDbContext db, IClock clock, UserManager<ApplicationUser> users, ClaimsPrincipal user) =>
+{
+    if (dto.EndUtc <= dto.StartUtc) return Results.BadRequest("End must be after start");
+    var userId = users.GetUserId(user);
+    var ev = new Event
+    {
+        Id = Guid.NewGuid(),
+        Title = dto.Title,
+        Description = dto.Description,
+        Category = dto.Category,
+        Location = dto.Location,
+        StartUtc = dto.StartUtc,
+        EndUtc = dto.EndUtc,
+        IsAllDay = dto.IsAllDay,
+        CreatedById = userId,
+        UpdatedById = userId,
+        CreatedAt = clock.UtcNow,
+        UpdatedAt = clock.UtcNow
+    };
+    db.Events.Add(ev);
+    await db.SaveChangesAsync();
+    return Results.Ok(new { id = ev.Id });
+}).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HOD" });
+
+eventsApi.MapPut("/{id:guid}", async (Guid id, EventDto dto, ApplicationDbContext db, IClock clock, UserManager<ApplicationUser> users, ClaimsPrincipal user) =>
+{
+    if (dto.EndUtc <= dto.StartUtc) return Results.BadRequest("End must be after start");
+    var ev = await db.Events.FirstOrDefaultAsync(e => e.Id == id);
+    if (ev == null) return Results.NotFound();
+    var userId = users.GetUserId(user);
+    ev.Title = dto.Title;
+    ev.Description = dto.Description;
+    ev.Category = dto.Category;
+    ev.Location = dto.Location;
+    ev.StartUtc = dto.StartUtc;
+    ev.EndUtc = dto.EndUtc;
+    ev.IsAllDay = dto.IsAllDay;
+    ev.UpdatedById = userId;
+    ev.UpdatedAt = clock.UtcNow;
+    await db.SaveChangesAsync();
+    return Results.Ok();
+}).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HOD" });
+
+eventsApi.MapDelete("/{id:guid}", async (Guid id, ApplicationDbContext db, IClock clock, UserManager<ApplicationUser> users, ClaimsPrincipal user) =>
+{
+    var ev = await db.Events.FirstOrDefaultAsync(e => e.Id == id);
+    if (ev == null) return Results.NotFound();
+    ev.IsDeleted = true;
+    ev.UpdatedAt = clock.UtcNow;
+    ev.UpdatedById = users.GetUserId(user);
+    await db.SaveChangesAsync();
+    return Results.Ok();
+}).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HOD" });
+
+eventsApi.MapPost("/{id:guid}/task", async (Guid id, ApplicationDbContext db, ITodoService todos, UserManager<ApplicationUser> users, ClaimsPrincipal user) =>
+{
+    var ev = await db.Events.FirstOrDefaultAsync(e => e.Id == id);
+    if (ev == null) return Results.NotFound();
+    var userId = users.GetUserId(user);
+    await todos.CreateAsync(userId!, ev.Title, TimeZoneInfo.ConvertTime(ev.StartUtc, IstClock.TimeZone));
+    return Results.Ok();
+}).RequireAuthorization();
 
 app.MapRazorPages();
 
