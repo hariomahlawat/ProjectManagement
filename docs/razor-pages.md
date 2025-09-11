@@ -34,6 +34,7 @@ This module summarises the UI components exposed to end users.
   * A filter pill group toggles visibility by category without refetching.
   * Local times are respected when editing; all-day events use date-only inputs.
   * Events include accessible titles and tooltips, and a toast with an Undo action appears after changes.
+  * The page loads FullCalendar's prebuilt global bundle, which injects its own styles at runtime so no plugin CSS links are required.
   * Print styles hide chrome so month grids can be printed cleanly.
 
 * `Areas/Admin/Pages/Calendar/Deleted.cshtml` – admin-only table listing soft-deleted events with a Restore action.

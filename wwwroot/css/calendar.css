@@ -5,6 +5,8 @@
 .fc .fc-event.pm-cat-hiring    { border-left: 4px solid #8b5cf6; }
 .fc .fc-event.pm-cat-other     { border-left: 4px solid #64748b; }
 
+#calendar { min-height: 640px; }
+
 @media print {
   body * { visibility: hidden; }
   #calendar, #calendar * { visibility: visible; }
