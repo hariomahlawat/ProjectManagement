@@ -27,3 +27,6 @@ This module summarises the UI components exposed to end users.
 
 ## Admin analytics
 * `Areas/Admin/Pages/Analytics/Logins.cshtml` – scatter chart rendered with Chart.js (loaded as a global script) showing login times over a selectable window with an office-hours band, percentile lines (median and P90 only when data exists), weekend highlighting and per-user filter. Dataset decimation keeps rendering fast on large ranges. Tooltips and the odd-logins table show friendly user names (falling back to email or "(deleted)"), CSV export includes both name and ID, and points link to their audit log entries.
+
+## Calendar
+* `Pages/Calendar/Index.cshtml` – FullCalendar-based interface offering month, week and list views. Events load from `/calendar/events` and show details in an offcanvas panel with Markdown rendering and a quick “Add to My Tasks” action. Users in the Admin, TA or HOD roles can create, drag, resize, edit and delete events through a separate offcanvas form.
