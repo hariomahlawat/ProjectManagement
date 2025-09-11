@@ -1,8 +1,12 @@
-import { Calendar } from '../lib/fullcalendar/core/index.js';
-import dayGridPlugin from '../lib/fullcalendar/daygrid/index.js';
-import timeGridPlugin from '../lib/fullcalendar/timegrid/index.js';
-import listPlugin from '../lib/fullcalendar/list/index.js';
-import interactionPlugin from '../lib/fullcalendar/interaction/index.js';
+const Calendar = window.FullCalendar?.Calendar;
+const dayGridPlugin = window.FullCalendar?.dayGrid || window.FullCalendarDayGrid;
+const timeGridPlugin = window.FullCalendar?.timeGrid || window.FullCalendarTimeGrid;
+const listPlugin = window.FullCalendar?.list || window.FullCalendarList;
+const interactionPlugin = window.FullCalendar?.interaction || window.FullCalendarInteraction;
+
+if (!Calendar) {
+    console.error('FullCalendar globals not found. Check script order.');
+}
 
 function pad(n) { return String(n).padStart(2,'0'); }
 function toLocalInputValue(d) {
@@ -253,8 +257,12 @@ function showUndoToast(message, undo) {
 function categoryFilters() {
     document.querySelectorAll('#catFilters [data-cat]').forEach(btn => {
         btn.addEventListener('click', () => {
-            document.querySelectorAll('#catFilters [data-cat]').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('#catFilters [data-cat]').forEach(b => {
+                b.classList.remove('active');
+                b.setAttribute('aria-pressed', 'false');
+            });
             btn.classList.add('active');
+            btn.setAttribute('aria-pressed', 'true');
             const cat = btn.dataset.cat;
             calendar.getEvents().forEach(ev => {
                 const match = !cat || ev.extendedProps.category === cat;
