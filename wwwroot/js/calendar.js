@@ -212,6 +212,8 @@
 
       if (activeCategory && key !== activeCategory) {
         info.el.style.display = 'none';
+      } else {
+        info.el.style.display = '';
       }
       if (info.event.extendedProps.isRecurring) {
         info.el.classList.add('pm-recurring');
@@ -247,9 +249,7 @@
   emptyEl.textContent = 'No events in this period.';
   calendarEl.appendChild(emptyEl);
   function updateEmptyState() {
-    const has = calendar.getEvents().some(e => {
-      const el = e.el; return el && el.offsetParent !== null;
-    });
+    const has = !!calendarEl.querySelector('.fc-event:not([style*="display: none"])');
     emptyEl.style.display = has ? 'none' : '';
   }
   calendar.on('eventsSet', updateEmptyState);
@@ -303,11 +303,8 @@
       catFilters.querySelectorAll('button').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       activeCategory = btn.getAttribute('data-cat') || "";
-      calendar.getEvents().forEach(ev => {
-        const key = canon(ev.extendedProps.category);
-        const el = ev.el; if (!el) return;
-        el.style.display = (!activeCategory || key === activeCategory) ? '' : 'none';
-      });
+      // Reapply eventDidMount for all events with the new filter
+      calendar.rerenderEvents();
       updateCounts();
       updateEmptyState();
     });
