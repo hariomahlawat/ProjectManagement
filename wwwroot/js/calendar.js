@@ -44,6 +44,70 @@
   const timePickers = document.getElementById('timePickers');
   const datePickers = document.getElementById('datePickers');
   const btnDelete = document.getElementById('btnDeleteEvent');
+
+  // ----- repeat UI wiring -----
+  const repeatFreq     = document.getElementById('repeatFreq');
+  const repeatWeekly   = document.getElementById('repeatWeekly');
+  const repeatMonthly  = document.getElementById('repeatMonthly');
+  const repeatMonthDay = document.getElementById('repeatMonthDay');
+  const repeatUntil    = document.getElementById('repeatUntil');
+
+  repeatFreq?.addEventListener('change', () => {
+    repeatWeekly.classList.toggle('d-none', repeatFreq.value !== 'WEEKLY');
+    repeatMonthly.classList.toggle('d-none', repeatFreq.value !== 'MONTHLY');
+  });
+
+  function buildRRule(startLocalIso) {
+    const f = repeatFreq?.value || '';
+    if (!f) return null;
+    const parts = [`FREQ=${f}`, 'INTERVAL=1'];
+
+    if (f === 'WEEKLY') {
+      const days = Array.from(repeatWeekly.querySelectorAll('input:checked')).map(x => x.value);
+      if (!days.length) {
+        const map = ['SU','MO','TU','WE','TH','FR','SA'];
+        days.push(map[new Date(startLocalIso).getDay()]);
+      }
+      parts.push(`BYDAY=${days.join(',')}`);
+    }
+    if (f === 'MONTHLY') {
+      const d = parseInt(repeatMonthDay.value, 10) || new Date(startLocalIso).getDate();
+      parts.push(`BYMONTHDAY=${d}`);
+    }
+    const endChoice = (document.querySelector('input[name="repeatEnd"]:checked')||{}).value;
+    if (endChoice === 'on' && repeatUntil.value) {
+      const u = new Date(repeatUntil.value + 'T23:59:59');
+      const z = new Date(Date.UTC(u.getFullYear(), u.getMonth(), u.getDate(), 23,59,59));
+      parts.push(`UNTIL=${z.toISOString().replace(/[-:]/g,'').split('.')[0]}Z`);
+    }
+    return parts.join(';');
+  }
+
+  function hydrateRepeatUI(rrule) {
+    if (!repeatFreq) return;
+    repeatFreq.value = '';
+    repeatWeekly.classList.add('d-none');
+    repeatMonthly.classList.add('d-none');
+    repeatWeekly.querySelectorAll('input').forEach(i => i.checked=false);
+    repeatMonthDay.value = '';
+    repeatUntil.value='';
+    document.querySelector('input[name="repeatEnd"][value="never"]').checked = true;
+    if (!rrule) return;
+
+    const m = Object.fromEntries(rrule.split(';').map(p => p.split('=')));
+    if (m.FREQ === 'WEEKLY') {
+      repeatFreq.value='WEEKLY'; repeatWeekly.classList.remove('d-none');
+      (m.BYDAY||'').split(',').forEach(code => { const box = repeatWeekly.querySelector(`input[value="${code}"]`); if (box) box.checked = true; });
+    } else if (m.FREQ === 'MONTHLY') {
+      repeatFreq.value='MONTHLY'; repeatMonthly.classList.remove('d-none');
+      if (m.BYMONTHDAY) repeatMonthDay.value = m.BYMONTHDAY;
+    }
+    if (m.UNTIL) {
+      const y = m.UNTIL.slice(0,4), mo=m.UNTIL.slice(4,6), d=m.UNTIL.slice(6,8);
+      repeatUntil.value = `${y}-${mo}-${d}`;
+      document.querySelector('input[name="repeatEnd"][value="on"]').checked = true;
+    }
+  }
   function setAllDayUI(on) {
     if (!timePickers || !datePickers) return;
     if (on) { timePickers.classList.add('d-none'); datePickers.classList.remove('d-none'); }
@@ -70,7 +134,7 @@
   }
 
   async function saveMoveResize(info) {
-    const id = info.event.id;
+    const id = info.event.extendedProps.seriesId || info.event.id;
     const payload = {
       title: info.event.title,
       category: info.event.extendedProps.category,
@@ -138,6 +202,13 @@
       if (activeCategory && info.event.extendedProps.category !== activeCategory) {
         info.el.style.display = 'none';
       }
+      if (info.event.extendedProps.isRecurring) {
+        info.el.classList.add('pm-recurring');
+        info.el.querySelectorAll('.fc-event-resizer').forEach(r => r.style.display = 'none');
+      }
+    },
+    eventAllow: (dropInfo, draggedEvent) => {
+      return !draggedEvent.extendedProps?.isRecurring;
     }
   };
 
@@ -238,7 +309,8 @@
     calendar.setOption('eventClick', async (arg) => {
       if (!form) return;
       const ev = arg.event;
-      const res = await fetch(`/calendar/events/${ev.id}`);
+      const seriesId = ev.extendedProps.seriesId || ev.id;
+      const res = await fetch(`/calendar/events/${seriesId}`);
       if (!res.ok) { console.error('Failed to load event'); return; }
       const data = await res.json();
       editingOriginal = data;
@@ -249,6 +321,7 @@
       descBox.value = data.rawDescription || '';
       isAllDayBox.checked = !!data.allDay;
       setAllDayUI(isAllDayBox.checked);
+      hydrateRepeatUI(data.recurrenceRule);
       if (isAllDayBox.checked) {
         const start = new Date(data.start);
         const endEx = new Date(data.end); endEx.setDate(endEx.getDate() - 1);
@@ -271,6 +344,7 @@
       idBox.value = '';
       isAllDayBox.checked = false;
       setAllDayUI(false);
+      hydrateRepeatUI(null);
       btnDelete && btnDelete.classList.add('d-none');
       const lbl = document.getElementById('eventFormLabel');
       lbl && (lbl.textContent = 'New event');
@@ -296,13 +370,20 @@
       }
       if (new Date(endUtc) <= new Date(startUtc)) { alert('End must be after start.'); return; }
 
+      const startLocalIso = isAllDay
+        ? `${fd.get('startDate')}T00:00`
+        : fd.get('start');
+      const rrule = buildRRule(startLocalIso);
+
       const dto = {
         title: (fd.get('title')||'').toString().trim(),
         description: (fd.get('description')||'').toString(),
         category: (fd.get('category')||'Other').toString(),
         location: (fd.get('location')||'').toString() || null,
         isAllDay,
-        startUtc, endUtc
+        startUtc, endUtc,
+        recurrenceRule: rrule,
+        recurrenceUntilUtc: repeatUntil.value ? new Date(repeatUntil.value + 'T23:59:59').toISOString() : null
       };
 
       const id = fd.get('id');
@@ -340,7 +421,7 @@
         createdId = j.id;
       }
 
-      form.reset(); setAllDayUI(false);
+      form.reset(); setAllDayUI(false); hydrateRepeatUI(null);
       btnDelete && btnDelete.classList.add('d-none');
       const canvasEl = document.getElementById('eventFormCanvas');
       const canvas = canvasEl ? bootstrap.Offcanvas.getOrCreateInstance(canvasEl) : null;
@@ -370,7 +451,7 @@
       const r = await fetch(`/calendar/events/${id}`, { method: 'DELETE' });
       if (!r.ok) { alert('Delete failed'); return; }
       bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('eventFormCanvas')).hide();
-      form.reset(); setAllDayUI(false);
+      form.reset(); setAllDayUI(false); hydrateRepeatUI(null);
       btnDelete.classList.add('d-none');
       calendar.refetchEvents();
     });
@@ -386,7 +467,8 @@
     let viewEventId = null;
 
     calendar.setOption('eventClick', async (arg) => {
-      const res = await fetch(`/calendar/events/${arg.event.id}`);
+      const seriesId = arg.event.extendedProps.seriesId || arg.event.id;
+      const res = await fetch(`/calendar/events/${seriesId}`);
       if (!res.ok) { console.error('Failed to load event'); return; }
       const data = await res.json();
       viewEventId = data.id;

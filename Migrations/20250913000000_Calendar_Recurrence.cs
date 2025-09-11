@@ -1,0 +1,50 @@
+using System;
+using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace ProjectManagement.Migrations
+{
+    /// <inheritdoc />
+    public partial class Calendar_Recurrence : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.AddColumn<string>(
+                name: "RecurrenceRule",
+                table: "Events",
+                type: "character varying(256)",
+                maxLength: 256,
+                nullable: true);
+
+            migrationBuilder.AddColumn<DateTimeOffset>(
+                name: "RecurrenceUntilUtc",
+                table: "Events",
+                type: "timestamp with time zone",
+                nullable: true);
+
+            migrationBuilder.AddColumn<string>(
+                name: "RecurrenceExDates",
+                table: "Events",
+                type: "text",
+                nullable: true);
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.DropColumn(
+                name: "RecurrenceRule",
+                table: "Events");
+
+            migrationBuilder.DropColumn(
+                name: "RecurrenceUntilUtc",
+                table: "Events");
+
+            migrationBuilder.DropColumn(
+                name: "RecurrenceExDates",
+                table: "Events");
+        }
+    }
+}

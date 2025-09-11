@@ -23,6 +23,7 @@ using ProjectManagement.Helpers;
 using ProjectManagement.Contracts;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
+using System.Collections.Generic;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -212,23 +213,35 @@ app.UseAuthorization();
 // Calendar API endpoints
 var eventsApi = app.MapGroup("/calendar/events");
 
-eventsApi.MapGet("", async (DateTimeOffset start, DateTimeOffset end, ApplicationDbContext db) =>
+eventsApi.MapGet("", async (ApplicationDbContext db, DateTimeOffset start, DateTimeOffset end) =>
 {
-    var items = await db.Events
-        .Where(e => e.EndUtc > start && e.StartUtc < end)
-        .Select(e => new
+    if ((end - start).TotalDays > 400) end = start.AddDays(400);
+
+    var rows = await db.Events
+        .Where(e => !e.IsDeleted && (e.RecurrenceRule != null || (e.StartUtc < end && e.EndUtc > start)))
+        .ToListAsync();
+
+    var list = new List<object>();
+    foreach (var ev in rows)
+    {
+        foreach (var occ in RecurrenceExpander.Expand(ev, start, end))
         {
-            id = e.Id,
-            title = e.Title,
-            start = e.StartUtc,
-            end = e.EndUtc,
-            allDay = e.IsAllDay,
-            category = e.Category.ToString(),
-            location = e.Location,
-            description = e.Description,
-            className = "cat-" + e.Category.ToString()
-        }).ToListAsync();
-    return Results.Ok(items);
+            list.Add(new
+            {
+                id = occ.InstanceId,
+                seriesId = ev.Id,
+                title = ev.Title,
+                start = occ.Start,
+                end = occ.End,
+                allDay = ev.IsAllDay,
+                category = ev.Category.ToString(),
+                location = ev.Location,
+                isRecurring = ev.RecurrenceRule != null
+            });
+        }
+    }
+
+    return Results.Ok(list);
 }).RequireAuthorization();
 
 eventsApi.MapGet("/{id:guid}", async (Guid id, ApplicationDbContext db) =>
@@ -247,7 +260,9 @@ eventsApi.MapGet("/{id:guid}", async (Guid id, ApplicationDbContext db) =>
         category = ev.Category,
         location = ev.Location,
         description = html,
-        rawDescription = ev.Description
+        rawDescription = ev.Description,
+        recurrenceRule = ev.RecurrenceRule,
+        recurrenceUntilUtc = ev.RecurrenceUntilUtc
     });
 }).RequireAuthorization();
 
@@ -274,6 +289,8 @@ eventsApi.MapPost("", async (ApplicationDbContext db,
         StartUtc = dto.StartUtc.ToUniversalTime(),
         EndUtc   = dto.EndUtc.ToUniversalTime(),
         IsAllDay = dto.IsAllDay,
+        RecurrenceRule = string.IsNullOrWhiteSpace(dto.RecurrenceRule) ? null : dto.RecurrenceRule,
+        RecurrenceUntilUtc = dto.RecurrenceUntilUtc?.ToUniversalTime(),
         CreatedById = uid,
         UpdatedById = uid,
         CreatedAt = DateTimeOffset.UtcNow,
@@ -307,6 +324,8 @@ eventsApi.MapPut("/{id:guid}", async (ApplicationDbContext db,
     ev.StartUtc = dto.StartUtc.ToUniversalTime();
     ev.EndUtc   = dto.EndUtc.ToUniversalTime();
     ev.IsAllDay = dto.IsAllDay;
+    ev.RecurrenceRule = string.IsNullOrWhiteSpace(dto.RecurrenceRule) ? null : dto.RecurrenceRule;
+    ev.RecurrenceUntilUtc = dto.RecurrenceUntilUtc?.ToUniversalTime();
     ev.UpdatedById = uid;
     ev.UpdatedAt = DateTimeOffset.UtcNow;
 
