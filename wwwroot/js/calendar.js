@@ -1,17 +1,13 @@
 (function () {
   // globals provided by index.global.min.js
-  const Calendar = window.FullCalendar && window.FullCalendar.Calendar;
+  const Calendar = window.FullCalendar?.Calendar;
   if (!Calendar) { console.error('FullCalendar global bundle missing'); return; }
-
-  const dayGridPlugin     = window.FullCalendar.dayGrid;
-  const timeGridPlugin    = window.FullCalendar.timeGrid;
-  const listPlugin        = window.FullCalendar.list;
-  const interactionPlugin = window.FullCalendar.interaction;
 
   const calendarEl = document.getElementById('calendar');
   if (!calendarEl) return;
 
   const canEdit = (calendarEl.dataset.canEdit || '').toLowerCase() === 'true';
+  let activeCategory = "";
 
   // helpers
   const pad = (n) => String(n).padStart(2,'0');
@@ -21,7 +17,6 @@
   };
 
   const calendar = new Calendar(calendarEl, {
-    plugins: [dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin],
     initialView: 'dayGridMonth',
     headerToolbar: false,
     firstDay: 1,
@@ -66,7 +61,6 @@
 
   // category filter
   const catFilters = document.getElementById('categoryFilters');
-  let activeCategory = "";
   if (catFilters) {
     catFilters.querySelectorAll('button').forEach(btn => {
       btn.addEventListener('click', () => {
