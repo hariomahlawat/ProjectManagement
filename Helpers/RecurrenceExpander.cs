@@ -35,8 +35,8 @@ public static class RecurrenceExpander
         var occs = ical.GetOccurrences(windowStart.UtcDateTime, windowEnd.UtcDateTime);
         return occs.Select(o =>
         {
-            var sUtc = TimeZoneInfo.ConvertTimeToUtc(o.Period.StartTime.AsSystemLocal, Tz);
-            var eUtc = TimeZoneInfo.ConvertTimeToUtc(o.Period.EndTime.AsSystemLocal, Tz);
+            var sUtc = o.Period.StartTime.AsUtc;
+            var eUtc = o.Period.EndTime.AsUtc;
             var id = $"{ev.Id:N}_{sUtc:yyyyMMddTHHmmssZ}";
             return new Occ(new DateTimeOffset(sUtc), new DateTimeOffset(eUtc), id);
         });

@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Security.Claims;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -31,19 +33,27 @@ namespace ProjectManagement.Tests
                 });
                 builder.ConfigureTestServices(services =>
                 {
-                    services.AddAuthentication("Test")
-                        .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", _ => { });
+                    services.AddAuthentication(options =>
+                    {
+                        options.DefaultAuthenticateScheme = "Test";
+                        options.DefaultChallengeScheme = "Test";
+                        options.DefaultScheme = "Test";
+                    })
+                    .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", _ => { });
                 });
             });
         }
 
         private HttpClient CreateClient(string? role = null)
         {
-            var client = _factory.CreateClient();
+            var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+            client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Test");
             if (role != null)
                 client.DefaultRequestHeaders.Add("X-Test-Role", role);
             return client;
         }
+
+        private record EventVm(string Id, Guid SeriesId, string Title, DateTimeOffset Start, DateTimeOffset End, bool AllDay, string Category, string? Location, bool IsRecurring);
 
         [Fact]
         public async Task PostRequiresEditorRole()
@@ -75,11 +85,45 @@ namespace ProjectManagement.Tests
             db.Events.Add(ev);
             db.SaveChanges();
 
-            var hod = CreateClient("hod");
+            var hod = CreateClient("HoD");
             var put = await hod.PutAsJsonAsync($"/calendar/events/{ev.Id}", new { title = "B", category = "Training", startUtc = DateTime.UtcNow, endUtc = DateTime.UtcNow.AddHours(1), isAllDay = false });
             Assert.Equal(System.Net.HttpStatusCode.OK, put.StatusCode);
             var del = await hod.DeleteAsync($"/calendar/events/{ev.Id}");
             Assert.Equal(System.Net.HttpStatusCode.OK, del.StatusCode);
+        }
+
+        [Fact]
+        public async Task RecurringAllDayEventsReturnedInFutureMonths()
+        {
+            using var scope = _factory.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            var ev = new ProjectManagement.Models.Event
+            {
+                Id = Guid.NewGuid(),
+                Title = "Holiday",
+                Category = ProjectManagement.Models.EventCategory.Other,
+                StartUtc = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                EndUtc = new DateTime(2024, 1, 2, 0, 0, 0, DateTimeKind.Utc),
+                IsAllDay = true,
+                RecurrenceRule = "FREQ=MONTHLY",
+                RecurrenceUntilUtc = new DateTime(2024, 4, 30, 0, 0, 0, DateTimeKind.Utc),
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            db.Events.Add(ev);
+            db.SaveChanges();
+
+            var client = CreateClient("Admin");
+            var start = new DateTimeOffset(2024, 3, 1, 0, 0, 0, TimeSpan.Zero);
+            var end = new DateTimeOffset(2024, 4, 1, 0, 0, 0, TimeSpan.Zero);
+            var url = $"/calendar/events?start={Uri.EscapeDataString(start.UtcDateTime.ToString("o"))}&end={Uri.EscapeDataString(end.UtcDateTime.ToString("o"))}";
+            var response = await client.GetAsync(url);
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.True(response.IsSuccessStatusCode, body);
+            var items = JsonSerializer.Deserialize<List<EventVm>>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            Assert.NotNull(items);
+            Assert.Contains(items!, i => i.SeriesId == ev.Id && i.AllDay && i.Start == start);
         }
 
         private class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
