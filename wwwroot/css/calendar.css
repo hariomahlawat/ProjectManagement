@@ -1,14 +1,56 @@
-/* left-color accents */
-.fc .fc-event.pm-cat-training  { border-left: 4px solid #22c55e; }
-.fc .fc-event.pm-cat-holiday   { border-left: 4px solid #ef4444; }
-.fc .fc-event.pm-cat-townhall  { border-left: 4px solid #0ea5e9; }
-.fc .fc-event.pm-cat-hiring    { border-left: 4px solid #8b5cf6; }
-.fc .fc-event.pm-cat-other     { border-left: 4px solid #64748b; }
-
+/* Give the calendar some height so it doesn't feel empty while loading */
 #calendar { min-height: 640px; }
 
+/* Header (Mon, Tue...) */
+.fc .fc-col-header-cell-cushion {
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-transform: none;
+  padding: .75rem .25rem;
+}
+
+/* Day numbers */
+.fc .fc-daygrid-day-number {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #334155;
+  padding: .35rem .5rem .15rem .5rem;
+}
+
+/* Today highlight: subtle ring and soft background */
+.fc .fc-day-today {
+  background-color: rgba(13,110,253,.06);
+}
+.fc .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+  box-shadow: inset 0 0 0 2px rgba(13,110,253,.6);
+  border-radius: .5rem;
+}
+
+/* Softer grid lines */
+.fc-theme-standard .fc-scrollgrid,
+.fc-theme-standard td,
+.fc-theme-standard th {
+  border-color: #e5e7eb;
+}
+
+/* Light weekend tint (optional) */
+.fc .fc-day-sat, .fc .fc-day-sun {
+  background-image: linear-gradient(to bottom, rgba(148,163,184,.06), rgba(148,163,184,.06));
+}
+
+/* Active view button */
+[data-view].active { color: #fff; }
+
+/* Category accents */
+.fc-event.pm-cat-training  { border-left: 4px solid #22c55e; }
+.fc-event.pm-cat-holiday   { border-left: 4px solid #ef4444; }
+.fc-event.pm-cat-townhall  { border-left: 4px solid #0ea5e9; }
+.fc-event.pm-cat-hiring    { border-left: 4px solid #8b5cf6; }
+.fc-event.pm-cat-other     { border-left: 4px solid #64748b; }
+
+/* Print: clean A4 month view */
 @media print {
-  body * { visibility: hidden; }
-  #calendar, #calendar * { visibility: visible; }
-  #calendar { box-shadow: none !important; }
+  nav, header, footer, #categoryFilters, #btnNewEvent, #btnPrev, #btnNext, [data-view], #btnToday { display: none !important; }
+  #calendar { box-shadow: none; border: none; }
+  .fc .fc-toolbar { display: none; }
 }
