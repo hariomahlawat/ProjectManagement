@@ -128,8 +128,8 @@ namespace ProjectManagement.Tests
 
         private class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
         {
-            public TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, System.Text.Encodings.Web.UrlEncoder encoder, ISystemClock clock)
-                : base(options, logger, encoder, clock) { }
+            public TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, System.Text.Encodings.Web.UrlEncoder encoder)
+                : base(options, logger, encoder) { }
 
             protected override Task<AuthenticateResult> HandleAuthenticateAsync()
             {
