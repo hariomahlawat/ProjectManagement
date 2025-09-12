@@ -37,7 +37,7 @@ namespace ProjectManagement.Data
 
             builder.Entity<TodoItem>(e =>
             {
-                e.UseXminAsConcurrencyToken();
+                e.Property<uint>("xmin").IsRowVersion();
                 e.HasIndex(x => new { x.OwnerId, x.Status, x.IsPinned, x.DueAtUtc });
                 e.HasIndex(x => new { x.OwnerId, x.OrderIndex });
                 e.HasIndex(x => x.DeletedUtc);
