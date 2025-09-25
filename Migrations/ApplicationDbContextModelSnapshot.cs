@@ -568,12 +568,12 @@ namespace ProjectManagement.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<DateOnly?>("AnchorDate")
+                        .HasColumnType("date");
+
                     b.Property<string>("AnchorStageCode")
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
-
-                    b.Property<DateOnly?>("AnchorDate")
-                        .HasColumnType("date");
 
                     b.Property<string>("ApprovedByUserId")
                         .HasMaxLength(450)

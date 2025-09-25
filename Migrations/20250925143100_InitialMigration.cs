@@ -367,7 +367,12 @@ namespace ProjectManagement.Migrations
                     SubmittedOn = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     ApprovedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
                     ApprovedOn = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    Reason = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true)
+                    Reason = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true),
+                    AnchorStageCode = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: true),
+                    AnchorDate = table.Column<DateOnly>(type: "date", nullable: true),
+                    SkipWeekends = table.Column<bool>(type: "boolean", nullable: false, defaultValue: true),
+                    TransitionRule = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    PncApplicable = table.Column<bool>(type: "boolean", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
                 {

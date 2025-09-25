@@ -36,7 +36,7 @@ namespace ProjectManagement.Data
                 {
                     UserName = "admin",
                     EmailConfirmed = true,
-                    MustChangePassword = true,
+                    MustChangePassword = false,
                     FullName = "Administrator",
                     Rank = "Admin"
                 };
@@ -63,6 +63,24 @@ namespace ProjectManagement.Data
                     rank: "Test",
                     role: "Project Officer",
                     password: "ChangeMe!123",
+                    mustChangePassword: false);
+
+                await EnsureTestUserAsync(
+                    userMgr,
+                    userName: "hariomahlawat",
+                    fullName: "Hari Om Ahlawat",
+                    rank: "Colonel",
+                    role: "HoD",
+                    password: "Sdd@123456",
+                    mustChangePassword: false);
+
+                await EnsureTestUserAsync(
+                    userMgr,
+                    userName: "anupam",
+                    fullName: "Anupam Porwal",
+                    rank: "Lt Col",
+                    role: "Project Officer",
+                    password: "Sdd@123456",
                     mustChangePassword: false);
             }
         }

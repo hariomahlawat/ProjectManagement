@@ -12,7 +12,7 @@ using ProjectManagement.Data;
 namespace ProjectManagement.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250925125604_InitialMigration")]
+    [Migration("20250925143100_InitialMigration")]
     partial class InitialMigration
     {
         /// <inheritdoc />
@@ -571,6 +571,13 @@ namespace ProjectManagement.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<DateOnly?>("AnchorDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("AnchorStageCode")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<string>("ApprovedByUserId")
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
@@ -586,12 +593,22 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTimeOffset>("CreatedOn")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("PncApplicable")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
                     b.Property<int>("ProjectId")
                         .HasColumnType("integer");
 
                     b.Property<string>("Reason")
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");
+
+                    b.Property<bool>("SkipWeekends")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -609,6 +626,11 @@ namespace ProjectManagement.Migrations
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
+
+                    b.Property<string>("TransitionRule")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<int>("VersionNo")
                         .HasColumnType("integer");
