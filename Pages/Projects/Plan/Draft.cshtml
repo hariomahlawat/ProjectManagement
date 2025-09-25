@@ -104,3 +104,36 @@
         <a class="btn btn-outline-secondary" asp-page="/Projects/View" asp-route-id="@Model.ProjectId">Back</a>
     </div>
 </form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (() => {
+            const starts = document.querySelectorAll('input[name$=".PlannedStart"]');
+            for (const start of starts) {
+                const dueName = start.name.replace('.PlannedStart', '.PlannedDue');
+                const due = document.querySelector(`input[name="${dueName}"]`);
+                if (!due) {
+                    continue;
+                }
+
+                const validate = () => {
+                    start.setCustomValidity('');
+                    due.setCustomValidity('');
+
+                    const startValue = start.value;
+                    const dueValue = due.value;
+
+                    if (startValue && dueValue && dueValue < startValue) {
+                        due.setCustomValidity('Planned due must be on or after the planned start date.');
+                    }
+                };
+
+                start.addEventListener('input', validate);
+                due.addEventListener('input', validate);
+
+                validate();
+            }
+        })();
+    </script>
+}
