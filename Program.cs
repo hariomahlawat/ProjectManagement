@@ -136,6 +136,7 @@ builder.Services.AddHostedService<LoginAggregationWorker>();
 builder.Services.AddHostedService<TodoPurgeWorker>();
 builder.Services.AddScoped<PlanDraftService>();
 builder.Services.AddScoped<PlanApprovalService>();
+builder.Services.AddScoped<StageRulesService>();
 
 builder.Services.ConfigureHttpJsonOptions(o =>
 {

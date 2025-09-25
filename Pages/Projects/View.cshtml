@@ -1,7 +1,14 @@
 @page "{id:int}"
 @model ProjectManagement.Pages.Projects.ViewModel
+@using ProjectManagement.Models.Execution
 @{
     ViewData["Title"] = Model.Item.Name;
+    var ragClass = Model.ProjectRag switch
+    {
+        ProjectRagStatus.Red => "badge bg-danger",
+        ProjectRagStatus.Amber => "badge bg-warning text-dark",
+        _ => "badge bg-success"
+    };
 }
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h2 class="mb-0">@Model.Item.Name</h2>
@@ -14,6 +21,25 @@
     @Model.StatusMessage
   </div>
 }
+
+<div class="border rounded p-3 mb-3">
+  <div class="d-flex flex-column flex-lg-row gap-3 align-items-lg-center">
+    <div>
+      <span class="@ragClass">Project RAG: @Model.ProjectRag</span>
+    </div>
+    <div class="flex-grow-1">
+      <div class="fw-semibold mb-1">Slip (days)</div>
+      <ul class="list-inline mb-0">
+        @foreach (var slip in Model.StageSlips)
+        {
+          <li class="list-inline-item mb-1">
+            <span class="badge bg-light text-dark border">@slip.Code: @slip.SlipDays</span>
+          </li>
+        }
+      </ul>
+    </div>
+  </div>
+</div>
 
 <dl class="row">
   <dt class="col-sm-3">Description</dt>

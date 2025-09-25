@@ -1,11 +1,51 @@
 @page
 @model ProjectManagement.Pages.Projects.StagesModel
+@using ProjectManagement.Models.Execution
 @{
     ViewData["Title"] = "Project Stages";
+    var ragClass = Model.ProjectRag switch
+    {
+        ProjectRagStatus.Red => "badge bg-danger",
+        ProjectRagStatus.Amber => "badge bg-warning text-dark",
+        _ => "badge bg-success"
+    };
 }
 
 <h1 class="mb-3">Project Stages</h1>
 <p class="text-muted">Project: <strong>@Model.ProjectName</strong></p>
+
+@if (!string.IsNullOrEmpty(Model.StatusMessage))
+{
+    <div class="alert alert-success" role="alert">
+        @Model.StatusMessage
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger" role="alert">
+        @Model.ErrorMessage
+    </div>
+}
+
+<div class="border rounded p-3 mb-3">
+    <div class="d-flex flex-column flex-lg-row gap-3 align-items-lg-center">
+        <div>
+            <span class="@ragClass">Project RAG: @Model.ProjectRag</span>
+        </div>
+        <div class="flex-grow-1">
+            <div class="fw-semibold mb-1">Slip (days)</div>
+            <ul class="list-inline mb-0">
+                @foreach (var slip in Model.StageSlips)
+                {
+                    <li class="list-inline-item mb-1">
+                        <span class="badge bg-light text-dark border">@slip.Code: @slip.SlipDays</span>
+                    </li>
+                }
+            </ul>
+        </div>
+    </div>
+</div>
 
 <div class="table-responsive">
     <table class="table table-sm align-middle">
@@ -16,8 +56,13 @@
                 <th scope="col" style="width: 12rem;">Planned Start</th>
                 <th scope="col" style="width: 12rem;">Planned Due</th>
                 <th scope="col" style="width: 10rem;">Status</th>
+                <th scope="col" style="width: 8rem;">Slip (days)</th>
                 <th scope="col" style="width: 12rem;">Actual Start</th>
                 <th scope="col" style="width: 12rem;">Completed On</th>
+                @if (Model.CanManageStages)
+                {
+                    <th scope="col" style="width: 18rem;">Actions</th>
+                }
             </tr>
         </thead>
         <tbody>
@@ -33,8 +78,29 @@
                 <td>@stage.PlannedStart?.ToString("dd MMM yyyy")</td>
                 <td>@stage.PlannedDue?.ToString("dd MMM yyyy")</td>
                 <td>@stage.Status</td>
+                <td>@stage.SlipDays</td>
                 <td>@stage.ActualStart?.ToString("dd MMM yyyy")</td>
                 <td>@stage.CompletedOn?.ToString("dd MMM yyyy")</td>
+                @if (Model.CanManageStages)
+                {
+                    <td>
+                        <div class="d-flex flex-wrap gap-2">
+                            <form method="post" asp-page-handler="Start" asp-route-projectId="@Model.ProjectId" asp-route-stage="@stage.Code" class="d-inline">
+                                <button type="submit" class="btn btn-outline-primary btn-sm" title="@stage.StartGuard.Reason" @(stage.StartGuard.Allowed ? null : "disabled")>Start</button>
+                            </form>
+                            <form method="post" asp-page-handler="Complete" asp-route-projectId="@Model.ProjectId" asp-route-stage="@stage.Code" class="d-inline">
+                                <button type="submit" class="btn btn-outline-success btn-sm" title="@stage.CompleteGuard.Reason" @(stage.CompleteGuard.Allowed ? null : "disabled")>Complete</button>
+                            </form>
+                            @if (string.Equals(stage.Code, "PNC", StringComparison.OrdinalIgnoreCase))
+                            {
+                                <form method="post" asp-page-handler="Skip" asp-route-projectId="@Model.ProjectId" asp-route-stage="@stage.Code" class="d-flex flex-wrap gap-2">
+                                    <input type="text" name="reason" class="form-control form-control-sm" placeholder="Reason" required minlength="3" maxlength="200" />
+                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="@stage.SkipGuard.Reason" @(stage.SkipGuard.Allowed ? null : "disabled")>Skip</button>
+                                </form>
+                            }
+                        </div>
+                    </td>
+                }
             </tr>
         }
         </tbody>
