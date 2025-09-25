@@ -49,7 +49,7 @@ public class PlanDraftService
         var latestVersion = await _db.PlanVersions
             .Where(p => p.ProjectId == projectId)
             .Select(p => p.VersionNo)
-            .DefaultIfEmpty(0)
+            .DefaultIfEmpty()
             .MaxAsync(cancellationToken);
 
         var stageCodes = await _db.StageTemplates
