@@ -180,7 +180,8 @@ namespace ProjectManagement.Data
             builder.Entity<ProjectCommentAttachment>(e =>
             {
                 e.HasIndex(x => x.CommentId);
-                e.Property(x => x.FileName).HasMaxLength(260);
+                e.Property(x => x.StoredFileName).HasMaxLength(260);
+                e.Property(x => x.OriginalFileName).HasMaxLength(260);
                 e.Property(x => x.ContentType).HasMaxLength(128);
                 e.Property(x => x.StoragePath).HasMaxLength(512);
                 e.Property(x => x.UploadedByUserId).HasMaxLength(450);

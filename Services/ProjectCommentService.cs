@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Services
 {
@@ -20,7 +21,16 @@ namespace ProjectManagement.Services
         private readonly ILogger<ProjectCommentService> _logger;
         private readonly string _basePath;
 
-        public const long MaxAttachmentSizeBytes = 10 * 1024 * 1024; // 10 MB per file
+        public const long MaxAttachmentSizeBytes = 25 * 1024 * 1024; // 25 MB per file
+
+        private static readonly HashSet<string> AllowedAttachmentContentTypes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "application/pdf",
+            "image/png",
+            "image/jpeg",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        };
 
         public ProjectCommentService(ApplicationDbContext db, IClock clock, IAuditService audit, ILogger<ProjectCommentService> logger)
         {
@@ -283,20 +293,22 @@ namespace ProjectManagement.Services
                     throw new InvalidOperationException($"Attachment '{file.FileName}' exceeds the maximum size of {MaxAttachmentSizeBytes / (1024 * 1024)} MB.");
                 }
 
-                var contentType = string.IsNullOrWhiteSpace(file.ContentType)
-                    ? "application/octet-stream"
-                    : file.ContentType;
-
-                if (contentType.Length > 128)
+                if (string.IsNullOrWhiteSpace(file.ContentType) || !AllowedAttachmentContentTypes.Contains(file.ContentType))
                 {
-                    contentType = contentType[..128];
+                    throw new InvalidOperationException($"File type '{file.ContentType}' is not allowed.");
                 }
 
-                var safeFileName = SanitizeFileName(file.FileName);
-                var uniqueName = $"{Guid.NewGuid():n}{Path.GetExtension(safeFileName)}";
+                var originalName = file.FileName ?? string.Empty;
+                if (originalName.Length > 260)
+                {
+                    originalName = originalName[..260];
+                }
+
+                var safeFileName = FileNameSanitizer.Sanitize(originalName);
+                var storedName = $"{Guid.NewGuid():N}_{safeFileName}";
                 var directory = BuildCommentDirectory(projectId, comment.Id);
                 Directory.CreateDirectory(directory);
-                var fullPath = Path.Combine(directory, uniqueName);
+                var fullPath = Path.Combine(directory, storedName);
 
                 await using (var target = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None))
                 {
@@ -306,8 +318,9 @@ namespace ProjectManagement.Services
                 list.Add(new ProjectCommentAttachment
                 {
                     CommentId = comment.Id,
-                    FileName = safeFileName,
-                    ContentType = contentType,
+                    StoredFileName = storedName,
+                    OriginalFileName = originalName,
+                    ContentType = file.ContentType,
                     SizeBytes = file.Length,
                     StoragePath = fullPath,
                     UploadedByUserId = userId,
@@ -321,22 +334,6 @@ namespace ProjectManagement.Services
         private string BuildCommentDirectory(int projectId, int commentId)
         {
             return Path.Combine(_basePath, "projects", projectId.ToString(), "comments", commentId.ToString());
-        }
-
-        private static string SanitizeFileName(string? fileName)
-        {
-            if (string.IsNullOrWhiteSpace(fileName))
-            {
-                return "attachment";
-            }
-
-            var safe = Path.GetFileName(fileName);
-            foreach (var c in Path.GetInvalidFileNameChars())
-            {
-                safe = safe.Replace(c, '_');
-            }
-
-            return safe.Length > 200 ? safe[..200] : safe;
         }
     }
 }

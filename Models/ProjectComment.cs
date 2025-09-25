@@ -76,7 +76,11 @@ namespace ProjectManagement.Models
 
         [Required]
         [MaxLength(260)]
-        public string FileName { get; set; } = string.Empty;
+        public string StoredFileName { get; set; } = string.Empty;
+
+        [Required]
+        [MaxLength(260)]
+        public string OriginalFileName { get; set; } = string.Empty;
 
         [Required]
         [MaxLength(128)]
