@@ -27,7 +27,7 @@
 
 <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
-<form method="post" asp-route-id="@Model.ProjectId">
+<form id="plan-draft-form" method="post" asp-route-id="@Model.ProjectId">
     <div class="table-responsive mb-4">
         <table class="table table-sm align-middle">
             <thead>
@@ -104,3 +104,8 @@
         <a class="btn btn-outline-secondary" asp-page="/Projects/View" asp-route-id="@Model.ProjectId">Back</a>
     </div>
 </form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/projects/plan-draft.js" defer></script>
+}
