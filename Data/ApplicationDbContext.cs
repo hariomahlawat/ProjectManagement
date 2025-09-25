@@ -26,6 +26,9 @@ namespace ProjectManagement.Data
         public DbSet<StagePlan> StagePlans => Set<StagePlan>();
         public DbSet<PlanApprovalLog> PlanApprovalLogs => Set<PlanApprovalLog>();
         public DbSet<ProjectStage> ProjectStages => Set<ProjectStage>();
+        public DbSet<ProjectComment> ProjectComments => Set<ProjectComment>();
+        public DbSet<ProjectCommentAttachment> ProjectCommentAttachments => Set<ProjectCommentAttachment>();
+        public DbSet<ProjectCommentMention> ProjectCommentMentions => Set<ProjectCommentMention>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -148,6 +151,53 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.PerformedByUserId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            builder.Entity<ProjectComment>(e =>
+            {
+                e.HasIndex(x => new { x.ProjectId, x.CreatedOn });
+                e.Property(x => x.Body).IsRequired().HasMaxLength(2000);
+                e.Property(x => x.Type).HasConversion<string>().HasMaxLength(32);
+                e.Property(x => x.CreatedByUserId).HasMaxLength(450);
+                e.Property(x => x.EditedByUserId).HasMaxLength(450);
+                e.Property(x => x.CreatedOn).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                e.Property(x => x.Pinned).HasDefaultValue(false);
+                e.Property(x => x.IsDeleted).HasDefaultValue(false);
+                e.HasOne(x => x.Project)
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.ProjectStage)
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectStageId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.ParentComment)
+                    .WithMany(x => x.Replies)
+                    .HasForeignKey(x => x.ParentCommentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ProjectCommentAttachment>(e =>
+            {
+                e.HasIndex(x => x.CommentId);
+                e.Property(x => x.FileName).HasMaxLength(260);
+                e.Property(x => x.ContentType).HasMaxLength(128);
+                e.Property(x => x.StoragePath).HasMaxLength(512);
+                e.Property(x => x.UploadedByUserId).HasMaxLength(450);
+                e.HasOne(x => x.Comment)
+                    .WithMany(c => c.Attachments)
+                    .HasForeignKey(x => x.CommentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ProjectCommentMention>(e =>
+            {
+                e.HasIndex(x => new { x.CommentId, x.UserId }).IsUnique();
+                e.Property(x => x.UserId).HasMaxLength(450);
+                e.HasOne(x => x.Comment)
+                    .WithMany(c => c.Mentions)
+                    .HasForeignKey(x => x.CommentId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }

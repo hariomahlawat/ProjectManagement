@@ -1,5 +1,8 @@
 @page
 @model ProjectManagement.Pages.Projects.StagesModel
+@using System.Collections.Generic
+@using System.Linq
+@using Microsoft.AspNetCore.Mvc.ViewFeatures
 @using ProjectManagement.Models.Execution
 @{
     ViewData["Title"] = "Project Stages";
@@ -108,3 +111,44 @@
 </div>
 
 <a class="btn btn-outline-secondary mt-3" asp-page="/Projects/View" asp-route-id="@Model.ProjectId">Back to Project</a>
+
+<section class="mt-5">
+    <h2 class="h4 mb-3">Stage remarks</h2>
+    <form method="get" class="row gy-3 gx-3 align-items-end mb-3">
+        <input type="hidden" name="id" value="@Model.ProjectId" />
+        <div class="col-12 col-md-4">
+            <label asp-for="CommentStageId" class="form-label">Stage</label>
+            <select asp-for="CommentStageId" asp-items="Model.CommentStageOptions" class="form-select"></select>
+        </div>
+        <div class="col-12 col-md-2">
+            <button type="submit" class="btn btn-primary">View</button>
+        </div>
+    </form>
+
+    @if (Model.CanComment && Model.CommentStageOptions.Any())
+    {
+        <div class="mb-3">
+            @await Html.PartialAsync("_CommentComposer", Model.CommentComposer)
+        </div>
+    }
+
+    @{
+        var routeValues = new Dictionary<string, object?>();
+        if (Model.CommentStageId.HasValue)
+        {
+            routeValues["commentStageId"] = Model.CommentStageId;
+        }
+        var threadViewData = new ViewDataDictionary(ViewData)
+        {
+            ["CommentsPage"] = "/Projects/Stages",
+            ["ProjectId"] = Model.ProjectId,
+            ["ShowStage"] = false,
+            ["RouteValues"] = routeValues,
+            ["ReplyParam"] = "commentParentId",
+            ["EditParam"] = "commentEditId",
+            ["DeleteHandler"] = "DeleteComment",
+            ["DownloadHandler"] = "DownloadAttachment"
+        };
+    }
+    @await Html.PartialAsync("_CommentThread", Model.StageComments, threadViewData)
+</section>
