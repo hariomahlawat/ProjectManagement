@@ -77,7 +77,7 @@
     @if (Model.HasApprovedPlan)
     {
       <div class="alert alert-success mt-3 mb-0" role="status">
-        <strong>Baseline v@Model.ActivePlanVersionNo approved.</strong>
+        <strong>Baseline v@(Model.ActivePlanVersionNo) approved.</strong>
         <span class="ms-2">Next due: <span class="badge bg-secondary">@Model.NextDueText</span></span>
       </div>
     }
