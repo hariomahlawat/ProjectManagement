@@ -197,7 +197,9 @@ namespace ProjectManagement.Pages.Projects
             }
 
             var (attachment, stream) = result.Value;
-            return File(stream, attachment.ContentType, attachment.FileName);
+            var fileName = string.IsNullOrWhiteSpace(attachment.OriginalFileName) ? "download" : attachment.OriginalFileName;
+            var contentType = string.IsNullOrWhiteSpace(attachment.ContentType) ? "application/octet-stream" : attachment.ContentType;
+            return File(stream, contentType, fileDownloadName: fileName);
         }
         private async Task LoadSelectListsAsync(int projectId, CancellationToken cancellationToken)
         {
@@ -382,7 +384,7 @@ namespace ProjectManagement.Pages.Projects
                     Comment = c,
                     Author = c.CreatedByUser,
                     Stage = c.ProjectStage,
-                    Attachments = c.Attachments.OrderBy(a => a.FileName).Select(a => new { a.Id, a.FileName, a.SizeBytes }).ToList(),
+                    Attachments = c.Attachments.OrderBy(a => a.OriginalFileName).Select(a => new { a.Id, a.OriginalFileName, a.SizeBytes }).ToList(),
                     Replies = c.Replies
                         .Where(r => !r.IsDeleted)
                         .OrderBy(r => r.CreatedOn)
@@ -390,7 +392,7 @@ namespace ProjectManagement.Pages.Projects
                         {
                             Reply = r,
                             Author = r.CreatedByUser,
-                            Attachments = r.Attachments.OrderBy(a => a.FileName).Select(a => new { a.Id, a.FileName, a.SizeBytes }).ToList()
+                            Attachments = r.Attachments.OrderBy(a => a.OriginalFileName).Select(a => new { a.Id, a.OriginalFileName, a.SizeBytes }).ToList()
                         }).ToList()
                 })
                 .ToListAsync(cancellationToken);
@@ -413,7 +415,7 @@ namespace ProjectManagement.Pages.Projects
                     StageCode = c.Stage?.StageCode,
                     StageName = c.Stage?.StageCode,
                     Attachments = c.Attachments
-                        .Select(a => new CommentAttachmentViewModel(a.Id, a.FileName, a.SizeBytes))
+                        .Select(a => new CommentAttachmentViewModel(a.Id, a.OriginalFileName, a.SizeBytes))
                         .ToList(),
                     Replies = c.Replies.Select(r => new CommentReplyModel
                     {
@@ -425,7 +427,7 @@ namespace ProjectManagement.Pages.Projects
                         EditedOn = r.Reply.EditedOn,
                         AuthorId = r.Reply.CreatedByUserId,
                         AuthorName = BuildAuthorName(r.Author, r.Reply.CreatedByUserId),
-                        Attachments = r.Attachments.Select(a => new CommentAttachmentViewModel(a.Id, a.FileName, a.SizeBytes)).ToList(),
+                        Attachments = r.Attachments.Select(a => new CommentAttachmentViewModel(a.Id, a.OriginalFileName, a.SizeBytes)).ToList(),
                         CanEdit = canComment && userId != null && string.Equals(r.Reply.CreatedByUserId, userId, StringComparison.Ordinal)
                     }).ToList(),
                     CanEdit = canComment && userId != null && string.Equals(comment.CreatedByUserId, userId, StringComparison.Ordinal),

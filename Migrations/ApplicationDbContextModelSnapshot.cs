@@ -734,7 +734,7 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
-                    b.Property<string>("FileName")
+                    b.Property<string>("OriginalFileName")
                         .IsRequired()
                         .HasMaxLength(260)
                         .HasColumnType("character varying(260)");
@@ -746,6 +746,11 @@ namespace ProjectManagement.Migrations
 
                     b.Property<long>("SizeBytes")
                         .HasColumnType("bigint");
+
+                    b.Property<string>("StoredFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
 
                     b.Property<string>("UploadedByUserId")
                         .IsRequired()

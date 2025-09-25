@@ -334,7 +334,9 @@ public class StagesModel : PageModel
         }
 
         var (attachment, stream) = result.Value;
-        return File(stream, attachment.ContentType, attachment.FileName);
+        var fileName = string.IsNullOrWhiteSpace(attachment.OriginalFileName) ? "download" : attachment.OriginalFileName;
+        var contentType = string.IsNullOrWhiteSpace(attachment.ContentType) ? "application/octet-stream" : attachment.ContentType;
+        return File(stream, contentType, fileDownloadName: fileName);
     }
 
     private async Task<IActionResult> LoadAsync(int id, CancellationToken cancellationToken)
@@ -487,7 +489,7 @@ public class StagesModel : PageModel
             {
                 Comment = c,
                 Author = c.CreatedByUser,
-                Attachments = c.Attachments.OrderBy(a => a.FileName).Select(a => new { a.Id, a.FileName, a.SizeBytes }).ToList(),
+                Attachments = c.Attachments.OrderBy(a => a.OriginalFileName).Select(a => new { a.Id, a.OriginalFileName, a.SizeBytes }).ToList(),
                 Replies = c.Replies
                     .Where(r => !r.IsDeleted)
                     .OrderBy(r => r.CreatedOn)
@@ -495,7 +497,7 @@ public class StagesModel : PageModel
                     {
                         Reply = r,
                         Author = r.CreatedByUser,
-                        Attachments = r.Attachments.OrderBy(a => a.FileName).Select(a => new { a.Id, a.FileName, a.SizeBytes }).ToList()
+                        Attachments = r.Attachments.OrderBy(a => a.OriginalFileName).Select(a => new { a.Id, a.OriginalFileName, a.SizeBytes }).ToList()
                     }).ToList()
             })
             .ToListAsync(cancellationToken);
@@ -513,7 +515,7 @@ public class StagesModel : PageModel
             AuthorName = BuildAuthorName(c.Author, c.Comment.CreatedByUserId),
             StageCode = stageCode,
             StageName = stageCode != null && stageNameMap.TryGetValue(stageCode, out var name) ? name : stageCode,
-            Attachments = c.Attachments.Select(a => new CommentAttachmentViewModel(a.Id, a.FileName, a.SizeBytes)).ToList(),
+            Attachments = c.Attachments.Select(a => new CommentAttachmentViewModel(a.Id, a.OriginalFileName, a.SizeBytes)).ToList(),
             Replies = c.Replies.Select(r => new CommentReplyModel
             {
                 Id = r.Reply.Id,
@@ -524,7 +526,7 @@ public class StagesModel : PageModel
                 EditedOn = r.Reply.EditedOn,
                 AuthorId = r.Reply.CreatedByUserId,
                 AuthorName = BuildAuthorName(r.Author, r.Reply.CreatedByUserId),
-                Attachments = r.Attachments.Select(a => new CommentAttachmentViewModel(a.Id, a.FileName, a.SizeBytes)).ToList(),
+                Attachments = r.Attachments.Select(a => new CommentAttachmentViewModel(a.Id, a.OriginalFileName, a.SizeBytes)).ToList(),
                 CanEdit = CanComment && currentUserId != null && string.Equals(r.Reply.CreatedByUserId, currentUserId, StringComparison.Ordinal)
             }).ToList(),
             CanEdit = CanComment && currentUserId != null && string.Equals(c.Comment.CreatedByUserId, currentUserId, StringComparison.Ordinal),

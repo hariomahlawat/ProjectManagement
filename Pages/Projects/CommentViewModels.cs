@@ -62,7 +62,7 @@ namespace ProjectManagement.Pages.Projects
         public CommentAttachmentViewModel(int id, string fileName, long sizeBytes)
         {
             Id = id;
-            FileName = fileName;
+            FileName = string.IsNullOrWhiteSpace(fileName) ? "file" : fileName;
             SizeBytes = sizeBytes;
         }
 
