@@ -14,6 +14,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Plans;
 
 namespace ProjectManagement.Pages.Projects;
 
@@ -93,16 +94,22 @@ public class StagesModel : PageModel
     public string? GetPrereqHint(string stageCode)
         => _prereqHints.TryGetValue(stageCode, out var hint) ? hint : null;
 
-    public async Task<IActionResult> OnPostStartAsync(int projectId, string stage, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostCompleteAsync(int id, string stage, DateOnly completionDate, CancellationToken cancellationToken)
     {
         var stageCode = NormalizeStageCode(stage);
         if (stageCode == null)
         {
             ErrorMessage = "Stage code is required.";
-            return RedirectToPage(new { id = projectId });
+            return RedirectToPage(new { id });
         }
 
-        var (result, ctx) = await LoadForMutationAsync(projectId, cancellationToken);
+        if (completionDate == default)
+        {
+            ErrorMessage = "Select a valid completion date.";
+            return RedirectToPage(new { id });
+        }
+
+        var (result, ctx) = await LoadForMutationAsync(id, cancellationToken);
         if (result != null)
         {
             return result;
@@ -111,7 +118,7 @@ public class StagesModel : PageModel
         if (ctx is null)
         {
             ErrorMessage = "Unable to load stage data.";
-            return RedirectToPage(new { id = projectId });
+            return RedirectToPage(new { id });
         }
 
         var stageEntity = ctx.Stages.FirstOrDefault(s => s.StageCode.Equals(stageCode, StringComparison.OrdinalIgnoreCase));
@@ -120,68 +127,130 @@ public class StagesModel : PageModel
             return NotFound();
         }
 
-        var context = await _rules.BuildContextAsync(ctx.Stages, cancellationToken);
-        var guard = _rules.CanStart(context, stageCode);
-        if (!guard.Allowed)
+        if (!ctx.ActivePlanVersionNo.HasValue)
         {
-            ErrorMessage = guard.Reason ?? $"Stage {stageCode} cannot be started.";
-            return RedirectToPage(new { id = projectId });
+            ErrorMessage = "An approved plan is required before completing stages.";
+            return RedirectToPage(new { id });
         }
 
-        var today = Today();
-        stageEntity.ActualStart ??= today;
-        stageEntity.Status = StageStatus.InProgress;
-
-        await _db.SaveChangesAsync(cancellationToken);
-
-        StatusMessage = $"Stage {stageCode} started.";
-        return RedirectToPage(new { id = projectId });
-    }
-
-    public async Task<IActionResult> OnPostCompleteAsync(int projectId, string stage, CancellationToken cancellationToken)
-    {
-        var stageCode = NormalizeStageCode(stage);
-        if (stageCode == null)
+        var flowConfig = await BuildStageFlowAsync(id, ctx.ActivePlanVersionNo.Value, cancellationToken);
+        if (flowConfig == null)
         {
-            ErrorMessage = "Stage code is required.";
-            return RedirectToPage(new { id = projectId });
+            ErrorMessage = "Unable to load the stage flow configuration.";
+            return RedirectToPage(new { id });
         }
 
-        var (result, ctx) = await LoadForMutationAsync(projectId, cancellationToken);
-        if (result != null)
-        {
-            return result;
-        }
+        var (flow, _) = flowConfig.Value;
 
-        if (ctx is null)
-        {
-            ErrorMessage = "Unable to load stage data.";
-            return RedirectToPage(new { id = projectId });
-        }
-
-        var stageEntity = ctx.Stages.FirstOrDefault(s => s.StageCode.Equals(stageCode, StringComparison.OrdinalIgnoreCase));
-        if (stageEntity == null)
-        {
-            return NotFound();
-        }
+        var completedMap = ctx.Stages
+            .ToDictionary(s => s.StageCode, s => s.CompletedOn, StringComparer.OrdinalIgnoreCase);
+        var skippedStages = ctx.Stages
+            .Where(s => s.Status == StageStatus.Skipped)
+            .Select(s => s.StageCode)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var context = await _rules.BuildContextAsync(ctx.Stages, cancellationToken);
+
+        if (stageEntity.Status == StageStatus.NotStarted)
+        {
+            var startGuard = _rules.CanStart(context, stageCode);
+            if (!startGuard.Allowed)
+            {
+                ErrorMessage = startGuard.Reason ?? $"Stage {stageCode} cannot start yet.";
+                return RedirectToPage(new { id });
+            }
+
+            if (stageEntity.ActualStart is null)
+            {
+                var autoStart = flow.ComputeAutoStart(stageCode, completedMap, skippedStages);
+                if (autoStart is null)
+                {
+                    var predecessors = flow.GetPredecessors(stageCode);
+                    if (predecessors.Count > 0)
+                    {
+                        ErrorMessage = startGuard.Reason ?? $"Stage {stageCode} cannot start yet.";
+                        return RedirectToPage(new { id });
+                    }
+
+                    var today = Today();
+                    var baseline = completionDate > today ? today : completionDate;
+                    autoStart = flow.Bump(baseline);
+                }
+
+                stageEntity.ActualStart = autoStart;
+            }
+
+            stageEntity.Status = StageStatus.InProgress;
+            context = await _rules.BuildContextAsync(ctx.Stages, cancellationToken);
+        }
+
         var guard = _rules.CanComplete(context, stageCode);
         if (!guard.Allowed)
         {
             ErrorMessage = guard.Reason ?? $"Stage {stageCode} cannot be completed.";
-            return RedirectToPage(new { id = projectId });
+            return RedirectToPage(new { id });
         }
 
-        var today = Today();
-        stageEntity.CompletedOn = today;
-        stageEntity.ActualStart ??= today;
+        if (stageEntity.ActualStart is null)
+        {
+            var fallback = flow.ComputeAutoStart(stageCode, completedMap, skippedStages);
+            if (fallback is null)
+            {
+                var today = Today();
+                var baseline = completionDate > today ? today : completionDate;
+                fallback = flow.Bump(baseline);
+            }
+
+            stageEntity.ActualStart = fallback;
+        }
+
+        if (completionDate < stageEntity.ActualStart)
+        {
+            ErrorMessage = $"Completion date cannot be before the stage start ({stageEntity.ActualStart:dd MMM yyyy}).";
+            return RedirectToPage(new { id });
+        }
+
+        stageEntity.CompletedOn = completionDate;
         stageEntity.Status = StageStatus.Completed;
+        completedMap[stageCode] = completionDate;
+        skippedStages.Remove(stageCode);
+
+        context = await _rules.BuildContextAsync(ctx.Stages, cancellationToken);
+
+        foreach (var successor in flow.GetSuccessors(stageCode))
+        {
+            var successorEntity = ctx.Stages.FirstOrDefault(s => s.StageCode.Equals(successor, StringComparison.OrdinalIgnoreCase));
+            if (successorEntity == null)
+            {
+                continue;
+            }
+
+            if (successorEntity.Status != StageStatus.NotStarted || successorEntity.ActualStart != null)
+            {
+                continue;
+            }
+
+            var startGuard = _rules.CanStart(context, successor);
+            if (!startGuard.Allowed)
+            {
+                continue;
+            }
+
+            var autoStart = flow.ComputeAutoStart(successor, completedMap, skippedStages);
+            if (autoStart is null)
+            {
+                continue;
+            }
+
+            successorEntity.ActualStart = autoStart;
+            successorEntity.Status = StageStatus.InProgress;
+            context = await _rules.BuildContextAsync(ctx.Stages, cancellationToken);
+        }
 
         await _db.SaveChangesAsync(cancellationToken);
 
         StatusMessage = $"Stage {stageCode} completed.";
-        return RedirectToPage(new { id = projectId });
+        return RedirectToPage(new { id });
     }
 
     public async Task<IActionResult> OnPostSkipAsync(int projectId, string stage, string? reason, CancellationToken cancellationToken)
@@ -226,9 +295,67 @@ public class StagesModel : PageModel
             return RedirectToPage(new { id = projectId });
         }
 
+        if (!ctx.ActivePlanVersionNo.HasValue)
+        {
+            ErrorMessage = "An approved plan is required before skipping stages.";
+            return RedirectToPage(new { id = projectId });
+        }
+
+        var flowConfig = await BuildStageFlowAsync(projectId, ctx.ActivePlanVersionNo.Value, cancellationToken);
+        if (flowConfig == null)
+        {
+            ErrorMessage = "Unable to load the stage flow configuration.";
+            return RedirectToPage(new { id = projectId });
+        }
+
+        var (flow, _) = flowConfig.Value;
+
         stageEntity.Status = StageStatus.Skipped;
         stageEntity.ActualStart = null;
         stageEntity.CompletedOn = null;
+
+        var completedMap = ctx.Stages
+            .ToDictionary(s => s.StageCode, s => s.CompletedOn, StringComparer.OrdinalIgnoreCase);
+        completedMap[stageCode] = null;
+
+        var skippedStages = ctx.Stages
+            .Where(s => s.Status == StageStatus.Skipped)
+            .Select(s => s.StageCode)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        skippedStages.Add(stageCode);
+
+        var context = await _rules.BuildContextAsync(ctx.Stages, cancellationToken);
+
+        foreach (var successor in flow.GetSuccessors(stageCode))
+        {
+            var successorEntity = ctx.Stages.FirstOrDefault(s => s.StageCode.Equals(successor, StringComparison.OrdinalIgnoreCase));
+            if (successorEntity == null)
+            {
+                continue;
+            }
+
+            if (successorEntity.Status != StageStatus.NotStarted || successorEntity.ActualStart != null)
+            {
+                continue;
+            }
+
+            var startGuard = _rules.CanStart(context, successor);
+            if (!startGuard.Allowed)
+            {
+                continue;
+            }
+
+            var autoStart = flow.ComputeAutoStart(successor, completedMap, skippedStages);
+            if (autoStart is null)
+            {
+                continue;
+            }
+
+            successorEntity.ActualStart = autoStart;
+            successorEntity.Status = StageStatus.InProgress;
+            context = await _rules.BuildContextAsync(ctx.Stages, cancellationToken);
+        }
 
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -613,6 +740,28 @@ public class StagesModel : PageModel
         });
     }
 
+    private async Task<(StageFlowService Flow, PlanOptions Options)?> BuildStageFlowAsync(int projectId, int versionNo, CancellationToken cancellationToken)
+    {
+        var planOptions = await _db.PlanVersions
+            .AsNoTracking()
+            .Where(p => p.ProjectId == projectId && p.VersionNo == versionNo)
+            .Select(p => new PlanOptions(p.SkipWeekends, p.TransitionRule, p.PncApplicable))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (planOptions == null)
+        {
+            return null;
+        }
+
+        var dependencies = await _db.StageDependencyTemplates
+            .AsNoTracking()
+            .Where(d => d.Version == PlanConstants.StageTemplateVersion)
+            .ToListAsync(cancellationToken);
+
+        var flow = new StageFlowService(dependencies, planOptions.SkipWeekends, planOptions.TransitionRule);
+        return (flow, planOptions);
+    }
+
     private async Task<(IActionResult? Result, MutationContext? Context)> LoadForMutationAsync(int projectId, CancellationToken cancellationToken)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -623,7 +772,7 @@ public class StagesModel : PageModel
 
         var project = await _db.Projects
             .Where(p => p.Id == projectId)
-            .Select(p => new { p.Id, p.LeadPoUserId })
+            .Select(p => new { p.Id, p.LeadPoUserId, p.ActivePlanVersionNo })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (project == null)
@@ -640,7 +789,7 @@ public class StagesModel : PageModel
             .Where(ps => ps.ProjectId == projectId)
             .ToListAsync(cancellationToken);
 
-        return (null, new MutationContext(stages));
+        return (null, new MutationContext(stages, project.ActivePlanVersionNo));
     }
 
     private static string? NormalizeStageCode(string? stage)
@@ -709,5 +858,7 @@ public class StagesModel : PageModel
         return false;
     }
 
-    private sealed record MutationContext(List<ProjectStage> Stages);
+    private sealed record MutationContext(List<ProjectStage> Stages, int? ActivePlanVersionNo);
+
+    private sealed record PlanOptions(bool SkipWeekends, PlanTransitionRule TransitionRule, bool PncApplicable);
 }
