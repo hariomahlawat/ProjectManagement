@@ -12,10 +12,20 @@
         ProjectRagStatus.Amber => "badge bg-warning text-dark",
         _ => "badge bg-success"
     };
+    var canManage = Model.CanManageStages;
+    var manageTooltip = "Only Admin, HoD, or the assigned Lead PO can update stages.";
 }
 
-<h1 class="mb-3">Project Stages</h1>
-<p class="text-muted">Project: <strong>@Model.ProjectName</strong></p>
+<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
+    <div>
+        <h1 class="h3 mb-1">Project stages</h1>
+        <p class="text-muted mb-0">Project: <strong>@Model.ProjectName</strong></p>
+    </div>
+    <div class="btn-group btn-group-sm" role="group" aria-label="Stage navigation">
+        <a class="btn btn-outline-secondary" asp-page="/Projects/View" asp-route-id="@Model.ProjectId">Back to project</a>
+        <a class="btn btn-outline-dark" asp-page="/Projects/Activity" asp-route-id="@Model.ProjectId" title="Comments &amp; files">Activity</a>
+    </div>
+</div>
 
 @if (!string.IsNullOrEmpty(Model.StatusMessage))
 {
@@ -31,124 +41,157 @@
     </div>
 }
 
-<div class="border rounded p-3 mb-3">
-    <div class="d-flex flex-column flex-lg-row gap-3 align-items-lg-center">
-        <div>
-            <span class="@ragClass">Project RAG: @Model.ProjectRag</span>
+<div class="row g-4">
+    <div class="col-12 col-lg-8">
+        <div class="card shadow-sm mb-3">
+            <div class="card-body">
+                <div class="d-flex flex-column flex-lg-row gap-3 align-items-lg-center">
+                    <div>
+                        <span class="@ragClass">Project RAG: @Model.ProjectRag</span>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="fw-semibold mb-1">Slip (days)</div>
+                        <ul class="list-inline mb-0">
+                            @foreach (var slip in Model.StageSlips)
+                            {
+                                <li class="list-inline-item mb-1">
+                                    <span class="badge bg-light text-dark border">@slip.Code: @slip.SlipDays</span>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="flex-grow-1">
-            <div class="fw-semibold mb-1">Slip (days)</div>
-            <ul class="list-inline mb-0">
-                @foreach (var slip in Model.StageSlips)
-                {
-                    <li class="list-inline-item mb-1">
-                        <span class="badge bg-light text-dark border">@slip.Code: @slip.SlipDays</span>
-                    </li>
-                }
-            </ul>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th scope="col" style="width: 6rem;">Stage</th>
+                                <th scope="col">Description</th>
+                                <th scope="col" style="width: 12rem;">Planned Start</th>
+                                <th scope="col" style="width: 12rem;">Planned Due</th>
+                                <th scope="col" style="width: 10rem;">Status</th>
+                                <th scope="col" style="width: 8rem;">Slip (days)</th>
+                                <th scope="col" style="width: 12rem;">Actual Start</th>
+                                <th scope="col" style="width: 12rem;">Completed On</th>
+                                <th scope="col" class="text-end" style="width: 18rem;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var stage in Model.Stages)
+                        {
+                            var prereqHint = Model.GetPrereqHint(stage.Code);
+                            var startAllowed = stage.StartGuard.Allowed && canManage;
+                            var completeAllowed = stage.CompleteGuard.Allowed && canManage;
+                            var skipAllowed = stage.SkipGuard.Allowed && canManage;
+                            var startTitle = !canManage
+                                ? manageTooltip
+                                : stage.StartGuard.Allowed ? "Start stage" : stage.StartGuard.Reason ?? "Stage cannot start yet";
+                            var completeTitle = !canManage
+                                ? manageTooltip
+                                : stage.CompleteGuard.Allowed ? "Mark complete" : stage.CompleteGuard.Reason ?? "Stage cannot complete yet";
+                            var skipTitle = !canManage
+                                ? manageTooltip
+                                : stage.SkipGuard.Allowed ? "Skip PNC with reason" : stage.SkipGuard.Reason ?? "PNC cannot be skipped.";
+                            <tr>
+                                <td>
+                                    <div class="fw-semibold">@stage.Code</div>
+                                </td>
+                                <td>
+                                    <div class="fw-semibold d-flex align-items-center gap-2">
+                                        @stage.Name
+                                        @if (!string.IsNullOrEmpty(prereqHint))
+                                        {
+                                            <span class="text-muted" title="@prereqHint">
+                                                <i class="bi bi-lock" aria-hidden="true"></i>
+                                                <span class="visually-hidden">Blocked: @prereqHint</span>
+                                            </span>
+                                        }
+                                    </div>
+                                </td>
+                                <td>@stage.PlannedStart?.ToString("dd MMM yyyy")</td>
+                                <td>@stage.PlannedDue?.ToString("dd MMM yyyy")</td>
+                                <td>@stage.Status</td>
+                                <td>@stage.SlipDays</td>
+                                <td>@stage.ActualStart?.ToString("dd MMM yyyy")</td>
+                                <td>@stage.CompletedOn?.ToString("dd MMM yyyy")</td>
+                                <td class="text-end">
+                                    <div class="d-flex flex-wrap justify-content-end gap-2">
+                                        <form method="post" asp-page-handler="Start" asp-route-projectId="@Model.ProjectId" asp-route-stage="@stage.Code" class="d-inline">
+                                            <button type="submit" class="btn btn-outline-primary btn-sm" disabled="@(startAllowed ? null : "disabled")" title="@startTitle">Start</button>
+                                        </form>
+                                        <form method="post" asp-page-handler="Complete" asp-route-projectId="@Model.ProjectId" asp-route-stage="@stage.Code" class="d-inline">
+                                            <button type="submit" class="btn btn-outline-success btn-sm" disabled="@(completeAllowed ? null : "disabled")" title="@completeTitle">Complete</button>
+                                        </form>
+                                        @if (string.Equals(stage.Code, "PNC", System.StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            <form method="post" asp-page-handler="Skip" asp-route-projectId="@Model.ProjectId" asp-route-stage="@stage.Code" class="d-flex flex-wrap gap-2">
+                                                <input type="text" name="reason" class="form-control form-control-sm" placeholder="Reason" required minlength="3" maxlength="200" @(canManage ? null : "disabled") />
+                                                <button type="submit" class="btn btn-outline-secondary btn-sm" disabled="@(skipAllowed ? null : "disabled")" title="@skipTitle">Skip</button>
+                                            </form>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-4">
+        <div class="vstack gap-3">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h5 mb-3">Stage remarks</h2>
+                    <form method="get" class="row gy-2 gx-2 align-items-end mb-3">
+                        <input type="hidden" name="id" value="@Model.ProjectId" />
+                        <div class="col-12">
+                            <label asp-for="CommentStageId" class="form-label">Stage</label>
+                            <select asp-for="CommentStageId" asp-items="Model.CommentStageOptions" class="form-select"></select>
+                        </div>
+                        <div class="col-12">
+                            <button type="submit" class="btn btn-primary">View</button>
+                        </div>
+                    </form>
+
+                    @{
+                        var routeValues = new Dictionary<string, object?>();
+                        if (Model.CommentStageId.HasValue)
+                        {
+                            routeValues["commentStageId"] = Model.CommentStageId;
+                        }
+
+                        var threadViewData = new ViewDataDictionary(ViewData)
+                        {
+                            ["CommentsPage"] = "/Projects/Stages",
+                            ["ProjectId"] = Model.ProjectId,
+                            ["ShowStage"] = false,
+                            ["RouteValues"] = routeValues,
+                            ["ReplyParam"] = "commentParentId",
+                            ["EditParam"] = "commentEditId",
+                            ["DeleteHandler"] = "DeleteComment",
+                            ["DownloadHandler"] = "DownloadAttachment"
+                        };
+                    }
+
+                    @await Html.PartialAsync("_CommentThread", Model.StageComments, threadViewData)
+
+                    <div class="mt-3 text-end">
+                        <a class="btn btn-sm btn-outline-secondary" asp-page="/Projects/Activity" asp-route-id="@Model.ProjectId">Open activity</a>
+                    </div>
+                </div>
+            </div>
+
+            @if (Model.CanComment && Model.CommentStageOptions.Any())
+            {
+                @await Html.PartialAsync("_CommentComposer", Model.CommentComposer)
+            }
         </div>
     </div>
 </div>
-
-<div class="table-responsive">
-    <table class="table table-sm align-middle">
-        <thead>
-            <tr>
-                <th scope="col" style="width: 6rem;">Stage</th>
-                <th scope="col">Description</th>
-                <th scope="col" style="width: 12rem;">Planned Start</th>
-                <th scope="col" style="width: 12rem;">Planned Due</th>
-                <th scope="col" style="width: 10rem;">Status</th>
-                <th scope="col" style="width: 8rem;">Slip (days)</th>
-                <th scope="col" style="width: 12rem;">Actual Start</th>
-                <th scope="col" style="width: 12rem;">Completed On</th>
-                @if (Model.CanManageStages)
-                {
-                    <th scope="col" style="width: 18rem;">Actions</th>
-                }
-            </tr>
-        </thead>
-        <tbody>
-        @foreach (var stage in Model.Stages)
-        {
-            <tr>
-                <td>
-                    <div class="fw-semibold">@stage.Code</div>
-                </td>
-                <td>
-                    <div class="fw-semibold">@stage.Name</div>
-                </td>
-                <td>@stage.PlannedStart?.ToString("dd MMM yyyy")</td>
-                <td>@stage.PlannedDue?.ToString("dd MMM yyyy")</td>
-                <td>@stage.Status</td>
-                <td>@stage.SlipDays</td>
-                <td>@stage.ActualStart?.ToString("dd MMM yyyy")</td>
-                <td>@stage.CompletedOn?.ToString("dd MMM yyyy")</td>
-                @if (Model.CanManageStages)
-                {
-                    <td>
-                        <div class="d-flex flex-wrap gap-2">
-                            <form method="post" asp-page-handler="Start" asp-route-projectId="@Model.ProjectId" asp-route-stage="@stage.Code" class="d-inline">
-                                <button type="submit" class="btn btn-outline-primary btn-sm" title="@stage.StartGuard.Reason" @(stage.StartGuard.Allowed ? null : "disabled")>Start</button>
-                            </form>
-                            <form method="post" asp-page-handler="Complete" asp-route-projectId="@Model.ProjectId" asp-route-stage="@stage.Code" class="d-inline">
-                                <button type="submit" class="btn btn-outline-success btn-sm" title="@stage.CompleteGuard.Reason" @(stage.CompleteGuard.Allowed ? null : "disabled")>Complete</button>
-                            </form>
-                            @if (string.Equals(stage.Code, "PNC", StringComparison.OrdinalIgnoreCase))
-                            {
-                                <form method="post" asp-page-handler="Skip" asp-route-projectId="@Model.ProjectId" asp-route-stage="@stage.Code" class="d-flex flex-wrap gap-2">
-                                    <input type="text" name="reason" class="form-control form-control-sm" placeholder="Reason" required minlength="3" maxlength="200" />
-                                    <button type="submit" class="btn btn-outline-danger btn-sm" title="@stage.SkipGuard.Reason" @(stage.SkipGuard.Allowed ? null : "disabled")>Skip</button>
-                                </form>
-                            }
-                        </div>
-                    </td>
-                }
-            </tr>
-        }
-        </tbody>
-    </table>
-</div>
-
-<a class="btn btn-outline-secondary mt-3" asp-page="/Projects/View" asp-route-id="@Model.ProjectId">Back to Project</a>
-
-<section class="mt-5">
-    <h2 class="h4 mb-3">Stage remarks</h2>
-    <form method="get" class="row gy-3 gx-3 align-items-end mb-3">
-        <input type="hidden" name="id" value="@Model.ProjectId" />
-        <div class="col-12 col-md-4">
-            <label asp-for="CommentStageId" class="form-label">Stage</label>
-            <select asp-for="CommentStageId" asp-items="Model.CommentStageOptions" class="form-select"></select>
-        </div>
-        <div class="col-12 col-md-2">
-            <button type="submit" class="btn btn-primary">View</button>
-        </div>
-    </form>
-
-    @if (Model.CanComment && Model.CommentStageOptions.Any())
-    {
-        <div class="mb-3">
-            @await Html.PartialAsync("_CommentComposer", Model.CommentComposer)
-        </div>
-    }
-
-    @{
-        var routeValues = new Dictionary<string, object?>();
-        if (Model.CommentStageId.HasValue)
-        {
-            routeValues["commentStageId"] = Model.CommentStageId;
-        }
-        var threadViewData = new ViewDataDictionary(ViewData)
-        {
-            ["CommentsPage"] = "/Projects/Stages",
-            ["ProjectId"] = Model.ProjectId,
-            ["ShowStage"] = false,
-            ["RouteValues"] = routeValues,
-            ["ReplyParam"] = "commentParentId",
-            ["EditParam"] = "commentEditId",
-            ["DeleteHandler"] = "DeleteComment",
-            ["DownloadHandler"] = "DownloadAttachment"
-        };
-    }
-    @await Html.PartialAsync("_CommentThread", Model.StageComments, threadViewData)
-</section>

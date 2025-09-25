@@ -11,6 +11,15 @@
   }
 </div>
 
+@{
+    var canDraftPlan = User.IsInRole("Project Officer") || User.IsInRole("HoD") || User.IsInRole("Admin");
+    var canReviewPlan = User.IsInRole("HoD") || User.IsInRole("Admin");
+    var canAccessStages = User.IsInRole("Project Officer") || User.IsInRole("HoD") || User.IsInRole("Admin") || User.IsInRole("MCO") || User.IsInRole("Comdt");
+    var planPermissionHint = "Requires Project Officer, HoD, or Admin rights.";
+    var reviewPermissionHint = "Requires HoD or Admin rights.";
+    var stagePermissionHint = "Requires Project Officer, HoD, Admin, MCO, or Comdt rights.";
+}
+
 <table class="table table-sm align-middle">
   <thead>
     <tr>
@@ -18,6 +27,7 @@
       <th>HoD</th>
       <th>Lead PO</th>
       <th>Created</th>
+      <th class="text-end">Actions</th>
     </tr>
   </thead>
   <tbody>
@@ -28,6 +38,48 @@
       <td>@r.Hod</td>
       <td>@r.Po</td>
       <td>@r.CreatedAt.ToLocalTime()</td>
+      <td class="text-end">
+        <div class="d-flex flex-wrap justify-content-end gap-2">
+          <a class="btn btn-sm btn-outline-secondary" asp-page="View" asp-route-id="@r.Id" title="Open project">Open</a>
+
+          @if (!r.HasApprovedPlan)
+          {
+              if (canDraftPlan)
+              {
+                  <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Plan/Draft" asp-route-id="@r.Id" title="Draft or submit plan">Plan</a>
+              }
+              else
+              {
+                  <span class="btn btn-sm btn-outline-secondary disabled" role="button" aria-disabled="true" title="@planPermissionHint">Plan</span>
+              }
+
+              if (r.IsPlanPendingApproval)
+              {
+                  if (canReviewPlan)
+                  {
+                      <a class="btn btn-sm btn-primary" asp-page="/Projects/Plan/Review" asp-route-id="@r.Id" title="Review and approve">Review</a>
+                  }
+                  else
+                  {
+                      <span class="btn btn-sm btn-outline-secondary disabled" role="button" aria-disabled="true" title="@reviewPermissionHint">Review</span>
+                  }
+              }
+          }
+          else
+          {
+              if (canAccessStages)
+              {
+                  <a class="btn btn-sm btn-outline-success" asp-page="/Projects/Stages" asp-route-id="@r.Id" title="Execution stages">Stages</a>
+              }
+              else
+              {
+                  <span class="btn btn-sm btn-outline-secondary disabled" role="button" aria-disabled="true" title="@stagePermissionHint">Stages</span>
+              }
+          }
+
+          <a class="btn btn-sm btn-outline-dark" asp-page="/Projects/Activity" asp-route-id="@r.Id" title="Comments &amp; files">Activity</a>
+        </div>
+      </td>
     </tr>
   }
   </tbody>

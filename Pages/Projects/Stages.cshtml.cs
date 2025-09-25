@@ -26,6 +26,7 @@ public class StagesModel : PageModel
     private readonly ProjectCommentService _commentService;
 
     private static readonly string[] CommentRoles = new[] { "Admin", "HoD", "Project Officer", "MCO", "Comdt" };
+    private Dictionary<string, string?> _prereqHints = new(StringComparer.OrdinalIgnoreCase);
 
     public StagesModel(ApplicationDbContext db, StageRulesService rules, IClock clock, ProjectCommentService commentService)
     {
@@ -88,6 +89,9 @@ public class StagesModel : PageModel
         var cancellationToken = HttpContext.RequestAborted;
         return await LoadAsync(id, cancellationToken);
     }
+
+    public string? GetPrereqHint(string stageCode)
+        => _prereqHints.TryGetValue(stageCode, out var hint) ? hint : null;
 
     public async Task<IActionResult> OnPostStartAsync(int projectId, string stage, CancellationToken cancellationToken)
     {
@@ -394,7 +398,7 @@ public class StagesModel : PageModel
             .ToList();
         ProjectRag = health.Rag;
 
-        Stages = templates
+        var stageRows = templates
             .Select(template =>
             {
                 stageLookup.TryGetValue(template.Code, out var projectStage);
@@ -415,6 +419,10 @@ public class StagesModel : PageModel
                     _rules.CanSkip(context, template.Code));
             })
             .ToList();
+
+        Stages = stageRows;
+        _prereqHints = stageRows
+            .ToDictionary(row => row.Code, DerivePrereqHint, StringComparer.OrdinalIgnoreCase);
 
         var stageNameMap = templates.ToDictionary(t => t.Code, t => t.Name, StringComparer.OrdinalIgnoreCase);
         await LoadStageRemarksAsync(id, projectStages, stageNameMap, cancellationToken);
@@ -669,6 +677,21 @@ public class StagesModel : PageModel
 
         var display = string.IsNullOrWhiteSpace(user.FullName) ? user.UserName : $"{user.Rank} {user.FullName}";
         return string.IsNullOrWhiteSpace(display) ? user.UserName ?? "User" : display.Trim();
+    }
+
+    private static string? DerivePrereqHint(StageRow row)
+    {
+        if (row.Status == StageStatus.NotStarted && !row.StartGuard.Allowed && !string.IsNullOrWhiteSpace(row.StartGuard.Reason))
+        {
+            return row.StartGuard.Reason;
+        }
+
+        if (row.Status == StageStatus.InProgress && !row.CompleteGuard.Allowed && !string.IsNullOrWhiteSpace(row.CompleteGuard.Reason))
+        {
+            return row.CompleteGuard.Reason;
+        }
+
+        return null;
     }
 
     private bool UserCanManage(string? leadPoUserId, string? currentUserId)
