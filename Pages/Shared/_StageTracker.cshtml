@@ -3,8 +3,9 @@
 @model TrackerVm
 <link rel="stylesheet" href="~/css/stage-tracker.css" asp-append-version="true" />
 
-<div class="tracker-bar sticky-top">
-    <div class="trk-flow">
+<div class="tracker card border-0 shadow-sm sticky-top mb-4">
+    <div class="card-body">
+        <div class="tracker-flow">
         @{
             var branch = Model.BranchTop.Any() && Model.BranchBottom.Any();
         }
@@ -17,13 +18,13 @@
                 continue;
             }
 
-            <div class="trk-cell">
-                <div class="trk-connector"></div>
-                <div class="trk-node @(NodeClass(node)) @(isPnc && !node.IsVisible ? "skipped" : string.Empty)">
+            <div class="tracker-cell">
+                <div class="edge"></div>
+                <div class="node @(NodeClass(node)) @(isPnc && !node.IsVisible ? "skipped" : string.Empty)">
                     <div class="dot" data-bs-toggle="tooltip" title="@node.Tooltip"></div>
-                    <div class="label">
+                    <div class="label text-truncate">
                         <span class="code" data-stage-scroll="@node.Code">@node.Code</span>
-                        <div class="name text-truncate">@node.Name</div>
+                        <div class="sub">@node.Name</div>
                     </div>
                 </div>
                 @RenderBadge(Model.Edges, node.Code)
@@ -37,24 +38,24 @@
             {
                 var top = Model.BranchTop.First();
                 var bottom = Model.BranchBottom.First();
-                <div class="trk-cell trk-branch">
-                    <div class="trk-branch-grid">
-                        <div class="trk-node @(NodeClass(top))">
+                <div class="tracker-cell tracker-branch">
+                    <div class="tracker-branch-grid">
+                        <div class="node @(NodeClass(top))">
                             <div class="dot" data-bs-toggle="tooltip" title="@top.Tooltip"></div>
-                            <div class="label">
+                            <div class="label text-truncate">
                                 <span class="code" data-stage-scroll="@top.Code">@top.Code</span>
-                                <div class="name text-truncate">@top.Name</div>
+                                <div class="sub">@top.Name</div>
                             </div>
                         </div>
-                        <div class="trk-node @(NodeClass(bottom))">
+                        <div class="node @(NodeClass(bottom))">
                             <div class="dot" data-bs-toggle="tooltip" title="@bottom.Tooltip"></div>
-                            <div class="label">
+                            <div class="label text-truncate">
                                 <span class="code" data-stage-scroll="@bottom.Code">@bottom.Code</span>
-                                <div class="name text-truncate">@bottom.Name</div>
+                                <div class="sub">@bottom.Name</div>
                             </div>
                         </div>
                     </div>
-                    <div class="trk-branch-join"></div>
+                    <div class="tracker-branch-join"></div>
                     @RenderBadge(Model.Edges, top.Code)
                     @RenderBadge(Model.Edges, bottom.Code)
                 </div>
@@ -62,10 +63,11 @@
         }
     </div>
 
-    <div class="trk-legend">
-        <span class="done">completed</span>
-        <span class="current">current</span>
-        <span class="todo">upcoming</span>
+        <div class="tracker-legend">
+            <span class="done">Completed</span>
+            <span class="current">Current</span>
+            <span class="todo">Upcoming</span>
+        </div>
     </div>
 </div>
 
@@ -86,7 +88,7 @@
             return Microsoft.AspNetCore.Html.HtmlString.Empty;
         }
 
-        var classes = $"trk-badge {edge.Variant}";
+        var classes = $"tracker-badge {edge.Variant}";
         return new Microsoft.AspNetCore.Html.HtmlString($"<div class=\"{classes}\">{edge.Label}</div>");
     }
 }
