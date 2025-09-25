@@ -48,9 +48,8 @@ public class PlanDraftService
 
         var latestVersion = await _db.PlanVersions
             .Where(p => p.ProjectId == projectId)
-            .Select(p => p.VersionNo)
-            .DefaultIfEmpty()
-            .MaxAsync(cancellationToken);
+            .Select(p => (int?)p.VersionNo)
+            .MaxAsync(cancellationToken) ?? 0;
 
         var stageCodes = await _db.StageTemplates
             .AsNoTracking()
@@ -72,7 +71,12 @@ public class PlanDraftService
             Title = PlanVersion.BaselineTitle,
             Status = PlanVersionStatus.Draft,
             CreatedByUserId = userId,
-            CreatedOn = _clock.UtcNow
+            CreatedOn = _clock.UtcNow,
+            AnchorStageCode = PlanConstants.DefaultAnchorStageCode,
+            AnchorDate = DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime),
+            SkipWeekends = true,
+            TransitionRule = PlanTransitionRule.NextWorkingDay,
+            PncApplicable = true
         };
 
         foreach (var code in stageCodes)

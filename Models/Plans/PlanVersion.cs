@@ -40,6 +40,17 @@ public class PlanVersion
     [MaxLength(512)]
     public string? Reason { get; set; }
 
+    [MaxLength(16)]
+    public string? AnchorStageCode { get; set; }
+
+    public DateOnly? AnchorDate { get; set; }
+
+    public bool SkipWeekends { get; set; } = true;
+
+    public PlanTransitionRule TransitionRule { get; set; } = PlanTransitionRule.NextWorkingDay;
+
+    public bool PncApplicable { get; set; } = true;
+
     public List<StagePlan> StagePlans { get; set; } = new();
 
     public List<PlanApprovalLog> ApprovalLogs { get; set; } = new();
@@ -50,4 +61,10 @@ public enum PlanVersionStatus
     Draft = 1,
     PendingApproval = 2,
     Approved = 3
+}
+
+public enum PlanTransitionRule
+{
+    SameDay = 0,
+    NextWorkingDay = 1
 }
