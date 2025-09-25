@@ -6,12 +6,12 @@
 @using ProjectManagement.Models.Execution
 @using ProjectManagement.Services
 @{
-    ViewData["Title"] = "Project Stages";
+    ViewData["Title"] = "Project stages";
     var ragClass = Model.ProjectRag switch
     {
-        ProjectRagStatus.Red => "badge bg-danger",
-        ProjectRagStatus.Amber => "badge bg-warning text-dark",
-        _ => "badge bg-success"
+        ProjectRagStatus.Red => "badge rounded-pill bg-danger-subtle text-danger border",
+        ProjectRagStatus.Amber => "badge rounded-pill bg-warning-subtle text-warning border",
+        _ => "badge rounded-pill bg-success-subtle text-success border"
     };
     var canManage = Model.CanManageStages;
     var manageTooltip = "Only Admin, HoD, or the assigned Lead PO can update stages.";
@@ -26,7 +26,12 @@
     string? progressLabel = null;
     if (currentStage?.ActualStart is DateOnly actualStartValue)
     {
-        progressLabel = $"{GetDays(actualStartValue, Model.Today)}d in progress";
+        var days = GetDays(actualStartValue, Model.Today);
+        progressLabel = days switch
+        {
+            1 => "1 day in progress",
+            _ => $"{days} days in progress"
+        };
     }
     else if (currentStage != null && currentStage.Status == StageStatus.NotStarted)
     {
@@ -40,8 +45,9 @@
         dueLabel = delta switch
         {
             0 => "Due today",
-            < 0 => $"{Math.Abs(delta)}d overdue",
-            _ => $"Due in {delta}d"
+            < 0 => $"{Math.Abs(delta)} days overdue",
+            1 => "Due in 1 day",
+            _ => $"Due in {delta} days"
         };
     }
 
@@ -53,18 +59,98 @@
     var skipTitle = !canManage
         ? manageTooltip
         : currentStage?.SkipGuard.Allowed == true ? "Skip PNC with reason" : currentStage?.SkipGuard.Reason ?? "PNC cannot be skipped.";
+
+    var nextDueStage = Model.Stages
+        .Where(s => s.Status != StageStatus.Completed && s.ForecastDue.HasValue)
+        .OrderBy(s => s.ForecastDue)
+        .FirstOrDefault()
+        ?? Model.Stages
+            .Where(s => s.ForecastDue.HasValue)
+            .OrderBy(s => s.ForecastDue)
+            .FirstOrDefault();
+
+    var nextDueStageName = nextDueStage?.Name ?? "All stages completed";
+    var nextDueDate = nextDueStage?.ForecastDue ?? nextDueStage?.PlannedDue;
+    int? nextDueDelta = null;
+    if (nextDueStage?.ForecastDue is { } forecastDue && nextDueStage?.PlannedDue is { } plannedDue && forecastDue != plannedDue)
+    {
+        nextDueDelta = forecastDue.DayNumber - plannedDue.DayNumber;
+    }
+
+    double progressPercent = 0;
+    if (currentStage != null)
+    {
+        if (currentStage.Status is StageStatus.Completed or StageStatus.Skipped)
+        {
+            progressPercent = 100;
+        }
+        else if (currentStage.Status == StageStatus.NotStarted)
+        {
+            progressPercent = 0;
+        }
+        else if (currentStageStart.HasValue && currentStage.PlannedDue.HasValue)
+        {
+            var totalSpan = (currentStage.PlannedDue.Value.ToDateTime(TimeOnly.MinValue) - currentStageStart.Value.ToDateTime(TimeOnly.MinValue)).TotalDays;
+            if (totalSpan > 0)
+            {
+                var elapsed = (Model.Today.ToDateTime(TimeOnly.MinValue) - currentStageStart.Value.ToDateTime(TimeOnly.MinValue)).TotalDays;
+                var ratio = Math.Max(0, Math.Min(1, elapsed / totalSpan));
+                progressPercent = ratio * 100;
+            }
+        }
+        else
+        {
+            progressPercent = 50;
+        }
+    }
+
+    var progressPercentLabel = (int)Math.Round(progressPercent);
+    var statusText = currentStage?.Status switch
+    {
+        StageStatus.InProgress => "In progress",
+        StageStatus.Completed => "Completed",
+        StageStatus.Skipped => "Skipped",
+        StageStatus.NotStarted => "Not started",
+        StageStatus.Blocked => "Blocked",
+        _ => currentStage?.Status.ToString()
+    } ?? string.Empty;
+
+    var missingPrereqs = Model.CurrentStagePrerequisites.Where(p => !p.Completed).ToList();
+    var completedPrereqs = Model.CurrentStagePrerequisites.Where(p => p.Completed).ToList();
 }
 
-<div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
-    <div>
-        <h1 class="h3 mb-1">Project stages</h1>
-        <p class="text-muted mb-0">Project: <strong>@Model.ProjectName</strong></p>
+<div class="container-xxl">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-start gap-3 mb-3">
+        <div>
+            <div class="d-flex flex-wrap align-items-center gap-3 mb-2">
+                <h1 class="h4 mb-0">@Model.ProjectName</h1>
+                <span class="@ragClass">Project RAG: @Model.ProjectRag</span>
+            </div>
+            <div class="text-secondary small">Stage tracker</div>
+        </div>
+        <div class="text-lg-end">
+            <div class="small text-secondary">Next due</div>
+            <div class="fw-semibold">
+                @nextDueStageName
+                @if (nextDueDate.HasValue)
+                {
+                    <span class="text-body-secondary">— @nextDueDate?.ToString("dd MMM yyyy")</span>
+                }
+                @if (nextDueDelta.HasValue)
+                {
+                    var prefix = nextDueDelta.Value > 0 ? "+" : string.Empty;
+                    <span class="badge bg-light text-dark border ms-1">@prefix@nextDueDelta.Value d</span>
+                }
+            </div>
+        </div>
     </div>
-    <div class="btn-group btn-group-sm" role="group" aria-label="Stage navigation">
-        <a class="btn btn-outline-secondary" asp-page="/Projects/View" asp-route-id="@Model.ProjectId">Back to project</a>
-        <a class="btn btn-outline-dark" asp-page="/Projects/Activity" asp-route-id="@Model.ProjectId" title="Comments &amp; files">Activity</a>
+
+    <div class="d-flex flex-wrap justify-content-end gap-2 mb-4">
+        <div class="btn-group btn-group-sm" role="group" aria-label="Stage navigation">
+            <a class="btn btn-outline-secondary" asp-page="/Projects/View" asp-route-id="@Model.ProjectId">Back to project</a>
+            <a class="btn btn-outline-dark" asp-page="/Projects/Activity" asp-route-id="@Model.ProjectId" title="Comments &amp; files">Activity</a>
+        </div>
     </div>
-</div>
 
 <div class="modal fade" id="completeModal" tabindex="-1" aria-hidden="true" aria-labelledby="completeModalLabel">
     <div class="modal-dialog modal-dialog-centered modal-sm">
@@ -101,7 +187,7 @@
             </form>
         </div>
     </div>
-</div>
+    </div>
 
 @section Scripts {
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
@@ -126,69 +212,96 @@
 
 @if (currentStage != null)
 {
-    <section class="current-stage-card mb-4">
-        <div class="stage-title">
-            <div>
-                <div class="stage-code">@currentStageCode</div>
-                <div class="text-muted">@currentStageName</div>
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-start gap-3 mb-3">
+                <div>
+                    <div class="small text-secondary mb-1">@currentStageCode</div>
+                    <h2 class="h5 mb-0">@currentStageName</h2>
+                </div>
+                <div class="d-flex flex-column align-items-md-end gap-2">
+                    <span class="badge rounded-pill bg-secondary-subtle text-secondary">@statusText</span>
+                    <div class="d-flex flex-wrap justify-content-md-end gap-2">
+                        @if (!string.IsNullOrEmpty(progressLabel))
+                        {
+                            <span class="badge bg-primary-subtle text-primary fw-semibold">@progressLabel</span>
+                        }
+                        @if (!string.IsNullOrEmpty(dueLabel))
+                        {
+                            <span class="badge bg-light text-dark border">@dueLabel</span>
+                        }
+                    </div>
+                </div>
             </div>
-            <div class="d-flex flex-wrap gap-2">
-                @if (!string.IsNullOrEmpty(progressLabel))
-                {
-                    <span class="badge bg-primary-subtle text-primary fw-semibold">@progressLabel</span>
-                }
-                @if (!string.IsNullOrEmpty(dueLabel))
-                {
-                    <span class="badge bg-light text-dark border">@dueLabel</span>
-                }
+
+            <div class="row g-3 small">
+                <div class="col-md-4">
+                    <div class="text-secondary">Planned window</div>
+                    <div>@(currentStage?.PlannedStart?.ToString("dd MMM") ?? "—") — @(currentStage?.PlannedDue?.ToString("dd MMM yyyy") ?? "—")</div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-secondary">Forecast window</div>
+                    <div class="fw-semibold">
+                        @(currentStage?.ForecastStart?.ToString("dd MMM") ?? "—") — @(currentStage?.ForecastDue?.ToString("dd MMM yyyy") ?? "—")
+                        @if (currentStage?.ForecastDue is { } forecast && currentStage?.PlannedDue is { } planned && forecast != planned)
+                        {
+                            var delta = forecast.DayNumber - planned.DayNumber;
+                            var prefix = delta > 0 ? "+" : string.Empty;
+                            <span class="badge bg-light text-dark border ms-1">@prefix@delta d</span>
+                        }
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-secondary">Progress</div>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="progress flex-grow-1" role="progressbar" aria-label="Progress" style="height: 6px;">
+                            <div class="progress-bar" style="width:@progressPercentLabel%"></div>
+                        </div>
+                        <span>@progressPercentLabel%</span>
+                    </div>
+                </div>
+            </div>
+
+            @if (missingPrereqs.Any())
+            {
+                <div class="alert alert-warning d-flex align-items-start gap-2 mt-3 mb-0" role="alert">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <div>You can’t complete this until @string.Join(", ", missingPrereqs.Select(p => p.Code)) are completed.</div>
+                </div>
+            }
+
+            @if (completedPrereqs.Any())
+            {
+                <div class="mt-3">
+                    <div class="text-secondary small mb-2">Completed prerequisites</div>
+                    <ul class="stage-prereqs mb-0">
+                        @foreach (var prereq in completedPrereqs)
+                        {
+                            <li>
+                                <i class="bi bi-check-circle-fill text-success"></i>
+                                <span>@prereq.Code</span>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+
+            <div class="row g-3 mt-3 small">
+                <div class="col-md-4">
+                    <div class="text-secondary">Actual start</div>
+                    <div>@(currentStage?.ActualStart?.ToString("dd MMM yyyy") ?? "—")</div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-secondary">Planned due</div>
+                    <div>@(currentStage?.PlannedDue?.ToString("dd MMM yyyy") ?? "—")</div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-secondary">Forecast due</div>
+                    <div>@(currentStage?.ForecastDue?.ToString("dd MMM yyyy") ?? "—")</div>
+                </div>
             </div>
         </div>
-        <div class="small text-muted mt-2">Planned window: @(currentStage?.PlannedStart?.ToString("dd MMM") ?? "—") – @(currentStage?.PlannedDue?.ToString("dd MMM yyyy") ?? "—")</div>
-        @if (!string.IsNullOrEmpty(plannedStartIso) && !string.IsNullOrEmpty(plannedDueIso))
-        {
-            <div class="timeline" data-timeline data-start="@plannedStartIso" data-due="@plannedDueIso" data-today="@Model.Today.ToString("yyyy-MM-dd")"></div>
-        }
-        @if (Model.CurrentStagePrerequisites.Any())
-        {
-            <div class="fw-semibold mb-2">Prerequisites</div>
-            <ul class="stage-prereqs mb-3">
-                @foreach (var prereq in Model.CurrentStagePrerequisites)
-                {
-                    var icon = prereq.Completed ? "bi-check-circle-fill text-success" : "bi-exclamation-circle text-muted";
-                    <li>
-                        <i class="bi @icon"></i>
-                        <span>@prereq.Code</span>
-                    </li>
-                }
-            </ul>
-        }
-        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
-            <div class="small text-muted">
-                <div>Actual start: @(currentStage?.ActualStart?.ToString("dd MMM yyyy") ?? "—")</div>
-                <div>Planned due: @(currentStage?.PlannedDue?.ToString("dd MMM yyyy") ?? "—")</div>
-            </div>
-            <div class="d-flex flex-column flex-sm-row gap-2 align-items-stretch">
-                @if (canSkipCurrent)
-                {
-                    <form method="post" asp-page-handler="Skip" asp-route-projectId="@Model.ProjectId" asp-route-stage="@currentStageCode" class="d-flex gap-2 align-items-center">
-                        <input type="text" name="reason" class="form-control form-control-sm" placeholder="Skip reason" required minlength="3" maxlength="200" />
-                        <button type="submit" class="btn btn-outline-secondary btn-sm" title="@skipTitle">Skip</button>
-                    </form>
-                }
-                <button type="button"
-                        class="btn btn-primary"
-                        data-bs-toggle="modal"
-                        data-bs-target="#completeModal"
-                        data-stage="@currentStageCode"
-                        data-stage-name="@currentStageName"
-                        data-default-date="@todayIso"
-                        title="@currentCompleteTitle"
-                        disabled="@(canCompleteCurrent ? null : "disabled")">
-                    Complete stage
-                </button>
-            </div>
-        </div>
-    </section>
+    </div>
 }
 else
 {
@@ -197,35 +310,18 @@ else
 
 <div class="row g-4">
     <div class="col-12 col-lg-8">
-        <div class="card shadow-sm mb-3">
-            <div class="card-body d-flex flex-column flex-lg-row gap-3 align-items-lg-center">
-                <span class="@ragClass">Project RAG: @Model.ProjectRag</span>
-                <div class="flex-grow-1">
-                    <div class="fw-semibold mb-1">Slip (days)</div>
-                    <div class="d-flex flex-wrap gap-2">
-                        @foreach (var slip in Model.StageSlips)
-                        {
-                            <span class="badge bg-light text-dark border">@slip.Code: @slip.SlipDays</span>
-                        }
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="card shadow-sm">
+        <div class="card border-0 shadow-sm">
             <div class="card-body">
                 <div class="table-responsive">
-                    <table class="table table-sm align-middle table-striped stage-table">
-                        <thead>
+                    <table class="table table-sm align-middle mb-0 stage-table">
+                        <thead class="text-secondary small">
                             <tr>
-                                <th scope="col" style="width: 6rem;">Stage</th>
-                                <th scope="col">Description</th>
-                                <th scope="col" style="width: 12rem;">Planned start</th>
-                                <th scope="col" style="width: 14rem;">Due dates</th>
-                                <th scope="col" style="width: 10rem;">Status</th>
-                                <th scope="col" style="width: 8rem;">Slip</th>
-                                <th scope="col" style="width: 12rem;">Actual start</th>
-                                <th scope="col" style="width: 12rem;">Completed on</th>
+                                <th scope="col">Stage</th>
+                                <th scope="col">Planned window</th>
+                                <th scope="col">Forecast</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Actual start</th>
+                                <th scope="col">Completed</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -233,11 +329,20 @@ else
                         {
                             var prereqHint = Model.GetPrereqHint(stage.Code);
                             var isCurrent = !string.IsNullOrEmpty(Model.Tracker.CurrentCode) && string.Equals(stage.Code, Model.Tracker.CurrentCode, StringComparison.OrdinalIgnoreCase);
-                            <tr data-stage-row="@stage.Code" class="@(isCurrent ? string.Empty : "dim")">
-                                <td class="fw-semibold">@stage.Code</td>
-                                <td>
-                                    <div class="fw-semibold d-flex align-items-center gap-2">
-                                        @stage.Name
+                            var statusLabel = stage.Status switch
+                            {
+                                StageStatus.NotStarted => "Not started",
+                                StageStatus.InProgress => "In progress",
+                                StageStatus.Completed => "Completed",
+                                StageStatus.Skipped => "Skipped",
+                                StageStatus.Blocked => "Blocked",
+                                _ => stage.Status.ToString()
+                            };
+                            <tr data-stage-row="@stage.Code" class="@(isCurrent ? "table-active" : "dim")">
+                                <th scope="row" class="align-middle">
+                                    <div class="fw-semibold text-uppercase mb-1">@stage.Code</div>
+                                    <div class="text-secondary small d-flex align-items-center gap-1">
+                                        <span>@stage.Name</span>
                                         @if (!string.IsNullOrEmpty(prereqHint))
                                         {
                                             <span class="text-muted" title="@prereqHint">
@@ -246,30 +351,29 @@ else
                                             </span>
                                         }
                                     </div>
-                                </td>
-                                <td>@stage.PlannedStart?.ToString("dd MMM yyyy")</td>
+                                </th>
                                 <td>
-                                    @{
-                                        var plannedDue = stage.PlannedDue;
-                                        var forecastDue = stage.ForecastDue ?? stage.PlannedDue;
-                                    }
-                                    <div class="text-muted small">Planned</div>
-                                    <div class="text-muted small mb-1">@(plannedDue?.ToString("dd MMM yyyy") ?? "—")</div>
-                                    <div>
-                                        <span class="text-muted small me-1">Forecast</span>
-                                        <span class="fw-semibold">@(forecastDue?.ToString("dd MMM yyyy") ?? "—")</span>
-                                        @if (plannedDue.HasValue && forecastDue.HasValue && plannedDue.Value != forecastDue.Value)
-                                        {
-                                            var shift = forecastDue.Value.DayNumber - plannedDue.Value.DayNumber;
-                                            var prefix = shift >= 0 ? "+" : string.Empty;
-                                            <span class="badge bg-light text-dark border ms-1">@($"{prefix}{shift}d")</span>
-                                        }
-                                    </div>
+                                    <div class="small text-secondary">@(stage.PlannedStart?.ToString("dd MMM yyyy") ?? "—")</div>
+                                    <div class="small text-secondary">to @(stage.PlannedDue?.ToString("dd MMM yyyy") ?? "—")</div>
                                 </td>
-                                <td>@stage.Status</td>
-                                <td>@stage.SlipDays</td>
-                                <td>@stage.ActualStart?.ToString("dd MMM yyyy")</td>
-                                <td>@stage.CompletedOn?.ToString("dd MMM yyyy")</td>
+                                <td>
+                                    <div class="fw-semibold small">@(stage.ForecastDue?.ToString("dd MMM yyyy") ?? "—")</div>
+                                    @if (stage.PlannedDue.HasValue && stage.ForecastDue.HasValue && stage.PlannedDue.Value != stage.ForecastDue.Value)
+                                    {
+                                        var shift = stage.ForecastDue.Value.DayNumber - stage.PlannedDue.Value.DayNumber;
+                                        var prefix = shift > 0 ? "+" : string.Empty;
+                                        <span class="badge bg-light text-dark border">@prefix@shift d</span>
+                                    }
+                                    @if (stage.ForecastStart.HasValue)
+                                    {
+                                        <div class="small text-secondary">from @stage.ForecastStart?.ToString("dd MMM yyyy")</div>
+                                    }
+                                </td>
+                                <td>
+                                    <span class="badge bg-light text-dark border">@statusLabel</span>
+                                </td>
+                                <td class="small">@stage.ActualStart?.ToString("dd MMM yyyy")</td>
+                                <td class="small">@stage.CompletedOn?.ToString("dd MMM yyyy")</td>
                             </tr>
                         }
                         </tbody>
@@ -279,50 +383,90 @@ else
         </div>
     </div>
     <div class="col-12 col-lg-4">
-        <div class="vstack gap-3">
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h2 class="h5 mb-3">Current stage remarks</h2>
-                    @{
-                        var routeValues = new Dictionary<string, object?>();
-                        if (Model.CommentStageId.HasValue)
+        <div class="d-flex flex-column gap-3">
+            @if (currentStage != null)
+            {
+                <div class="card border-0 shadow-sm sticky-top" style="top: 1rem;">
+                    <div class="card-body">
+                        <div class="mb-2 small text-secondary">Current stage</div>
+                        <div class="fw-semibold">@currentStage.Code — @currentStage.Name</div>
+                        @if (!string.IsNullOrEmpty(dueLabel))
                         {
-                            routeValues["commentStageId"] = Model.CommentStageId;
+                            <div class="small text-secondary mt-1">@dueLabel</div>
                         }
+                        <div class="d-grid gap-2 mt-3">
+                            <button type="button"
+                                    class="btn btn-primary"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#completeModal"
+                                    data-stage="@currentStageCode"
+                                    data-stage-name="@currentStageName"
+                                    data-default-date="@todayIso"
+                                    title="@currentCompleteTitle"
+                                    disabled="@(canCompleteCurrent ? null : "disabled")">
+                                Complete stage
+                            </button>
+                            @if (Model.CanComment && Model.CurrentStage != null)
+                            {
+                                <a class="btn btn-outline-secondary" href="#stage-comment-composer">Add remark</a>
+                            }
+                        </div>
 
-                        var threadViewData = new ViewDataDictionary(ViewData)
+                        @if (canSkipCurrent)
                         {
-                            ["CommentsPage"] = "/Projects/Stages",
-                            ["ProjectId"] = Model.ProjectId,
-                            ["ShowStage"] = false,
-                            ["RouteValues"] = routeValues,
-                            ["ReplyParam"] = "commentParentId",
-                            ["EditParam"] = "commentEditId",
-                            ["DeleteHandler"] = "DeleteComment",
-                            ["DownloadHandler"] = "DownloadAttachment"
-                        };
-                    }
-
-                    @if (Model.CurrentStage != null)
-                    {
-                        <p class="text-muted small">Latest remarks for <strong>@Model.CurrentStage.Code</strong>. Showing up to 3 items.</p>
-                        @await Html.PartialAsync("_CommentThread", Model.StageComments, threadViewData)
-                    }
-                    else
-                    {
-                        <p class="text-muted mb-0">No active stage.</p>
-                    }
-
-                    <div class="mt-3 text-end">
-                        <a class="btn btn-sm btn-outline-secondary" asp-page="/Projects/Activity" asp-route-id="@Model.ProjectId">Open activity</a>
+                            <div class="mt-3">
+                                <div class="small text-secondary mb-2">Skip PNC</div>
+                                <form method="post" asp-page-handler="Skip" asp-route-projectId="@Model.ProjectId" asp-route-stage="@currentStageCode" class="d-flex gap-2">
+                                    <input type="text" name="reason" class="form-control form-control-sm" placeholder="Skip reason" required minlength="3" maxlength="200" />
+                                    <button type="submit" class="btn btn-outline-secondary btn-sm" title="@skipTitle">Skip</button>
+                                </form>
+                            </div>
+                        }
                     </div>
                 </div>
-            </div>
+            }
+
+            @{
+                var routeValues = new Dictionary<string, object?>();
+                if (Model.CommentStageId.HasValue)
+                {
+                    routeValues["commentStageId"] = Model.CommentStageId;
+                }
+
+                var threadViewData = new ViewDataDictionary(ViewData)
+                {
+                    ["CommentsPage"] = "/Projects/Stages",
+                    ["ProjectId"] = Model.ProjectId,
+                    ["ShowStage"] = false,
+                    ["RouteValues"] = routeValues,
+                    ["ReplyParam"] = "commentParentId",
+                    ["EditParam"] = "commentEditId",
+                    ["DeleteHandler"] = "DeleteComment",
+                    ["DownloadHandler"] = "DownloadAttachment"
+                };
+            }
+
+            @if (currentStage != null && Model.StageComments.Any())
+            {
+                <div class="card border-0 shadow-sm" id="stage-comments">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h2 class="h6 mb-0">Recent remarks</h2>
+                            <a class="small" asp-page="/Projects/Activity" asp-route-id="@Model.ProjectId">Open activity</a>
+                        </div>
+                        <p class="text-secondary small mb-3">Latest remarks for <strong>@Model.CurrentStage?.Code</strong>. Showing up to 3 items.</p>
+                        @await Html.PartialAsync("_CommentThread", Model.StageComments, threadViewData)
+                    </div>
+                </div>
+            }
 
             @if (Model.CanComment && Model.CurrentStage != null)
             {
-                @await Html.PartialAsync("_CommentComposer", Model.CommentComposer)
+                <div id="stage-comment-composer">
+                    @await Html.PartialAsync("_CommentComposer", Model.CommentComposer)
+                </div>
             }
         </div>
     </div>
+</div>
 </div>
