@@ -14,6 +14,7 @@
     };
     var canManage = Model.CanManageStages;
     var manageTooltip = "Only Admin, HoD, or the assigned Lead PO can update stages.";
+    var todayIso = DateOnly.FromDateTime(DateTime.Today).ToString("yyyy-MM-dd");
 }
 
 <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
@@ -26,6 +27,37 @@
         <a class="btn btn-outline-dark" asp-page="/Projects/Activity" asp-route-id="@Model.ProjectId" title="Comments &amp; files">Activity</a>
     </div>
 </div>
+
+<div class="modal fade" id="completeModal" tabindex="-1" aria-hidden="true" aria-labelledby="completeModalLabel">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content">
+            <form method="post" asp-page-handler="Complete">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="completeModalLabel">Mark stage complete</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="id" value="@Model.ProjectId" />
+                    <input type="hidden" name="stage" id="complete-stage" />
+                    <p class="small text-muted mb-3" id="complete-stage-label"></p>
+                    <div class="mb-3">
+                        <label class="form-label" for="complete-date">Completion date</label>
+                        <input class="form-control" type="date" id="complete-date" name="completionDate" value="@todayIso" required />
+                    </div>
+                    <div class="form-text">Predecessor rules will be enforced.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-success">Confirm</button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/stages.js" asp-append-version="true"></script>
+}
 
 @if (!string.IsNullOrEmpty(Model.StatusMessage))
 {
@@ -85,12 +117,8 @@
                         @foreach (var stage in Model.Stages)
                         {
                             var prereqHint = Model.GetPrereqHint(stage.Code);
-                            var startAllowed = stage.StartGuard.Allowed && canManage;
                             var completeAllowed = stage.CompleteGuard.Allowed && canManage;
                             var skipAllowed = stage.SkipGuard.Allowed && canManage;
-                            var startTitle = !canManage
-                                ? manageTooltip
-                                : stage.StartGuard.Allowed ? "Start stage" : stage.StartGuard.Reason ?? "Stage cannot start yet";
                             var completeTitle = !canManage
                                 ? manageTooltip
                                 : stage.CompleteGuard.Allowed ? "Mark complete" : stage.CompleteGuard.Reason ?? "Stage cannot complete yet";
@@ -121,12 +149,17 @@
                                 <td>@stage.CompletedOn?.ToString("dd MMM yyyy")</td>
                                 <td class="text-end">
                                     <div class="d-flex flex-wrap justify-content-end gap-2">
-                                        <form method="post" asp-page-handler="Start" asp-route-projectId="@Model.ProjectId" asp-route-stage="@stage.Code" class="d-inline">
-                                            <button type="submit" class="btn btn-outline-primary btn-sm" disabled="@(startAllowed ? null : "disabled")" title="@startTitle">Start</button>
-                                        </form>
-                                        <form method="post" asp-page-handler="Complete" asp-route-projectId="@Model.ProjectId" asp-route-stage="@stage.Code" class="d-inline">
-                                            <button type="submit" class="btn btn-outline-success btn-sm" disabled="@(completeAllowed ? null : "disabled")" title="@completeTitle">Complete</button>
-                                        </form>
+                                        <button type="button"
+                                                class="btn btn-outline-success btn-sm"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#completeModal"
+                                                data-stage="@stage.Code"
+                                                data-stage-name="@stage.Name"
+                                                data-default-date="@todayIso"
+                                                disabled="@(completeAllowed ? null : "disabled")"
+                                                title="@completeTitle">
+                                            Complete
+                                        </button>
                                         @if (string.Equals(stage.Code, "PNC", System.StringComparison.OrdinalIgnoreCase))
                                         {
                                             <form method="post" asp-page-handler="Skip" asp-route-projectId="@Model.ProjectId" asp-route-stage="@stage.Code" class="d-flex flex-wrap gap-2">
