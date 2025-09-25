@@ -40,7 +40,7 @@
           {
               if (canDraftPlan)
               {
-                  <a class="btn btn-outline-primary" asp-page="/Projects/Plan/Draft" asp-route-id="@Model.Item.Id" title="Draft or submit baseline">Plan</a>
+                  <a class="btn btn-outline-primary" asp-page="/Projects/Plan/Draft" asp-route-id="@Model.Item.Id" title="Draft or submit Project Timeline">Plan</a>
               }
               else
               {
@@ -77,7 +77,7 @@
     @if (Model.HasApprovedPlan)
     {
       <div class="alert alert-success mt-3 mb-0" role="status">
-        <strong>Baseline v@(Model.ActivePlanVersionNo) approved.</strong>
+        <strong>Project Timeline v@(Model.ActivePlanVersionNo) approved.</strong>
         <span class="ms-2">Next due: <span class="badge bg-secondary">@Model.NextDueText</span></span>
       </div>
     }
@@ -90,7 +90,7 @@
     else
     {
       <div class="alert alert-info mt-3 mb-0" role="status">
-        No approved plan yet. Create a baseline to start execution.
+        No approved plan yet. Create a Project Timeline to start execution.
       </div>
     }
   </div>

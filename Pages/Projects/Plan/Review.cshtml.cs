@@ -76,7 +76,7 @@ public class ReviewModel : PageModel
             return loadResult ?? Page();
         }
 
-        StatusMessage = "Baseline plan approved.";
+        StatusMessage = "Project Timeline approved.";
         return RedirectToPage("/Projects/View", new { id });
     }
 
@@ -119,7 +119,7 @@ public class ReviewModel : PageModel
             return loadResult ?? Page();
         }
 
-        StatusMessage = "Baseline plan rejected and returned to draft.";
+        StatusMessage = "Project Timeline rejected and returned to draft.";
         return RedirectToPage("/Projects/View", new { id });
     }
 
