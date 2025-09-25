@@ -15,5 +15,12 @@ namespace ProjectManagement.Models
         public string? Description { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        // Assignments
+        public string? HodUserId { get; set; }
+        public ApplicationUser? HodUser { get; set; }
+
+        public string? LeadPoUserId { get; set; }
+        public ApplicationUser? LeadPoUser { get; set; }
     }
 }
