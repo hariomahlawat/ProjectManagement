@@ -13,8 +13,6 @@ namespace ProjectManagement.Services.Plans;
 
 public class PlanDraftService
 {
-    private const string StageTemplateVersion = "SDD-1.0";
-
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly ILogger<PlanDraftService> _logger;
@@ -56,14 +54,15 @@ public class PlanDraftService
 
         var stageCodes = await _db.StageTemplates
             .AsNoTracking()
-            .Where(t => t.Version == StageTemplateVersion)
+            .Where(t => t.Version == PlanConstants.StageTemplateVersion)
             .OrderBy(t => t.Sequence)
             .Select(t => t.Code)
             .ToListAsync(cancellationToken);
 
         if (stageCodes.Count == 0)
         {
-            _logger.LogWarning("No stage templates found for version {Version}. Creating an empty draft for project {ProjectId}.", StageTemplateVersion, projectId);
+            _logger.LogWarning("No stage templates found for version {Version}. Creating an empty draft for project {ProjectId}.",
+                PlanConstants.StageTemplateVersion, projectId);
         }
 
         var plan = new PlanVersion

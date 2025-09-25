@@ -25,7 +25,24 @@ public class PlanVersion
 
     public DateTimeOffset CreatedOn { get; set; } = DateTimeOffset.UtcNow;
 
+    [MaxLength(450)]
+    public string? SubmittedByUserId { get; set; }
+    public ApplicationUser? SubmittedByUser { get; set; }
+
+    public DateTimeOffset? SubmittedOn { get; set; }
+
+    [MaxLength(450)]
+    public string? ApprovedByUserId { get; set; }
+    public ApplicationUser? ApprovedByUser { get; set; }
+
+    public DateTimeOffset? ApprovedOn { get; set; }
+
+    [MaxLength(512)]
+    public string? Reason { get; set; }
+
     public List<StagePlan> StagePlans { get; set; } = new();
+
+    public List<PlanApprovalLog> ApprovalLogs { get; set; } = new();
 }
 
 public enum PlanVersionStatus

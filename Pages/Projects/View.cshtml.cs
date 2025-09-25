@@ -22,6 +22,9 @@ namespace ProjectManagement.Pages.Projects
 
         public ItemModel Item { get; private set; } = null!;
 
+        [TempData]
+        public string? StatusMessage { get; set; }
+
         public async Task<IActionResult> OnGetAsync(int id)
         {
             var item = await _db.Projects
