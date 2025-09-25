@@ -13,6 +13,7 @@ using Npgsql;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Plans;
 using ProjectManagement.Infrastructure;
 using Markdig;
 using Ganss.Xss;
@@ -133,6 +134,7 @@ builder.Services.Configure<TodoOptions>(
 builder.Services.AddScoped<ILoginAnalyticsService, LoginAnalyticsService>();
 builder.Services.AddHostedService<LoginAggregationWorker>();
 builder.Services.AddHostedService<TodoPurgeWorker>();
+builder.Services.AddScoped<PlanDraftService>();
 
 builder.Services.ConfigureHttpJsonOptions(o =>
 {

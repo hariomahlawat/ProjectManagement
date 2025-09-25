@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 
 namespace ProjectManagement.Data
@@ -20,6 +21,8 @@ namespace ProjectManagement.Data
         public DbSet<Event> Events => Set<Event>();
         public DbSet<StageTemplate> StageTemplates => Set<StageTemplate>();
         public DbSet<StageDependencyTemplate> StageDependencyTemplates => Set<StageDependencyTemplate>();
+        public DbSet<PlanVersion> PlanVersions => Set<PlanVersion>();
+        public DbSet<StagePlan> StagePlans => Set<StagePlan>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -93,6 +96,20 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => new { x.Version, x.FromStageCode, x.DependsOnStageCode }).IsUnique();
                 e.Property(x => x.FromStageCode).HasMaxLength(16);
                 e.Property(x => x.DependsOnStageCode).HasMaxLength(16);
+            });
+
+            builder.Entity<PlanVersion>(e =>
+            {
+                e.HasIndex(x => new { x.ProjectId, x.VersionNo }).IsUnique();
+                e.Property(x => x.Title).HasMaxLength(64);
+                e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+                e.Property(x => x.CreatedByUserId).HasMaxLength(450);
+            });
+
+            builder.Entity<StagePlan>(e =>
+            {
+                e.HasIndex(x => new { x.PlanVersionId, x.StageCode }).IsUnique();
+                e.Property(x => x.StageCode).HasMaxLength(16);
             });
         }
     }
