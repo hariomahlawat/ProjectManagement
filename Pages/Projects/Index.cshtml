@@ -1,0 +1,34 @@
+@page
+@model ProjectManagement.Pages.Projects.IndexModel
+@{
+    ViewData["Title"] = "Projects";
+}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="mb-0">Projects</h2>
+  @if (User.IsInRole("Admin") || User.IsInRole("HoD"))
+  {
+    <a class="btn btn-primary" asp-page="Create">New Project</a>
+  }
+</div>
+
+<table class="table table-sm align-middle">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>HoD</th>
+      <th>Lead PO</th>
+      <th>Created</th>
+    </tr>
+  </thead>
+  <tbody>
+  @foreach (var r in Model.Items)
+  {
+    <tr>
+      <td><a asp-page="View" asp-route-id="@r.Id">@r.Name</a></td>
+      <td>@r.Hod</td>
+      <td>@r.Po</td>
+      <td>@r.CreatedAt.ToLocalTime()</td>
+    </tr>
+  }
+  </tbody>
+</table>
