@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Stages;
 
 namespace ProjectManagement.Data
 {
@@ -17,6 +18,8 @@ namespace ProjectManagement.Data
         public DbSet<AuthEvent> AuthEvents => Set<AuthEvent>();
         public DbSet<DailyLoginStat> DailyLoginStats => Set<DailyLoginStat>();
         public DbSet<Event> Events => Set<Event>();
+        public DbSet<StageTemplate> StageTemplates => Set<StageTemplate>();
+        public DbSet<StageDependencyTemplate> StageDependencyTemplates => Set<StageDependencyTemplate>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -76,6 +79,20 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => x.EndUtc);
                 e.Property(x => x.Title).IsRequired().HasMaxLength(160);
                 e.Property(x => x.Location).HasMaxLength(160);
+            });
+
+            builder.Entity<StageTemplate>(e =>
+            {
+                e.HasIndex(x => new { x.Version, x.Code }).IsUnique();
+                e.Property(x => x.Code).HasMaxLength(16);
+                e.Property(x => x.Name).HasMaxLength(128);
+            });
+
+            builder.Entity<StageDependencyTemplate>(e =>
+            {
+                e.HasIndex(x => new { x.Version, x.FromStageCode, x.DependsOnStageCode }).IsUnique();
+                e.Property(x => x.FromStageCode).HasMaxLength(16);
+                e.Property(x => x.DependsOnStageCode).HasMaxLength(16);
             });
         }
     }
