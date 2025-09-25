@@ -10,4 +10,5 @@ public class StagePlan
     public string StageCode { get; set; } = string.Empty;
     public DateOnly? PlannedStart { get; set; }
     public DateOnly? PlannedDue { get; set; }
+    public int DurationDays { get; set; }
 }

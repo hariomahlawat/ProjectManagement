@@ -25,6 +25,9 @@ public class ProjectStage
     public DateOnly? PlannedStart { get; set; }
     public DateOnly? PlannedDue { get; set; }
 
+    public DateOnly? ForecastStart { get; set; }
+    public DateOnly? ForecastDue { get; set; }
+
     public DateOnly? ActualStart { get; set; }
     public DateOnly? CompletedOn { get; set; }
 }

@@ -5,6 +5,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
+using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 
 namespace ProjectManagement.Data
@@ -29,6 +30,7 @@ namespace ProjectManagement.Data
         public DbSet<ProjectComment> ProjectComments => Set<ProjectComment>();
         public DbSet<ProjectCommentAttachment> ProjectCommentAttachments => Set<ProjectCommentAttachment>();
         public DbSet<ProjectCommentMention> ProjectCommentMentions => Set<ProjectCommentMention>();
+        public DbSet<StageShiftLog> StageShiftLogs => Set<StageShiftLog>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -138,6 +140,16 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => new { x.ProjectId, x.StageCode }).IsUnique();
                 e.Property(x => x.StageCode).HasMaxLength(16);
                 e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+                e.Property(x => x.ForecastStart).HasColumnType("date");
+                e.Property(x => x.ForecastDue).HasColumnType("date");
+            });
+
+            builder.Entity<StageShiftLog>(e =>
+            {
+                e.Property(x => x.StageCode).HasMaxLength(16);
+                e.Property(x => x.CauseStageCode).HasMaxLength(16);
+                e.Property(x => x.CauseType).HasMaxLength(24);
+                e.HasIndex(x => new { x.ProjectId, x.StageCode, x.CreatedOn });
             });
 
             builder.Entity<PlanApprovalLog>(e =>
