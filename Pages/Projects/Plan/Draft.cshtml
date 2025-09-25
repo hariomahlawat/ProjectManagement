@@ -192,11 +192,24 @@
     <div class="d-flex flex-wrap gap-2">
         @if (Model.AllowEdit)
         {
-            <button type="submit" class="btn btn-primary" asp-page-handler="Save">Save Draft</button>
+            <button type="submit"
+                    class="btn btn-primary"
+                    form="plan-draft-form"
+                    formaction="@Url.Page("./Draft", new { id = Model.ProjectId, handler = "Save" })"
+                    formmethod="post">
+                Save Draft
+            </button>
         }
         @if (Model.AllowEdit)
         {
-            <button type="submit" class="btn btn-success" asp-page-handler="Submit" disabled="@(Model.CanSubmit ? null : "disabled")">Submit for approval</button>
+            <button type="submit"
+                    class="btn btn-success"
+                    form="plan-draft-form"
+                    formaction="@Url.Page("./Draft", new { id = Model.ProjectId, handler = "Submit" })"
+                    formmethod="post"
+                    disabled="@(Model.CanSubmit ? null : "disabled")">
+                Submit for approval
+            </button>
         }
         <a class="btn btn-outline-secondary" asp-page="/Projects/View" asp-route-id="@Model.ProjectId">Back</a>
     </div>
