@@ -113,6 +113,10 @@ namespace ProjectManagement.Data
                 e.Property(x => x.SubmittedByUserId).HasMaxLength(450);
                 e.Property(x => x.ApprovedByUserId).HasMaxLength(450);
                 e.Property(x => x.Reason).HasMaxLength(512);
+                e.Property(x => x.AnchorStageCode).HasMaxLength(16);
+                e.Property(x => x.TransitionRule).HasConversion<string>().HasMaxLength(32);
+                e.Property(x => x.SkipWeekends).HasDefaultValue(true);
+                e.Property(x => x.PncApplicable).HasDefaultValue(true);
                 e.HasOne(x => x.SubmittedByUser)
                     .WithMany()
                     .HasForeignKey(x => x.SubmittedByUserId)

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -19,14 +20,19 @@ namespace ProjectManagement.Pages.Projects.Plan;
 [Authorize(Roles = "Project Officer,HoD,Admin")]
 public class DraftModel : PageModel
 {
+    private static readonly JsonSerializerOptions StageMetadataJsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     private readonly ApplicationDbContext _db;
     private readonly PlanDraftService _drafts;
     private readonly PlanApprovalService _approvals;
     private readonly UserManager<ApplicationUser> _users;
 
     private Dictionary<string, StageTemplate> _templatesByCode = new(StringComparer.OrdinalIgnoreCase);
-    private Dictionary<string, List<string>> _dependenciesByStage = new(StringComparer.OrdinalIgnoreCase);
-    private Dictionary<string, int> _stageIndex = new(StringComparer.OrdinalIgnoreCase);
+    private List<StageDependencyTemplate> _dependencyTemplates = new();
+    private Dictionary<string, int> _stageSequence = new(StringComparer.OrdinalIgnoreCase);
     private string? _currentUserId;
 
     public DraftModel(ApplicationDbContext db, PlanDraftService drafts, PlanApprovalService approvals, UserManager<ApplicationUser> users)
@@ -38,31 +44,28 @@ public class DraftModel : PageModel
     }
 
     [BindProperty]
-    public List<StageInput> Stages { get; set; } = new();
+    public DraftInput Input { get; set; } = new();
 
     public List<StageTemplate> StageTemplates { get; private set; } = new();
     public PlanVersion? Draft { get; private set; }
     public int ProjectId { get; private set; }
     public string ProjectName { get; private set; } = string.Empty;
-    public bool IsPreview { get; private set; }
-    public bool AllowEdit { get; private set; } = true;
+    public bool AllowEdit { get; private set; }
     public bool CanSubmit { get; private set; }
+    public string StageMetadataJson { get; private set; } = string.Empty;
+    public IReadOnlyDictionary<string, (DateOnly start, DateOnly due)> ComputedSchedule { get; private set; } = new Dictionary<string, (DateOnly start, DateOnly due)>(StringComparer.OrdinalIgnoreCase);
+    public HashSet<string> ManualOverrideStages { get; private set; } = new(StringComparer.OrdinalIgnoreCase);
+    public bool HasManualOverrides => ManualOverrideStages.Count > 0;
 
     [TempData]
     public string? StatusMessage { get; set; }
 
-    public class StageInput
-    {
-        public string StageCode { get; set; } = string.Empty;
-        public DateOnly? PlannedStart { get; set; }
-        public DateOnly? PlannedDue { get; set; }
-    }
-
-    public async Task<IActionResult> OnGetAsync(int id, bool preview = false, CancellationToken cancellationToken = default)
+    public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken = default)
     {
         ProjectId = id;
 
         await LoadStageMetadataAsync(cancellationToken);
+        BuildStageMetadataJson();
 
         var project = await _db.Projects
             .AsNoTracking()
@@ -90,30 +93,13 @@ public class DraftModel : PageModel
             return Forbid();
         }
 
-        Draft = await _db.PlanVersions
-            .Include(p => p.StagePlans)
-            .Where(p => p.ProjectId == id)
-            .OrderByDescending(p => p.VersionNo)
-            .FirstOrDefaultAsync(cancellationToken);
+        Draft = await LoadOrCreateDraftAsync(id, userId, cancellationToken);
 
-        if (Draft == null)
-        {
-            Draft = await _drafts.CreateDraftAsync(id, userId, cancellationToken);
-            Draft = await _db.PlanVersions
-                .Include(p => p.StagePlans)
-                .FirstAsync(p => p.Id == Draft.Id, cancellationToken);
-        }
-        else if (!Draft.StagePlans.Any())
-        {
-            await _db.Entry(Draft).Collection(p => p.StagePlans).LoadAsync(cancellationToken);
-        }
+        AllowEdit = Draft.Status == PlanVersionStatus.Draft;
 
-        HydrateStageInputsFromPlan();
-
-        var canEdit = Draft.Status == PlanVersionStatus.Draft;
-        AllowEdit = canEdit && !preview;
-        IsPreview = preview || !AllowEdit;
-        CanSubmit = canEdit && DraftIsReadyForSubmission();
+        PopulateInputFromDraft();
+        RecalculateSchedule();
+        CanSubmit = AllowEdit && IsReadyForSubmission();
 
         return Page();
     }
@@ -127,46 +113,22 @@ public class DraftModel : PageModel
         }
 
         AllowEdit = true;
-        NormalizeStageInputs();
-        ValidateStageDates();
-        ValidateDependencies();
+
+        NormalizeInput();
+        ValidateInputBasics();
+        RecalculateSchedule();
+        CanSubmit = AllowEdit && IsReadyForSubmission();
 
         if (!ModelState.IsValid)
         {
-            IsPreview = false;
-            CanSubmit = false;
             return Page();
         }
 
         ApplyInputsToDraft();
         await _db.SaveChangesAsync(cancellationToken);
+
         StatusMessage = "Draft saved.";
         return RedirectToPage(new { id });
-    }
-
-    public async Task<IActionResult> OnPostPreviewAsync(int id, CancellationToken cancellationToken)
-    {
-        var result = await LoadForPostAsync(id, requireDraft: true, cancellationToken);
-        if (result != null)
-        {
-            return result;
-        }
-
-        NormalizeStageInputs();
-        ValidateStageDates();
-        ValidateDependencies();
-
-        if (!ModelState.IsValid)
-        {
-            AllowEdit = true;
-            IsPreview = false;
-            CanSubmit = false;
-            return Page();
-        }
-
-        ApplyInputsToDraft();
-        await _db.SaveChangesAsync(cancellationToken);
-        return RedirectToPage(new { id, preview = true });
     }
 
     public async Task<IActionResult> OnPostSubmitAsync(int id, CancellationToken cancellationToken)
@@ -178,15 +140,15 @@ public class DraftModel : PageModel
         }
 
         AllowEdit = true;
-        NormalizeStageInputs();
-        ValidateStageDates();
-        ValidateDependencies();
-        ValidateSubmissionCompleteness();
+
+        NormalizeInput();
+        ValidateInputBasics();
+        RecalculateSchedule();
+        RequireSubmissionCompleteness();
+        CanSubmit = AllowEdit && IsReadyForSubmission();
 
         if (!ModelState.IsValid)
         {
-            IsPreview = false;
-            CanSubmit = false;
             return Page();
         }
 
@@ -231,24 +193,66 @@ public class DraftModel : PageModel
             .OrderBy(t => t.Sequence)
             .ToListAsync(cancellationToken);
 
-        var dependencies = await _db.StageDependencyTemplates
+        _dependencyTemplates = await _db.StageDependencyTemplates
             .AsNoTracking()
             .Where(d => d.Version == PlanConstants.StageTemplateVersion)
             .ToListAsync(cancellationToken);
 
         _templatesByCode = StageTemplates.ToDictionary(t => t.Code, StringComparer.OrdinalIgnoreCase);
-        _stageIndex = StageTemplates
-            .Select((t, idx) => new { t.Code, idx })
-            .ToDictionary(x => x.Code, x => x.idx, StringComparer.OrdinalIgnoreCase);
-        _dependenciesByStage = dependencies
-            .GroupBy(d => d.FromStageCode, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.Select(x => x.DependsOnStageCode).ToList(), StringComparer.OrdinalIgnoreCase);
+        _stageSequence = StageTemplates.ToDictionary(t => t.Code, t => t.Sequence, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void BuildStageMetadataJson()
+    {
+        var payload = new
+        {
+            stages = StageTemplates.Select(t => new
+            {
+                t.Code,
+                t.Name,
+                t.Sequence,
+                t.Optional,
+                t.ParallelGroup
+            }),
+            dependencies = _dependencyTemplates.Select(d => new
+            {
+                from = d.FromStageCode,
+                on = d.DependsOnStageCode
+            })
+        };
+
+        StageMetadataJson = JsonSerializer.Serialize(payload, StageMetadataJsonOptions);
+    }
+
+    private async Task<PlanVersion> LoadOrCreateDraftAsync(int projectId, string userId, CancellationToken cancellationToken)
+    {
+        var draft = await _db.PlanVersions
+            .Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == projectId)
+            .OrderByDescending(p => p.VersionNo)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (draft == null)
+        {
+            draft = await _drafts.CreateDraftAsync(projectId, userId, cancellationToken);
+            draft = await _db.PlanVersions
+                .Include(p => p.StagePlans)
+                .FirstAsync(p => p.Id == draft.Id, cancellationToken);
+        }
+        else if (!draft.StagePlans.Any())
+        {
+            await _db.Entry(draft).Collection(p => p.StagePlans).LoadAsync(cancellationToken);
+        }
+
+        return draft;
     }
 
     private async Task<IActionResult?> LoadForPostAsync(int projectId, bool requireDraft, CancellationToken cancellationToken)
     {
         ProjectId = projectId;
+
         await LoadStageMetadataAsync(cancellationToken);
+        BuildStageMetadataJson();
 
         var project = await _db.Projects
             .AsNoTracking()
@@ -276,23 +280,7 @@ public class DraftModel : PageModel
             return Forbid();
         }
 
-        Draft = await _db.PlanVersions
-            .Include(p => p.StagePlans)
-            .Where(p => p.ProjectId == projectId)
-            .OrderByDescending(p => p.VersionNo)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (Draft == null)
-        {
-            Draft = await _drafts.CreateDraftAsync(projectId, userId, cancellationToken);
-            Draft = await _db.PlanVersions
-                .Include(p => p.StagePlans)
-                .FirstAsync(p => p.Id == Draft.Id, cancellationToken);
-        }
-        else if (!Draft.StagePlans.Any())
-        {
-            await _db.Entry(Draft).Collection(p => p.StagePlans).LoadAsync(cancellationToken);
-        }
+        Draft = await LoadOrCreateDraftAsync(projectId, userId, cancellationToken);
 
         if (requireDraft && Draft.Status != PlanVersionStatus.Draft)
         {
@@ -300,202 +288,281 @@ public class DraftModel : PageModel
         }
 
         AllowEdit = Draft.Status == PlanVersionStatus.Draft;
-        IsPreview = false;
-        CanSubmit = AllowEdit && DraftIsReadyForSubmission();
+        CanSubmit = AllowEdit && IsReadyForSubmission();
 
         return null;
     }
 
-    private void HydrateStageInputsFromPlan()
+    private void PopulateInputFromDraft()
     {
-        if (Draft == null)
+        Input = new DraftInput
         {
-            Stages = StageTemplates.Select(t => new StageInput { StageCode = t.Code }).ToList();
+            AnchorStageCode = !string.IsNullOrWhiteSpace(Draft?.AnchorStageCode)
+                ? Draft!.AnchorStageCode!
+                : PlanConstants.DefaultAnchorStageCode,
+            AnchorDate = Draft?.AnchorDate ?? DateOnly.FromDateTime(DateTime.UtcNow),
+            SkipWeekends = Draft?.SkipWeekends ?? true,
+            TransitionRule = Draft?.TransitionRule ?? PlanTransitionRule.NextWorkingDay,
+            PncApplicable = Draft?.PncApplicable ?? true,
+            UnlockManualDates = false
+        };
+
+        var planStages = Draft?.StagePlans.ToDictionary(s => s.StageCode, StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, StagePlan>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var template in StageTemplates)
+        {
+            var row = new DraftInput.StageRow
+            {
+                StageCode = template.Code,
+                DurationDays = 1
+            };
+
+            if (planStages.TryGetValue(template.Code, out var stage) &&
+                stage.PlannedStart is DateOnly start &&
+                stage.PlannedDue is DateOnly due)
+            {
+                row.DurationDays = Math.Max((due.DayNumber - start.DayNumber) + 1, 0);
+            }
+
+            Input.Stages.Add(row);
+        }
+
+        DetectExistingManualOverrides(planStages);
+    }
+
+    private void DetectExistingManualOverrides(IReadOnlyDictionary<string, StagePlan> planStages)
+    {
+        if (Input.AnchorDate == default)
+        {
+            Input.AnchorDate = DateOnly.FromDateTime(DateTime.UtcNow);
+        }
+
+        var calculator = new PlanCalculator(StageTemplates, _dependencyTemplates);
+        var durations = Input.Stages.ToDictionary(s => s.StageCode, s => Math.Max(s.DurationDays, 0), StringComparer.OrdinalIgnoreCase);
+        var baseOptions = new PlanCalculatorOptions(
+            Input.AnchorStageCode,
+            Input.AnchorDate,
+            Input.SkipWeekends,
+            Input.TransitionRule,
+            Input.PncApplicable,
+            durations,
+            new Dictionary<string, PlanCalculatorManualOverride>(StringComparer.OrdinalIgnoreCase));
+
+        IDictionary<string, (DateOnly start, DateOnly due)> baseline;
+        try
+        {
+            baseline = calculator.Compute(baseOptions);
+        }
+        catch (InvalidOperationException)
+        {
+            baseline = new Dictionary<string, (DateOnly start, DateOnly due)>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        foreach (var stage in planStages.Values)
+        {
+            if (stage.PlannedStart is not DateOnly start || stage.PlannedDue is not DateOnly due)
+            {
+                continue;
+            }
+
+            if (!baseline.TryGetValue(stage.StageCode, out var computed) || computed.start != start || computed.due != due)
+            {
+                var row = Input.Stages.FirstOrDefault(r => string.Equals(r.StageCode, stage.StageCode, StringComparison.OrdinalIgnoreCase));
+                if (row != null)
+                {
+                    row.ManualStart = start;
+                    row.ManualDue = due;
+                }
+            }
+        }
+
+        if (Input.Stages.Any(s => s.ManualStart.HasValue || s.ManualDue.HasValue))
+        {
+            Input.UnlockManualDates = true;
+        }
+    }
+
+    private void NormalizeInput()
+    {
+        Input.AnchorStageCode = string.IsNullOrWhiteSpace(Input.AnchorStageCode)
+            ? PlanConstants.DefaultAnchorStageCode
+            : Input.AnchorStageCode.Trim().ToUpperInvariant();
+
+        var map = (Input.Stages ?? new List<DraftInput.StageRow>()).ToDictionary(s => s.StageCode, StringComparer.OrdinalIgnoreCase);
+        var normalized = new List<DraftInput.StageRow>(StageTemplates.Count);
+
+        foreach (var template in StageTemplates)
+        {
+            if (map.TryGetValue(template.Code, out var stage))
+            {
+                normalized.Add(new DraftInput.StageRow
+                {
+                    StageCode = template.Code,
+                    DurationDays = stage.DurationDays,
+                    ManualStart = stage.ManualStart,
+                    ManualDue = stage.ManualDue
+                });
+            }
+            else
+            {
+                normalized.Add(new DraftInput.StageRow
+                {
+                    StageCode = template.Code,
+                    DurationDays = 1
+                });
+            }
+        }
+
+        Input.Stages = normalized;
+    }
+
+    private void ValidateInputBasics()
+    {
+        if (string.IsNullOrWhiteSpace(Input.AnchorStageCode) || !_templatesByCode.ContainsKey(Input.AnchorStageCode))
+        {
+            ModelState.AddModelError("Input.AnchorStageCode", "Select a valid anchor stage.");
+        }
+
+        if (Input.AnchorDate == default)
+        {
+            ModelState.AddModelError("Input.AnchorDate", "Anchor date is required.");
+        }
+
+        for (var i = 0; i < Input.Stages.Count; i++)
+        {
+            var stage = Input.Stages[i];
+            if (stage.DurationDays < 0)
+            {
+                ModelState.AddModelError($"Input.Stages[{i}].DurationDays", "Duration must be zero or greater.");
+            }
+
+            if (stage.ManualStart.HasValue && stage.ManualDue.HasValue && stage.ManualDue.Value < stage.ManualStart.Value)
+            {
+                ModelState.AddModelError($"Input.Stages[{i}].ManualDue", "Manual due must be on or after the manual start date.");
+            }
+        }
+    }
+
+    private void RecalculateSchedule()
+    {
+        ComputedSchedule = new Dictionary<string, (DateOnly start, DateOnly due)>(StringComparer.OrdinalIgnoreCase);
+        ManualOverrideStages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (StageTemplates.Count == 0)
+        {
             return;
         }
 
-        var planStages = Draft.StagePlans.ToDictionary(s => s.StageCode, StringComparer.OrdinalIgnoreCase);
-        Stages = StageTemplates.Select(t =>
+        if (string.IsNullOrWhiteSpace(Input.AnchorStageCode) || !_templatesByCode.ContainsKey(Input.AnchorStageCode))
         {
-            if (planStages.TryGetValue(t.Code, out var stage))
-            {
-                return new StageInput
-                {
-                    StageCode = t.Code,
-                    PlannedStart = stage.PlannedStart,
-                    PlannedDue = stage.PlannedDue
-                };
-            }
+            return;
+        }
 
-            return new StageInput { StageCode = t.Code };
-        }).ToList();
+        if (Input.AnchorDate == default)
+        {
+            return;
+        }
+
+        var durations = Input.Stages
+            .ToDictionary(s => s.StageCode, s => Math.Max(s.DurationDays, 0), StringComparer.OrdinalIgnoreCase);
+
+        var manualOverrides = Input.Stages
+            .Where(s => s.ManualStart.HasValue || s.ManualDue.HasValue)
+            .ToDictionary(s => s.StageCode, s => new PlanCalculatorManualOverride(s.ManualStart, s.ManualDue), StringComparer.OrdinalIgnoreCase);
+
+        var options = new PlanCalculatorOptions(
+            Input.AnchorStageCode,
+            Input.AnchorDate,
+            Input.SkipWeekends,
+            Input.TransitionRule,
+            Input.PncApplicable,
+            durations,
+            manualOverrides);
+
+        try
+        {
+            var calculator = new PlanCalculator(StageTemplates, _dependencyTemplates);
+            var computed = calculator.Compute(options);
+            ComputedSchedule = new Dictionary<string, (DateOnly start, DateOnly due)>(computed, StringComparer.OrdinalIgnoreCase);
+            ManualOverrideStages = new HashSet<string>(computed.Keys.Where(manualOverrides.ContainsKey), StringComparer.OrdinalIgnoreCase);
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+        }
     }
 
-    private void NormalizeStageInputs()
+    private void RequireSubmissionCompleteness()
     {
-        var map = Stages.ToDictionary(s => s.StageCode, StringComparer.OrdinalIgnoreCase);
-        Stages = StageTemplates.Select(t =>
+        if (!_templatesByCode.TryGetValue(Input.AnchorStageCode, out var anchor))
         {
-            if (map.TryGetValue(t.Code, out var input))
-            {
-                return new StageInput
-                {
-                    StageCode = t.Code,
-                    PlannedStart = input.PlannedStart,
-                    PlannedDue = input.PlannedDue
-                };
-            }
-
-            return new StageInput { StageCode = t.Code };
-        }).ToList();
-    }
-
-    private void ValidateStageDates()
-    {
-        var inputs = Stages.ToDictionary(s => s.StageCode, StringComparer.OrdinalIgnoreCase);
-        var hasIncompletePair = false;
+            ModelState.AddModelError("Input.AnchorStageCode", "Select a valid anchor stage.");
+            return;
+        }
 
         foreach (var template in StageTemplates)
         {
-            if (!inputs.TryGetValue(template.Code, out var input))
+            if (template.Sequence < anchor.Sequence)
             {
                 continue;
             }
 
-            var index = _stageIndex[template.Code];
-            var start = input.PlannedStart;
-            var due = input.PlannedDue;
-            var hasStart = start.HasValue;
-            var hasDue = due.HasValue;
-
-            if (hasStart && hasDue && due.Value < start.Value)
-            {
-                ModelState.AddModelError($"Stages[{index}].PlannedDue", "Planned due must be on or after the planned start date.");
-            }
-
-            if (hasStart ^ hasDue)
-            {
-                hasIncompletePair = true;
-
-                if (!hasStart)
-                {
-                    ModelState.AddModelError($"Stages[{index}].PlannedStart", "Planned start is required when a due date is provided.");
-                }
-
-                if (!hasDue)
-                {
-                    ModelState.AddModelError($"Stages[{index}].PlannedDue", "Planned due is required when a start date is provided.");
-                }
-            }
-        }
-
-        if (hasIncompletePair)
-        {
-            ModelState.AddModelError(string.Empty, "Enter both a planned start and due date for a stage, or leave both blank.");
-        }
-    }
-
-    private void ValidateDependencies()
-    {
-        var inputs = Stages.ToDictionary(s => s.StageCode, StringComparer.OrdinalIgnoreCase);
-
-        foreach (var template in StageTemplates)
-        {
-            if (!inputs.TryGetValue(template.Code, out var input) || input.PlannedStart is not DateOnly start)
+            if (!Input.PncApplicable && string.Equals(template.Code, "PNC", StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            if (!_dependenciesByStage.TryGetValue(template.Code, out var predecessors) || predecessors.Count == 0)
+            if (!ComputedSchedule.TryGetValue(template.Code, out var schedule))
             {
+                ModelState.AddModelError(string.Empty, $"Stage {template.Name} is missing a computed schedule.");
                 continue;
             }
 
-            DateOnly? latestDue = null;
-            string? latestCode = null;
-
-            foreach (var predecessor in predecessors)
+            if (schedule.due < schedule.start)
             {
-                if (inputs.TryGetValue(predecessor, out var predecessorInput) && predecessorInput.PlannedDue is DateOnly due)
-                {
-                    if (latestDue == null || due > latestDue)
-                    {
-                        latestDue = due;
-                        latestCode = predecessor;
-                    }
-                }
-            }
-
-            if (latestDue.HasValue && start < latestDue.Value)
-            {
-                var index = _stageIndex[template.Code];
-                var blockerName = latestCode != null && _templatesByCode.TryGetValue(latestCode, out var blocker)
-                    ? blocker.Name
-                    : latestCode ?? "the predecessor";
-                ModelState.AddModelError($"Stages[{index}].PlannedStart",
-                    $"Planned start must be on or after {blockerName}'s planned due date ({latestDue:dd MMM yyyy}).");
+                ModelState.AddModelError(string.Empty, $"Stage {template.Name} has an invalid planned range.");
             }
         }
     }
 
-    private void ValidateSubmissionCompleteness()
+    private bool IsReadyForSubmission()
     {
-        for (var i = 0; i < StageTemplates.Count && i < Stages.Count; i++)
-        {
-            var input = Stages[i];
-            if (input.PlannedStart is null || input.PlannedDue is null)
-            {
-                ModelState.AddModelError($"Stages[{i}].PlannedStart", "Planned start is required for submission.");
-                ModelState.AddModelError($"Stages[{i}].PlannedDue", "Planned due is required for submission.");
-            }
-        }
-    }
-
-    private bool DraftIsReadyForSubmission()
-    {
-        if (Draft == null)
+        if (ComputedSchedule.Count == 0)
         {
             return false;
         }
 
-        var map = Draft.StagePlans
-            .Select(s => new StageInput { StageCode = s.StageCode, PlannedStart = s.PlannedStart, PlannedDue = s.PlannedDue })
-            .ToDictionary(s => s.StageCode, StringComparer.OrdinalIgnoreCase);
+        if (!_templatesByCode.TryGetValue(Input.AnchorStageCode, out var anchor))
+        {
+            return false;
+        }
 
-        return AreStageInputsReadyForSubmission(map);
-    }
+        if (Input.AnchorDate == default)
+        {
+            return false;
+        }
 
-    private bool AreStageInputsReadyForSubmission(Dictionary<string, StageInput> inputs)
-    {
         foreach (var template in StageTemplates)
         {
-            if (!inputs.TryGetValue(template.Code, out var input) ||
-                input.PlannedStart is not DateOnly start ||
-                input.PlannedDue is not DateOnly due)
+            if (template.Sequence < anchor.Sequence)
+            {
+                continue;
+            }
+
+            if (!Input.PncApplicable && string.Equals(template.Code, "PNC", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!ComputedSchedule.TryGetValue(template.Code, out var schedule))
             {
                 return false;
             }
 
-            if (due < start)
+            if (schedule.due < schedule.start)
             {
                 return false;
-            }
-
-            if (_dependenciesByStage.TryGetValue(template.Code, out var predecessors))
-            {
-                foreach (var predecessor in predecessors)
-                {
-                    if (!inputs.TryGetValue(predecessor, out var dependency) ||
-                        dependency.PlannedDue is not DateOnly dependencyDue)
-                    {
-                        return false;
-                    }
-
-                    if (start < dependencyDue)
-                    {
-                        return false;
-                    }
-                }
             }
         }
 
@@ -509,22 +576,37 @@ public class DraftModel : PageModel
             return;
         }
 
+        Draft.AnchorStageCode = Input.AnchorStageCode;
+        Draft.AnchorDate = Input.AnchorDate;
+        Draft.SkipWeekends = Input.SkipWeekends;
+        Draft.TransitionRule = Input.TransitionRule;
+        Draft.PncApplicable = Input.PncApplicable;
+
         var entities = Draft.StagePlans.ToDictionary(s => s.StageCode, StringComparer.OrdinalIgnoreCase);
 
-        foreach (var input in Stages)
+        foreach (var template in StageTemplates)
         {
-            if (!entities.TryGetValue(input.StageCode, out var entity))
+            if (!entities.TryGetValue(template.Code, out var entity))
             {
                 entity = new StagePlan
                 {
-                    StageCode = input.StageCode
+                    StageCode = template.Code,
+                    PlanVersionId = Draft.Id
                 };
                 Draft.StagePlans.Add(entity);
-                entities[input.StageCode] = entity;
+                entities[template.Code] = entity;
             }
 
-            entity.PlannedStart = input.PlannedStart;
-            entity.PlannedDue = input.PlannedDue;
+            if (ComputedSchedule.TryGetValue(template.Code, out var schedule))
+            {
+                entity.PlannedStart = schedule.start;
+                entity.PlannedDue = schedule.due;
+            }
+            else
+            {
+                entity.PlannedStart = null;
+                entity.PlannedDue = null;
+            }
         }
     }
 
@@ -541,5 +623,24 @@ public class DraftModel : PageModel
         }
 
         return false;
+    }
+
+    public class DraftInput
+    {
+        public string AnchorStageCode { get; set; } = PlanConstants.DefaultAnchorStageCode;
+        public DateOnly AnchorDate { get; set; } = DateOnly.FromDateTime(DateTime.UtcNow);
+        public bool SkipWeekends { get; set; } = true;
+        public PlanTransitionRule TransitionRule { get; set; } = PlanTransitionRule.NextWorkingDay;
+        public bool PncApplicable { get; set; } = true;
+        public bool UnlockManualDates { get; set; }
+        public List<StageRow> Stages { get; set; } = new();
+
+        public class StageRow
+        {
+            public string StageCode { get; set; } = string.Empty;
+            public int DurationDays { get; set; }
+            public DateOnly? ManualStart { get; set; }
+            public DateOnly? ManualDue { get; set; }
+        }
     }
 }

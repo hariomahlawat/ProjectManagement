@@ -168,6 +168,7 @@ public class PlanApprovalService
             .ToListAsync(cancellationToken);
 
         var templateNames = templates.ToDictionary(t => t.Code, t => t.Name, StringComparer.OrdinalIgnoreCase);
+        var sequenceByCode = templates.ToDictionary(t => t.Code, t => t.Sequence, StringComparer.OrdinalIgnoreCase);
 
         var dependencies = await _db.StageDependencyTemplates
             .AsNoTracking()
@@ -180,8 +181,29 @@ public class PlanApprovalService
 
         var stagePlans = plan.StagePlans.ToDictionary(s => s.StageCode, StringComparer.OrdinalIgnoreCase);
 
+        var anchorCode = plan.AnchorStageCode ?? PlanConstants.DefaultAnchorStageCode;
+        var anchorSequence = sequenceByCode.TryGetValue(anchorCode, out var anchorSeq)
+            ? anchorSeq
+            : int.MinValue;
+
+        var includedStages = new HashSet<string>(templates.Select(t => t.Code), StringComparer.OrdinalIgnoreCase);
+        if (!plan.PncApplicable)
+        {
+            includedStages.Remove("PNC");
+        }
+
         foreach (var template in templates)
         {
+            if (template.Sequence < anchorSequence)
+            {
+                continue;
+            }
+
+            if (!includedStages.Contains(template.Code))
+            {
+                continue;
+            }
+
             if (!stagePlans.TryGetValue(template.Code, out var stage))
             {
                 errors.Add($"Stage {template.Name} ({template.Code}) is missing from the plan.");
@@ -207,6 +229,17 @@ public class PlanApprovalService
             foreach (var dependency in stageDependencies)
             {
                 var dependencyCode = dependency.DependsOnStageCode;
+
+                if (!includedStages.Contains(dependencyCode))
+                {
+                    continue;
+                }
+
+                if (sequenceByCode.TryGetValue(dependencyCode, out var dependencySequence) && dependencySequence < anchorSequence)
+                {
+                    continue;
+                }
+
                 var dependencyName = templateNames.TryGetValue(dependencyCode, out var friendlyName)
                     ? friendlyName
                     : dependencyCode;
@@ -217,14 +250,37 @@ public class PlanApprovalService
                     continue;
                 }
 
-                if (start < prerequisiteDue)
+                var minimumStart = prerequisiteDue;
+
+                if (plan.TransitionRule == PlanTransitionRule.NextWorkingDay)
                 {
-                    errors.Add($"Stage {template.Name} must start on or after {dependencyName}'s planned due date ({prerequisiteDue:dd MMM yyyy}).");
+                    minimumStart = minimumStart.AddDays(1);
+                }
+
+                if (plan.SkipWeekends)
+                {
+                    minimumStart = NextWorkday(minimumStart);
+                }
+
+                if (start < minimumStart)
+                {
+                    errors.Add($"Stage {template.Name} must start on or after {dependencyName}'s planned due date ({prerequisiteDue:dd MMM yyyy}) when applying the transition rule.");
                 }
             }
         }
 
         return errors;
+    }
+
+    private static DateOnly NextWorkday(DateOnly date)
+    {
+        var current = date;
+        while (current.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday)
+        {
+            current = current.AddDays(1);
+        }
+
+        return current;
     }
 }
 
