@@ -39,7 +39,18 @@ namespace ProjectManagement.Pages.Projects
         public async Task OnGetAsync()
         {
             HodUsers = (await _userManager.GetUsersInRoleAsync("HoD")).OrderBy(u => u.FullName).ToList();
-            PoUsers = (await _userManager.GetUsersInRoleAsync("Project Officer")).OrderBy(u => u.FullName).ToList();
+
+            var poRoleNames = new[] { "Project Officer", "Project Offr" };
+            var poUsers = new Dictionary<string, ApplicationUser>();
+
+            foreach (var role in poRoleNames)
+            {
+                var usersInRole = await _userManager.GetUsersInRoleAsync(role);
+                foreach (var user in usersInRole)
+                    poUsers[user.Id] = user;
+            }
+
+            PoUsers = poUsers.Values.OrderBy(u => u.FullName).ToList();
         }
 
         public async Task<IActionResult> OnPostAsync()
