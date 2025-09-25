@@ -67,8 +67,8 @@ namespace ProjectManagement.Pages.Projects
         [BindProperty(SupportsGet = true)]
         public DateOnly? To { get; set; }
 
-        [BindProperty(SupportsGet = true)]
-        public int Page { get; set; } = 1;
+        [BindProperty(SupportsGet = true, Name = "Page")]
+        public int PageIndex { get; set; } = 1;
 
         [BindProperty(SupportsGet = true, Name = "parentId")]
         public int? ReplyTo { get; set; }
@@ -164,7 +164,7 @@ namespace ProjectManagement.Pages.Projects
                 StageId,
                 From,
                 To,
-                Page
+                Page = PageIndex
             });
 
             if (!string.IsNullOrEmpty(redirect))
@@ -172,7 +172,7 @@ namespace ProjectManagement.Pages.Projects
                 return Redirect(redirect);
             }
 
-            return RedirectToPage(new { id, Type, AuthorId, StageId, From, To, Page });
+            return RedirectToPage(new { id, Type, AuthorId, StageId, From, To, Page = PageIndex });
         }
 
         [Authorize(Roles = "Admin,HoD,Project Officer,MCO,Comdt")]
@@ -187,7 +187,7 @@ namespace ProjectManagement.Pages.Projects
             var ok = await _commentService.SoftDeleteAsync(commentId, userId, cancellationToken);
             StatusMessage = ok ? "Remark deleted." : "Unable to delete remark.";
 
-            return RedirectToPage(new { id, Type, AuthorId, StageId, From, To, Page });
+            return RedirectToPage(new { id, Type, AuthorId, StageId, From, To, Page = PageIndex });
         }
 
         public async Task<IActionResult> OnGetDownloadAttachmentAsync(int id, int commentId, int attachmentId, CancellationToken cancellationToken)
@@ -273,7 +273,7 @@ namespace ProjectManagement.Pages.Projects
                     StageId,
                     From,
                     To,
-                    Page
+                    Page = PageIndex
                 })
             };
 
@@ -330,7 +330,7 @@ namespace ProjectManagement.Pages.Projects
 
         private async Task LoadCommentsAsync(int projectId, CancellationToken cancellationToken)
         {
-            CurrentPage = Page < 1 ? 1 : Page;
+            CurrentPage = PageIndex < 1 ? 1 : PageIndex;
             var userId = _userManager.GetUserId(User);
             var canComment = UserCanComment();
 
