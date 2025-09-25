@@ -221,7 +221,7 @@ else
                                 <th scope="col" style="width: 6rem;">Stage</th>
                                 <th scope="col">Description</th>
                                 <th scope="col" style="width: 12rem;">Planned start</th>
-                                <th scope="col" style="width: 12rem;">Planned due</th>
+                                <th scope="col" style="width: 14rem;">Due dates</th>
                                 <th scope="col" style="width: 10rem;">Status</th>
                                 <th scope="col" style="width: 8rem;">Slip</th>
                                 <th scope="col" style="width: 12rem;">Actual start</th>
@@ -248,7 +248,24 @@ else
                                     </div>
                                 </td>
                                 <td>@stage.PlannedStart?.ToString("dd MMM yyyy")</td>
-                                <td>@stage.PlannedDue?.ToString("dd MMM yyyy")</td>
+                                <td>
+                                    @{
+                                        var plannedDue = stage.PlannedDue;
+                                        var forecastDue = stage.ForecastDue ?? stage.PlannedDue;
+                                    }
+                                    <div class="text-muted small">Planned</div>
+                                    <div class="text-muted small mb-1">@(plannedDue?.ToString("dd MMM yyyy") ?? "—")</div>
+                                    <div>
+                                        <span class="text-muted small me-1">Forecast</span>
+                                        <span class="fw-semibold">@(forecastDue?.ToString("dd MMM yyyy") ?? "—")</span>
+                                        @if (plannedDue.HasValue && forecastDue.HasValue && plannedDue.Value != forecastDue.Value)
+                                        {
+                                            var shift = forecastDue.Value.DayNumber - plannedDue.Value.DayNumber;
+                                            var prefix = shift >= 0 ? "+" : string.Empty;
+                                            <span class="badge bg-light text-dark border ms-1">@($"{prefix}{shift}d")</span>
+                                        }
+                                    </div>
+                                </td>
                                 <td>@stage.Status</td>
                                 <td>@stage.SlipDays</td>
                                 <td>@stage.ActualStart?.ToString("dd MMM yyyy")</td>
