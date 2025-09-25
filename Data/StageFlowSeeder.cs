@@ -12,7 +12,10 @@ public static class StageFlowSeeder
         using var scope = sp.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        if (await db.StageTemplates.AnyAsync(t => t.Version == version))
+        var templatesExist = await db.StageTemplates.AnyAsync(t => t.Version == version);
+        var depsExist = await db.StageDependencyTemplates.AnyAsync(t => t.Version == version);
+
+        if (templatesExist && depsExist)
         {
             return;
         }
@@ -45,9 +48,24 @@ public static class StageFlowSeeder
             D("SO", "EAS"), D("DEV", "SO"), D("AT", "DEV"), D("PAY", "AT")
         };
 
-        await db.StageTemplates.AddRangeAsync(stages);
-        await db.StageDependencyTemplates.AddRangeAsync(deps);
-        await db.SaveChangesAsync();
+        var changesMade = false;
+
+        if (!templatesExist)
+        {
+            await db.StageTemplates.AddRangeAsync(stages);
+            changesMade = true;
+        }
+
+        if (!depsExist)
+        {
+            await db.StageDependencyTemplates.AddRangeAsync(deps);
+            changesMade = true;
+        }
+
+        if (changesMade)
+        {
+            await db.SaveChangesAsync();
+        }
 
         StageDependencyTemplate D(string from, string on)
             => new() { Version = version, FromStageCode = from, DependsOnStageCode = on };
