@@ -41,7 +41,7 @@
             <div class="row g-3">
                 <div class="col-md-4">
                     <label asp-for="Input.AnchorStageCode" class="form-label">Anchor stage</label>
-                    <select asp-for="Input.AnchorStageCode" class="form-select" @(Model.AllowEdit ? null : "disabled")>
+                    <select asp-for="Input.AnchorStageCode" class="form-select" disabled="@(Model.AllowEdit ? null : "disabled")">
                         @foreach (var stage in Model.StageTemplates)
                         {
                             <option value="@stage.Code">@stage.Code - @stage.Name</option>
@@ -51,23 +51,23 @@
                 </div>
                 <div class="col-md-3">
                     <label asp-for="Input.AnchorDate" class="form-label">Anchor date</label>
-                    <input asp-for="Input.AnchorDate" type="date" class="form-control" @(Model.AllowEdit ? null : "disabled") />
+                    <input asp-for="Input.AnchorDate" type="date" class="form-control" disabled="@(Model.AllowEdit ? null : "disabled")" />
                     <span asp-validation-for="Input.AnchorDate" class="text-danger small"></span>
                 </div>
                 <div class="col-md-3">
                     <label asp-for="Input.TransitionRule" class="form-label">Transition rule</label>
-                    <select asp-for="Input.TransitionRule" class="form-select" asp-items="Html.GetEnumSelectList<PlanTransitionRule>()" @(Model.AllowEdit ? null : "disabled")></select>
+                    <select asp-for="Input.TransitionRule" class="form-select" asp-items="Html.GetEnumSelectList<PlanTransitionRule>()" disabled="@(Model.AllowEdit ? null : "disabled")"></select>
                     <span asp-validation-for="Input.TransitionRule" class="text-danger small"></span>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <div class="form-check">
-                        <input asp-for="Input.SkipWeekends" class="form-check-input" @(Model.AllowEdit ? null : "disabled") />
+                        <input asp-for="Input.SkipWeekends" class="form-check-input" disabled="@(Model.AllowEdit ? null : "disabled")" />
                         <label asp-for="Input.SkipWeekends" class="form-check-label">Skip weekends</label>
                     </div>
                 </div>
                 <div class="col-md-3">
                     <div class="form-check mt-2">
-                        <input asp-for="Input.PncApplicable" class="form-check-input" @(Model.AllowEdit ? null : "disabled") />
+                        <input asp-for="Input.PncApplicable" class="form-check-input" disabled="@(Model.AllowEdit ? null : "disabled")" />
                         <label asp-for="Input.PncApplicable" class="form-check-label">PNC applicable</label>
                     </div>
                 </div>
@@ -111,7 +111,7 @@
                                 <input type="hidden" asp-for="Input.Stages[i].StageCode" value="@template.Code" />
                             </td>
                             <td>
-                                <input asp-for="Input.Stages[i].DurationDays" type="number" min="0" class="form-control form-control-sm" @(Model.AllowEdit ? null : "readonly") />
+                                <input asp-for="Input.Stages[i].DurationDays" type="number" min="0" class="form-control form-control-sm" readonly="@(Model.AllowEdit ? null : "readonly")" />
                                 <span asp-validation-for="Input.Stages[i].DurationDays" class="text-danger small"></span>
                             </td>
                         </tr>
@@ -126,7 +126,7 @@
         <div class="card-header d-flex justify-content-between align-items-center">
             <div><strong>Step 3:</strong> Review &amp; manual overrides</div>
             <div class="form-check form-switch">
-                <input asp-for="Input.UnlockManualDates" class="form-check-input" @(Model.AllowEdit ? null : "disabled") />
+                <input asp-for="Input.UnlockManualDates" class="form-check-input" disabled="@(Model.AllowEdit ? null : "disabled")" />
                 <label asp-for="Input.UnlockManualDates" class="form-check-label">Unlock manual date edits</label>
             </div>
         </div>
@@ -174,11 +174,11 @@
                                 </span>
                             </td>
                             <td>
-                                <input asp-for="Input.Stages[i].ManualStart" type="date" class="form-control form-control-sm" data-manual-start="@template.Code" @(manualStartReadOnly ? "readonly" : null) />
+                                <input asp-for="Input.Stages[i].ManualStart" type="date" class="form-control form-control-sm" data-manual-start="@template.Code" readonly="@(manualStartReadOnly ? "readonly" : null)" />
                                 <span asp-validation-for="Input.Stages[i].ManualStart" class="text-danger small"></span>
                             </td>
                             <td>
-                                <input asp-for="Input.Stages[i].ManualDue" type="date" class="form-control form-control-sm" data-manual-due="@template.Code" @(manualDueReadOnly ? "readonly" : null) />
+                                <input asp-for="Input.Stages[i].ManualDue" type="date" class="form-control form-control-sm" data-manual-due="@template.Code" readonly="@(manualDueReadOnly ? "readonly" : null)" />
                                 <span asp-validation-for="Input.Stages[i].ManualDue" class="text-danger small"></span>
                             </td>
                         </tr>
@@ -196,7 +196,7 @@
         }
         @if (Model.AllowEdit)
         {
-            <button type="submit" class="btn btn-success" asp-page-handler="Submit" @(Model.CanSubmit ? null : "disabled")>Submit for approval</button>
+            <button type="submit" class="btn btn-success" asp-page-handler="Submit" disabled="@(Model.CanSubmit ? null : "disabled")">Submit for approval</button>
         }
         <a class="btn btn-outline-secondary" asp-page="/Projects/View" asp-route-id="@Model.ProjectId">Back</a>
     </div>
