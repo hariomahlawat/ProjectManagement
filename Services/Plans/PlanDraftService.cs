@@ -68,7 +68,7 @@ public class PlanDraftService
         {
             ProjectId = projectId,
             VersionNo = latestVersion + 1,
-            Title = PlanVersion.BaselineTitle,
+            Title = PlanVersion.ProjectTimelineTitle,
             Status = PlanVersionStatus.Draft,
             CreatedByUserId = userId,
             CreatedOn = _clock.UtcNow,

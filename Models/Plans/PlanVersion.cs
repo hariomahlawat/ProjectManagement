@@ -7,7 +7,7 @@ namespace ProjectManagement.Models.Plans;
 
 public class PlanVersion
 {
-    public const string BaselineTitle = "Baseline";
+    public const string ProjectTimelineTitle = "Project Timeline";
 
     public int Id { get; set; }
     public int ProjectId { get; set; }
@@ -15,7 +15,7 @@ public class PlanVersion
     public int VersionNo { get; set; }
 
     [MaxLength(64)]
-    public string Title { get; set; } = BaselineTitle;
+    public string Title { get; set; } = ProjectTimelineTitle;
 
     public PlanVersionStatus Status { get; set; } = PlanVersionStatus.Draft;
 

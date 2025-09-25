@@ -181,7 +181,7 @@ public class DraftModel : PageModel
             return Page();
         }
 
-        StatusMessage = "Baseline plan submitted for approval.";
+        StatusMessage = "Project Timeline submitted for approval.";
         return RedirectToPage(new { id });
     }
 
@@ -349,14 +349,14 @@ public class DraftModel : PageModel
             durations,
             new Dictionary<string, PlanCalculatorManualOverride>(StringComparer.OrdinalIgnoreCase));
 
-        IDictionary<string, (DateOnly start, DateOnly due)> baseline;
+        IDictionary<string, (DateOnly start, DateOnly due)> projectTimeline;
         try
         {
-            baseline = calculator.Compute(baseOptions);
+            projectTimeline = calculator.Compute(baseOptions);
         }
         catch (InvalidOperationException)
         {
-            baseline = new Dictionary<string, (DateOnly start, DateOnly due)>(StringComparer.OrdinalIgnoreCase);
+            projectTimeline = new Dictionary<string, (DateOnly start, DateOnly due)>(StringComparer.OrdinalIgnoreCase);
         }
 
         foreach (var stage in planStages.Values)
@@ -366,7 +366,7 @@ public class DraftModel : PageModel
                 continue;
             }
 
-            if (!baseline.TryGetValue(stage.StageCode, out var computed) || computed.start != start || computed.due != due)
+            if (!projectTimeline.TryGetValue(stage.StageCode, out var computed) || computed.start != start || computed.due != due)
             {
                 var row = Input.Stages.FirstOrDefault(r => string.Equals(r.StageCode, stage.StageCode, StringComparison.OrdinalIgnoreCase));
                 if (row != null)

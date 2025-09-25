@@ -113,7 +113,7 @@ namespace ProjectManagement.Pages.Projects
 
             if (!HasApprovedPlan || !ActivePlanVersionNo.HasValue)
             {
-                NextDueText = "Baseline not approved.";
+                NextDueText = "Project Timeline not approved.";
                 await LoadRecentActivityAsync(projectId, stageNames, cancellationToken);
                 return;
             }
