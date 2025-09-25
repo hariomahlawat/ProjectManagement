@@ -190,7 +190,7 @@ public class StagesModel : PageModel
                         return RedirectToPage(new { id });
                     }
 
-                    var today = Today();
+                    var today = GetToday();
                     var baseline = completionDate > today ? today : completionDate;
                     autoStart = flow.Bump(baseline);
                 }
@@ -214,7 +214,7 @@ public class StagesModel : PageModel
             var fallback = flow.ComputeAutoStart(stageCode, completedMap, skippedStages);
             if (fallback is null)
             {
-                var today = Today();
+                var today = GetToday();
                 var baseline = completionDate > today ? today : completionDate;
                 fallback = flow.Bump(baseline);
             }
@@ -564,7 +564,7 @@ public class StagesModel : PageModel
             .ToDictionary(ps => ps.StageCode, ps => ps, StringComparer.OrdinalIgnoreCase);
 
         var context = await _rules.BuildContextAsync(projectStages, cancellationToken);
-        Today = Today();
+        Today = GetToday();
         var health = StageHealthCalculator.Compute(projectStages, Today);
 
         StageSlips = templates
@@ -889,7 +889,7 @@ public class StagesModel : PageModel
         return stage.Trim().ToUpperInvariant();
     }
 
-    private DateOnly Today() => DateOnly.FromDateTime(_clock.UtcNow.DateTime);
+    private DateOnly GetToday() => DateOnly.FromDateTime(_clock.UtcNow.DateTime);
 
     private bool UserCanComment()
     {
