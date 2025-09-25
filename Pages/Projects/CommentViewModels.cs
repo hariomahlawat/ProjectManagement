@@ -27,91 +27,105 @@ namespace ProjectManagement.Pages.Projects
 
         public bool Pinned { get; set; }
 
-        public List<IFormFile> Files { get; set; } = new();
+        public List<IFormFile> Files { get; set; } = new List<IFormFile>();
 
         public string? RedirectTo { get; set; }
     }
 
     public class CommentComposerViewModel
     {
-        public string FormHandler { get; init; } = "Comment";
+        public string FormHandler { get; set; } = "Comment";
 
-        public CommentFormModel Form { get; init; } = new();
+        public CommentFormModel Form { get; set; } = new CommentFormModel();
 
-        public IEnumerable<SelectListItem> StageOptions { get; init; } = new List<SelectListItem>();
+        public IEnumerable<SelectListItem> StageOptions { get; set; } = new List<SelectListItem>();
 
-        public IEnumerable<SelectListItem> TypeOptions { get; init; } = new List<SelectListItem>();
+        public IEnumerable<SelectListItem> TypeOptions { get; set; } = new List<SelectListItem>();
 
-        public string SubmitButtonLabel { get; init; } = "Post";
+        public string SubmitButtonLabel { get; set; } = "Post";
 
-        public string? Legend { get; init; }
+        public string? Legend { get; set; }
 
-        public bool ShowStagePicker { get; init; } = true;
+        public bool ShowStagePicker { get; set; } = true;
 
-        public bool ShowPinnedToggle { get; init; } = true;
+        public bool ShowPinnedToggle { get; set; } = true;
 
-        public long MaxFileSizeBytes { get; init; }
+        public long MaxFileSizeBytes { get; set; }
 
-        public string? StatusMessage { get; init; }
+        public string? StatusMessage { get; set; }
 
-        public string? ErrorMessage { get; init; }
+        public string? ErrorMessage { get; set; }
     }
 
-    public record CommentAttachmentViewModel(int Id, string FileName, long SizeBytes);
+    public class CommentAttachmentViewModel
+    {
+        public CommentAttachmentViewModel(int id, string fileName, long sizeBytes)
+        {
+            Id = id;
+            FileName = fileName;
+            SizeBytes = sizeBytes;
+        }
+
+        public int Id { get; }
+
+        public string FileName { get; }
+
+        public long SizeBytes { get; }
+    }
 
     public class CommentReplyModel
     {
-        public int Id { get; init; }
+        public int Id { get; set; }
 
-        public int ProjectId { get; init; }
+        public int ProjectId { get; set; }
 
-        public string Body { get; init; } = string.Empty;
+        public string Body { get; set; } = string.Empty;
 
-        public ProjectCommentType Type { get; init; }
+        public ProjectCommentType Type { get; set; }
 
-        public DateTime CreatedOn { get; init; }
+        public DateTime CreatedOn { get; set; }
 
-        public DateTime? EditedOn { get; init; }
+        public DateTime? EditedOn { get; set; }
 
-        public string AuthorName { get; init; } = string.Empty;
+        public string AuthorName { get; set; } = string.Empty;
 
-        public string? AuthorId { get; init; }
+        public string? AuthorId { get; set; }
 
-        public IReadOnlyList<CommentAttachmentViewModel> Attachments { get; init; } = new List<CommentAttachmentViewModel>();
+        public IReadOnlyList<CommentAttachmentViewModel> Attachments { get; set; } = new List<CommentAttachmentViewModel>();
 
-        public bool CanEdit { get; init; }
+        public bool CanEdit { get; set; }
     }
 
     public class CommentDisplayModel
     {
-        public int Id { get; init; }
+        public int Id { get; set; }
 
-        public int ProjectId { get; init; }
+        public int ProjectId { get; set; }
 
-        public string Body { get; init; } = string.Empty;
+        public string Body { get; set; } = string.Empty;
 
-        public ProjectCommentType Type { get; init; }
+        public ProjectCommentType Type { get; set; }
 
-        public bool Pinned { get; init; }
+        public bool Pinned { get; set; }
 
-        public DateTime CreatedOn { get; init; }
+        public DateTime CreatedOn { get; set; }
 
-        public DateTime? EditedOn { get; init; }
+        public DateTime? EditedOn { get; set; }
 
-        public string AuthorName { get; init; } = string.Empty;
+        public string AuthorName { get; set; } = string.Empty;
 
-        public string? AuthorId { get; init; }
+        public string? AuthorId { get; set; }
 
-        public string? StageCode { get; init; }
+        public string? StageCode { get; set; }
 
-        public string? StageName { get; init; }
+        public string? StageName { get; set; }
 
-        public IReadOnlyList<CommentAttachmentViewModel> Attachments { get; init; } = new List<CommentAttachmentViewModel>();
+        public IReadOnlyList<CommentAttachmentViewModel> Attachments { get; set; } = new List<CommentAttachmentViewModel>();
 
-        public IReadOnlyList<CommentReplyModel> Replies { get; init; } = new List<CommentReplyModel>();
+        public IReadOnlyList<CommentReplyModel> Replies { get; set; } = new List<CommentReplyModel>();
 
-        public bool CanEdit { get; init; }
+        public bool CanEdit { get; set; }
 
-        public bool CanReply { get; init; }
+        public bool CanReply { get; set; }
     }
 }
