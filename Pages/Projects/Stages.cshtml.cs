@@ -5,6 +5,7 @@ using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -13,8 +14,10 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Plans;
+using ProjectManagement.Services.Stages;
 
 namespace ProjectManagement.Pages.Projects;
 
@@ -38,6 +41,7 @@ public class StagesModel : PageModel
     }
 
     public record StageRow(
+        int? StageId,
         string Code,
         string Name,
         DateOnly? PlannedStart,
@@ -50,6 +54,8 @@ public class StagesModel : PageModel
         StageGuardResult CompleteGuard,
         StageGuardResult SkipGuard);
 
+    public record StagePrerequisite(string Code, string Name, bool Completed);
+
     public int ProjectId { get; private set; }
     public string ProjectName { get; private set; } = string.Empty;
     public List<StageRow> Stages { get; private set; } = new();
@@ -57,6 +63,10 @@ public class StagesModel : PageModel
     public ProjectRagStatus ProjectRag { get; private set; } = ProjectRagStatus.Green;
     public bool CanManageStages { get; private set; }
     public bool CanComment { get; private set; }
+    public TrackerVm Tracker { get; private set; } = new();
+    public StageRow? CurrentStage { get; private set; }
+    public List<StagePrerequisite> CurrentStagePrerequisites { get; private set; } = new();
+    public DateOnly Today { get; private set; }
     public List<SelectListItem> CommentStageOptions { get; private set; } = new();
     public List<CommentDisplayModel> StageComments { get; private set; } = new();
     public CommentComposerViewModel CommentComposer { get; private set; } = new();
@@ -94,7 +104,13 @@ public class StagesModel : PageModel
     public string? GetPrereqHint(string stageCode)
         => _prereqHints.TryGetValue(stageCode, out var hint) ? hint : null;
 
-    public async Task<IActionResult> OnPostCompleteAsync(int id, string stage, DateOnly completionDate, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostCompleteAsync(
+        int id,
+        string stage,
+        DateOnly completionDate,
+        string? remark,
+        List<IFormFile>? files,
+        CancellationToken cancellationToken)
     {
         var stageCode = NormalizeStageCode(stage);
         if (stageCode == null)
@@ -102,6 +118,8 @@ public class StagesModel : PageModel
             ErrorMessage = "Stage code is required.";
             return RedirectToPage(new { id });
         }
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         if (completionDate == default)
         {
@@ -214,6 +232,33 @@ public class StagesModel : PageModel
         stageEntity.Status = StageStatus.Completed;
         completedMap[stageCode] = completionDate;
         skippedStages.Remove(stageCode);
+
+        remark = remark?.Trim();
+        var attachments = files ?? new List<IFormFile>();
+
+        if ((attachments.Count > 0 || !string.IsNullOrWhiteSpace(remark)) && userId != null)
+        {
+            var note = string.IsNullOrWhiteSpace(remark)
+                ? $"Stage {stageCode} completed."
+                : remark!;
+            try
+            {
+                await _commentService.CreateAsync(
+                    id,
+                    stageEntity.Id,
+                    null,
+                    note,
+                    ProjectCommentType.Update,
+                    false,
+                    userId,
+                    attachments,
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                CommentErrorMessage = ex.Message;
+            }
+        }
 
         context = await _rules.BuildContextAsync(ctx.Stages, cancellationToken);
 
@@ -480,7 +525,7 @@ public class StagesModel : PageModel
 
         var project = await _db.Projects
             .Where(p => p.Id == id)
-            .Select(p => new { p.Id, p.Name, p.LeadPoUserId })
+            .Select(p => new { p.Id, p.Name, p.LeadPoUserId, p.ActivePlanVersionNo })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (project is null)
@@ -503,7 +548,11 @@ public class StagesModel : PageModel
             .AsNoTracking()
             .Where(t => t.Version == PlanConstants.StageTemplateVersion)
             .OrderBy(t => t.Sequence)
-            .Select(t => new { t.Code, t.Name })
+            .ToListAsync(cancellationToken);
+
+        var dependencies = await _db.StageDependencyTemplates
+            .AsNoTracking()
+            .Where(d => d.Version == PlanConstants.StageTemplateVersion)
             .ToListAsync(cancellationToken);
 
         var projectStages = await _db.ProjectStages
@@ -515,8 +564,8 @@ public class StagesModel : PageModel
             .ToDictionary(ps => ps.StageCode, ps => ps, StringComparer.OrdinalIgnoreCase);
 
         var context = await _rules.BuildContextAsync(projectStages, cancellationToken);
-        var today = Today();
-        var health = StageHealthCalculator.Compute(projectStages, today);
+        Today = Today();
+        var health = StageHealthCalculator.Compute(projectStages, Today);
 
         StageSlips = templates
             .Select(t => new StageSlipSummary(
@@ -533,6 +582,7 @@ public class StagesModel : PageModel
                 var status = projectStage?.Status ?? StageStatus.NotStarted;
 
                 return new StageRow(
+                    projectStage?.Id,
                     template.Code,
                     template.Name,
                     projectStage?.PlannedStart,
@@ -551,75 +601,112 @@ public class StagesModel : PageModel
         _prereqHints = stageRows
             .ToDictionary(row => row.Code, DerivePrereqHint, StringComparer.OrdinalIgnoreCase);
 
+        PlanOptions? planOptions = null;
+        if (project.ActivePlanVersionNo.HasValue)
+        {
+            planOptions = await _db.PlanVersions
+                .AsNoTracking()
+                .Where(p => p.ProjectId == project.Id && p.VersionNo == project.ActivePlanVersionNo.Value)
+                .Select(p => new PlanOptions(p.SkipWeekends, p.TransitionRule, p.PncApplicable))
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
+        var pncApplicable = planOptions?.PncApplicable ?? true;
+        var trackerBuilder = new TrackerBuilder(templates, dependencies);
+        Tracker = trackerBuilder.Build(projectStages, pncApplicable, Today);
+
+        CurrentStage = stageRows.FirstOrDefault(row =>
+            !string.IsNullOrEmpty(Tracker.CurrentCode) &&
+            string.Equals(row.Code, Tracker.CurrentCode, StringComparison.OrdinalIgnoreCase));
+
+        if (CurrentStage != null)
+        {
+            CurrentStagePrerequisites = dependencies
+                .Where(d => string.Equals(d.FromStageCode, CurrentStage.Code, StringComparison.OrdinalIgnoreCase))
+                .Select(d =>
+                {
+                    var code = d.DependsOnStageCode;
+                    var name = templates.FirstOrDefault(t => string.Equals(t.Code, code, StringComparison.OrdinalIgnoreCase))?.Name ?? code;
+                    var met = stageLookup.TryGetValue(code, out var prereqStage) &&
+                        (prereqStage.Status == StageStatus.Completed || prereqStage.Status == StageStatus.Skipped);
+                    return new StagePrerequisite(code, name, met);
+                })
+                .OrderBy(p => p.Code)
+                .ToList();
+        }
+        else
+        {
+            CurrentStagePrerequisites = new List<StagePrerequisite>();
+        }
+
         var stageNameMap = templates.ToDictionary(t => t.Code, t => t.Name, StringComparer.OrdinalIgnoreCase);
-        await LoadStageRemarksAsync(id, projectStages, stageNameMap, cancellationToken);
+        await LoadStageRemarksAsync(id, projectStages, stageNameMap, cancellationToken, Tracker.CurrentCode);
 
         return Page();
     }
 
-    private async Task LoadStageRemarksAsync(int projectId, List<ProjectStage> projectStages, IDictionary<string, string> stageNameMap, CancellationToken cancellationToken)
+    private async Task LoadStageRemarksAsync(
+        int projectId,
+        List<ProjectStage> projectStages,
+        IDictionary<string, string> stageNameMap,
+        CancellationToken cancellationToken,
+        string? currentStageCode)
     {
         CanComment = UserCanComment();
 
-        var stageById = projectStages.ToDictionary(ps => ps.Id);
-        CommentStageOptions = projectStages
-            .OrderBy(ps => ps.StageCode)
-            .Select(ps =>
-            {
-                var label = stageNameMap.TryGetValue(ps.StageCode, out var name) && !string.IsNullOrWhiteSpace(name)
-                    ? $"{ps.StageCode} — {name}"
-                    : ps.StageCode;
-                return new SelectListItem(label, ps.Id.ToString(), CommentStageId.HasValue && CommentStageId.Value == ps.Id);
-            })
-            .ToList();
-
-        if (!CommentStageId.HasValue && CommentStageOptions.Count > 0)
+        ProjectStage? stageEntity = null;
+        if (!string.IsNullOrWhiteSpace(currentStageCode))
         {
-            if (int.TryParse(CommentStageOptions[0].Value, out var firstId))
-            {
-                CommentStageId = firstId;
-            }
+            stageEntity = projectStages
+                .FirstOrDefault(ps => string.Equals(ps.StageCode, currentStageCode, StringComparison.OrdinalIgnoreCase));
         }
 
-        var stageId = CommentStageId;
-        if (stageId.HasValue && !stageById.ContainsKey(stageId.Value))
+        if (stageEntity != null)
         {
-            var first = stageById.Keys.FirstOrDefault();
-            if (first != 0)
+            CommentStageId = stageEntity.Id;
+            var label = stageNameMap.TryGetValue(stageEntity.StageCode, out var name) && !string.IsNullOrWhiteSpace(name)
+                ? $"{stageEntity.StageCode} — {name}"
+                : stageEntity.StageCode;
+            CommentStageOptions = new List<SelectListItem>
             {
-                stageId = CommentStageId = first;
-            }
-            else
-            {
-                stageId = null;
-                CommentStageId = null;
-            }
+                new SelectListItem
+                {
+                    Text = label,
+                    Value = stageEntity.Id.ToString(),
+                    Selected = true
+                }
+            };
+        }
+        else
+        {
+            CommentStageOptions = new List<SelectListItem>();
+            CommentStageId = null;
         }
 
-        if (!CommentInput.StageId.HasValue && stageId.HasValue)
+        if (!CommentInput.StageId.HasValue)
         {
-            CommentInput.StageId = stageId;
+            CommentInput.StageId = stageEntity?.Id;
         }
 
         var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-        if (!stageId.HasValue)
+        if (stageEntity == null)
         {
             StageComments = new List<CommentDisplayModel>();
             await PrepareStageComposerAsync(null, null, cancellationToken);
             return;
         }
 
-        var stageCode = stageById.TryGetValue(stageId.Value, out var stageEntity) ? stageEntity.StageCode : null;
+        var stageId = stageEntity.Id;
+        var stageCode = stageEntity.StageCode;
 
         var baseQuery = _db.ProjectComments
             .AsNoTracking()
             .Where(c => c.ProjectId == projectId && !c.IsDeleted && c.ParentCommentId == null && c.ProjectStageId == stageId);
 
         var rows = await baseQuery
-            .OrderByDescending(c => c.Pinned)
-            .ThenByDescending(c => c.CreatedOn)
-            .Take(20)
+            .OrderByDescending(c => c.CreatedOn)
+            .Take(3)
             .Select(c => new
             {
                 Comment = c,
@@ -649,7 +736,7 @@ public class StagesModel : PageModel
             AuthorId = c.Comment.CreatedByUserId,
             AuthorName = BuildAuthorName(c.Author, c.Comment.CreatedByUserId),
             StageCode = stageCode,
-            StageName = stageCode != null && stageNameMap.TryGetValue(stageCode, out var name) ? name : stageCode,
+            StageName = stageNameMap.TryGetValue(stageCode, out var name) ? name : stageCode,
             Attachments = c.Attachments.Select(a => new CommentAttachmentViewModel(a.Id, a.OriginalFileName, a.SizeBytes)).ToList(),
             Replies = c.Replies.Select(r => new CommentReplyModel
             {

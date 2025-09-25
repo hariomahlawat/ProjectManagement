@@ -1,0 +1,92 @@
+@using System.Linq
+@using ProjectManagement.Models.Stages
+@model TrackerVm
+<link rel="stylesheet" href="~/css/stage-tracker.css" asp-append-version="true" />
+
+<div class="tracker-bar sticky-top">
+    <div class="trk-flow">
+        @{
+            var branch = Model.BranchTop.Any() && Model.BranchBottom.Any();
+        }
+        @for (var i = 0; i < Model.Main.Count; i++)
+        {
+            var node = Model.Main[i];
+            var isPnc = string.Equals(node.Code, "PNC", StringComparison.OrdinalIgnoreCase);
+            if (!node.IsVisible && !isPnc)
+            {
+                continue;
+            }
+
+            <div class="trk-cell">
+                <div class="trk-connector"></div>
+                <div class="trk-node @(NodeClass(node)) @(isPnc && !node.IsVisible ? "skipped" : string.Empty)">
+                    <div class="dot" data-bs-toggle="tooltip" title="@node.Tooltip"></div>
+                    <div class="label">
+                        <span class="code" data-stage-scroll="@node.Code">@node.Code</span>
+                        <div class="name text-truncate">@node.Name</div>
+                    </div>
+                </div>
+                @RenderBadge(Model.Edges, node.Code)
+                @if (isPnc && !Model.PncApplicable)
+                {
+                    <div class="badge bg-light text-muted border mt-2">Skipped</div>
+                }
+            </div>
+
+            if (branch && string.Equals(node.Code, "BID", StringComparison.OrdinalIgnoreCase))
+            {
+                var top = Model.BranchTop.First();
+                var bottom = Model.BranchBottom.First();
+                <div class="trk-cell trk-branch">
+                    <div class="trk-branch-grid">
+                        <div class="trk-node @(NodeClass(top))">
+                            <div class="dot" data-bs-toggle="tooltip" title="@top.Tooltip"></div>
+                            <div class="label">
+                                <span class="code" data-stage-scroll="@top.Code">@top.Code</span>
+                                <div class="name text-truncate">@top.Name</div>
+                            </div>
+                        </div>
+                        <div class="trk-node @(NodeClass(bottom))">
+                            <div class="dot" data-bs-toggle="tooltip" title="@bottom.Tooltip"></div>
+                            <div class="label">
+                                <span class="code" data-stage-scroll="@bottom.Code">@bottom.Code</span>
+                                <div class="name text-truncate">@bottom.Name</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="trk-branch-join"></div>
+                    @RenderBadge(Model.Edges, top.Code)
+                    @RenderBadge(Model.Edges, bottom.Code)
+                </div>
+            }
+        }
+    </div>
+
+    <div class="trk-legend">
+        <span class="done">completed</span>
+        <span class="current">current</span>
+        <span class="todo">upcoming</span>
+    </div>
+</div>
+
+@functions {
+    private static string NodeClass(TrackNodeVm node)
+        => node.State switch
+        {
+            TrackNodeState.Done => "done",
+            TrackNodeState.Current => "current",
+            _ => "todo"
+        };
+
+    private static Microsoft.AspNetCore.Html.IHtmlContent RenderBadge(IEnumerable<TrackEdgeVm> edges, string code)
+    {
+        var edge = edges.FirstOrDefault(e => string.Equals(e.From, code, StringComparison.OrdinalIgnoreCase));
+        if (edge == null || string.IsNullOrWhiteSpace(edge.Label))
+        {
+            return Microsoft.AspNetCore.Html.HtmlString.Empty;
+        }
+
+        var classes = $"trk-badge {edge.Variant}";
+        return new Microsoft.AspNetCore.Html.HtmlString($"<div class=\"{classes}\">{edge.Label}</div>");
+    }
+}
