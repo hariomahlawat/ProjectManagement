@@ -325,7 +325,7 @@ public class StagesModel : PageModel
 
         skippedStages.Add(stageCode);
 
-        var context = await _rules.BuildContextAsync(ctx.Stages, cancellationToken);
+       
 
         foreach (var successor in flow.GetSuccessors(stageCode))
         {
