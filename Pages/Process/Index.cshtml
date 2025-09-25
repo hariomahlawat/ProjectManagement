@@ -1,0 +1,38 @@
+@page
+@model ProjectManagement.Pages.Process.IndexModel
+@{
+    ViewData["Title"] = "SDD Procurement Flow";
+}
+<h2>SDD Procurement Flow (Version SDD-1.0)</h2>
+
+<div class="table-responsive">
+  <table class="table table-sm align-middle">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Code</th>
+        <th>Name</th>
+        <th>Optional</th>
+        <th>Parallel Group</th>
+        <th>Depends On</th>
+      </tr>
+    </thead>
+    <tbody>
+    @foreach (var s in Model.Stages)
+    {
+        var depends = Model.Deps
+            .Where(d => d.FromStageCode == s.Code)
+            .Select(d => d.DependsOnStageCode)
+            .ToList();
+        <tr>
+          <td>@s.Sequence</td>
+          <td><span class="badge bg-secondary">@s.Code</span></td>
+          <td>@s.Name</td>
+          <td>@(s.Optional ? "Yes" : "No")</td>
+          <td>@s.ParallelGroup</td>
+          <td>@string.Join(", ", depends)</td>
+        </tr>
+    }
+    </tbody>
+  </table>
+</div>

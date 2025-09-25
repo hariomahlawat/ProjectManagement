@@ -438,6 +438,7 @@ using (var scope = app.Services.CreateScope())
         db.AuditLogs.Where(a => a.TimeUtc < cutoff).ExecuteDelete();
     }
 
+    await ProjectManagement.Data.StageFlowSeeder.SeedAsync(services);
     await ProjectManagement.Data.IdentitySeeder.SeedAsync(services);
 }
 
