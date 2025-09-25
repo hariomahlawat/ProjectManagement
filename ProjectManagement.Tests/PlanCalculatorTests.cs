@@ -75,9 +75,9 @@ public class PlanCalculatorTests
         var options = new PlanCalculatorOptions(
             "IPA",
             new DateOnly(2024, 1, 2),
-            skipWeekends: true,
-            transitionRule: PlanTransitionRule.NextWorkingDay,
-            pncApplicable: false,
+            SkipWeekends: true,
+            TransitionRule: PlanTransitionRule.NextWorkingDay,
+            PncApplicable: false,
             durations,
             new Dictionary<string, PlanCalculatorManualOverride>(StringComparer.OrdinalIgnoreCase));
 
@@ -109,9 +109,9 @@ public class PlanCalculatorTests
         var options = new PlanCalculatorOptions(
             "IPA",
             new DateOnly(2024, 4, 8),
-            skipWeekends: true,
-            transitionRule: PlanTransitionRule.NextWorkingDay,
-            pncApplicable: true,
+            SkipWeekends: true,
+            TransitionRule: PlanTransitionRule.NextWorkingDay,
+            PncApplicable: true,
             durations,
             new Dictionary<string, PlanCalculatorManualOverride>(StringComparer.OrdinalIgnoreCase));
 
@@ -136,9 +136,9 @@ public class PlanCalculatorTests
         var options = new PlanCalculatorOptions(
             "IPA",
             new DateOnly(2024, 1, 5),
-            skipWeekends: true,
-            transitionRule: PlanTransitionRule.NextWorkingDay,
-            pncApplicable: true,
+            SkipWeekends: true,
+            TransitionRule: PlanTransitionRule.NextWorkingDay,
+            PncApplicable: true,
             durations,
             new Dictionary<string, PlanCalculatorManualOverride>(StringComparer.OrdinalIgnoreCase));
 
@@ -161,9 +161,9 @@ public class PlanCalculatorTests
         var options = new PlanCalculatorOptions(
             "IPA",
             new DateOnly(2024, 2, 1),
-            skipWeekends: false,
-            transitionRule: PlanTransitionRule.SameDay,
-            pncApplicable: true,
+            SkipWeekends: false,
+            TransitionRule: PlanTransitionRule.SameDay,
+            PncApplicable: true,
             durations,
             new Dictionary<string, PlanCalculatorManualOverride>(StringComparer.OrdinalIgnoreCase));
 
@@ -195,9 +195,9 @@ public class PlanCalculatorTests
         var options = new PlanCalculatorOptions(
             "IPA",
             new DateOnly(2024, 3, 1),
-            skipWeekends: false,
-            transitionRule: PlanTransitionRule.NextWorkingDay,
-            pncApplicable: true,
+            SkipWeekends: false,
+            TransitionRule: PlanTransitionRule.NextWorkingDay,
+            PncApplicable: true,
             durations,
             overrides);
 
