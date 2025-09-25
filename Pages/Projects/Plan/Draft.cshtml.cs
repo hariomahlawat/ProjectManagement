@@ -19,20 +19,21 @@ namespace ProjectManagement.Pages.Projects.Plan;
 [Authorize(Roles = "Project Officer,HoD,Admin")]
 public class DraftModel : PageModel
 {
-    private const string StageTemplateVersion = "SDD-1.0";
-
     private readonly ApplicationDbContext _db;
     private readonly PlanDraftService _drafts;
+    private readonly PlanApprovalService _approvals;
     private readonly UserManager<ApplicationUser> _users;
 
     private Dictionary<string, StageTemplate> _templatesByCode = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, List<string>> _dependenciesByStage = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, int> _stageIndex = new(StringComparer.OrdinalIgnoreCase);
+    private string? _currentUserId;
 
-    public DraftModel(ApplicationDbContext db, PlanDraftService drafts, UserManager<ApplicationUser> users)
+    public DraftModel(ApplicationDbContext db, PlanDraftService drafts, PlanApprovalService approvals, UserManager<ApplicationUser> users)
     {
         _db = db;
         _drafts = drafts;
+        _approvals = approvals;
         _users = users;
     }
 
@@ -45,6 +46,7 @@ public class DraftModel : PageModel
     public string ProjectName { get; private set; } = string.Empty;
     public bool IsPreview { get; private set; }
     public bool AllowEdit { get; private set; } = true;
+    public bool CanSubmit { get; private set; }
 
     [TempData]
     public string? StatusMessage { get; set; }
@@ -81,30 +83,44 @@ public class DraftModel : PageModel
             return Challenge();
         }
 
+        _currentUserId = userId;
+
         if (!UserCanEdit(project.LeadPoUserId, userId))
         {
             return Forbid();
         }
 
-        Draft = await _drafts.CreateDraftAsync(id, userId, cancellationToken);
-        if (!Draft.StagePlans.Any())
+        Draft = await _db.PlanVersions
+            .Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == id)
+            .OrderByDescending(p => p.VersionNo)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (Draft == null)
         {
+            Draft = await _drafts.CreateDraftAsync(id, userId, cancellationToken);
             Draft = await _db.PlanVersions
                 .Include(p => p.StagePlans)
                 .FirstAsync(p => p.Id == Draft.Id, cancellationToken);
         }
+        else if (!Draft.StagePlans.Any())
+        {
+            await _db.Entry(Draft).Collection(p => p.StagePlans).LoadAsync(cancellationToken);
+        }
 
         HydrateStageInputsFromPlan();
 
-        IsPreview = preview;
-        AllowEdit = !IsPreview;
+        var canEdit = Draft.Status == PlanVersionStatus.Draft;
+        AllowEdit = canEdit && !preview;
+        IsPreview = preview || !AllowEdit;
+        CanSubmit = canEdit && DraftIsReadyForSubmission();
 
         return Page();
     }
 
     public async Task<IActionResult> OnPostSaveAsync(int id, CancellationToken cancellationToken)
     {
-        var result = await LoadForPostAsync(id, cancellationToken);
+        var result = await LoadForPostAsync(id, requireDraft: true, cancellationToken);
         if (result != null)
         {
             return result;
@@ -118,6 +134,7 @@ public class DraftModel : PageModel
         if (!ModelState.IsValid)
         {
             IsPreview = false;
+            CanSubmit = false;
             return Page();
         }
 
@@ -129,7 +146,7 @@ public class DraftModel : PageModel
 
     public async Task<IActionResult> OnPostPreviewAsync(int id, CancellationToken cancellationToken)
     {
-        var result = await LoadForPostAsync(id, cancellationToken);
+        var result = await LoadForPostAsync(id, requireDraft: true, cancellationToken);
         if (result != null)
         {
             return result;
@@ -143,6 +160,7 @@ public class DraftModel : PageModel
         {
             AllowEdit = true;
             IsPreview = false;
+            CanSubmit = false;
             return Page();
         }
 
@@ -151,17 +169,71 @@ public class DraftModel : PageModel
         return RedirectToPage(new { id, preview = true });
     }
 
+    public async Task<IActionResult> OnPostSubmitAsync(int id, CancellationToken cancellationToken)
+    {
+        var result = await LoadForPostAsync(id, requireDraft: true, cancellationToken);
+        if (result != null)
+        {
+            return result;
+        }
+
+        AllowEdit = true;
+        NormalizeStageInputs();
+        ValidateStageDates();
+        ValidateDependencies();
+        ValidateSubmissionCompleteness();
+
+        if (!ModelState.IsValid)
+        {
+            IsPreview = false;
+            CanSubmit = false;
+            return Page();
+        }
+
+        ApplyInputsToDraft();
+        await _db.SaveChangesAsync(cancellationToken);
+
+        if (string.IsNullOrEmpty(_currentUserId))
+        {
+            return Challenge();
+        }
+
+        try
+        {
+            await _approvals.SubmitAsync(id, _currentUserId, cancellationToken);
+        }
+        catch (PlanApprovalValidationException ex)
+        {
+            foreach (var error in ex.Errors)
+            {
+                ModelState.AddModelError(string.Empty, error);
+            }
+
+            CanSubmit = false;
+            return Page();
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+            CanSubmit = false;
+            return Page();
+        }
+
+        StatusMessage = "Baseline plan submitted for approval.";
+        return RedirectToPage(new { id });
+    }
+
     private async Task LoadStageMetadataAsync(CancellationToken cancellationToken)
     {
         StageTemplates = await _db.StageTemplates
             .AsNoTracking()
-            .Where(t => t.Version == StageTemplateVersion)
+            .Where(t => t.Version == PlanConstants.StageTemplateVersion)
             .OrderBy(t => t.Sequence)
             .ToListAsync(cancellationToken);
 
         var dependencies = await _db.StageDependencyTemplates
             .AsNoTracking()
-            .Where(d => d.Version == StageTemplateVersion)
+            .Where(d => d.Version == PlanConstants.StageTemplateVersion)
             .ToListAsync(cancellationToken);
 
         _templatesByCode = StageTemplates.ToDictionary(t => t.Code, StringComparer.OrdinalIgnoreCase);
@@ -173,7 +245,7 @@ public class DraftModel : PageModel
             .ToDictionary(g => g.Key, g => g.Select(x => x.DependsOnStageCode).ToList(), StringComparer.OrdinalIgnoreCase);
     }
 
-    private async Task<IActionResult?> LoadForPostAsync(int projectId, CancellationToken cancellationToken)
+    private async Task<IActionResult?> LoadForPostAsync(int projectId, bool requireDraft, CancellationToken cancellationToken)
     {
         ProjectId = projectId;
         await LoadStageMetadataAsync(cancellationToken);
@@ -197,6 +269,8 @@ public class DraftModel : PageModel
             return Challenge();
         }
 
+        _currentUserId = userId;
+
         if (!UserCanEdit(project.LeadPoUserId, userId))
         {
             return Forbid();
@@ -204,7 +278,9 @@ public class DraftModel : PageModel
 
         Draft = await _db.PlanVersions
             .Include(p => p.StagePlans)
-            .FirstOrDefaultAsync(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.Draft, cancellationToken);
+            .Where(p => p.ProjectId == projectId)
+            .OrderByDescending(p => p.VersionNo)
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (Draft == null)
         {
@@ -213,6 +289,19 @@ public class DraftModel : PageModel
                 .Include(p => p.StagePlans)
                 .FirstAsync(p => p.Id == Draft.Id, cancellationToken);
         }
+        else if (!Draft.StagePlans.Any())
+        {
+            await _db.Entry(Draft).Collection(p => p.StagePlans).LoadAsync(cancellationToken);
+        }
+
+        if (requireDraft && Draft.Status != PlanVersionStatus.Draft)
+        {
+            return Forbid();
+        }
+
+        AllowEdit = Draft.Status == PlanVersionStatus.Draft;
+        IsPreview = false;
+        CanSubmit = AllowEdit && DraftIsReadyForSubmission();
 
         return null;
     }
@@ -347,6 +436,70 @@ public class DraftModel : PageModel
                     $"Planned start must be on or after {blockerName}'s planned due date ({latestDue:dd MMM yyyy}).");
             }
         }
+    }
+
+    private void ValidateSubmissionCompleteness()
+    {
+        for (var i = 0; i < StageTemplates.Count && i < Stages.Count; i++)
+        {
+            var input = Stages[i];
+            if (input.PlannedStart is null || input.PlannedDue is null)
+            {
+                ModelState.AddModelError($"Stages[{i}].PlannedStart", "Planned start is required for submission.");
+                ModelState.AddModelError($"Stages[{i}].PlannedDue", "Planned due is required for submission.");
+            }
+        }
+    }
+
+    private bool DraftIsReadyForSubmission()
+    {
+        if (Draft == null)
+        {
+            return false;
+        }
+
+        var map = Draft.StagePlans
+            .Select(s => new StageInput { StageCode = s.StageCode, PlannedStart = s.PlannedStart, PlannedDue = s.PlannedDue })
+            .ToDictionary(s => s.StageCode, StringComparer.OrdinalIgnoreCase);
+
+        return AreStageInputsReadyForSubmission(map);
+    }
+
+    private bool AreStageInputsReadyForSubmission(Dictionary<string, StageInput> inputs)
+    {
+        foreach (var template in StageTemplates)
+        {
+            if (!inputs.TryGetValue(template.Code, out var input) ||
+                input.PlannedStart is not DateOnly start ||
+                input.PlannedDue is not DateOnly due)
+            {
+                return false;
+            }
+
+            if (due < start)
+            {
+                return false;
+            }
+
+            if (_dependenciesByStage.TryGetValue(template.Code, out var predecessors))
+            {
+                foreach (var predecessor in predecessors)
+                {
+                    if (!inputs.TryGetValue(predecessor, out var dependency) ||
+                        dependency.PlannedDue is not DateOnly dependencyDue)
+                    {
+                        return false;
+                    }
+
+                    if (start < dependencyDue)
+                    {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
     }
 
     private void ApplyInputsToDraft()

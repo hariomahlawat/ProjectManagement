@@ -8,6 +8,13 @@
   <a asp-page="Index" class="btn btn-secondary">Back to List</a>
 </div>
 
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+  <div class="alert alert-success" role="alert">
+    @Model.StatusMessage
+  </div>
+}
+
 <dl class="row">
   <dt class="col-sm-3">Description</dt>
   <dd class="col-sm-9">@Model.Item.Description</dd>

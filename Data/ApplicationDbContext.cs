@@ -23,6 +23,7 @@ namespace ProjectManagement.Data
         public DbSet<StageDependencyTemplate> StageDependencyTemplates => Set<StageDependencyTemplate>();
         public DbSet<PlanVersion> PlanVersions => Set<PlanVersion>();
         public DbSet<StagePlan> StagePlans => Set<StagePlan>();
+        public DbSet<PlanApprovalLog> PlanApprovalLogs => Set<PlanApprovalLog>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -104,12 +105,40 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Title).HasMaxLength(64);
                 e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
                 e.Property(x => x.CreatedByUserId).HasMaxLength(450);
+                e.Property(x => x.SubmittedByUserId).HasMaxLength(450);
+                e.Property(x => x.ApprovedByUserId).HasMaxLength(450);
+                e.Property(x => x.Reason).HasMaxLength(512);
+                e.HasOne(x => x.SubmittedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.SubmittedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                e.HasOne(x => x.ApprovedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.ApprovedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             builder.Entity<StagePlan>(e =>
             {
                 e.HasIndex(x => new { x.PlanVersionId, x.StageCode }).IsUnique();
                 e.Property(x => x.StageCode).HasMaxLength(16);
+            });
+
+            builder.Entity<PlanApprovalLog>(e =>
+            {
+                e.HasIndex(x => x.PlanVersionId);
+                e.HasIndex(x => x.PerformedByUserId);
+                e.Property(x => x.Action).HasMaxLength(64);
+                e.Property(x => x.Note).HasMaxLength(1024);
+                e.Property(x => x.PerformedByUserId).HasMaxLength(450);
+                e.HasOne(x => x.PlanVersion)
+                    .WithMany(p => p.ApprovalLogs)
+                    .HasForeignKey(x => x.PlanVersionId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.PerformedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.PerformedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
         }
     }
