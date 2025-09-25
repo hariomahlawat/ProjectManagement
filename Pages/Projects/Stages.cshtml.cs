@@ -17,6 +17,7 @@ using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Plans;
+using ProjectManagement.Services.Scheduling;
 using ProjectManagement.Services.Stages;
 
 namespace ProjectManagement.Pages.Projects;
@@ -28,16 +29,23 @@ public class StagesModel : PageModel
     private readonly StageRulesService _rules;
     private readonly IClock _clock;
     private readonly ProjectCommentService _commentService;
+    private readonly IForecastWriter _forecastWriter;
 
     private static readonly string[] CommentRoles = new[] { "Admin", "HoD", "Project Officer", "MCO", "Comdt" };
     private Dictionary<string, string?> _prereqHints = new(StringComparer.OrdinalIgnoreCase);
 
-    public StagesModel(ApplicationDbContext db, StageRulesService rules, IClock clock, ProjectCommentService commentService)
+    public StagesModel(
+        ApplicationDbContext db,
+        StageRulesService rules,
+        IClock clock,
+        ProjectCommentService commentService,
+        IForecastWriter forecastWriter)
     {
         _db = db;
         _rules = rules;
         _clock = clock;
         _commentService = commentService;
+        _forecastWriter = forecastWriter;
     }
 
     public record StageRow(
@@ -46,6 +54,8 @@ public class StagesModel : PageModel
         string Name,
         DateOnly? PlannedStart,
         DateOnly? PlannedDue,
+        DateOnly? ForecastStart,
+        DateOnly? ForecastDue,
         StageStatus Status,
         DateOnly? ActualStart,
         DateOnly? CompletedOn,
@@ -294,6 +304,8 @@ public class StagesModel : PageModel
 
         await _db.SaveChangesAsync(cancellationToken);
 
+        await _forecastWriter.RecomputeAsync(id, stageCode, "Completed", userId, cancellationToken);
+
         StatusMessage = $"Stage {stageCode} completed.";
         return RedirectToPage(new { id });
     }
@@ -306,6 +318,8 @@ public class StagesModel : PageModel
             ErrorMessage = "Stage code is required.";
             return RedirectToPage(new { id = projectId });
         }
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
         reason = reason?.Trim();
         if (string.IsNullOrWhiteSpace(reason) || reason.Length is < 3 or > 200)
@@ -403,6 +417,8 @@ public class StagesModel : PageModel
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        await _forecastWriter.RecomputeAsync(projectId, stageCode, "Skipped", userId, cancellationToken);
 
         StatusMessage = $"Stage {stageCode} skipped.";
         return RedirectToPage(new { id = projectId });
@@ -587,6 +603,8 @@ public class StagesModel : PageModel
                     template.Name,
                     projectStage?.PlannedStart,
                     projectStage?.PlannedDue,
+                    projectStage?.ForecastStart,
+                    projectStage?.ForecastDue,
                     status,
                     projectStage?.ActualStart,
                     projectStage?.CompletedOn,
