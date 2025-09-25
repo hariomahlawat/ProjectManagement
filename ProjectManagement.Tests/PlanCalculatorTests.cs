@@ -44,6 +44,7 @@ public class PlanCalculatorTests
             new() { FromStageCode = "COB", DependsOnStageCode = "BENCH" },
             new() { FromStageCode = "PNC", DependsOnStageCode = "COB" },
             new() { FromStageCode = "EAS", DependsOnStageCode = "COB" },
+            new() { FromStageCode = "EAS", DependsOnStageCode = "PNC" },
             new() { FromStageCode = "SO", DependsOnStageCode = "EAS" },
             new() { FromStageCode = "DEV", DependsOnStageCode = "SO" },
             new() { FromStageCode = "AT", DependsOnStageCode = "DEV" },

@@ -44,7 +44,7 @@ public static class StageFlowSeeder
             D("TEC", "BID"), D("BENCH", "BID"),
             D("COB", "TEC"), D("COB", "BENCH"),
             D("PNC", "COB"),
-            D("EAS", "COB"),
+            D("EAS", "COB"), D("EAS", "PNC"),
             D("SO", "EAS"), D("DEV", "SO"), D("AT", "DEV"), D("PAY", "AT")
         };
 

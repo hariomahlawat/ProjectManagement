@@ -14,6 +14,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Plans;
+using ProjectManagement.Services.Scheduling;
 using ProjectManagement.Infrastructure;
 using Markdig;
 using Ganss.Xss;
@@ -26,6 +27,8 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
 using ProjectManagement.Utilities;
+
+var runForecastBackfill = args.Any(a => string.Equals(a, "--backfill-forecast", StringComparison.OrdinalIgnoreCase));
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -138,6 +141,9 @@ builder.Services.AddScoped<PlanDraftService>();
 builder.Services.AddScoped<PlanApprovalService>();
 builder.Services.AddScoped<StageRulesService>();
 builder.Services.AddScoped<ProjectCommentService>();
+builder.Services.AddScoped<IScheduleEngine, ScheduleEngine>();
+builder.Services.AddScoped<IForecastWriter, ForecastWriter>();
+builder.Services.AddScoped<ForecastBackfillService>();
 
 builder.Services.ConfigureHttpJsonOptions(o =>
 {
@@ -170,6 +176,15 @@ builder.Services.AddRazorPages(options =>
     .AddMvcOptions(o => o.Filters.Add<EnforcePasswordChangeFilter>());
 
 var app = builder.Build();
+
+if (runForecastBackfill)
+{
+    using var scope = app.Services.CreateScope();
+    var service = scope.ServiceProvider.GetRequiredService<ForecastBackfillService>();
+    var updated = await service.BackfillAsync();
+    app.Logger.LogInformation("Backfilled forecast dates for {Count} stages.", updated);
+    return;
+}
 
 app.Logger.LogInformation("Using database {Database} on host {Host}", csb.Database, csb.Host);
 
