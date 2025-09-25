@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using ProjectManagement.Models.Execution;
 
 namespace ProjectManagement.Models
 {
@@ -24,5 +26,7 @@ namespace ProjectManagement.Models
 
         public string? LeadPoUserId { get; set; }
         public ApplicationUser? LeadPoUser { get; set; }
+
+        public ICollection<ProjectStage> Stages { get; set; } = new List<ProjectStage>();
     }
 }
