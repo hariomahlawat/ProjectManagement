@@ -1,8 +1,7 @@
 @using System.Collections.Generic
 @using System.Linq
-@using Microsoft.AspNetCore.Routing
 @model IEnumerable<ProjectManagement.Pages.Projects.CommentDisplayModel>
-@{
+@{ 
     var showStage = (bool?)(ViewData["ShowStage"] ?? false) ?? false;
     var pageName = ViewData["CommentsPage"]?.ToString() ?? string.Empty;
     var projectId = (int?)(ViewData["ProjectId"] ?? 0) ?? 0;
@@ -11,16 +10,20 @@
     var editParam = ViewData["EditParam"]?.ToString() ?? "editId";
     var deleteHandler = ViewData["DeleteHandler"]?.ToString() ?? "DeleteComment";
     var downloadHandler = ViewData["DownloadHandler"]?.ToString() ?? "DownloadAttachment";
-    var baseRoute = new RouteValueDictionary(routeValues)
+    var baseRoute = new Dictionary<string, string?>(System.StringComparer.OrdinalIgnoreCase);
+    foreach (var pair in routeValues)
     {
-        ["id"] = projectId
-    };
-    Func<string?, object?, RouteValueDictionary> withRoute = (key, value) =>
+        baseRoute[pair.Key] = pair.Value?.ToString();
+    }
+
+    baseRoute["id"] = projectId.ToString();
+
+    Func<string?, object?, Dictionary<string, string?>> withRoute = (key, value) =>
     {
-        var dict = new RouteValueDictionary(baseRoute);
+        var dict = new Dictionary<string, string?>(baseRoute, System.StringComparer.OrdinalIgnoreCase);
         if (!string.IsNullOrEmpty(key))
         {
-            dict[key!] = value;
+            dict[key!] = value?.ToString();
         }
         return dict;
     };
@@ -61,10 +64,11 @@ else
                             <ul class="list-unstyled mt-2 mb-0 small">
                                 @foreach (var attachment in comment.Attachments)
                                 {
-                                    @{ var downloadRoute = withRoute(null, null); downloadRoute["commentId"] = comment.Id; downloadRoute["attachmentId"] = attachment.Id; }
+                                    var downloadRoute = withRoute("commentId", comment.Id);
+                                    downloadRoute["attachmentId"] = attachment.Id.ToString();
                                     <li>
                                         <a asp-page="@pageName" asp-page-handler="@downloadHandler" asp-all-route-data="@(downloadRoute)">
-                                            <i class="bi bi-paperclip"></i> @attachment.FileName (@(System.Math.Max(1, attachment.SizeBytes / 1024)) KB)
+                                            <i class="bi bi-paperclip"></i> @attachment.FileName (@Math.Max(1, attachment.SizeBytes / 1024) KB)
                                         </a>
                                     </li>
                                 }
@@ -74,12 +78,13 @@ else
                     <div class="d-flex flex-column align-items-end gap-2">
                         @if (comment.CanReply)
                         {
-                            @{ var replyRoute = withRoute(replyParam, comment.Id); }
+                            var replyRoute = withRoute(replyParam, comment.Id);
                             <a class="btn btn-sm btn-outline-primary" asp-page="@pageName" asp-all-route-data="@(replyRoute)">Reply</a>
                         }
                         @if (comment.CanEdit)
                         {
-                            @{ var editRoute = withRoute(editParam, comment.Id); var deleteRoute = withRoute(null, null); deleteRoute["commentId"] = comment.Id; }
+                            var editRoute = withRoute(editParam, comment.Id);
+                            var deleteRoute = withRoute("commentId", comment.Id);
                             <a class="btn btn-sm btn-outline-secondary" asp-page="@pageName" asp-all-route-data="@(editRoute)">Edit</a>
                             <form method="post" asp-page="@pageName" asp-page-handler="@deleteHandler" asp-all-route-data="@(deleteRoute)" data-confirm="Delete this remark?">
                                 <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
@@ -93,7 +98,8 @@ else
                     <div class="mt-3 ms-3 ps-3 border-start border-2">
                         @foreach (var reply in comment.Replies)
                         {
-                            @{ var replyEditRoute = withRoute(editParam, reply.Id); var replyDeleteRoute = withRoute(null, null); replyDeleteRoute["commentId"] = reply.Id; }
+                            var replyEditRoute = withRoute(editParam, reply.Id);
+                            var replyDeleteRoute = withRoute("commentId", reply.Id);
                             <div class="mb-3">
                                 <div class="d-flex justify-content-between align-items-start gap-2">
                                     <div>
@@ -112,10 +118,11 @@ else
                                             <ul class="list-unstyled mt-2 mb-0 small">
                                                 @foreach (var attachment in reply.Attachments)
                                                 {
-                                                    @{ var replyDownloadRoute = withRoute(null, null); replyDownloadRoute["commentId"] = reply.Id; replyDownloadRoute["attachmentId"] = attachment.Id; }
+                                                    var replyDownloadRoute = withRoute("commentId", reply.Id);
+                                                    replyDownloadRoute["attachmentId"] = attachment.Id.ToString();
                                                     <li>
                                                         <a asp-page="@pageName" asp-page-handler="@downloadHandler" asp-all-route-data="@(replyDownloadRoute)">
-                                                            <i class="bi bi-paperclip"></i> @attachment.FileName (@(System.Math.Max(1, attachment.SizeBytes / 1024)) KB)
+                                                            <i class="bi bi-paperclip"></i> @attachment.FileName (@Math.Max(1, attachment.SizeBytes / 1024) KB)
                                                         </a>
                                                     </li>
                                                 }
