@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
+using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Services;
 
@@ -69,6 +70,42 @@ public class PlanApprovalService
         if (plan == null)
         {
             throw new InvalidOperationException("No plan is currently pending approval for this project.");
+        }
+
+        var project = await _db.Projects
+            .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken)
+            ?? throw new InvalidOperationException("Project not found.");
+
+        project.ActivePlanVersionNo = plan.VersionNo;
+
+        var plans = await _db.StagePlans
+            .Where(s => s.PlanVersionId == plan.Id)
+            .ToListAsync(cancellationToken);
+
+        var existing = await _db.ProjectStages
+            .Where(ps => ps.ProjectId == projectId)
+            .Select(ps => ps.StageCode)
+            .ToListAsync(cancellationToken);
+
+        var existingSet = new HashSet<string>(existing, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var stagePlan in plans)
+        {
+            if (existingSet.Contains(stagePlan.StageCode))
+            {
+                continue;
+            }
+
+            _db.ProjectStages.Add(new ProjectStage
+            {
+                ProjectId = projectId,
+                StageCode = stagePlan.StageCode,
+                PlannedStart = stagePlan.PlannedStart,
+                PlannedDue = stagePlan.PlannedDue,
+                Status = StageStatus.NotStarted
+            });
+
+            existingSet.Add(stagePlan.StageCode);
         }
 
         plan.Status = PlanVersionStatus.Approved;

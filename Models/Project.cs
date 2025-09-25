@@ -16,6 +16,8 @@ namespace ProjectManagement.Models
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        public int? ActivePlanVersionNo { get; set; }
+
         // Assignments
         public string? HodUserId { get; set; }
         public ApplicationUser? HodUser { get; set; }
