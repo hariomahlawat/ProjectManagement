@@ -53,11 +53,25 @@
                     </td>
                     <td>
                         <input type="hidden" asp-for="Stages[i].StageCode" />
-                        <input asp-for="Stages[i].PlannedStart" type="date" class="form-control form-control-sm" @(Model.AllowEdit ? null : "disabled") />
+                        @if (Model.AllowEdit)
+                        {
+                            <input asp-for="Stages[i].PlannedStart" type="date" class="form-control form-control-sm" />
+                        }
+                        else
+                        {
+                            <input asp-for="Stages[i].PlannedStart" type="date" class="form-control form-control-sm" disabled />
+                        }
                         <span asp-validation-for="Stages[i].PlannedStart" class="text-danger small"></span>
                     </td>
                     <td>
-                        <input asp-for="Stages[i].PlannedDue" type="date" class="form-control form-control-sm" @(Model.AllowEdit ? null : "disabled") />
+                        @if (Model.AllowEdit)
+                        {
+                            <input asp-for="Stages[i].PlannedDue" type="date" class="form-control form-control-sm" />
+                        }
+                        else
+                        {
+                            <input asp-for="Stages[i].PlannedDue" type="date" class="form-control form-control-sm" disabled />
+                        }
                         <span asp-validation-for="Stages[i].PlannedDue" class="text-danger small"></span>
                     </td>
                 </tr>
