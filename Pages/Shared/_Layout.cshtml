@@ -27,13 +27,13 @@
                         @if (SignInManager.IsSignedIn(User))
                         {
                             <li class="nav-item">
-                                <a class="nav-link" asp-page="/Dashboard/Index">Dashboard</a>
+                                <a class="nav-link" asp-page="/Projects/Index">Projects</a>
                             </li>
                             <li class="nav-item">
                                 <a class="nav-link" asp-page="/Process/Index">Process</a>
                             </li>
                             <li class="nav-item">
-                                <a class="nav-link" asp-page="/Projects/Index">Projects</a>
+                                <a class="nav-link" asp-page="/Dashboard/Index">Dashboard</a>
                             </li>
                             if (User.IsInRole("Admin"))
                             {
