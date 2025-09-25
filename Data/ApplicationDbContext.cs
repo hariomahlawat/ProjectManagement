@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 
@@ -24,6 +25,7 @@ namespace ProjectManagement.Data
         public DbSet<PlanVersion> PlanVersions => Set<PlanVersion>();
         public DbSet<StagePlan> StagePlans => Set<StagePlan>();
         public DbSet<PlanApprovalLog> PlanApprovalLogs => Set<PlanApprovalLog>();
+        public DbSet<ProjectStage> ProjectStages => Set<ProjectStage>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -122,6 +124,13 @@ namespace ProjectManagement.Data
             {
                 e.HasIndex(x => new { x.PlanVersionId, x.StageCode }).IsUnique();
                 e.Property(x => x.StageCode).HasMaxLength(16);
+            });
+
+            builder.Entity<ProjectStage>(e =>
+            {
+                e.HasIndex(x => new { x.ProjectId, x.StageCode }).IsUnique();
+                e.Property(x => x.StageCode).HasMaxLength(16);
+                e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
             });
 
             builder.Entity<PlanApprovalLog>(e =>

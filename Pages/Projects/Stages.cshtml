@@ -1,0 +1,44 @@
+@page
+@model ProjectManagement.Pages.Projects.StagesModel
+@{
+    ViewData["Title"] = "Project Stages";
+}
+
+<h1 class="mb-3">Project Stages</h1>
+<p class="text-muted">Project: <strong>@Model.ProjectName</strong></p>
+
+<div class="table-responsive">
+    <table class="table table-sm align-middle">
+        <thead>
+            <tr>
+                <th scope="col" style="width: 6rem;">Stage</th>
+                <th scope="col">Description</th>
+                <th scope="col" style="width: 12rem;">Planned Start</th>
+                <th scope="col" style="width: 12rem;">Planned Due</th>
+                <th scope="col" style="width: 10rem;">Status</th>
+                <th scope="col" style="width: 12rem;">Actual Start</th>
+                <th scope="col" style="width: 12rem;">Completed On</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var stage in Model.Stages)
+        {
+            <tr>
+                <td>
+                    <div class="fw-semibold">@stage.Code</div>
+                </td>
+                <td>
+                    <div class="fw-semibold">@stage.Name</div>
+                </td>
+                <td>@stage.PlannedStart?.ToString("dd MMM yyyy")</td>
+                <td>@stage.PlannedDue?.ToString("dd MMM yyyy")</td>
+                <td>@stage.Status</td>
+                <td>@stage.ActualStart?.ToString("dd MMM yyyy")</td>
+                <td>@stage.CompletedOn?.ToString("dd MMM yyyy")</td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
+
+<a class="btn btn-outline-secondary mt-3" asp-page="/Projects/View" asp-route-id="@Model.ProjectId">Back to Project</a>
