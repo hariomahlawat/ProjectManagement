@@ -102,7 +102,6 @@ namespace ProjectManagement.Pages.Projects
             return Page();
         }
 
-        [Authorize(Roles = "Admin,HoD,Project Officer,MCO,Comdt")]
         public async Task<IActionResult> OnPostCommentAsync(int id, CancellationToken cancellationToken)
         {
             ProjectId = id;
@@ -175,11 +174,10 @@ namespace ProjectManagement.Pages.Projects
             return RedirectToPage(new { id, Type, AuthorId, StageId, From, To, Page = PageIndex });
         }
 
-        [Authorize(Roles = "Admin,HoD,Project Officer,MCO,Comdt")]
         public async Task<IActionResult> OnPostDeleteCommentAsync(int id, int commentId, CancellationToken cancellationToken)
         {
             var userId = _userManager.GetUserId(User);
-            if (userId == null)
+            if (userId == null || !UserCanComment())
             {
                 return Forbid();
             }

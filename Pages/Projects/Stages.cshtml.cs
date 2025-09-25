@@ -232,7 +232,6 @@ public class StagesModel : PageModel
         return RedirectToPage(new { id = projectId });
     }
 
-    [Authorize(Roles = "Admin,HoD,Project Officer,MCO,Comdt")]
     public async Task<IActionResult> OnPostStageCommentAsync(int projectId, CancellationToken cancellationToken)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -298,11 +297,10 @@ public class StagesModel : PageModel
         });
     }
 
-    [Authorize(Roles = "Admin,HoD,Project Officer,MCO,Comdt")]
     public async Task<IActionResult> OnPostDeleteCommentAsync(int projectId, int commentId, CancellationToken cancellationToken)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userId == null)
+        if (userId == null || !UserCanComment())
         {
             return Forbid();
         }
