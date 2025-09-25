@@ -7,26 +7,32 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Services;
 
 namespace ProjectManagement.Pages.Projects;
 
-[Authorize(Roles = "Project Officer,HoD,Admin")]
+[Authorize(Roles = "Project Officer,HoD,Admin,MCO,Comdt")]
 public class StagesModel : PageModel
 {
     private readonly ApplicationDbContext _db;
     private readonly StageRulesService _rules;
     private readonly IClock _clock;
+    private readonly ProjectCommentService _commentService;
 
-    public StagesModel(ApplicationDbContext db, StageRulesService rules, IClock clock)
+    private static readonly string[] CommentRoles = new[] { "Admin", "HoD", "Project Officer", "MCO", "Comdt" };
+
+    public StagesModel(ApplicationDbContext db, StageRulesService rules, IClock clock, ProjectCommentService commentService)
     {
         _db = db;
         _rules = rules;
         _clock = clock;
+        _commentService = commentService;
     }
 
     public record StageRow(
@@ -48,12 +54,34 @@ public class StagesModel : PageModel
     public List<StageSlipSummary> StageSlips { get; private set; } = new();
     public ProjectRagStatus ProjectRag { get; private set; } = ProjectRagStatus.Green;
     public bool CanManageStages { get; private set; }
+    public bool CanComment { get; private set; }
+    public List<SelectListItem> CommentStageOptions { get; private set; } = new();
+    public List<CommentDisplayModel> StageComments { get; private set; } = new();
+    public CommentComposerViewModel CommentComposer { get; private set; } = new();
 
     [TempData]
     public string? StatusMessage { get; set; }
 
     [TempData]
     public string? ErrorMessage { get; set; }
+
+    [TempData]
+    public string? CommentStatusMessage { get; set; }
+
+    [TempData]
+    public string? CommentErrorMessage { get; set; }
+
+    [BindProperty(Name = "Form")]
+    public CommentFormModel CommentInput { get; set; } = new();
+
+    [BindProperty(SupportsGet = true)]
+    public int? CommentStageId { get; set; }
+
+    [BindProperty(SupportsGet = true, Name = "commentParentId")]
+    public int? CommentParentId { get; set; }
+
+    [BindProperty(SupportsGet = true, Name = "commentEditId")]
+    public int? CommentEditId { get; set; }
 
     public async Task<IActionResult> OnGetAsync(int id)
     {
@@ -204,6 +232,113 @@ public class StagesModel : PageModel
         return RedirectToPage(new { id = projectId });
     }
 
+    [Authorize(Roles = "Admin,HoD,Project Officer,MCO,Comdt")]
+    public async Task<IActionResult> OnPostStageCommentAsync(int projectId, CancellationToken cancellationToken)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null || !UserCanComment())
+        {
+            return Forbid();
+        }
+
+        CommentInput.ProjectId = projectId;
+        CommentStageId = CommentInput.StageId ?? CommentStageId;
+
+        if (!CommentInput.StageId.HasValue && !CommentInput.ParentCommentId.HasValue)
+        {
+            CommentErrorMessage = "Select a stage before adding a remark.";
+            return await LoadAsync(projectId, cancellationToken);
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return await LoadAsync(projectId, cancellationToken);
+        }
+
+        try
+        {
+            if (CommentInput.EditingCommentId.HasValue)
+            {
+                var updated = await _commentService.UpdateAsync(CommentInput.EditingCommentId.Value, userId, CommentInput.Body, CommentInput.Type, CommentInput.Pinned, CommentInput.Files, cancellationToken);
+                if (updated == null)
+                {
+                    CommentErrorMessage = "Unable to edit the remark.";
+                }
+                else
+                {
+                    CommentStatusMessage = "Remark updated.";
+                }
+            }
+            else
+            {
+                await _commentService.CreateAsync(projectId, CommentInput.StageId, CommentInput.ParentCommentId, CommentInput.Body, CommentInput.Type, CommentInput.Pinned, userId, CommentInput.Files, cancellationToken);
+                CommentStatusMessage = "Remark added.";
+            }
+        }
+        catch (Exception ex)
+        {
+            CommentErrorMessage = ex.Message;
+        }
+
+        var redirect = CommentInput.RedirectTo ?? Url.Page("/Projects/Stages", new
+        {
+            id = projectId,
+            commentStageId = CommentInput.StageId ?? CommentStageId
+        });
+
+        if (!string.IsNullOrEmpty(redirect))
+        {
+            return Redirect(redirect!);
+        }
+
+        return RedirectToPage(new
+        {
+            id = projectId,
+            commentStageId = CommentInput.StageId ?? CommentStageId
+        });
+    }
+
+    [Authorize(Roles = "Admin,HoD,Project Officer,MCO,Comdt")]
+    public async Task<IActionResult> OnPostDeleteCommentAsync(int projectId, int commentId, CancellationToken cancellationToken)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null)
+        {
+            return Forbid();
+        }
+
+        var comment = await _db.ProjectComments.AsNoTracking().FirstOrDefaultAsync(c => c.Id == commentId && c.ProjectId == projectId, cancellationToken);
+        if (comment == null)
+        {
+            CommentErrorMessage = "Remark not found.";
+            return RedirectToPage(new { id = projectId, commentStageId = CommentStageId });
+        }
+
+        var ok = await _commentService.SoftDeleteAsync(commentId, userId, cancellationToken);
+        if (ok)
+        {
+            CommentStatusMessage = "Remark deleted.";
+        }
+        else
+        {
+            CommentErrorMessage = "Unable to delete remark.";
+        }
+
+        return RedirectToPage(new { id = projectId, commentStageId = comment.ProjectStageId ?? CommentStageId });
+    }
+
+    public async Task<IActionResult> OnGetDownloadAttachmentAsync(int projectId, int commentId, int attachmentId, CancellationToken cancellationToken)
+    {
+        var result = await _commentService.OpenAttachmentAsync(projectId, commentId, attachmentId, cancellationToken);
+        if (result == null)
+        {
+            return NotFound();
+        }
+
+        var (attachment, stream) = result.Value;
+        return File(stream, attachment.ContentType, attachment.FileName);
+    }
+
     private async Task<IActionResult> LoadAsync(int id, CancellationToken cancellationToken)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -281,7 +416,193 @@ public class StagesModel : PageModel
             })
             .ToList();
 
+        var stageNameMap = templates.ToDictionary(t => t.Code, t => t.Name, StringComparer.OrdinalIgnoreCase);
+        await LoadStageRemarksAsync(id, projectStages, stageNameMap, cancellationToken);
+
         return Page();
+    }
+
+    private async Task LoadStageRemarksAsync(int projectId, List<ProjectStage> projectStages, IDictionary<string, string> stageNameMap, CancellationToken cancellationToken)
+    {
+        CanComment = UserCanComment();
+
+        var stageById = projectStages.ToDictionary(ps => ps.Id);
+        CommentStageOptions = projectStages
+            .OrderBy(ps => ps.StageCode)
+            .Select(ps =>
+            {
+                var label = stageNameMap.TryGetValue(ps.StageCode, out var name) && !string.IsNullOrWhiteSpace(name)
+                    ? $"{ps.StageCode} — {name}"
+                    : ps.StageCode;
+                return new SelectListItem(label, ps.Id.ToString(), CommentStageId.HasValue && CommentStageId.Value == ps.Id);
+            })
+            .ToList();
+
+        if (!CommentStageId.HasValue && CommentStageOptions.Count > 0)
+        {
+            if (int.TryParse(CommentStageOptions[0].Value, out var firstId))
+            {
+                CommentStageId = firstId;
+            }
+        }
+
+        var stageId = CommentStageId;
+        if (stageId.HasValue && !stageById.ContainsKey(stageId.Value))
+        {
+            var first = stageById.Keys.FirstOrDefault();
+            if (first != 0)
+            {
+                stageId = CommentStageId = first;
+            }
+            else
+            {
+                stageId = null;
+                CommentStageId = null;
+            }
+        }
+
+        if (!CommentInput.StageId.HasValue && stageId.HasValue)
+        {
+            CommentInput.StageId = stageId;
+        }
+
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (!stageId.HasValue)
+        {
+            StageComments = new List<CommentDisplayModel>();
+            await PrepareStageComposerAsync(null, null, cancellationToken);
+            return;
+        }
+
+        var stageCode = stageById.TryGetValue(stageId.Value, out var stageEntity) ? stageEntity.StageCode : null;
+
+        var baseQuery = _db.ProjectComments
+            .AsNoTracking()
+            .Where(c => c.ProjectId == projectId && !c.IsDeleted && c.ParentCommentId == null && c.ProjectStageId == stageId);
+
+        var rows = await baseQuery
+            .OrderByDescending(c => c.Pinned)
+            .ThenByDescending(c => c.CreatedOn)
+            .Take(20)
+            .Select(c => new
+            {
+                Comment = c,
+                Author = c.CreatedByUser,
+                Attachments = c.Attachments.OrderBy(a => a.FileName).Select(a => new { a.Id, a.FileName, a.SizeBytes }).ToList(),
+                Replies = c.Replies
+                    .Where(r => !r.IsDeleted)
+                    .OrderBy(r => r.CreatedOn)
+                    .Select(r => new
+                    {
+                        Reply = r,
+                        Author = r.CreatedByUser,
+                        Attachments = r.Attachments.OrderBy(a => a.FileName).Select(a => new { a.Id, a.FileName, a.SizeBytes }).ToList()
+                    }).ToList()
+            })
+            .ToListAsync(cancellationToken);
+
+        StageComments = rows.Select(c => new CommentDisplayModel
+        {
+            Id = c.Comment.Id,
+            ProjectId = c.Comment.ProjectId,
+            Body = c.Comment.Body,
+            Type = c.Comment.Type,
+            Pinned = c.Comment.Pinned,
+            CreatedOn = c.Comment.CreatedOn,
+            EditedOn = c.Comment.EditedOn,
+            AuthorId = c.Comment.CreatedByUserId,
+            AuthorName = BuildAuthorName(c.Author, c.Comment.CreatedByUserId),
+            StageCode = stageCode,
+            StageName = stageCode != null && stageNameMap.TryGetValue(stageCode, out var name) ? name : stageCode,
+            Attachments = c.Attachments.Select(a => new CommentAttachmentViewModel(a.Id, a.FileName, a.SizeBytes)).ToList(),
+            Replies = c.Replies.Select(r => new CommentReplyModel
+            {
+                Id = r.Reply.Id,
+                ProjectId = r.Reply.ProjectId,
+                Body = r.Reply.Body,
+                Type = r.Reply.Type,
+                CreatedOn = r.Reply.CreatedOn,
+                EditedOn = r.Reply.EditedOn,
+                AuthorId = r.Reply.CreatedByUserId,
+                AuthorName = BuildAuthorName(r.Author, r.Reply.CreatedByUserId),
+                Attachments = r.Attachments.Select(a => new CommentAttachmentViewModel(a.Id, a.FileName, a.SizeBytes)).ToList(),
+                CanEdit = CanComment && currentUserId != null && string.Equals(r.Reply.CreatedByUserId, currentUserId, StringComparison.Ordinal)
+            }).ToList(),
+            CanEdit = CanComment && currentUserId != null && string.Equals(c.Comment.CreatedByUserId, currentUserId, StringComparison.Ordinal),
+            CanReply = CanComment
+        }).ToList();
+
+        await PrepareStageComposerAsync(stageId, stageCode, cancellationToken);
+    }
+
+    private async Task PrepareStageComposerAsync(int? stageId, string? stageCode, CancellationToken cancellationToken)
+    {
+        CommentInput.StageId = stageId;
+        CommentInput.ParentCommentId = CommentParentId;
+        CommentInput.EditingCommentId = CommentEditId;
+
+        if (CommentParentId.HasValue)
+        {
+            var parent = await _db.ProjectComments
+                .AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == CommentParentId.Value && c.ProjectId == ProjectId && !c.IsDeleted, cancellationToken);
+
+            if (parent != null)
+            {
+                CommentInput.StageId = parent.ProjectStageId;
+            }
+        }
+
+        if (CommentEditId.HasValue)
+        {
+            var comment = await _db.ProjectComments
+                .AsNoTracking()
+                .Where(c => c.Id == CommentEditId.Value && c.ProjectId == ProjectId && !c.IsDeleted)
+                .Select(c => new { c.Body, c.Type, c.Pinned, c.ProjectStageId, c.CreatedByUserId })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (comment != null && userId != null && string.Equals(comment.CreatedByUserId, userId, StringComparison.Ordinal))
+            {
+                CommentInput.Body = comment.Body;
+                CommentInput.Type = comment.Type;
+                CommentInput.Pinned = comment.Pinned;
+                CommentInput.StageId = comment.ProjectStageId;
+            }
+            else
+            {
+                CommentEditId = null;
+                CommentInput.EditingCommentId = null;
+            }
+        }
+
+        var typeOptions = Enum.GetValues<ProjectCommentType>()
+            .Select(t => new SelectListItem(t.ToString(), t.ToString()))
+            .ToList();
+
+        var legend = stageCode != null ? $"Stage {stageCode} remarks" : "Stage remarks";
+
+        CommentComposer = new CommentComposerViewModel
+        {
+            FormHandler = "StageComment",
+            Form = CommentInput,
+            StageOptions = CommentStageOptions,
+            TypeOptions = typeOptions,
+            SubmitButtonLabel = CommentEditId.HasValue ? "Save" : CommentParentId.HasValue ? "Reply" : "Post",
+            Legend = legend,
+            ShowStagePicker = false,
+            ShowPinnedToggle = true,
+            MaxFileSizeBytes = ProjectCommentService.MaxAttachmentSizeBytes,
+            StatusMessage = CommentStatusMessage,
+            ErrorMessage = CommentErrorMessage
+        };
+
+        CommentInput.RedirectTo = Url.Page("/Projects/Stages", new
+        {
+            id = ProjectId,
+            commentStageId = CommentInput.StageId
+        });
     }
 
     private async Task<(IActionResult? Result, MutationContext? Context)> LoadForMutationAsync(int projectId, CancellationToken cancellationToken)
@@ -325,6 +646,30 @@ public class StagesModel : PageModel
     }
 
     private DateOnly Today() => DateOnly.FromDateTime(_clock.UtcNow.DateTime);
+
+    private bool UserCanComment()
+    {
+        foreach (var role in CommentRoles)
+        {
+            if (User.IsInRole(role))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string BuildAuthorName(ApplicationUser? user, string userId)
+    {
+        if (user == null)
+        {
+            return string.IsNullOrEmpty(userId) ? "Unknown" : "Former user";
+        }
+
+        var display = string.IsNullOrWhiteSpace(user.FullName) ? user.UserName : $"{user.Rank} {user.FullName}";
+        return string.IsNullOrWhiteSpace(display) ? user.UserName ?? "User" : display.Trim();
+    }
 
     private bool UserCanManage(string? leadPoUserId, string? currentUserId)
     {

@@ -1,0 +1,69 @@
+@model ProjectManagement.Pages.Projects.CommentComposerViewModel
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        @if (!string.IsNullOrEmpty(Model.Legend))
+        {
+            <h5 class="card-title">@Model.Legend</h5>
+        }
+        @if (!string.IsNullOrEmpty(Model.StatusMessage))
+        {
+            <div class="alert alert-success" role="alert">@Model.StatusMessage</div>
+        }
+        @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+        {
+            <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+        }
+        <form method="post" asp-page-handler="@Model.FormHandler" enctype="multipart/form-data" class="vstack gap-3">
+            <input type="hidden" asp-for="Form.ProjectId" />
+            @if (!Model.ShowStagePicker)
+            {
+                <input type="hidden" asp-for="Form.StageId" />
+            }
+            <input type="hidden" asp-for="Form.ParentCommentId" />
+            <input type="hidden" asp-for="Form.EditingCommentId" />
+            <input type="hidden" asp-for="Form.RedirectTo" />
+
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+            @if (Model.ShowStagePicker)
+            {
+                <div>
+                    <label asp-for="Form.StageId" class="form-label">Stage</label>
+                    <select asp-for="Form.StageId" asp-items="Model.StageOptions" class="form-select">
+                        <option value="">All stages</option>
+                    </select>
+                </div>
+            }
+
+            <div>
+                <label asp-for="Form.Type" class="form-label">Type</label>
+                <select asp-for="Form.Type" asp-items="Model.TypeOptions" class="form-select"></select>
+            </div>
+
+            <div>
+                <label asp-for="Form.Body" class="form-label">Remarks</label>
+                <textarea asp-for="Form.Body" class="form-control" rows="4" maxlength="2000" minlength="4"></textarea>
+                <span asp-validation-for="Form.Body" class="text-danger"></span>
+            </div>
+
+            @if (Model.ShowPinnedToggle)
+            {
+                <div class="form-check">
+                    <input class="form-check-input" asp-for="Form.Pinned" />
+                    <label class="form-check-label" asp-for="Form.Pinned">Pin this remark</label>
+                </div>
+            }
+
+            <div>
+                <label class="form-label" asp-for="Form.Files">Attachments</label>
+                <input asp-for="Form.Files" class="form-control" type="file" multiple data-max-size="@Model.MaxFileSizeBytes" />
+                <div class="form-text">Maximum size @((Model.MaxFileSizeBytes / 1024 / 1024).ToString("0")) MB per file.</div>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2">
+                <button type="submit" class="btn btn-primary">@Model.SubmitButtonLabel</button>
+            </div>
+        </form>
+    </div>
+</div>

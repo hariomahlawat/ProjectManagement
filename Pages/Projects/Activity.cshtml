@@ -1,0 +1,123 @@
+@page
+@using System.Collections.Generic
+@using Microsoft.AspNetCore.Mvc.ViewFeatures
+@model ProjectManagement.Pages.Projects.ActivityModel
+@{
+    ViewData["Title"] = "Project Activity";
+}
+
+<h1 class="mb-3">Project activity</h1>
+<p class="text-muted">Project: <strong>@Model.ProjectName</strong></p>
+
+<section class="mb-4">
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <form method="get" class="row gy-3 gx-3 align-items-end">
+                <input type="hidden" name="id" value="@Model.ProjectId" />
+
+                <div class="col-12 col-md-3">
+                    <label asp-for="Type" class="form-label">Type</label>
+                    <select asp-for="Type" asp-items="Model.TypeOptions" class="form-select">
+                        <option value="">All types</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-3">
+                    <label asp-for="StageId" class="form-label">Stage</label>
+                    <select asp-for="StageId" asp-items="Model.StageOptions" class="form-select">
+                        <option value="">All stages</option>
+                    </select>
+                </div>
+
+                <div class="col-12 col-md-3">
+                    <label asp-for="AuthorId" class="form-label">Author</label>
+                    <select asp-for="AuthorId" asp-items="Model.AuthorOptions" class="form-select">
+                        <option value="">All authors</option>
+                    </select>
+                </div>
+
+                <div class="col-6 col-md-1">
+                    <label asp-for="From" class="form-label">From</label>
+                    <input asp-for="From" class="form-control" type="date" />
+                </div>
+
+                <div class="col-6 col-md-1">
+                    <label asp-for="To" class="form-label">To</label>
+                    <input asp-for="To" class="form-control" type="date" />
+                </div>
+
+                <div class="col-12 col-md-1 d-flex gap-2">
+                    <button type="submit" class="btn btn-primary flex-grow-1">Filter</button>
+                    <a class="btn btn-outline-secondary" asp-page="/Projects/Activity" asp-route-id="@Model.ProjectId">Reset</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+
+@if (Model.CanComment)
+{
+    <section class="mb-4">
+        @await Html.PartialAsync("_CommentComposer", Model.Composer)
+    </section>
+}
+
+<section class="mb-4">
+    <h2 class="h4 mb-3">Remarks</h2>
+    @{
+        var routeValues = new Dictionary<string, object?>();
+        if (Model.Type.HasValue)
+        {
+            routeValues["Type"] = Model.Type;
+        }
+        if (!string.IsNullOrEmpty(Model.AuthorId))
+        {
+            routeValues["AuthorId"] = Model.AuthorId;
+        }
+        if (Model.StageId.HasValue)
+        {
+            routeValues["StageId"] = Model.StageId;
+        }
+        if (Model.From.HasValue)
+        {
+            routeValues["From"] = Model.From.Value.ToString("yyyy-MM-dd");
+        }
+        if (Model.To.HasValue)
+        {
+            routeValues["To"] = Model.To.Value.ToString("yyyy-MM-dd");
+        }
+        if (Model.CurrentPage > 1)
+        {
+            routeValues["Page"] = Model.CurrentPage;
+        }
+
+        var threadViewData = new ViewDataDictionary(ViewData)
+        {
+            ["CommentsPage"] = "/Projects/Activity",
+            ["ProjectId"] = Model.ProjectId,
+            ["ShowStage"] = true,
+            ["RouteValues"] = routeValues
+        };
+    }
+    @await Html.PartialAsync("_CommentThread", Model.Comments, threadViewData)
+</section>
+
+@if (Model.TotalPages > 1)
+{
+    <nav aria-label="Activity pagination">
+        <ul class="pagination">
+            <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : string.Empty)">
+                <a class="page-link" asp-page="/Projects/Activity" asp-route-id="@Model.ProjectId" asp-route-Type="@Model.Type" asp-route-AuthorId="@Model.AuthorId" asp-route-StageId="@Model.StageId" asp-route-From="@Model.From" asp-route-To="@Model.To" asp-route-Page="@(Model.CurrentPage - 1)">Previous</a>
+            </li>
+            @for (var i = 1; i <= Model.TotalPages; i++)
+            {
+                <li class="page-item @(Model.CurrentPage == i ? "active" : string.Empty)">
+                    <a class="page-link" asp-page="/Projects/Activity" asp-route-id="@Model.ProjectId" asp-route-Type="@Model.Type" asp-route-AuthorId="@Model.AuthorId" asp-route-StageId="@Model.StageId" asp-route-From="@Model.From" asp-route-To="@Model.To" asp-route-Page="@i">@i</a>
+                </li>
+            }
+            <li class="page-item @(Model.CurrentPage == Model.TotalPages ? "disabled" : string.Empty)">
+                <a class="page-link" asp-page="/Projects/Activity" asp-route-id="@Model.ProjectId" asp-route-Type="@Model.Type" asp-route-AuthorId="@Model.AuthorId" asp-route-StageId="@Model.StageId" asp-route-From="@Model.From" asp-route-To="@Model.To" asp-route-Page="@(Model.CurrentPage + 1)">Next</a>
+            </li>
+        </ul>
+    </nav>
+}
