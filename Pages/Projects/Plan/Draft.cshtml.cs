@@ -112,6 +112,7 @@ public class DraftModel : PageModel
 
         AllowEdit = true;
         NormalizeStageInputs();
+        ValidateStageDates();
         ValidateDependencies();
 
         if (!ModelState.IsValid)
@@ -135,6 +136,7 @@ public class DraftModel : PageModel
         }
 
         NormalizeStageInputs();
+        ValidateStageDates();
         ValidateDependencies();
 
         if (!ModelState.IsValid)
@@ -257,6 +259,51 @@ public class DraftModel : PageModel
 
             return new StageInput { StageCode = t.Code };
         }).ToList();
+    }
+
+    private void ValidateStageDates()
+    {
+        var inputs = Stages.ToDictionary(s => s.StageCode, StringComparer.OrdinalIgnoreCase);
+        var hasIncompletePair = false;
+
+        foreach (var template in StageTemplates)
+        {
+            if (!inputs.TryGetValue(template.Code, out var input))
+            {
+                continue;
+            }
+
+            var index = _stageIndex[template.Code];
+            var start = input.PlannedStart;
+            var due = input.PlannedDue;
+            var hasStart = start.HasValue;
+            var hasDue = due.HasValue;
+
+            if (hasStart && hasDue && due.Value < start.Value)
+            {
+                ModelState.AddModelError($"Stages[{index}].PlannedDue", "Planned due must be on or after the planned start date.");
+            }
+
+            if (hasStart ^ hasDue)
+            {
+                hasIncompletePair = true;
+
+                if (!hasStart)
+                {
+                    ModelState.AddModelError($"Stages[{index}].PlannedStart", "Planned start is required when a due date is provided.");
+                }
+
+                if (!hasDue)
+                {
+                    ModelState.AddModelError($"Stages[{index}].PlannedDue", "Planned due is required when a start date is provided.");
+                }
+            }
+        }
+
+        if (hasIncompletePair)
+        {
+            ModelState.AddModelError(string.Empty, "Enter both a planned start and due date for a stage, or leave both blank.");
+        }
     }
 
     private void ValidateDependencies()
