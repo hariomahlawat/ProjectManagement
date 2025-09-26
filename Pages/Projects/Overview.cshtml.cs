@@ -9,6 +9,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.ViewModels;
 
 namespace ProjectManagement.Pages.Projects
 {
@@ -28,6 +29,7 @@ namespace ProjectManagement.Pages.Projects
         public IList<ProjectStage> Stages { get; private set; } = new List<ProjectStage>();
         public IReadOnlyList<ProjectCategory> CategoryPath { get; private set; } = Array.Empty<ProjectCategory>();
         public ProcurementAtAGlanceVm Procurement { get; private set; } = default!;
+        public ProcurementEditInput ProcurementEdit { get; private set; } = default!;
 
         public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
         {
@@ -59,6 +61,17 @@ namespace ProjectManagement.Pages.Projects
             }
 
             Procurement = await _procureRead.GetAsync(id, ct);
+
+            ProcurementEdit = new ProcurementEditInput
+            {
+                ProjectId = id,
+                IpaCost = Procurement.IpaCost,
+                AonCost = Procurement.AonCost,
+                BenchmarkCost = Procurement.BenchmarkCost,
+                L1Cost = Procurement.L1Cost,
+                PncCost = Procurement.PncCost,
+                SupplyOrderDate = Procurement.SupplyOrderDate
+            };
 
             return Page();
         }
