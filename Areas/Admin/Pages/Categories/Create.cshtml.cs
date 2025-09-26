@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -49,13 +50,13 @@ namespace ProjectManagement.Areas.Admin.Pages.Categories
                 IsActive = Input.IsActive
             };
 
-            var nextSort = await _db.ProjectCategories
+            var maxSortOrder = await _db.ProjectCategories
                 .Where(c => c.ParentId == Input.ParentId)
-                .Select(c => c.SortOrder)
-                .DefaultIfEmpty(-1)
-                .MaxAsync();
+                .MaxAsync(c => (int?)c.SortOrder);
 
-            category.SortOrder = nextSort + 1;
+            var nextSort = (maxSortOrder ?? -1) + 1;
+
+            category.SortOrder = nextSort;
 
             _db.ProjectCategories.Add(category);
             await _db.SaveChangesAsync();
