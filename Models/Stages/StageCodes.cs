@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace ProjectManagement.Models.Stages;
 
 public static class StageCodes
@@ -34,4 +37,24 @@ public static class StageCodes
         ATP,
         PAYMENT
     };
+    private static readonly Dictionary<string, string> DisplayNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [FS] = "Feasibility Study",
+        [IPA] = "IP (IPA)",
+        [SOW] = "SOW Vetting",
+        [AON] = "AON",
+        [BID] = "Bid Invitation / e-NIT",
+        [TEC] = "Technical Evaluation",
+        [BM] = "Benchmarking",
+        [COB] = "Commercial Opening",
+        [PNC] = "PNC",
+        [EAS] = "EAS Approval",
+        [SO] = "Supply Order",
+        [DEVP] = "Development",
+        [ATP] = "ATP",
+        [PAYMENT] = "Payment"
+    };
+
+    public static string DisplayNameOf(string code) =>
+        code is null ? "—" : (DisplayNames.TryGetValue(code, out var name) ? name : code);
 }
