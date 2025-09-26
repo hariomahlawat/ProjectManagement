@@ -15,7 +15,9 @@
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
         </div>
         <div class="offcanvas-body">
-            <form method="post" asp-page="/Projects/AssignRoles">
+            <form method="post"
+                  asp-page="/Projects/AssignRoles"
+                  asp-route-id="@Model.ProjectId">
                 @Html.AntiForgeryToken()
                 <input type="hidden" name="Input.ProjectId" value="@Model.ProjectId" />
                 <input type="hidden" name="Input.RowVersion" value="@Convert.ToBase64String(Model.RowVersion)" />
