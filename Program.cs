@@ -473,6 +473,36 @@ using (var scope = app.Services.CreateScope())
     if (db.Database.IsRelational())
     {
         await db.Database.MigrateAsync();
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE "ProjectStages"
+            ADD COLUMN IF NOT EXISTS "AutoCompletedFromCode" character varying(16);
+        """);
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE "ProjectStages"
+            ADD COLUMN IF NOT EXISTS "IsAutoCompleted" boolean NOT NULL DEFAULT FALSE;
+        """);
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE "ProjectStages"
+            ADD COLUMN IF NOT EXISTS "RequiresBackfill" boolean NOT NULL DEFAULT FALSE;
+        """);
+        await db.Database.ExecuteSqlRawAsync("""
+            UPDATE "ProjectStages"
+            SET "IsAutoCompleted" = FALSE
+            WHERE "IsAutoCompleted" IS NULL;
+        """);
+        await db.Database.ExecuteSqlRawAsync("""
+            UPDATE "ProjectStages"
+            SET "RequiresBackfill" = FALSE
+            WHERE "RequiresBackfill" IS NULL;
+        """);
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE "ProjectStages"
+            ALTER COLUMN "IsAutoCompleted" SET DEFAULT FALSE;
+        """);
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE "ProjectStages"
+            ALTER COLUMN "RequiresBackfill" SET DEFAULT FALSE;
+        """);
         var migrations = await db.Database.GetAppliedMigrationsAsync();
         if (!migrations.Contains("20250909153316_UseXminForTodoItem"))
         {
