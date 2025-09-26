@@ -17,7 +17,12 @@ namespace ProjectManagement.Tests
                 .Options;
 
             using var context = new ApplicationDbContext(options);
-            var project = new Project { Name = "Test", Description = "Test project" };
+            var project = new Project
+            {
+                Name = "Test",
+                Description = "Test project",
+                CreatedByUserId = "test-user"
+            };
             context.Projects.Add(project);
             context.SaveChanges();
 

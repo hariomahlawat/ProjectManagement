@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
@@ -15,6 +16,14 @@ namespace ProjectManagement.Data
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options) { }
 
         public DbSet<Project> Projects { get; set; } = default!;
+        public DbSet<ProjectCategory> ProjectCategories => Set<ProjectCategory>();
+        public DbSet<ProjectIpaFact> ProjectIpaFacts => Set<ProjectIpaFact>();
+        public DbSet<ProjectSowFact> ProjectSowFacts => Set<ProjectSowFact>();
+        public DbSet<ProjectAonFact> ProjectAonFacts => Set<ProjectAonFact>();
+        public DbSet<ProjectBenchmarkFact> ProjectBenchmarkFacts => Set<ProjectBenchmarkFact>();
+        public DbSet<ProjectCommercialFact> ProjectCommercialFacts => Set<ProjectCommercialFact>();
+        public DbSet<ProjectPncFact> ProjectPncFacts => Set<ProjectPncFact>();
+        public DbSet<ProjectSupplyOrderFact> ProjectSupplyOrderFacts => Set<ProjectSupplyOrderFact>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<TodoItem> TodoItems => Set<TodoItem>();
         public DbSet<Celebration> Celebrations => Set<Celebration>();
@@ -35,6 +44,77 @@ namespace ProjectManagement.Data
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
+
+            builder.Entity<Project>(e =>
+            {
+                e.Property(x => x.Name).HasMaxLength(100).IsRequired();
+                e.HasIndex(x => x.Name);
+                e.Property(x => x.RowVersion).IsRowVersion();
+                e.Property(x => x.CreatedByUserId).HasMaxLength(64).IsRequired();
+                e.HasOne(x => x.Category)
+                    .WithMany(x => x.Projects)
+                    .HasForeignKey(x => x.CategoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            builder.Entity<ProjectCategory>(e =>
+            {
+                e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+                e.HasIndex(x => new { x.ParentId, x.Name }).IsUnique();
+                e.Property(x => x.SortOrder).HasDefaultValue(0);
+                e.Property(x => x.IsActive).HasDefaultValue(true);
+                e.HasOne(x => x.Parent)
+                    .WithMany(x => x.Children)
+                    .HasForeignKey(x => x.ParentId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            void ConfigureMoneyFact<T>(EntityTypeBuilder<T> entityBuilder, string amountColumn)
+                where T : ProjectFactBase
+            {
+                entityBuilder.Property(x => x.RowVersion).IsRowVersion();
+                entityBuilder.Property(x => x.ProjectId).IsRequired();
+                entityBuilder.Property(x => x.CreatedByUserId).HasMaxLength(64).IsRequired();
+                entityBuilder.Property(amountColumn).HasColumnType("decimal(18,2)");
+                entityBuilder.HasIndex(x => x.ProjectId);
+                entityBuilder.HasOne<Project>()
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            }
+
+            ConfigureMoneyFact(builder.Entity<ProjectIpaFact>(), nameof(ProjectIpaFact.IpaCost));
+            ConfigureMoneyFact(builder.Entity<ProjectAonFact>(), nameof(ProjectAonFact.AonCost));
+            ConfigureMoneyFact(builder.Entity<ProjectBenchmarkFact>(), nameof(ProjectBenchmarkFact.BenchmarkCost));
+            ConfigureMoneyFact(builder.Entity<ProjectCommercialFact>(), nameof(ProjectCommercialFact.L1Cost));
+            ConfigureMoneyFact(builder.Entity<ProjectPncFact>(), nameof(ProjectPncFact.PncCost));
+
+            builder.Entity<ProjectSowFact>(e =>
+            {
+                e.Property(x => x.RowVersion).IsRowVersion();
+                e.Property(x => x.ProjectId).IsRequired();
+                e.Property(x => x.CreatedByUserId).HasMaxLength(64).IsRequired();
+                e.Property(x => x.SponsoringUnit).HasMaxLength(200).IsRequired();
+                e.Property(x => x.SponsoringLineDirectorate).HasMaxLength(200).IsRequired();
+                e.HasIndex(x => x.ProjectId);
+                e.HasOne<Project>()
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ProjectSupplyOrderFact>(e =>
+            {
+                e.Property(x => x.RowVersion).IsRowVersion();
+                e.Property(x => x.ProjectId).IsRequired();
+                e.Property(x => x.CreatedByUserId).HasMaxLength(64).IsRequired();
+                e.HasIndex(x => x.ProjectId);
+                e.Property(x => x.SupplyOrderDate).HasColumnType("date");
+                e.HasOne<Project>()
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
 
             builder.Entity<AuditLog>(e =>
             {

@@ -126,7 +126,13 @@ namespace ProjectManagement.Tests
             var svc = CreateService(new UserLifecycleOptions { UndoWindowMinutes = 15 }, out var ctx, out var um, out var rm);
             var user = new ApplicationUser { UserName = "u", CreatedUtc = DateTime.UtcNow };
             await um.CreateAsync(user, "Passw0rd!");
-            ctx.Projects.Add(new Project { Name = "P", CreatedAt = DateTime.UtcNow, Description = "" });
+            ctx.Projects.Add(new Project
+            {
+                Name = "P",
+                CreatedAt = DateTime.UtcNow,
+                Description = string.Empty,
+                CreatedByUserId = "seed"
+            });
             await ctx.SaveChangesAsync();
             await svc.RequestHardDeleteAsync(user.Id, "actor");
             user = await um.FindByIdAsync(user.Id);
