@@ -13,20 +13,20 @@ public class PlanCalculatorTests
     {
         return new List<StageTemplate>
         {
-            new() { Code = "FEAS", Name = "Feasibility", Sequence = 10 },
+            new() { Code = "FS", Name = "Feasibility", Sequence = 10 },
             new() { Code = "IPA", Name = "In-Principle Approval", Sequence = 20 },
             new() { Code = "SOW", Name = "Scope of Work", Sequence = 30 },
             new() { Code = "AON", Name = "Acceptance of Necessity", Sequence = 40 },
             new() { Code = "BID", Name = "Bid Upload", Sequence = 50 },
             new() { Code = "TEC", Name = "Technical Evaluation", Sequence = 60 },
-            new() { Code = "BENCH", Name = "Benchmarking", Sequence = 65, ParallelGroup = "PRE_COB" },
+            new() { Code = "BM", Name = "Benchmarking", Sequence = 65, ParallelGroup = "PRE_COB" },
             new() { Code = "COB", Name = "Commercial Opening Board", Sequence = 70 },
             new() { Code = "PNC", Name = "Price Negotiation Committee", Sequence = 80, Optional = true },
             new() { Code = "EAS", Name = "Expenditure Angle Sanction", Sequence = 90 },
             new() { Code = "SO", Name = "Supply Order", Sequence = 100 },
-            new() { Code = "DEV", Name = "Development", Sequence = 110 },
-            new() { Code = "AT", Name = "Acceptance Testing", Sequence = 120 },
-            new() { Code = "PAY", Name = "Payment", Sequence = 130 }
+            new() { Code = "DEVP", Name = "Development", Sequence = 110 },
+            new() { Code = "ATC", Name = "Acceptance Testing", Sequence = 120 },
+            new() { Code = "PAYMENT", Name = "Payment", Sequence = 130 }
         };
     }
 
@@ -34,21 +34,21 @@ public class PlanCalculatorTests
     {
         return new List<StageDependencyTemplate>
         {
-            new() { FromStageCode = "IPA", DependsOnStageCode = "FEAS" },
+            new() { FromStageCode = "IPA", DependsOnStageCode = "FS" },
             new() { FromStageCode = "SOW", DependsOnStageCode = "IPA" },
             new() { FromStageCode = "AON", DependsOnStageCode = "SOW" },
             new() { FromStageCode = "BID", DependsOnStageCode = "AON" },
             new() { FromStageCode = "TEC", DependsOnStageCode = "BID" },
-            new() { FromStageCode = "BENCH", DependsOnStageCode = "BID" },
+            new() { FromStageCode = "BM", DependsOnStageCode = "BID" },
             new() { FromStageCode = "COB", DependsOnStageCode = "TEC" },
-            new() { FromStageCode = "COB", DependsOnStageCode = "BENCH" },
+            new() { FromStageCode = "COB", DependsOnStageCode = "BM" },
             new() { FromStageCode = "PNC", DependsOnStageCode = "COB" },
             new() { FromStageCode = "EAS", DependsOnStageCode = "COB" },
             new() { FromStageCode = "EAS", DependsOnStageCode = "PNC" },
             new() { FromStageCode = "SO", DependsOnStageCode = "EAS" },
-            new() { FromStageCode = "DEV", DependsOnStageCode = "SO" },
-            new() { FromStageCode = "AT", DependsOnStageCode = "DEV" },
-            new() { FromStageCode = "PAY", DependsOnStageCode = "AT" }
+            new() { FromStageCode = "DEVP", DependsOnStageCode = "SO" },
+            new() { FromStageCode = "ATC", DependsOnStageCode = "DEVP" },
+            new() { FromStageCode = "PAYMENT", DependsOnStageCode = "ATC" }
         };
     }
 
@@ -68,7 +68,7 @@ public class PlanCalculatorTests
             ["AON"] = 1,
             ["BID"] = 10,
             ["TEC"] = 3,
-            ["BENCH"] = 4,
+            ["BM"] = 4,
             ["COB"] = 2,
             ["EAS"] = 5
         };
@@ -101,7 +101,7 @@ public class PlanCalculatorTests
             ["AON"] = 2,
             ["BID"] = 6,
             ["TEC"] = 3,
-            ["BENCH"] = 2,
+            ["BM"] = 2,
             ["COB"] = 2,
             ["PNC"] = 7,
             ["EAS"] = 5
