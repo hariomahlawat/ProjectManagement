@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -11,11 +13,13 @@ public class StageProgressService
 {
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
+    private readonly IAuditService _audit;
 
-    public StageProgressService(ApplicationDbContext db, IClock clock)
+    public StageProgressService(ApplicationDbContext db, IClock clock, IAuditService audit)
     {
         _db = db;
         _clock = clock;
+        _audit = audit;
     }
 
     public async Task UpdateStageStatusAsync(
@@ -68,5 +72,16 @@ public class StageProgressService
         stage.Status = newStatus;
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        await _audit.LogAsync(
+            "Stages.StageStatusChanged",
+            userId: userId,
+            data: new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["StageCode"] = stageCode,
+                ["NewStatus"] = newStatus.ToString(),
+                ["EffectiveDate"] = (effectiveDate ?? resolvedDate).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+            });
     }
 }

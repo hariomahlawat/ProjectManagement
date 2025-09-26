@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
@@ -17,7 +18,7 @@ public class ProjectFactsServiceTests
         var clock = new TestClock(new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
         await SeedProjectAsync(db);
-        var service = new ProjectFactsService(db, clock);
+        var service = new ProjectFactsService(db, clock, new FakeAudit());
 
         await service.UpsertIpaCostAsync(1, 1250.25m, "user-a");
 
@@ -41,7 +42,7 @@ public class ProjectFactsServiceTests
             CreatedOnUtc = new DateTime(2024, 5, 1, 0, 0, 0, DateTimeKind.Utc)
         });
         await db.SaveChangesAsync();
-        var service = new ProjectFactsService(db, clock);
+        var service = new ProjectFactsService(db, clock, new FakeAudit());
 
         await service.UpsertIpaCostAsync(1, 2200m, "user-b");
 
@@ -57,7 +58,7 @@ public class ProjectFactsServiceTests
         var clock = new TestClock(new DateTimeOffset(2024, 7, 15, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
         await SeedProjectAsync(db);
-        var service = new ProjectFactsService(db, clock);
+        var service = new ProjectFactsService(db, clock, new FakeAudit());
 
         await service.UpsertSowSponsorsAsync(1, "Operations", "Line A", "user-a");
 
@@ -80,7 +81,7 @@ public class ProjectFactsServiceTests
         var clock = new TestClock(new DateTimeOffset(2024, 3, 1, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
         await SeedProjectAsync(db);
-        var service = new ProjectFactsService(db, clock);
+        var service = new ProjectFactsService(db, clock, new FakeAudit());
 
         await service.UpsertSupplyOrderDateAsync(1, new DateOnly(2024, 2, 15), "user-a");
 
@@ -125,5 +126,11 @@ public class ProjectFactsServiceTests
         }
 
         public DateTimeOffset UtcNow { get; set; }
+    }
+
+    private sealed class FakeAudit : IAuditService
+    {
+        public Task LogAsync(string action, string? message = null, string level = "Info", string? userId = null, string? userName = null, IDictionary<string, string?>? data = null, Microsoft.AspNetCore.Http.HttpContext? http = null)
+            => Task.CompletedTask;
     }
 }

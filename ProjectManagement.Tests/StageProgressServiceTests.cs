@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
@@ -20,7 +21,7 @@ public class StageProgressServiceTests
         await using var db = CreateContext();
         await SeedStageAsync(db, StageStatus.NotStarted);
 
-        var service = new StageProgressService(db, clock);
+        var service = new StageProgressService(db, clock, new FakeAudit());
 
         await service.UpdateStageStatusAsync(1, StageCodes.IPA, StageStatus.InProgress, null, "tester");
 
@@ -38,7 +39,7 @@ public class StageProgressServiceTests
         await using var db = CreateContext();
         await SeedStageAsync(db, StageStatus.NotStarted);
 
-        var service = new StageProgressService(db, clock);
+        var service = new StageProgressService(db, clock, new FakeAudit());
 
         await service.UpdateStageStatusAsync(1, StageCodes.IPA, StageStatus.InProgress, null, "tester");
 
@@ -58,7 +59,7 @@ public class StageProgressServiceTests
         await using var db = CreateContext();
         await SeedStageAsync(db, StageStatus.Completed, actualStart: new DateOnly(2024, 1, 1), completedOn: new DateOnly(2024, 1, 2));
 
-        var service = new StageProgressService(db, clock);
+        var service = new StageProgressService(db, clock, new FakeAudit());
 
         await service.UpdateStageStatusAsync(1, StageCodes.IPA, StageStatus.NotStarted, null, "tester");
 
@@ -106,5 +107,11 @@ public class StageProgressServiceTests
         }
 
         public DateTimeOffset UtcNow { get; set; }
+    }
+
+    private sealed class FakeAudit : IAuditService
+    {
+        public Task LogAsync(string action, string? message = null, string level = "Info", string? userId = null, string? userName = null, IDictionary<string, string?>? data = null, Microsoft.AspNetCore.Http.HttpContext? http = null)
+            => Task.CompletedTask;
     }
 }
