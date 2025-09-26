@@ -97,6 +97,16 @@
         <partial name="_ProjectProcurementAtAGlance" model="Model.Procurement" />
     </div>
 
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasProcurement" aria-labelledby="offcanvasProcurementLabel">
+        <div class="offcanvas-header">
+            <h5 id="offcanvasProcurementLabel" class="mb-0">Edit Procurement</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+            <partial name="/Pages/Projects/Procurement/_EditFormBody" model="Model.ProcurementEdit" />
+        </div>
+    </div>
+
     <div class="card">
         <div class="card-header">Stage progress</div>
         <div class="card-body">
@@ -131,6 +141,10 @@
         </div>
     </div>
 </div>
+
+@section Scripts {
+    <script src="~/js/projects/overview.js"></script>
+}
 
 @functions {
     private static string DisplayUser(ApplicationUser? user)

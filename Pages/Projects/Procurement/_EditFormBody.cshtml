@@ -1,0 +1,37 @@
+@model ProjectManagement.ViewModels.ProcurementEditInput
+
+<form method="post" asp-page="/Projects/Procurement/Edit" asp-route-id="@Model.ProjectId">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="Input.ProjectId" value="@Model.ProjectId" />
+
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label for="Input_IpaCost" class="form-label">IPA Cost</label>
+            <input class="form-control" id="Input_IpaCost" name="Input.IpaCost" value="@(Model.IpaCost?.ToString("0.##"))" />
+        </div>
+        <div class="col-md-6">
+            <label for="Input_AonCost" class="form-label">AON Cost</label>
+            <input class="form-control" id="Input_AonCost" name="Input.AonCost" value="@(Model.AonCost?.ToString("0.##"))" />
+        </div>
+        <div class="col-md-6">
+            <label for="Input_BenchmarkCost" class="form-label">Benchmark Cost</label>
+            <input class="form-control" id="Input_BenchmarkCost" name="Input.BenchmarkCost" value="@(Model.BenchmarkCost?.ToString("0.##"))" />
+        </div>
+        <div class="col-md-6">
+            <label for="Input_L1Cost" class="form-label">L1 Cost</label>
+            <input class="form-control" id="Input_L1Cost" name="Input.L1Cost" value="@(Model.L1Cost?.ToString("0.##"))" />
+        </div>
+        <div class="col-md-6">
+            <label for="Input_PncCost" class="form-label">PNC Cost</label>
+            <input class="form-control" id="Input_PncCost" name="Input.PncCost" value="@(Model.PncCost?.ToString("0.##"))" />
+        </div>
+        <div class="col-md-6">
+            <label for="Input_SupplyOrderDate" class="form-label">Supply Order Date</label>
+            <input class="form-control" type="date" id="Input_SupplyOrderDate" name="Input.SupplyOrderDate" value="@(Model.SupplyOrderDate.HasValue ? Model.SupplyOrderDate.Value.ToString("yyyy-MM-dd") : null)" />
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-end mt-3">
+        <button class="btn btn-primary" type="submit">Save</button>
+    </div>
+</form>
