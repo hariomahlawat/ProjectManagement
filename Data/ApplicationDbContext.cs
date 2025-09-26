@@ -73,7 +73,7 @@ namespace ProjectManagement.Data
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
-            void ConfigureMoneyFact<T>(EntityTypeBuilder<T> entityBuilder, string amountColumn)
+            void ConfigureMoneyFact<T>(EntityTypeBuilder<T> entityBuilder, string amountColumn, string checkName)
                 where T : ProjectFactBase
             {
                 entityBuilder.Property(x => x.RowVersion).IsRowVersion();
@@ -85,13 +85,17 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.ProjectId)
                     .OnDelete(DeleteBehavior.Cascade);
+                entityBuilder.ToTable(tb =>
+                {
+                    tb.HasCheckConstraint(checkName, $"\"{amountColumn}\" >= 0");
+                });
             }
 
-            ConfigureMoneyFact(builder.Entity<ProjectIpaFact>(), nameof(ProjectIpaFact.IpaCost));
-            ConfigureMoneyFact(builder.Entity<ProjectAonFact>(), nameof(ProjectAonFact.AonCost));
-            ConfigureMoneyFact(builder.Entity<ProjectBenchmarkFact>(), nameof(ProjectBenchmarkFact.BenchmarkCost));
-            ConfigureMoneyFact(builder.Entity<ProjectCommercialFact>(), nameof(ProjectCommercialFact.L1Cost));
-            ConfigureMoneyFact(builder.Entity<ProjectPncFact>(), nameof(ProjectPncFact.PncCost));
+            ConfigureMoneyFact(builder.Entity<ProjectIpaFact>(), nameof(ProjectIpaFact.IpaCost), "ck_ipafact_amount");
+            ConfigureMoneyFact(builder.Entity<ProjectAonFact>(), nameof(ProjectAonFact.AonCost), "ck_aonfact_amount");
+            ConfigureMoneyFact(builder.Entity<ProjectBenchmarkFact>(), nameof(ProjectBenchmarkFact.BenchmarkCost), "ck_bmfact_amount");
+            ConfigureMoneyFact(builder.Entity<ProjectCommercialFact>(), nameof(ProjectCommercialFact.L1Cost), "ck_l1fact_amount");
+            ConfigureMoneyFact(builder.Entity<ProjectPncFact>(), nameof(ProjectPncFact.PncCost), "ck_pncfact_amount");
 
             builder.Entity<ProjectSowFact>(e =>
             {

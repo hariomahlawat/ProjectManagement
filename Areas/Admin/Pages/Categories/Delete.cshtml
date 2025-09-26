@@ -1,0 +1,34 @@
+@page "{id:int}"
+@model ProjectManagement.Areas.Admin.Pages.Categories.DeleteModel
+@{
+    ViewData["Title"] = "Delete category";
+}
+
+<h1 class="h3 mb-3">Delete category</h1>
+
+@if (Model.Category is null)
+{
+    <div class="alert alert-danger">The requested category could not be found.</div>
+}
+else
+{
+    <div class="alert alert-warning">This action cannot be undone.</div>
+
+    <form method="post" class="card card-body shadow-sm">
+        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+        <dl class="row mb-3">
+            <dt class="col-sm-3">Name</dt>
+            <dd class="col-sm-9">@Model.Category.Name</dd>
+            <dt class="col-sm-3">Parent</dt>
+            <dd class="col-sm-9">@Model.Category.Parent?.Name ?? "(None)"</dd>
+            <dt class="col-sm-3">Active</dt>
+            <dd class="col-sm-9">@(Model.Category.IsActive ? "Yes" : "No")</dd>
+        </dl>
+
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-danger">Delete</button>
+            <a asp-page="Index" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+}
