@@ -16,7 +16,7 @@ namespace ProjectManagement.Models
 
         public DateTime CreatedOnUtc { get; set; } = DateTime.UtcNow;
 
-        [Timestamp]
+        [ConcurrencyCheck]
         public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     }
 
