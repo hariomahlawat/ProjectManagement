@@ -38,15 +38,14 @@ namespace ProjectManagement.Pages.Projects
 
             Project = project;
 
-            Stages = await _db.ProjectStages
+            var projectStages = await _db.ProjectStages
                 .Where(s => s.ProjectId == id)
-                .OrderBy(s =>
-                {
-                    var index = Array.IndexOf(StageCodes.All, s.StageCode);
-                    return index >= 0 ? index : int.MaxValue;
-                })
-                .ThenBy(s => s.StageCode)
                 .ToListAsync();
+
+            Stages = projectStages
+                .OrderBy(s => StageOrder(s.StageCode))
+                .ThenBy(s => s.StageCode, StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
             if (project.CategoryId.HasValue)
             {
@@ -86,6 +85,17 @@ namespace ProjectManagement.Pages.Projects
             }
 
             return path;
+        }
+
+        private static int StageOrder(string? stageCode)
+        {
+            if (stageCode is null)
+            {
+                return int.MaxValue;
+            }
+
+            var index = Array.IndexOf(StageCodes.All, stageCode);
+            return index >= 0 ? index : int.MaxValue;
         }
     }
 }
