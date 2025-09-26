@@ -2,7 +2,8 @@
 @using ProjectManagement.Models
 @model ProjectManagement.Pages.Projects.OverviewModel
 @{
-    var pageTitle = Model.Project?.Name ?? "Project";
+    var project = Model.Project;
+    var pageTitle = project?.Name ?? "Project";
     ViewData["Title"] = pageTitle;
 }
 
@@ -18,12 +19,12 @@
         <div>
             <h1 class="h3 mb-1">
                 @pageTitle
-                @if (!string.IsNullOrWhiteSpace(Model.Project?.CaseFileNumber))
+                @if (!string.IsNullOrWhiteSpace(project?.CaseFileNumber))
                 {
-                    <small class="text-muted">(@Model.Project.CaseFileNumber)</small>
+                    <small class="text-muted">(@project?.CaseFileNumber)</small>
                 }
             </h1>
-            <div class="text-muted">Created on @Model.Project?.CreatedAt.ToString("dd MMM yyyy")</div>
+            <div class="text-muted">Created on @(project is { } p ? p.CreatedAt.ToString("dd MMM yyyy") : "—")</div>
         </div>
         <partial name="_AssignRolesOffcanvas" model="Model.AssignRoles" />
     </div>
@@ -51,15 +52,15 @@
         </div>
     }
 
-    @if (Model.Project.HodUserId == null || Model.Project.LeadPoUserId == null)
+    @if (project?.HodUserId == null || project?.LeadPoUserId == null)
     {
         <div class="alert alert-warning d-flex align-items-center" role="alert">
             <div class="me-3">
-                @if (Model.Project.HodUserId == null)
+                @if (project?.HodUserId == null)
                 {
                     <div>Head of Department not assigned.</div>
                 }
-                @if (Model.Project.LeadPoUserId == null)
+                @if (project?.LeadPoUserId == null)
                 {
                     <div>Project Officer not assigned.</div>
                 }
@@ -84,7 +85,7 @@
                 <div class="card-body">
                     <dl class="row mb-0">
                         <dt class="col-sm-4">Description</dt>
-                        <dd class="col-sm-8">@(!string.IsNullOrWhiteSpace(Model.Project.Description) ? Model.Project.Description : "—")</dd>
+                        <dd class="col-sm-8">@(!string.IsNullOrWhiteSpace(project?.Description) ? project.Description : "—")</dd>
 
                         <dt class="col-sm-4">Category</dt>
                         <dd class="col-sm-8">
@@ -99,10 +100,10 @@
                         </dd>
 
                         <dt class="col-sm-4">Head of Department</dt>
-                        <dd class="col-sm-8">@DisplayUser(Model.Project.HodUser)</dd>
+                        <dd class="col-sm-8">@DisplayUser(project?.HodUser)</dd>
 
                         <dt class="col-sm-4">Project Officer</dt>
-                        <dd class="col-sm-8">@DisplayUser(Model.Project.LeadPoUser)</dd>
+                        <dd class="col-sm-8">@DisplayUser(project?.LeadPoUser)</dd>
                     </dl>
                 </div>
             </div>
