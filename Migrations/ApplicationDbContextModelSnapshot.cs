@@ -816,7 +816,10 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("ProjectId");
 
-                    b.ToTable("ProjectAonFacts");
+                    b.ToTable("ProjectAonFacts", (string?)null, t =>
+                    {
+                        t.HasCheckConstraint("ck_aonfact_amount", "\"AonCost\" >= 0");
+                    });
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectBenchmarkFact", b =>
@@ -850,7 +853,10 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("ProjectId");
 
-                    b.ToTable("ProjectBenchmarkFacts");
+                    b.ToTable("ProjectBenchmarkFacts", (string?)null, t =>
+                    {
+                        t.HasCheckConstraint("ck_bmfact_amount", "\"BenchmarkCost\" >= 0");
+                    });
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectCommercialFact", b =>
@@ -884,7 +890,10 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("ProjectId");
 
-                    b.ToTable("ProjectCommercialFacts");
+                    b.ToTable("ProjectCommercialFacts", (string?)null, t =>
+                    {
+                        t.HasCheckConstraint("ck_l1fact_amount", "\"L1Cost\" >= 0");
+                    });
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectIpaFact", b =>
@@ -918,7 +927,10 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("ProjectId");
 
-                    b.ToTable("ProjectIpaFacts");
+                    b.ToTable("ProjectIpaFacts", (string?)null, t =>
+                    {
+                        t.HasCheckConstraint("ck_ipafact_amount", "\"IpaCost\" >= 0");
+                    });
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectPncFact", b =>
@@ -952,7 +964,10 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("ProjectId");
 
-                    b.ToTable("ProjectPncFacts");
+                    b.ToTable("ProjectPncFacts", (string?)null, t =>
+                    {
+                        t.HasCheckConstraint("ck_pncfact_amount", "\"PncCost\" >= 0");
+                    });
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectSowFact", b =>

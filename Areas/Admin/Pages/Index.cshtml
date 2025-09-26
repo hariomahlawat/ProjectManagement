@@ -103,7 +103,13 @@
 @* Two-column lower row: compact recent actions on the right *@
 <div class="row g-3">
   <div class="col-lg-8">
-    @* Place any secondary content or keep empty for now *@
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <h5 class="card-title h6 mb-2">Project categories</h5>
+        <p class="card-text small text-muted">Maintain the hierarchy used to group projects and reports.</p>
+        <a asp-area="Admin" asp-page="/Categories/Index" class="btn btn-sm btn-outline-primary">Open category manager</a>
+      </div>
+    </div>
   </div>
   <div class="col-lg-4">
     <div class="card shadow-sm">

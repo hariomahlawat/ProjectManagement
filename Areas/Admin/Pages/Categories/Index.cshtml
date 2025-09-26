@@ -1,0 +1,32 @@
+@page
+@model ProjectManagement.Areas.Admin.Pages.Categories.IndexModel
+@using System.Linq
+@{
+    ViewData["Title"] = "Project categories";
+}
+
+<h1 class="h3 mb-3">Project categories</h1>
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="alert alert-success" role="status">@Model.StatusMessage</div>
+}
+
+<p>
+    <a class="btn btn-primary btn-sm" asp-page="Create">Add root category</a>
+</p>
+
+@if (!Model.Nodes.Any())
+{
+    <div class="alert alert-info">No categories have been created yet.</div>
+}
+else
+{
+    <div class="category-tree" data-behavior="category-tree">
+        <partial name="_CategoryTree" model="Model.Nodes" />
+    </div>
+}
+
+@section Scripts {
+    <script src="~/js/admin/categories.js" asp-append-version="true"></script>
+}
