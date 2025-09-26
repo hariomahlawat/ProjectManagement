@@ -36,7 +36,7 @@
             <div class="me-3">
                 @if (Model.Project.HodUserId == null)
                 {
-                    <div>Head of Directorate not assigned.</div>
+                    <div>Head of Department not assigned.</div>
                 }
                 @if (Model.Project.LeadPoUserId == null)
                 {
@@ -71,7 +71,7 @@
                             }
                         </dd>
 
-                        <dt class="col-sm-4">Head of Directorate</dt>
+                        <dt class="col-sm-4">Head of Department</dt>
                         <dd class="col-sm-8">@DisplayUser(Model.Project.HodUser)</dd>
 
                         <dt class="col-sm-4">Project Officer</dt>
