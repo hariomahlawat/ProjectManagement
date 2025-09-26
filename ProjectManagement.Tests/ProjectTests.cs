@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -76,7 +77,8 @@ namespace ProjectManagement.Tests
             await userManager.CreateAsync(new ApplicationUser { Id = "creator", UserName = "creator" });
 
             var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 12, 0, 0, TimeSpan.Zero));
-            var page = new CreateModel(context, userManager, clock)
+            var audit = new NoOpAuditService();
+            var page = new CreateModel(context, userManager, clock, audit)
             {
                 Input = new CreateModel.InputModel
                 {
@@ -113,7 +115,8 @@ namespace ProjectManagement.Tests
             await context.SaveChangesAsync();
 
             var clock = new FixedClock(DateTimeOffset.UtcNow);
-            var page = new CreateModel(context, userManager, clock)
+            var audit = new NoOpAuditService();
+            var page = new CreateModel(context, userManager, clock, audit)
             {
                 Input = new CreateModel.InputModel
                 {
@@ -152,6 +155,21 @@ namespace ProjectManagement.Tests
             }
 
             public DateTimeOffset UtcNow { get; }
+        }
+
+        private sealed class NoOpAuditService : IAuditService
+        {
+            public Task LogAsync(
+                string action,
+                string? message = null,
+                string level = "Info",
+                string? userId = null,
+                string? userName = null,
+                IDictionary<string, string?>? data = null,
+                HttpContext? http = null)
+            {
+                return Task.CompletedTask;
+            }
         }
     }
 }
