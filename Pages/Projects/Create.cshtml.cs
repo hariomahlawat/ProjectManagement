@@ -1,10 +1,14 @@
+using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
@@ -19,12 +23,14 @@ namespace ProjectManagement.Pages.Projects
         private readonly ApplicationDbContext _db;
         private readonly UserManager<ApplicationUser> _users;
         private readonly IClock _clock;
+        private readonly IAuditService _audit;
 
-        public CreateModel(ApplicationDbContext db, UserManager<ApplicationUser> users, IClock clock)
+        public CreateModel(ApplicationDbContext db, UserManager<ApplicationUser> users, IClock clock, IAuditService audit)
         {
             _db = db;
             _users = users;
             _clock = clock;
+            _audit = audit;
         }
 
         [BindProperty]
@@ -87,6 +93,15 @@ namespace ProjectManagement.Pages.Projects
                 {
                     ModelState.AddModelError("Input.LastStageCompletedOn", "Provide the completion date.");
                 }
+                else
+                {
+                    var completedDate = DateOnly.FromDateTime(Input.LastStageCompletedOn.Value.Date);
+                    var today = DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime);
+                    if (completedDate > today)
+                    {
+                        ModelState.AddModelError("Input.LastStageCompletedOn", "Completion date cannot be in the future.");
+                    }
+                }
             }
 
             if (!ModelState.IsValid)
@@ -127,7 +142,17 @@ namespace ProjectManagement.Pages.Projects
             };
 
             _db.Projects.Add(project);
-            await _db.SaveChangesAsync();
+
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is PostgresException pg && pg.ConstraintName == "IX_Projects_CaseFileNumber")
+            {
+                _db.Entry(project).State = EntityState.Detached;
+                ModelState.AddModelError("Input.CaseFileNumber", "Case file number already exists.");
+                return Page();
+            }
 
             if (Input.IsOngoing && !string.IsNullOrWhiteSpace(Input.LastStageCompleted) && Input.LastStageCompletedOn.HasValue)
             {
@@ -145,6 +170,21 @@ namespace ProjectManagement.Pages.Projects
                 _db.ProjectStages.Add(stage);
                 await _db.SaveChangesAsync();
             }
+
+            await _audit.LogAsync(
+                "Projects.Created",
+                data: new Dictionary<string, string?>
+                {
+                    ["ProjectId"] = project.Id.ToString(),
+                    ["Name"] = project.Name,
+                    ["CaseFileNumber"] = project.CaseFileNumber,
+                    ["CategoryId"] = project.CategoryId?.ToString(),
+                    ["HodUserId"] = project.HodUserId,
+                    ["LeadPoUserId"] = project.LeadPoUserId
+                },
+                userId: currentUserId,
+                userName: User.Identity?.Name
+            );
 
             return RedirectToPage("/Projects/Overview", new { id = project.Id });
         }
