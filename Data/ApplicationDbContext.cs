@@ -1,6 +1,10 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
 using ProjectManagement.Models;
@@ -53,7 +57,7 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => x.CaseFileNumber)
                     .IsUnique()
                     .HasFilter("\"CaseFileNumber\" IS NOT NULL");
-                e.Property(x => x.RowVersion).IsRowVersion();
+                ConfigureRowVersion(e);
                 e.Property(x => x.CreatedByUserId).HasMaxLength(64).IsRequired();
                 e.HasOne(x => x.Category)
                     .WithMany(x => x.Projects)
@@ -76,7 +80,7 @@ namespace ProjectManagement.Data
             void ConfigureMoneyFact<T>(EntityTypeBuilder<T> entityBuilder, string amountColumn, string checkName)
                 where T : ProjectFactBase
             {
-                entityBuilder.Property(x => x.RowVersion).IsRowVersion();
+                ConfigureRowVersion(entityBuilder);
                 entityBuilder.Property(x => x.ProjectId).IsRequired();
                 entityBuilder.Property(x => x.CreatedByUserId).HasMaxLength(64).IsRequired();
                 entityBuilder.Property(amountColumn).HasColumnType("decimal(18,2)");
@@ -99,7 +103,7 @@ namespace ProjectManagement.Data
 
             builder.Entity<ProjectSowFact>(e =>
             {
-                e.Property(x => x.RowVersion).IsRowVersion();
+                ConfigureRowVersion(e);
                 e.Property(x => x.ProjectId).IsRequired();
                 e.Property(x => x.CreatedByUserId).HasMaxLength(64).IsRequired();
                 e.Property(x => x.SponsoringUnit).HasMaxLength(200).IsRequired();
@@ -113,7 +117,7 @@ namespace ProjectManagement.Data
 
             builder.Entity<ProjectSupplyOrderFact>(e =>
             {
-                e.Property(x => x.RowVersion).IsRowVersion();
+                ConfigureRowVersion(e);
                 e.Property(x => x.ProjectId).IsRequired();
                 e.Property(x => x.CreatedByUserId).HasMaxLength(64).IsRequired();
                 e.HasIndex(x => x.ProjectId);
@@ -307,6 +311,64 @@ namespace ProjectManagement.Data
                     .HasForeignKey(x => x.CommentId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
+        }
+
+        public override int SaveChanges(bool acceptAllChangesOnSuccess)
+        {
+            PrepareRowVersionValues();
+            return base.SaveChanges(acceptAllChangesOnSuccess);
+        }
+
+        public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+        {
+            PrepareRowVersionValues();
+            return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+
+        private void PrepareRowVersionValues()
+        {
+            foreach (var entry in ChangeTracker.Entries())
+            {
+                if (entry.State != EntityState.Added && entry.State != EntityState.Modified)
+                {
+                    continue;
+                }
+
+                foreach (var property in entry.Properties)
+                {
+                    if (!property.Metadata.IsConcurrencyToken || property.Metadata.ClrType != typeof(byte[]))
+                    {
+                        continue;
+                    }
+
+                    var needsValue = entry.State == EntityState.Added
+                        ? property.CurrentValue is not byte[] bytes || bytes.Length == 0
+                        : true;
+
+                    if (!needsValue)
+                    {
+                        continue;
+                    }
+
+                    property.CurrentValue = Guid.NewGuid().ToByteArray();
+
+                    if (entry.State == EntityState.Modified)
+                    {
+                        property.IsModified = true;
+                    }
+                }
+            }
+        }
+
+        private static void ConfigureRowVersion<TEntity>(EntityTypeBuilder<TEntity> builder) where TEntity : class
+        {
+            var rowVersion = builder.Property<byte[]>(nameof(Project.RowVersion));
+            rowVersion.HasColumnType("bytea");
+            rowVersion.IsRequired();
+            rowVersion.IsConcurrencyToken();
+            rowVersion.ValueGeneratedNever();
+            rowVersion.Metadata.SetBeforeSaveBehavior(PropertySaveBehavior.Save);
+            rowVersion.Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Save);
         }
     }
 }

@@ -26,7 +26,7 @@ namespace ProjectManagement.Models
         [MaxLength(64)]
         public string CreatedByUserId { get; set; } = string.Empty;
 
-        [Timestamp]
+        [ConcurrencyCheck]
         public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
         public int? ActivePlanVersionNo { get; set; }
