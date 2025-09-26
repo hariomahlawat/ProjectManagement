@@ -1,0 +1,53 @@
+@model ProjectManagement.Services.Projects.ProcurementAtAGlanceVm
+@using System.Globalization
+@{
+    string Money(decimal? v) => v.HasValue ? v.Value.ToString("N2", CultureInfo.CurrentCulture) : "—";
+    string DateDmy(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
+}
+
+<div class="card">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <div class="d-flex align-items-center">
+      <i class="bi bi-receipt me-2" aria-hidden="true"></i>
+      <span class="fw-semibold">Procurement At-a-Glance</span>
+    </div>
+  </div>
+
+  <div class="card-body">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="d-flex justify-content-between">
+          <span class="text-muted">IPA Cost</span>
+          <span class="fw-semibold">@Money(Model.IpaCost)</span>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span class="text-muted">AON Cost</span>
+          <span class="fw-semibold">@Money(Model.AonCost)</span>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span class="text-muted">Benchmark Cost</span>
+          <span class="fw-semibold">@Money(Model.BenchmarkCost)</span>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="d-flex justify-content-between">
+          <span class="text-muted">L1 Cost</span>
+          <span class="fw-semibold">@Money(Model.L1Cost)</span>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span class="text-muted">PNC Cost</span>
+          <span class="fw-semibold">@Money(Model.PncCost)</span>
+        </div>
+        <div class="d-flex justify-content-between">
+          <span class="text-muted">Supply Order Date</span>
+          <span class="fw-semibold">@DateDmy(Model.SupplyOrderDate)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-2 small text-muted">
+      Latest recorded values. Edit from the relevant stage or the procurement edit pages.
+    </div>
+  </div>
+</div>

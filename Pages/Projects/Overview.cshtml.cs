@@ -1,3 +1,5 @@
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -6,6 +8,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Pages.Projects
 {
@@ -13,23 +16,26 @@ namespace ProjectManagement.Pages.Projects
     public class OverviewModel : PageModel
     {
         private readonly ApplicationDbContext _db;
+        private readonly ProjectProcurementReadService _procureRead;
 
-        public OverviewModel(ApplicationDbContext db)
+        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead)
         {
             _db = db;
+            _procureRead = procureRead;
         }
 
         public Project Project { get; private set; } = default!;
         public IList<ProjectStage> Stages { get; private set; } = new List<ProjectStage>();
         public IReadOnlyList<ProjectCategory> CategoryPath { get; private set; } = Array.Empty<ProjectCategory>();
+        public ProcurementAtAGlanceVm Procurement { get; private set; } = default!;
 
-        public async Task<IActionResult> OnGetAsync(int id)
+        public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
         {
             var project = await _db.Projects
                 .Include(p => p.Category)
                 .Include(p => p.HodUser)
                 .Include(p => p.LeadPoUser)
-                .FirstOrDefaultAsync(p => p.Id == id);
+                .FirstOrDefaultAsync(p => p.Id == id, ct);
 
             if (project is null)
             {
@@ -40,7 +46,7 @@ namespace ProjectManagement.Pages.Projects
 
             var projectStages = await _db.ProjectStages
                 .Where(s => s.ProjectId == id)
-                .ToListAsync();
+                .ToListAsync(ct);
 
             Stages = projectStages
                 .OrderBy(s => StageOrder(s.StageCode))
@@ -49,13 +55,15 @@ namespace ProjectManagement.Pages.Projects
 
             if (project.CategoryId.HasValue)
             {
-                CategoryPath = await BuildCategoryPathAsync(project.CategoryId.Value);
+                CategoryPath = await BuildCategoryPathAsync(project.CategoryId.Value, ct);
             }
+
+            Procurement = await _procureRead.GetAsync(id, ct);
 
             return Page();
         }
 
-        private async Task<IReadOnlyList<ProjectCategory>> BuildCategoryPathAsync(int categoryId)
+        private async Task<IReadOnlyList<ProjectCategory>> BuildCategoryPathAsync(int categoryId, CancellationToken ct)
         {
             var path = new List<ProjectCategory>();
             var visited = new HashSet<int>();
@@ -68,7 +76,7 @@ namespace ProjectManagement.Pages.Projects
                     break;
                 }
 
-                var category = await _db.ProjectCategories.AsNoTracking().FirstOrDefaultAsync(c => c.Id == currentId);
+                var category = await _db.ProjectCategories.AsNoTracking().FirstOrDefaultAsync(c => c.Id == currentId, ct);
                 if (category is null)
                 {
                     break;
