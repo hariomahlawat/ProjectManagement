@@ -28,6 +28,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
 using ProjectManagement.Utilities;
+using ProjectManagement.Services.Stages;
 
 var runForecastBackfill = args.Any(a => string.Equals(a, "--backfill-forecast", StringComparison.OrdinalIgnoreCase));
 
@@ -153,6 +154,7 @@ builder.Services.AddScoped<ProjectFactsReadService>();
 builder.Services.AddScoped<ProjectProcurementReadService>();
 builder.Services.AddScoped<ProjectTimelineReadService>();
 builder.Services.AddScoped<ProjectCommentService>();
+builder.Services.AddScoped<PlanReadService>();
 builder.Services.AddScoped<IScheduleEngine, ScheduleEngine>();
 builder.Services.AddScoped<IForecastWriter, ForecastWriter>();
 builder.Services.AddScoped<ForecastBackfillService>();
