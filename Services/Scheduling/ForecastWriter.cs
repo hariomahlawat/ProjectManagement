@@ -34,7 +34,7 @@ public class ForecastWriter : IForecastWriter
         }
 
         var project = await _db.Projects
-            .Include(p => p.Stages)
+            .Include(p => p.ProjectStages)
             .FirstOrDefaultAsync(p => p.Id == projectId, ct);
 
         if (project == null)
@@ -80,7 +80,7 @@ public class ForecastWriter : IForecastWriter
             .Where(sp => sp.PlanVersionId == planVersion.Id)
             .ToDictionaryAsync(sp => sp.StageCode, sp => sp.DurationDays, StringComparer.OrdinalIgnoreCase, ct);
 
-        var execution = project.Stages.ToDictionary(s => s.StageCode, StringComparer.OrdinalIgnoreCase);
+        var execution = project.ProjectStages.ToDictionary(s => s.StageCode, StringComparer.OrdinalIgnoreCase);
 
         var options = new ScheduleOptions(
             planVersion.SkipWeekends,
