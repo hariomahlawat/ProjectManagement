@@ -45,7 +45,7 @@ public static class StageFlowSeeder
             D("COB", "TEC"), D("COB", "BM"),
             D("PNC", "COB"),
             D("EAS", "COB"), D("EAS", "PNC"),
-            D("SO", "EAS"), D("DEVP", "SO"), D("ATC", "DEVP"), D("PAYMENT", "ATC")
+            D("SO", "EAS"), D("DEVP", "SO"), D("ATP", "DEVP"), D("PAYMENT", "ATP")
         };
 
         var changesMade = false;
