@@ -89,7 +89,7 @@
     }
 
     <div class="row g-3 mb-4">
-        <div class="col-lg-8">
+        <div class="col-lg-8 d-flex flex-column gap-3">
             <div class="card h-100">
                 <div class="card-header">Project details</div>
                 <div class="card-body">
@@ -117,9 +117,45 @@
                     </dl>
                 </div>
             </div>
+
+            <partial name="_ProjectProcurementAtAGlance" model="Model.Procurement" />
+
+            <div class="card">
+                <div class="card-header">Stage progress</div>
+                <div class="card-body">
+                    @if (!Model.Stages.Any())
+                    {
+                        <p class="mb-0 text-muted">No stage updates recorded yet.</p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Stage</th>
+                                        <th>Status</th>
+                                        <th>Completed On</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                @foreach (var stage in Model.Stages)
+                                {
+                                    <tr>
+                                        <td>@stage.StageCode</td>
+                                        <td>@stage.Status</td>
+                                        <td>@(stage.CompletedOn?.ToString("dd MMM yyyy") ?? "—")</td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
         </div>
-        <div class="col-lg-4">
-            <div class="card h-100">
+        <div class="col-lg-4 d-flex flex-column gap-3">
+            <div class="card">
                 <div class="card-header">Quick links</div>
                 <div class="card-body">
                     <ul class="list-unstyled mb-0">
@@ -134,15 +170,9 @@
                     </ul>
                 </div>
             </div>
+
+            <partial name="_ProjectTimeline" model="Model.Timeline" />
         </div>
-    </div>
-
-    <div class="mb-4">
-        <partial name="_ProjectProcurementAtAGlance" model="Model.Procurement" />
-    </div>
-
-    <div class="mb-4">
-        <partial name="_ProjectTimeline" model="Model.Timeline" />
     </div>
 
     <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasProcurement" aria-labelledby="offcanvasProcurementLabel">
@@ -155,39 +185,6 @@
         </div>
     </div>
 
-    <div class="card">
-        <div class="card-header">Stage progress</div>
-        <div class="card-body">
-            @if (!Model.Stages.Any())
-            {
-                <p class="mb-0 text-muted">No stage updates recorded yet.</p>
-            }
-            else
-            {
-                <div class="table-responsive">
-                    <table class="table align-middle mb-0">
-                        <thead>
-                            <tr>
-                                <th>Stage</th>
-                                <th>Status</th>
-                                <th>Completed On</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        @foreach (var stage in Model.Stages)
-                        {
-                            <tr>
-                                <td>@stage.StageCode</td>
-                                <td>@stage.Status</td>
-                                <td>@(stage.CompletedOn?.ToString("dd MMM yyyy") ?? "—")</td>
-                            </tr>
-                        }
-                        </tbody>
-                    </table>
-                </div>
-            }
-        </div>
-    </div>
 </div>
 
 @section Scripts {
