@@ -737,6 +737,7 @@ namespace ProjectManagement.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CaseFileNumber")
+                        .HasDatabaseName("UX_Projects_CaseFileNumber")
                         .IsUnique()
                         .HasFilter("\"CaseFileNumber\" IS NOT NULL");
 
