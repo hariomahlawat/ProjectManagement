@@ -1,0 +1,146 @@
+@page "{id:int}"
+@using ProjectManagement.Models
+@model ProjectManagement.Pages.Projects.OverviewModel
+@{
+    ViewData["Title"] = Model.Project.Name;
+}
+
+<div class="container-xxl">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-page="/Projects/Index">Projects</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Overview</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-3 gap-3">
+        <div>
+            <h1 class="h3 mb-1">
+                @Model.Project.Name
+                @if (!string.IsNullOrWhiteSpace(Model.Project.CaseFileNumber))
+                {
+                    <small class="text-muted">(@Model.Project.CaseFileNumber)</small>
+                }
+            </h1>
+            <div class="text-muted">Created on @Model.Project.CreatedAt.ToString("dd MMM yyyy")</div>
+        </div>
+        @if (User.IsInRole("Admin") || User.IsInRole("HoD"))
+        {
+            <a asp-page="/Projects/AssignRoles" asp-route-id="@Model.Project.Id" class="btn btn-outline-primary">Assign Roles</a>
+        }
+    </div>
+
+    @if (Model.Project.HodUserId == null || Model.Project.LeadPoUserId == null)
+    {
+        <div class="alert alert-warning d-flex align-items-center" role="alert">
+            <div class="me-3">
+                @if (Model.Project.HodUserId == null)
+                {
+                    <div>Head of Directorate not assigned.</div>
+                }
+                @if (Model.Project.LeadPoUserId == null)
+                {
+                    <div>Project Officer not assigned.</div>
+                }
+            </div>
+            @if (User.IsInRole("Admin") || User.IsInRole("HoD"))
+            {
+                <a asp-page="/Projects/AssignRoles" asp-route-id="@Model.Project.Id" class="btn btn-sm btn-warning">Assign Roles</a>
+            }
+        </div>
+    }
+
+    <div class="row g-3 mb-4">
+        <div class="col-lg-8">
+            <div class="card h-100">
+                <div class="card-header">Project details</div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Description</dt>
+                        <dd class="col-sm-8">@(!string.IsNullOrWhiteSpace(Model.Project.Description) ? Model.Project.Description : "—")</dd>
+
+                        <dt class="col-sm-4">Category</dt>
+                        <dd class="col-sm-8">
+                            @if (Model.CategoryPath.Any())
+                            {
+                                <span class="badge text-bg-light">@string.Join(" › ", Model.CategoryPath.Select(c => c.Name))</span>
+                            }
+                            else
+                            {
+                                <span>—</span>
+                            }
+                        </dd>
+
+                        <dt class="col-sm-4">Head of Directorate</dt>
+                        <dd class="col-sm-8">@DisplayUser(Model.Project.HodUser)</dd>
+
+                        <dt class="col-sm-4">Project Officer</dt>
+                        <dd class="col-sm-8">@DisplayUser(Model.Project.LeadPoUser)</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card h-100">
+                <div class="card-header">Quick links</div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li><a asp-page="/Projects/AssignRoles" asp-route-id="@Model.Project.Id">Assign or change roles</a></li>
+                        <li><a asp-page="/Projects/Create">Create another project</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Stage progress</div>
+        <div class="card-body">
+            @if (!Model.Stages.Any())
+            {
+                <p class="mb-0 text-muted">No stage updates recorded yet.</p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Stage</th>
+                                <th>Status</th>
+                                <th>Completed On</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var stage in Model.Stages)
+                        {
+                            <tr>
+                                <td>@stage.StageCode</td>
+                                <td>@stage.Status</td>
+                                <td>@(stage.CompletedOn?.ToString("dd MMM yyyy") ?? "—")</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@functions {
+    private static string DisplayUser(ApplicationUser? user)
+    {
+        if (user is null)
+        {
+            return "—";
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.FullName))
+        {
+            return user.FullName;
+        }
+
+        return user.UserName ?? "—";
+    }
+}
