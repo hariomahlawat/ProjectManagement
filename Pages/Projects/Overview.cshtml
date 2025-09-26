@@ -90,7 +90,7 @@
 
     <div class="row g-3 mb-4">
         <div class="col-lg-8 d-flex flex-column gap-3">
-            <div class="card h-100">
+            <div class="card">
                 <div class="card-header">Project details</div>
                 <div class="card-body">
                     <dl class="row mb-0">
@@ -155,22 +155,6 @@
             </div>
         </div>
         <div class="col-lg-4 d-flex flex-column gap-3">
-            <div class="card">
-                <div class="card-header">Quick links</div>
-                <div class="card-body">
-                    <ul class="list-unstyled mb-0">
-                        @if (User.IsInRole("Admin") || User.IsInRole("HoD"))
-                        {
-                            <li><a href="#"
-                                   data-bs-toggle="offcanvas"
-                                   data-bs-target="#offcanvasAssignRoles"
-                                   aria-controls="offcanvasAssignRoles">Assign or change roles</a></li>
-                        }
-                        <li><a asp-page="/Projects/Create">Create another project</a></li>
-                    </ul>
-                </div>
-            </div>
-
             <partial name="_ProjectTimeline" model="Model.Timeline" />
         </div>
     </div>
