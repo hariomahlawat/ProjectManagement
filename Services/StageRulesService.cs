@@ -82,9 +82,9 @@ public class StageRulesService
             }
         }
 
-        if (string.Equals(stage.Code, "EAS", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(stage.Code, StageCodes.EAS, StringComparison.OrdinalIgnoreCase))
         {
-            if (context.TryGetStage("PNC", out var pnc) && pnc.Status is not StageStatus.Completed and not StageStatus.Skipped)
+            if (context.TryGetStage(StageCodes.PNC, out var pnc) && pnc.Status is not StageStatus.Completed and not StageStatus.Skipped)
             {
                 return StageGuardResult.Deny("EAS cannot start until PNC is completed or skipped.");
             }
@@ -115,22 +115,22 @@ public class StageRulesService
             return StageGuardResult.Deny($"Start {stage.Code} before completing it.");
         }
 
-        if (string.Equals(stage.Code, "COB", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(stage.Code, StageCodes.COB, StringComparison.OrdinalIgnoreCase))
         {
-            if (!context.TryGetStage("TEC", out var tec) || tec.Status != StageStatus.Completed)
+            if (!context.TryGetStage(StageCodes.TEC, out var tec) || tec.Status != StageStatus.Completed)
             {
                 return StageGuardResult.Deny("COB cannot complete until TEC is completed.");
             }
 
-            if (!context.TryGetStage("BM", out var bench) || bench.Status != StageStatus.Completed)
+            if (!context.TryGetStage(StageCodes.BM, out var bench) || bench.Status != StageStatus.Completed)
             {
                 return StageGuardResult.Deny("COB cannot complete until Benchmarking (BM) is completed.");
             }
         }
 
-        if (string.Equals(stage.Code, "EAS", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(stage.Code, StageCodes.EAS, StringComparison.OrdinalIgnoreCase))
         {
-            if (context.TryGetStage("PNC", out var pnc) && pnc.Status is not StageStatus.Completed and not StageStatus.Skipped)
+            if (context.TryGetStage(StageCodes.PNC, out var pnc) && pnc.Status is not StageStatus.Completed and not StageStatus.Skipped)
             {
                 return StageGuardResult.Deny("EAS cannot complete until PNC is completed or skipped.");
             }
@@ -141,7 +141,7 @@ public class StageRulesService
 
     public StageGuardResult CanSkip(StageRulesContext context, string stageCode)
     {
-        if (!string.Equals(stageCode, "PNC", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(stageCode, StageCodes.PNC, StringComparison.OrdinalIgnoreCase))
         {
             return StageGuardResult.Deny("Only PNC can be skipped.");
         }

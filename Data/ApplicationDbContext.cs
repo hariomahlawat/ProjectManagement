@@ -49,6 +49,10 @@ namespace ProjectManagement.Data
             {
                 e.Property(x => x.Name).HasMaxLength(100).IsRequired();
                 e.HasIndex(x => x.Name);
+                e.Property(x => x.ProjectNumber).HasMaxLength(64);
+                e.HasIndex(x => x.ProjectNumber)
+                    .IsUnique()
+                    .HasFilter("\"ProjectNumber\" IS NOT NULL");
                 e.Property(x => x.RowVersion).IsRowVersion();
                 e.Property(x => x.CreatedByUserId).HasMaxLength(64).IsRequired();
                 e.HasOne(x => x.Category)
@@ -222,6 +226,9 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
                 e.Property(x => x.ForecastStart).HasColumnType("date");
                 e.Property(x => x.ForecastDue).HasColumnType("date");
+                e.ToTable("ProjectStages", tb =>
+                    tb.HasCheckConstraint("CK_ProjectStages_CompletedHasDate",
+                        "NOT(\"Status\" = 'Completed' AND \"CompletedOn\" IS NULL)"));
             });
 
             builder.Entity<StageShiftLog>(e =>
