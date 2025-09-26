@@ -26,7 +26,14 @@
                         <option value="">— Unassigned —</option>
                         @foreach (var u in Model.HodOptions)
                         {
-                            <option value="@u.Id" @(u.Id == Model.HodUserId ? "selected" : null)>@u.Name</option>
+                            if (u.Id == Model.HodUserId)
+                            {
+                                <option value="@u.Id" selected>@u.Name</option>
+                            }
+                            else
+                            {
+                                <option value="@u.Id">@u.Name</option>
+                            }
                         }
                     </select>
                 </div>
@@ -37,7 +44,14 @@
                         <option value="">— Unassigned —</option>
                         @foreach (var u in Model.PoOptions)
                         {
-                            <option value="@u.Id" @(u.Id == Model.PoUserId ? "selected" : null)>@u.Name</option>
+                            if (u.Id == Model.PoUserId)
+                            {
+                                <option value="@u.Id" selected>@u.Name</option>
+                            }
+                            else
+                            {
+                                <option value="@u.Id">@u.Name</option>
+                            }
                         }
                     </select>
                 </div>
