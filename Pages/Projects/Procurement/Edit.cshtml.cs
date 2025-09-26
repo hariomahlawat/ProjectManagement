@@ -1,11 +1,15 @@
+using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Execution;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.ViewModels;
 
@@ -43,6 +47,8 @@ namespace ProjectManagement.Pages.Projects.Procurement
 
             if (!ModelState.IsValid)
             {
+                TempData["Error"] = "Unable to save procurement details. Please review your input.";
+                TempData["OpenOffcanvas"] = "procurement";
                 return RedirectToPage("/Projects/Overview", new { id });
             }
 
@@ -50,6 +56,58 @@ namespace ProjectManagement.Pages.Projects.Procurement
             if (userId is null)
             {
                 return Forbid();
+            }
+
+            var stages = await _db.ProjectStages
+                .Where(s => s.ProjectId == id && s.StageCode != null)
+                .ToDictionaryAsync(s => s.StageCode!, s => s.Status, StringComparer.OrdinalIgnoreCase, ct);
+
+            bool Completed(string code) => stages.TryGetValue(code, out var status) && status == StageStatus.Completed;
+
+            var errors = new List<string>();
+
+            if (Input.IpaCost.HasValue && !Completed(ProcurementStageRules.StageForIpaCost))
+            {
+                errors.Add("IPA Cost cannot be set before IPA stage is completed.");
+            }
+
+            if (Input.AonCost.HasValue && !Completed(ProcurementStageRules.StageForAonCost))
+            {
+                errors.Add("AON Cost cannot be set before AON stage is completed.");
+            }
+
+            if (Input.BenchmarkCost.HasValue && !Completed(ProcurementStageRules.StageForBenchmarkCost))
+            {
+                errors.Add("Benchmark Cost cannot be set before BM stage is completed.");
+            }
+
+            if (Input.L1Cost.HasValue && !Completed(ProcurementStageRules.StageForL1Cost))
+            {
+                errors.Add("L1 Cost cannot be set before COB stage is completed.");
+            }
+
+            if (Input.PncCost.HasValue && !Completed(ProcurementStageRules.StageForPncCost))
+            {
+                errors.Add("PNC Cost cannot be set before PNC stage is completed.");
+            }
+
+            if (Input.SupplyOrderDate.HasValue && !Completed(ProcurementStageRules.StageForSupplyOrder))
+            {
+                errors.Add("Supply Order Date cannot be set before SO stage is completed.");
+            }
+
+            if (errors.Count > 0)
+            {
+                TempData["Error"] = string.Join(" ", errors);
+                TempData["OpenOffcanvas"] = "procurement";
+                return RedirectToPage("/Projects/Overview", new { id });
+            }
+
+            if (Input.SupplyOrderDate is { } date && date > DateOnly.FromDateTime(DateTime.UtcNow))
+            {
+                TempData["Error"] = "Supply Order Date cannot be in the future.";
+                TempData["OpenOffcanvas"] = "procurement";
+                return RedirectToPage("/Projects/Overview", new { id });
             }
 
             await using var tx = await _db.Database.BeginTransactionAsync(ct);
@@ -93,6 +151,7 @@ namespace ProjectManagement.Pages.Projects.Procurement
                 throw;
             }
 
+            TempData["Flash"] = "Procurement details updated.";
             return RedirectToPage("/Projects/Overview", new { id });
         }
     }

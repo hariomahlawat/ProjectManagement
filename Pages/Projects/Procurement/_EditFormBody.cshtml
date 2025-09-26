@@ -1,33 +1,74 @@
-@model ProjectManagement.ViewModels.ProcurementEditInput
+@model ProjectManagement.ViewModels.ProcurementEditVm
 
-<form method="post" asp-page="/Projects/Procurement/Edit" asp-route-id="@Model.ProjectId">
+<form method="post" asp-page="/Projects/Procurement/Edit" asp-route-id="@Model.Input.ProjectId">
     @Html.AntiForgeryToken()
-    <input type="hidden" name="Input.ProjectId" value="@Model.ProjectId" />
+    <input type="hidden" name="Input.ProjectId" value="@Model.Input.ProjectId" />
 
     <div class="row g-3">
         <div class="col-md-6">
             <label for="Input_IpaCost" class="form-label">IPA Cost</label>
-            <input class="form-control" id="Input_IpaCost" name="Input.IpaCost" value="@(Model.IpaCost?.ToString("0.##"))" />
+            <input class="form-control" id="Input_IpaCost" name="Input.IpaCost"
+                   value="@(Model.Input.IpaCost?.ToString("0.##"))"
+                   @(Model.CanEditIpaCost ? null : "disabled") />
+            @if (!Model.CanEditIpaCost)
+            {
+                <div class="form-text">Enabled after IPA stage is completed.</div>
+            }
         </div>
+
         <div class="col-md-6">
             <label for="Input_AonCost" class="form-label">AON Cost</label>
-            <input class="form-control" id="Input_AonCost" name="Input.AonCost" value="@(Model.AonCost?.ToString("0.##"))" />
+            <input class="form-control" id="Input_AonCost" name="Input.AonCost"
+                   value="@(Model.Input.AonCost?.ToString("0.##"))"
+                   @(Model.CanEditAonCost ? null : "disabled") />
+            @if (!Model.CanEditAonCost)
+            {
+                <div class="form-text">Enabled after AON stage is completed.</div>
+            }
         </div>
+
         <div class="col-md-6">
             <label for="Input_BenchmarkCost" class="form-label">Benchmark Cost</label>
-            <input class="form-control" id="Input_BenchmarkCost" name="Input.BenchmarkCost" value="@(Model.BenchmarkCost?.ToString("0.##"))" />
+            <input class="form-control" id="Input_BenchmarkCost" name="Input.BenchmarkCost"
+                   value="@(Model.Input.BenchmarkCost?.ToString("0.##"))"
+                   @(Model.CanEditBenchmarkCost ? null : "disabled") />
+            @if (!Model.CanEditBenchmarkCost)
+            {
+                <div class="form-text">Enabled after BM stage is completed.</div>
+            }
         </div>
+
         <div class="col-md-6">
             <label for="Input_L1Cost" class="form-label">L1 Cost</label>
-            <input class="form-control" id="Input_L1Cost" name="Input.L1Cost" value="@(Model.L1Cost?.ToString("0.##"))" />
+            <input class="form-control" id="Input_L1Cost" name="Input.L1Cost"
+                   value="@(Model.Input.L1Cost?.ToString("0.##"))"
+                   @(Model.CanEditL1Cost ? null : "disabled") />
+            @if (!Model.CanEditL1Cost)
+            {
+                <div class="form-text">Enabled after COB stage is completed.</div>
+            }
         </div>
+
         <div class="col-md-6">
             <label for="Input_PncCost" class="form-label">PNC Cost</label>
-            <input class="form-control" id="Input_PncCost" name="Input.PncCost" value="@(Model.PncCost?.ToString("0.##"))" />
+            <input class="form-control" id="Input_PncCost" name="Input.PncCost"
+                   value="@(Model.Input.PncCost?.ToString("0.##"))"
+                   @(Model.CanEditPncCost ? null : "disabled") />
+            @if (!Model.CanEditPncCost)
+            {
+                <div class="form-text">Enabled after PNC stage is completed.</div>
+            }
         </div>
+
         <div class="col-md-6">
             <label for="Input_SupplyOrderDate" class="form-label">Supply Order Date</label>
-            <input class="form-control" type="date" id="Input_SupplyOrderDate" name="Input.SupplyOrderDate" value="@(Model.SupplyOrderDate.HasValue ? Model.SupplyOrderDate.Value.ToString("yyyy-MM-dd") : null)" />
+            <input class="form-control" type="date" id="Input_SupplyOrderDate" name="Input.SupplyOrderDate"
+                   value="@(Model.Input.SupplyOrderDate.HasValue ? Model.Input.SupplyOrderDate.Value.ToString("yyyy-MM-dd") : null)"
+                   @(Model.CanEditSupplyOrderDate ? null : "disabled") />
+            @if (!Model.CanEditSupplyOrderDate)
+            {
+                <div class="form-text">Enabled after SO stage is completed.</div>
+            }
         </div>
     </div>
 
