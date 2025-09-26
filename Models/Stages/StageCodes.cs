@@ -40,18 +40,18 @@ public static class StageCodes
     private static readonly Dictionary<string, string> DisplayNames = new(StringComparer.OrdinalIgnoreCase)
     {
         [FS] = "Feasibility Study",
-        [IPA] = "IP (IPA)",
+        [IPA] = "In-Principle Approval",
         [SOW] = "SOW Vetting",
-        [AON] = "AON",
-        [BID] = "Bid Invitation / e-NIT",
+        [AON] = "Acceptance of Necessity",
+        [BID] = "Bidding/ Tendering",
         [TEC] = "Technical Evaluation",
         [BM] = "Benchmarking",
-        [COB] = "Commercial Opening",
+        [COB] = "Commercial Bid Opening",
         [PNC] = "PNC",
         [EAS] = "EAS Approval",
         [SO] = "Supply Order",
         [DEVP] = "Development",
-        [ATP] = "ATP",
+        [ATP] = "Acceptance Testing/ Trials",
         [PAYMENT] = "Payment"
     };
 
