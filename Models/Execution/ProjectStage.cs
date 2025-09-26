@@ -30,4 +30,8 @@ public class ProjectStage
 
     public DateOnly? ActualStart { get; set; }
     public DateOnly? CompletedOn { get; set; }
+
+    public bool IsAutoCompleted { get; set; }
+    public string? AutoCompletedFromCode { get; set; }
+    public bool RequiresBackfill { get; set; }
 }

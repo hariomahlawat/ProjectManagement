@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 
 namespace ProjectManagement.Services.Projects
@@ -31,6 +32,8 @@ namespace ProjectManagement.Services.Projects
                 userId,
                 fact => fact.IpaCost = ipaCost,
                 ct);
+
+            await ClearBackfillFlagAsync(projectId, StageCodes.IPA, ct);
 
             await _audit.LogAsync(
                 created ? "ProjectFacts.IpaCostCreated" : "ProjectFacts.IpaCostUpdated",
@@ -75,6 +78,8 @@ namespace ProjectManagement.Services.Projects
 
             await _db.SaveChangesAsync(ct);
 
+            await ClearBackfillFlagAsync(projectId, StageCodes.SOW, ct);
+
             await _audit.LogAsync(
                 created ? "ProjectFacts.SowSponsorsCreated" : "ProjectFacts.SowSponsorsUpdated",
                 userId: userId,
@@ -95,6 +100,8 @@ namespace ProjectManagement.Services.Projects
                 fact => fact.AonCost = aonCost,
                 ct);
 
+            await ClearBackfillFlagAsync(projectId, StageCodes.AON, ct);
+
             await _audit.LogAsync(
                 created ? "ProjectFacts.AonCostCreated" : "ProjectFacts.AonCostUpdated",
                 userId: userId,
@@ -113,6 +120,8 @@ namespace ProjectManagement.Services.Projects
                 userId,
                 fact => fact.BenchmarkCost = benchmarkCost,
                 ct);
+
+            await ClearBackfillFlagAsync(projectId, StageCodes.BM, ct);
 
             await _audit.LogAsync(
                 created ? "ProjectFacts.BenchmarkCostCreated" : "ProjectFacts.BenchmarkCostUpdated",
@@ -133,6 +142,8 @@ namespace ProjectManagement.Services.Projects
                 fact => fact.L1Cost = l1Cost,
                 ct);
 
+            await ClearBackfillFlagAsync(projectId, StageCodes.COB, ct);
+
             await _audit.LogAsync(
                 created ? "ProjectFacts.L1CostCreated" : "ProjectFacts.L1CostUpdated",
                 userId: userId,
@@ -151,6 +162,8 @@ namespace ProjectManagement.Services.Projects
                 userId,
                 fact => fact.PncCost = pncCost,
                 ct);
+
+            await ClearBackfillFlagAsync(projectId, StageCodes.PNC, ct);
 
             await _audit.LogAsync(
                 created ? "ProjectFacts.PncCostCreated" : "ProjectFacts.PncCostUpdated",
@@ -184,6 +197,8 @@ namespace ProjectManagement.Services.Projects
             }
 
             await _db.SaveChangesAsync(ct);
+
+            await ClearBackfillFlagAsync(projectId, StageCodes.SO, ct);
 
             await _audit.LogAsync(
                 created ? "ProjectFacts.SupplyOrderDateCreated" : "ProjectFacts.SupplyOrderDateUpdated",
@@ -219,6 +234,21 @@ namespace ProjectManagement.Services.Projects
 
             await _db.SaveChangesAsync(ct);
             return created;
+        }
+
+        private async Task ClearBackfillFlagAsync(int projectId, string stageCode, CancellationToken ct)
+        {
+            var stage = await _db.ProjectStages.SingleOrDefaultAsync(
+                s => s.ProjectId == projectId && s.StageCode == stageCode,
+                ct);
+
+            if (stage is null || !stage.RequiresBackfill)
+            {
+                return;
+            }
+
+            stage.RequiresBackfill = false;
+            await _db.SaveChangesAsync(ct);
         }
     }
 }

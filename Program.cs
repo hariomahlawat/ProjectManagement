@@ -149,6 +149,7 @@ builder.Services.AddScoped<PlanApprovalService>();
 builder.Services.AddScoped<StageRulesService>();
 builder.Services.AddScoped<StageProgressService>();
 builder.Services.AddScoped<ProjectFactsService>();
+builder.Services.AddScoped<ProjectFactsReadService>();
 builder.Services.AddScoped<ProjectProcurementReadService>();
 builder.Services.AddScoped<ProjectTimelineReadService>();
 builder.Services.AddScoped<ProjectCommentService>();

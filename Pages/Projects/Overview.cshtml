@@ -52,6 +52,16 @@
         </div>
     }
 
+    @if (Model.HasBackfill)
+    {
+        <div class="alert alert-warning d-flex align-items-center justify-content-between" role="alert">
+            <div>
+                <strong>Action needed:</strong> Some earlier stages were auto-completed and need dates or costs.
+            </div>
+            <a class="btn btn-sm btn-outline-warning" asp-page="/Projects/Procurement/Edit" asp-route-id="@Model.Project.Id">Backfill now</a>
+        </div>
+    }
+
     @if (project?.HodUserId == null || project?.LeadPoUserId == null)
     {
         <div class="alert alert-warning d-flex align-items-center" role="alert">

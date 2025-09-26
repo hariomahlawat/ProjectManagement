@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using ProjectManagement.Models.Execution;
 
 namespace ProjectManagement.ViewModels;
@@ -8,6 +10,8 @@ public sealed class TimelineVm
     public int TotalStages { get; init; }
     public int CompletedCount { get; init; }
     public IReadOnlyList<TimelineItemVm> Items { get; init; } = Array.Empty<TimelineItemVm>();
+
+    public bool HasBackfill => Items.Any(i => i.RequiresBackfill);
 }
 
 public sealed class TimelineItemVm
@@ -20,6 +24,10 @@ public sealed class TimelineItemVm
     public DateOnly? PlannedEnd { get; init; }
     public DateOnly? ActualStart { get; init; }
     public DateOnly? CompletedOn { get; init; }
+
+    public bool IsAutoCompleted { get; init; }
+    public string? AutoCompletedFromCode { get; init; }
+    public bool RequiresBackfill { get; init; }
 
     public int SortOrder { get; init; }
     public int? PlannedDurationDays =>

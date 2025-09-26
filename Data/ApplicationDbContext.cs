@@ -232,6 +232,7 @@ namespace ProjectManagement.Data
             {
                 e.HasIndex(x => new { x.ProjectId, x.StageCode }).IsUnique();
                 e.Property(x => x.StageCode).HasMaxLength(16);
+                e.Property(x => x.AutoCompletedFromCode).HasMaxLength(16);
                 e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
                 e.Property(x => x.ForecastStart).HasColumnType("date");
                 e.Property(x => x.ForecastDue).HasColumnType("date");

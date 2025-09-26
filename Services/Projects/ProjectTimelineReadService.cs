@@ -1,3 +1,4 @@
+using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
@@ -32,6 +33,9 @@ public sealed class ProjectTimelineReadService
                 PlannedEnd = null,
                 ActualStart = r?.ActualStart,
                 CompletedOn = r?.CompletedOn,
+                IsAutoCompleted = r?.IsAutoCompleted ?? false,
+                AutoCompletedFromCode = r?.AutoCompletedFromCode,
+                RequiresBackfill = r?.RequiresBackfill ?? false,
                 SortOrder = index++
             });
         }
