@@ -18,6 +18,9 @@ namespace ProjectManagement.Models
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        [MaxLength(64)]
+        public string? ProjectNumber { get; set; }
+
         [Required]
         [MaxLength(64)]
         public string CreatedByUserId { get; set; } = string.Empty;

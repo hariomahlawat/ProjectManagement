@@ -22,30 +22,30 @@ public static class StageFlowSeeder
 
         var stages = new[]
         {
-            new StageTemplate { Version = version, Code = "FS",  Name = "Feasibility Study",              Sequence = 10 },
-            new StageTemplate { Version = version, Code = "IPA",   Name = "In-Principle Approval",          Sequence = 20 },
-            new StageTemplate { Version = version, Code = "SOW",   Name = "Scope of Work Vetting",          Sequence = 30 },
-            new StageTemplate { Version = version, Code = "AON",   Name = "Acceptance of Necessity",        Sequence = 40 },
-            new StageTemplate { Version = version, Code = "BID",   Name = "Bid Upload",                     Sequence = 50 },
-            new StageTemplate { Version = version, Code = "TEC",   Name = "Technical Evaluation Committee", Sequence = 60 },
-            new StageTemplate { Version = version, Code = "BM", Name = "Benchmarking",                   Sequence = 65, ParallelGroup = "PRE_COB" },
-            new StageTemplate { Version = version, Code = "COB",   Name = "Commercial Opening Board",       Sequence = 70 },
-            new StageTemplate { Version = version, Code = "PNC",   Name = "Price Negotiation Committee",    Sequence = 80, Optional = true },
-            new StageTemplate { Version = version, Code = "EAS",   Name = "Expenditure Angle Sanction",     Sequence = 90 },
-            new StageTemplate { Version = version, Code = "SO",    Name = "Supply Order",                   Sequence = 100 },
-            new StageTemplate { Version = version, Code = "DEVP",   Name = "Development",                    Sequence = 110 },
-            new StageTemplate { Version = version, Code = "ATP",    Name = "Acceptance Testing",             Sequence = 120 },
-            new StageTemplate { Version = version, Code = "PAYMENT",   Name = "Payment",                        Sequence = 130 },
+            new StageTemplate { Version = version, Code = StageCodes.FS,  Name = "Feasibility Study",              Sequence = 10 },
+            new StageTemplate { Version = version, Code = StageCodes.IPA,   Name = "In-Principle Approval",          Sequence = 20 },
+            new StageTemplate { Version = version, Code = StageCodes.SOW,   Name = "Scope of Work Vetting",          Sequence = 30 },
+            new StageTemplate { Version = version, Code = StageCodes.AON,   Name = "Acceptance of Necessity",        Sequence = 40 },
+            new StageTemplate { Version = version, Code = StageCodes.BID,   Name = "Bid Upload",                     Sequence = 50 },
+            new StageTemplate { Version = version, Code = StageCodes.TEC,   Name = "Technical Evaluation Committee", Sequence = 60 },
+            new StageTemplate { Version = version, Code = StageCodes.BM, Name = "Benchmarking",                   Sequence = 65, ParallelGroup = "PRE_COB" },
+            new StageTemplate { Version = version, Code = StageCodes.COB,   Name = "Commercial Opening Board",       Sequence = 70 },
+            new StageTemplate { Version = version, Code = StageCodes.PNC,   Name = "Price Negotiation Committee",    Sequence = 80, Optional = true },
+            new StageTemplate { Version = version, Code = StageCodes.EAS,   Name = "Expenditure Angle Sanction",     Sequence = 90 },
+            new StageTemplate { Version = version, Code = StageCodes.SO,    Name = "Supply Order",                   Sequence = 100 },
+            new StageTemplate { Version = version, Code = StageCodes.DEVP,   Name = "Development",                    Sequence = 110 },
+            new StageTemplate { Version = version, Code = StageCodes.ATP,    Name = "Acceptance Testing",             Sequence = 120 },
+            new StageTemplate { Version = version, Code = StageCodes.PAYMENT,   Name = "Payment",                        Sequence = 130 },
         };
 
         var deps = new[]
         {
-            D("IPA", "FS"), D("SOW", "IPA"), D("AON", "SOW"), D("BID", "AON"),
-            D("TEC", "BID"), D("BM", "BID"),
-            D("COB", "TEC"), D("COB", "BM"),
-            D("PNC", "COB"),
-            D("EAS", "COB"), D("EAS", "PNC"),
-            D("SO", "EAS"), D("DEVP", "SO"), D("ATP", "DEVP"), D("PAYMENT", "ATP")
+            D(StageCodes.IPA, StageCodes.FS), D(StageCodes.SOW, StageCodes.IPA), D(StageCodes.AON, StageCodes.SOW), D(StageCodes.BID, StageCodes.AON),
+            D(StageCodes.TEC, StageCodes.BID), D(StageCodes.BM, StageCodes.BID),
+            D(StageCodes.COB, StageCodes.TEC), D(StageCodes.COB, StageCodes.BM),
+            D(StageCodes.PNC, StageCodes.COB),
+            D(StageCodes.EAS, StageCodes.COB), D(StageCodes.EAS, StageCodes.PNC),
+            D(StageCodes.SO, StageCodes.EAS), D(StageCodes.DEVP, StageCodes.SO), D(StageCodes.ATP, StageCodes.DEVP), D(StageCodes.PAYMENT, StageCodes.ATP)
         };
 
         var changesMade = false;

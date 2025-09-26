@@ -13,20 +13,20 @@ public class PlanCalculatorTests
     {
         return new List<StageTemplate>
         {
-            new() { Code = "FS", Name = "Feasibility", Sequence = 10 },
-            new() { Code = "IPA", Name = "In-Principle Approval", Sequence = 20 },
-            new() { Code = "SOW", Name = "Scope of Work", Sequence = 30 },
-            new() { Code = "AON", Name = "Acceptance of Necessity", Sequence = 40 },
-            new() { Code = "BID", Name = "Bid Upload", Sequence = 50 },
-            new() { Code = "TEC", Name = "Technical Evaluation", Sequence = 60 },
-            new() { Code = "BM", Name = "Benchmarking", Sequence = 65, ParallelGroup = "PRE_COB" },
-            new() { Code = "COB", Name = "Commercial Opening Board", Sequence = 70 },
-            new() { Code = "PNC", Name = "Price Negotiation Committee", Sequence = 80, Optional = true },
-            new() { Code = "EAS", Name = "Expenditure Angle Sanction", Sequence = 90 },
-            new() { Code = "SO", Name = "Supply Order", Sequence = 100 },
-            new() { Code = "DEVP", Name = "Development", Sequence = 110 },
-            new() { Code = "ATC", Name = "Acceptance Testing", Sequence = 120 },
-            new() { Code = "PAYMENT", Name = "Payment", Sequence = 130 }
+            new() { Code = StageCodes.FS, Name = "Feasibility", Sequence = 10 },
+            new() { Code = StageCodes.IPA, Name = "In-Principle Approval", Sequence = 20 },
+            new() { Code = StageCodes.SOW, Name = "Scope of Work", Sequence = 30 },
+            new() { Code = StageCodes.AON, Name = "Acceptance of Necessity", Sequence = 40 },
+            new() { Code = StageCodes.BID, Name = "Bid Upload", Sequence = 50 },
+            new() { Code = StageCodes.TEC, Name = "Technical Evaluation", Sequence = 60 },
+            new() { Code = StageCodes.BM, Name = "Benchmarking", Sequence = 65, ParallelGroup = "PRE_COB" },
+            new() { Code = StageCodes.COB, Name = "Commercial Opening Board", Sequence = 70 },
+            new() { Code = StageCodes.PNC, Name = "Price Negotiation Committee", Sequence = 80, Optional = true },
+            new() { Code = StageCodes.EAS, Name = "Expenditure Angle Sanction", Sequence = 90 },
+            new() { Code = StageCodes.SO, Name = "Supply Order", Sequence = 100 },
+            new() { Code = StageCodes.DEVP, Name = "Development", Sequence = 110 },
+            new() { Code = StageCodes.ATP, Name = "Acceptance Testing", Sequence = 120 },
+            new() { Code = StageCodes.PAYMENT, Name = "Payment", Sequence = 130 }
         };
     }
 
@@ -34,21 +34,21 @@ public class PlanCalculatorTests
     {
         return new List<StageDependencyTemplate>
         {
-            new() { FromStageCode = "IPA", DependsOnStageCode = "FS" },
-            new() { FromStageCode = "SOW", DependsOnStageCode = "IPA" },
-            new() { FromStageCode = "AON", DependsOnStageCode = "SOW" },
-            new() { FromStageCode = "BID", DependsOnStageCode = "AON" },
-            new() { FromStageCode = "TEC", DependsOnStageCode = "BID" },
-            new() { FromStageCode = "BM", DependsOnStageCode = "BID" },
-            new() { FromStageCode = "COB", DependsOnStageCode = "TEC" },
-            new() { FromStageCode = "COB", DependsOnStageCode = "BM" },
-            new() { FromStageCode = "PNC", DependsOnStageCode = "COB" },
-            new() { FromStageCode = "EAS", DependsOnStageCode = "COB" },
-            new() { FromStageCode = "EAS", DependsOnStageCode = "PNC" },
-            new() { FromStageCode = "SO", DependsOnStageCode = "EAS" },
-            new() { FromStageCode = "DEVP", DependsOnStageCode = "SO" },
-            new() { FromStageCode = "ATC", DependsOnStageCode = "DEVP" },
-            new() { FromStageCode = "PAYMENT", DependsOnStageCode = "ATC" }
+            new() { FromStageCode = StageCodes.IPA, DependsOnStageCode = StageCodes.FS },
+            new() { FromStageCode = StageCodes.SOW, DependsOnStageCode = StageCodes.IPA },
+            new() { FromStageCode = StageCodes.AON, DependsOnStageCode = StageCodes.SOW },
+            new() { FromStageCode = StageCodes.BID, DependsOnStageCode = StageCodes.AON },
+            new() { FromStageCode = StageCodes.TEC, DependsOnStageCode = StageCodes.BID },
+            new() { FromStageCode = StageCodes.BM, DependsOnStageCode = StageCodes.BID },
+            new() { FromStageCode = StageCodes.COB, DependsOnStageCode = StageCodes.TEC },
+            new() { FromStageCode = StageCodes.COB, DependsOnStageCode = StageCodes.BM },
+            new() { FromStageCode = StageCodes.PNC, DependsOnStageCode = StageCodes.COB },
+            new() { FromStageCode = StageCodes.EAS, DependsOnStageCode = StageCodes.COB },
+            new() { FromStageCode = StageCodes.EAS, DependsOnStageCode = StageCodes.PNC },
+            new() { FromStageCode = StageCodes.SO, DependsOnStageCode = StageCodes.EAS },
+            new() { FromStageCode = StageCodes.DEVP, DependsOnStageCode = StageCodes.SO },
+            new() { FromStageCode = StageCodes.ATP, DependsOnStageCode = StageCodes.DEVP },
+            new() { FromStageCode = StageCodes.PAYMENT, DependsOnStageCode = StageCodes.ATP }
         };
     }
 
@@ -63,18 +63,18 @@ public class PlanCalculatorTests
         var calculator = CreateCalculator();
         var durations = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
         {
-            ["IPA"] = 1,
-            ["SOW"] = 5,
-            ["AON"] = 1,
-            ["BID"] = 10,
-            ["TEC"] = 3,
-            ["BM"] = 4,
-            ["COB"] = 2,
-            ["EAS"] = 5
+            [StageCodes.IPA] = 1,
+            [StageCodes.SOW] = 5,
+            [StageCodes.AON] = 1,
+            [StageCodes.BID] = 10,
+            [StageCodes.TEC] = 3,
+            [StageCodes.BM] = 4,
+            [StageCodes.COB] = 2,
+            [StageCodes.EAS] = 5
         };
 
         var options = new PlanCalculatorOptions(
-            "IPA",
+            StageCodes.IPA,
             new DateOnly(2024, 1, 2),
             SkipWeekends: true,
             TransitionRule: PlanTransitionRule.NextWorkingDay,
@@ -84,9 +84,9 @@ public class PlanCalculatorTests
 
         var schedule = calculator.Compute(options);
 
-        Assert.False(schedule.ContainsKey("PNC"));
-        Assert.True(schedule.TryGetValue("COB", out var cob));
-        Assert.True(schedule.TryGetValue("EAS", out var eas));
+        Assert.False(schedule.ContainsKey(StageCodes.PNC));
+        Assert.True(schedule.TryGetValue(StageCodes.COB, out var cob));
+        Assert.True(schedule.TryGetValue(StageCodes.EAS, out var eas));
         Assert.Equal(cob.due.AddDays(1), eas.start);
     }
 
@@ -96,19 +96,19 @@ public class PlanCalculatorTests
         var calculator = CreateCalculator();
         var durations = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
         {
-            ["IPA"] = 2,
-            ["SOW"] = 4,
-            ["AON"] = 2,
-            ["BID"] = 6,
-            ["TEC"] = 3,
-            ["BM"] = 2,
-            ["COB"] = 2,
-            ["PNC"] = 7,
-            ["EAS"] = 5
+            [StageCodes.IPA] = 2,
+            [StageCodes.SOW] = 4,
+            [StageCodes.AON] = 2,
+            [StageCodes.BID] = 6,
+            [StageCodes.TEC] = 3,
+            [StageCodes.BM] = 2,
+            [StageCodes.COB] = 2,
+            [StageCodes.PNC] = 7,
+            [StageCodes.EAS] = 5
         };
 
         var options = new PlanCalculatorOptions(
-            "IPA",
+            StageCodes.IPA,
             new DateOnly(2024, 4, 8),
             SkipWeekends: true,
             TransitionRule: PlanTransitionRule.NextWorkingDay,
@@ -118,9 +118,9 @@ public class PlanCalculatorTests
 
         var schedule = calculator.Compute(options);
 
-        Assert.True(schedule.ContainsKey("PNC"));
-        Assert.True(schedule.TryGetValue("PNC", out var pnc));
-        Assert.True(schedule.TryGetValue("EAS", out var eas));
+        Assert.True(schedule.ContainsKey(StageCodes.PNC));
+        Assert.True(schedule.TryGetValue(StageCodes.PNC, out var pnc));
+        Assert.True(schedule.TryGetValue(StageCodes.EAS, out var eas));
         Assert.Equal(pnc.due.AddDays(1), eas.start);
     }
 
@@ -130,12 +130,12 @@ public class PlanCalculatorTests
         var calculator = CreateCalculator();
         var durations = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
         {
-            ["IPA"] = 1,
-            ["SOW"] = 1
+            [StageCodes.IPA] = 1,
+            [StageCodes.SOW] = 1
         };
 
         var options = new PlanCalculatorOptions(
-            "IPA",
+            StageCodes.IPA,
             new DateOnly(2024, 1, 5),
             SkipWeekends: true,
             TransitionRule: PlanTransitionRule.NextWorkingDay,
@@ -145,7 +145,7 @@ public class PlanCalculatorTests
 
         var schedule = calculator.Compute(options);
 
-        Assert.True(schedule.TryGetValue("SOW", out var sow));
+        Assert.True(schedule.TryGetValue(StageCodes.SOW, out var sow));
         Assert.Equal(new DateOnly(2024, 1, 8), sow.start);
     }
 
@@ -155,12 +155,12 @@ public class PlanCalculatorTests
         var calculator = CreateCalculator();
         var durations = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
         {
-            ["IPA"] = 3,
-            ["SOW"] = 2
+            [StageCodes.IPA] = 3,
+            [StageCodes.SOW] = 2
         };
 
         var options = new PlanCalculatorOptions(
-            "IPA",
+            StageCodes.IPA,
             new DateOnly(2024, 2, 1),
             SkipWeekends: false,
             TransitionRule: PlanTransitionRule.SameDay,
@@ -170,8 +170,8 @@ public class PlanCalculatorTests
 
         var schedule = calculator.Compute(options);
 
-        Assert.True(schedule.TryGetValue("IPA", out var ipa));
-        Assert.True(schedule.TryGetValue("SOW", out var sow));
+        Assert.True(schedule.TryGetValue(StageCodes.IPA, out var ipa));
+        Assert.True(schedule.TryGetValue(StageCodes.SOW, out var sow));
         Assert.Equal(ipa.due, sow.start);
     }
 
@@ -181,20 +181,20 @@ public class PlanCalculatorTests
         var calculator = CreateCalculator();
         var durations = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
         {
-            ["IPA"] = 1,
-            ["SOW"] = 1,
-            ["AON"] = 1,
-            ["BID"] = 1,
-            ["TEC"] = 2
+            [StageCodes.IPA] = 1,
+            [StageCodes.SOW] = 1,
+            [StageCodes.AON] = 1,
+            [StageCodes.BID] = 1,
+            [StageCodes.TEC] = 2
         };
 
         var overrides = new Dictionary<string, PlanCalculatorManualOverride>(StringComparer.OrdinalIgnoreCase)
         {
-            ["TEC"] = new(new DateOnly(2024, 3, 15), null)
+            [StageCodes.TEC] = new(new DateOnly(2024, 3, 15), null)
         };
 
         var options = new PlanCalculatorOptions(
-            "IPA",
+            StageCodes.IPA,
             new DateOnly(2024, 3, 1),
             SkipWeekends: false,
             TransitionRule: PlanTransitionRule.NextWorkingDay,
@@ -204,7 +204,7 @@ public class PlanCalculatorTests
 
         var schedule = calculator.Compute(options);
 
-        Assert.True(schedule.TryGetValue("TEC", out var tec));
+        Assert.True(schedule.TryGetValue(StageCodes.TEC, out var tec));
         Assert.Equal(new DateOnly(2024, 3, 15), tec.start);
     }
 }

@@ -140,6 +140,7 @@ builder.Services.AddHostedService<TodoPurgeWorker>();
 builder.Services.AddScoped<PlanDraftService>();
 builder.Services.AddScoped<PlanApprovalService>();
 builder.Services.AddScoped<StageRulesService>();
+builder.Services.AddScoped<StageProgressService>();
 builder.Services.AddScoped<ProjectCommentService>();
 builder.Services.AddScoped<IScheduleEngine, ScheduleEngine>();
 builder.Services.AddScoped<IForecastWriter, ForecastWriter>();
