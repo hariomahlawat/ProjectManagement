@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.AspNetCore.Authorization;
@@ -38,6 +39,7 @@ namespace ProjectManagement.Pages.Projects
             public int ProjectId { get; set; }
             public string? HodUserId { get; set; }
             public string? PoUserId { get; set; }
+            public string? RowVersion { get; set; }
         }
 
         public async Task<IActionResult> OnGetAsync(int id)
@@ -52,6 +54,7 @@ namespace ProjectManagement.Pages.Projects
             Input.ProjectId = project.Id;
             Input.HodUserId = project.HodUserId;
             Input.PoUserId = project.LeadPoUserId;
+            Input.RowVersion = Convert.ToBase64String(project.RowVersion);
 
             await LoadListsAsync();
             return Page();
@@ -68,10 +71,40 @@ namespace ProjectManagement.Pages.Projects
             var previousHod = project.HodUserId;
             var previousPo = project.LeadPoUserId;
 
+            if (!string.IsNullOrEmpty(Input.RowVersion))
+            {
+                try
+                {
+                    var rowVersion = Convert.FromBase64String(Input.RowVersion);
+                    _db.Entry(project).Property(p => p.RowVersion).OriginalValue = rowVersion;
+                }
+                catch (FormatException)
+                {
+                    TempData["Error"] = "Unable to process the request. Please reload and try again.";
+                    TempData["OpenOffcanvas"] = "assign-roles";
+                    return RedirectToPage("/Projects/Overview", new { id = project.Id });
+                }
+            }
+            else
+            {
+                TempData["Error"] = "Unable to process the request. Please reload and try again.";
+                TempData["OpenOffcanvas"] = "assign-roles";
+                return RedirectToPage("/Projects/Overview", new { id = project.Id });
+            }
+
             project.HodUserId = string.IsNullOrWhiteSpace(Input.HodUserId) ? null : Input.HodUserId;
             project.LeadPoUserId = string.IsNullOrWhiteSpace(Input.PoUserId) ? null : Input.PoUserId;
 
-            await _db.SaveChangesAsync();
+            try
+            {
+                await _db.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                TempData["Error"] = "The project was updated by someone else. Please reload and try again.";
+                TempData["OpenOffcanvas"] = "assign-roles";
+                return RedirectToPage("/Projects/Overview", new { id = project.Id });
+            }
 
             var currentUserId = _users.GetUserId(User);
             var currentUserName = User.Identity?.Name;
@@ -90,6 +123,8 @@ namespace ProjectManagement.Pages.Projects
                 userId: currentUserId,
                 userName: currentUserName
             );
+
+            TempData["Flash"] = "Roles updated.";
 
             return RedirectToPage("/Projects/Overview", new { id = project.Id });
         }

@@ -24,15 +24,16 @@
             </h1>
             <div class="text-muted">Created on @Model.Project.CreatedAt.ToString("dd MMM yyyy")</div>
         </div>
-        @if (User.IsInRole("Admin") || User.IsInRole("HoD"))
-        {
-            <a asp-page="/Projects/AssignRoles" asp-route-id="@Model.Project.Id" class="btn btn-outline-primary">Assign Roles</a>
-        }
+        <partial name="_AssignRolesOffcanvas" model="Model.AssignRoles" />
     </div>
 
     @if (TempData["OpenOffcanvas"] as string == "procurement")
     {
         <div id="open-procurement" data-open="1"></div>
+    }
+    @if (TempData["OpenOffcanvas"] as string == "assign-roles")
+    {
+        <div id="open-assign-roles" data-open="1"></div>
     }
     @if (TempData["Error"] is string err)
     {
@@ -64,7 +65,13 @@
             </div>
             @if (User.IsInRole("Admin") || User.IsInRole("HoD"))
             {
-                <a asp-page="/Projects/AssignRoles" asp-route-id="@Model.Project.Id" class="btn btn-sm btn-warning">Assign Roles</a>
+                <button type="button"
+                        class="btn btn-sm btn-warning"
+                        data-bs-toggle="offcanvas"
+                        data-bs-target="#offcanvasAssignRoles"
+                        aria-controls="offcanvasAssignRoles">
+                    Assign Roles
+                </button>
             }
         </div>
     }
@@ -104,7 +111,13 @@
                 <div class="card-header">Quick links</div>
                 <div class="card-body">
                     <ul class="list-unstyled mb-0">
-                        <li><a asp-page="/Projects/AssignRoles" asp-route-id="@Model.Project.Id">Assign or change roles</a></li>
+                        @if (User.IsInRole("Admin") || User.IsInRole("HoD"))
+                        {
+                            <li><a href="#"
+                                   data-bs-toggle="offcanvas"
+                                   data-bs-target="#offcanvasAssignRoles"
+                                   aria-controls="offcanvasAssignRoles">Assign or change roles</a></li>
+                        }
                         <li><a asp-page="/Projects/Create">Create another project</a></li>
                     </ul>
                 </div>

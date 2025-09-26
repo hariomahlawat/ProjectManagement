@@ -1,0 +1,51 @@
+@model ProjectManagement.ViewModels.AssignRolesVm
+
+@if (User.IsInRole("Admin") || User.IsInRole("HoD"))
+{
+    <button class="btn btn-sm btn-outline-secondary"
+            data-bs-toggle="offcanvas"
+            data-bs-target="#offcanvasAssignRoles"
+            aria-controls="offcanvasAssignRoles">
+        Assign Roles
+    </button>
+
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasAssignRoles" aria-labelledby="offcanvasAssignRolesLabel">
+        <div class="offcanvas-header">
+            <h5 id="offcanvasAssignRolesLabel" class="mb-0">Assign Roles</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+            <form method="post" asp-page="/Projects/AssignRoles">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="Input.ProjectId" value="@Model.ProjectId" />
+                <input type="hidden" name="Input.RowVersion" value="@Convert.ToBase64String(Model.RowVersion)" />
+
+                <div class="mb-3">
+                    <label class="form-label" for="HodUserId">Head of Department</label>
+                    <select id="HodUserId" name="Input.HodUserId" class="form-select">
+                        <option value="">— Unassigned —</option>
+                        @foreach (var u in Model.HodOptions)
+                        {
+                            <option value="@u.Id" @(u.Id == Model.HodUserId ? "selected" : null)>@u.Name</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="PoUserId">Project Officer</label>
+                    <select id="PoUserId" name="Input.PoUserId" class="form-select">
+                        <option value="">— Unassigned —</option>
+                        @foreach (var u in Model.PoOptions)
+                        {
+                            <option value="@u.Id" @(u.Id == Model.PoUserId ? "selected" : null)>@u.Name</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="d-flex justify-content-end">
+                    <button class="btn btn-primary" type="submit">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
