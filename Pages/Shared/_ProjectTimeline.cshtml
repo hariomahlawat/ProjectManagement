@@ -1,12 +1,13 @@
 @model ProjectManagement.ViewModels.TimelineVm
 @using System.Globalization
+@using ProjectManagement.Models.Execution
 @functions{
     string D(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
-    string StatusChip(ProjectManagement.Models.Stages.StageStatus s) =>
+    string StatusChip(StageStatus s) =>
         s switch {
-            ProjectManagement.Models.Stages.StageStatus.Completed  => "badge bg-success",
-            ProjectManagement.Models.Stages.StageStatus.InProgress => "badge bg-primary",
-            _                                                     => "badge bg-secondary"
+            StageStatus.Completed  => "badge bg-success",
+            StageStatus.InProgress => "badge bg-primary",
+            _                      => "badge bg-secondary"
         };
 }
 <link rel="stylesheet" href="~/css/projects/timeline.css" />
@@ -31,9 +32,9 @@
       @foreach (var s in Model.Items.OrderBy(i => i.SortOrder))
       {
         var itemClass = s.Status switch {
-          ProjectManagement.Models.Stages.StageStatus.Completed  => "pm-item is-complete",
-          ProjectManagement.Models.Stages.StageStatus.InProgress => "pm-item is-active",
-          _                                                     => "pm-item"
+          StageStatus.Completed  => "pm-item is-complete",
+          StageStatus.InProgress => "pm-item is-active",
+          _                      => "pm-item"
         };
         <li class="@itemClass">
           <div class="pm-marker" aria-hidden="true"></div>
