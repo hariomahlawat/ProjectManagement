@@ -55,6 +55,7 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => x.Name);
                 e.Property(x => x.CaseFileNumber).HasMaxLength(64);
                 e.HasIndex(x => x.CaseFileNumber)
+                    .HasDatabaseName("UX_Projects_CaseFileNumber")
                     .IsUnique()
                     .HasFilter("\"CaseFileNumber\" IS NOT NULL");
                 ConfigureRowVersion(e);
