@@ -2,7 +2,8 @@
 @using ProjectManagement.Models
 @model ProjectManagement.Pages.Projects.OverviewModel
 @{
-    ViewData["Title"] = Model.Project.Name;
+    var pageTitle = Model.Project?.Name ?? "Project";
+    ViewData["Title"] = pageTitle;
 }
 
 <div class="container-xxl">
@@ -16,13 +17,13 @@
     <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-3 gap-3">
         <div>
             <h1 class="h3 mb-1">
-                @Model.Project.Name
-                @if (!string.IsNullOrWhiteSpace(Model.Project.CaseFileNumber))
+                @pageTitle
+                @if (!string.IsNullOrWhiteSpace(Model.Project?.CaseFileNumber))
                 {
                     <small class="text-muted">(@Model.Project.CaseFileNumber)</small>
                 }
             </h1>
-            <div class="text-muted">Created on @Model.Project.CreatedAt.ToString("dd MMM yyyy")</div>
+            <div class="text-muted">Created on @Model.Project?.CreatedAt.ToString("dd MMM yyyy")</div>
         </div>
         <partial name="_AssignRolesOffcanvas" model="Model.AssignRoles" />
     </div>
