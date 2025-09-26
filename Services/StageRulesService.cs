@@ -122,9 +122,9 @@ public class StageRulesService
                 return StageGuardResult.Deny("COB cannot complete until TEC is completed.");
             }
 
-            if (!context.TryGetStage("BENCH", out var bench) || bench.Status != StageStatus.Completed)
+            if (!context.TryGetStage("BM", out var bench) || bench.Status != StageStatus.Completed)
             {
-                return StageGuardResult.Deny("COB cannot complete until BENCH is completed.");
+                return StageGuardResult.Deny("COB cannot complete until Benchmarking (BM) is completed.");
             }
         }
 

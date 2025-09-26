@@ -49,7 +49,7 @@ public sealed class TrackerBuilder
             {
                 vm.BranchTop.Add(node);
             }
-            else if (string.Equals(template.Code, "BENCH", StringComparison.OrdinalIgnoreCase))
+            else if (string.Equals(template.Code, "BM", StringComparison.OrdinalIgnoreCase))
             {
                 vm.BranchBottom.Add(node);
             }
