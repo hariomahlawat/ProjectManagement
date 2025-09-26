@@ -1,0 +1,67 @@
+@page
+@model ProjectManagement.Pages.Projects.IndexModel
+@{
+    ViewData["Title"] = "Projects";
+}
+
+<div class="container-xxl">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <h1 class="h3 mb-0">Projects</h1>
+            <p class="text-muted mb-0">Showing the 100 most recent projects.</p>
+        </div>
+        @if (User.IsInRole("Admin") || User.IsInRole("HoD"))
+        {
+            <a asp-page="/Projects/Create" class="btn btn-primary">Create Project</a>
+        }
+    </div>
+
+    <form method="get" class="row g-2 align-items-end mb-4">
+        <div class="col-sm-4 col-md-3">
+            <label for="CaseFileQuery" class="form-label">Case File Number</label>
+            <input id="CaseFileQuery" name="CaseFileQuery" value="@Model.CaseFileQuery" class="form-control" placeholder="Search Case File #" />
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-outline-primary">Search</button>
+        </div>
+    </form>
+
+    @if (!Model.Projects.Any())
+    {
+        <div class="alert alert-info">No projects found.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Case File #</th>
+                        <th>Category</th>
+                        <th>HoD</th>
+                        <th>Project Officer</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var project in Model.Projects)
+                {
+                    <tr>
+                        <td>
+                            <a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="fw-semibold text-decoration-none">
+                                @project.Name
+                            </a>
+                        </td>
+                        <td>@project.CaseFileNumber</td>
+                        <td>@project.Category?.Name</td>
+                        <td>@(project.HodUser?.FullName ?? project.HodUser?.UserName)</td>
+                        <td>@(project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName)</td>
+                        <td>@project.CreatedAt.ToString("dd MMM yyyy")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

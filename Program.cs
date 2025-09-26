@@ -86,6 +86,12 @@ builder.Services
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
 
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("Project.Create", policy =>
+        policy.RequireRole("Admin", "HoD"));
+});
+
 builder.Services.ConfigureApplicationCookie(opt =>
 {
     opt.LoginPath = "/Identity/Account/Login";
@@ -384,6 +390,18 @@ eventsApi.MapPost("/{id:guid}/task", async (Guid id, ApplicationDbContext db, IT
     await todos.CreateAsync(userId!, ev.Title, TimeZoneInfo.ConvertTime(ev.StartUtc, IstClock.TimeZone));
     return Results.Ok();
 }).RequireAuthorization();
+
+app.MapGet("/api/categories/children", async (int parentId, ApplicationDbContext db) =>
+{
+    var items = await db.ProjectCategories
+        .Where(c => c.ParentId == parentId && c.IsActive)
+        .OrderBy(c => c.SortOrder)
+        .ThenBy(c => c.Name)
+        .Select(c => new { id = c.Id, name = c.Name })
+        .ToListAsync();
+
+    return Results.Ok(items);
+}).RequireAuthorization("Project.Create");
 
 app.MapRazorPages();
 
