@@ -18,7 +18,17 @@ namespace ProjectManagement.Models
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        [Required]
+        [MaxLength(64)]
+        public string CreatedByUserId { get; set; } = string.Empty;
+
+        [Timestamp]
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+
         public int? ActivePlanVersionNo { get; set; }
+
+        public int? CategoryId { get; set; }
+        public ProjectCategory? Category { get; set; }
 
         // Assignments
         public string? HodUserId { get; set; }
