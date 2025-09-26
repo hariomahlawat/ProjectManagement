@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -29,7 +30,7 @@ namespace ProjectManagement.Pages.Projects
         public IList<ProjectStage> Stages { get; private set; } = new List<ProjectStage>();
         public IReadOnlyList<ProjectCategory> CategoryPath { get; private set; } = Array.Empty<ProjectCategory>();
         public ProcurementAtAGlanceVm Procurement { get; private set; } = default!;
-        public ProcurementEditInput ProcurementEdit { get; private set; } = default!;
+        public ProcurementEditVm ProcurementEdit { get; private set; } = default!;
 
         public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
         {
@@ -55,6 +56,12 @@ namespace ProjectManagement.Pages.Projects
                 .ThenBy(s => s.StageCode, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
+            var stageLookup = projectStages
+                .Where(s => s.StageCode is not null)
+                .ToDictionary(s => s.StageCode!, s => s.Status, StringComparer.OrdinalIgnoreCase);
+
+            bool Completed(string code) => stageLookup.TryGetValue(code, out var status) && status == StageStatus.Completed;
+
             if (project.CategoryId.HasValue)
             {
                 CategoryPath = await BuildCategoryPathAsync(project.CategoryId.Value, ct);
@@ -62,15 +69,24 @@ namespace ProjectManagement.Pages.Projects
 
             Procurement = await _procureRead.GetAsync(id, ct);
 
-            ProcurementEdit = new ProcurementEditInput
+            ProcurementEdit = new ProcurementEditVm
             {
-                ProjectId = id,
-                IpaCost = Procurement.IpaCost,
-                AonCost = Procurement.AonCost,
-                BenchmarkCost = Procurement.BenchmarkCost,
-                L1Cost = Procurement.L1Cost,
-                PncCost = Procurement.PncCost,
-                SupplyOrderDate = Procurement.SupplyOrderDate
+                Input = new ProcurementEditInput
+                {
+                    ProjectId = id,
+                    IpaCost = Procurement.IpaCost,
+                    AonCost = Procurement.AonCost,
+                    BenchmarkCost = Procurement.BenchmarkCost,
+                    L1Cost = Procurement.L1Cost,
+                    PncCost = Procurement.PncCost,
+                    SupplyOrderDate = Procurement.SupplyOrderDate
+                },
+                CanEditIpaCost = Completed(ProcurementStageRules.StageForIpaCost),
+                CanEditAonCost = Completed(ProcurementStageRules.StageForAonCost),
+                CanEditBenchmarkCost = Completed(ProcurementStageRules.StageForBenchmarkCost),
+                CanEditL1Cost = Completed(ProcurementStageRules.StageForL1Cost),
+                CanEditPncCost = Completed(ProcurementStageRules.StageForPncCost),
+                CanEditSupplyOrderDate = Completed(ProcurementStageRules.StageForSupplyOrder)
             };
 
             return Page();

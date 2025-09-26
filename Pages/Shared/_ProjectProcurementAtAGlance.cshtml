@@ -1,7 +1,26 @@
 @model ProjectManagement.Services.Projects.ProcurementAtAGlanceVm
 @using System.Globalization
 @{
-    string Money(decimal? v) => v.HasValue ? v.Value.ToString("N2", CultureInfo.CurrentCulture) : "—";
+    string ShortInr(decimal value)
+    {
+        var culture = CultureInfo.GetCultureInfo("en-IN");
+        var abs = System.Math.Abs(value);
+
+        if (abs >= 1_00_00_000m)
+        {
+            return $"₹ {(value / 1_00_00_000m).ToString("0.##", culture)} Cr";
+        }
+
+        if (abs >= 1_00_000m)
+        {
+            return $"₹ {(value / 1_00_000m).ToString("0.##", culture)} Lakh";
+        }
+
+        return value.ToString("C2", culture);
+    }
+
+    string Money(decimal? value) => value.HasValue ? ShortInr(value.Value) : "—";
+    string FullInr(decimal? value) => value.HasValue ? value.Value.ToString("C2", CultureInfo.GetCultureInfo("en-IN")) : "—";
     string DateDmy(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
 }
 
@@ -24,26 +43,26 @@
       <div class="col-md-6">
         <div class="d-flex justify-content-between">
           <span class="text-muted">IPA Cost</span>
-          <span class="fw-semibold">@Money(Model.IpaCost)</span>
+          <span class="fw-semibold" title="@FullInr(Model.IpaCost)">@Money(Model.IpaCost)</span>
         </div>
         <div class="d-flex justify-content-between">
           <span class="text-muted">AON Cost</span>
-          <span class="fw-semibold">@Money(Model.AonCost)</span>
+          <span class="fw-semibold" title="@FullInr(Model.AonCost)">@Money(Model.AonCost)</span>
         </div>
         <div class="d-flex justify-content-between">
           <span class="text-muted">Benchmark Cost</span>
-          <span class="fw-semibold">@Money(Model.BenchmarkCost)</span>
+          <span class="fw-semibold" title="@FullInr(Model.BenchmarkCost)">@Money(Model.BenchmarkCost)</span>
         </div>
       </div>
 
       <div class="col-md-6">
         <div class="d-flex justify-content-between">
           <span class="text-muted">L1 Cost</span>
-          <span class="fw-semibold">@Money(Model.L1Cost)</span>
+          <span class="fw-semibold" title="@FullInr(Model.L1Cost)">@Money(Model.L1Cost)</span>
         </div>
         <div class="d-flex justify-content-between">
           <span class="text-muted">PNC Cost</span>
-          <span class="fw-semibold">@Money(Model.PncCost)</span>
+          <span class="fw-semibold" title="@FullInr(Model.PncCost)">@Money(Model.PncCost)</span>
         </div>
         <div class="d-flex justify-content-between">
           <span class="text-muted">Supply Order Date</span>

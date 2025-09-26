@@ -10,4 +10,10 @@
             firstField.focus();
         }
     });
+
+    const marker = document.getElementById('open-procurement');
+    if (marker && marker.dataset.open === '1' && typeof bootstrap !== 'undefined') {
+        const instance = bootstrap.Offcanvas.getOrCreateInstance(offcanvas);
+        instance.show();
+    }
 })();
