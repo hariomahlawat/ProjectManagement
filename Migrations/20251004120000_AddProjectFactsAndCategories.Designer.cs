@@ -1669,5 +1669,6 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Replies");
                 });
 #pragma warning restore 612, 618
+        }
     }
 }
