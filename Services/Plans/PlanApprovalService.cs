@@ -72,6 +72,14 @@ public class PlanApprovalService
             throw new InvalidOperationException("No plan is currently pending approval for this project.");
         }
 
+        var requiresBackfill = await _db.ProjectStages
+            .AnyAsync(s => s.ProjectId == projectId && s.RequiresBackfill, cancellationToken);
+
+        if (requiresBackfill)
+        {
+            throw new PlanApprovalValidationException(new[] { "Backfill required data before approval." });
+        }
+
         var project = await _db.Projects
             .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken)
             ?? throw new InvalidOperationException("Project not found.");
