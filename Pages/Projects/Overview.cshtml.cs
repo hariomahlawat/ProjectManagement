@@ -1,7 +1,10 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -19,11 +22,13 @@ namespace ProjectManagement.Pages.Projects
     {
         private readonly ApplicationDbContext _db;
         private readonly ProjectProcurementReadService _procureRead;
+        private readonly UserManager<ApplicationUser> _users;
 
-        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead)
+        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, UserManager<ApplicationUser> users)
         {
             _db = db;
             _procureRead = procureRead;
+            _users = users;
         }
 
         public Project Project { get; private set; } = default!;
@@ -31,6 +36,7 @@ namespace ProjectManagement.Pages.Projects
         public IReadOnlyList<ProjectCategory> CategoryPath { get; private set; } = Array.Empty<ProjectCategory>();
         public ProcurementAtAGlanceVm Procurement { get; private set; } = default!;
         public ProcurementEditVm ProcurementEdit { get; private set; } = default!;
+        public AssignRolesVm AssignRoles { get; private set; } = default!;
 
         public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
         {
@@ -89,7 +95,50 @@ namespace ProjectManagement.Pages.Projects
                 CanEditSupplyOrderDate = Completed(ProcurementStageRules.StageForSupplyOrder)
             };
 
+            AssignRoles = await BuildAssignRolesVmAsync(project);
+
             return Page();
+        }
+
+        private async Task<AssignRolesVm> BuildAssignRolesVmAsync(Project project)
+        {
+            var hodUsers = await _users.GetUsersInRoleAsync("HoD");
+            var poUsers = await _users.GetUsersInRoleAsync("Project Officer");
+
+            static string DisplayName(ApplicationUser user)
+            {
+                if (!string.IsNullOrWhiteSpace(user.FullName))
+                {
+                    return user.FullName;
+                }
+
+                if (!string.IsNullOrWhiteSpace(user.UserName))
+                {
+                    return user.UserName!;
+                }
+
+                return user.Email ?? user.Id;
+            }
+
+            var hodOptions = hodUsers
+                .Select(user => (user.Id, Name: DisplayName(user)))
+                .OrderBy(option => option.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var poOptions = poUsers
+                .Select(user => (user.Id, Name: DisplayName(user)))
+                .OrderBy(option => option.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return new AssignRolesVm
+            {
+                ProjectId = project.Id,
+                RowVersion = project.RowVersion,
+                HodUserId = project.HodUserId,
+                PoUserId = project.LeadPoUserId,
+                HodOptions = hodOptions,
+                PoOptions = poOptions
+            };
         }
 
         private async Task<IReadOnlyList<ProjectCategory>> BuildCategoryPathAsync(int categoryId, CancellationToken ct)
