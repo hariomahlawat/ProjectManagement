@@ -132,13 +132,13 @@ namespace ProjectManagement.Pages.Projects
         private async Task LoadListsAsync()
         {
             var hodUsers = await _users.GetUsersInRoleAsync("HoD");
-            HodList = BuildUserOptions(hodUsers);
+            HodList = BuildUserOptions(hodUsers, Input.HodUserId);
 
             var poUsers = await _users.GetUsersInRoleAsync("Project Officer");
-            PoList = BuildUserOptions(poUsers);
+            PoList = BuildUserOptions(poUsers, Input.PoUserId);
         }
 
-        private static IEnumerable<SelectListItem> BuildUserOptions(IEnumerable<ApplicationUser> users)
+        private static IEnumerable<SelectListItem> BuildUserOptions(IEnumerable<ApplicationUser> users, string? selectedUserId)
         {
             var items = new List<SelectListItem>
             {
@@ -148,6 +148,18 @@ namespace ProjectManagement.Pages.Projects
             items.AddRange(users
                 .OrderBy(u => string.IsNullOrWhiteSpace(u.FullName) ? u.UserName : u.FullName)
                 .Select(u => new SelectListItem(DisplayName(u), u.Id)));
+
+            var selectedValue = selectedUserId ?? string.Empty;
+
+            foreach (var item in items)
+            {
+                item.Selected = string.Equals(item.Value, selectedValue, StringComparison.Ordinal);
+            }
+
+            if (items.All(i => !i.Selected))
+            {
+                items[0].Selected = true;
+            }
 
             return items;
         }

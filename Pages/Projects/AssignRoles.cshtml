@@ -25,11 +25,21 @@
             <div class="card-body row g-3">
                 <div class="col-md-6">
                     <label asp-for="Input.HodUserId" class="form-label">Head of Department</label>
-                    <select asp-for="Input.HodUserId" class="form-select" asp-items="Model.HodList"></select>
+                    <select asp-for="Input.HodUserId" class="form-select">
+                        @foreach (var option in Model.HodList)
+                        {
+                            <option value="@option.Value" @(option.Selected ? "selected" : null)>@option.Text</option>
+                        }
+                    </select>
                 </div>
                 <div class="col-md-6">
                     <label asp-for="Input.PoUserId" class="form-label">Project Officer</label>
-                    <select asp-for="Input.PoUserId" class="form-select" asp-items="Model.PoList"></select>
+                    <select asp-for="Input.PoUserId" class="form-select">
+                        @foreach (var option in Model.PoList)
+                        {
+                            <option value="@option.Value" @(option.Selected ? "selected" : null)>@option.Text</option>
+                        }
+                    </select>
                 </div>
             </div>
             <div class="card-footer d-flex justify-content-between">
