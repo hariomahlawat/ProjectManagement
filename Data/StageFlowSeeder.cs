@@ -34,7 +34,7 @@ public static class StageFlowSeeder
             new StageTemplate { Version = version, Code = "EAS",   Name = "Expenditure Angle Sanction",     Sequence = 90 },
             new StageTemplate { Version = version, Code = "SO",    Name = "Supply Order",                   Sequence = 100 },
             new StageTemplate { Version = version, Code = "DEVP",   Name = "Development",                    Sequence = 110 },
-            new StageTemplate { Version = version, Code = "ATC",    Name = "Acceptance Testing",             Sequence = 120 },
+            new StageTemplate { Version = version, Code = "ATP",    Name = "Acceptance Testing",             Sequence = 120 },
             new StageTemplate { Version = version, Code = "PAYMENT",   Name = "Payment",                        Sequence = 130 },
         };
 
