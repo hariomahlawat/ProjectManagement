@@ -12,9 +12,10 @@ using ProjectManagement.Data;
 namespace ProjectManagement.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20251006150000_AddProjectNumberAndStageGuards")]
-    partial class AddProjectNumberAndStageGuards : Migration
+    [Migration("20250926064607_InitialMigration")]
+    partial class InitialMigration
     {
+        /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
@@ -528,8 +529,10 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("ProjectId", "StageCode")
                         .IsUnique();
 
-                    b.ToTable("ProjectStages", (string)null, tb =>
-                        tb.HasCheckConstraint("CK_ProjectStages_CompletedHasDate", "NOT(\"Status\" = 'Completed' AND \"CompletedOn\" IS NULL)"));
+                    b.ToTable("ProjectStages", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProjectStages_CompletedHasDate", "NOT(\"Status\" = 'Completed' AND \"CompletedOn\" IS NULL)");
+                        });
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Plans.PlanApprovalLog", b =>
@@ -731,6 +734,7 @@ namespace ProjectManagement.Migrations
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
+                        .IsRequired()
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("bytea");
 
@@ -749,6 +753,82 @@ namespace ProjectManagement.Migrations
                         .HasFilter("\"ProjectNumber\" IS NOT NULL");
 
                     b.ToTable("Projects");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectAonFact", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("AonCost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("CreatedOnUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("ProjectAonFacts", t =>
+                        {
+                            t.HasCheckConstraint("ck_aonfact_amount", "\"AonCost\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectBenchmarkFact", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("BenchmarkCost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("CreatedOnUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("ProjectBenchmarkFacts", t =>
+                        {
+                            t.HasCheckConstraint("ck_bmfact_amount", "\"BenchmarkCost\" >= 0");
+                        });
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectCategory", b =>
@@ -779,257 +859,10 @@ namespace ProjectManagement.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ParentId");
-
                     b.HasIndex("ParentId", "Name")
                         .IsUnique();
 
                     b.ToTable("ProjectCategories");
-                });
-
-            modelBuilder.Entity("ProjectManagement.Models.ProjectAonFact", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("AonCost")
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("CreatedByUserId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<DateTime>("CreatedOnUtc")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int>("ProjectId")
-                        .HasColumnType("integer");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("bytea");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectId");
-
-                    b.ToTable("ProjectAonFacts");
-                });
-
-            modelBuilder.Entity("ProjectManagement.Models.ProjectBenchmarkFact", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("BenchmarkCost")
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("CreatedByUserId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<DateTime>("CreatedOnUtc")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int>("ProjectId")
-                        .HasColumnType("integer");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("bytea");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectId");
-
-                    b.ToTable("ProjectBenchmarkFacts");
-                });
-
-            modelBuilder.Entity("ProjectManagement.Models.ProjectCommercialFact", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("CreatedByUserId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<DateTime>("CreatedOnUtc")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<decimal>("L1Cost")
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int>("ProjectId")
-                        .HasColumnType("integer");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("bytea");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectId");
-
-                    b.ToTable("ProjectCommercialFacts");
-                });
-
-            modelBuilder.Entity("ProjectManagement.Models.ProjectIpaFact", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("CreatedByUserId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<DateTime>("CreatedOnUtc")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<decimal>("IpaCost")
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int>("ProjectId")
-                        .HasColumnType("integer");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("bytea");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectId");
-
-                    b.ToTable("ProjectIpaFacts");
-                });
-
-            modelBuilder.Entity("ProjectManagement.Models.ProjectPncFact", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("CreatedByUserId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<DateTime>("CreatedOnUtc")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int>("ProjectId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("PncCost")
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("bytea");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectId");
-
-                    b.ToTable("ProjectPncFacts");
-                });
-
-            modelBuilder.Entity("ProjectManagement.Models.ProjectSowFact", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("CreatedByUserId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<DateTime>("CreatedOnUtc")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int>("ProjectId")
-                        .HasColumnType("integer");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("bytea");
-
-                    b.Property<string>("SponsoringLineDirectorate")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<string>("SponsoringUnit")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectId");
-
-                    b.ToTable("ProjectSowFacts");
-                });
-
-            modelBuilder.Entity("ProjectManagement.Models.ProjectSupplyOrderFact", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("CreatedByUserId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<DateTime>("CreatedOnUtc")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int>("ProjectId")
-                        .HasColumnType("integer");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("bytea");
-
-                    b.Property<DateOnly>("SupplyOrderDate")
-                        .HasColumnType("date");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectId");
-
-                    b.ToTable("ProjectSupplyOrderFacts");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectComment", b =>
@@ -1176,6 +1009,197 @@ namespace ProjectManagement.Migrations
                         .IsUnique();
 
                     b.ToTable("ProjectCommentMentions");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectCommercialFact", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("CreatedOnUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<decimal>("L1Cost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("ProjectCommercialFacts", t =>
+                        {
+                            t.HasCheckConstraint("ck_l1fact_amount", "\"L1Cost\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectIpaFact", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("CreatedOnUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<decimal>("IpaCost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("ProjectIpaFacts", t =>
+                        {
+                            t.HasCheckConstraint("ck_ipafact_amount", "\"IpaCost\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectPncFact", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("CreatedOnUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<decimal>("PncCost")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("ProjectPncFacts", t =>
+                        {
+                            t.HasCheckConstraint("ck_pncfact_amount", "\"PncCost\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectSowFact", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("CreatedOnUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("SponsoringLineDirectorate")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SponsoringUnit")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("ProjectSowFacts");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectSupplyOrderFact", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("CreatedOnUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea");
+
+                    b.Property<DateOnly>("SupplyOrderDate")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("ProjectSupplyOrderFacts");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Scheduling.StageShiftLog", b =>
@@ -1414,7 +1438,7 @@ namespace ProjectManagement.Migrations
             modelBuilder.Entity("ProjectManagement.Models.Execution.ProjectStage", b =>
                 {
                     b.HasOne("ProjectManagement.Models.Project", "Project")
-                        .WithMany()
+                        .WithMany("Stages")
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1532,56 +1556,7 @@ namespace ProjectManagement.Migrations
                         .HasForeignKey("ParentId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.Navigation("Children");
-
                     b.Navigation("Parent");
-
-                    b.Navigation("Projects");
-                });
-
-            modelBuilder.Entity("ProjectManagement.Models.ProjectCommercialFact", b =>
-                {
-                    b.HasOne("ProjectManagement.Models.Project", null)
-                        .WithMany()
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("ProjectManagement.Models.ProjectIpaFact", b =>
-                {
-                    b.HasOne("ProjectManagement.Models.Project", null)
-                        .WithMany()
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("ProjectManagement.Models.ProjectPncFact", b =>
-                {
-                    b.HasOne("ProjectManagement.Models.Project", null)
-                        .WithMany()
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("ProjectManagement.Models.ProjectSowFact", b =>
-                {
-                    b.HasOne("ProjectManagement.Models.Project", null)
-                        .WithMany()
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("ProjectManagement.Models.ProjectSupplyOrderFact", b =>
-                {
-                    b.HasOne("ProjectManagement.Models.Project", null)
-                        .WithMany()
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectComment", b =>
@@ -1661,11 +1636,68 @@ namespace ProjectManagement.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.ProjectCommercialFact", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectIpaFact", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectPncFact", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectSowFact", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectSupplyOrderFact", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Plans.PlanVersion", b =>
                 {
                     b.Navigation("ApprovalLogs");
 
                     b.Navigation("StagePlans");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Project", b =>
+                {
+                    b.Navigation("Stages");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectCategory", b =>
+                {
+                    b.Navigation("Children");
+
+                    b.Navigation("Projects");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectComment", b =>

@@ -162,6 +162,28 @@ namespace ProjectManagement.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "ProjectCategories",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Name = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: false),
+                    ParentId = table.Column<int>(type: "integer", nullable: true),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false, defaultValue: true),
+                    SortOrder = table.Column<int>(type: "integer", nullable: false, defaultValue: 0)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProjectCategories", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ProjectCategories_ProjectCategories_ParentId",
+                        column: x => x.ParentId,
+                        principalTable: "ProjectCategories",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "StageDependencyTemplates",
                 columns: table => new
                 {
@@ -174,6 +196,27 @@ namespace ProjectManagement.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_StageDependencyTemplates", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "StageShiftLogs",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    StageCode = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
+                    OldForecastDue = table.Column<DateOnly>(type: "date", nullable: true),
+                    NewForecastDue = table.Column<DateOnly>(type: "date", nullable: false),
+                    DeltaDays = table.Column<int>(type: "integer", nullable: false),
+                    CauseStageCode = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
+                    CauseType = table.Column<string>(type: "character varying(24)", maxLength: 24, nullable: false),
+                    CreatedOn = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    CreatedByUserId = table.Column<string>(type: "text", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StageShiftLogs", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -332,7 +375,11 @@ namespace ProjectManagement.Migrations
                     Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
                     Description = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    ProjectNumber = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    CreatedByUserId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false),
                     ActivePlanVersionNo = table.Column<int>(type: "integer", nullable: true),
+                    CategoryId = table.Column<int>(type: "integer", nullable: true),
                     HodUserId = table.Column<string>(type: "text", nullable: true),
                     LeadPoUserId = table.Column<string>(type: "text", nullable: true)
                 },
@@ -349,6 +396,12 @@ namespace ProjectManagement.Migrations
                         column: x => x.LeadPoUserId,
                         principalTable: "AspNetUsers",
                         principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_Projects_ProjectCategories_CategoryId",
+                        column: x => x.CategoryId,
+                        principalTable: "ProjectCategories",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -404,6 +457,150 @@ namespace ProjectManagement.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "ProjectAonFacts",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    AonCost = table.Column<decimal>(type: "numeric(18,2)", nullable: false),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    CreatedByUserId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    CreatedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProjectAonFacts", x => x.Id);
+                    table.CheckConstraint("ck_aonfact_amount", "\"AonCost\" >= 0");
+                    table.ForeignKey(
+                        name: "FK_ProjectAonFacts_Projects_ProjectId",
+                        column: x => x.ProjectId,
+                        principalTable: "Projects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProjectBenchmarkFacts",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    BenchmarkCost = table.Column<decimal>(type: "numeric(18,2)", nullable: false),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    CreatedByUserId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    CreatedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProjectBenchmarkFacts", x => x.Id);
+                    table.CheckConstraint("ck_bmfact_amount", "\"BenchmarkCost\" >= 0");
+                    table.ForeignKey(
+                        name: "FK_ProjectBenchmarkFacts_Projects_ProjectId",
+                        column: x => x.ProjectId,
+                        principalTable: "Projects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProjectCommercialFacts",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    L1Cost = table.Column<decimal>(type: "numeric(18,2)", nullable: false),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    CreatedByUserId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    CreatedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProjectCommercialFacts", x => x.Id);
+                    table.CheckConstraint("ck_l1fact_amount", "\"L1Cost\" >= 0");
+                    table.ForeignKey(
+                        name: "FK_ProjectCommercialFacts_Projects_ProjectId",
+                        column: x => x.ProjectId,
+                        principalTable: "Projects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProjectIpaFacts",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    IpaCost = table.Column<decimal>(type: "numeric(18,2)", nullable: false),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    CreatedByUserId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    CreatedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProjectIpaFacts", x => x.Id);
+                    table.CheckConstraint("ck_ipafact_amount", "\"IpaCost\" >= 0");
+                    table.ForeignKey(
+                        name: "FK_ProjectIpaFacts_Projects_ProjectId",
+                        column: x => x.ProjectId,
+                        principalTable: "Projects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProjectPncFacts",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    PncCost = table.Column<decimal>(type: "numeric(18,2)", nullable: false),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    CreatedByUserId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    CreatedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProjectPncFacts", x => x.Id);
+                    table.CheckConstraint("ck_pncfact_amount", "\"PncCost\" >= 0");
+                    table.ForeignKey(
+                        name: "FK_ProjectPncFacts_Projects_ProjectId",
+                        column: x => x.ProjectId,
+                        principalTable: "Projects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProjectSowFacts",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    SponsoringUnit = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    SponsoringLineDirectorate = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    CreatedByUserId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    CreatedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProjectSowFacts", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ProjectSowFacts_Projects_ProjectId",
+                        column: x => x.ProjectId,
+                        principalTable: "Projects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "ProjectStages",
                 columns: table => new
                 {
@@ -414,14 +611,40 @@ namespace ProjectManagement.Migrations
                     Status = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
                     PlannedStart = table.Column<DateOnly>(type: "date", nullable: true),
                     PlannedDue = table.Column<DateOnly>(type: "date", nullable: true),
+                    ForecastStart = table.Column<DateOnly>(type: "date", nullable: true),
+                    ForecastDue = table.Column<DateOnly>(type: "date", nullable: true),
                     ActualStart = table.Column<DateOnly>(type: "date", nullable: true),
                     CompletedOn = table.Column<DateOnly>(type: "date", nullable: true)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_ProjectStages", x => x.Id);
+                    table.CheckConstraint("CK_ProjectStages_CompletedHasDate", "NOT(\"Status\" = 'Completed' AND \"CompletedOn\" IS NULL)");
                     table.ForeignKey(
                         name: "FK_ProjectStages_Projects_ProjectId",
+                        column: x => x.ProjectId,
+                        principalTable: "Projects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProjectSupplyOrderFacts",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    SupplyOrderDate = table.Column<DateOnly>(type: "date", nullable: false),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    CreatedByUserId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    CreatedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProjectSupplyOrderFacts", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ProjectSupplyOrderFacts_Projects_ProjectId",
                         column: x => x.ProjectId,
                         principalTable: "Projects",
                         principalColumn: "Id",
@@ -466,7 +689,8 @@ namespace ProjectManagement.Migrations
                     PlanVersionId = table.Column<int>(type: "integer", nullable: false),
                     StageCode = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
                     PlannedStart = table.Column<DateOnly>(type: "date", nullable: true),
-                    PlannedDue = table.Column<DateOnly>(type: "date", nullable: true)
+                    PlannedDue = table.Column<DateOnly>(type: "date", nullable: true),
+                    DurationDays = table.Column<int>(type: "integer", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -720,6 +944,22 @@ namespace ProjectManagement.Migrations
                 column: "SubmittedByUserId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_ProjectAonFacts_ProjectId",
+                table: "ProjectAonFacts",
+                column: "ProjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectBenchmarkFacts_ProjectId",
+                table: "ProjectBenchmarkFacts",
+                column: "ProjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectCategories_ParentId_Name",
+                table: "ProjectCategories",
+                columns: new[] { "ParentId", "Name" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_ProjectCommentAttachments_CommentId",
                 table: "ProjectCommentAttachments",
                 column: "CommentId");
@@ -766,6 +1006,26 @@ namespace ProjectManagement.Migrations
                 column: "ProjectStageId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_ProjectCommercialFacts_ProjectId",
+                table: "ProjectCommercialFacts",
+                column: "ProjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectIpaFacts_ProjectId",
+                table: "ProjectIpaFacts",
+                column: "ProjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectPncFacts_ProjectId",
+                table: "ProjectPncFacts",
+                column: "ProjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Projects_CategoryId",
+                table: "Projects",
+                column: "CategoryId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Projects_HodUserId",
                 table: "Projects",
                 column: "HodUserId");
@@ -776,10 +1036,32 @@ namespace ProjectManagement.Migrations
                 column: "LeadPoUserId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Projects_Name",
+                table: "Projects",
+                column: "Name");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Projects_ProjectNumber",
+                table: "Projects",
+                column: "ProjectNumber",
+                unique: true,
+                filter: "\"ProjectNumber\" IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectSowFacts_ProjectId",
+                table: "ProjectSowFacts",
+                column: "ProjectId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_ProjectStages_ProjectId_StageCode",
                 table: "ProjectStages",
                 columns: new[] { "ProjectId", "StageCode" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectSupplyOrderFacts_ProjectId",
+                table: "ProjectSupplyOrderFacts",
+                column: "ProjectId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_StageDependencyTemplates_Version_FromStageCode_DependsOnSta~",
@@ -792,6 +1074,11 @@ namespace ProjectManagement.Migrations
                 table: "StagePlans",
                 columns: new[] { "PlanVersionId", "StageCode" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StageShiftLogs_ProjectId_StageCode_CreatedOn",
+                table: "StageShiftLogs",
+                columns: new[] { "ProjectId", "StageCode", "CreatedOn" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_StageTemplates_Version_Code",
@@ -852,16 +1139,40 @@ namespace ProjectManagement.Migrations
                 name: "PlanApprovalLogs");
 
             migrationBuilder.DropTable(
+                name: "ProjectAonFacts");
+
+            migrationBuilder.DropTable(
+                name: "ProjectBenchmarkFacts");
+
+            migrationBuilder.DropTable(
                 name: "ProjectCommentAttachments");
 
             migrationBuilder.DropTable(
                 name: "ProjectCommentMentions");
 
             migrationBuilder.DropTable(
+                name: "ProjectCommercialFacts");
+
+            migrationBuilder.DropTable(
+                name: "ProjectIpaFacts");
+
+            migrationBuilder.DropTable(
+                name: "ProjectPncFacts");
+
+            migrationBuilder.DropTable(
+                name: "ProjectSowFacts");
+
+            migrationBuilder.DropTable(
+                name: "ProjectSupplyOrderFacts");
+
+            migrationBuilder.DropTable(
                 name: "StageDependencyTemplates");
 
             migrationBuilder.DropTable(
                 name: "StagePlans");
+
+            migrationBuilder.DropTable(
+                name: "StageShiftLogs");
 
             migrationBuilder.DropTable(
                 name: "StageTemplates");
@@ -886,6 +1197,9 @@ namespace ProjectManagement.Migrations
 
             migrationBuilder.DropTable(
                 name: "AspNetUsers");
+
+            migrationBuilder.DropTable(
+                name: "ProjectCategories");
         }
     }
 }
