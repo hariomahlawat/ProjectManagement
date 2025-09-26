@@ -40,6 +40,7 @@ namespace ProjectManagement.Pages.Projects
         public ProcurementEditVm ProcurementEdit { get; private set; } = default!;
         public AssignRolesVm AssignRoles { get; private set; } = default!;
         public TimelineVm Timeline { get; private set; } = default!;
+        public bool HasBackfill { get; private set; }
 
         public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
         {
@@ -78,6 +79,7 @@ namespace ProjectManagement.Pages.Projects
 
             Procurement = await _procureRead.GetAsync(id, ct);
             Timeline = await _timelineRead.GetAsync(id, ct);
+            HasBackfill = Timeline.HasBackfill;
 
             ProcurementEdit = new ProcurementEditVm
             {

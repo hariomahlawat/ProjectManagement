@@ -496,6 +496,13 @@ namespace ProjectManagement.Migrations
                     b.Property<DateOnly?>("CompletedOn")
                         .HasColumnType("date");
 
+                    b.Property<string>("AutoCompletedFromCode")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<bool>("IsAutoCompleted")
+                        .HasColumnType("boolean");
+
                     b.Property<DateOnly?>("ForecastDue")
                         .HasColumnType("date");
 
@@ -515,6 +522,9 @@ namespace ProjectManagement.Migrations
                         .IsRequired()
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
+
+                    b.Property<bool>("RequiresBackfill")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Status")
                         .IsRequired()
