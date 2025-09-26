@@ -34,4 +34,20 @@
             instance.show();
         }
     }
+
+    const planEdit = document.getElementById('offcanvasPlanEdit');
+    if (planEdit) {
+        planEdit.addEventListener('shown.bs.offcanvas', function () {
+            const firstDate = planEdit.querySelector('input[type="date"]');
+            if (firstDate) {
+                firstDate.focus();
+            }
+        });
+
+        const planMarker = document.getElementById('open-plan-edit');
+        if (planMarker && planMarker.dataset.open === '1') {
+            const instance = bootstrap.Offcanvas.getOrCreateInstance(planEdit);
+            instance.show();
+        }
+    }
 })();

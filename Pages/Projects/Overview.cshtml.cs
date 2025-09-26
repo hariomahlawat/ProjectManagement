@@ -13,6 +13,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Stages;
 using ProjectManagement.ViewModels;
 
 namespace ProjectManagement.Pages.Projects
@@ -24,13 +25,15 @@ namespace ProjectManagement.Pages.Projects
         private readonly ProjectProcurementReadService _procureRead;
         private readonly ProjectTimelineReadService _timelineRead;
         private readonly UserManager<ApplicationUser> _users;
+        private readonly PlanReadService _planRead;
 
-        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users)
+        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead)
         {
             _db = db;
             _procureRead = procureRead;
             _timelineRead = timelineRead;
             _users = users;
+            _planRead = planRead;
         }
 
         public Project Project { get; private set; } = default!;
@@ -40,6 +43,7 @@ namespace ProjectManagement.Pages.Projects
         public ProcurementEditVm ProcurementEdit { get; private set; } = default!;
         public AssignRolesVm AssignRoles { get; private set; } = default!;
         public TimelineVm Timeline { get; private set; } = default!;
+        public PlanEditVm PlanEdit { get; private set; } = default!;
         public bool HasBackfill { get; private set; }
 
         public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
@@ -79,6 +83,7 @@ namespace ProjectManagement.Pages.Projects
 
             Procurement = await _procureRead.GetAsync(id, ct);
             Timeline = await _timelineRead.GetAsync(id, ct);
+            PlanEdit = await _planRead.GetAsync(id, ct);
             HasBackfill = Timeline.HasBackfill;
 
             ProcurementEdit = new ProcurementEditVm
