@@ -16,7 +16,7 @@ namespace ProjectManagement.Migrations
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
-            new ApplicationDbContextModelSnapshot().BuildModel(modelBuilder);
+            new ApplicationDbContextModelSnapshot().PopulateModel(modelBuilder);
         }
     }
 }

@@ -816,7 +816,7 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("ProjectId");
 
-                    b.ToTable("ProjectAonFacts", (string?)null, t =>
+                    b.ToTable("ProjectAonFacts", (string)null, t =>
                     {
                         t.HasCheckConstraint("ck_aonfact_amount", "\"AonCost\" >= 0");
                     });
@@ -853,7 +853,7 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("ProjectId");
 
-                    b.ToTable("ProjectBenchmarkFacts", (string?)null, t =>
+                    b.ToTable("ProjectBenchmarkFacts", (string)null, t =>
                     {
                         t.HasCheckConstraint("ck_bmfact_amount", "\"BenchmarkCost\" >= 0");
                     });
@@ -890,7 +890,7 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("ProjectId");
 
-                    b.ToTable("ProjectCommercialFacts", (string?)null, t =>
+                    b.ToTable("ProjectCommercialFacts", (string)null, t =>
                     {
                         t.HasCheckConstraint("ck_l1fact_amount", "\"L1Cost\" >= 0");
                     });
@@ -927,7 +927,7 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("ProjectId");
 
-                    b.ToTable("ProjectIpaFacts", (string?)null, t =>
+                    b.ToTable("ProjectIpaFacts", (string)null, t =>
                     {
                         t.HasCheckConstraint("ck_ipafact_amount", "\"IpaCost\" >= 0");
                     });
@@ -964,7 +964,7 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("ProjectId");
 
-                    b.ToTable("ProjectPncFacts", (string?)null, t =>
+                    b.ToTable("ProjectPncFacts", (string)null, t =>
                     {
                         t.HasCheckConstraint("ck_pncfact_amount", "\"PncCost\" >= 0");
                     });
