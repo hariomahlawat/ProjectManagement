@@ -42,7 +42,12 @@ namespace ProjectManagement.Services.Projects
                 });
         }
 
-        public async Task UpsertSowSponsorsAsync(int projectId, string sponsoringUnit, string sponsoringLineDirectorate, string userId, CancellationToken ct = default)
+        public async Task UpsertSowSponsorsAsync(
+            int projectId,
+            string sponsoringUnit,
+            string sponsoringLineDirectorate,
+            string userId,
+            CancellationToken ct = default)
         {
             ArgumentNullException.ThrowIfNull(sponsoringUnit);
             ArgumentNullException.ThrowIfNull(sponsoringLineDirectorate);
