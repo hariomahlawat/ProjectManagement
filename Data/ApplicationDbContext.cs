@@ -236,7 +236,7 @@ namespace ProjectManagement.Data
                 e.Property(x => x.ForecastDue).HasColumnType("date");
                 e.ToTable("ProjectStages", tb =>
                     tb.HasCheckConstraint("CK_ProjectStages_CompletedHasDate",
-                        "NOT(\"Status\" = 'Completed' AND \"CompletedOn\" IS NULL)"));
+                        "\"Status\" <> 'Completed' OR (\"CompletedOn\" IS NOT NULL AND \"ActualStart\" IS NOT NULL)"));
             });
 
             builder.Entity<StageShiftLog>(e =>

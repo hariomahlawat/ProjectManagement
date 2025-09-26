@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -6,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services;
 
 namespace ProjectManagement.Pages.Projects
 {
@@ -14,11 +17,13 @@ namespace ProjectManagement.Pages.Projects
     {
         private readonly ApplicationDbContext _db;
         private readonly UserManager<ApplicationUser> _users;
+        private readonly IAuditService _audit;
 
-        public AssignRolesModel(ApplicationDbContext db, UserManager<ApplicationUser> users)
+        public AssignRolesModel(ApplicationDbContext db, UserManager<ApplicationUser> users, IAuditService audit)
         {
             _db = db;
             _users = users;
+            _audit = audit;
         }
 
         [BindProperty]
@@ -60,10 +65,31 @@ namespace ProjectManagement.Pages.Projects
                 return NotFound();
             }
 
+            var previousHod = project.HodUserId;
+            var previousPo = project.LeadPoUserId;
+
             project.HodUserId = string.IsNullOrWhiteSpace(Input.HodUserId) ? null : Input.HodUserId;
             project.LeadPoUserId = string.IsNullOrWhiteSpace(Input.PoUserId) ? null : Input.PoUserId;
 
             await _db.SaveChangesAsync();
+
+            var currentUserId = _users.GetUserId(User);
+            var currentUserName = User.Identity?.Name;
+
+            await _audit.LogAsync(
+                "Projects.AssignRoles",
+                data: new Dictionary<string, string?>
+                {
+                    ["ProjectId"] = project.Id.ToString(),
+                    ["ProjectName"] = project.Name,
+                    ["PreviousHodUserId"] = previousHod,
+                    ["NewHodUserId"] = project.HodUserId,
+                    ["PreviousPoUserId"] = previousPo,
+                    ["NewPoUserId"] = project.LeadPoUserId
+                },
+                userId: currentUserId,
+                userName: currentUserName
+            );
 
             return RedirectToPage("/Projects/Overview", new { id = project.Id });
         }
