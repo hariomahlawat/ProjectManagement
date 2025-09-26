@@ -79,9 +79,19 @@ namespace ProjectManagement.Areas.Admin.Pages.Categories
                 }
             }
 
+            var trimmedName = Input.Name.Trim();
+            var duplicateExists = await _db.ProjectCategories
+                .AnyAsync(c => c.ParentId == Input.ParentId && c.Name == trimmedName && c.Id != category.Id);
+
+            if (duplicateExists)
+            {
+                ModelState.AddModelError("Input.Name", "A category with this name already exists under the selected parent.");
+                return Page();
+            }
+
             var parentChanged = category.ParentId != Input.ParentId;
 
-            category.Name = Input.Name.Trim();
+            category.Name = trimmedName;
             category.IsActive = Input.IsActive;
             category.ParentId = Input.ParentId;
 
