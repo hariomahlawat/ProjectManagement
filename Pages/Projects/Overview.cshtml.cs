@@ -22,12 +22,14 @@ namespace ProjectManagement.Pages.Projects
     {
         private readonly ApplicationDbContext _db;
         private readonly ProjectProcurementReadService _procureRead;
+        private readonly ProjectTimelineReadService _timelineRead;
         private readonly UserManager<ApplicationUser> _users;
 
-        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, UserManager<ApplicationUser> users)
+        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users)
         {
             _db = db;
             _procureRead = procureRead;
+            _timelineRead = timelineRead;
             _users = users;
         }
 
@@ -37,6 +39,7 @@ namespace ProjectManagement.Pages.Projects
         public ProcurementAtAGlanceVm Procurement { get; private set; } = default!;
         public ProcurementEditVm ProcurementEdit { get; private set; } = default!;
         public AssignRolesVm AssignRoles { get; private set; } = default!;
+        public TimelineVm Timeline { get; private set; } = default!;
 
         public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
         {
@@ -74,6 +77,7 @@ namespace ProjectManagement.Pages.Projects
             }
 
             Procurement = await _procureRead.GetAsync(id, ct);
+            Timeline = await _timelineRead.GetAsync(id, ct);
 
             ProcurementEdit = new ProcurementEditVm
             {

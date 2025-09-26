@@ -1,0 +1,57 @@
+@model ProjectManagement.ViewModels.TimelineVm
+@using System.Globalization
+@functions{
+    string D(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
+    string StatusChip(ProjectManagement.Models.Stages.StageStatus s) =>
+        s switch {
+            ProjectManagement.Models.Stages.StageStatus.Completed  => "badge bg-success",
+            ProjectManagement.Models.Stages.StageStatus.InProgress => "badge bg-primary",
+            _                                                     => "badge bg-secondary"
+        };
+}
+<link rel="stylesheet" href="~/css/projects/timeline.css" />
+
+<div class="card">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <div class="fw-semibold">Timeline</div>
+    <div class="d-flex align-items-center gap-2">
+      <div class="progress" style="width:180px" aria-label="Stages completed">
+        <div class="progress-bar" role="progressbar"
+             style="width:@(Model.TotalStages == 0 ? 0 : (Model.CompletedCount * 100 / Model.TotalStages))%"
+             aria-valuenow="@(Model.CompletedCount)"
+             aria-valuemin="0"
+             aria-valuemax="@(Model.TotalStages)"></div>
+      </div>
+      <span class="text-muted small">@Model.CompletedCount of @Model.TotalStages</span>
+    </div>
+  </div>
+
+  <div class="card-body py-4">
+    <ol class="pm-timeline">
+      @foreach (var s in Model.Items.OrderBy(i => i.SortOrder))
+      {
+        var itemClass = s.Status switch {
+          ProjectManagement.Models.Stages.StageStatus.Completed  => "pm-item is-complete",
+          ProjectManagement.Models.Stages.StageStatus.InProgress => "pm-item is-active",
+          _                                                     => "pm-item"
+        };
+        <li class="@itemClass">
+          <div class="pm-marker" aria-hidden="true"></div>
+          <div class="pm-content">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+              <div class="pm-title">@s.Name</div>
+              <span class="@StatusChip(s.Status)">@s.Status</span>
+            </div>
+            <div class="pm-meta small text-muted">
+              <div>Planned: @D(s.PlannedStart) → @D(s.PlannedEnd)</div>
+              <div>Actual: @D(s.ActualStart) → @D(s.CompletedOn)
+                @if (s.ActualDurationDays.HasValue)
+                { <span class="ms-2">( @s.ActualDurationDays d )</span> }
+              </div>
+            </div>
+          </div>
+        </li>
+      }
+    </ol>
+  </div>
+</div>

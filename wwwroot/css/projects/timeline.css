@@ -1,0 +1,76 @@
+/* Container */
+.pm-timeline {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  position: relative;
+}
+
+/* The vertical rail */
+.pm-timeline::before {
+  content: "";
+  position: absolute;
+  left: 12px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--bs-border-color, #dee2e6);
+}
+
+/* Each step */
+.pm-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 12px;
+  padding: 8px 0 16px 0;
+}
+
+/* Marker (bullet) */
+.pm-marker {
+  align-self: start;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--bs-border-color, #dee2e6);
+  background: #fff;
+  margin-left: 4px;
+  z-index: 1;
+}
+
+/* Content */
+.pm-content { padding-top: 2px; }
+.pm-title { font-weight: 600; }
+
+/* States */
+.pm-item.is-complete .pm-marker {
+  border-color: var(--bs-success);
+  background: var(--bs-success);
+}
+.pm-item.is-active .pm-marker {
+  border-color: var(--bs-primary);
+  background: var(--bs-primary);
+}
+.pm-item:not(.is-complete):not(.is-active) .pm-marker {
+  border-color: var(--bs-secondary);
+}
+
+/* Adjust rail behind markers */
+.pm-item { position: relative; }
+.pm-item::before {
+  content: "";
+  position: absolute;
+  left: 20px;
+  top: 16px;
+  bottom: -8px;
+  width: 2px;
+  background: var(--bs-border-color, #dee2e6);
+}
+.pm-item:last-child::before { bottom: 0; }
+.pm-item.is-complete::before { background: var(--bs-success); }
+.pm-item.is-active::before { background: linear-gradient(var(--bs-success), var(--bs-primary)); }
+
+/* Responsive */
+@media (max-width: 576px) {
+  .pm-meta { margin-top: 4px; }
+}
