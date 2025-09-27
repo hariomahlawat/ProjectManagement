@@ -41,6 +41,23 @@ Background worker that permanently deletes soft-deleted to-do items after a rete
 ### `Services/UserPurgeWorker`
 Periodic background service that permanently deletes accounts once their deletion undo window has elapsed.
 
+### Project domain services
+
+#### `Services/Projects/ProjectFactsService.cs`
+Central coordinator for procurement facts. Each operation validates inputs, creates or updates the relevant fact row, clears stage backfill flags and records an audit entry describing the change. Monetary facts share an internal helper so concurrency tokens and timestamps stay consistent across cost types.
+
+#### `Services/Projects/ProjectFactsReadService.cs`
+Simple guard that checks whether a project has captured the required fact for a given stage code. The timeline and plan approval flows use it to block progression when mandatory data is missing.
+
+#### `Services/Projects/ProjectProcurementReadService.cs`
+Aggregates the latest procurement numbers per project by querying each fact table and returning a compact `ProcurementAtAGlanceVm`. Results are ordered by creation time so users always see the most recent value, even if history exists.
+
+#### `Services/Projects/ProjectTimelineReadService.cs`
+Builds the read model for the overview timeline, stitching together `ProjectStages`, open plan versions and approval metadata. It flags outstanding backfill requirements, exposes the number of completed stages and provides the friendly names displayed in the UI.
+
+#### `Services/ProjectCommentService.cs`
+Handles threaded project conversations, including file uploads. It validates stage ownership, enforces attachment type/size limits, stores metadata for each file on disk and writes audit logs for create/edit/delete actions. File names are sanitised and stored beneath a configurable root path.
+
 ### `Services/LoginAnalyticsService`
 Calculates percentile lines and flags odd login events for the admin scatter chart. It loads `AuthEvents` from the database, joins them to user records to supply friendly names (falling back to email or "(deleted)"), applies working-hour rules and returns points annotated with reasons for anomalies.
 

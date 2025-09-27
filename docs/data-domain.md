@@ -19,7 +19,16 @@ Seeds initial roles (`Project Officer`, `HoD`, `Comdt`, `Admin`, `TA`, `MCO`, `P
 Extends `IdentityUser` with a `MustChangePassword` flag. New accounts are created with the flag set to `true`, forcing a password change on first login via `EnforcePasswordChangeFilter`.
 
 ### `Models/Project.cs`
-Represents a simple project with a name, optional description and creation timestamp for future grouping of data.
+Holds the master record for a project. Beyond its name/description it stores the case file reference, creator, category, active plan version and assignment metadata for the Head of Department and Lead Project Officer. `PlanApprovedAt/ByUserId` capture the latest plan approval event and the navigation properties surface related user records for UI display. `ProjectStages` now owns the execution stages collection and the obsolete `Stages` property simply proxies to it for backward compatibility.
+
+### `Models/ProjectCategory.cs`
+Allows projects to be organised in a hierarchy. Each category exposes a `ParentId` so breadcrumb trails can be built and circular references are guarded against in the overview loader.
+
+### `Models/Execution/ProjectStage.cs`
+Represents each procurement or delivery milestone for a project. Rows track planned, forecast and actual dates, completion status, auto-completion metadata and whether the stage still needs backfilling. The `StageCodes` helper enumerates canonical codes (FS, IPA, SOW, …, PAYMENT) and exposes human readable display names.
+
+### `Models/ProjectFacts.cs`
+Defines fact tables that capture procurement milestones. IPA, AON, benchmark, L1 and PNC costs, along with the supply-order date and SOW sponsoring units, derive from a shared `ProjectFactBase` that records who captured the fact and when. Each fact table carries a concurrency token so editors get reliable conflict detection when procurement numbers evolve.
 
 ### `Models/TodoItem.cs`
 Represents a personal task owned by a user. Each item records a title, due date (stored in UTC), priority, pin state, order index and timestamps for creation, updates, completion and soft deletion. PostgreSQL's `xmin` concurrency token is used to detect conflicting edits. Items marked completed are soft-deleted by setting `DeletedUtc`; a background worker purges entries older than the configured retention period.
@@ -39,7 +48,7 @@ Represents a calendar event visible to all signed-in users. Each row stores a ti
 ### `Models/AuditLog.cs`
 Captures structured audit entries with timestamps, action names, user metadata, IP addresses and optional payloads. Sensitive fields are scrubbed by `AuditService` before persistence.
 
-### Timeline planning (`Models/Plans`)
+### Timeline planning and scheduling (`Models/Plans`, `Models/Scheduling`)
 Timeline expectations are stored as `PlanVersion` rows. Each project maintains at most one open version (status **Draft** or **PendingApproval**) and a history of approved versions.
 
 * **Draft** rows are editable by the assigned Project Officer (PO) or an administrator. Edits are captured in `StagePlan` children and persisted without affecting the live `ProjectStages` table.
@@ -50,4 +59,9 @@ Timeline expectations are stored as `PlanVersion` rows. Each project maintains a
 * Backfill guards are enforced both in the UI and server (`PlanApprovalService.ApproveLatestDraftAsync`) to prevent approval while earlier stages require completion.
 
 `PlanEditorStateVm` gathers the metadata (status, submission/rejection timestamps, lock state) consumed by Razor components so that locking, banners and validation messaging stay consistent across edit and review experiences.
+
+`ProjectScheduleSettings` lets teams compute draft schedules from durations by storing anchors, working-day preferences and stage chaining policies, while `ProjectPlanDuration` keeps the per-stage duration catalog that powers the bulk duration editor.
+
+### `Models/ProjectComment.cs`
+Supports threaded discussions around a project or a specific stage. Comments enforce minimum/maximum lengths, carry typed categorisation (Update, Risk, Blocker, Decision, Info), allow pinning and track soft deletion. Attachments and mentions are separate tables linked back to the owning comment with foreign keys and capture uploader metadata plus sanitised filenames for storage.
 
