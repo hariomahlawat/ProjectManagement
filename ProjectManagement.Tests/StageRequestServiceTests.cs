@@ -14,7 +14,7 @@ namespace ProjectManagement.Tests;
 public class StageRequestServiceTests
 {
     [Fact]
-    public async Task RequestChangeAsync_CreatesPendingRequestAndLog()
+    public async Task CreateAsync_CreatesPendingRequestAndLog()
     {
         var clock = new TestClock(new DateTimeOffset(2024, 1, 10, 8, 30, 0, TimeSpan.Zero));
         await using var db = CreateContext();
@@ -31,7 +31,7 @@ public class StageRequestServiceTests
             Note = "  Please begin  "
         };
 
-        var result = await service.RequestChangeAsync(input, "po-1");
+        var result = await service.CreateAsync(input, "po-1");
 
         Assert.Equal(StageRequestOutcome.Success, result.Outcome);
 
@@ -53,7 +53,7 @@ public class StageRequestServiceTests
     }
 
     [Fact]
-    public async Task RequestChangeAsync_DuplicatePendingReturnsConflict()
+    public async Task CreateAsync_DuplicatePendingReturnsConflict()
     {
         var clock = new TestClock(new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
@@ -68,15 +68,15 @@ public class StageRequestServiceTests
             RequestedStatus = StageStatus.InProgress.ToString()
         };
 
-        var first = await service.RequestChangeAsync(input, "po-1");
-        var second = await service.RequestChangeAsync(input, "po-1");
+        var first = await service.CreateAsync(input, "po-1");
+        var second = await service.CreateAsync(input, "po-1");
 
         Assert.Equal(StageRequestOutcome.Success, first.Outcome);
         Assert.Equal(StageRequestOutcome.DuplicatePending, second.Outcome);
     }
 
     [Fact]
-    public async Task RequestChangeAsync_DisallowedTransitionReturnsValidationError()
+    public async Task CreateAsync_DisallowedTransitionReturnsValidationError()
     {
         var clock = new TestClock(new DateTimeOffset(2024, 3, 1, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
@@ -84,7 +84,7 @@ public class StageRequestServiceTests
 
         var service = new StageRequestService(db, clock);
 
-        var result = await service.RequestChangeAsync(new StageChangeRequestInput
+        var result = await service.CreateAsync(new StageChangeRequestInput
         {
             ProjectId = 1,
             StageCode = StageCodes.IPA,
@@ -97,7 +97,7 @@ public class StageRequestServiceTests
     }
 
     [Fact]
-    public async Task RequestChangeAsync_CompletedBeforeActualStartReturnsValidationError()
+    public async Task CreateAsync_CompletedBeforeActualStartReturnsValidationError()
     {
         var clock = new TestClock(new DateTimeOffset(2024, 4, 1, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
@@ -105,7 +105,7 @@ public class StageRequestServiceTests
 
         var service = new StageRequestService(db, clock);
 
-        var result = await service.RequestChangeAsync(new StageChangeRequestInput
+        var result = await service.CreateAsync(new StageChangeRequestInput
         {
             ProjectId = 1,
             StageCode = StageCodes.IPA,

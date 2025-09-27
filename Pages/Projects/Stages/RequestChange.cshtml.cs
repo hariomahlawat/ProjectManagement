@@ -38,7 +38,7 @@ public class RequestChangeModel : PageModel
             return Forbid();
         }
 
-        var result = await _stageRequestService.RequestChangeAsync(input, userId, cancellationToken);
+        var result = await _stageRequestService.CreateAsync(input, userId, cancellationToken);
 
         return result.Outcome switch
         {
