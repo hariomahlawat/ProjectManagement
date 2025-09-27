@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Scheduling;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
 
@@ -153,8 +154,9 @@ public class StageProgressService
 
         await _audit.LogAsync("Stages.StageStatusChanged", userId: userId, data: data);
 
-        if (autoStart is { Stage: { } nextStage })
+        if (autoStart.HasValue && autoStart.Value.Stage is { } nextStage)
         {
+            var startDate = autoStart.Value.StartDate;
             await _audit.LogAsync(
                 "Stages.StageAutoStarted",
                 userId: userId,
@@ -163,7 +165,7 @@ public class StageProgressService
                     ["ProjectId"] = projectId.ToString(CultureInfo.InvariantCulture),
                     ["StageCode"] = nextStage.StageCode,
                     ["TriggeredBy"] = stage.StageCode,
-                    ["StartDate"] = autoStart.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                    ["StartDate"] = startDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
                 });
         }
 

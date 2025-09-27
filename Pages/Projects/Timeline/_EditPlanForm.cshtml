@@ -97,8 +97,8 @@
                         <div class="col-md-6">
                             <label class="form-label" for="DurationsPolicy">Next stage starts</label>
                             <select class="form-select" id="DurationsPolicy" name="Input.NextStageStartPolicy">
-                                <option value="@ProjectManagement.Models.Scheduling.NextStageStartPolicies.SameDay" @(Model.Durations.NextStageStartPolicy == ProjectManagement.Models.Scheduling.NextStageStartPolicies.SameDay ? "selected" : null)>Same day</option>
-                                <option value="@ProjectManagement.Models.Scheduling.NextStageStartPolicies.NextWorkingDay" @(Model.Durations.NextStageStartPolicy == ProjectManagement.Models.Scheduling.NextStageStartPolicies.NextWorkingDay ? "selected" : null)>Next working day</option>
+                                <option value="@ProjectManagement.Models.Scheduling.NextStageStartPolicies.SameDay" selected="@(Model.Durations.NextStageStartPolicy == ProjectManagement.Models.Scheduling.NextStageStartPolicies.SameDay ? "selected" : null)">Same day</option>
+                                <option value="@ProjectManagement.Models.Scheduling.NextStageStartPolicies.NextWorkingDay" selected="@(Model.Durations.NextStageStartPolicy == ProjectManagement.Models.Scheduling.NextStageStartPolicies.NextWorkingDay ? "selected" : null)">Next working day</option>
                             </select>
                         </div>
                         <div class="col-12">
