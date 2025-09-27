@@ -27,32 +27,55 @@ namespace ProjectManagement.Services
             try
             {
                 using var timer = new PeriodicTimer(TimeSpan.FromHours(24));
+
+                await AggregateAsync(stoppingToken);
+
                 while (await timer.WaitForNextTickAsync(stoppingToken))
                 {
-                    using var scope = _sp.CreateScope();
-                    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-                    var date = DateOnly.FromDateTime(DateTime.UtcNow.Date.AddDays(-1));
-                    var exists = await db.DailyLoginStats.AnyAsync(x => x.Date == date, stoppingToken);
-                    if (exists) continue;
-
-                    var from = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-                    var to = from.AddDays(1);
-
-                    var count = await db.AuthEvents
-                        .Where(e => e.Event == "LoginSucceeded" && e.WhenUtc >= from && e.WhenUtc < to)
-                        .CountAsync(stoppingToken);
-
-                    db.DailyLoginStats.Add(new DailyLoginStat { Date = date, Count = count });
-                    await db.SaveChangesAsync(stoppingToken);
+                    await AggregateAsync(stoppingToken);
                 }
             }
-            catch (TaskCanceledException) { }
-            catch (OperationCanceledException) { }
+            catch (TaskCanceledException)
+            {
+                // Ignore cancellation exceptions to allow graceful shutdown
+            }
+            catch (OperationCanceledException)
+            {
+                // Ignore cancellation exceptions to allow graceful shutdown
+            }
             catch (Exception ex)
             {
                 _log.LogError(ex, "Login aggregation worker failed.");
             }
+        }
+
+        private async Task AggregateAsync(CancellationToken stoppingToken)
+        {
+            if (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            using var scope = _sp.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            var now = DateTime.UtcNow;
+            var date = DateOnly.FromDateTime(now.AddDays(-1));
+            var exists = await db.DailyLoginStats.AnyAsync(x => x.Date == date, stoppingToken);
+            if (exists)
+            {
+                return;
+            }
+
+            var from = new DateTimeOffset(date.Year, date.Month, date.Day, 0, 0, 0, TimeSpan.Zero);
+            var to = from.AddDays(1);
+
+            var count = await db.AuthEvents
+                .Where(e => e.Event == "LoginSucceeded" && e.WhenUtc >= from && e.WhenUtc < to)
+                .CountAsync(stoppingToken);
+
+            db.DailyLoginStats.Add(new DailyLoginStat { Date = date, Count = count });
+            await db.SaveChangesAsync(stoppingToken);
         }
     }
 }
