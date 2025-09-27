@@ -61,6 +61,9 @@ public class PlanApprovalService
         _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} submitted for approval by {UserId}.", plan.Id, projectId, userId);
     }
 
+    public Task SubmitForApprovalAsync(int projectId, string userId, CancellationToken cancellationToken = default)
+        => SubmitAsync(projectId, userId, cancellationToken);
+
     public async Task<bool> ApproveLatestDraftAsync(int projectId, string approverUserId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(approverUserId))

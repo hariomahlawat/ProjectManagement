@@ -207,6 +207,7 @@
         <div class="offcanvas-body">
             @{
                 ViewBag.ProjectId = Model.Project.Id;
+                ViewBag.HasBackfill = Model.HasBackfill;
                 var diffs = await Model.PlanCompare.GetDraftVsCurrentAsync(Model.Project.Id);
                 await Html.RenderPartialAsync("Projects/Timeline/_ReviewPlan", diffs);
             }

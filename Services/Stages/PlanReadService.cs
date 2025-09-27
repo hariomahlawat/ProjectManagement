@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.ViewModels;
@@ -36,6 +37,15 @@ public sealed class PlanReadService
             .OrderBy(d => d.SortOrder)
             .ToListAsync(cancellationToken);
 
+        var draftPlan = await _db.PlanVersions
+            .AsNoTracking()
+            .Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == projectId &&
+                        (p.Status == PlanVersionStatus.PendingApproval || p.Status == PlanVersionStatus.Draft))
+            .OrderByDescending(p => p.Status)
+            .ThenByDescending(p => p.VersionNo)
+            .FirstOrDefaultAsync(cancellationToken);
+
         var exactVm = new PlanEditVm { ProjectId = projectId };
         var durationVm = new PlanDurationVm
         {
@@ -54,20 +64,40 @@ public sealed class PlanReadService
             .Where(d => !string.IsNullOrWhiteSpace(d.StageCode))
             .ToDictionary(d => d.StageCode!, StringComparer.OrdinalIgnoreCase);
 
+        var draftMap = draftPlan?.StagePlans
+            .Where(sp => !string.IsNullOrWhiteSpace(sp.StageCode))
+            .ToDictionary(sp => sp.StageCode!, sp => sp, StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, StagePlan>(StringComparer.OrdinalIgnoreCase);
+
         var knownCodes = new HashSet<string>(StageCodes.All, StringComparer.OrdinalIgnoreCase);
-        var extraStages = new List<(ProjectStage Stage, int Sort)>();
+        var extraCodes = new List<(string Code, int Sort)>();
+        var seenExtras = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void AddExtra(string? code)
+        {
+            if (string.IsNullOrWhiteSpace(code) || knownCodes.Contains(code) || !seenExtras.Add(code))
+            {
+                return;
+            }
+
+            var sort = durationMap.TryGetValue(code, out var duration)
+                ? duration.SortOrder
+                : StageCodes.All.Length + extraCodes.Count;
+            extraCodes.Add((code, sort));
+        }
 
         foreach (var code in StageCodes.All)
         {
             stageMap.TryGetValue(code, out var stage);
             durationMap.TryGetValue(code, out var duration);
+            draftMap.TryGetValue(code, out var draftStage);
 
             exactVm.Rows.Add(new PlanEditVm.PlanEditRow
             {
                 Code = code,
                 Name = StageCodes.DisplayNameOf(code),
-                PlannedStart = stage?.PlannedStart,
-                PlannedDue = stage?.PlannedDue,
+                PlannedStart = draftStage?.PlannedStart ?? stage?.PlannedStart,
+                PlannedDue = draftStage?.PlannedDue ?? stage?.PlannedDue,
             });
 
             durationVm.Rows.Add(new PlanDurationRowVm
@@ -80,33 +110,32 @@ public sealed class PlanReadService
 
         foreach (var stage in stages)
         {
-            if (string.IsNullOrWhiteSpace(stage.StageCode) || knownCodes.Contains(stage.StageCode))
-            {
-                continue;
-            }
-
-            var sort = durationMap.TryGetValue(stage.StageCode!, out var duration)
-                ? duration.SortOrder
-                : StageCodes.All.Length + extraStages.Count;
-            extraStages.Add((stage, sort));
+            AddExtra(stage.StageCode);
         }
 
-        foreach (var (stage, _) in extraStages.OrderBy(s => s.Sort).ThenBy(s => s.Stage.StageCode, StringComparer.OrdinalIgnoreCase))
+        foreach (var code in draftMap.Keys)
         {
-            var duration = durationMap.TryGetValue(stage.StageCode, out var row) ? row : null;
+            AddExtra(code);
+        }
+
+        foreach (var (code, _) in extraCodes.OrderBy(s => s.Sort).ThenBy(s => s.Code, StringComparer.OrdinalIgnoreCase))
+        {
+            stageMap.TryGetValue(code, out var stage);
+            draftMap.TryGetValue(code, out var draftStage);
+            var duration = durationMap.TryGetValue(code, out var row) ? row : null;
 
             exactVm.Rows.Add(new PlanEditVm.PlanEditRow
             {
-                Code = stage.StageCode,
-                Name = StageCodes.DisplayNameOf(stage.StageCode),
-                PlannedStart = stage.PlannedStart,
-                PlannedDue = stage.PlannedDue,
+                Code = code,
+                Name = StageCodes.DisplayNameOf(code),
+                PlannedStart = draftStage?.PlannedStart ?? stage?.PlannedStart,
+                PlannedDue = draftStage?.PlannedDue ?? stage?.PlannedDue,
             });
 
             durationVm.Rows.Add(new PlanDurationRowVm
             {
-                Code = stage.StageCode,
-                Name = StageCodes.DisplayNameOf(stage.StageCode),
+                Code = code,
+                Name = StageCodes.DisplayNameOf(code),
                 DurationDays = duration?.DurationDays
             });
         }

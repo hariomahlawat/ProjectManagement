@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.ViewModels;
 
@@ -19,10 +20,6 @@ public sealed class ProjectTimelineReadService
         var rows = await _db.ProjectStages
             .Where(x => x.ProjectId == projectId)
             .ToListAsync(ct);
-
-        var project = await _db.Projects
-            .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == projectId, ct);
 
         var items = new List<TimelineItemVm>();
         var index = 0;
@@ -47,8 +44,10 @@ public sealed class ProjectTimelineReadService
 
         var completed = items.Count(i => i.Status == StageStatus.Completed);
 
-        var planPendingApproval = project?.PlanApprovedAt is null
-            && rows.Any(r => r.PlannedStart.HasValue || r.PlannedDue.HasValue);
+        var planPendingApproval = await _db.PlanVersions
+            .AsNoTracking()
+            .AnyAsync(p => p.ProjectId == projectId &&
+                           (p.Status == PlanVersionStatus.PendingApproval || p.Status == PlanVersionStatus.Draft), ct);
 
         return new TimelineVm
         {
