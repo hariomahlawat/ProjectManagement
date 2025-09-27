@@ -9,23 +9,23 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
-using ProjectManagement.Services.Stages;
+using ProjectManagement.Services.Plans;
 
 namespace ProjectManagement.Pages.Projects.Timeline;
 
-[Authorize(Roles = "Admin,HoD")]
+[Authorize(Roles = "HoD")]
 [ValidateAntiForgeryToken]
 public class ReviewModel : PageModel
 {
     private readonly ApplicationDbContext _db;
-    private readonly PlanSnapshotService _snapshots;
     private readonly UserManager<ApplicationUser> _users;
     private readonly ILogger<ReviewModel> _logger;
+    private readonly PlanApprovalService _approval;
 
-    public ReviewModel(ApplicationDbContext db, PlanSnapshotService snapshots, UserManager<ApplicationUser> users, ILogger<ReviewModel> logger)
+    public ReviewModel(ApplicationDbContext db, PlanApprovalService approval, UserManager<ApplicationUser> users, ILogger<ReviewModel> logger)
     {
         _db = db;
-        _snapshots = snapshots;
+        _approval = approval;
         _users = users;
         _logger = logger;
     }
@@ -64,31 +64,46 @@ public class ReviewModel : PageModel
             }
         }
 
-        var project = await _db.Projects.SingleOrDefaultAsync(p => p.Id == id, ct);
-        if (project is null)
-        {
-            return NotFound();
-        }
-
         var userId = _users.GetUserId(User);
         if (string.IsNullOrEmpty(userId))
         {
             return Forbid();
         }
 
-        if (isApprove)
+        try
         {
-            await _snapshots.CreateSnapshotAsync(id, userId, ct);
-            project.PlanApprovedAt = DateTimeOffset.UtcNow;
-            project.PlanApprovedByUserId = userId;
-            await _db.SaveChangesAsync(ct);
-            TempData["Flash"] = "Plan approved.";
-            _logger.LogInformation("Plan approved for project {ProjectId} by user {UserId}.", id, userId);
+            if (isApprove)
+            {
+                var approved = await _approval.ApproveLatestDraftAsync(id, userId, ct);
+                if (approved)
+                {
+                    TempData["Flash"] = "Plan approved.";
+                    _logger.LogInformation("Plan approved for project {ProjectId} by user {UserId}.", id, userId);
+                }
+                else
+                {
+                    TempData["Error"] = "No draft plan found to approve.";
+                    TempData["OpenOffcanvas"] = "plan-review";
+                    _logger.LogWarning("Plan approval attempted for project {ProjectId} by user {UserId}, but no draft was available.", id, userId);
+                }
+            }
+            else
+            {
+                TempData["Flash"] = "Plan review rejected.";
+                _logger.LogInformation("Plan review rejected for project {ProjectId} by user {UserId}.", id, userId);
+            }
         }
-        else
+        catch (PlanApprovalValidationException ex)
         {
-            TempData["Flash"] = "Plan review rejected.";
-            _logger.LogInformation("Plan review rejected for project {ProjectId} by user {UserId}.", id, userId);
+            TempData["Error"] = ex.Errors.Count > 0 ? string.Join(" ", ex.Errors) : ex.Message;
+            TempData["OpenOffcanvas"] = "plan-review";
+            _logger.LogWarning(ex, "Plan approval validation failed for project {ProjectId} by user {UserId}.", id, userId);
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["Error"] = ex.Message;
+            TempData["OpenOffcanvas"] = "plan-review";
+            _logger.LogWarning(ex, "Plan approval failed for project {ProjectId} by user {UserId}.", id, userId);
         }
 
         return RedirectToPage("/Projects/Overview", new { id });
