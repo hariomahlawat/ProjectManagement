@@ -1,6 +1,17 @@
 @model IReadOnlyList<ProjectManagement.Services.Stages.PlanCompareService.PlanDiffRow>
 @using System.Linq
+@using ProjectManagement.Models.Plans
 @using ProjectManagement.Models.Stages
+@using ProjectManagement.ViewModels
+
+@{
+    var planState = ViewBag.PlanState as PlanEditorStateVm;
+    var status = planState?.Status;
+    var isPending = status == PlanVersionStatus.PendingApproval;
+    var requiresBackfill = ViewBag.HasBackfill is bool hb && hb;
+    var submittedOn = planState?.SubmittedOn;
+    var submittedBy = planState?.SubmittedBy;
+}
 
 @if (Model is null || Model.Count == 0)
 {
@@ -12,12 +23,20 @@
 else
 {
     var hasChanges = Model.Any(row => row.NewStart != row.OldStart || row.NewDue != row.OldDue);
-    var requiresBackfill = ViewBag.HasBackfill is bool hb && hb;
     <div class="small text-muted mb-2">
         <span>Draft plan compared against the current timeline.</span>
     </div>
 
-    if (requiresBackfill)
+    if (submittedOn is DateTimeOffset submitted)
+    {
+        <div class="mb-2 text-muted small">Submitted on @submitted.ToLocalTime().ToString("dd MMM yyyy") @if (!string.IsNullOrWhiteSpace(submittedBy)){<text>by @submittedBy</text>}</div>
+    }
+
+    if (!isPending)
+    {
+        <div class="alert alert-info">No draft has been submitted for approval.</div>
+    }
+    else if (requiresBackfill)
     {
         <div class="alert alert-warning">Backfill required data before approval.</div>
     }
@@ -57,10 +76,20 @@ else
         </table>
     </div>
 
-    <form method="post" asp-page="/Projects/Timeline/Review" asp-route-id="@ViewBag.ProjectId" class="d-flex gap-2 justify-content-end mt-3">
+    <form method="post"
+          asp-page="/Projects/Timeline/Review"
+          asp-route-id="@ViewBag.ProjectId"
+          class="d-flex flex-column gap-3 mt-3"
+          data-plan-review-form="true">
         @Html.AntiForgeryToken()
         <input type="hidden" name="Input.ProjectId" value="@ViewBag.ProjectId" />
-        <button name="Input.Decision" value="Reject" class="btn btn-outline-secondary">Reject</button>
-        <button name="Input.Decision" value="Approve" class="btn btn-primary" @(requiresBackfill ? "disabled" : null)>Approve plan</button>
+        <div class="d-flex gap-2 justify-content-end">
+            <button name="Input.Decision" value="Reject" class="btn btn-outline-secondary" @(isPending ? null : "disabled") data-plan-review-reject="true">Reject</button>
+            <button name="Input.Decision" value="Approve" class="btn btn-primary" @((!isPending || requiresBackfill) ? "disabled" : null)>Approve plan</button>
+        </div>
+        <div class="mt-1" data-plan-review-note hidden>
+            <label class="form-label" for="plan-review-reject-note">Reason (optional)</label>
+            <textarea class="form-control" id="plan-review-reject-note" name="Input.Note" rows="3" placeholder="Share feedback for the project officer."></textarea>
+        </div>
     </form>
 }

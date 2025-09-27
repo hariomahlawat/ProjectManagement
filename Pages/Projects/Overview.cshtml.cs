@@ -63,6 +63,7 @@ namespace ProjectManagement.Pages.Projects
                 .Include(p => p.Category)
                 .Include(p => p.HodUser)
                 .Include(p => p.LeadPoUser)
+                .Include(p => p.PlanApprovedByUser)
                 .FirstOrDefaultAsync(p => p.Id == id, ct);
 
             if (project is null)

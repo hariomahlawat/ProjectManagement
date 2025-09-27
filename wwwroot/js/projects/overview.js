@@ -60,10 +60,43 @@
             }
         });
 
+        planReview.addEventListener('hidden.bs.offcanvas', function () {
+            planReview.querySelectorAll('[data-plan-review-note]').forEach(function (note) {
+                note.setAttribute('hidden', '');
+                const textarea = note.querySelector('textarea');
+                if (textarea) {
+                    textarea.value = '';
+                }
+            });
+        });
+
         const reviewMarker = document.getElementById('open-plan-review');
         if (reviewMarker && reviewMarker.dataset.open === '1') {
             const instance = bootstrap.Offcanvas.getOrCreateInstance(planReview);
             instance.show();
         }
+
+        planReview.querySelectorAll('[data-plan-review-form]').forEach(function (form) {
+            const noteContainer = form.querySelector('[data-plan-review-note]');
+            const rejectButton = form.querySelector('[data-plan-review-reject]');
+            if (!noteContainer || !rejectButton) {
+                return;
+            }
+
+            rejectButton.addEventListener('click', function (event) {
+                if (rejectButton.disabled) {
+                    return;
+                }
+
+                if (noteContainer.hasAttribute('hidden')) {
+                    event.preventDefault();
+                    noteContainer.removeAttribute('hidden');
+                    const textarea = noteContainer.querySelector('textarea');
+                    if (textarea) {
+                        textarea.focus();
+                    }
+                }
+            });
+        });
     }
 })();

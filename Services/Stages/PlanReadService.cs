@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Scheduling;
@@ -40,6 +41,8 @@ public sealed class PlanReadService
         var draftPlan = await _db.PlanVersions
             .AsNoTracking()
             .Include(p => p.StagePlans)
+            .Include(p => p.SubmittedByUser)
+            .Include(p => p.RejectedByUser)
             .Where(p => p.ProjectId == projectId &&
                         (p.Status == PlanVersionStatus.PendingApproval || p.Status == PlanVersionStatus.Draft))
             .OrderByDescending(p => p.Status)
@@ -144,11 +147,41 @@ public sealed class PlanReadService
             ? PlanEditorModes.Durations
             : PlanEditorModes.Exact;
 
+        var state = new PlanEditorStateVm
+        {
+            HasDraft = draftPlan is not null,
+            IsLocked = draftPlan?.Status == PlanVersionStatus.PendingApproval,
+            Status = draftPlan?.Status,
+            VersionNo = draftPlan?.VersionNo,
+            CreatedOn = draftPlan?.CreatedOn,
+            SubmittedOn = draftPlan?.SubmittedOn,
+            SubmittedBy = DisplayName(draftPlan?.SubmittedByUser),
+            RejectedOn = draftPlan?.RejectedOn,
+            RejectedBy = DisplayName(draftPlan?.RejectedByUser),
+            RejectionNote = draftPlan?.RejectionNote
+        };
+
         return new PlanEditorVm
         {
             Exact = exactVm,
             Durations = durationVm,
-            ActiveMode = activeMode
+            ActiveMode = activeMode,
+            State = state
         };
+    }
+
+    private static string? DisplayName(ApplicationUser? user)
+    {
+        if (user is null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.FullName))
+        {
+            return user.FullName;
+        }
+
+        return user.UserName ?? user.Email;
     }
 }

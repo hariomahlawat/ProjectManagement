@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
@@ -44,10 +45,26 @@ public sealed class ProjectTimelineReadService
 
         var completed = items.Count(i => i.Status == StageStatus.Completed);
 
-        var planPendingApproval = await _db.PlanVersions
+        var openPlan = await _db.PlanVersions
             .AsNoTracking()
-            .AnyAsync(p => p.ProjectId == projectId &&
-                           (p.Status == PlanVersionStatus.PendingApproval || p.Status == PlanVersionStatus.Draft), ct);
+            .Where(p => p.ProjectId == projectId &&
+                        (p.Status == PlanVersionStatus.PendingApproval || p.Status == PlanVersionStatus.Draft))
+            .OrderByDescending(p => p.Status)
+            .ThenByDescending(p => p.VersionNo)
+            .Select(p => new { p.Status })
+            .FirstOrDefaultAsync(ct);
+
+        var approvalInfo = await _db.Projects
+            .AsNoTracking()
+            .Where(p => p.Id == projectId)
+            .Select(p => new
+            {
+                p.PlanApprovedAt,
+                ApprovedBy = p.PlanApprovedByUser != null
+                    ? (p.PlanApprovedByUser.FullName ?? p.PlanApprovedByUser.UserName ?? p.PlanApprovedByUser.Email)
+                    : null
+            })
+            .FirstOrDefaultAsync(ct);
 
         return new TimelineVm
         {
@@ -55,7 +72,10 @@ public sealed class ProjectTimelineReadService
             TotalStages = items.Count,
             CompletedCount = completed,
             Items = items,
-            PlanPendingApproval = planPendingApproval
+            PlanPendingApproval = openPlan?.Status == PlanVersionStatus.PendingApproval,
+            HasDraft = openPlan is not null,
+            LatestApprovalAt = approvalInfo?.PlanApprovedAt,
+            LatestApprovalBy = approvalInfo?.ApprovedBy
         };
     }
 }
