@@ -67,11 +67,11 @@ public class PlanApprovalService
     public Task SubmitForApprovalAsync(int projectId, string userId, CancellationToken cancellationToken = default)
         => SubmitAsync(projectId, userId, cancellationToken);
 
-    public async Task<bool> ApproveLatestDraftAsync(int projectId, string approverUserId, CancellationToken cancellationToken = default)
+    public async Task<bool> ApproveLatestDraftAsync(int projectId, string hodUserId, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(approverUserId))
+        if (string.IsNullOrWhiteSpace(hodUserId))
         {
-            throw new ArgumentException("A valid approver identifier is required.", nameof(approverUserId));
+            throw new ArgumentException("A valid approver identifier is required.", nameof(hodUserId));
         }
 
         var plan = await _db.PlanVersions
@@ -125,14 +125,14 @@ public class PlanApprovalService
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        await _snapshots.CreateSnapshotAsync(projectId, approverUserId, cancellationToken);
+        await _snapshots.CreateSnapshotAsync(projectId, hodUserId, cancellationToken);
 
         project.ActivePlanVersionNo = plan.VersionNo;
         project.PlanApprovedAt = now;
-        project.PlanApprovedByUserId = approverUserId;
+        project.PlanApprovedByUserId = hodUserId;
 
         plan.Status = PlanVersionStatus.Approved;
-        plan.ApprovedByUserId = approverUserId;
+        plan.ApprovedByUserId = hodUserId;
         plan.ApprovedOn = now;
         plan.RejectedByUserId = null;
         plan.RejectedOn = null;
@@ -141,7 +141,7 @@ public class PlanApprovalService
         await _db.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
-        _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} approved by {UserId}.", plan.Id, projectId, approverUserId);
+        _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} approved by {UserId}.", plan.Id, projectId, hodUserId);
         return true;
     }
 
@@ -160,11 +160,11 @@ public class PlanApprovalService
         return index >= 0 ? index : int.MaxValue;
     }
 
-    public async Task<bool> RejectLatestPendingAsync(int projectId, string approverUserId, string? note, CancellationToken cancellationToken = default)
+    public async Task<bool> RejectLatestPendingAsync(int projectId, string hodUserId, string? reason, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(approverUserId))
+        if (string.IsNullOrWhiteSpace(hodUserId))
         {
-            throw new ArgumentException("A valid approver identifier is required.", nameof(approverUserId));
+            throw new ArgumentException("A valid approver identifier is required.", nameof(hodUserId));
         }
 
         var plan = await _db.PlanVersions
@@ -178,15 +178,16 @@ public class PlanApprovalService
             return false;
         }
 
-        var trimmedNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        var trimmedNote = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        var rejectedOn = _clock.UtcNow;
 
         plan.Status = PlanVersionStatus.Draft;
         plan.SubmittedByUserId = null;
         plan.SubmittedOn = null;
         plan.ApprovedByUserId = null;
         plan.ApprovedOn = null;
-        plan.RejectedByUserId = approverUserId;
-        plan.RejectedOn = _clock.UtcNow;
+        plan.RejectedByUserId = hodUserId;
+        plan.RejectedOn = rejectedOn;
         plan.RejectionNote = trimmedNote;
 
         plan.ApprovalLogs.Add(new PlanApprovalLog
@@ -194,12 +195,12 @@ public class PlanApprovalService
             PlanVersionId = plan.Id,
             Action = "Rejected",
             Note = trimmedNote,
-            PerformedByUserId = approverUserId,
-            PerformedOn = _clock.UtcNow
+            PerformedByUserId = hodUserId,
+            PerformedOn = rejectedOn
         });
 
         await _db.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} was rejected by {UserId}.", plan.Id, projectId, approverUserId);
+        _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} was rejected by {UserId}.", plan.Id, projectId, hodUserId);
 
         return true;
     }

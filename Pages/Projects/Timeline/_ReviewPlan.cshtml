@@ -1,4 +1,4 @@
-@model IReadOnlyList<ProjectManagement.Services.Stages.PlanCompareService.PlanDiffRow>
+@model IReadOnlyList<ProjectManagement.Services.Stages.PlanDiffRow>
 @using System.Linq
 @using ProjectManagement.Models.Plans
 @using ProjectManagement.Models.Stages
@@ -22,7 +22,6 @@
 }
 else
 {
-    var hasChanges = Model.Any(row => row.NewStart != row.OldStart || row.NewDue != row.OldDue);
     <div class="small text-muted mb-2">
         <span>Draft plan compared against the current timeline.</span>
     </div>
@@ -41,9 +40,11 @@ else
         <div class="alert alert-warning">Resolve required procurement backfill before approval.</div>
     }
 
+    var hasChanges = Model.Any(row => row.NewStart != row.OldStart || row.NewDue != row.OldDue);
+
     @if (!hasChanges)
     {
-        <div class="alert alert-info">No differences between the current timeline and this draft. You can still approve to stamp the plan.</div>
+        <div class="alert alert-info">No differences between current plan and draft. You can still approve to stamp and snapshot.</div>
     }
 
     <div class="table-responsive">
@@ -61,8 +62,8 @@ else
                 var changed = row.OldStart != row.NewStart || row.OldDue != row.NewDue;
                 <tr class="@(changed ? "table-warning" : "table-secondary")">
                     <td>
-                        <span class="fw-semibold">@StageCodes.DisplayNameOf(row.Code)</span>
-                        <div class="text-muted small">@row.Code</div>
+                        <span class="fw-semibold">@StageCodes.DisplayNameOf(row.StageCode)</span>
+                        <div class="text-muted small">@row.StageCode</div>
                     </td>
                     <td class="text-center">
                         @((row.OldStart?.ToString("yyyy-MM-dd") ?? "—") + " → " + (row.OldDue?.ToString("yyyy-MM-dd") ?? "—"))

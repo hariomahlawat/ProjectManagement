@@ -10,6 +10,8 @@ using ProjectManagement.Models.Stages;
 
 namespace ProjectManagement.Services.Stages;
 
+public record PlanDiffRow(string StageCode, DateOnly? NewStart, DateOnly? NewDue, DateOnly? OldStart, DateOnly? OldDue);
+
 public sealed class PlanCompareService
 {
     private readonly ApplicationDbContext _db;
@@ -18,13 +20,6 @@ public sealed class PlanCompareService
     {
         _db = db;
     }
-
-    public sealed record PlanDiffRow(
-        string Code,
-        DateOnly? NewStart,
-        DateOnly? NewDue,
-        DateOnly? OldStart,
-        DateOnly? OldDue);
 
     public async Task<IReadOnlyList<PlanDiffRow>> GetDiffAsync(int projectId, CancellationToken ct = default)
     {
@@ -99,7 +94,7 @@ public sealed class PlanCompareService
             .Where(s => !string.IsNullOrWhiteSpace(s.StageCode))
             .ToDictionary(s => s.StageCode!, s => s, StringComparer.OrdinalIgnoreCase);
 
-        var unionCodes = currentLookup.Keys
+        var codes = currentLookup.Keys
             .Union(draftLookup.Keys, StringComparer.OrdinalIgnoreCase)
             .OrderBy(code =>
             {
@@ -109,14 +104,13 @@ public sealed class PlanCompareService
             .ThenBy(code => code, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-        var results = new List<PlanDiffRow>(unionCodes.Count);
-
-        foreach (var code in unionCodes)
+        var diffs = new List<PlanDiffRow>(codes.Count);
+        foreach (var code in codes)
         {
             draftLookup.TryGetValue(code, out var draftRow);
             currentLookup.TryGetValue(code, out var currentRow);
 
-            results.Add(new PlanDiffRow(
+            diffs.Add(new PlanDiffRow(
                 code,
                 draftRow?.PlannedStart,
                 draftRow?.PlannedDue,
@@ -124,6 +118,6 @@ public sealed class PlanCompareService
                 currentRow?.PlannedDue));
         }
 
-        return results;
+        return diffs;
     }
 }

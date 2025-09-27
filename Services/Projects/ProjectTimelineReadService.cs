@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
@@ -15,6 +16,9 @@ public sealed class ProjectTimelineReadService
 {
     private readonly ApplicationDbContext _db;
     public ProjectTimelineReadService(ApplicationDbContext db) => _db = db;
+
+    public Task<bool> HasBackfillAsync(int projectId, CancellationToken ct = default)
+        => _db.ProjectStages.AnyAsync(s => s.ProjectId == projectId && s.RequiresBackfill, ct);
 
     public async Task<TimelineVm> GetAsync(int projectId, CancellationToken ct = default)
     {
