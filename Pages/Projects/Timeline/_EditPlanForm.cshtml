@@ -151,6 +151,10 @@
                 </div>
 
                 <div class="pt-3 mt-3 border-top d-flex justify-content-end gap-2">
+                    @if (!isLocked && state.HasMyDraft && state.Status == PlanVersionStatus.Draft)
+                    {
+                        <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#discardDraftModal">Discard draft</button>
+                    }
                     <button class="btn btn-outline-secondary" type="submit" name="Input.Action" value="@PlanEditActions.SaveDraft" @(disableAttr)>Save draft</button>
                     <button class="btn btn-primary" type="submit" name="Input.Action" value="@PlanEditActions.Submit" @(submitDisabledAttr)>Save &amp; request approval</button>
                 </div>
@@ -240,6 +244,10 @@
 
                 <div class="d-flex gap-2 justify-content-end mt-3 pt-3 border-top">
                     <button class="btn btn-outline-secondary" type="submit" name="Input.Action" value="@PlanEditActions.Calculate" @(disableAttr)>Calculate</button>
+                    @if (!isLocked && state.HasMyDraft && state.Status == PlanVersionStatus.Draft)
+                    {
+                        <button class="btn btn-outline-secondary" type="button" data-bs-toggle="modal" data-bs-target="#discardDraftModal">Discard draft</button>
+                    }
                     <button class="btn btn-secondary" type="submit" name="Input.Action" value="@PlanEditActions.SaveDraft" @(disableAttr)>Save draft</button>
                     <button class="btn btn-primary" type="submit" name="Input.Action" value="@PlanEditActions.Submit" @(submitDisabledAttr)>Save &amp; request approval</button>
                 </div>

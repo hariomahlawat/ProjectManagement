@@ -246,18 +246,26 @@
                                 </div>
                                 @if (hasMyDraft && !pendingOwnedByCurrentUser)
                                 {
-                                    <button class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-2"
-                                            type="button"
-                                            data-bs-toggle="offcanvas"
-                                            data-bs-target="#offcanvasPlanEdit"
-                                            aria-controls="offcanvasPlanEdit">
-                                        <span>Your draft saved</span>
-                                        @if (planState.LastSavedOn is DateTimeOffset savedOn)
-                                        {
-                                            <span class="text-muted">@savedOn.ToLocalTime().ToString("dd MMM HH:mm")</span>
-                                        }
-                                        <span class="fw-semibold">Continue editing</span>
-                                    </button>
+                                    <div class="d-flex flex-wrap align-items-center gap-2">
+                                        <button class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-2"
+                                                type="button"
+                                                data-bs-toggle="offcanvas"
+                                                data-bs-target="#offcanvasPlanEdit"
+                                                aria-controls="offcanvasPlanEdit">
+                                            <span>Your draft saved</span>
+                                            @if (planState.LastSavedOn is DateTimeOffset savedOn)
+                                            {
+                                                <span class="text-muted">@savedOn.ToLocalTime().ToString("dd MMM HH:mm")</span>
+                                            }
+                                            <span class="fw-semibold">Continue editing</span>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary"
+                                                type="button"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#discardDraftModal">
+                                            Discard draft
+                                        </button>
+                                    </div>
                                 }
                             </div>
                             <div class="d-flex flex-wrap align-items-center gap-2 justify-content-lg-end">
@@ -347,6 +355,8 @@
     </div>
 
 </div>
+
+<partial name="_PlanDiscardDraftModal" model="Model.Project.Id" />
 
 @section Scripts {
     <script src="~/js/projects/overview.js"></script>

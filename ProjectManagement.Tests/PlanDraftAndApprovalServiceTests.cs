@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -52,7 +53,7 @@ public class PlanDraftAndApprovalServiceTests
 
         await db.SaveChangesAsync();
 
-        var service = new PlanDraftService(db, new TestClock(), NullLogger<PlanDraftService>.Instance);
+        var service = new PlanDraftService(db, new TestClock(), NullLogger<PlanDraftService>.Instance, new FakeAudit());
 
         var draft = await service.CreateOrGetDraftAsync(1, "po-user");
 
@@ -155,8 +156,136 @@ public class PlanDraftAndApprovalServiceTests
         await Assert.ThrowsAsync<ForbiddenException>(() => approval.ApproveLatestDraftAsync(9, "hod-user"));
     }
 
+    [Fact]
+    public async Task DeleteDraftAsync_RemovesDraftForOwner()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        db.Projects.Add(new Project
+        {
+            Id = 15,
+            Name = "Draft",
+            LeadPoUserId = "owner"
+        });
+
+        var draft = new PlanVersion
+        {
+            ProjectId = 15,
+            VersionNo = 1,
+            Title = "My Draft",
+            Status = PlanVersionStatus.Draft,
+            CreatedByUserId = "owner",
+            OwnerUserId = "owner",
+            CreatedOn = DateTimeOffset.UtcNow
+        };
+
+        draft.StagePlans.Add(new StagePlan
+        {
+            StageCode = StageCodes.EOI,
+            PlannedStart = new DateOnly(2024, 1, 1),
+            PlannedDue = new DateOnly(2024, 1, 10)
+        });
+
+        db.PlanVersions.Add(draft);
+        await db.SaveChangesAsync();
+
+        var clock = new TestClock(new DateTimeOffset(2024, 2, 1, 12, 0, 0, TimeSpan.Zero));
+        var audit = new FakeAudit();
+        var service = new PlanDraftService(db, clock, NullLogger<PlanDraftService>.Instance, audit);
+
+        var result = await service.DeleteDraftAsync(15, "owner");
+
+        Assert.Equal(PlanDraftDeleteResult.Success, result);
+        Assert.Empty(await db.PlanVersions.ToListAsync());
+        Assert.Empty(await db.StagePlans.ToListAsync());
+        var entry = Assert.Single(audit.Entries);
+        Assert.Equal("Plan.DraftDeleted", entry.Action);
+        Assert.Equal("owner", entry.UserId);
+        Assert.Equal("15", entry.Data["ProjectId"]);
+    }
+
+    [Fact]
+    public async Task DeleteDraftAsync_DoesNotAllowOtherUsers()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        db.PlanVersions.Add(new PlanVersion
+        {
+            ProjectId = 22,
+            VersionNo = 1,
+            Title = "Draft",
+            Status = PlanVersionStatus.Draft,
+            CreatedByUserId = "owner",
+            OwnerUserId = "owner",
+            CreatedOn = DateTimeOffset.UtcNow
+        });
+
+        await db.SaveChangesAsync();
+
+        var service = new PlanDraftService(db, new TestClock(), NullLogger<PlanDraftService>.Instance, new FakeAudit());
+
+        var result = await service.DeleteDraftAsync(22, "someone-else");
+
+        Assert.Equal(PlanDraftDeleteResult.NotFound, result);
+        Assert.Single(await db.PlanVersions.ToListAsync());
+    }
+
+    [Fact]
+    public async Task DeleteDraftAsync_DoesNotDeleteSubmittedPlan()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        db.PlanVersions.Add(new PlanVersion
+        {
+            ProjectId = 30,
+            VersionNo = 1,
+            Title = "Submitted",
+            Status = PlanVersionStatus.PendingApproval,
+            CreatedByUserId = "owner",
+            OwnerUserId = "owner",
+            CreatedOn = DateTimeOffset.UtcNow
+        });
+
+        await db.SaveChangesAsync();
+
+        var service = new PlanDraftService(db, new TestClock(), NullLogger<PlanDraftService>.Instance, new FakeAudit());
+
+        var result = await service.DeleteDraftAsync(30, "owner");
+
+        Assert.Equal(PlanDraftDeleteResult.Conflict, result);
+        Assert.Single(await db.PlanVersions.ToListAsync());
+    }
+
     private sealed class TestClock : IClock
     {
-        public DateTimeOffset UtcNow => DateTimeOffset.UtcNow;
+        public TestClock(DateTimeOffset? now = null)
+        {
+            UtcNow = now ?? DateTimeOffset.UtcNow;
+        }
+
+        public DateTimeOffset UtcNow { get; set; }
+    }
+
+    private sealed class FakeAudit : IAuditService
+    {
+        public List<(string Action, IDictionary<string, string?> Data, string? UserId)> Entries { get; } = new();
+
+        public Task LogAsync(string action, string? message = null, string level = "Info", string? userId = null, string? userName = null, IDictionary<string, string?>? data = null, Microsoft.AspNetCore.Http.HttpContext? http = null)
+        {
+            Entries.Add((action, data ?? new Dictionary<string, string?>(), userId));
+            return Task.CompletedTask;
+        }
     }
 }

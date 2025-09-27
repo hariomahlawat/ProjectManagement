@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
@@ -28,29 +27,29 @@ namespace ProjectManagement.Pages.Projects.Timeline;
 public class EditPlanModel : PageModel
 {
     private readonly ApplicationDbContext _db;
-    private readonly UserManager<ApplicationUser> _users;
     private readonly IAuditService _audit;
     private readonly PlanGenerationService _planGeneration;
     private readonly PlanDraftService _planDraft;
     private readonly PlanApprovalService _planApproval;
     private readonly ILogger<EditPlanModel> _logger;
+    private readonly IUserContext _userContext;
 
     public EditPlanModel(
         ApplicationDbContext db,
-        UserManager<ApplicationUser> users,
         IAuditService audit,
         PlanGenerationService planGeneration,
         PlanDraftService planDraft,
         PlanApprovalService planApproval,
-        ILogger<EditPlanModel> logger)
+        ILogger<EditPlanModel> logger,
+        IUserContext userContext)
     {
         _db = db;
-        _users = users;
         _audit = audit;
         _planGeneration = planGeneration;
         _planDraft = planDraft;
         _planApproval = planApproval;
         _logger = logger;
+        _userContext = userContext;
     }
 
     [BindProperty]
@@ -67,14 +66,15 @@ public class EditPlanModel : PageModel
             return RedirectToPage("/Projects/Overview", new { id });
         }
 
-        var userId = _users.GetUserId(User);
+        var userId = _userContext.UserId;
         if (string.IsNullOrEmpty(userId))
         {
             return Forbid();
         }
 
-        var isAdmin = User.IsInRole("Admin");
-        var isHoD = User.IsInRole("HoD");
+        var principal = _userContext.User;
+        var isAdmin = principal.IsInRole("Admin");
+        var isHoD = principal.IsInRole("HoD");
 
         var project = await _db.Projects
             .AsNoTracking()
@@ -105,7 +105,7 @@ public class EditPlanModel : PageModel
     [IgnoreAntiforgeryToken]
     public async Task<IActionResult> OnGetValidateAsync(int id, CancellationToken cancellationToken)
     {
-        var userId = _users.GetUserId(User);
+        var userId = _userContext.UserId;
         if (string.IsNullOrEmpty(userId))
         {
             return Forbid();
@@ -120,8 +120,9 @@ public class EditPlanModel : PageModel
             return NotFound();
         }
 
-        var isAdmin = User.IsInRole("Admin");
-        var isHoD = User.IsInRole("HoD");
+        var principal = _userContext.User;
+        var isAdmin = principal.IsInRole("Admin");
+        var isHoD = principal.IsInRole("HoD");
         var isProjectsHod = isHoD && string.Equals(project.HodUserId, userId, StringComparison.Ordinal);
         var isProjectsPo = string.Equals(project.LeadPoUserId, userId, StringComparison.Ordinal);
 
@@ -138,6 +139,53 @@ public class EditPlanModel : PageModel
 
         var errors = await _planApproval.GetValidationErrorsAsync(draft.Id, cancellationToken);
         return new JsonResult(new { ok = errors.Count == 0, errors });
+    }
+
+    public async Task<IActionResult> OnPostDeleteDraftAsync(int id, CancellationToken cancellationToken)
+    {
+        var userId = _userContext.UserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Forbid();
+        }
+
+        var project = await _db.Projects
+            .AsNoTracking()
+            .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+
+        if (project is null)
+        {
+            return NotFound();
+        }
+
+        var principal = _userContext.User;
+        var isAdmin = principal.IsInRole("Admin");
+        var isHoD = principal.IsInRole("HoD");
+        var isProjectsHod = isHoD && string.Equals(project.HodUserId, userId, StringComparison.Ordinal);
+        var isProjectsPo = string.Equals(project.LeadPoUserId, userId, StringComparison.Ordinal);
+
+        if (!isAdmin && !isProjectsPo && !isProjectsHod)
+        {
+            _logger.LogWarning("User {UserId} attempted to delete plan draft for project {ProjectId} without permission.", userId, id);
+            return Forbid();
+        }
+
+        var result = await _planDraft.DeleteDraftAsync(id, userId, cancellationToken);
+
+        switch (result)
+        {
+            case PlanDraftDeleteResult.Success:
+                TempData["Flash"] = "Draft discarded.";
+                break;
+            case PlanDraftDeleteResult.NotFound:
+                TempData["Error"] = "No draft to discard.";
+                break;
+            case PlanDraftDeleteResult.Conflict:
+                TempData["Error"] = "Draft already submitted. Nothing to discard.";
+                break;
+        }
+
+        return RedirectToPage("/Projects/Overview", new { id });
     }
 
     private async Task<IActionResult> HandleExactAsync(int id, string userId, CancellationToken cancellationToken)
@@ -180,7 +228,7 @@ public class EditPlanModel : PageModel
             return RedirectToPage("/Projects/Overview", new { id });
         }
 
-        var userName = User.Identity?.Name;
+        var userName = principal.Identity?.Name;
 
         var stageMap = draft.StagePlans
             .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
