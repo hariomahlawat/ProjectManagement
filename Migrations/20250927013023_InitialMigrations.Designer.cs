@@ -682,9 +682,6 @@ namespace ProjectManagement.Migrations
                     b.Property<int>("ProjectId")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("ProjectId1")
-                        .HasColumnType("integer");
-
                     b.Property<DateTimeOffset>("TakenAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -693,16 +690,9 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
 
-                    b.Property<string>("TakenByUserId1")
-                        .HasColumnType("text");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("ProjectId1");
-
                     b.HasIndex("TakenByUserId");
-
-                    b.HasIndex("TakenByUserId1");
 
                     b.HasIndex("ProjectId", "TakenAt");
 
@@ -1662,25 +1652,17 @@ namespace ProjectManagement.Migrations
 
             modelBuilder.Entity("ProjectManagement.Models.Plans.ProjectPlanSnapshot", b =>
                 {
-                    b.HasOne("ProjectManagement.Models.Project", null)
+                    b.HasOne("ProjectManagement.Models.Project", "Project")
                         .WithMany()
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ProjectManagement.Models.Project", "Project")
-                        .WithMany()
-                        .HasForeignKey("ProjectId1");
-
-                    b.HasOne("ProjectManagement.Models.ApplicationUser", null)
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "TakenByUser")
                         .WithMany()
                         .HasForeignKey("TakenByUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("ProjectManagement.Models.ApplicationUser", "TakenByUser")
-                        .WithMany()
-                        .HasForeignKey("TakenByUserId1");
 
                     b.Navigation("Project");
 
