@@ -1,0 +1,38 @@
+@page
+@attribute [Authorize(Roles="Admin,HoD")]
+@model ProjectManagement.Pages.Settings.Holidays.IndexModel
+@{
+    ViewData["Title"] = "Holidays";
+}
+
+<h5>Holidays</h5>
+<a class="btn btn-sm btn-primary mb-3" asp-page="Create">Add</a>
+
+@if (Model.Items.Count == 0)
+{
+    <div class="alert alert-info" role="status">No holidays have been recorded yet.</div>
+}
+else
+{
+    <table class="table table-sm align-middle">
+        <thead>
+            <tr>
+                <th scope="col">Date</th>
+                <th scope="col">Name</th>
+                <th scope="col" class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var holiday in Model.Items)
+        {
+            <tr>
+                <td>@holiday.Date.ToString("dd MMM yyyy")</td>
+                <td>@holiday.Name</td>
+                <td class="text-end">
+                    <a class="btn btn-sm btn-outline-danger" asp-page="Delete" asp-route-id="@holiday.Id">Delete</a>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}

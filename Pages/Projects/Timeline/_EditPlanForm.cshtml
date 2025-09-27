@@ -1,5 +1,6 @@
 @model ProjectManagement.ViewModels.PlanEditorVm
 @using ProjectManagement.Models.Plans
+@using ProjectManagement.Models.Stages
 @using ProjectManagement.ViewModels
 @{
     var activeMode = Model.ActiveMode ?? PlanEditorModes.Exact;
@@ -174,7 +175,14 @@
                             var r = Model.Durations.Rows[i];
                             <div class="col-12">
                                 <div class="d-flex justify-content-between">
-                                    <strong>@r.Name</strong> <span class="text-muted small">@r.Code</span>
+                                    <strong>@r.Name</strong>
+                                    <div>
+                                        <span class="text-muted small">@r.Code</span>
+                                        @if (string.Equals(r.Code, StageCodes.PNC, System.StringComparison.OrdinalIgnoreCase))
+                                        {
+                                            <span class="badge text-bg-info ms-2">Optional</span>
+                                        }
+                                    </div>
                                 </div>
                                 <div class="input-group">
                                     <span class="input-group-text">Duration (days)</span>
@@ -183,6 +191,10 @@
                                            value="@(r.DurationDays?.ToString() ?? "")"
                                            @(disableAttr) />
                                 </div>
+                                @if (string.Equals(r.Code, StageCodes.PNC, System.StringComparison.OrdinalIgnoreCase))
+                                {
+                                    <div class="form-text">Leave blank if PNC is not applicable.</div>
+                                }
                                 <input type="hidden" name="Input.Rows[@i].Code" value="@r.Code" />
                                 <input type="hidden" name="Input.Rows[@i].Name" value="@r.Name" />
                             </div>

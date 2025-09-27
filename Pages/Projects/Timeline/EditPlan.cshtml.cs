@@ -110,6 +110,44 @@ public class EditPlanModel : PageModel
         return await HandleExactAsync(id, userId, cancellationToken);
     }
 
+    [IgnoreAntiforgeryToken]
+    public async Task<IActionResult> OnGetValidateAsync(int id, CancellationToken cancellationToken)
+    {
+        var userId = _users.GetUserId(User);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Forbid();
+        }
+
+        var project = await _db.Projects
+            .AsNoTracking()
+            .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+
+        if (project is null)
+        {
+            return NotFound();
+        }
+
+        var isAdmin = User.IsInRole("Admin");
+        var isHoD = User.IsInRole("HoD");
+        var isProjectsHod = isHoD && string.Equals(project.HodUserId, userId, StringComparison.Ordinal);
+        var isProjectsPo = string.Equals(project.LeadPoUserId, userId, StringComparison.Ordinal);
+
+        if (!isAdmin && !isProjectsPo && !isProjectsHod)
+        {
+            return Forbid();
+        }
+
+        var draft = await _planDraft.GetDraftAsync(id, cancellationToken);
+        if (draft is null)
+        {
+            return new JsonResult(new { ok = true, errors = Array.Empty<string>() });
+        }
+
+        var errors = await _planApproval.GetValidationErrorsAsync(draft.Id, cancellationToken);
+        return new JsonResult(new { ok = errors.Count == 0, errors });
+    }
+
     private async Task<IActionResult> HandleExactAsync(int id, string userId, CancellationToken cancellationToken)
     {
         if (Input.Rows is not null)
@@ -271,6 +309,11 @@ public class EditPlanModel : PageModel
         var saveDraft = string.Equals(action, PlanEditActions.SaveDraft, StringComparison.OrdinalIgnoreCase) ||
                         (!calculateOnly && !submitForApproval);
 
+        var optionalStages = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            StageCodes.PNC
+        };
+
         if (Input.AnchorStart is null)
         {
             ModelState.AddModelError(nameof(Input.AnchorStart), "Please provide the anchor start date.");
@@ -290,12 +333,32 @@ public class EditPlanModel : PageModel
                     continue;
                 }
 
+                if (optionalStages.Contains(row.Code))
+                {
+                    if (!row.DurationDays.HasValue || row.DurationDays.Value <= 0)
+                    {
+                        row.DurationDays = null;
+                    }
+
+                    continue;
+                }
+
                 if (!row.DurationDays.HasValue || row.DurationDays.Value <= 0)
                 {
                     var name = string.IsNullOrWhiteSpace(row.Name) ? row.Code : row.Name;
                     ModelState.AddModelError(string.Empty, $"Duration for {name} must be a positive number of days.");
                 }
             }
+        }
+
+        var anyDurationProvided = Input.Rows?.Any(r =>
+            !string.IsNullOrWhiteSpace(r.Code) &&
+            r.DurationDays.HasValue &&
+            r.DurationDays.Value > 0) == true;
+
+        if (submitForApproval && !anyDurationProvided)
+        {
+            ModelState.AddModelError(string.Empty, "Please provide at least one stage duration before submitting.");
         }
 
         if (!ModelState.IsValid)

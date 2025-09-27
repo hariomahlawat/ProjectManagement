@@ -1,0 +1,26 @@
+@page "{id:int}"
+@attribute [Authorize(Roles="Admin,HoD")]
+@model ProjectManagement.Pages.Settings.Holidays.DeleteModel
+@{
+    ViewData["Title"] = "Delete holiday";
+}
+
+<h5>Delete holiday</h5>
+
+@if (Model.Item is null)
+{
+    <div class="alert alert-warning" role="status">The requested holiday could not be found.</div>
+}
+else
+{
+    <div class="alert alert-danger" role="alert">
+        <p class="mb-1">Are you sure you want to delete this holiday?</p>
+        <p class="mb-0 fw-semibold">@Model.Item.Date.ToString("dd MMM yyyy") — @Model.Item.Name</p>
+    </div>
+
+    <form method="post">
+        @Html.AntiForgeryToken()
+        <button type="submit" class="btn btn-danger">Delete</button>
+        <a asp-page="Index" class="btn btn-outline-secondary ms-2">Cancel</a>
+    </form>
+}
