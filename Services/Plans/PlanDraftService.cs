@@ -93,6 +93,43 @@ public class PlanDraftService
         return plan;
     }
 
+    public async Task<PlanVersion> CreateOrGetDraftAsync(int projectId, string userId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("A valid user identifier is required to create or get a draft.", nameof(userId));
+        }
+
+        var existing = await _db.PlanVersions
+            .Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == projectId &&
+                        (p.Status == PlanVersionStatus.Draft || p.Status == PlanVersionStatus.PendingApproval))
+            .OrderByDescending(p => p.Status)
+            .ThenByDescending(p => p.VersionNo)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (existing is not null)
+        {
+            if (existing.Status == PlanVersionStatus.PendingApproval)
+            {
+                existing.Status = PlanVersionStatus.Draft;
+                existing.SubmittedByUserId = null;
+                existing.SubmittedOn = null;
+                existing.ApprovedByUserId = null;
+                existing.ApprovedOn = null;
+            }
+
+            if (!existing.StagePlans.Any())
+            {
+                await _db.Entry(existing).Collection(p => p.StagePlans).LoadAsync(cancellationToken);
+            }
+
+            return existing;
+        }
+
+        return await CreateDraftAsync(projectId, userId, cancellationToken);
+    }
+
     public Task<PlanVersion?> GetDraftAsync(int projectId, CancellationToken cancellationToken = default)
     {
         return _db.PlanVersions

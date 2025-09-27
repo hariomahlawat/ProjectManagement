@@ -11,9 +11,11 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.ViewModels;
 
@@ -27,17 +29,23 @@ public class EditPlanModel : PageModel
     private readonly UserManager<ApplicationUser> _users;
     private readonly IAuditService _audit;
     private readonly PlanGenerationService _planGeneration;
+    private readonly PlanDraftService _planDraft;
+    private readonly PlanApprovalService _planApproval;
 
     public EditPlanModel(
         ApplicationDbContext db,
         UserManager<ApplicationUser> users,
         IAuditService audit,
-        PlanGenerationService planGeneration)
+        PlanGenerationService planGeneration,
+        PlanDraftService planDraft,
+        PlanApprovalService planApproval)
     {
         _db = db;
         _users = users;
         _audit = audit;
         _planGeneration = planGeneration;
+        _planDraft = planDraft;
+        _planApproval = planApproval;
     }
 
     [BindProperty]
@@ -72,19 +80,24 @@ public class EditPlanModel : PageModel
             return RedirectToPage("/Projects/Overview", new { id });
         }
 
-        var project = await _db.Projects.SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
-        if (project is null)
+        var projectExists = await _db.Projects.AnyAsync(p => p.Id == id, cancellationToken);
+        if (!projectExists)
         {
             return NotFound();
         }
 
-        var stageList = await _db.ProjectStages
-            .Where(stage => stage.ProjectId == id)
-            .ToListAsync(cancellationToken);
+        var userId = _users.GetUserId(User);
+        var userName = User.Identity?.Name;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Forbid();
+        }
 
-        var stageMap = stageList
+        var draft = await _planDraft.CreateOrGetDraftAsync(id, userId, cancellationToken);
+
+        var stageMap = draft.StagePlans
             .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
-            .ToDictionary(stage => stage.StageCode, StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(stage => stage.StageCode!, stage => stage, StringComparer.OrdinalIgnoreCase);
 
         var changes = new List<StageChange>();
 
@@ -95,21 +108,27 @@ public class EditPlanModel : PageModel
                 continue;
             }
 
-            if (!stageMap.TryGetValue(row.Code, out var stage))
+            if (!stageMap.TryGetValue(row.Code, out var stagePlan))
             {
-                continue;
+                stagePlan = new StagePlan
+                {
+                    PlanVersionId = draft.Id,
+                    StageCode = row.Code
+                };
+                draft.StagePlans.Add(stagePlan);
+                stageMap[row.Code] = stagePlan;
             }
 
-            var previousStart = stage.PlannedStart;
-            var previousDue = stage.PlannedDue;
+            var previousStart = stagePlan.PlannedStart;
+            var previousDue = stagePlan.PlannedDue;
 
             if (previousStart == row.PlannedStart && previousDue == row.PlannedDue)
             {
                 continue;
             }
 
-            stage.PlannedStart = row.PlannedStart;
-            stage.PlannedDue = row.PlannedDue;
+            stagePlan.PlannedStart = row.PlannedStart;
+            stagePlan.PlannedDue = row.PlannedDue;
 
             changes.Add(new StageChange(row.Code, row.Name, previousStart, previousDue, row.PlannedStart, row.PlannedDue));
         }
@@ -120,16 +139,9 @@ public class EditPlanModel : PageModel
             return RedirectToPage("/Projects/Overview", new { id });
         }
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
-
-        project.PlanApprovedAt = null;
-        project.PlanApprovedByUserId = null;
-
         await _db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
 
-        var userId = _users.GetUserId(User);
-        var userName = User.Identity?.Name;
+        await _planApproval.SubmitForApprovalAsync(id, userId, cancellationToken);
 
         var data = new Dictionary<string, string?>
         {
@@ -155,7 +167,7 @@ public class EditPlanModel : PageModel
             userName: userName,
             data: data);
 
-        TempData["Flash"] = "Timeline plan updated.";
+        TempData["Flash"] = "Timeline plan updated and marked pending approval.";
         return RedirectToPage("/Projects/Overview", new { id });
     }
 
@@ -229,14 +241,22 @@ public class EditPlanModel : PageModel
 
         await _db.SaveChangesAsync(ct);
 
-        await _planGeneration.GenerateAsync(id, ct);
-
-        project.PlanApprovedAt = null;
-        project.PlanApprovedByUserId = null;
-
-        await _db.SaveChangesAsync(ct);
-
         var userId = _users.GetUserId(User);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Forbid();
+        }
+
+        var draft = await _planDraft.CreateOrGetDraftAsync(id, userId, ct);
+
+        await _planGeneration.GenerateDraftAsync(id, draft.Id, ct);
+
+        var saveAction = string.Equals(Input.Action, "Save", StringComparison.OrdinalIgnoreCase);
+        if (saveAction)
+        {
+            await _planApproval.SubmitForApprovalAsync(id, userId, ct);
+        }
+
         await _audit.LogAsync(
             "Projects.PlanGeneratedFromDurations",
             userId: userId,
@@ -246,9 +266,9 @@ public class EditPlanModel : PageModel
                 ["Action"] = Input.Action
             });
 
-        TempData["Flash"] = string.Equals(Input.Action, "Save", StringComparison.OrdinalIgnoreCase)
+        TempData["Flash"] = saveAction
             ? "Timeline plan recalculated and marked pending approval."
-            : "Timeline plan recalculated.";
+            : "Timeline plan recalculated as draft.";
 
         return RedirectToPage("/Projects/Overview", new { id });
     }

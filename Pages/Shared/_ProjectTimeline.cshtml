@@ -16,9 +16,9 @@
   <div class="card-header d-flex align-items-center justify-content-between">
     <div class="fw-semibold d-flex align-items-center gap-2">
       <span>Timeline</span>
-      @if (Model.PlanPendingApproval && (User.IsInRole("HoD") || User.IsInRole("Admin")))
+      @if (Model.PlanPendingApproval)
       {
-        <span class="badge text-bg-warning">Pending approval</span>
+        <span class="badge text-bg-warning">Draft pending approval</span>
       }
     </div>
     <div class="d-flex align-items-center gap-2">

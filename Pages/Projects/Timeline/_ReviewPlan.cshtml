@@ -12,9 +12,15 @@
 else
 {
     var hasChanges = Model.Any(row => row.NewStart != row.OldStart || row.NewDue != row.OldDue);
+    var requiresBackfill = ViewBag.HasBackfill is bool hb && hb;
     <div class="small text-muted mb-2">
         <span>Draft plan compared against the current timeline.</span>
     </div>
+
+    if (requiresBackfill)
+    {
+        <div class="alert alert-warning">Backfill required data before approval.</div>
+    }
 
     @if (!hasChanges)
     {
@@ -55,6 +61,6 @@ else
         @Html.AntiForgeryToken()
         <input type="hidden" name="Input.ProjectId" value="@ViewBag.ProjectId" />
         <button name="Input.Decision" value="Reject" class="btn btn-outline-secondary">Reject</button>
-        <button name="Input.Decision" value="Approve" class="btn btn-primary" @(hasChanges ? null : "disabled")>Approve plan</button>
+        <button name="Input.Decision" value="Approve" class="btn btn-primary" @((hasChanges && !requiresBackfill) ? null : "disabled")>Approve plan</button>
     </form>
 }

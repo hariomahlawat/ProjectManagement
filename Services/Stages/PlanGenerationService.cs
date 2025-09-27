@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 
@@ -91,9 +92,132 @@ public sealed class PlanGenerationService
         await _db.SaveChangesAsync(ct);
     }
 
-    private static int ResolveSortOrder(string? stageCode, IReadOnlyDictionary<string, ProjectPlanDuration> durationMap)
+    public async Task GenerateDraftAsync(int projectId, int planVersionId, CancellationToken ct = default)
     {
-        if (stageCode is not null && durationMap.TryGetValue(stageCode, out var duration))
+        var settings = await _db.ProjectScheduleSettings
+            .SingleOrDefaultAsync(s => s.ProjectId == projectId, ct)
+            ?? throw new InvalidOperationException("Configure schedule settings before generating the plan.");
+
+        if (settings.AnchorStart is null)
+        {
+            throw new InvalidOperationException("Set an anchor start date before generating the plan.");
+        }
+
+        var durations = await _db.ProjectPlanDurations
+            .Where(d => d.ProjectId == projectId)
+            .OrderBy(d => d.SortOrder)
+            .ToListAsync(ct);
+
+        var templates = await _db.StageTemplates
+            .AsNoTracking()
+            .Where(t => t.Version == PlanConstants.StageTemplateVersion)
+            .OrderBy(t => t.Sequence)
+            .Select(t => t.Code)
+            .ToListAsync(ct);
+
+        var holidays = await _db.Holidays
+            .AsNoTracking()
+            .Select(h => h.Date)
+            .ToListAsync(ct);
+
+        var calendar = new WorkingCalendar(holidays, settings.IncludeWeekends, settings.SkipHolidays);
+        var durationMap = durations
+            .Where(d => !string.IsNullOrWhiteSpace(d.StageCode))
+            .ToDictionary(d => d.StageCode!, StringComparer.OrdinalIgnoreCase);
+
+        var plan = await _db.PlanVersions
+            .Include(v => v.StagePlans)
+            .SingleAsync(v => v.Id == planVersionId && v.ProjectId == projectId, ct);
+
+        var stagePlans = plan.StagePlans
+            .Where(sp => !string.IsNullOrWhiteSpace(sp.StageCode))
+            .ToDictionary(sp => sp.StageCode!, sp => sp, StringComparer.OrdinalIgnoreCase);
+
+        var orderedCodes = BuildOrderedCodes(templates, durationMap, stagePlans.Keys);
+
+        var cursor = settings.AnchorStart.Value;
+        var isFirstStage = true;
+
+        foreach (var code in orderedCodes)
+        {
+            if (!durationMap.TryGetValue(code, out var duration) || duration.DurationDays is null)
+            {
+                continue;
+            }
+
+            var days = duration.DurationDays.Value;
+            if (days <= 0)
+            {
+                continue;
+            }
+
+            var start = cursor;
+            if (!isFirstStage && settings.NextStageStartPolicy == NextStageStartPolicies.NextWorkingDay)
+            {
+                start = calendar.NextWorkingDay(cursor);
+            }
+
+            var end = calendar.AddWorkingDays(start, days - 1);
+
+            if (!stagePlans.TryGetValue(code, out var row))
+            {
+                row = new StagePlan
+                {
+                    PlanVersionId = planVersionId,
+                    StageCode = code
+                };
+                plan.StagePlans.Add(row);
+                stagePlans[code] = row;
+            }
+
+            row.PlannedStart = start;
+            row.PlannedDue = end;
+            row.DurationDays = days;
+
+            cursor = end;
+            isFirstStage = false;
+        }
+
+        await _db.SaveChangesAsync(ct);
+    }
+
+    private static IReadOnlyList<string> BuildOrderedCodes(IEnumerable<string> templates, IReadOnlyDictionary<string, ProjectPlanDuration> durationMap, IEnumerable<string> stagePlanKeys)
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var ordered = new List<string>();
+
+        void AddRange(IEnumerable<string> source)
+        {
+            foreach (var code in source)
+            {
+                if (string.IsNullOrWhiteSpace(code))
+                {
+                    continue;
+                }
+
+                if (seen.Add(code))
+                {
+                    ordered.Add(code);
+                }
+            }
+        }
+
+        AddRange(templates);
+        var durationOrdered = durationMap.Values
+            .Where(d => !string.IsNullOrWhiteSpace(d.StageCode))
+            .OrderBy(d => ResolveSortOrder(d.StageCode, durationMap))
+            .Select(d => d.StageCode!)
+            .ToList();
+        AddRange(durationOrdered);
+        AddRange(StageCodes.All);
+        AddRange(stagePlanKeys);
+
+        return ordered;
+    }
+
+    private static int ResolveSortOrder(string? stageCode, IReadOnlyDictionary<string, ProjectPlanDuration>? durationMap)
+    {
+        if (stageCode is not null && durationMap is not null && durationMap.TryGetValue(stageCode, out var duration))
         {
             return duration.SortOrder;
         }
