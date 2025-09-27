@@ -597,6 +597,45 @@ namespace ProjectManagement.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "ProjectPlanSnapshots",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    ProjectId1 = table.Column<int>(type: "integer", nullable: true),
+                    TakenAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    TakenByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
+                    TakenByUserId1 = table.Column<string>(type: "text", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProjectPlanSnapshots", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ProjectPlanSnapshots_AspNetUsers_TakenByUserId",
+                        column: x => x.TakenByUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_ProjectPlanSnapshots_AspNetUsers_TakenByUserId1",
+                        column: x => x.TakenByUserId1,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_ProjectPlanSnapshots_Projects_ProjectId",
+                        column: x => x.ProjectId,
+                        principalTable: "Projects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_ProjectPlanSnapshots_Projects_ProjectId1",
+                        column: x => x.ProjectId1,
+                        principalTable: "Projects",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "ProjectPncFacts",
                 columns: table => new
                 {
@@ -673,6 +712,7 @@ namespace ProjectManagement.Migrations
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     ProjectId = table.Column<int>(type: "integer", nullable: false),
                     StageCode = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
+                    SortOrder = table.Column<int>(type: "integer", nullable: false),
                     Status = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
                     PlannedStart = table.Column<DateOnly>(type: "date", nullable: true),
                     PlannedDue = table.Column<DateOnly>(type: "date", nullable: true),
@@ -767,6 +807,28 @@ namespace ProjectManagement.Migrations
                         name: "FK_StagePlans_PlanVersions_PlanVersionId",
                         column: x => x.PlanVersionId,
                         principalTable: "PlanVersions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProjectPlanSnapshotRows",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    SnapshotId = table.Column<int>(type: "integer", nullable: false),
+                    StageCode = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    PlannedStart = table.Column<DateOnly>(type: "date", nullable: true),
+                    PlannedDue = table.Column<DateOnly>(type: "date", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProjectPlanSnapshotRows", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ProjectPlanSnapshotRows_ProjectPlanSnapshots_SnapshotId",
+                        column: x => x.SnapshotId,
+                        principalTable: "ProjectPlanSnapshots",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -1096,6 +1158,31 @@ namespace ProjectManagement.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_ProjectPlanSnapshotRows_SnapshotId",
+                table: "ProjectPlanSnapshotRows",
+                column: "SnapshotId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectPlanSnapshots_ProjectId_TakenAt",
+                table: "ProjectPlanSnapshots",
+                columns: new[] { "ProjectId", "TakenAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectPlanSnapshots_ProjectId1",
+                table: "ProjectPlanSnapshots",
+                column: "ProjectId1");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectPlanSnapshots_TakenByUserId",
+                table: "ProjectPlanSnapshots",
+                column: "TakenByUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectPlanSnapshots_TakenByUserId1",
+                table: "ProjectPlanSnapshots",
+                column: "TakenByUserId1");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_ProjectPncFacts_ProjectId",
                 table: "ProjectPncFacts",
                 column: "ProjectId");
@@ -1248,6 +1335,9 @@ namespace ProjectManagement.Migrations
                 name: "ProjectPlanDurations");
 
             migrationBuilder.DropTable(
+                name: "ProjectPlanSnapshotRows");
+
+            migrationBuilder.DropTable(
                 name: "ProjectPncFacts");
 
             migrationBuilder.DropTable(
@@ -1279,6 +1369,9 @@ namespace ProjectManagement.Migrations
 
             migrationBuilder.DropTable(
                 name: "ProjectComments");
+
+            migrationBuilder.DropTable(
+                name: "ProjectPlanSnapshots");
 
             migrationBuilder.DropTable(
                 name: "PlanVersions");

@@ -12,7 +12,7 @@ using ProjectManagement.Data;
 namespace ProjectManagement.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250927010914_InitialMigrations")]
+    [Migration("20250927013023_InitialMigrations")]
     partial class InitialMigrations
     {
         /// <inheritdoc />
@@ -524,6 +524,9 @@ namespace ProjectManagement.Migrations
                     b.Property<bool>("RequiresBackfill")
                         .HasColumnType("boolean");
 
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
                     b.Property<string>("StageCode")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -666,6 +669,73 @@ namespace ProjectManagement.Migrations
                         .IsUnique();
 
                     b.ToTable("PlanVersions");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Plans.ProjectPlanSnapshot", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ProjectId1")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("TakenAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TakenByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("TakenByUserId1")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId1");
+
+                    b.HasIndex("TakenByUserId");
+
+                    b.HasIndex("TakenByUserId1");
+
+                    b.HasIndex("ProjectId", "TakenAt");
+
+                    b.ToTable("ProjectPlanSnapshots");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Plans.ProjectPlanSnapshotRow", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateOnly?>("PlannedDue")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("PlannedStart")
+                        .HasColumnType("date");
+
+                    b.Property<int>("SnapshotId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("StageCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SnapshotId");
+
+                    b.ToTable("ProjectPlanSnapshotRows");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Plans.StagePlan", b =>
@@ -1590,6 +1660,44 @@ namespace ProjectManagement.Migrations
                     b.Navigation("SubmittedByUser");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Plans.ProjectPlanSnapshot", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId1");
+
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("TakenByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "TakenByUser")
+                        .WithMany()
+                        .HasForeignKey("TakenByUserId1");
+
+                    b.Navigation("Project");
+
+                    b.Navigation("TakenByUser");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Plans.ProjectPlanSnapshotRow", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Plans.ProjectPlanSnapshot", "Snapshot")
+                        .WithMany("Rows")
+                        .HasForeignKey("SnapshotId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Snapshot");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Plans.StagePlan", b =>
                 {
                     b.HasOne("ProjectManagement.Models.Plans.PlanVersion", "PlanVersion")
@@ -1805,6 +1913,11 @@ namespace ProjectManagement.Migrations
                     b.Navigation("ApprovalLogs");
 
                     b.Navigation("StagePlans");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Plans.ProjectPlanSnapshot", b =>
+                {
+                    b.Navigation("Rows");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Project", b =>
