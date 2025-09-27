@@ -20,6 +20,7 @@ public class ProjectStage
     public Project? Project { get; set; }
 
     public string StageCode { get; set; } = string.Empty;
+    public int SortOrder { get; set; }
     public StageStatus Status { get; set; } = StageStatus.NotStarted;
 
     public DateOnly? PlannedStart { get; set; }

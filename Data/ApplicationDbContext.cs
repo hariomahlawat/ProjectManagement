@@ -39,6 +39,8 @@ namespace ProjectManagement.Data
         public DbSet<PlanVersion> PlanVersions => Set<PlanVersion>();
         public DbSet<StagePlan> StagePlans => Set<StagePlan>();
         public DbSet<PlanApprovalLog> PlanApprovalLogs => Set<PlanApprovalLog>();
+        public DbSet<ProjectPlanSnapshot> ProjectPlanSnapshots => Set<ProjectPlanSnapshot>();
+        public DbSet<ProjectPlanSnapshotRow> ProjectPlanSnapshotRows => Set<ProjectPlanSnapshotRow>();
         public DbSet<ProjectStage> ProjectStages => Set<ProjectStage>();
         public DbSet<ProjectComment> ProjectComments => Set<ProjectComment>();
         public DbSet<ProjectCommentAttachment> ProjectCommentAttachments => Set<ProjectCommentAttachment>();
@@ -72,6 +74,31 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.PlanApprovedByUserId)
                     .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            builder.Entity<ProjectPlanSnapshot>(e =>
+            {
+                e.HasIndex(x => new { x.ProjectId, x.TakenAt });
+                e.Property(x => x.TakenByUserId).HasMaxLength(450).IsRequired();
+                e.HasOne<Project>()
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne<ApplicationUser>()
+                    .WithMany()
+                    .HasForeignKey(x => x.TakenByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            builder.Entity<ProjectPlanSnapshotRow>(e =>
+            {
+                e.Property(x => x.StageCode).HasMaxLength(32).IsRequired();
+                e.Property(x => x.PlannedStart).HasColumnType("date");
+                e.Property(x => x.PlannedDue).HasColumnType("date");
+                e.HasOne(x => x.Snapshot)
+                    .WithMany(x => x.Rows)
+                    .HasForeignKey(x => x.SnapshotId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<ProjectCategory>(e =>

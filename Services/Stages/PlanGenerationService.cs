@@ -72,6 +72,8 @@ public sealed class PlanGenerationService
                 continue;
             }
 
+            stage.SortOrder = ResolveSortOrder(stage.StageCode, durationMap);
+
             var start = i == 0
                 ? cursor
                 : settings.NextStageStartPolicy == NextStageStartPolicies.SameDay

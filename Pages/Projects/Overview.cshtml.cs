@@ -27,13 +27,16 @@ namespace ProjectManagement.Pages.Projects
         private readonly UserManager<ApplicationUser> _users;
         private readonly PlanReadService _planRead;
 
-        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead)
+        public PlanCompareService PlanCompare { get; }
+
+        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare)
         {
             _db = db;
             _procureRead = procureRead;
             _timelineRead = timelineRead;
             _users = users;
             _planRead = planRead;
+            PlanCompare = planCompare;
         }
 
         public Project Project { get; private set; } = default!;

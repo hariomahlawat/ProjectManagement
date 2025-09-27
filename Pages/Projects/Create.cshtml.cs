@@ -162,6 +162,7 @@ namespace ProjectManagement.Pages.Projects
                 {
                     ProjectId = project.Id,
                     StageCode = completedCode,
+                    SortOrder = Array.IndexOf(StageCodes.All, completedCode),
                     Status = StageStatus.Completed,
                     ActualStart = completedDate,
                     CompletedOn = completedDate
