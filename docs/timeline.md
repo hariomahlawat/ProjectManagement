@@ -16,14 +16,17 @@
 - **Overview**: chips for “Draft pending approval”, “Backfill required”, “Approved on …”; actions:
   - **HoD**: “Review & approve”
   - **Admin/assigned PO**: “Edit timeline” (hidden while PendingApproval)
+- Stage rows display planned/actual dates, auto-completion badges and backfill flags sourced from `ProjectTimelineReadService`.
 - **Edit timeline** (PO):
   - **Durations**: Calculate → writes to Draft StagePlans
   - **Exact**: direct edits to Draft StagePlans
   - **Save** (Draft) vs **Save & request** (PendingApproval)
+  - Durations honour `ProjectScheduleSettings` (anchor date, weekend/holiday policy, next-stage start rules) and populate `ProjectPlanDuration` rows for future reuse.
 - **Review** (HoD):
   - Diff = Draft vs Current; union of stage codes; highlight changes
   - **Approve** always allowed (unless backfill blocks)
   - **Reject** returns to Draft with optional note
+  - Approvals invoke `PlanApprovalService`, which publishes `StagePlan` data into `ProjectStages`, records a snapshot and stamps the project with the approving HoD and timestamp.
 
 ## Security
 - No inline scripts.

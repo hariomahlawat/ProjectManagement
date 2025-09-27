@@ -24,5 +24,11 @@ This project is a .NET 8 ASP.NET Core application that provides tools for managi
 - Manage events with categories, locations, all-day or timed spans, and optional recurrence rules.
 - Interactive calendar supports drag-and-drop, resizing, category filtering, undo, and a read-only view with the ability to add events to tasks.
 
+### Projects
+- Register projects with categories, lead roles and case file metadata so procurement and execution history can be managed in one place.
+- The overview workspace aggregates procurement facts, timeline progress, approval history and outstanding backfill/plan actions.
+- Procurement officers capture IPA, AON, benchmark, L1, PNC and supply-order milestones with audit logging and stage gating.
+- Delivery teams collaborate through threaded comments with role-based editing, pinned updates and secure document attachments.
+
 ## Documentation
 Additional technical documentation is available in the [docs](docs) directory.
