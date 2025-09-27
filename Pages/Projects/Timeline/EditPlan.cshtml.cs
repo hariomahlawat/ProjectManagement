@@ -19,7 +19,7 @@ using ProjectManagement.ViewModels;
 
 namespace ProjectManagement.Pages.Projects.Timeline;
 
-[Authorize(Roles = "Admin,HoD,PO")]
+[Authorize(Roles = "HoD,Project Officer")]
 [ValidateAntiForgeryToken]
 public class EditPlanModel : PageModel
 {
