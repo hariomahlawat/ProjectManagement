@@ -7,8 +7,9 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services;
 
-namespace ProjectManagement.Services;
+namespace ProjectManagement.Services.Stages;
 
 public class StageRequestService
 {
