@@ -61,6 +61,6 @@ else
         @Html.AntiForgeryToken()
         <input type="hidden" name="Input.ProjectId" value="@ViewBag.ProjectId" />
         <button name="Input.Decision" value="Reject" class="btn btn-outline-secondary">Reject</button>
-        <button name="Input.Decision" value="Approve" class="btn btn-primary" @((hasChanges && !requiresBackfill) ? null : "disabled")>Approve plan</button>
+        <button name="Input.Decision" value="Approve" class="btn btn-primary" @(requiresBackfill ? "disabled" : null)>Approve plan</button>
     </form>
 }

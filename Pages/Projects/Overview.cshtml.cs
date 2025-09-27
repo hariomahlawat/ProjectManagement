@@ -53,9 +53,12 @@ namespace ProjectManagement.Pages.Projects
         public PlanEditorVm PlanEdit { get; private set; } = default!;
         public bool HasBackfill { get; private set; }
         public bool RequiresPlanApproval { get; private set; }
+        public string? CurrentUserId { get; private set; }
 
         public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
         {
+            CurrentUserId = _users.GetUserId(User);
+
             var project = await _db.Projects
                 .Include(p => p.Category)
                 .Include(p => p.HodUser)

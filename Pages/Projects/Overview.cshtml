@@ -6,8 +6,12 @@
     var project = Model.Project;
     var pageTitle = project?.Name ?? "Project";
     var diagDraftExists = string.Equals(ViewData["DiagDraftExists"] as string, "1", StringComparison.Ordinal);
-    var canReviewPlan = User.IsInRole("HoD");
-    var canEditPlan = canReviewPlan || User.IsInRole("Project Officer");
+    var isAdmin = User.IsInRole("Admin");
+    var isHoD = User.IsInRole("HoD");
+    var isProjectOfficer = User.IsInRole("Project Officer");
+    var isThisProjectsPo = isProjectOfficer &&
+        string.Equals(Model.Project?.LeadPoUserId, Model.CurrentUserId, StringComparison.Ordinal);
+    var canEditPlan = isAdmin || isThisProjectsPo;
     ViewData["Title"] = pageTitle;
 }
 
@@ -175,10 +179,10 @@
             </div>
         </div>
         <div class="col-lg-4 d-flex flex-column gap-3">
-            @if (canEditPlan)
+            @if (isHoD || canEditPlan)
             {
                 <div class="d-flex justify-content-end gap-2">
-                    @if (canReviewPlan)
+                    @if (isHoD)
                     {
                         <button class="btn btn-sm btn-outline-primary"
                                 type="button"
@@ -188,13 +192,16 @@
                             Review &amp; approve
                         </button>
                     }
-                    <button class="btn btn-sm btn-outline-primary"
-                            type="button"
-                            data-bs-toggle="offcanvas"
-                            data-bs-target="#offcanvasPlanEdit"
-                            aria-controls="offcanvasPlanEdit">
-                        Edit timeline
-                    </button>
+                    @if (canEditPlan)
+                    {
+                        <button class="btn btn-sm btn-outline-primary"
+                                type="button"
+                                data-bs-toggle="offcanvas"
+                                data-bs-target="#offcanvasPlanEdit"
+                                aria-controls="offcanvasPlanEdit">
+                            Edit timeline
+                        </button>
+                    }
                 </div>
             }
             <partial name="_ProjectTimeline" model="Model.Timeline" />
