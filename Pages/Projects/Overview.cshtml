@@ -200,10 +200,10 @@
             <div class="card">
                 <div class="card-header">
                     <div class="d-flex flex-column gap-2">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div class="d-flex align-items-center">
+                        <div class="d-flex flex-column flex-lg-row align-items-start align-items-lg-center gap-3 justify-content-lg-between">
+                            <div class="d-flex flex-wrap align-items-center gap-2">
                                 <h5 class="mb-0">Timeline</h5>
-                                <div class="d-flex align-items-center gap-2 ms-2">
+                                <div class="d-flex flex-wrap align-items-center gap-2 ms-lg-2 mt-2 mt-lg-0">
                                     @if (Model.Timeline.PlanPendingApproval)
                                     {
                                         <span class="badge text-bg-warning">Draft pending approval</span>
@@ -222,7 +222,7 @@
                                     }
                                 </div>
                             </div>
-                            <div class="d-flex align-items-center gap-2">
+                            <div class="d-flex flex-wrap align-items-center gap-2 justify-content-lg-end">
                                 @if (Model.Timeline.PlanPendingApproval && isHoD)
                                 {
                                     <button class="btn btn-sm btn-outline-primary"
