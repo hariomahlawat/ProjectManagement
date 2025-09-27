@@ -19,4 +19,6 @@ public sealed class PlanDurationRowVm
     public string Code { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public int? DurationDays { get; set; }
+    public DateOnly? PreviewStart { get; set; }
+    public DateOnly? PreviewDue { get; set; }
 }

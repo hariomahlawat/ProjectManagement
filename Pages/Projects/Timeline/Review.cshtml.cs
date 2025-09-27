@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Models;
+using ProjectManagement.Helpers;
 using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Projects;
 
@@ -109,6 +110,12 @@ public class ReviewModel : PageModel
             TempData["Error"] = ex.Errors.Count > 0 ? string.Join(" ", ex.Errors) : ex.Message;
             TempData["OpenOffcanvas"] = "plan-review";
             _logger.LogWarning(ex, "Plan approval validation failed for project {ProjectId} by user {UserId}.", id, userId);
+        }
+        catch (ForbiddenException ex)
+        {
+            TempData["Error"] = ex.Message;
+            TempData["OpenOffcanvas"] = "plan-review";
+            _logger.LogWarning(ex, "Plan approval forbidden for project {ProjectId} by user {UserId}.", id, userId);
         }
         catch (ValidationException ex)
         {

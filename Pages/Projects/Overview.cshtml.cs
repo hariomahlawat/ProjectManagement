@@ -95,7 +95,7 @@ namespace ProjectManagement.Pages.Projects
 
             Procurement = await _procureRead.GetAsync(id, ct);
             Timeline = await _timelineRead.GetAsync(id, ct);
-            PlanEdit = await _planRead.GetAsync(id, ct);
+            PlanEdit = await _planRead.GetAsync(id, CurrentUserId, ct);
             HasBackfill = Timeline.HasBackfill;
             RequiresPlanApproval = Timeline.PlanPendingApproval;
 
@@ -121,8 +121,8 @@ namespace ProjectManagement.Pages.Projects
 
             AssignRoles = await BuildAssignRolesVmAsync(project);
 
-            var draftExists = await _db.PlanVersions.AnyAsync(p => p.ProjectId == id &&
-                (p.Status == PlanVersionStatus.Draft || p.Status == PlanVersionStatus.PendingApproval), ct);
+            var draftState = PlanEdit.State ?? new PlanEditorStateVm();
+            var draftExists = draftState.HasMyDraft || draftState.HasPendingSubmission;
             ViewData["DiagDraftExists"] = draftExists ? "1" : "0";
             _logger.LogInformation("Overview load for Project {ProjectId}. Conn: {Conn}. DraftExists={DraftExists}",
                 id,

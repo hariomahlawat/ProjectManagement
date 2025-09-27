@@ -237,8 +237,25 @@ namespace ProjectManagement.Data
             builder.Entity<PlanVersion>(e =>
             {
                 e.HasIndex(x => new { x.ProjectId, x.VersionNo }).IsUnique();
+
+                var draftIndex = e.HasIndex(x => new { x.ProjectId, x.OwnerUserId })
+                    .IsUnique();
+
+                if (Database.IsNpgsql())
+                {
+                    draftIndex.HasFilter("\"Status\" = 'Draft' AND \"OwnerUserId\" IS NOT NULL");
+                }
+                else if (Database.IsSqlServer())
+                {
+                    draftIndex.HasFilter("[Status] = 'Draft' AND [OwnerUserId] IS NOT NULL");
+                }
+                else
+                {
+                    draftIndex.HasFilter("Status = 'Draft' AND OwnerUserId IS NOT NULL");
+                }
                 e.Property(x => x.Title).HasMaxLength(64);
                 e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+                e.Property(x => x.OwnerUserId).HasMaxLength(450);
                 e.Property(x => x.CreatedByUserId).HasMaxLength(450);
                 e.Property(x => x.SubmittedByUserId).HasMaxLength(450);
                 e.Property(x => x.ApprovedByUserId).HasMaxLength(450);
@@ -248,6 +265,10 @@ namespace ProjectManagement.Data
                 e.Property(x => x.TransitionRule).HasConversion<string>().HasMaxLength(32);
                 e.Property(x => x.SkipWeekends).HasDefaultValue(true);
                 e.Property(x => x.PncApplicable).HasDefaultValue(true);
+                e.HasOne(x => x.OwnerUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.OwnerUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
                 e.HasOne(x => x.SubmittedByUser)
                     .WithMany()
                     .HasForeignKey(x => x.SubmittedByUserId)

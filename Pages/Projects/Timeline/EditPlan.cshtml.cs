@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
+using ProjectManagement.Helpers;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Scheduling;
@@ -93,15 +94,6 @@ public class EditPlanModel : PageModel
             return Forbid();
         }
 
-        var hasPending = await _db.PlanVersions
-            .AnyAsync(v => v.ProjectId == id && v.Status == PlanVersionStatus.PendingApproval, cancellationToken);
-
-        if (hasPending)
-        {
-            TempData["Error"] = "This plan is awaiting HoD review. You can’t edit until it’s approved or rejected.";
-            return RedirectToPage("/Projects/Overview", new { id });
-        }
-
         if (string.Equals(Input.Mode, PlanEditorModes.Durations, StringComparison.OrdinalIgnoreCase))
         {
             return await HandleDurationsAsync(id, userId, cancellationToken);
@@ -138,7 +130,7 @@ public class EditPlanModel : PageModel
             return Forbid();
         }
 
-        var draft = await _planDraft.GetDraftAsync(id, cancellationToken);
+        var draft = await _planDraft.GetDraftAsync(id, userId, cancellationToken);
         if (draft is null)
         {
             return new JsonResult(new { ok = true, errors = Array.Empty<string>() });
@@ -229,6 +221,18 @@ public class EditPlanModel : PageModel
             changes.Add(new StageChange(row.Code, row.Name, previousStart, previousDue, row.PlannedStart, row.PlannedDue));
         }
 
+        var pncApplicable = stageMap.TryGetValue(StageCodes.PNC, out var pncStage) &&
+            pncStage.PlannedStart is DateOnly && pncStage.PlannedDue is DateOnly;
+
+        if (draft.PncApplicable != pncApplicable)
+        {
+            draft.PncApplicable = pncApplicable;
+            if (changes.Count == 0)
+            {
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+        }
+
         if (changes.Count > 0)
         {
             await _db.SaveChangesAsync(cancellationToken);
@@ -272,6 +276,13 @@ public class EditPlanModel : PageModel
                 TempData["Error"] = ex.Errors.Count > 0 ? string.Join(" ", ex.Errors) : ex.Message;
                 TempData["OpenOffcanvas"] = "plan-edit";
                 _logger.LogWarning(ex, "Draft submission failed validation for project {ProjectId} by user {UserId}.", id, userId);
+                return RedirectToPage("/Projects/Overview", new { id });
+            }
+            catch (DomainException ex)
+            {
+                TempData["Error"] = ex.Message;
+                TempData["OpenOffcanvas"] = "plan-edit";
+                _logger.LogWarning(ex, "Draft submission blocked for project {ProjectId} by user {UserId}.", id, userId);
                 return RedirectToPage("/Projects/Overview", new { id });
             }
             catch (InvalidOperationException ex)
@@ -435,7 +446,16 @@ public class EditPlanModel : PageModel
             return RedirectToPage("/Projects/Overview", new { id });
         }
 
+        var pncApplicable = durationMap.TryGetValue(StageCodes.PNC, out var pncRow) &&
+            pncRow.DurationDays.GetValueOrDefault() > 0;
+
+        draft.PncApplicable = pncApplicable;
         await _planGeneration.GenerateDraftAsync(id, draft.Id, ct);
+
+        if (!submitForApproval)
+        {
+            await _db.SaveChangesAsync(ct);
+        }
 
         if (submitForApproval)
         {
@@ -448,6 +468,13 @@ public class EditPlanModel : PageModel
                 TempData["Error"] = ex.Errors.Count > 0 ? string.Join(" ", ex.Errors) : ex.Message;
                 TempData["OpenOffcanvas"] = "plan-edit";
                 _logger.LogWarning(ex, "Draft submission failed validation for project {ProjectId} by user {UserId}.", id, userId);
+                return RedirectToPage("/Projects/Overview", new { id });
+            }
+            catch (DomainException ex)
+            {
+                TempData["Error"] = ex.Message;
+                TempData["OpenOffcanvas"] = "plan-edit";
+                _logger.LogWarning(ex, "Draft submission blocked for project {ProjectId} by user {UserId}.", id, userId);
                 return RedirectToPage("/Projects/Overview", new { id });
             }
             catch (InvalidOperationException ex)

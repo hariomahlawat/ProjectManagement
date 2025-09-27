@@ -33,7 +33,9 @@ public class PlanDraftService
 
         var existing = await _db.PlanVersions
             .Include(p => p.StagePlans)
-            .Where(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.Draft)
+            .Where(p => p.ProjectId == projectId &&
+                        p.Status == PlanVersionStatus.Draft &&
+                        p.OwnerUserId == userId)
             .OrderByDescending(p => p.VersionNo)
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -44,6 +46,18 @@ public class PlanDraftService
                 await _db.Entry(existing).Collection(p => p.StagePlans).LoadAsync(cancellationToken);
             }
             return existing;
+        }
+
+        var hasPending = await _db.PlanVersions
+            .AsNoTracking()
+            .AnyAsync(p => p.ProjectId == projectId &&
+                           p.Status == PlanVersionStatus.PendingApproval &&
+                           p.OwnerUserId == userId,
+                cancellationToken);
+
+        if (hasPending)
+        {
+            throw new PlanDraftLockedException("Your previous submission is awaiting approval and cannot be edited.");
         }
 
         var latestVersion = await _db.PlanVersions
@@ -71,6 +85,7 @@ public class PlanDraftService
             Title = PlanVersion.ProjectTimelineTitle,
             Status = PlanVersionStatus.Draft,
             CreatedByUserId = userId,
+            OwnerUserId = userId,
             CreatedOn = _clock.UtcNow,
             AnchorStageCode = PlanConstants.DefaultAnchorStageCode,
             AnchorDate = DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime),
@@ -103,18 +118,13 @@ public class PlanDraftService
         var existing = await _db.PlanVersions
             .Include(p => p.StagePlans)
             .Where(p => p.ProjectId == projectId &&
-                        (p.Status == PlanVersionStatus.Draft || p.Status == PlanVersionStatus.PendingApproval))
-            .OrderByDescending(p => p.Status)
-            .ThenByDescending(p => p.VersionNo)
+                        p.Status == PlanVersionStatus.Draft &&
+                        p.OwnerUserId == userId)
+            .OrderByDescending(p => p.VersionNo)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (existing is not null)
         {
-            if (existing.Status == PlanVersionStatus.PendingApproval)
-            {
-                throw new PlanDraftLockedException("The current plan is pending approval and cannot be edited.");
-            }
-
             if (!existing.StagePlans.Any())
             {
                 await _db.Entry(existing).Collection(p => p.StagePlans).LoadAsync(cancellationToken);
@@ -123,14 +133,34 @@ public class PlanDraftService
             return existing;
         }
 
+        var pending = await _db.PlanVersions
+            .AsNoTracking()
+            .Where(p => p.ProjectId == projectId &&
+                        p.Status == PlanVersionStatus.PendingApproval &&
+                        p.OwnerUserId == userId)
+            .Select(p => p.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (pending != 0)
+        {
+            throw new PlanDraftLockedException("Your submission is pending approval and cannot be modified until a decision is made.");
+        }
+
         return await CreateDraftAsync(projectId, userId, cancellationToken);
     }
 
-    public Task<PlanVersion?> GetDraftAsync(int projectId, CancellationToken cancellationToken = default)
+    public Task<PlanVersion?> GetDraftAsync(int projectId, string userId, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Task.FromResult<PlanVersion?>(null);
+        }
+
         return _db.PlanVersions
             .Include(p => p.StagePlans)
-            .Where(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.Draft)
+            .Where(p => p.ProjectId == projectId &&
+                        p.Status == PlanVersionStatus.Draft &&
+                        p.OwnerUserId == userId)
             .OrderByDescending(p => p.VersionNo)
             .FirstOrDefaultAsync(cancellationToken);
     }

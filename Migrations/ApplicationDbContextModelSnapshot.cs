@@ -612,6 +612,10 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTimeOffset>("CreatedOn")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("OwnerUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
                     b.Property<bool>("PncApplicable")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -667,11 +671,17 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("CreatedByUserId");
 
+                    b.HasIndex("OwnerUserId");
+
                     b.HasIndex("SubmittedByUserId");
 
                     b.HasIndex("RejectedByUserId");
 
                     b.HasIndex("ProjectId", "VersionNo")
+                        .IsUnique();
+
+                    b.HasIndex("ProjectId", "OwnerUserId")
+                        .HasFilter("\"Status\" = 'Draft' AND \"OwnerUserId\" IS NOT NULL")
                         .IsUnique();
 
                     b.ToTable("PlanVersions");
@@ -1636,6 +1646,11 @@ namespace ProjectManagement.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "OwnerUser")
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ProjectManagement.Models.Project", "Project")
                         .WithMany()
                         .HasForeignKey("ProjectId")
@@ -1655,6 +1670,8 @@ namespace ProjectManagement.Migrations
                     b.Navigation("ApprovedByUser");
 
                     b.Navigation("CreatedByUser");
+
+                    b.Navigation("OwnerUser");
 
                     b.Navigation("Project");
 
