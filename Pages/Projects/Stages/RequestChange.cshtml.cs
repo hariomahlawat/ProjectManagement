@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using ProjectManagement.Helpers;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Stages;
 
@@ -41,12 +42,18 @@ public class RequestChangeModel : PageModel
 
         return result.Outcome switch
         {
-            StageRequestOutcome.Success => new JsonResult(new { ok = true }),
+            StageRequestOutcome.Success => HttpContext.SetSuccess(),
             StageRequestOutcome.NotProjectOfficer => Forbid(),
-            StageRequestOutcome.StageNotFound => NotFound(new { ok = false, error = "Stage not found." }),
-            StageRequestOutcome.DuplicatePending => StatusCode(StatusCodes.Status409Conflict, new { ok = false, error = result.Error }),
-            StageRequestOutcome.ValidationFailed => UnprocessableEntity(new { ok = false, error = result.Error }),
-            _ => StatusCode(StatusCodes.Status500InternalServerError, new { ok = false })
+            StageRequestOutcome.StageNotFound => HttpContext.SetStatusCode(
+                StatusCodes.Status404NotFound,
+                new { ok = false, error = "Stage not found." }),
+            StageRequestOutcome.DuplicatePending => HttpContext.SetStatusCode(
+                StatusCodes.Status409Conflict,
+                new { ok = false, error = result.Error }),
+            StageRequestOutcome.ValidationFailed => HttpContext.SetStatusCode(
+                StatusCodes.Status422UnprocessableEntity,
+                new { ok = false, error = result.Error }),
+            _ => HttpContext.SetInternalServerError()
         };
     }
 }
