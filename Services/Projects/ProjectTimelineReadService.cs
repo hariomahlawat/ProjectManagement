@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
@@ -19,6 +20,10 @@ public sealed class ProjectTimelineReadService
             .Where(x => x.ProjectId == projectId)
             .ToListAsync(ct);
 
+        var project = await _db.Projects
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == projectId, ct);
+
         var items = new List<TimelineItemVm>();
         var index = 0;
         foreach (var code in StageCodes.All)
@@ -29,8 +34,8 @@ public sealed class ProjectTimelineReadService
                 Code = code,
                 Name = StageCodes.DisplayNameOf(code),
                 Status = r?.Status ?? StageStatus.NotStarted,
-                PlannedStart = null,
-                PlannedEnd = null,
+                PlannedStart = r?.PlannedStart,
+                PlannedEnd = r?.PlannedDue,
                 ActualStart = r?.ActualStart,
                 CompletedOn = r?.CompletedOn,
                 IsAutoCompleted = r?.IsAutoCompleted ?? false,
@@ -42,12 +47,16 @@ public sealed class ProjectTimelineReadService
 
         var completed = items.Count(i => i.Status == StageStatus.Completed);
 
+        var planPendingApproval = project?.PlanApprovedAt is null
+            && rows.Any(r => r.PlannedStart.HasValue || r.PlannedDue.HasValue);
+
         return new TimelineVm
         {
             ProjectId = projectId,
             TotalStages = items.Count,
             CompletedCount = completed,
-            Items = items
+            Items = items,
+            PlanPendingApproval = planPendingApproval
         };
     }
 }
