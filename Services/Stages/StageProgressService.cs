@@ -7,7 +7,9 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Stages;
 
 namespace ProjectManagement.Services;
 
@@ -135,6 +137,9 @@ public class StageProgressService
                 ct);
         }
 
+        var completedOnDate = stage.CompletedOn ?? resolvedDate;
+        var autoStart = await AutoStartNextStageAsync(projectId, stage, completedOnDate, ct);
+
         await _db.SaveChangesAsync(ct);
 
         var data = new Dictionary<string, string?>
@@ -147,6 +152,20 @@ public class StageProgressService
         };
 
         await _audit.LogAsync("Stages.StageStatusChanged", userId: userId, data: data);
+
+        if (autoStart is { Stage: { } nextStage })
+        {
+            await _audit.LogAsync(
+                "Stages.StageAutoStarted",
+                userId: userId,
+                data: new Dictionary<string, string?>
+                {
+                    ["ProjectId"] = projectId.ToString(CultureInfo.InvariantCulture),
+                    ["StageCode"] = nextStage.StageCode,
+                    ["TriggeredBy"] = stage.StageCode,
+                    ["StartDate"] = autoStart.StartDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+                });
+        }
 
         foreach (var auto in autoCompleted)
         {
@@ -213,5 +232,91 @@ public class StageProgressService
                 autoCompleted,
                 ct);
         }
+    }
+
+    private async Task<(ProjectStage Stage, DateOnly StartDate)?> AutoStartNextStageAsync(
+        int projectId,
+        ProjectStage completedStage,
+        DateOnly completedOn,
+        CancellationToken ct)
+    {
+        var settings = await _db.ProjectScheduleSettings.SingleOrDefaultAsync(s => s.ProjectId == projectId, ct);
+        if (settings is null || settings.AnchorStart is null)
+        {
+            return null;
+        }
+
+        var stages = await _db.ProjectStages
+            .Where(s => s.ProjectId == projectId)
+            .ToListAsync(ct);
+
+        var ordered = stages
+            .OrderBy(s => StageOrderValue(s.StageCode))
+            .ThenBy(s => s.StageCode, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var index = ordered.FindIndex(s => string.Equals(s.StageCode, completedStage.StageCode, StringComparison.OrdinalIgnoreCase));
+        if (index < 0 || index + 1 >= ordered.Count)
+        {
+            return null;
+        }
+
+        var nextStage = ordered[index + 1];
+        if (string.IsNullOrWhiteSpace(nextStage.StageCode))
+        {
+            return null;
+        }
+        if (nextStage.Status != StageStatus.NotStarted)
+        {
+            return null;
+        }
+
+        foreach (var dependency in StageDependencies.RequiredPredecessors(nextStage.StageCode))
+        {
+            var depStage = stages.FirstOrDefault(s => string.Equals(s.StageCode, dependency, StringComparison.OrdinalIgnoreCase));
+            if (depStage?.Status != StageStatus.Completed)
+            {
+                return null;
+            }
+        }
+
+        var startDate = settings.NextStageStartPolicy == NextStageStartPolicies.SameDay
+            ? completedOn
+            : await ResolveNextWorkingDayAsync(settings, completedOn, ct);
+
+        nextStage.Status = StageStatus.InProgress;
+        nextStage.ActualStart ??= startDate;
+        nextStage.IsAutoCompleted = false;
+        nextStage.AutoCompletedFromCode = null;
+        nextStage.RequiresBackfill = false;
+
+        return (nextStage, startDate);
+    }
+
+    private async Task<DateOnly> ResolveNextWorkingDayAsync(ProjectScheduleSettings settings, DateOnly completedOn, CancellationToken ct)
+    {
+        if (settings.NextStageStartPolicy == NextStageStartPolicies.SameDay)
+        {
+            return completedOn;
+        }
+
+        var holidays = await _db.Holidays
+            .AsNoTracking()
+            .Select(h => h.Date)
+            .ToListAsync(ct);
+
+        var calendar = new WorkingCalendar(holidays, settings.IncludeWeekends, settings.SkipHolidays);
+        return calendar.NextWorkingDay(completedOn);
+    }
+
+    private static int StageOrderValue(string? stageCode)
+    {
+        if (stageCode is null)
+        {
+            return int.MaxValue;
+        }
+
+        var index = Array.IndexOf(StageCodes.All, stageCode);
+        return index >= 0 ? index : int.MaxValue;
     }
 }

@@ -43,6 +43,9 @@ namespace ProjectManagement.Data
         public DbSet<ProjectComment> ProjectComments => Set<ProjectComment>();
         public DbSet<ProjectCommentAttachment> ProjectCommentAttachments => Set<ProjectCommentAttachment>();
         public DbSet<ProjectCommentMention> ProjectCommentMentions => Set<ProjectCommentMention>();
+        public DbSet<ProjectScheduleSettings> ProjectScheduleSettings => Set<ProjectScheduleSettings>();
+        public DbSet<ProjectPlanDuration> ProjectPlanDurations => Set<ProjectPlanDuration>();
+        public DbSet<Holiday> Holidays => Set<Holiday>();
         public DbSet<StageShiftLog> StageShiftLogs => Set<StageShiftLog>();
 
         protected override void OnModelCreating(ModelBuilder builder)
@@ -64,6 +67,11 @@ namespace ProjectManagement.Data
                     .WithMany(x => x.Projects)
                     .HasForeignKey(x => x.CategoryId)
                     .OnDelete(DeleteBehavior.Restrict);
+                e.Property(x => x.PlanApprovedByUserId).HasMaxLength(450);
+                e.HasOne(x => x.PlanApprovedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.PlanApprovedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             builder.Entity<ProjectCategory>(e =>
@@ -247,6 +255,34 @@ namespace ProjectManagement.Data
                 e.Property(x => x.CauseStageCode).HasMaxLength(16);
                 e.Property(x => x.CauseType).HasMaxLength(24);
                 e.HasIndex(x => new { x.ProjectId, x.StageCode, x.CreatedOn });
+            });
+
+            builder.Entity<ProjectScheduleSettings>(e =>
+            {
+                e.HasKey(x => x.ProjectId);
+                e.Property(x => x.AnchorStart).HasColumnType("date");
+                e.Property(x => x.NextStageStartPolicy).HasMaxLength(32).HasDefaultValue(NextStageStartPolicies.NextWorkingDay);
+                e.HasOne(x => x.Project)
+                    .WithOne()
+                    .HasForeignKey<ProjectScheduleSettings>(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ProjectPlanDuration>(e =>
+            {
+                e.Property(x => x.StageCode).HasMaxLength(16);
+                e.HasIndex(x => new { x.ProjectId, x.StageCode }).IsUnique();
+                e.HasOne<Project>()
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<Holiday>(e =>
+            {
+                e.HasIndex(x => x.Date).IsUnique();
+                e.Property(x => x.Date).HasColumnType("date");
+                e.Property(x => x.Name).HasMaxLength(160);
             });
 
             builder.Entity<PlanApprovalLog>(e =>

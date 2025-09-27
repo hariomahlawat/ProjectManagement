@@ -43,8 +43,9 @@ namespace ProjectManagement.Pages.Projects
         public ProcurementEditVm ProcurementEdit { get; private set; } = default!;
         public AssignRolesVm AssignRoles { get; private set; } = default!;
         public TimelineVm Timeline { get; private set; } = default!;
-        public PlanEditVm PlanEdit { get; private set; } = default!;
+        public PlanEditorVm PlanEdit { get; private set; } = default!;
         public bool HasBackfill { get; private set; }
+        public bool RequiresPlanApproval { get; private set; }
 
         public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
         {
@@ -85,6 +86,7 @@ namespace ProjectManagement.Pages.Projects
             Timeline = await _timelineRead.GetAsync(id, ct);
             PlanEdit = await _planRead.GetAsync(id, ct);
             HasBackfill = Timeline.HasBackfill;
+            RequiresPlanApproval = Timeline.PlanPendingApproval;
 
             ProcurementEdit = new ProcurementEditVm
             {

@@ -41,6 +41,10 @@ namespace ProjectManagement.Models
         public string? LeadPoUserId { get; set; }
         public ApplicationUser? LeadPoUser { get; set; }
 
+        public DateTimeOffset? PlanApprovedAt { get; set; }
+        public string? PlanApprovedByUserId { get; set; }
+        public ApplicationUser? PlanApprovedByUser { get; set; }
+
         private ICollection<ProjectStage> _projectStages = new List<ProjectStage>();
 
         public ICollection<ProjectStage> ProjectStages

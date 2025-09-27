@@ -14,7 +14,13 @@
 
 <div class="card">
   <div class="card-header d-flex align-items-center justify-content-between">
-    <div class="fw-semibold">Timeline</div>
+    <div class="fw-semibold d-flex align-items-center gap-2">
+      <span>Timeline</span>
+      @if (Model.PlanPendingApproval && (User.IsInRole("HoD") || User.IsInRole("Admin")))
+      {
+        <span class="badge text-bg-warning">Pending approval</span>
+      }
+    </div>
     <div class="d-flex align-items-center gap-2">
       <div class="progress" style="width:180px" aria-label="Stages completed">
         <div class="progress-bar" role="progressbar"

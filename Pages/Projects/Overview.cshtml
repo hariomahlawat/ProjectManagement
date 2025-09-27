@@ -159,7 +159,7 @@
             </div>
         </div>
         <div class="col-lg-4 d-flex flex-column gap-3">
-            @if (User.IsInRole("Admin") || User.IsInRole("PO"))
+            @if (User.IsInRole("Admin") || User.IsInRole("PO") || User.IsInRole("HoD"))
             {
                 <div class="d-flex justify-content-end">
                     <button class="btn btn-sm btn-outline-primary"

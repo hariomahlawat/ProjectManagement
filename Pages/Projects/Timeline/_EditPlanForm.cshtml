@@ -1,42 +1,146 @@
-@model ProjectManagement.ViewModels.PlanEditVm
-<form method="post" asp-page="/Projects/Timeline/EditPlan" asp-route-id="@Model.ProjectId" class="d-flex flex-column h-100">
-    @Html.AntiForgeryToken()
-    <input type="hidden" name="Input.ProjectId" value="@Model.ProjectId" />
+@model ProjectManagement.ViewModels.PlanEditorVm
+@{
+    var activeMode = Model.ActiveMode ?? ProjectManagement.ViewModels.PlanEditorModes.Exact;
+    var exactActive = string.Equals(activeMode, ProjectManagement.ViewModels.PlanEditorModes.Exact, StringComparison.OrdinalIgnoreCase);
+    var durationsActive = string.Equals(activeMode, ProjectManagement.ViewModels.PlanEditorModes.Durations, StringComparison.OrdinalIgnoreCase);
+}
 
-    <div class="flex-grow-1 overflow-auto pe-1">
-        <div class="row gy-3">
-            @for (var i = 0; i < Model.Rows.Count; i++)
-            {
-                var row = Model.Rows[i];
-                <div class="col-12 border-bottom pb-3">
-                    <div class="d-flex justify-content-between align-items-center mb-1">
-                        <strong>@row.Name</strong>
-                        <span class="text-muted small">@row.Code</span>
+<div class="d-flex flex-column h-100">
+    <ul class="nav nav-tabs" id="plan-edit-tabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link @(exactActive ? "active" : null)"
+                    id="plan-edit-exact-tab"
+                    data-bs-toggle="tab"
+                    data-bs-target="#plan-edit-exact"
+                    type="button"
+                    role="tab"
+                    aria-controls="plan-edit-exact"
+                    aria-selected="@(exactActive ? "true" : "false")">
+                Exact dates
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link @(durationsActive ? "active" : null)"
+                    id="plan-edit-durations-tab"
+                    data-bs-toggle="tab"
+                    data-bs-target="#plan-edit-durations"
+                    type="button"
+                    role="tab"
+                    aria-controls="plan-edit-durations"
+                    aria-selected="@(durationsActive ? "true" : "false")">
+                Durations
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content flex-grow-1 mt-3">
+        <div class="tab-pane fade @(exactActive ? "show active" : null) h-100" id="plan-edit-exact" role="tabpanel" aria-labelledby="plan-edit-exact-tab">
+            <form method="post" asp-page="/Projects/Timeline/EditPlan" asp-route-id="@Model.Exact.ProjectId" class="d-flex flex-column h-100">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="Input.Mode" value="@ProjectManagement.ViewModels.PlanEditorModes.Exact" />
+                <input type="hidden" name="Input.ProjectId" value="@Model.Exact.ProjectId" />
+
+                <div class="flex-grow-1 overflow-auto pe-1">
+                    <div class="row gy-3">
+                        @for (var i = 0; i < Model.Exact.Rows.Count; i++)
+                        {
+                            var row = Model.Exact.Rows[i];
+                            <div class="col-12 border-bottom pb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <strong>@row.Name</strong>
+                                    <span class="text-muted small">@row.Code</span>
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-sm-6">
+                                        <label for="ExactRows_@(i)__PlannedStart" class="form-label">Planned start</label>
+                                        <input class="form-control" type="date"
+                                               id="ExactRows_@(i)__PlannedStart"
+                                               name="Input.Rows[@(i)].PlannedStart"
+                                               value="@(row.PlannedStart.HasValue ? row.PlannedStart.Value.ToString("yyyy-MM-dd") : null)" />
+                                    </div>
+                                    <div class="col-sm-6">
+                                        <label for="ExactRows_@(i)__PlannedDue" class="form-label">Planned due</label>
+                                        <input class="form-control" type="date"
+                                               id="ExactRows_@(i)__PlannedDue"
+                                               name="Input.Rows[@(i)].PlannedDue"
+                                               value="@(row.PlannedDue.HasValue ? row.PlannedDue.Value.ToString("yyyy-MM-dd") : null)" />
+                                    </div>
+                                </div>
+                                <input type="hidden" name="Input.Rows[@(i)].Code" value="@row.Code" />
+                                <input type="hidden" name="Input.Rows[@(i)].Name" value="@row.Name" />
+                            </div>
+                        }
                     </div>
-                    <div class="row g-2">
-                        <div class="col-sm-6">
-                            <label for="Rows_@(i)__PlannedStart" class="form-label">Planned start</label>
-                            <input class="form-control" type="date"
-                                   id="Rows_@(i)__PlannedStart"
-                                   name="Input.Rows[@(i)].PlannedStart"
-                                   value="@(row.PlannedStart.HasValue ? row.PlannedStart.Value.ToString("yyyy-MM-dd") : null)" />
-                        </div>
-                        <div class="col-sm-6">
-                            <label for="Rows_@(i)__PlannedDue" class="form-label">Planned due</label>
-                            <input class="form-control" type="date"
-                                   id="Rows_@(i)__PlannedDue"
-                                   name="Input.Rows[@(i)].PlannedDue"
-                                   value="@(row.PlannedDue.HasValue ? row.PlannedDue.Value.ToString("yyyy-MM-dd") : null)" />
-                        </div>
-                    </div>
-                    <input type="hidden" name="Input.Rows[@(i)].Code" value="@row.Code" />
-                    <input type="hidden" name="Input.Rows[@(i)].Name" value="@row.Name" />
                 </div>
-            }
+
+                <div class="pt-3 mt-3 border-top text-end">
+                    <button class="btn btn-primary" type="submit">Save plan</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="tab-pane fade @(durationsActive ? "show active" : null) h-100" id="plan-edit-durations" role="tabpanel" aria-labelledby="plan-edit-durations-tab">
+            <form method="post" asp-page="/Projects/Timeline/EditPlan" asp-route-id="@Model.Durations.ProjectId" class="d-flex flex-column h-100">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="Input.Mode" value="@ProjectManagement.ViewModels.PlanEditorModes.Durations" />
+                <input type="hidden" name="Input.ProjectId" value="@Model.Durations.ProjectId" />
+
+                <div class="flex-grow-1 overflow-auto pe-1">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="DurationsAnchorStart">Anchor start date</label>
+                            <input class="form-control" type="date"
+                                   id="DurationsAnchorStart"
+                                   name="Input.AnchorStart"
+                                   value="@(Model.Durations.AnchorStart?.ToString("yyyy-MM-dd"))" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="DurationsPolicy">Next stage starts</label>
+                            <select class="form-select" id="DurationsPolicy" name="Input.NextStageStartPolicy">
+                                <option value="@ProjectManagement.Models.Scheduling.NextStageStartPolicies.SameDay" @(Model.Durations.NextStageStartPolicy == ProjectManagement.Models.Scheduling.NextStageStartPolicies.SameDay ? "selected" : null)>Same day</option>
+                                <option value="@ProjectManagement.Models.Scheduling.NextStageStartPolicies.NextWorkingDay" @(Model.Durations.NextStageStartPolicy == ProjectManagement.Models.Scheduling.NextStageStartPolicies.NextWorkingDay ? "selected" : null)>Next working day</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="DurationsIncludeWeekends" name="Input.IncludeWeekends" value="true" @(Model.Durations.IncludeWeekends ? "checked" : null)>
+                                <label class="form-check-label" for="DurationsIncludeWeekends">Count weekends</label>
+                            </div>
+                            <div class="form-check form-check-inline">
+                                <input class="form-check-input" type="checkbox" id="DurationsSkipHolidays" name="Input.SkipHolidays" value="true" @(Model.Durations.SkipHolidays ? "checked" : null)>
+                                <label class="form-check-label" for="DurationsSkipHolidays">Skip holidays</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-3" />
+
+                    <div class="row gy-3">
+                        @for (int i = 0; i < Model.Durations.Rows.Count; i++)
+                        {
+                            var r = Model.Durations.Rows[i];
+                            <div class="col-12">
+                                <div class="d-flex justify-content-between">
+                                    <strong>@r.Name</strong> <span class="text-muted small">@r.Code</span>
+                                </div>
+                                <div class="input-group">
+                                    <span class="input-group-text">Duration (days)</span>
+                                    <input class="form-control" type="number" min="0" step="1"
+                                           name="Input.Rows[@i].DurationDays"
+                                           value="@(r.DurationDays?.ToString() ?? "")" />
+                                </div>
+                                <input type="hidden" name="Input.Rows[@i].Code" value="@r.Code" />
+                                <input type="hidden" name="Input.Rows[@i].Name" value="@r.Name" />
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2 justify-content-end mt-3 pt-3 border-top">
+                    <button class="btn btn-outline-secondary" type="submit" name="Input.Action" value="Calculate">Calculate</button>
+                    <button class="btn btn-primary" type="submit" name="Input.Action" value="Save">Save &amp; request approval</button>
+                </div>
+            </form>
         </div>
     </div>
-
-    <div class="pt-3 mt-3 border-top text-end">
-        <button class="btn btn-primary" type="submit">Save plan</button>
-    </div>
-</form>
+</div>

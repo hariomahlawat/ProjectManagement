@@ -12,6 +12,7 @@ public sealed class TimelineVm
     public IReadOnlyList<TimelineItemVm> Items { get; init; } = Array.Empty<TimelineItemVm>();
 
     public bool HasBackfill => Items.Any(i => i.RequiresBackfill);
+    public bool PlanPendingApproval { get; init; }
 }
 
 public sealed class TimelineItemVm
