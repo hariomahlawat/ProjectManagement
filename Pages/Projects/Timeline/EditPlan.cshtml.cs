@@ -22,7 +22,7 @@ using ProjectManagement.ViewModels;
 
 namespace ProjectManagement.Pages.Projects.Timeline;
 
-[Authorize(Roles = "Admin,Project Officer")]
+[Authorize(Roles = "Admin,Project Officer,HoD")]
 [ValidateAntiForgeryToken]
 public class EditPlanModel : PageModel
 {
@@ -73,6 +73,7 @@ public class EditPlanModel : PageModel
         }
 
         var isAdmin = User.IsInRole("Admin");
+        var isHoD = User.IsInRole("HoD");
 
         var project = await _db.Projects
             .AsNoTracking()
@@ -83,7 +84,10 @@ public class EditPlanModel : PageModel
             return NotFound();
         }
 
-        if (!isAdmin && !string.Equals(project.LeadPoUserId, userId, StringComparison.Ordinal))
+        var isProjectsHod = isHoD && string.Equals(project.HodUserId, userId, StringComparison.Ordinal);
+        var isProjectsPo = string.Equals(project.LeadPoUserId, userId, StringComparison.Ordinal);
+
+        if (!isAdmin && !isProjectsPo && !isProjectsHod)
         {
             _logger.LogWarning("User {UserId} attempted to edit plan for project {ProjectId} without permission.", userId, id);
             return Forbid();

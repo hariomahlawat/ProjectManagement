@@ -12,9 +12,12 @@
     var isProjectOfficer = User.IsInRole("Project Officer");
     var isThisProjectsPo = isProjectOfficer &&
         string.Equals(Model.Project?.LeadPoUserId, Model.CurrentUserId, StringComparison.Ordinal);
+    var isThisProjectsHod = isHoD &&
+        string.Equals(Model.Project?.HodUserId, Model.CurrentUserId, StringComparison.Ordinal);
     var planState = Model.PlanEdit?.State ?? new PlanEditorStateVm();
     var planLocked = planState.IsLocked;
-    var canEditTimeline = (isAdmin || isThisProjectsPo) && !Model.Timeline.PlanPendingApproval && !planLocked;
+    var canEditTimeline = (isAdmin || isThisProjectsPo || isThisProjectsHod) &&
+        !Model.Timeline.PlanPendingApproval && !planLocked;
     var completedStages = Model.Timeline.CompletedCount;
     var totalStages = Model.Timeline.TotalStages;
     var progressPercent = totalStages == 0 ? 0 : (completedStages * 100 / totalStages);
