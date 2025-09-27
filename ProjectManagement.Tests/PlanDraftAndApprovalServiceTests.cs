@@ -62,7 +62,7 @@ public class PlanDraftAndApprovalServiceTests
         Assert.Equal("po-user", draft.OwnerUserId);
         Assert.NotEqual("other", draft.CreatedByUserId);
         Assert.Equal(2, draft.VersionNo);
-        Assert.Equal(1, draft.StagePlans.Count);
+        Assert.Single(draft.StagePlans);
         Assert.Equal(StageCodes.EOI, draft.StagePlans[0].StageCode);
     }
 
