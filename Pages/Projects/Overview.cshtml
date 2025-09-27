@@ -14,7 +14,11 @@
         string.Equals(Model.Project?.LeadPoUserId, Model.CurrentUserId, StringComparison.Ordinal);
     var planState = Model.PlanEdit?.State ?? new PlanEditorStateVm();
     var planLocked = planState.IsLocked;
-    var canEditPlan = (isAdmin || isThisProjectsPo) && !planLocked;
+    var canEditPlan = (isAdmin || isThisProjectsPo) && !planLocked && !Model.Timeline.PlanPendingApproval;
+    var completedStages = Model.Timeline.CompletedCount;
+    var totalStages = Model.Timeline.TotalStages;
+    var progressPercent = totalStages == 0 ? 0 : (completedStages * 100 / totalStages);
+    var showTimelineActions = isHoD || canEditPlan;
     ViewData["Title"] = pageTitle;
 }
 
@@ -35,27 +39,6 @@
                     <small class="text-muted">(@project?.CaseFileNumber)</small>
                 }
             </h1>
-            <div class="d-flex flex-wrap gap-2 mt-2">
-                @if (Model.HasBackfill)
-                {
-                    <a class="badge rounded-pill text-bg-warning text-decoration-none"
-                       asp-page="/Projects/Procurement/Edit"
-                       asp-route-id="@Model.Project!.Id">
-                        Backfill required
-                    </a>
-                }
-                @if (Model.Timeline.PlanPendingApproval)
-                {
-                    <span class="badge rounded-pill text-bg-warning">Draft pending approval</span>
-                }
-                @if (project?.PlanApprovedAt is DateTimeOffset approvedAt)
-                {
-                    var approvedBy = DisplayUser(project.PlanApprovedByUser);
-                    <span class="badge rounded-pill text-bg-success">
-                        Approved on @approvedAt.ToString("dd MMM yyyy") by @approvedBy
-                    </span>
-                }
-            </div>
             <div class="text-muted">Created on @(project is { } p ? p.CreatedAt.ToString("dd MMM yyyy") : "—")</div>
         </div>
         <partial name="_AssignRolesOffcanvas" model="Model.AssignRoles" />
@@ -195,32 +178,69 @@
             </div>
         </div>
         <div class="col-lg-4 d-flex flex-column gap-3">
-            @if (isHoD || canEditPlan)
-            {
-                <div class="d-flex justify-content-end gap-2">
-                    @if (isHoD)
-                    {
-                        <button class="btn btn-sm btn-outline-primary"
-                                type="button"
-                                data-bs-toggle="offcanvas"
-                                data-bs-target="#offcanvasPlanReview"
-                                aria-controls="offcanvasPlanReview">
-                            Review &amp; approve
-                        </button>
-                    }
-                    @if (canEditPlan)
-                    {
-                        <button class="btn btn-sm btn-outline-primary"
-                                type="button"
-                                data-bs-toggle="offcanvas"
-                                data-bs-target="#offcanvasPlanEdit"
-                                aria-controls="offcanvasPlanEdit">
-                            Edit timeline
-                        </button>
-                    }
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <h5 class="mb-0">Timeline</h5>
+                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                @if (Model.Timeline.PlanPendingApproval)
+                                {
+                                    <span class="badge text-bg-warning">Draft pending approval</span>
+                                }
+                                @if (Model.HasBackfill)
+                                {
+                                    <span class="badge text-bg-secondary" title="Resolve procurement backfill to proceed">Backfill required</span>
+                                }
+                                @if (project?.PlanApprovedAt is DateTimeOffset approvedAt)
+                                {
+                                    <span class="badge text-bg-success">Approved on @approvedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="d-flex flex-wrap align-items-center gap-2 justify-content-end">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="progress" style="width: 180px" aria-label="Stages completed">
+                                    <div class="progress-bar" role="progressbar"
+                                         style="width:@progressPercent%"
+                                         aria-valuenow="@completedStages"
+                                         aria-valuemin="0"
+                                         aria-valuemax="@totalStages"></div>
+                                </div>
+                                <span class="text-muted small">@completedStages of @totalStages</span>
+                            </div>
+                            @if (showTimelineActions)
+                            {
+                                <div class="d-flex gap-2">
+                                    @if (isHoD)
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary"
+                                                type="button"
+                                                data-bs-toggle="offcanvas"
+                                                data-bs-target="#offcanvasPlanReview"
+                                                aria-controls="offcanvasPlanReview">
+                                            Review &amp; approve
+                                        </button>
+                                    }
+                                    @if (canEditPlan)
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary"
+                                                type="button"
+                                                data-bs-toggle="offcanvas"
+                                                data-bs-target="#offcanvasPlanEdit"
+                                                aria-controls="offcanvasPlanEdit">
+                                            Edit timeline
+                                        </button>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </div>
                 </div>
-            }
-            <partial name="_ProjectTimeline" model="Model.Timeline" />
+                <div class="card-body">
+                    <partial name="_ProjectTimeline" model="Model.Timeline" />
+                </div>
+            </div>
         </div>
     </div>
 

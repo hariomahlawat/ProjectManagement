@@ -88,6 +88,15 @@ public class EditPlanModel : PageModel
             return Forbid();
         }
 
+        var hasPending = await _db.PlanVersions
+            .AnyAsync(v => v.ProjectId == id && v.Status == PlanVersionStatus.PendingApproval, cancellationToken);
+
+        if (hasPending)
+        {
+            TempData["Error"] = "This plan is awaiting HoD review. You can’t edit until it’s approved or rejected.";
+            return RedirectToPage("/Projects/Overview", new { id });
+        }
+
         if (string.Equals(Input.Mode, PlanEditorModes.Durations, StringComparison.OrdinalIgnoreCase))
         {
             return await HandleDurationsAsync(id, userId, cancellationToken);
