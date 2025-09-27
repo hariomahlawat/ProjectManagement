@@ -108,12 +108,27 @@ public class EditPlanModel : PageModel
 
     private async Task<IActionResult> HandleExactAsync(int id, string userId, CancellationToken cancellationToken)
     {
-        var validationErrors = ValidateExactInput();
-        if (validationErrors.Count > 0)
+        if (Input.Rows is not null)
         {
-            TempData["Error"] = string.Join(" ", validationErrors);
-            TempData["OpenOffcanvas"] = "plan-edit";
-            return RedirectToPage("/Projects/Overview", new { id });
+            foreach (var row in Input.Rows)
+            {
+                if (string.IsNullOrWhiteSpace(row.Code))
+                {
+                    continue;
+                }
+
+                if (row.PlannedStart.HasValue && row.PlannedDue.HasValue &&
+                    row.PlannedStart.Value > row.PlannedDue.Value)
+                {
+                    var name = string.IsNullOrWhiteSpace(row.Name) ? row.Code : row.Name;
+                    ModelState.AddModelError(string.Empty, $"For {name}, Start date cannot be after Due date.");
+                }
+            }
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return RedirectWithValidationErrors(id);
         }
 
         var action = NormalizeAction(Input.Action);
@@ -247,12 +262,36 @@ public class EditPlanModel : PageModel
         var saveDraft = string.Equals(action, PlanEditActions.SaveDraft, StringComparison.OrdinalIgnoreCase) ||
                         (!calculateOnly && !submitForApproval);
 
-        var validationErrors = ValidateDurationsInput();
-        if (validationErrors.Count > 0)
+        if (Input.AnchorStart is null)
         {
-            TempData["Error"] = string.Join(" ", validationErrors);
-            TempData["OpenOffcanvas"] = "plan-edit";
-            return RedirectToPage("/Projects/Overview", new { id });
+            ModelState.AddModelError(nameof(Input.AnchorStart), "Please provide the anchor start date.");
+        }
+
+        if (!NextStageStartPolicies.IsValid(Input.NextStageStartPolicy))
+        {
+            ModelState.AddModelError(nameof(Input.NextStageStartPolicy), "Choose a valid next stage start policy.");
+        }
+
+        if (Input.Rows is not null)
+        {
+            foreach (var row in Input.Rows)
+            {
+                if (string.IsNullOrWhiteSpace(row.Code))
+                {
+                    continue;
+                }
+
+                if (!row.DurationDays.HasValue || row.DurationDays.Value <= 0)
+                {
+                    var name = string.IsNullOrWhiteSpace(row.Name) ? row.Code : row.Name;
+                    ModelState.AddModelError(string.Empty, $"Duration for {name} must be a positive number of days.");
+                }
+            }
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return RedirectWithValidationErrors(id);
         }
 
         var settings = await _db.ProjectScheduleSettings.SingleOrDefaultAsync(s => s.ProjectId == id, ct);
@@ -373,56 +412,20 @@ public class EditPlanModel : PageModel
         return RedirectToPage("/Projects/Overview", new { id });
     }
 
-    private List<string> ValidateExactInput()
+    private IActionResult RedirectWithValidationErrors(int projectId)
     {
-        var errors = new List<string>();
+        var messages = ModelState.Values
+            .SelectMany(value => value.Errors)
+            .Select(error => error.ErrorMessage)
+            .Where(message => !string.IsNullOrWhiteSpace(message))
+            .ToArray();
 
-        if (Input.Rows is null)
-        {
-            return errors;
-        }
+        TempData["Error"] = messages.Length > 0
+            ? string.Join(" ", messages)
+            : "Please correct the highlighted errors and try again.";
 
-        foreach (var row in Input.Rows)
-        {
-            if (row.PlannedStart.HasValue && row.PlannedDue.HasValue && row.PlannedStart > row.PlannedDue)
-            {
-                var name = string.IsNullOrWhiteSpace(row.Name) ? row.Code : row.Name;
-                errors.Add($"Planned start must be on or before planned due for {name}.");
-            }
-        }
-
-        return errors;
-    }
-
-    private List<string> ValidateDurationsInput()
-    {
-        var errors = new List<string>();
-
-        if (Input.AnchorStart is null)
-        {
-            errors.Add("Set an anchor start date before calculating or saving the plan.");
-        }
-
-        if (!NextStageStartPolicies.IsValid(Input.NextStageStartPolicy))
-        {
-            errors.Add("Choose a valid next stage start policy.");
-        }
-
-        if (Input.Rows is null)
-        {
-            return errors;
-        }
-
-        foreach (var row in Input.Rows)
-        {
-            if (!string.IsNullOrWhiteSpace(row.Code) && row.DurationDays.HasValue && row.DurationDays <= 0)
-            {
-                var name = string.IsNullOrWhiteSpace(row.Name) ? row.Code : row.Name;
-                errors.Add($"Duration for {name} must be a positive number of days.");
-            }
-        }
-
-        return errors;
+        TempData["OpenOffcanvas"] = "plan-edit";
+        return RedirectToPage("/Projects/Overview", new { id = projectId });
     }
 
     private static string NormalizeAction(string? action) => string.IsNullOrWhiteSpace(action)
