@@ -33,7 +33,7 @@ public class StageRequestService
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
     }
 
-    public async Task<StageRequestResult> RequestChangeAsync(
+    public async Task<StageRequestResult> CreateAsync(
         StageChangeRequestInput input,
         string userId,
         CancellationToken cancellationToken = default)
