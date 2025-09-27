@@ -5,6 +5,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Models.Plans;
+using ProjectManagement.Models.Stages;
 
 namespace ProjectManagement.Services.Stages;
 
@@ -65,5 +67,78 @@ public sealed class PlanCompareService
                     row?.PlannedDue);
             })
             .ToList();
+    }
+
+    public async Task<IReadOnlyList<PlanDiffRow>> GetDraftVsCurrentAsync(int projectId, CancellationToken ct = default)
+    {
+        var draft = await _db.PlanVersions
+            .AsNoTracking()
+            .Include(v => v.StagePlans)
+            .Where(v => v.ProjectId == projectId &&
+                        (v.Status == PlanVersionStatus.PendingApproval || v.Status == PlanVersionStatus.Draft))
+            .OrderByDescending(v => v.Status)
+            .ThenByDescending(v => v.VersionNo)
+            .FirstOrDefaultAsync(ct);
+
+        if (draft is null)
+        {
+            return Array.Empty<PlanDiffRow>();
+        }
+
+        var draftLookup = draft.StagePlans
+            .Where(sp => !string.IsNullOrWhiteSpace(sp.StageCode))
+            .ToDictionary(sp => sp.StageCode!, sp => sp, StringComparer.OrdinalIgnoreCase);
+
+        var currentStages = await _db.ProjectStages
+            .Where(s => s.ProjectId == projectId)
+            .ToListAsync(ct);
+
+        var currentLookup = currentStages
+            .Where(s => !string.IsNullOrWhiteSpace(s.StageCode))
+            .ToDictionary(s => s.StageCode!, s => s, StringComparer.OrdinalIgnoreCase);
+
+        var orderedCodes = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var code in StageCodes.All)
+        {
+            if (seen.Add(code))
+            {
+                orderedCodes.Add(code);
+            }
+        }
+
+        foreach (var code in draftLookup.Keys)
+        {
+            if (seen.Add(code))
+            {
+                orderedCodes.Add(code);
+            }
+        }
+
+        foreach (var code in currentLookup.Keys)
+        {
+            if (seen.Add(code))
+            {
+                orderedCodes.Add(code);
+            }
+        }
+
+        var results = new List<PlanDiffRow>(orderedCodes.Count);
+
+        foreach (var code in orderedCodes)
+        {
+            draftLookup.TryGetValue(code, out var draftRow);
+            currentLookup.TryGetValue(code, out var currentRow);
+
+            results.Add(new PlanDiffRow(
+                code,
+                draftRow?.PlannedStart,
+                draftRow?.PlannedDue,
+                currentRow?.PlannedStart,
+                currentRow?.PlannedDue));
+        }
+
+        return results;
     }
 }

@@ -166,7 +166,7 @@
             @if (User.IsInRole("Admin") || User.IsInRole("PO") || User.IsInRole("HoD"))
             {
                 <div class="d-flex justify-content-end gap-2">
-                    @if (User.IsInRole("Admin") || User.IsInRole("HoD"))
+                    @if (User.IsInRole("HoD"))
                     {
                         <button class="btn btn-sm btn-outline-primary"
                                 type="button"
@@ -207,7 +207,7 @@
         <div class="offcanvas-body">
             @{
                 ViewBag.ProjectId = Model.Project.Id;
-                var diffs = await Model.PlanCompare.GetDiffAsync(Model.Project.Id);
+                var diffs = await Model.PlanCompare.GetDraftVsCurrentAsync(Model.Project.Id);
                 await Html.RenderPartialAsync("Projects/Timeline/_ReviewPlan", diffs);
             }
         </div>

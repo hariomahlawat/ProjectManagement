@@ -10,6 +10,7 @@ using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Stages;
 
 namespace ProjectManagement.Services.Plans;
 
@@ -18,12 +19,14 @@ public class PlanApprovalService
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly ILogger<PlanApprovalService> _logger;
+    private readonly PlanSnapshotService _snapshots;
 
-    public PlanApprovalService(ApplicationDbContext db, IClock clock, ILogger<PlanApprovalService> logger)
+    public PlanApprovalService(ApplicationDbContext db, IClock clock, ILogger<PlanApprovalService> logger, PlanSnapshotService snapshots)
     {
         _db = db;
         _clock = clock;
         _logger = logger;
+        _snapshots = snapshots;
     }
 
     public async Task SubmitAsync(int projectId, string userId, CancellationToken cancellationToken = default)
@@ -58,7 +61,7 @@ public class PlanApprovalService
         _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} submitted for approval by {UserId}.", plan.Id, projectId, userId);
     }
 
-    public async Task ApproveAsync(int projectId, string approverUserId, CancellationToken cancellationToken = default)
+    public async Task<bool> ApproveLatestDraftAsync(int projectId, string approverUserId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(approverUserId))
         {
@@ -66,11 +69,16 @@ public class PlanApprovalService
         }
 
         var plan = await _db.PlanVersions
-            .FirstOrDefaultAsync(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.PendingApproval, cancellationToken);
+            .Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == projectId &&
+                        (p.Status == PlanVersionStatus.PendingApproval || p.Status == PlanVersionStatus.Draft))
+            .OrderByDescending(p => p.Status)
+            .ThenByDescending(p => p.VersionNo)
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (plan == null)
         {
-            throw new InvalidOperationException("No plan is currently pending approval for this project.");
+            return false;
         }
 
         var requiresBackfill = await _db.ProjectStages
@@ -85,45 +93,70 @@ public class PlanApprovalService
             .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken)
             ?? throw new InvalidOperationException("Project not found.");
 
-        project.ActivePlanVersionNo = plan.VersionNo;
+        var now = _clock.UtcNow;
 
-        var plans = await _db.StagePlans
-            .Where(s => s.PlanVersionId == plan.Id)
-            .ToListAsync(cancellationToken);
+        using var tx = await _db.Database.BeginTransactionAsync(cancellationToken);
 
-        var existing = await _db.ProjectStages
+        var currentStages = await _db.ProjectStages
             .Where(ps => ps.ProjectId == projectId)
-            .Select(ps => ps.StageCode)
             .ToListAsync(cancellationToken);
 
-        var existingSet = new HashSet<string>(existing, StringComparer.OrdinalIgnoreCase);
+        var stageLookup = currentStages
+            .Where(s => !string.IsNullOrWhiteSpace(s.StageCode))
+            .ToDictionary(s => s.StageCode!, s => s, StringComparer.OrdinalIgnoreCase);
 
-        foreach (var stagePlan in plans)
+        foreach (var stagePlan in plan.StagePlans.Where(sp => !string.IsNullOrWhiteSpace(sp.StageCode)))
         {
-            if (existingSet.Contains(stagePlan.StageCode))
+            var code = stagePlan.StageCode!;
+            if (!stageLookup.TryGetValue(code, out var stage))
             {
-                continue;
+                stage = new ProjectStage
+                {
+                    ProjectId = projectId,
+                    StageCode = code,
+                    SortOrder = ResolveSortOrder(code),
+                    Status = StageStatus.NotStarted
+                };
+                _db.ProjectStages.Add(stage);
+                stageLookup[code] = stage;
             }
 
-            _db.ProjectStages.Add(new ProjectStage
-            {
-                ProjectId = projectId,
-                StageCode = stagePlan.StageCode,
-                SortOrder = Array.IndexOf(StageCodes.All, stagePlan.StageCode),
-                PlannedStart = stagePlan.PlannedStart,
-                PlannedDue = stagePlan.PlannedDue,
-                Status = StageStatus.NotStarted
-            });
-
-            existingSet.Add(stagePlan.StageCode);
+            stage.PlannedStart = stagePlan.PlannedStart;
+            stage.PlannedDue = stagePlan.PlannedDue;
         }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await _snapshots.CreateSnapshotAsync(projectId, approverUserId, cancellationToken);
+
+        project.ActivePlanVersionNo = plan.VersionNo;
+        project.PlanApprovedAt = now;
+        project.PlanApprovedByUserId = approverUserId;
 
         plan.Status = PlanVersionStatus.Approved;
         plan.ApprovedByUserId = approverUserId;
-        plan.ApprovedOn = _clock.UtcNow;
+        plan.ApprovedOn = now;
 
         await _db.SaveChangesAsync(cancellationToken);
+        await tx.CommitAsync(cancellationToken);
+
         _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} approved by {UserId}.", plan.Id, projectId, approverUserId);
+        return true;
+    }
+
+    public async Task ApproveAsync(int projectId, string approverUserId, CancellationToken cancellationToken = default)
+    {
+        var approved = await ApproveLatestDraftAsync(projectId, approverUserId, cancellationToken);
+        if (!approved)
+        {
+            throw new InvalidOperationException("No plan is currently pending approval for this project.");
+        }
+    }
+
+    private static int ResolveSortOrder(string code)
+    {
+        var index = Array.IndexOf(StageCodes.All, code);
+        return index >= 0 ? index : int.MaxValue;
     }
 
     public async Task RejectAsync(int projectId, string approverUserId, string note, CancellationToken cancellationToken = default)
