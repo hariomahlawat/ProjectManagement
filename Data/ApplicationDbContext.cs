@@ -242,7 +242,8 @@ namespace ProjectManagement.Data
                 e.Property(x => x.CreatedByUserId).HasMaxLength(450);
                 e.Property(x => x.SubmittedByUserId).HasMaxLength(450);
                 e.Property(x => x.ApprovedByUserId).HasMaxLength(450);
-                e.Property(x => x.Reason).HasMaxLength(512);
+                e.Property(x => x.RejectedByUserId).HasMaxLength(450);
+                e.Property(x => x.RejectionNote).HasMaxLength(512);
                 e.Property(x => x.AnchorStageCode).HasMaxLength(16);
                 e.Property(x => x.TransitionRule).HasConversion<string>().HasMaxLength(32);
                 e.Property(x => x.SkipWeekends).HasDefaultValue(true);
@@ -254,6 +255,10 @@ namespace ProjectManagement.Data
                 e.HasOne(x => x.ApprovedByUser)
                     .WithMany()
                     .HasForeignKey(x => x.ApprovedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                e.HasOne(x => x.RejectedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.RejectedByUserId)
                     .OnDelete(DeleteBehavior.SetNull);
             });
 

@@ -13,6 +13,9 @@ public sealed class TimelineVm
 
     public bool HasBackfill => Items.Any(i => i.RequiresBackfill);
     public bool PlanPendingApproval { get; init; }
+    public bool HasDraft { get; init; }
+    public DateTimeOffset? LatestApprovalAt { get; init; }
+    public string? LatestApprovalBy { get; init; }
 }
 
 public sealed class TimelineItemVm

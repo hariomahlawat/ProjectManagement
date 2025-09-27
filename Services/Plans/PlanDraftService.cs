@@ -112,11 +112,7 @@ public class PlanDraftService
         {
             if (existing.Status == PlanVersionStatus.PendingApproval)
             {
-                existing.Status = PlanVersionStatus.Draft;
-                existing.SubmittedByUserId = null;
-                existing.SubmittedOn = null;
-                existing.ApprovedByUserId = null;
-                existing.ApprovedOn = null;
+                throw new PlanDraftLockedException("The current plan is pending approval and cannot be edited.");
             }
 
             if (!existing.StagePlans.Any())

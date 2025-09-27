@@ -37,8 +37,14 @@ public class PlanVersion
 
     public DateTimeOffset? ApprovedOn { get; set; }
 
+    [MaxLength(450)]
+    public string? RejectedByUserId { get; set; }
+    public ApplicationUser? RejectedByUser { get; set; }
+
+    public DateTimeOffset? RejectedOn { get; set; }
+
     [MaxLength(512)]
-    public string? Reason { get; set; }
+    public string? RejectionNote { get; set; }
 
     [MaxLength(16)]
     public string? AnchorStageCode { get; set; }

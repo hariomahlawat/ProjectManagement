@@ -39,3 +39,15 @@ Represents a calendar event visible to all signed-in users. Each row stores a ti
 ### `Models/AuditLog.cs`
 Captures structured audit entries with timestamps, action names, user metadata, IP addresses and optional payloads. Sensitive fields are scrubbed by `AuditService` before persistence.
 
+### Timeline planning (`Models/Plans`)
+Timeline expectations are stored as `PlanVersion` rows. Each project maintains at most one open version (status **Draft** or **PendingApproval**) and a history of approved versions.
+
+* **Draft** rows are editable by the assigned Project Officer (PO) or an administrator. Edits are captured in `StagePlan` children and persisted without affecting the live `ProjectStages` table.
+* When a PO selects *Save & request approval*, `PlanApprovalService.SubmitAsync` validates the stage data and transitions the record to **PendingApproval**, stamping `SubmittedByUserId`/`SubmittedOn`. The draft becomes read-only until the Head of Department (HoD) acts.
+* HoDs review diffs via `PlanCompareService.GetDraftVsCurrentAsync`, with UI highlights showing the left/right comparison. Approving publishes `StagePlan` dates into `ProjectStages`, records an immutable snapshot (`ProjectPlanSnapshot` + rows), updates `Project.PlanApprovedAt/ByUserId` and marks the version **Approved**.
+* Rejecting moves the status back to **Draft**, captures optional feedback in `RejectionNote` and stamps `RejectedByUserId`/`RejectedOn`. The PO immediately regains edit access.
+* The new `RejectedByUserId` column is a nullable foreign key to `AspNetUsers`; the previous `Reason` column has been renamed to `RejectionNote`.
+* Backfill guards are enforced both in the UI and server (`PlanApprovalService.ApproveLatestDraftAsync`) to prevent approval while earlier stages require completion.
+
+`PlanEditorStateVm` gathers the metadata (status, submission/rejection timestamps, lock state) consumed by Razor components so that locking, banners and validation messaging stay consistent across edit and review experiences.
+

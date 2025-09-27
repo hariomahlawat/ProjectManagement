@@ -620,7 +620,14 @@ namespace ProjectManagement.Migrations
                     b.Property<int>("ProjectId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("Reason")
+                    b.Property<string>("RejectedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTimeOffset?>("RejectedOn")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RejectionNote")
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");
 
@@ -661,6 +668,8 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("CreatedByUserId");
 
                     b.HasIndex("SubmittedByUserId");
+
+                    b.HasIndex("RejectedByUserId");
 
                     b.HasIndex("ProjectId", "VersionNo")
                         .IsUnique();
@@ -1638,11 +1647,18 @@ namespace ProjectManagement.Migrations
                         .HasForeignKey("SubmittedByUserId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "RejectedByUser")
+                        .WithMany()
+                        .HasForeignKey("RejectedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("ApprovedByUser");
 
                     b.Navigation("CreatedByUser");
 
                     b.Navigation("Project");
+
+                    b.Navigation("RejectedByUser");
 
                     b.Navigation("SubmittedByUser");
                 });

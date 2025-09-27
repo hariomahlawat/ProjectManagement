@@ -56,6 +56,9 @@ public class PlanApprovalService
         plan.SubmittedOn = _clock.UtcNow;
         plan.ApprovedByUserId = null;
         plan.ApprovedOn = null;
+        plan.RejectedByUserId = null;
+        plan.RejectedOn = null;
+        plan.RejectionNote = null;
 
         await _db.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} submitted for approval by {UserId}.", plan.Id, projectId, userId);
@@ -73,10 +76,8 @@ public class PlanApprovalService
 
         var plan = await _db.PlanVersions
             .Include(p => p.StagePlans)
-            .Where(p => p.ProjectId == projectId &&
-                        (p.Status == PlanVersionStatus.PendingApproval || p.Status == PlanVersionStatus.Draft))
-            .OrderByDescending(p => p.Status)
-            .ThenByDescending(p => p.VersionNo)
+            .Where(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.PendingApproval)
+            .OrderByDescending(p => p.VersionNo)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (plan == null)
@@ -139,6 +140,9 @@ public class PlanApprovalService
         plan.Status = PlanVersionStatus.Approved;
         plan.ApprovedByUserId = approverUserId;
         plan.ApprovedOn = now;
+        plan.RejectedByUserId = null;
+        plan.RejectedOn = null;
+        plan.RejectionNote = null;
 
         await _db.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
@@ -187,6 +191,9 @@ public class PlanApprovalService
         plan.SubmittedOn = null;
         plan.ApprovedByUserId = null;
         plan.ApprovedOn = null;
+        plan.RejectedByUserId = approverUserId;
+        plan.RejectedOn = _clock.UtcNow;
+        plan.RejectionNote = trimmedNote;
 
         plan.ApprovalLogs.Add(new PlanApprovalLog
         {

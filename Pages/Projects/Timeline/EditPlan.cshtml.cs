@@ -106,9 +106,22 @@ public class EditPlanModel : PageModel
             return RedirectToPage("/Projects/Overview", new { id });
         }
 
-        var userName = User.Identity?.Name;
+        var action = NormalizeAction(Input.Action);
+        var submitForApproval = string.Equals(action, PlanEditActions.Submit, StringComparison.OrdinalIgnoreCase);
 
-        var draft = await _planDraft.CreateOrGetDraftAsync(id, userId, cancellationToken);
+        PlanVersion draft;
+        try
+        {
+            draft = await _planDraft.CreateOrGetDraftAsync(id, userId, cancellationToken);
+        }
+        catch (PlanDraftLockedException ex)
+        {
+            TempData["Error"] = ex.Message;
+            TempData["OpenOffcanvas"] = "plan-edit";
+            return RedirectToPage("/Projects/Overview", new { id });
+        }
+
+        var userName = User.Identity?.Name;
 
         var stageMap = draft.StagePlans
             .Where(stage => !string.IsNullOrWhiteSpace(stage.StageCode))
@@ -144,53 +157,86 @@ public class EditPlanModel : PageModel
 
             stagePlan.PlannedStart = row.PlannedStart;
             stagePlan.PlannedDue = row.PlannedDue;
+            stagePlan.DurationDays = CalculateDuration(row.PlannedStart, row.PlannedDue);
 
             changes.Add(new StageChange(row.Code, row.Name, previousStart, previousDue, row.PlannedStart, row.PlannedDue));
         }
 
-        if (changes.Count == 0)
+        if (changes.Count > 0)
         {
-            TempData["Flash"] = "No changes.";
-            return RedirectToPage("/Projects/Overview", new { id });
+            await _db.SaveChangesAsync(cancellationToken);
+            _logger.LogInformation("Exact timeline saved for Project {ProjectId}. Conn: {Conn}",
+                id,
+                _db.Database.GetDbConnection().ConnectionString);
+
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = id.ToString(CultureInfo.InvariantCulture),
+                ["ChangedStages"] = string.Join(";", changes.Select(change => change.Code))
+            };
+
+            for (var index = 0; index < changes.Count; index++)
+            {
+                var change = changes[index];
+                var prefix = $"Stage[{index}]";
+                data[$"{prefix}.Code"] = change.Code;
+                data[$"{prefix}.Name"] = change.Name;
+                data[$"{prefix}.Start.Before"] = FormatDate(change.PreviousStart);
+                data[$"{prefix}.Start.After"] = FormatDate(change.NewStart);
+                data[$"{prefix}.Due.Before"] = FormatDate(change.PreviousDue);
+                data[$"{prefix}.Due.After"] = FormatDate(change.NewDue);
+            }
+
+            await _audit.LogAsync(
+                "Projects.PlanUpdated",
+                userId: userId,
+                userName: userName,
+                data: data);
         }
 
-        await _db.SaveChangesAsync(cancellationToken);
-        _logger.LogInformation("Exact timeline saved for Project {ProjectId}. Conn: {Conn}",
-            id,
-            _db.Database.GetDbConnection().ConnectionString);
-
-        await _planApproval.SubmitForApprovalAsync(id, userId, cancellationToken);
-
-        var data = new Dictionary<string, string?>
+        if (submitForApproval)
         {
-            ["ProjectId"] = id.ToString(CultureInfo.InvariantCulture),
-            ["ChangedStages"] = string.Join(";", changes.Select(change => change.Code))
-        };
+            try
+            {
+                await _planApproval.SubmitForApprovalAsync(id, userId, cancellationToken);
+            }
+            catch (PlanApprovalValidationException ex)
+            {
+                TempData["Error"] = ex.Errors.Count > 0 ? string.Join(" ", ex.Errors) : ex.Message;
+                TempData["OpenOffcanvas"] = "plan-edit";
+                _logger.LogWarning(ex, "Draft submission failed validation for project {ProjectId} by user {UserId}.", id, userId);
+                return RedirectToPage("/Projects/Overview", new { id });
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+                TempData["OpenOffcanvas"] = "plan-edit";
+                _logger.LogWarning(ex, "Draft submission failed for project {ProjectId} by user {UserId}.", id, userId);
+                return RedirectToPage("/Projects/Overview", new { id });
+            }
 
-        for (var index = 0; index < changes.Count; index++)
+            TempData["Flash"] = "Draft submitted for approval.";
+        }
+        else if (changes.Count > 0)
         {
-            var change = changes[index];
-            var prefix = $"Stage[{index}]";
-            data[$"{prefix}.Code"] = change.Code;
-            data[$"{prefix}.Name"] = change.Name;
-            data[$"{prefix}.Start.Before"] = FormatDate(change.PreviousStart);
-            data[$"{prefix}.Start.After"] = FormatDate(change.NewStart);
-            data[$"{prefix}.Due.Before"] = FormatDate(change.PreviousDue);
-            data[$"{prefix}.Due.After"] = FormatDate(change.NewDue);
+            TempData["Flash"] = "Timeline saved as draft.";
+        }
+        else
+        {
+            TempData["Flash"] = "No changes were made.";
         }
 
-        await _audit.LogAsync(
-            "Projects.PlanUpdated",
-            userId: userId,
-            userName: userName,
-            data: data);
-
-        TempData["Flash"] = "Timeline plan updated and marked pending approval.";
         return RedirectToPage("/Projects/Overview", new { id });
     }
 
     private async Task<IActionResult> HandleDurationsAsync(int id, string userId, CancellationToken ct)
     {
+        var action = NormalizeAction(Input.Action);
+        var calculateOnly = string.Equals(action, PlanEditActions.Calculate, StringComparison.OrdinalIgnoreCase);
+        var submitForApproval = string.Equals(action, PlanEditActions.Submit, StringComparison.OrdinalIgnoreCase);
+        var saveDraft = string.Equals(action, PlanEditActions.SaveDraft, StringComparison.OrdinalIgnoreCase) ||
+                        (!calculateOnly && !submitForApproval);
+
         var validationErrors = ValidateDurationsInput();
         if (validationErrors.Count > 0)
         {
@@ -256,14 +302,40 @@ public class EditPlanModel : PageModel
             id,
             _db.Database.GetDbConnection().ConnectionString);
 
-        var draft = await _planDraft.CreateOrGetDraftAsync(id, userId, ct);
+        PlanVersion draft;
+        try
+        {
+            draft = await _planDraft.CreateOrGetDraftAsync(id, userId, ct);
+        }
+        catch (PlanDraftLockedException ex)
+        {
+            TempData["Error"] = ex.Message;
+            TempData["OpenOffcanvas"] = "plan-edit";
+            return RedirectToPage("/Projects/Overview", new { id });
+        }
 
         await _planGeneration.GenerateDraftAsync(id, draft.Id, ct);
 
-        var saveAction = string.Equals(Input.Action, "Save", StringComparison.OrdinalIgnoreCase);
-        if (saveAction)
+        if (submitForApproval)
         {
-            await _planApproval.SubmitForApprovalAsync(id, userId, ct);
+            try
+            {
+                await _planApproval.SubmitForApprovalAsync(id, userId, ct);
+            }
+            catch (PlanApprovalValidationException ex)
+            {
+                TempData["Error"] = ex.Errors.Count > 0 ? string.Join(" ", ex.Errors) : ex.Message;
+                TempData["OpenOffcanvas"] = "plan-edit";
+                _logger.LogWarning(ex, "Draft submission failed validation for project {ProjectId} by user {UserId}.", id, userId);
+                return RedirectToPage("/Projects/Overview", new { id });
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+                TempData["OpenOffcanvas"] = "plan-edit";
+                _logger.LogWarning(ex, "Draft submission failed for project {ProjectId} by user {UserId}.", id, userId);
+                return RedirectToPage("/Projects/Overview", new { id });
+            }
         }
 
         await _audit.LogAsync(
@@ -272,12 +344,21 @@ public class EditPlanModel : PageModel
             data: new Dictionary<string, string?>
             {
                 ["ProjectId"] = id.ToString(CultureInfo.InvariantCulture),
-                ["Action"] = Input.Action
+                ["Action"] = action
             });
 
-        TempData["Flash"] = saveAction
-            ? "Timeline plan recalculated and marked pending approval."
-            : "Timeline plan recalculated as draft.";
+        if (submitForApproval)
+        {
+            TempData["Flash"] = "Draft submitted for approval.";
+        }
+        else if (saveDraft)
+        {
+            TempData["Flash"] = "Timeline saved as draft.";
+        }
+        else
+        {
+            TempData["Flash"] = "Timeline recalculated as draft.";
+        }
 
         return RedirectToPage("/Projects/Overview", new { id });
     }
@@ -309,7 +390,7 @@ public class EditPlanModel : PageModel
 
         if (Input.AnchorStart is null)
         {
-            errors.Add("Set an anchor start date before calculating the plan.");
+            errors.Add("Set an anchor start date before calculating or saving the plan.");
         }
 
         if (!NextStageStartPolicies.IsValid(Input.NextStageStartPolicy))
@@ -324,14 +405,28 @@ public class EditPlanModel : PageModel
 
         foreach (var row in Input.Rows)
         {
-            if (!string.IsNullOrWhiteSpace(row.Code) && row.DurationDays.HasValue && row.DurationDays < 0)
+            if (!string.IsNullOrWhiteSpace(row.Code) && row.DurationDays.HasValue && row.DurationDays <= 0)
             {
                 var name = string.IsNullOrWhiteSpace(row.Name) ? row.Code : row.Name;
-                errors.Add($"Duration for {name} must be zero or greater.");
+                errors.Add($"Duration for {name} must be a positive number of days.");
             }
         }
 
         return errors;
+    }
+
+    private static string NormalizeAction(string? action) => string.IsNullOrWhiteSpace(action)
+        ? string.Empty
+        : action.Trim();
+
+    private static int CalculateDuration(DateOnly? start, DateOnly? due)
+    {
+        if (start.HasValue && due.HasValue && due.Value >= start.Value)
+        {
+            return due.Value.DayNumber - start.Value.DayNumber + 1;
+        }
+
+        return 0;
     }
 
     private static string? FormatDate(DateOnly? value) => value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
