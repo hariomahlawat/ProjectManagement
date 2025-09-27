@@ -98,7 +98,7 @@ public class ReviewModel : PageModel
                 }
                 else
                 {
-                    TempData["Error"] = "No pending draft to reject.";
+                    TempData["Error"] = "No pending draft found to reject.";
                     TempData["OpenOffcanvas"] = "plan-review";
                     _logger.LogWarning("Plan rejection attempted for project {ProjectId} by user {UserId}, but no draft was available.", id, userId);
                 }
