@@ -603,10 +603,8 @@ namespace ProjectManagement.Migrations
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     ProjectId = table.Column<int>(type: "integer", nullable: false),
-                    ProjectId1 = table.Column<int>(type: "integer", nullable: true),
                     TakenAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
-                    TakenByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
-                    TakenByUserId1 = table.Column<string>(type: "text", nullable: true)
+                    TakenByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -618,21 +616,11 @@ namespace ProjectManagement.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_ProjectPlanSnapshots_AspNetUsers_TakenByUserId1",
-                        column: x => x.TakenByUserId1,
-                        principalTable: "AspNetUsers",
-                        principalColumn: "Id");
-                    table.ForeignKey(
                         name: "FK_ProjectPlanSnapshots_Projects_ProjectId",
                         column: x => x.ProjectId,
                         principalTable: "Projects",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_ProjectPlanSnapshots_Projects_ProjectId1",
-                        column: x => x.ProjectId1,
-                        principalTable: "Projects",
-                        principalColumn: "Id");
                 });
 
             migrationBuilder.CreateTable(
@@ -1168,19 +1156,9 @@ namespace ProjectManagement.Migrations
                 columns: new[] { "ProjectId", "TakenAt" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_ProjectPlanSnapshots_ProjectId1",
-                table: "ProjectPlanSnapshots",
-                column: "ProjectId1");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_ProjectPlanSnapshots_TakenByUserId",
                 table: "ProjectPlanSnapshots",
                 column: "TakenByUserId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_ProjectPlanSnapshots_TakenByUserId1",
-                table: "ProjectPlanSnapshots",
-                column: "TakenByUserId1");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ProjectPncFacts_ProjectId",

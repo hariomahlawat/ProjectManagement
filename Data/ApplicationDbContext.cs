@@ -80,11 +80,11 @@ namespace ProjectManagement.Data
             {
                 e.HasIndex(x => new { x.ProjectId, x.TakenAt });
                 e.Property(x => x.TakenByUserId).HasMaxLength(450).IsRequired();
-                e.HasOne<Project>()
+                e.HasOne(x => x.Project)
                     .WithMany()
                     .HasForeignKey(x => x.ProjectId)
                     .OnDelete(DeleteBehavior.Cascade);
-                e.HasOne<ApplicationUser>()
+                e.HasOne(x => x.TakenByUser)
                     .WithMany()
                     .HasForeignKey(x => x.TakenByUserId)
                     .OnDelete(DeleteBehavior.Restrict);
