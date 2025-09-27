@@ -15,22 +15,22 @@
                     </div>
                     <div class="row g-2">
                         <div class="col-sm-6">
-                            <label for="Rows_@i__PlannedStart" class="form-label">Planned start</label>
+                            <label for="Rows_@(i)__PlannedStart" class="form-label">Planned start</label>
                             <input class="form-control" type="date"
-                                   id="Rows_@i__PlannedStart"
-                                   name="Input.Rows[@i].PlannedStart"
+                                   id="Rows_@(i)__PlannedStart"
+                                   name="Input.Rows[@(i)].PlannedStart"
                                    value="@(row.PlannedStart.HasValue ? row.PlannedStart.Value.ToString("yyyy-MM-dd") : null)" />
                         </div>
                         <div class="col-sm-6">
-                            <label for="Rows_@i__PlannedDue" class="form-label">Planned due</label>
+                            <label for="Rows_@(i)__PlannedDue" class="form-label">Planned due</label>
                             <input class="form-control" type="date"
-                                   id="Rows_@i__PlannedDue"
-                                   name="Input.Rows[@i].PlannedDue"
+                                   id="Rows_@(i)__PlannedDue"
+                                   name="Input.Rows[@(i)].PlannedDue"
                                    value="@(row.PlannedDue.HasValue ? row.PlannedDue.Value.ToString("yyyy-MM-dd") : null)" />
                         </div>
                     </div>
-                    <input type="hidden" name="Input.Rows[@i].Code" value="@row.Code" />
-                    <input type="hidden" name="Input.Rows[@i].Name" value="@row.Name" />
+                    <input type="hidden" name="Input.Rows[@(i)].Code" value="@row.Code" />
+                    <input type="hidden" name="Input.Rows[@(i)].Name" value="@row.Name" />
                 </div>
             }
         </div>
