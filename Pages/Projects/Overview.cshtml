@@ -208,7 +208,7 @@
             @{
                 ViewBag.ProjectId = Model.Project.Id;
                 var diffs = await Model.PlanCompare.GetDiffAsync(Model.Project.Id);
-                await Html.RenderPartialAsync("/Pages/Projects/Timeline/_ReviewPlan", diffs);
+                await Html.RenderPartialAsync("Projects/Timeline/_ReviewPlan", diffs);
             }
         </div>
     </div>
