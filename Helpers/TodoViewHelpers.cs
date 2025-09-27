@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using ProjectManagement.Infrastructure;
 
 namespace ProjectManagement.Helpers
@@ -16,7 +17,7 @@ namespace ProjectManagement.Helpers
             if (dueLocal < nowLocal) return "Overdue";
             if (dueLocal < endOfTodayLocal) return "Today";
             if (dueLocal < endOfTodayLocal.AddDays(1)) return "Tomorrow";
-            return dueLocal.ToString("dd-MMM");
+            return dueLocal.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
         }
     }
 }

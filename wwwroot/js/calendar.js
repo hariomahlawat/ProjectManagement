@@ -40,6 +40,16 @@
     return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
   };
 
+  const monthFormatter = new Intl.DateTimeFormat('en-GB', { month: 'short' });
+  const formatDisplayDate = (date) => {
+    const d = date instanceof Date ? date : new Date(date);
+    return `${pad(d.getDate())} ${monthFormatter.format(d)} ${d.getFullYear()}`;
+  };
+  const formatDisplayDateTime = (date) => {
+    const d = date instanceof Date ? date : new Date(date);
+    return `${formatDisplayDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
   // cache form elements
   const form = document.getElementById('eventForm');
   const titleBox = form ? form.querySelector('[name="title"]') : null;
@@ -511,9 +521,9 @@
       const end = new Date(data.end);
       if (data.allDay) {
         const endInc = new Date(end); endInc.setDate(endInc.getDate() - 1);
-        viewTime.textContent = `${start.toLocaleDateString()} – ${endInc.toLocaleDateString()}`;
+        viewTime.textContent = `${formatDisplayDate(start)} – ${formatDisplayDate(endInc)}`;
       } else {
-        viewTime.textContent = `${start.toLocaleString()} – ${end.toLocaleString()}`;
+        viewTime.textContent = `${formatDisplayDateTime(start)} – ${formatDisplayDateTime(end)}`;
       }
       viewCategory.textContent = data.category;
       viewLocation.textContent = data.location || '';

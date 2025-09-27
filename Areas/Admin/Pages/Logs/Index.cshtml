@@ -142,7 +142,7 @@
     @foreach (var r in Model.Rows)
     {
       <tr>
-        <td class="text-nowrap">@IstClock.ToIst(r.TimeUtc).ToString("yyyy-MM-dd HH:mm")</td>
+        <td class="text-nowrap">@IstClock.ToIst(r.TimeUtc).ToString("dd MMM yyyy HH:mm")</td>
         <td>
           <span class="badge bg-@LevelColor(r.Level)">@r.Level</span>
         </td>

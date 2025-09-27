@@ -1,10 +1,11 @@
 using System;
+using System.Globalization;
 
 namespace ProjectManagement.Infrastructure
 {
     public static class TimeFmt
     {
         public static string ToIst(DateTime? dt) =>
-            dt is null ? "—" : IstClock.ToIst(dt.Value).ToString("dd MMM yyyy, HH:mm");
+            dt is null ? "—" : IstClock.ToIst(dt.Value).ToString("dd MMM yyyy, HH:mm", CultureInfo.InvariantCulture);
     }
 }

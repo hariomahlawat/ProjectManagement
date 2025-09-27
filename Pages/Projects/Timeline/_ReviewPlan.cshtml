@@ -66,10 +66,10 @@ else
                         <div class="text-muted small">@row.StageCode</div>
                     </td>
                     <td class="text-center">
-                        @((row.OldStart?.ToString("yyyy-MM-dd") ?? "—") + " → " + (row.OldDue?.ToString("yyyy-MM-dd") ?? "—"))
+                        @((row.OldStart?.ToString("dd MMM yyyy") ?? "—") + " → " + (row.OldDue?.ToString("dd MMM yyyy") ?? "—"))
                     </td>
                     <td class="text-center">
-                        @((row.NewStart?.ToString("yyyy-MM-dd") ?? "—") + " → " + (row.NewDue?.ToString("yyyy-MM-dd") ?? "—"))
+                        @((row.NewStart?.ToString("dd MMM yyyy") ?? "—") + " → " + (row.NewDue?.ToString("dd MMM yyyy") ?? "—"))
                     </td>
                 </tr>
             }
