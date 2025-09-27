@@ -158,12 +158,15 @@ public sealed class StageDirectApplyService
                     && r.DecisionStatus == PendingDecisionStatus,
                 ct);
 
+        var superseded = false;
+
         var originalStatus = stage.Status;
         var originalActualStart = stage.ActualStart;
         var originalCompletedOn = stage.CompletedOn;
 
         if (pendingRequest is not null)
         {
+            superseded = true;
             pendingRequest.DecisionStatus = SupersededDecisionStatus;
             pendingRequest.DecidedByUserId = hodUserId;
             pendingRequest.DecidedOn = now;
@@ -290,7 +293,12 @@ public sealed class StageDirectApplyService
         await _db.StageChangeLogs.AddAsync(appliedLog, ct);
         await _db.SaveChangesAsync(ct);
 
-        return DirectApplyResult.Success(warnings);
+        return DirectApplyResult.Success(
+            finalStatus,
+            finalActualStart,
+            finalCompletedOn,
+            superseded,
+            warnings);
     }
 }
 
@@ -299,25 +307,45 @@ public sealed record DirectApplyResult
     public DirectApplyOutcome Outcome { get; }
     public string? Error { get; }
     public IReadOnlyList<string> Warnings { get; }
+    public StageStatus? UpdatedStatus { get; }
+    public DateOnly? ActualStart { get; }
+    public DateOnly? CompletedOn { get; }
+    public bool SupersededRequest { get; }
 
-    private DirectApplyResult(DirectApplyOutcome outcome, string? error, IReadOnlyList<string>? warnings)
+    private DirectApplyResult(
+        DirectApplyOutcome outcome,
+        string? error,
+        IReadOnlyList<string>? warnings,
+        StageStatus? updatedStatus,
+        DateOnly? actualStart,
+        DateOnly? completedOn,
+        bool supersededRequest)
     {
         Outcome = outcome;
         Error = error;
         Warnings = NormalizeWarnings(warnings);
+        UpdatedStatus = updatedStatus;
+        ActualStart = actualStart;
+        CompletedOn = completedOn;
+        SupersededRequest = supersededRequest;
     }
 
-    public static DirectApplyResult Success(IReadOnlyList<string>? warnings = null)
-        => new(DirectApplyOutcome.Success, null, warnings);
+    public static DirectApplyResult Success(
+        StageStatus updatedStatus,
+        DateOnly? actualStart,
+        DateOnly? completedOn,
+        bool supersededRequest,
+        IReadOnlyList<string>? warnings = null)
+        => new(DirectApplyOutcome.Success, null, warnings, updatedStatus, actualStart, completedOn, supersededRequest);
 
     public static DirectApplyResult StageNotFound()
-        => new(DirectApplyOutcome.StageNotFound, null, Array.Empty<string>());
+        => new(DirectApplyOutcome.StageNotFound, null, Array.Empty<string>(), null, null, null, false);
 
     public static DirectApplyResult NotHeadOfDepartment()
-        => new(DirectApplyOutcome.NotHeadOfDepartment, null, Array.Empty<string>());
+        => new(DirectApplyOutcome.NotHeadOfDepartment, null, Array.Empty<string>(), null, null, null, false);
 
     public static DirectApplyResult ValidationFailed(string message)
-        => new(DirectApplyOutcome.ValidationFailed, message, Array.Empty<string>());
+        => new(DirectApplyOutcome.ValidationFailed, message, Array.Empty<string>(), null, null, null, false);
 
     private static IReadOnlyList<string> NormalizeWarnings(IReadOnlyList<string>? warnings)
     {
