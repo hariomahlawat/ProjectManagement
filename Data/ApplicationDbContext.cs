@@ -37,6 +37,8 @@ namespace ProjectManagement.Data
         public DbSet<Event> Events => Set<Event>();
         public DbSet<StageTemplate> StageTemplates => Set<StageTemplate>();
         public DbSet<StageDependencyTemplate> StageDependencyTemplates => Set<StageDependencyTemplate>();
+        public DbSet<StageChangeRequest> StageChangeRequests => Set<StageChangeRequest>();
+        public DbSet<StageChangeLog> StageChangeLogs => Set<StageChangeLog>();
         public DbSet<PlanVersion> PlanVersions => Set<PlanVersion>();
         public DbSet<StagePlan> StagePlans => Set<StagePlan>();
         public DbSet<PlanApprovalLog> PlanApprovalLogs => Set<PlanApprovalLog>();
@@ -280,6 +282,76 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => new { x.Version, x.FromStageCode, x.DependsOnStageCode }).IsUnique();
                 e.Property(x => x.FromStageCode).HasMaxLength(16);
                 e.Property(x => x.DependsOnStageCode).HasMaxLength(16);
+            });
+
+            builder.Entity<StageChangeRequest>(e =>
+            {
+                e.Property(x => x.StageCode).HasMaxLength(32).IsRequired();
+                e.Property(x => x.RequestedStatus).HasMaxLength(16).IsRequired();
+                e.Property(x => x.RequestedDate).HasColumnType("date");
+                e.Property(x => x.Note).HasMaxLength(1024);
+                e.Property(x => x.RequestedByUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.DecisionStatus).HasMaxLength(12).HasDefaultValue("Pending").IsRequired();
+                e.Property(x => x.DecidedByUserId).HasMaxLength(450);
+                e.Property(x => x.DecisionNote).HasMaxLength(1024);
+
+                var pendingIndex = e.HasIndex(x => new { x.ProjectId, x.StageCode }).IsUnique();
+
+                if (Database.IsSqlServer())
+                {
+                    pendingIndex.HasFilter("[DecisionStatus] = 'Pending'");
+                    e.ToTable(tb =>
+                        tb.HasCheckConstraint("CK_StageChangeRequests_DecisionStatus",
+                            "[DecisionStatus] IN ('Pending','Approved','Rejected','Superseded')"));
+                }
+                else if (Database.IsNpgsql())
+                {
+                    pendingIndex.HasFilter("\"DecisionStatus\" = 'Pending'");
+                    e.ToTable(tb =>
+                        tb.HasCheckConstraint("CK_StageChangeRequests_DecisionStatus",
+                            "\"DecisionStatus\" IN ('Pending','Approved','Rejected','Superseded')"));
+                }
+                else
+                {
+                    pendingIndex.HasFilter("DecisionStatus = 'Pending'");
+                    e.ToTable(tb =>
+                        tb.HasCheckConstraint("CK_StageChangeRequests_DecisionStatus",
+                            "DecisionStatus IN ('Pending','Approved','Rejected','Superseded')"));
+                }
+            });
+
+            builder.Entity<StageChangeLog>(e =>
+            {
+                e.Property(x => x.StageCode).HasMaxLength(32).IsRequired();
+                e.Property(x => x.Action).HasMaxLength(16).IsRequired();
+                e.Property(x => x.FromStatus).HasMaxLength(16);
+                e.Property(x => x.ToStatus).HasMaxLength(16);
+                e.Property(x => x.FromActualStart).HasColumnType("date");
+                e.Property(x => x.ToActualStart).HasColumnType("date");
+                e.Property(x => x.FromCompletedOn).HasColumnType("date");
+                e.Property(x => x.ToCompletedOn).HasColumnType("date");
+                e.Property(x => x.UserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.Note).HasMaxLength(1024);
+                e.HasIndex(x => new { x.ProjectId, x.StageCode, x.At });
+
+                if (Database.IsSqlServer())
+                {
+                    e.ToTable(tb =>
+                        tb.HasCheckConstraint("CK_StageChangeLogs_Action",
+                            "[Action] IN ('Requested','Approved','Rejected','DirectApply','Applied','Superseded')"));
+                }
+                else if (Database.IsNpgsql())
+                {
+                    e.ToTable(tb =>
+                        tb.HasCheckConstraint("CK_StageChangeLogs_Action",
+                            "\"Action\" IN ('Requested','Approved','Rejected','DirectApply','Applied','Superseded')"));
+                }
+                else
+                {
+                    e.ToTable(tb =>
+                        tb.HasCheckConstraint("CK_StageChangeLogs_Action",
+                            "Action IN ('Requested','Approved','Rejected','DirectApply','Applied','Superseded')"));
+                }
             });
 
             builder.Entity<PlanVersion>(e =>

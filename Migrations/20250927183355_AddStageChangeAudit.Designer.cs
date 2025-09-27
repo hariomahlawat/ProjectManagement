@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ProjectManagement.Data;
@@ -11,9 +12,11 @@ using ProjectManagement.Data;
 namespace ProjectManagement.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250927183355_AddStageChangeAudit")]
+    partial class AddStageChangeAudit
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -673,15 +676,15 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("OwnerUserId");
 
-                    b.HasIndex("SubmittedByUserId");
-
                     b.HasIndex("RejectedByUserId");
 
-                    b.HasIndex("ProjectId", "VersionNo")
-                        .IsUnique();
+                    b.HasIndex("SubmittedByUserId");
 
                     b.HasIndex("ProjectId", "OwnerUserId")
-                        .HasFilter("\"Status\" = 'Draft' AND \"OwnerUserId\" IS NOT NULL")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'Draft' AND \"OwnerUserId\" IS NOT NULL");
+
+                    b.HasIndex("ProjectId", "VersionNo")
                         .IsUnique();
 
                     b.ToTable("PlanVersions");
@@ -1616,6 +1619,35 @@ namespace ProjectManagement.Migrations
                     b.ToTable("StageTemplates");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Status", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("Statuses");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.TodoItem", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1679,6 +1711,68 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("OwnerId", "Status", "IsPinned", "DueAtUtc");
 
                     b.ToTable("TodoItems");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Workflow", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Workflows");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.WorkflowStatus", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("StatusId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("WorkflowId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StatusId");
+
+                    b.HasIndex("WorkflowId");
+
+                    b.HasIndex("Name", "WorkflowId")
+                        .HasFilter("\"Name\" IS NOT NULL AND \"WorkflowId\" IS NOT NULL");
+
+                    b.ToTable("WorkflowStatuses");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
@@ -1786,14 +1880,14 @@ namespace ProjectManagement.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ProjectManagement.Models.ApplicationUser", "SubmittedByUser")
-                        .WithMany()
-                        .HasForeignKey("SubmittedByUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("ProjectManagement.Models.ApplicationUser", "RejectedByUser")
                         .WithMany()
                         .HasForeignKey("RejectedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "SubmittedByUser")
+                        .WithMany()
+                        .HasForeignKey("SubmittedByUserId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("ApprovedByUser");
@@ -2049,6 +2143,24 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Project");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.WorkflowStatus", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Status", "Status")
+                        .WithMany("WorkflowStatuses")
+                        .HasForeignKey("StatusId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ProjectManagement.Models.Workflow", "Workflow")
+                        .WithMany("Statuses")
+                        .HasForeignKey("WorkflowId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Status");
+
+                    b.Navigation("Workflow");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Plans.PlanVersion", b =>
                 {
                     b.Navigation("ApprovalLogs");
@@ -2080,6 +2192,16 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Mentions");
 
                     b.Navigation("Replies");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Status", b =>
+                {
+                    b.Navigation("WorkflowStatuses");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Workflow", b =>
+                {
+                    b.Navigation("Statuses");
                 });
 #pragma warning restore 612, 618
         }
