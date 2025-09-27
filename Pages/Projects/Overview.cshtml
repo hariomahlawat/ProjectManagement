@@ -163,7 +163,7 @@
             </div>
         </div>
         <div class="col-lg-4 d-flex flex-column gap-3">
-            @if (User.IsInRole("Admin") || User.IsInRole("PO") || User.IsInRole("HoD"))
+            @if (User.IsInRole("HoD") || User.IsInRole("Project Officer"))
             {
                 <div class="d-flex justify-content-end gap-2">
                     @if (User.IsInRole("HoD"))
