@@ -43,7 +43,7 @@ public sealed class StageDecisionServiceTests
         Assert.Equal(StageDecisionOutcome.Success, result.Outcome);
         Assert.Empty(result.Warnings);
 
-        var stage = await db.ProjectStages.SingleAsync();
+        var stage = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.IPA);
         Assert.Equal(StageStatus.InProgress, stage.Status);
         Assert.Equal(new DateOnly(2024, 1, 15), stage.ActualStart);
 
@@ -100,7 +100,7 @@ public sealed class StageDecisionServiceTests
 
         Assert.Equal(StageDecisionOutcome.Success, result.Outcome);
 
-        var stage = await db.ProjectStages.SingleAsync();
+        var stage = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.IPA);
         Assert.Equal(StageStatus.NotStarted, stage.Status);
         Assert.Null(stage.ActualStart);
 
@@ -124,8 +124,8 @@ public sealed class StageDecisionServiceTests
         await SeedProjectAsync(
             db,
             "hod-5",
-            (StageCodes.FS, StageStatus.Completed),
-            (StageCodes.IPA, StageStatus.InProgress, new DateOnly(2024, 3, 10)));
+            (StageCodes.FS, StageStatus.Completed, null, null),
+            (StageCodes.IPA, StageStatus.InProgress, new DateOnly(2024, 3, 10), null));
 
         db.ProjectIpaFacts.Add(new ProjectIpaFact
         {
@@ -152,7 +152,7 @@ public sealed class StageDecisionServiceTests
         Assert.Equal(StageDecisionOutcome.Success, result.Outcome);
         Assert.Contains(result.Warnings, w => w.Contains("Completion date was earlier"));
 
-        var stage = await db.ProjectStages.SingleAsync();
+        var stage = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.IPA);
         Assert.Equal(StageStatus.Completed, stage.Status);
         Assert.Equal(new DateOnly(2024, 3, 10), stage.CompletedOn);
         Assert.Equal(new DateOnly(2024, 3, 10), stage.ActualStart);
