@@ -82,7 +82,17 @@ public sealed class PlanCompareService
 
         if (draft is null)
         {
-            return Array.Empty<PlanDiffRow>();
+            draft = await _db.PlanVersions
+                .AsNoTracking()
+                .Include(v => v.StagePlans)
+                .Where(v => v.ProjectId == projectId)
+                .OrderByDescending(v => v.VersionNo)
+                .FirstOrDefaultAsync(ct);
+
+            if (draft is null)
+            {
+                return Array.Empty<PlanDiffRow>();
+            }
         }
 
         var draftLookup = draft.StagePlans
@@ -91,42 +101,27 @@ public sealed class PlanCompareService
 
         var currentStages = await _db.ProjectStages
             .Where(s => s.ProjectId == projectId)
+            .OrderBy(s => s.SortOrder)
+            .ThenBy(s => s.StageCode)
             .ToListAsync(ct);
 
         var currentLookup = currentStages
             .Where(s => !string.IsNullOrWhiteSpace(s.StageCode))
             .ToDictionary(s => s.StageCode!, s => s, StringComparer.OrdinalIgnoreCase);
 
-        var orderedCodes = new List<string>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var code in StageCodes.All)
-        {
-            if (seen.Add(code))
+        var unionCodes = currentLookup.Keys
+            .Union(draftLookup.Keys, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(code =>
             {
-                orderedCodes.Add(code);
-            }
-        }
+                var index = Array.IndexOf(StageCodes.All, code);
+                return index >= 0 ? index : int.MaxValue;
+            })
+            .ThenBy(code => code, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
-        foreach (var code in draftLookup.Keys)
-        {
-            if (seen.Add(code))
-            {
-                orderedCodes.Add(code);
-            }
-        }
+        var results = new List<PlanDiffRow>(unionCodes.Count);
 
-        foreach (var code in currentLookup.Keys)
-        {
-            if (seen.Add(code))
-            {
-                orderedCodes.Add(code);
-            }
-        }
-
-        var results = new List<PlanDiffRow>(orderedCodes.Count);
-
-        foreach (var code in orderedCodes)
+        foreach (var code in unionCodes)
         {
             draftLookup.TryGetValue(code, out var draftRow);
             currentLookup.TryGetValue(code, out var currentRow);
