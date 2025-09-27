@@ -154,6 +154,20 @@ public class PlanApprovalService
         }
     }
 
+    public async Task<List<string>> GetValidationErrorsAsync(int planVersionId, CancellationToken cancellationToken = default)
+    {
+        var plan = await _db.PlanVersions
+            .Include(p => p.StagePlans)
+            .SingleOrDefaultAsync(p => p.Id == planVersionId, cancellationToken);
+
+        if (plan is null)
+        {
+            throw new InvalidOperationException("Plan not found.");
+        }
+
+        return await ValidateStagePlansAsync(plan, cancellationToken);
+    }
+
     private static int ResolveSortOrder(string code)
     {
         var index = Array.IndexOf(StageCodes.All, code);
