@@ -22,7 +22,7 @@ using ProjectManagement.ViewModels;
 
 namespace ProjectManagement.Pages.Projects.Timeline;
 
-[Authorize(Roles = "HoD,Project Officer")]
+[Authorize(Roles = "Admin,Project Officer")]
 [ValidateAntiForgeryToken]
 public class EditPlanModel : PageModel
 {
@@ -66,15 +66,37 @@ public class EditPlanModel : PageModel
             return RedirectToPage("/Projects/Overview", new { id });
         }
 
-        if (string.Equals(Input.Mode, PlanEditorModes.Durations, StringComparison.OrdinalIgnoreCase))
+        var project = await _db.Projects
+            .AsNoTracking()
+            .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+
+        if (project is null)
         {
-            return await HandleDurationsAsync(id, cancellationToken);
+            return NotFound();
         }
 
-        return await HandleExactAsync(id, cancellationToken);
+        var userId = _users.GetUserId(User);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Forbid();
+        }
+
+        var isAdmin = User.IsInRole("Admin");
+        if (!isAdmin && !string.Equals(project.LeadPoUserId, userId, StringComparison.Ordinal))
+        {
+            _logger.LogWarning("User {UserId} attempted to edit plan for project {ProjectId} without permission.", userId, id);
+            return Forbid();
+        }
+
+        if (string.Equals(Input.Mode, PlanEditorModes.Durations, StringComparison.OrdinalIgnoreCase))
+        {
+            return await HandleDurationsAsync(id, userId, cancellationToken);
+        }
+
+        return await HandleExactAsync(id, userId, cancellationToken);
     }
 
-    private async Task<IActionResult> HandleExactAsync(int id, CancellationToken cancellationToken)
+    private async Task<IActionResult> HandleExactAsync(int id, string userId, CancellationToken cancellationToken)
     {
         var validationErrors = ValidateExactInput();
         if (validationErrors.Count > 0)
@@ -84,18 +106,7 @@ public class EditPlanModel : PageModel
             return RedirectToPage("/Projects/Overview", new { id });
         }
 
-        var projectExists = await _db.Projects.AnyAsync(p => p.Id == id, cancellationToken);
-        if (!projectExists)
-        {
-            return NotFound();
-        }
-
-        var userId = _users.GetUserId(User);
         var userName = User.Identity?.Name;
-        if (string.IsNullOrEmpty(userId))
-        {
-            return Forbid();
-        }
 
         var draft = await _planDraft.CreateOrGetDraftAsync(id, userId, cancellationToken);
 
@@ -178,7 +189,7 @@ public class EditPlanModel : PageModel
         return RedirectToPage("/Projects/Overview", new { id });
     }
 
-    private async Task<IActionResult> HandleDurationsAsync(int id, CancellationToken ct)
+    private async Task<IActionResult> HandleDurationsAsync(int id, string userId, CancellationToken ct)
     {
         var validationErrors = ValidateDurationsInput();
         if (validationErrors.Count > 0)
@@ -186,12 +197,6 @@ public class EditPlanModel : PageModel
             TempData["Error"] = string.Join(" ", validationErrors);
             TempData["OpenOffcanvas"] = "plan-edit";
             return RedirectToPage("/Projects/Overview", new { id });
-        }
-
-        var project = await _db.Projects.SingleOrDefaultAsync(p => p.Id == id, ct);
-        if (project is null)
-        {
-            return NotFound();
         }
 
         var settings = await _db.ProjectScheduleSettings.SingleOrDefaultAsync(s => s.ProjectId == id, ct);
@@ -250,12 +255,6 @@ public class EditPlanModel : PageModel
         _logger.LogInformation("Durations saved for Project {ProjectId}. Conn: {Conn}",
             id,
             _db.Database.GetDbConnection().ConnectionString);
-
-        var userId = _users.GetUserId(User);
-        if (string.IsNullOrEmpty(userId))
-        {
-            return Forbid();
-        }
 
         var draft = await _planDraft.CreateOrGetDraftAsync(id, userId, ct);
 

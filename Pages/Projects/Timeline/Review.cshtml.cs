@@ -34,6 +34,7 @@ public class ReviewModel : PageModel
     {
         public int ProjectId { get; set; }
         public string Decision { get; set; } = string.Empty;
+        public string? Note { get; set; }
     }
 
     [BindProperty]
@@ -89,8 +90,18 @@ public class ReviewModel : PageModel
             }
             else
             {
-                TempData["Flash"] = "Plan review rejected.";
-                _logger.LogInformation("Plan review rejected for project {ProjectId} by user {UserId}.", id, userId);
+                var rejected = await _approval.RejectLatestPendingAsync(id, userId, Input.Note, ct);
+                if (rejected)
+                {
+                    TempData["Flash"] = "Draft rejected and returned to the project officer.";
+                    _logger.LogInformation("Plan review rejected for project {ProjectId} by user {UserId}.", id, userId);
+                }
+                else
+                {
+                    TempData["Error"] = "No pending draft to reject.";
+                    TempData["OpenOffcanvas"] = "plan-review";
+                    _logger.LogWarning("Plan rejection attempted for project {ProjectId} by user {UserId}, but no draft was available.", id, userId);
+                }
             }
         }
         catch (PlanApprovalValidationException ex)

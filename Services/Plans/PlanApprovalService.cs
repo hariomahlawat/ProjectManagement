@@ -162,27 +162,25 @@ public class PlanApprovalService
         return index >= 0 ? index : int.MaxValue;
     }
 
-    public async Task RejectAsync(int projectId, string approverUserId, string note, CancellationToken cancellationToken = default)
+    public async Task<bool> RejectLatestPendingAsync(int projectId, string approverUserId, string? note, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(approverUserId))
         {
             throw new ArgumentException("A valid approver identifier is required.", nameof(approverUserId));
         }
 
-        var trimmedNote = note?.Trim();
-        if (string.IsNullOrWhiteSpace(trimmedNote))
-        {
-            throw new PlanApprovalValidationException(new[] { "A rejection note is required." });
-        }
-
         var plan = await _db.PlanVersions
             .Include(p => p.ApprovalLogs)
-            .FirstOrDefaultAsync(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.PendingApproval, cancellationToken);
+            .Where(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.PendingApproval)
+            .OrderByDescending(p => p.VersionNo)
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (plan == null)
         {
-            throw new InvalidOperationException("No plan is currently pending approval for this project.");
+            return false;
         }
+
+        var trimmedNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
 
         plan.Status = PlanVersionStatus.Draft;
         plan.SubmittedByUserId = null;
@@ -201,6 +199,29 @@ public class PlanApprovalService
 
         await _db.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} was rejected by {UserId}.", plan.Id, projectId, approverUserId);
+
+        return true;
+    }
+
+    public async Task RejectAsync(int projectId, string approverUserId, string note, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(approverUserId))
+        {
+            throw new ArgumentException("A valid approver identifier is required.", nameof(approverUserId));
+        }
+
+        var trimmedNote = note?.Trim();
+        if (string.IsNullOrWhiteSpace(trimmedNote))
+        {
+            throw new PlanApprovalValidationException(new[] { "A rejection note is required." });
+        }
+
+        var rejected = await RejectLatestPendingAsync(projectId, approverUserId, trimmedNote, cancellationToken);
+
+        if (!rejected)
+        {
+            throw new InvalidOperationException("No plan is currently pending approval for this project.");
+        }
     }
 
     private async Task<List<string>> ValidateStagePlansAsync(PlanVersion plan, CancellationToken cancellationToken)
