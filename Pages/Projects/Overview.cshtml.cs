@@ -8,9 +8,11 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
@@ -26,10 +28,11 @@ namespace ProjectManagement.Pages.Projects
         private readonly ProjectTimelineReadService _timelineRead;
         private readonly UserManager<ApplicationUser> _users;
         private readonly PlanReadService _planRead;
+        private readonly ILogger<OverviewModel> _logger;
 
         public PlanCompareService PlanCompare { get; }
 
-        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare)
+        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger)
         {
             _db = db;
             _procureRead = procureRead;
@@ -37,6 +40,7 @@ namespace ProjectManagement.Pages.Projects
             _users = users;
             _planRead = planRead;
             PlanCompare = planCompare;
+            _logger = logger;
         }
 
         public Project Project { get; private set; } = default!;
@@ -112,6 +116,14 @@ namespace ProjectManagement.Pages.Projects
             };
 
             AssignRoles = await BuildAssignRolesVmAsync(project);
+
+            var draftExists = await _db.PlanVersions.AnyAsync(p => p.ProjectId == id &&
+                (p.Status == PlanVersionStatus.Draft || p.Status == PlanVersionStatus.PendingApproval), ct);
+            ViewData["DiagDraftExists"] = draftExists ? "1" : "0";
+            _logger.LogInformation("Overview load for Project {ProjectId}. Conn: {Conn}. DraftExists={DraftExists}",
+                id,
+                _db.Database.GetDbConnection().ConnectionString,
+                draftExists);
 
             return Page();
         }

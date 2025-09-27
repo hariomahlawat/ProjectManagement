@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Plans;
@@ -31,6 +32,7 @@ public class EditPlanModel : PageModel
     private readonly PlanGenerationService _planGeneration;
     private readonly PlanDraftService _planDraft;
     private readonly PlanApprovalService _planApproval;
+    private readonly ILogger<EditPlanModel> _logger;
 
     public EditPlanModel(
         ApplicationDbContext db,
@@ -38,7 +40,8 @@ public class EditPlanModel : PageModel
         IAuditService audit,
         PlanGenerationService planGeneration,
         PlanDraftService planDraft,
-        PlanApprovalService planApproval)
+        PlanApprovalService planApproval,
+        ILogger<EditPlanModel> logger)
     {
         _db = db;
         _users = users;
@@ -46,6 +49,7 @@ public class EditPlanModel : PageModel
         _planGeneration = planGeneration;
         _planDraft = planDraft;
         _planApproval = planApproval;
+        _logger = logger;
     }
 
     [BindProperty]
@@ -140,6 +144,9 @@ public class EditPlanModel : PageModel
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Exact timeline saved for Project {ProjectId}. Conn: {Conn}",
+            id,
+            _db.Database.GetDbConnection().ConnectionString);
 
         await _planApproval.SubmitForApprovalAsync(id, userId, cancellationToken);
 
@@ -240,6 +247,9 @@ public class EditPlanModel : PageModel
         }
 
         await _db.SaveChangesAsync(ct);
+        _logger.LogInformation("Durations saved for Project {ProjectId}. Conn: {Conn}",
+            id,
+            _db.Database.GetDbConnection().ConnectionString);
 
         var userId = _users.GetUserId(User);
         if (string.IsNullOrEmpty(userId))

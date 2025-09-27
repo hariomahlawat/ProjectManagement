@@ -1,9 +1,13 @@
 @page "{id:int}"
+@using System
 @using ProjectManagement.Models
 @model ProjectManagement.Pages.Projects.OverviewModel
 @{
     var project = Model.Project;
     var pageTitle = project?.Name ?? "Project";
+    var diagDraftExists = string.Equals(ViewData["DiagDraftExists"] as string, "1", StringComparison.Ordinal);
+    var canReviewPlan = User.IsInRole("HoD");
+    var canEditPlan = canReviewPlan || User.IsInRole("Project Officer");
     ViewData["Title"] = pageTitle;
 }
 
@@ -22,6 +26,14 @@
                 @if (!string.IsNullOrWhiteSpace(project?.CaseFileNumber))
                 {
                     <small class="text-muted">(@project?.CaseFileNumber)</small>
+                }
+                @if (diagDraftExists)
+                {
+                    <span class="badge text-bg-warning ms-2">draft exists</span>
+                }
+                else
+                {
+                    <span class="badge text-bg-secondary ms-2">no draft</span>
                 }
             </h1>
             <div class="text-muted">Created on @(project is { } p ? p.CreatedAt.ToString("dd MMM yyyy") : "—")</div>
@@ -163,10 +175,10 @@
             </div>
         </div>
         <div class="col-lg-4 d-flex flex-column gap-3">
-            @if (User.IsInRole("HoD") || User.IsInRole("Project Officer"))
+            @if (canEditPlan)
             {
                 <div class="d-flex justify-content-end gap-2">
-                    @if (User.IsInRole("HoD"))
+                    @if (canReviewPlan)
                     {
                         <button class="btn btn-sm btn-outline-primary"
                                 type="button"
