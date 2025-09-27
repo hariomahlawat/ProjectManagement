@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,14 +14,6 @@ public class StageRequestService
 {
     private const string PendingDecisionStatus = "Pending";
     private const string RequestedLogAction = "Requested";
-
-    private static readonly IReadOnlyDictionary<StageStatus, IReadOnlyCollection<StageStatus>> AllowedTransitions =
-        new Dictionary<StageStatus, IReadOnlyCollection<StageStatus>>
-        {
-            [StageStatus.NotStarted] = new[] { StageStatus.InProgress, StageStatus.Blocked },
-            [StageStatus.InProgress] = new[] { StageStatus.Completed, StageStatus.Blocked },
-            [StageStatus.Blocked] = new[] { StageStatus.InProgress }
-        };
 
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
@@ -76,7 +67,7 @@ public class StageRequestService
             return StageRequestResult.ValidationFailed("The requested status is not recognised.");
         }
 
-        if (!AllowedTransitions.TryGetValue(stage.Status, out var allowed) || !allowed.Contains(requestedStatus))
+        if (!StageTransitionRules.IsTransitionAllowed(stage.Status, requestedStatus))
         {
             return StageRequestResult.ValidationFailed(
                 $"Changing from {stage.Status} to {requestedStatus} is not allowed.");
@@ -147,7 +138,7 @@ public class StageRequestService
         await _db.StageChangeLogs.AddAsync(log, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
-        return StageRequestResult.Success();
+        return StageRequestResult.Success(request.Id);
     }
 }
 
@@ -160,9 +151,9 @@ public sealed record StageChangeRequestInput
     public string? Note { get; set; }
 }
 
-public sealed record StageRequestResult(StageRequestOutcome Outcome, string? Error = null)
+public sealed record StageRequestResult(StageRequestOutcome Outcome, string? Error = null, int? RequestId = null)
 {
-    public static StageRequestResult Success() => new(StageRequestOutcome.Success, null);
+    public static StageRequestResult Success(int requestId) => new(StageRequestOutcome.Success, null, requestId);
     public static StageRequestResult NotProjectOfficer() => new(StageRequestOutcome.NotProjectOfficer, null);
     public static StageRequestResult StageNotFound() => new(StageRequestOutcome.StageNotFound, null);
     public static StageRequestResult DuplicatePending() => new(StageRequestOutcome.DuplicatePending, "A pending request already exists for this stage.");
