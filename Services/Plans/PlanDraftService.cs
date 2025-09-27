@@ -16,12 +16,14 @@ public class PlanDraftService
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly ILogger<PlanDraftService> _logger;
+    private readonly IAuditService _audit;
 
-    public PlanDraftService(ApplicationDbContext db, IClock clock, ILogger<PlanDraftService> logger)
+    public PlanDraftService(ApplicationDbContext db, IClock clock, ILogger<PlanDraftService> logger, IAuditService audit)
     {
         _db = db;
         _clock = clock;
         _logger = logger;
+        _audit = audit;
     }
 
     public async Task<PlanVersion> CreateDraftAsync(int projectId, string userId, CancellationToken cancellationToken = default)
@@ -164,4 +166,47 @@ public class PlanDraftService
             .OrderByDescending(p => p.VersionNo)
             .FirstOrDefaultAsync(cancellationToken);
     }
+
+    public async Task<PlanDraftDeleteResult> DeleteDraftAsync(int projectId, string userId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("A valid user identifier is required to delete a draft.", nameof(userId));
+        }
+
+        var plan = await _db.PlanVersions
+            .Include(p => p.StagePlans)
+            .FirstOrDefaultAsync(p => p.ProjectId == projectId && p.OwnerUserId == userId, cancellationToken);
+
+        if (plan is null)
+        {
+            return PlanDraftDeleteResult.NotFound;
+        }
+
+        if (plan.Status != PlanVersionStatus.Draft)
+        {
+            return PlanDraftDeleteResult.Conflict;
+        }
+
+        if (plan.StagePlans.Count > 0)
+        {
+            _db.StagePlans.RemoveRange(plan.StagePlans);
+        }
+
+        _db.PlanVersions.Remove(plan);
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var deletedAt = _clock.UtcNow;
+        await Audit.Events.DraftDeleted(projectId, plan.Id, userId, deletedAt).WriteAsync(_audit);
+
+        return PlanDraftDeleteResult.Success;
+    }
+}
+
+public enum PlanDraftDeleteResult
+{
+    Success,
+    NotFound,
+    Conflict
 }

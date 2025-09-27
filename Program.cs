@@ -134,6 +134,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAuditService, AuditService>();
+builder.Services.AddScoped<IUserContext, HttpUserContext>();
 builder.Services.Configure<UserLifecycleOptions>(
     builder.Configuration.GetSection("UserLifecycle"));
 builder.Services.AddScoped<IUserLifecycleService, UserLifecycleService>();
