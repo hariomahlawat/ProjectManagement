@@ -15,7 +15,7 @@ using ProjectManagement.ViewModels;
 
 namespace ProjectManagement.Pages.Projects.Procurement
 {
-    [Authorize(Roles = "Admin,HoD,PO")]
+    [Authorize(Roles = "Admin,HoD,Project Officer")]
     [ValidateAntiForgeryToken]
     public class EditModel : PageModel
     {
