@@ -12,6 +12,10 @@ public class PlanVersion
     public int Id { get; set; }
     public int ProjectId { get; set; }
     public Project? Project { get; set; }
+
+    [MaxLength(450)]
+    public string? OwnerUserId { get; set; }
+    public ApplicationUser? OwnerUser { get; set; }
     public int VersionNo { get; set; }
 
     [MaxLength(64)]

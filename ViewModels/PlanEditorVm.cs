@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using ProjectManagement.Models.Plans;
 
 namespace ProjectManagement.ViewModels;
@@ -29,4 +30,22 @@ public sealed class PlanEditorStateVm
     public DateTimeOffset? RejectedOn { get; init; }
     public string? RejectedBy { get; init; }
     public string? RejectionNote { get; init; }
+    public bool HasMyDraft { get; init; }
+    public bool HasPendingSubmission { get; init; }
+    public bool PendingOwnedByCurrentUser { get; init; }
+    public DateTimeOffset? PendingSubmittedOn { get; init; }
+    public string? PendingSubmittedBy { get; init; }
+    public bool CanSubmit { get; init; } = true;
+    public string? SubmissionBlockedReason { get; init; }
+    public bool PncApplicable { get; init; } = true;
+    public DateTimeOffset? LastSavedOn { get; init; }
+    public IReadOnlyList<PlanApprovalHistoryVm> ApprovalHistory { get; init; } = Array.Empty<PlanApprovalHistoryVm>();
+}
+
+public sealed class PlanApprovalHistoryVm
+{
+    public string Action { get; init; } = string.Empty;
+    public string? PerformedBy { get; init; }
+    public DateTimeOffset PerformedOn { get; init; }
+    public string? Note { get; init; }
 }

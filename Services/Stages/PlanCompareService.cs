@@ -69,9 +69,8 @@ public sealed class PlanCompareService
         var draft = await _db.PlanVersions
             .AsNoTracking()
             .Include(v => v.StagePlans)
-            .Where(v => v.ProjectId == projectId &&
-                        (v.Status == PlanVersionStatus.PendingApproval || v.Status == PlanVersionStatus.Draft))
-            .OrderByDescending(v => v.Status)
+            .Where(v => v.ProjectId == projectId && v.Status == PlanVersionStatus.PendingApproval)
+            .OrderByDescending(v => v.SubmittedOn)
             .ThenByDescending(v => v.VersionNo)
             .FirstOrDefaultAsync(ct);
 

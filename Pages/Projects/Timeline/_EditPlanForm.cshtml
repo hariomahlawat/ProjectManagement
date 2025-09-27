@@ -2,12 +2,14 @@
 @using ProjectManagement.Models.Plans
 @using ProjectManagement.Models.Stages
 @using ProjectManagement.ViewModels
-@{
+@{ 
     var activeMode = Model.ActiveMode ?? PlanEditorModes.Exact;
     var exactActive = string.Equals(activeMode, PlanEditorModes.Exact, StringComparison.OrdinalIgnoreCase);
     var durationsActive = string.Equals(activeMode, PlanEditorModes.Durations, StringComparison.OrdinalIgnoreCase);
     var state = Model.State ?? new PlanEditorStateVm();
     var isLocked = state.IsLocked;
+    var canSubmit = state.CanSubmit && !isLocked;
+    var submitDisabledAttr = canSubmit ? null : "disabled";
     var disableAttr = isLocked ? "disabled" : null;
 }
 
@@ -46,11 +48,34 @@
         </div>
     }
 
-    @if (!isLocked && state.RejectedOn is null && state.HasDraft && state.Status == PlanVersionStatus.Draft)
+    @if (!isLocked && state.HasMyDraft && state.Status == PlanVersionStatus.Draft)
     {
         <div class="alert alert-secondary mb-3" role="status">
             <div class="fw-semibold">Draft saved</div>
-            <div class="small text-muted">You can continue editing or submit for approval when ready.</div>
+            <div class="small text-muted">
+                @if (state.LastSavedOn is DateTimeOffset savedOn)
+                {
+                    <span>Your last save was on @savedOn.ToLocalTime().ToString("dd MMM yyyy HH:mm").</span>
+                }
+                else
+                {
+                    <span>You can continue editing or submit for approval when ready.</span>
+                }
+            </div>
+        </div>
+    }
+
+    @if (!isLocked && state.HasPendingSubmission && !state.PendingOwnedByCurrentUser && !string.IsNullOrWhiteSpace(state.SubmissionBlockedReason))
+    {
+        <div class="alert alert-warning mb-3" role="status">
+            <div class="fw-semibold">Submission blocked</div>
+            <div class="small text-muted">
+                @state.SubmissionBlockedReason
+                @if (state.PendingSubmittedBy is string otherSubmitter)
+                {
+                    <span>(submitted by @otherSubmitter).</span>
+                }
+            </div>
         </div>
     }
 
@@ -127,7 +152,7 @@
 
                 <div class="pt-3 mt-3 border-top d-flex justify-content-end gap-2">
                     <button class="btn btn-outline-secondary" type="submit" name="Input.Action" value="@PlanEditActions.SaveDraft" @(disableAttr)>Save draft</button>
-                    <button class="btn btn-primary" type="submit" name="Input.Action" value="@PlanEditActions.Submit" @(disableAttr)>Save &amp; request approval</button>
+                    <button class="btn btn-primary" type="submit" name="Input.Action" value="@PlanEditActions.Submit" @(submitDisabledAttr)>Save &amp; request approval</button>
                 </div>
             </form>
         </div>
@@ -195,6 +220,17 @@
                                 {
                                     <div class="form-text">Leave blank if PNC is not applicable.</div>
                                 }
+                                @if (r.PreviewStart.HasValue || r.PreviewDue.HasValue)
+                                {
+                                    var previewStart = r.PreviewStart;
+                                    var previewDue = r.PreviewDue;
+                                    <div class="form-text text-muted">
+                                        Preview:
+                                        @((previewStart.HasValue ? previewStart.Value.ToString("dd MMM yyyy") : "—"))
+                                        →
+                                        @((previewDue.HasValue ? previewDue.Value.ToString("dd MMM yyyy") : "—"))
+                                    </div>
+                                }
                                 <input type="hidden" name="Input.Rows[@i].Code" value="@r.Code" />
                                 <input type="hidden" name="Input.Rows[@i].Name" value="@r.Name" />
                             </div>
@@ -205,7 +241,7 @@
                 <div class="d-flex gap-2 justify-content-end mt-3 pt-3 border-top">
                     <button class="btn btn-outline-secondary" type="submit" name="Input.Action" value="@PlanEditActions.Calculate" @(disableAttr)>Calculate</button>
                     <button class="btn btn-secondary" type="submit" name="Input.Action" value="@PlanEditActions.SaveDraft" @(disableAttr)>Save draft</button>
-                    <button class="btn btn-primary" type="submit" name="Input.Action" value="@PlanEditActions.Submit" @(disableAttr)>Save &amp; request approval</button>
+                    <button class="btn btn-primary" type="submit" name="Input.Action" value="@PlanEditActions.Submit" @(submitDisabledAttr)>Save &amp; request approval</button>
                 </div>
             </form>
         </div>

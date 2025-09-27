@@ -16,8 +16,10 @@
         string.Equals(Model.Project?.HodUserId, Model.CurrentUserId, StringComparison.Ordinal);
     var planState = Model.PlanEdit?.State ?? new PlanEditorStateVm();
     var planLocked = planState.IsLocked;
-    var canEditTimeline = (isAdmin || isThisProjectsPo || isThisProjectsHod) &&
-        !Model.Timeline.PlanPendingApproval && !planLocked;
+    var hasMyDraft = planState.HasMyDraft;
+    var pendingOwnedByCurrentUser = planState.PendingOwnedByCurrentUser;
+    var canEditTimeline = (isAdmin || isThisProjectsPo || isThisProjectsHod) && !planLocked;
+    var submissionBlocked = planState.HasPendingSubmission && !planState.PendingOwnedByCurrentUser;
     var completedStages = Model.Timeline.CompletedCount;
     var totalStages = Model.Timeline.TotalStages;
     var progressPercent = totalStages == 0 ? 0 : (completedStages * 100 / totalStages);
@@ -113,12 +115,26 @@
         </div>
     }
 
-    @if (Model.Timeline.PlanPendingApproval)
+    @if (planState.HasPendingSubmission)
     {
         <div class="alert alert-info d-flex align-items-center justify-content-between" role="alert">
             <div>
-                <strong>Timeline plan awaiting HoD review.</strong>
-                <span class="ms-1">The latest draft has been submitted for approval.</span>
+                @if (planState.PendingOwnedByCurrentUser)
+                {
+                    <strong>Your plan submission is awaiting HoD review.</strong>
+                }
+                else
+                {
+                    <strong>Timeline plan awaiting HoD review.</strong>
+                }
+                @if (planState.PendingSubmittedOn is DateTimeOffset pendingOn)
+                {
+                    <span class="ms-1">Submitted on @pendingOn.ToLocalTime().ToString("dd MMM yyyy").</span>
+                }
+                @if (!string.IsNullOrWhiteSpace(planState.PendingSubmittedBy))
+                {
+                    <span class="ms-1">Submitted by @planState.PendingSubmittedBy.</span>
+                }
             </div>
             @if (isHoD)
             {
@@ -207,11 +223,15 @@
                             <div class="d-flex flex-wrap align-items-center gap-2">
                                 <h5 class="mb-0">Timeline</h5>
                                 <div class="d-flex flex-wrap align-items-center gap-2 ms-lg-2 mt-2 mt-lg-0">
-                                    @if (Model.Timeline.PlanPendingApproval)
+                                    @if (pendingOwnedByCurrentUser)
                                     {
-                                        <span class="badge text-bg-warning">Draft pending approval</span>
+                                        <span class="badge text-bg-warning">Submitted for approval</span>
                                     }
-                                    else if (Model.Timeline.HasDraft)
+                                    else if (Model.Timeline.PlanPendingApproval)
+                                    {
+                                        <span class="badge text-bg-warning">Another submission pending</span>
+                                    }
+                                    else if (hasMyDraft)
                                     {
                                         <span class="badge text-bg-secondary">Draft saved (not submitted)</span>
                                     }
@@ -224,9 +244,24 @@
                                         <span class="badge text-bg-success">Approved on @approvedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
                                     }
                                 </div>
+                                @if (hasMyDraft && !pendingOwnedByCurrentUser)
+                                {
+                                    <button class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-2"
+                                            type="button"
+                                            data-bs-toggle="offcanvas"
+                                            data-bs-target="#offcanvasPlanEdit"
+                                            aria-controls="offcanvasPlanEdit">
+                                        <span>Your draft saved</span>
+                                        @if (planState.LastSavedOn is DateTimeOffset savedOn)
+                                        {
+                                            <span class="text-muted">@savedOn.ToLocalTime().ToString("dd MMM HH:mm")</span>
+                                        }
+                                        <span class="fw-semibold">Continue editing</span>
+                                    </button>
+                                }
                             </div>
                             <div class="d-flex flex-wrap align-items-center gap-2 justify-content-lg-end">
-                                @if (Model.Timeline.PlanPendingApproval && isHoD)
+                                @if (planState.HasPendingSubmission && isHoD)
                                 {
                                     <button class="btn btn-sm btn-outline-primary"
                                             type="button"
@@ -236,17 +271,7 @@
                                         Review &amp; approve
                                     </button>
                                 }
-                                else if (Model.Timeline.HasDraft && !Model.Timeline.PlanPendingApproval && canEditTimeline)
-                                {
-                                    <button class="btn btn-sm btn-outline-secondary"
-                                            type="button"
-                                            data-bs-toggle="offcanvas"
-                                            data-bs-target="#offcanvasPlanEdit"
-                                            aria-controls="offcanvasPlanEdit">
-                                        Resume draft
-                                    </button>
-                                }
-                                @if (canEditTimeline && !(Model.Timeline.HasDraft && !Model.Timeline.PlanPendingApproval))
+                                @if (canEditTimeline && !(hasMyDraft && !pendingOwnedByCurrentUser))
                                 {
                                     <button class="btn btn-sm btn-outline-primary"
                                             type="button"
@@ -273,6 +298,12 @@
                     </div>
                 </div>
                 <div class="card-body">
+                    @if (submissionBlocked)
+                    {
+                        <div class="alert alert-warning" role="status">
+                            Another plan is already awaiting approval. You can keep editing your draft, but submitting is disabled until the review is complete.
+                        </div>
+                    }
                     <partial name="_ProjectTimeline" model="Model.Timeline" />
                 </div>
             </div>

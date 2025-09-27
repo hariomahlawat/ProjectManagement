@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
+using ProjectManagement.Helpers;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
@@ -38,11 +39,22 @@ public class PlanApprovalService
 
         var plan = await _db.PlanVersions
             .Include(p => p.StagePlans)
-            .FirstOrDefaultAsync(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.Draft, cancellationToken);
+            .FirstOrDefaultAsync(p => p.ProjectId == projectId &&
+                                      p.Status == PlanVersionStatus.Draft &&
+                                      p.OwnerUserId == userId,
+                cancellationToken);
 
         if (plan == null)
         {
             throw new InvalidOperationException("No draft plan was found to submit for approval.");
+        }
+
+        var alreadyPending = await _db.PlanVersions
+            .AnyAsync(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.PendingApproval, cancellationToken);
+
+        if (alreadyPending)
+        {
+            throw new DomainException("Another submission is already pending approval.");
         }
 
         var errors = await ValidateStagePlansAsync(plan, cancellationToken);
@@ -52,6 +64,7 @@ public class PlanApprovalService
         }
 
         plan.Status = PlanVersionStatus.PendingApproval;
+        plan.OwnerUserId ??= userId;
         plan.SubmittedByUserId = userId;
         plan.SubmittedOn = _clock.UtcNow;
         plan.ApprovedByUserId = null;
@@ -76,15 +89,20 @@ public class PlanApprovalService
 
         var plan = await _db.PlanVersions
             .Include(p => p.StagePlans)
-            .Where(p => p.ProjectId == projectId &&
-                        (p.Status == PlanVersionStatus.PendingApproval || p.Status == PlanVersionStatus.Draft))
-            .OrderByDescending(p => p.Status)
+            .Where(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.PendingApproval)
+            .OrderByDescending(p => p.SubmittedOn)
             .ThenByDescending(p => p.VersionNo)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (plan == null)
         {
             return false;
+        }
+
+        var submitterId = plan.OwnerUserId ?? plan.SubmittedByUserId;
+        if (!string.IsNullOrEmpty(submitterId) && string.Equals(submitterId, hodUserId, StringComparison.Ordinal))
+        {
+            throw new ForbiddenException("The submitter cannot approve their own plan.");
         }
 
         var project = await _db.Projects
@@ -184,7 +202,8 @@ public class PlanApprovalService
         var plan = await _db.PlanVersions
             .Include(p => p.ApprovalLogs)
             .Where(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.PendingApproval)
-            .OrderByDescending(p => p.VersionNo)
+            .OrderByDescending(p => p.SubmittedOn)
+            .ThenByDescending(p => p.VersionNo)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (plan == null)

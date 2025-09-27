@@ -77,6 +77,30 @@ else
         </table>
     </div>
 
+    if (planState?.ApprovalHistory is { Count: > 0 })
+    {
+        <div class="mt-3">
+            <h6 class="fw-semibold">Recent approval activity</h6>
+            <ul class="list-unstyled mb-0">
+                @foreach (var entry in planState.ApprovalHistory)
+                {
+                    <li class="small mb-1">
+                        <strong>@entry.Action</strong>
+                        <span class="text-muted">on @entry.PerformedOn.ToLocalTime().ToString("dd MMM yyyy HH:mm")</span>
+                        @if (!string.IsNullOrWhiteSpace(entry.PerformedBy))
+                        {
+                            <span>by @entry.PerformedBy</span>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(entry.Note))
+                        {
+                            <div class="text-muted">Note: @entry.Note</div>
+                        }
+                    </li>
+                }
+            </ul>
+        </div>
+    }
+
     <form method="post"
           asp-page="/Projects/Timeline/Review"
           asp-route-id="@ViewBag.ProjectId"

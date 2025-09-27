@@ -23,7 +23,7 @@ public sealed class PlanReadService
         _db = db;
     }
 
-    public async Task<PlanEditorVm> GetAsync(int projectId, CancellationToken cancellationToken = default)
+    public async Task<PlanEditorVm> GetAsync(int projectId, string? currentUserId, CancellationToken cancellationToken = default)
     {
         var stages = await _db.ProjectStages
             .Where(stage => stage.ProjectId == projectId)
@@ -38,16 +38,38 @@ public sealed class PlanReadService
             .OrderBy(d => d.SortOrder)
             .ToListAsync(cancellationToken);
 
-        var draftPlan = await _db.PlanVersions
+        var planCandidates = await _db.PlanVersions
             .AsNoTracking()
             .Include(p => p.StagePlans)
             .Include(p => p.SubmittedByUser)
             .Include(p => p.RejectedByUser)
+            .Include(p => p.ApprovalLogs).ThenInclude(log => log.PerformedByUser)
             .Where(p => p.ProjectId == projectId &&
                         (p.Status == PlanVersionStatus.PendingApproval || p.Status == PlanVersionStatus.Draft))
-            .OrderByDescending(p => p.Status)
+            .ToListAsync(cancellationToken);
+
+        var pendingPlan = planCandidates
+            .Where(p => p.Status == PlanVersionStatus.PendingApproval)
+            .OrderByDescending(p => p.SubmittedOn)
             .ThenByDescending(p => p.VersionNo)
-            .FirstOrDefaultAsync(cancellationToken);
+            .FirstOrDefault();
+
+        PlanVersion? myDraft = null;
+        if (!string.IsNullOrWhiteSpace(currentUserId))
+        {
+            myDraft = planCandidates
+                .Where(p => p.Status == PlanVersionStatus.Draft &&
+                            string.Equals(p.OwnerUserId, currentUserId, StringComparison.Ordinal))
+                .OrderByDescending(p => p.VersionNo)
+                .FirstOrDefault();
+        }
+
+        var draftPlan = myDraft;
+        if (draftPlan is null && pendingPlan is not null && !string.IsNullOrWhiteSpace(currentUserId) &&
+            string.Equals(pendingPlan.OwnerUserId ?? pendingPlan.SubmittedByUserId, currentUserId, StringComparison.Ordinal))
+        {
+            draftPlan = pendingPlan;
+        }
 
         var exactVm = new PlanEditVm { ProjectId = projectId };
         var durationVm = new PlanDurationVm
@@ -107,7 +129,9 @@ public sealed class PlanReadService
             {
                 Code = code,
                 Name = StageCodes.DisplayNameOf(code),
-                DurationDays = duration?.DurationDays
+                DurationDays = duration?.DurationDays,
+                PreviewStart = draftStage?.PlannedStart,
+                PreviewDue = draftStage?.PlannedDue
             });
         }
 
@@ -139,7 +163,9 @@ public sealed class PlanReadService
             {
                 Code = code,
                 Name = StageCodes.DisplayNameOf(code),
-                DurationDays = duration?.DurationDays
+                DurationDays = duration?.DurationDays,
+                PreviewStart = draftStage?.PlannedStart,
+                PreviewDue = draftStage?.PlannedDue
             });
         }
 
@@ -147,18 +173,42 @@ public sealed class PlanReadService
             ? PlanEditorModes.Durations
             : PlanEditorModes.Exact;
 
+        var pendingSubmittedBy = DisplayName(pendingPlan?.SubmittedByUser);
+
+        var lastSavedOn = draftPlan?.SubmittedOn ?? draftPlan?.CreatedOn;
+        if (lastSavedOn is null && pendingPlan is not null)
+        {
+            lastSavedOn = pendingPlan.SubmittedOn ?? pendingPlan.CreatedOn;
+        }
+
+        var pendingOwnerId = pendingPlan?.OwnerUserId ?? pendingPlan?.SubmittedByUserId;
+        var isPendingMine = pendingPlan is not null && !string.IsNullOrWhiteSpace(currentUserId) &&
+            string.Equals(pendingOwnerId, currentUserId, StringComparison.Ordinal);
+
         var state = new PlanEditorStateVm
         {
-            HasDraft = draftPlan is not null,
-            IsLocked = draftPlan?.Status == PlanVersionStatus.PendingApproval,
-            Status = draftPlan?.Status,
-            VersionNo = draftPlan?.VersionNo,
-            CreatedOn = draftPlan?.CreatedOn,
-            SubmittedOn = draftPlan?.SubmittedOn,
-            SubmittedBy = DisplayName(draftPlan?.SubmittedByUser),
+            HasDraft = myDraft is not null,
+            IsLocked = isPendingMine,
+            Status = draftPlan?.Status ?? pendingPlan?.Status,
+            VersionNo = draftPlan?.VersionNo ?? pendingPlan?.VersionNo,
+            CreatedOn = draftPlan?.CreatedOn ?? pendingPlan?.CreatedOn,
+            SubmittedOn = draftPlan?.SubmittedOn ?? pendingPlan?.SubmittedOn,
+            SubmittedBy = DisplayName(draftPlan?.SubmittedByUser) ?? pendingSubmittedBy,
             RejectedOn = draftPlan?.RejectedOn,
             RejectedBy = DisplayName(draftPlan?.RejectedByUser),
-            RejectionNote = draftPlan?.RejectionNote
+            RejectionNote = draftPlan?.RejectionNote,
+            HasMyDraft = myDraft is not null,
+            HasPendingSubmission = pendingPlan is not null,
+            PendingOwnedByCurrentUser = isPendingMine,
+            PendingSubmittedOn = pendingPlan?.SubmittedOn,
+            PendingSubmittedBy = pendingSubmittedBy,
+            CanSubmit = pendingPlan is null || isPendingMine,
+            SubmissionBlockedReason = pendingPlan is not null && !isPendingMine
+                ? "Another plan is already awaiting approval."
+                : null,
+            PncApplicable = draftPlan?.PncApplicable ?? pendingPlan?.PncApplicable ?? true,
+            LastSavedOn = lastSavedOn,
+            ApprovalHistory = BuildHistory(pendingPlan ?? draftPlan)
         };
 
         return new PlanEditorVm
@@ -183,5 +233,25 @@ public sealed class PlanReadService
         }
 
         return user.UserName ?? user.Email;
+    }
+
+    private static IReadOnlyList<PlanApprovalHistoryVm> BuildHistory(PlanVersion? plan)
+    {
+        if (plan?.ApprovalLogs is not { Count: > 0 })
+        {
+            return Array.Empty<PlanApprovalHistoryVm>();
+        }
+
+        return plan.ApprovalLogs
+            .OrderByDescending(log => log.PerformedOn)
+            .Take(5)
+            .Select(log => new PlanApprovalHistoryVm
+            {
+                Action = log.Action,
+                Note = string.IsNullOrWhiteSpace(log.Note) ? null : log.Note.Trim(),
+                PerformedOn = log.PerformedOn,
+                PerformedBy = DisplayName(log.PerformedByUser)
+            })
+            .ToList();
     }
 }
