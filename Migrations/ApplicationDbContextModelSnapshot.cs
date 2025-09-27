@@ -493,21 +493,21 @@ namespace ProjectManagement.Migrations
                     b.Property<DateOnly?>("ActualStart")
                         .HasColumnType("date");
 
-                    b.Property<DateOnly?>("CompletedOn")
-                        .HasColumnType("date");
-
                     b.Property<string>("AutoCompletedFromCode")
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
 
-                    b.Property<bool>("IsAutoCompleted")
-                        .HasColumnType("boolean");
+                    b.Property<DateOnly?>("CompletedOn")
+                        .HasColumnType("date");
 
                     b.Property<DateOnly?>("ForecastDue")
                         .HasColumnType("date");
 
                     b.Property<DateOnly?>("ForecastStart")
                         .HasColumnType("date");
+
+                    b.Property<bool>("IsAutoCompleted")
+                        .HasColumnType("boolean");
 
                     b.Property<DateOnly?>("PlannedDue")
                         .HasColumnType("date");
@@ -518,13 +518,13 @@ namespace ProjectManagement.Migrations
                     b.Property<int>("ProjectId")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("RequiresBackfill")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("StageCode")
                         .IsRequired()
                         .HasMaxLength(16)
                         .HasColumnType("character varying(16)");
-
-                    b.Property<bool>("RequiresBackfill")
-                        .HasColumnType("boolean");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -811,8 +811,8 @@ namespace ProjectManagement.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CaseFileNumber")
-                        .HasDatabaseName("UX_Projects_CaseFileNumber")
                         .IsUnique()
+                        .HasDatabaseName("UX_Projects_CaseFileNumber")
                         .HasFilter("\"CaseFileNumber\" IS NOT NULL");
 
                     b.HasIndex("CategoryId");
@@ -821,9 +821,9 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("LeadPoUserId");
 
-                    b.HasIndex("PlanApprovedByUserId");
-
                     b.HasIndex("Name");
+
+                    b.HasIndex("PlanApprovedByUserId");
 
                     b.ToTable("Projects");
                 });
@@ -1268,6 +1268,86 @@ namespace ProjectManagement.Migrations
                     b.ToTable("ProjectSupplyOrderFacts");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Scheduling.Holiday", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("character varying(160)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Date")
+                        .IsUnique();
+
+                    b.ToTable("Holidays");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Scheduling.ProjectPlanDuration", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("DurationDays")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("StageCode")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "StageCode")
+                        .IsUnique();
+
+                    b.ToTable("ProjectPlanDurations");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Scheduling.ProjectScheduleSettings", b =>
+                {
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly?>("AnchorStart")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IncludeWeekends")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("NextStageStartPolicy")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("NextWorkingDay");
+
+                    b.Property<bool>("SkipHolidays")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("ProjectId");
+
+                    b.ToTable("ProjectScheduleSettings");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Scheduling.StageShiftLog", b =>
                 {
                     b.Property<int>("Id")
@@ -1314,89 +1394,6 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("ProjectId", "StageCode", "CreatedOn");
 
                     b.ToTable("StageShiftLogs");
-                });
-
-            modelBuilder.Entity("ProjectManagement.Models.Scheduling.ProjectPlanDuration", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int?>("DurationDays")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ProjectId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("StageCode")
-                        .IsRequired()
-                        .HasMaxLength(16)
-                        .HasColumnType("character varying(16)");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectId", "StageCode")
-                        .IsUnique();
-
-                    b.ToTable("ProjectPlanDurations");
-                });
-
-            modelBuilder.Entity("ProjectManagement.Models.Scheduling.ProjectScheduleSettings", b =>
-                {
-                    b.Property<int>("ProjectId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateOnly?>("AnchorStart")
-                        .HasColumnType("date");
-
-                    b.Property<bool>("IncludeWeekends")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
-                    b.Property<string>("NextStageStartPolicy")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasDefaultValue("NextWorkingDay");
-
-                    b.Property<bool>("SkipHolidays")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.HasKey("ProjectId");
-
-                    b.ToTable("ProjectScheduleSettings");
-                });
-
-            modelBuilder.Entity("ProjectManagement.Models.Scheduling.Holiday", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateOnly>("Date")
-                        .HasColumnType("date");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(160)
-                        .HasColumnType("character varying(160)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Date")
-                        .IsUnique();
-
-                    b.ToTable("Holidays");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Stages.StageDependencyTemplate", b =>
@@ -1701,22 +1698,22 @@ namespace ProjectManagement.Migrations
                         .WithMany()
                         .HasForeignKey("HodUserId");
 
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "LeadPoUser")
+                        .WithMany()
+                        .HasForeignKey("LeadPoUserId");
+
                     b.HasOne("ProjectManagement.Models.ApplicationUser", "PlanApprovedByUser")
                         .WithMany()
                         .HasForeignKey("PlanApprovedByUserId")
                         .OnDelete(DeleteBehavior.SetNull);
 
-                    b.HasOne("ProjectManagement.Models.ApplicationUser", "LeadPoUser")
-                        .WithMany()
-                        .HasForeignKey("LeadPoUserId");
-
                     b.Navigation("Category");
 
                     b.Navigation("HodUser");
 
-                    b.Navigation("PlanApprovedByUser");
-
                     b.Navigation("LeadPoUser");
+
+                    b.Navigation("PlanApprovedByUser");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectAonFact", b =>
@@ -1824,26 +1821,6 @@ namespace ProjectManagement.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("ProjectManagement.Models.Scheduling.ProjectPlanDuration", b =>
-                {
-                    b.HasOne("ProjectManagement.Models.Project", null)
-                        .WithMany()
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("ProjectManagement.Models.Scheduling.ProjectScheduleSettings", b =>
-                {
-                    b.HasOne("ProjectManagement.Models.Project", "Project")
-                        .WithOne()
-                        .HasForeignKey("ProjectManagement.Models.Scheduling.ProjectScheduleSettings", "ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Project");
-                });
-
             modelBuilder.Entity("ProjectManagement.Models.ProjectCommercialFact", b =>
                 {
                     b.HasOne("ProjectManagement.Models.Project", null)
@@ -1887,6 +1864,26 @@ namespace ProjectManagement.Migrations
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Scheduling.ProjectPlanDuration", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Scheduling.ProjectScheduleSettings", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Project", "Project")
+                        .WithOne()
+                        .HasForeignKey("ProjectManagement.Models.Scheduling.ProjectScheduleSettings", "ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Plans.PlanVersion", b =>

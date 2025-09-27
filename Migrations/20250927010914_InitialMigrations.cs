@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ProjectManagement.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialMigration : Migration
+    public partial class InitialMigrations : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -159,6 +159,20 @@ namespace ProjectManagement.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Events", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Holidays",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Date = table.Column<DateOnly>(type: "date", nullable: false),
+                    Name = table.Column<string>(type: "character varying(160)", maxLength: 160, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Holidays", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -381,7 +395,9 @@ namespace ProjectManagement.Migrations
                     ActivePlanVersionNo = table.Column<int>(type: "integer", nullable: true),
                     CategoryId = table.Column<int>(type: "integer", nullable: true),
                     HodUserId = table.Column<string>(type: "text", nullable: true),
-                    LeadPoUserId = table.Column<string>(type: "text", nullable: true)
+                    LeadPoUserId = table.Column<string>(type: "text", nullable: true),
+                    PlanApprovedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    PlanApprovedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true)
                 },
                 constraints: table =>
                 {
@@ -396,6 +412,12 @@ namespace ProjectManagement.Migrations
                         column: x => x.LeadPoUserId,
                         principalTable: "AspNetUsers",
                         principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_Projects_AspNetUsers_PlanApprovedByUserId",
+                        column: x => x.PlanApprovedByUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
                     table.ForeignKey(
                         name: "FK_Projects_ProjectCategories_CategoryId",
                         column: x => x.CategoryId,
@@ -553,6 +575,28 @@ namespace ProjectManagement.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "ProjectPlanDurations",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    StageCode = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
+                    DurationDays = table.Column<int>(type: "integer", nullable: true),
+                    SortOrder = table.Column<int>(type: "integer", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProjectPlanDurations", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ProjectPlanDurations_Projects_ProjectId",
+                        column: x => x.ProjectId,
+                        principalTable: "Projects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "ProjectPncFacts",
                 columns: table => new
                 {
@@ -570,6 +614,27 @@ namespace ProjectManagement.Migrations
                     table.CheckConstraint("ck_pncfact_amount", "\"PncCost\" >= 0");
                     table.ForeignKey(
                         name: "FK_ProjectPncFacts_Projects_ProjectId",
+                        column: x => x.ProjectId,
+                        principalTable: "Projects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProjectScheduleSettings",
+                columns: table => new
+                {
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    IncludeWeekends = table.Column<bool>(type: "boolean", nullable: false),
+                    SkipHolidays = table.Column<bool>(type: "boolean", nullable: false),
+                    NextStageStartPolicy = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false, defaultValue: "NextWorkingDay"),
+                    AnchorStart = table.Column<DateOnly>(type: "date", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProjectScheduleSettings", x => x.ProjectId);
+                    table.ForeignKey(
+                        name: "FK_ProjectScheduleSettings_Projects_ProjectId",
                         column: x => x.ProjectId,
                         principalTable: "Projects",
                         principalColumn: "Id",
@@ -614,7 +679,10 @@ namespace ProjectManagement.Migrations
                     ForecastStart = table.Column<DateOnly>(type: "date", nullable: true),
                     ForecastDue = table.Column<DateOnly>(type: "date", nullable: true),
                     ActualStart = table.Column<DateOnly>(type: "date", nullable: true),
-                    CompletedOn = table.Column<DateOnly>(type: "date", nullable: true)
+                    CompletedOn = table.Column<DateOnly>(type: "date", nullable: true),
+                    IsAutoCompleted = table.Column<bool>(type: "boolean", nullable: false),
+                    AutoCompletedFromCode = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: true),
+                    RequiresBackfill = table.Column<bool>(type: "boolean", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -913,6 +981,12 @@ namespace ProjectManagement.Migrations
                 column: "StartUtc");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Holidays_Date",
+                table: "Holidays",
+                column: "Date",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_PlanApprovalLogs_PerformedByUserId",
                 table: "PlanApprovalLogs",
                 column: "PerformedByUserId");
@@ -1016,16 +1090,15 @@ namespace ProjectManagement.Migrations
                 column: "ProjectId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_ProjectPlanDurations_ProjectId_StageCode",
+                table: "ProjectPlanDurations",
+                columns: new[] { "ProjectId", "StageCode" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_ProjectPncFacts_ProjectId",
                 table: "ProjectPncFacts",
                 column: "ProjectId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Projects_CaseFileNumber",
-                table: "Projects",
-                column: "CaseFileNumber",
-                unique: true,
-                filter: "\"CaseFileNumber\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Projects_CategoryId",
@@ -1046,6 +1119,18 @@ namespace ProjectManagement.Migrations
                 name: "IX_Projects_Name",
                 table: "Projects",
                 column: "Name");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Projects_PlanApprovedByUserId",
+                table: "Projects",
+                column: "PlanApprovedByUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_Projects_CaseFileNumber",
+                table: "Projects",
+                column: "CaseFileNumber",
+                unique: true,
+                filter: "\"CaseFileNumber\" IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ProjectSowFacts_ProjectId",
@@ -1136,6 +1221,9 @@ namespace ProjectManagement.Migrations
                 name: "Events");
 
             migrationBuilder.DropTable(
+                name: "Holidays");
+
+            migrationBuilder.DropTable(
                 name: "PlanApprovalLogs");
 
             migrationBuilder.DropTable(
@@ -1157,7 +1245,13 @@ namespace ProjectManagement.Migrations
                 name: "ProjectIpaFacts");
 
             migrationBuilder.DropTable(
+                name: "ProjectPlanDurations");
+
+            migrationBuilder.DropTable(
                 name: "ProjectPncFacts");
+
+            migrationBuilder.DropTable(
+                name: "ProjectScheduleSettings");
 
             migrationBuilder.DropTable(
                 name: "ProjectSowFacts");
