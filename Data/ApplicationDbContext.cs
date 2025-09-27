@@ -49,6 +49,9 @@ namespace ProjectManagement.Data
         public DbSet<ProjectPlanDuration> ProjectPlanDurations => Set<ProjectPlanDuration>();
         public DbSet<Holiday> Holidays => Set<Holiday>();
         public DbSet<StageShiftLog> StageShiftLogs => Set<StageShiftLog>();
+        public DbSet<Status> Statuses => Set<Status>();
+        public DbSet<Workflow> Workflows => Set<Workflow>();
+        public DbSet<WorkflowStatus> WorkflowStatuses => Set<WorkflowStatus>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -99,6 +102,50 @@ namespace ProjectManagement.Data
                     .WithMany(x => x.Rows)
                     .HasForeignKey(x => x.SnapshotId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<Status>(e =>
+            {
+                e.Property(x => x.Name).HasMaxLength(100).IsRequired();
+                e.Property(x => x.SortOrder).IsRequired();
+                e.HasIndex(x => x.Name).IsUnique();
+                ConfigureRowVersion(e);
+            });
+
+            builder.Entity<Workflow>(e =>
+            {
+                e.Property(x => x.Name).HasMaxLength(100).IsRequired();
+                ConfigureRowVersion(e);
+            });
+
+            builder.Entity<WorkflowStatus>(e =>
+            {
+                e.Property(x => x.Name).HasMaxLength(100).IsRequired();
+                e.Property(x => x.SortOrder).IsRequired();
+                e.HasOne(x => x.Workflow)
+                    .WithMany(x => x.Statuses)
+                    .HasForeignKey(x => x.WorkflowId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.Status)
+                    .WithMany(x => x.WorkflowStatuses)
+                    .HasForeignKey(x => x.StatusId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                ConfigureRowVersion(e);
+
+                if (Database.IsSqlServer())
+                {
+                    e.HasIndex(nameof(WorkflowStatus.Name), nameof(WorkflowStatus.WorkflowId))
+                        .HasFilter("[Name] IS NOT NULL AND [WorkflowId] IS NOT NULL");
+                }
+                else if (Database.IsNpgsql())
+                {
+                    e.HasIndex(nameof(WorkflowStatus.Name), nameof(WorkflowStatus.WorkflowId))
+                        .HasFilter("\"Name\" IS NOT NULL AND \"WorkflowId\" IS NOT NULL");
+                }
+                else
+                {
+                    e.HasIndex(x => new { x.Name, x.WorkflowId });
+                }
             });
 
             builder.Entity<ProjectCategory>(e =>
