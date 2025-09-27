@@ -38,12 +38,12 @@ else
     }
     else if (requiresBackfill)
     {
-        <div class="alert alert-warning">Backfill required data before approval.</div>
+        <div class="alert alert-warning">Resolve required procurement backfill before approval.</div>
     }
 
     @if (!hasChanges)
     {
-        <div class="alert alert-info">The draft plan matches the current timeline.</div>
+        <div class="alert alert-info">No differences between the current timeline and this draft. You can still approve to stamp the plan.</div>
     }
 
     <div class="table-responsive">

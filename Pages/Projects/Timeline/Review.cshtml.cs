@@ -49,22 +49,6 @@ public class ReviewModel : PageModel
             return BadRequest();
         }
 
-        var decision = Input.Decision ?? string.Empty;
-        var isApprove = string.Equals(decision, "Approve", StringComparison.OrdinalIgnoreCase);
-
-        if (isApprove)
-        {
-            var hasBackfill = await _db.ProjectStages
-                .AnyAsync(s => s.ProjectId == id && s.RequiresBackfill, ct);
-            if (hasBackfill)
-            {
-                TempData["Error"] = "Backfill required data before approval.";
-                TempData["OpenOffcanvas"] = "plan-review";
-                _logger.LogInformation("Plan approval blocked for project {ProjectId} due to pending backfill.", id);
-                return RedirectToPage("/Projects/Overview", new { id });
-            }
-        }
-
         var userId = _users.GetUserId(User);
         if (string.IsNullOrEmpty(userId))
         {
@@ -73,22 +57,7 @@ public class ReviewModel : PageModel
 
         try
         {
-            if (isApprove)
-            {
-                var approved = await _approval.ApproveLatestDraftAsync(id, userId, ct);
-                if (approved)
-                {
-                    TempData["Flash"] = "Plan approved.";
-                    _logger.LogInformation("Plan approved for project {ProjectId} by user {UserId}.", id, userId);
-                }
-                else
-                {
-                    TempData["Error"] = "No draft plan found to approve.";
-                    TempData["OpenOffcanvas"] = "plan-review";
-                    _logger.LogWarning("Plan approval attempted for project {ProjectId} by user {UserId}, but no draft was available.", id, userId);
-                }
-            }
-            else
+            if (string.Equals(Input.Decision, "Reject", StringComparison.OrdinalIgnoreCase))
             {
                 var rejected = await _approval.RejectLatestPendingAsync(id, userId, Input.Note, ct);
                 if (rejected)
@@ -101,6 +70,31 @@ public class ReviewModel : PageModel
                     TempData["Error"] = "No pending draft found to reject.";
                     TempData["OpenOffcanvas"] = "plan-review";
                     _logger.LogWarning("Plan rejection attempted for project {ProjectId} by user {UserId}, but no draft was available.", id, userId);
+                }
+            }
+            else
+            {
+                var hasBackfill = await _db.ProjectStages
+                    .AnyAsync(s => s.ProjectId == id && s.RequiresBackfill, ct);
+                if (hasBackfill)
+                {
+                    TempData["Error"] = "Backfill required data before approval.";
+                    TempData["OpenOffcanvas"] = "plan-review";
+                    _logger.LogInformation("Plan approval blocked for project {ProjectId} due to pending backfill.", id);
+                    return RedirectToPage("/Projects/Overview", new { id });
+                }
+
+                var approved = await _approval.ApproveLatestDraftAsync(id, userId, ct);
+                if (approved)
+                {
+                    TempData["Flash"] = "Plan approved.";
+                    _logger.LogInformation("Plan approved for project {ProjectId} by user {UserId}.", id, userId);
+                }
+                else
+                {
+                    TempData["Error"] = "No draft plan found to approve.";
+                    TempData["OpenOffcanvas"] = "plan-review";
+                    _logger.LogWarning("Plan approval attempted for project {ProjectId} by user {UserId}, but no draft was available.", id, userId);
                 }
             }
         }

@@ -76,21 +76,15 @@ public class PlanApprovalService
 
         var plan = await _db.PlanVersions
             .Include(p => p.StagePlans)
-            .Where(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.PendingApproval)
-            .OrderByDescending(p => p.VersionNo)
+            .Where(p => p.ProjectId == projectId &&
+                        (p.Status == PlanVersionStatus.PendingApproval || p.Status == PlanVersionStatus.Draft))
+            .OrderByDescending(p => p.Status)
+            .ThenByDescending(p => p.VersionNo)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (plan == null)
         {
             return false;
-        }
-
-        var requiresBackfill = await _db.ProjectStages
-            .AnyAsync(s => s.ProjectId == projectId && s.RequiresBackfill, cancellationToken);
-
-        if (requiresBackfill)
-        {
-            throw new PlanApprovalValidationException(new[] { "Backfill required data before approval." });
         }
 
         var project = await _db.Projects

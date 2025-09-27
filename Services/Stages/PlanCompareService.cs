@@ -82,17 +82,7 @@ public sealed class PlanCompareService
 
         if (draft is null)
         {
-            draft = await _db.PlanVersions
-                .AsNoTracking()
-                .Include(v => v.StagePlans)
-                .Where(v => v.ProjectId == projectId)
-                .OrderByDescending(v => v.VersionNo)
-                .FirstOrDefaultAsync(ct);
-
-            if (draft is null)
-            {
-                return Array.Empty<PlanDiffRow>();
-            }
+            return Array.Empty<PlanDiffRow>();
         }
 
         var draftLookup = draft.StagePlans
@@ -114,7 +104,7 @@ public sealed class PlanCompareService
             .OrderBy(code =>
             {
                 var index = Array.IndexOf(StageCodes.All, code);
-                return index >= 0 ? index : int.MaxValue;
+                return index < 0 ? int.MaxValue : index;
             })
             .ThenBy(code => code, StringComparer.OrdinalIgnoreCase)
             .ToList();

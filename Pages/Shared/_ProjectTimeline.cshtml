@@ -12,67 +12,43 @@
 }
 <link rel="stylesheet" href="~/css/projects/timeline.css" />
 
-<div class="card">
-  <div class="card-header d-flex align-items-center justify-content-between">
-    <div class="fw-semibold d-flex align-items-center gap-2">
-      <span>Timeline</span>
-      @if (Model.PlanPendingApproval)
-      {
-        <span class="badge text-bg-warning">Draft pending approval</span>
-      }
-    </div>
-    <div class="d-flex align-items-center gap-2">
-      <div class="progress" style="width:180px" aria-label="Stages completed">
-        <div class="progress-bar" role="progressbar"
-             style="width:@(Model.TotalStages == 0 ? 0 : (Model.CompletedCount * 100 / Model.TotalStages))%"
-             aria-valuenow="@(Model.CompletedCount)"
-             aria-valuemin="0"
-             aria-valuemax="@(Model.TotalStages)"></div>
-      </div>
-      <span class="text-muted small">@Model.CompletedCount of @Model.TotalStages</span>
-    </div>
+<div class="pm-timeline-grid">
+  <div class="pm-rail" aria-hidden="true">
+    <div class="pm-rail-line"></div>
   </div>
-
-  <div class="card-body py-4">
-    <div class="pm-timeline-grid">
-      <div class="pm-rail" aria-hidden="true">
-        <div class="pm-rail-line"></div>
-      </div>
-      <div class="pm-items">
-        @foreach (var s in Model.Items.OrderBy(i => i.SortOrder))
-        {
-          var itemClass = s.Status switch
+  <div class="pm-items">
+    @foreach (var s in Model.Items.OrderBy(i => i.SortOrder))
+    {
+      var itemClass = s.Status switch
+      {
+        StageStatus.Completed  => "pm-item is-complete",
+        StageStatus.InProgress => "pm-item is-active",
+        _                      => "pm-item"
+      };
+      <div class="@itemClass">
+        <div class="pm-item-header">
+          <span class="pm-item-title">@s.Name</span>
+          <span class="@StatusChip(s.Status)">@s.Status</span>
+          @if (s.IsAutoCompleted)
           {
-            StageStatus.Completed  => "pm-item is-complete",
-            StageStatus.InProgress => "pm-item is-active",
-            _                      => "pm-item"
-          };
-          <div class="@itemClass">
-            <div class="pm-item-header">
-              <span class="pm-item-title">@s.Name</span>
-              <span class="@StatusChip(s.Status)">@s.Status</span>
-              @if (s.IsAutoCompleted)
-              {
-                <span class="badge bg-warning-subtle text-warning border border-warning-subtle" title="Auto-completed when a later stage was completed.">inferred</span>
-              }
-              @if (s.RequiresBackfill)
-              {
-                <span class="ms-2 text-warning" title="Additional data required">⚠︎</span>
-                <a class="ms-1 small" asp-page="/Projects/Procurement/Edit" asp-route-id="@Model.ProjectId">Backfill…</a>
-              }
-            </div>
-            <div class="pm-item-meta">
-              <div>Planned: @D(s.PlannedStart) — @D(s.PlannedEnd)</div>
-              <div>Actual: @D(s.ActualStart) — @D(s.CompletedOn)
-                @if (s.ActualDurationDays.HasValue)
-                {
-                  <span class="text-muted ms-2">(@s.ActualDurationDays d)</span>
-                }
-              </div>
-            </div>
+            <span class="badge bg-warning-subtle text-warning border border-warning-subtle" title="Auto-completed when a later stage was completed.">inferred</span>
+          }
+          @if (s.RequiresBackfill)
+          {
+            <span class="ms-2 text-warning" title="Additional data required">⚠︎</span>
+            <a class="ms-1 small" asp-page="/Projects/Procurement/Edit" asp-route-id="@Model.ProjectId">Backfill…</a>
+          }
+        </div>
+        <div class="pm-item-meta">
+          <div>Planned: @D(s.PlannedStart) — @D(s.PlannedEnd)</div>
+          <div>Actual: @D(s.ActualStart) — @D(s.CompletedOn)
+            @if (s.ActualDurationDays.HasValue)
+            {
+              <span class="text-muted ms-2">(@s.ActualDurationDays d)</span>
+            }
           </div>
-        }
+        </div>
       </div>
-    </div>
+    }
   </div>
 </div>
