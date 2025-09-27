@@ -6,6 +6,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
@@ -91,7 +92,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Logs
                 .OrderBy(x => x.Day)
                 .ToListAsync();
 
-            SeriesLabels = perDay.Select(d => d.Day.ToString("yyyy-MM-dd")).ToList();
+            SeriesLabels = perDay.Select(d => d.Day.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)).ToList();
             SeriesCounts = perDay.Select(d => d.Count).ToList();
 
             return Page();
@@ -110,7 +111,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Logs
 
             foreach (var x in rows)
             {
-                var tIst = IstClock.ToIst(x.TimeUtc).ToString("yyyy-MM-dd HH:mm:ss");
+                var tIst = IstClock.ToIst(x.TimeUtc).ToString("dd MMM yyyy HH:mm:ss", CultureInfo.InvariantCulture);
                 sb.AppendLine(string.Join(",", new[]
                 {
                     Csv(tIst), Csv(x.Level), Csv(x.Action), Csv(x.UserName), Csv(x.Ip),

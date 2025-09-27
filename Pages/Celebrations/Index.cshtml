@@ -105,7 +105,7 @@
         <tr>
             <td>@r.Name</td>
             <td>@r.EventType</td>
-            <td>@r.NextOccurrence.ToString("dd MMM") (@(r.DaysAway==0?"today":$"{r.DaysAway}d"))</td>
+            <td>@r.NextOccurrence.ToString("dd MMM yyyy") (@(r.DaysAway==0?"today":$"{r.DaysAway}d"))</td>
             <td class="text-end">
                 @if (Model.CanEdit)
                 {

@@ -42,7 +42,7 @@
 
   <div style="position:relative; height:240px;">
     <canvas id="loginsPerDayChart"
-            data-labels='@JsonSerializer.Serialize(Model.LoginsPerDay.Select(x => x.Date.ToString("yyyy-MM-dd")))'
+            data-labels='@JsonSerializer.Serialize(Model.LoginsPerDay.Select(x => x.Date.ToString("dd MMM yyyy")))'
             data-values='@JsonSerializer.Serialize(Model.LoginsPerDay.Select(x => x.Count))'>
     </canvas>
   </div>

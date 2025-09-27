@@ -7,6 +7,18 @@ const elUser = document.getElementById('user');
 const elExport = document.getElementById('export');
 let chart;
 
+const monthFormatter = new Intl.DateTimeFormat('en-GB', { month: 'short' });
+const formatDisplayDate = (date) => {
+  const d = date instanceof Date ? date : new Date(date);
+  return `${String(d.getDate()).padStart(2,'0')} ${monthFormatter.format(d)} ${d.getFullYear()}`;
+};
+const formatDisplayDateTime = (date) => {
+  const d = date instanceof Date ? date : new Date(date);
+  const hh = String(d.getHours()).padStart(2,'0');
+  const mm = String(d.getMinutes()).padStart(2,'0');
+  return `${formatDisplayDate(d)} ${hh}:${mm}`;
+};
+
 const BandAndLines = {
   id: 'bandAndLines',
   afterDraw(chart, args, opts) {
@@ -76,10 +88,7 @@ async function load() {
         x: {
           type: 'linear',
           ticks: {
-            callback: (v) => {
-              const d = new Date(v);
-              return `${d.getDate()}/${d.getMonth()+1}`;
-            }
+            callback: (v) => formatDisplayDate(new Date(v))
           },
           title: { display: true, text: 'Date' }
         },
@@ -100,8 +109,7 @@ async function load() {
             label: ctx => {
               const hh = String(Math.floor(ctx.raw.y/60)).padStart(2,'0');
               const mm = String(ctx.raw.y%60).padStart(2,'0');
-              const d = new Date(ctx.raw.x);
-              const date = d.toLocaleDateString();
+              const date = formatDisplayDate(new Date(ctx.raw.x));
               return `${date} ${hh}:${mm} — ${ctx.raw.userName}${ctx.raw.reason ? ' · '+ctx.raw.reason : ''}`;
             }
           }
@@ -141,7 +149,7 @@ function renderOddTable(rows) {
     const mm = String(d.getMinutes()).padStart(2,'0');
     const tr = document.createElement('tr');
     const tdDate = document.createElement('td');
-    tdDate.textContent = `${d.toLocaleDateString()} ${hh}:${mm}`;
+    tdDate.textContent = formatDisplayDateTime(d);
     const tdUser = document.createElement('td');
     tdUser.textContent = r.userName;
     const tdReason = document.createElement('td');

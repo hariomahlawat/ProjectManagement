@@ -7,6 +7,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Helpers;
 using System;
+using System.Globalization;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
@@ -59,7 +60,9 @@ namespace ProjectManagement.Pages.Dashboard
             foreach (var ev in events)
             {
                 var startLocal = TimeZoneInfo.ConvertTime(ev.StartUtc, IST);
-                var when = ev.IsAllDay ? startLocal.ToString("dd MMM") : startLocal.ToString("dd MMM, HH:mm");
+                var when = ev.IsAllDay
+                    ? startLocal.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)
+                    : startLocal.ToString("dd MMM yyyy, HH:mm", CultureInfo.InvariantCulture);
                 UpcomingEvents.Add(new UpcomingEventVM { Id = ev.Id, Title = ev.Title, When = when });
             }
         }
