@@ -1,4 +1,5 @@
 @model ProjectManagement.ViewModels.PlanEditorVm
+@using ProjectManagement.Models.Plans
 @using ProjectManagement.ViewModels
 @{
     var activeMode = Model.ActiveMode ?? PlanEditorModes.Exact;
@@ -41,6 +42,14 @@
             {
                 <div class="mt-2">Note: @state.RejectionNote</div>
             }
+        </div>
+    }
+
+    @if (!isLocked && state.RejectedOn is null && state.HasDraft && state.Status == PlanVersionStatus.Draft)
+    {
+        <div class="alert alert-secondary mb-3" role="status">
+            <div class="fw-semibold">Draft saved</div>
+            <div class="small text-muted">You can continue editing or submit for approval when ready.</div>
         </div>
     }
 

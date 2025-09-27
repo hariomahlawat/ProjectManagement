@@ -110,6 +110,26 @@
         </div>
     }
 
+    @if (Model.Timeline.PlanPendingApproval)
+    {
+        <div class="alert alert-info d-flex align-items-center justify-content-between" role="alert">
+            <div>
+                <strong>Timeline plan awaiting HoD review.</strong>
+                <span class="ms-1">The latest draft has been submitted for approval.</span>
+            </div>
+            @if (isHoD)
+            {
+                <button class="btn btn-sm btn-primary"
+                        type="button"
+                        data-bs-toggle="offcanvas"
+                        data-bs-target="#offcanvasPlanReview"
+                        aria-controls="offcanvasPlanReview">
+                    Review &amp; approve
+                </button>
+            }
+        </div>
+    }
+
     <div class="row g-3 mb-4">
         <div class="col-lg-8 d-flex flex-column gap-3">
             <div class="card">
@@ -188,6 +208,10 @@
                                     {
                                         <span class="badge text-bg-warning">Draft pending approval</span>
                                     }
+                                    else if (Model.Timeline.HasDraft)
+                                    {
+                                        <span class="badge text-bg-secondary">Draft saved (not submitted)</span>
+                                    }
                                     @if (Model.HasBackfill)
                                     {
                                         <span class="badge text-bg-secondary" title="Resolve procurement backfill to proceed">Backfill required</span>
@@ -199,7 +223,7 @@
                                 </div>
                             </div>
                             <div class="d-flex align-items-center gap-2">
-                                @if (isHoD)
+                                @if (Model.Timeline.PlanPendingApproval && isHoD)
                                 {
                                     <button class="btn btn-sm btn-outline-primary"
                                             type="button"
@@ -209,7 +233,17 @@
                                         Review &amp; approve
                                     </button>
                                 }
-                                @if (canEditTimeline)
+                                else if (Model.Timeline.HasDraft && !Model.Timeline.PlanPendingApproval && canEditTimeline)
+                                {
+                                    <button class="btn btn-sm btn-outline-secondary"
+                                            type="button"
+                                            data-bs-toggle="offcanvas"
+                                            data-bs-target="#offcanvasPlanEdit"
+                                            aria-controls="offcanvasPlanEdit">
+                                        Resume draft
+                                    </button>
+                                }
+                                @if (canEditTimeline && !(Model.Timeline.HasDraft && !Model.Timeline.PlanPendingApproval))
                                 {
                                     <button class="btn btn-sm btn-outline-primary"
                                             type="button"
