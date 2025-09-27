@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
@@ -161,7 +162,10 @@ public sealed class StageDecisionService
         var beforeActualStart = stage.ActualStart;
         var beforeCompletedOn = stage.CompletedOn;
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        var useTransaction = _db.Database.IsRelational();
+        await using var transaction = useTransaction
+            ? await _db.Database.BeginTransactionAsync(cancellationToken)
+            : null;
 
         await _stageProgressService.UpdateStageStatusAsync(
             stage.ProjectId,
@@ -218,7 +222,10 @@ public sealed class StageDecisionService
         await _db.StageChangeLogs.AddAsync(approvedLog, cancellationToken);
         await _db.StageChangeLogs.AddAsync(appliedLog, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        if (transaction is not null)
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
 
         return StageDecisionResult.Success(warnings);
     }
