@@ -13,6 +13,7 @@ using ProjectManagement.Services.Stages;
 namespace ProjectManagement.Pages.Projects.Stages;
 
 [Authorize(Roles = "HoD")]
+[AutoValidateAntiforgeryToken]
 public class ApplyChangeModel : PageModel
 {
     private static readonly string[] AllowedStatuses =
@@ -50,7 +51,6 @@ public class ApplyChangeModel : PageModel
         public string? Note { get; set; }
     }
 
-    [ValidateAntiForgeryToken]
     public async Task<IActionResult> OnPostAsync([FromBody] ApplyChangeInput input, CancellationToken ct)
     {
         if (!ModelState.IsValid)
@@ -60,12 +60,12 @@ public class ApplyChangeModel : PageModel
                 .Select(e => string.IsNullOrWhiteSpace(e.ErrorMessage) ? "Invalid value." : e.ErrorMessage)
                 .ToArray();
 
-            return UnprocessableEntity(new { ok = false, error = "Validation failed", details = errs });
+            return new UnprocessableEntityObjectResult(new { ok = false, error = "Validation failed", details = errs });
         }
 
         if (input.ProjectId <= 0)
         {
-            return UnprocessableEntity(new
+            return new UnprocessableEntityObjectResult(new
             {
                 ok = false,
                 error = "Validation failed",
@@ -75,7 +75,7 @@ public class ApplyChangeModel : PageModel
 
         if (string.IsNullOrWhiteSpace(input.StageCode))
         {
-            return UnprocessableEntity(new
+            return new UnprocessableEntityObjectResult(new
             {
                 ok = false,
                 error = "Validation failed",
@@ -88,7 +88,7 @@ public class ApplyChangeModel : PageModel
 
         if (statusMatch is null)
         {
-            return UnprocessableEntity(new
+            return new UnprocessableEntityObjectResult(new
             {
                 ok = false,
                 error = "Validation failed",
@@ -104,7 +104,7 @@ public class ApplyChangeModel : PageModel
 
         if (needsDate && input.Date is null)
         {
-            return UnprocessableEntity(new
+            return new UnprocessableEntityObjectResult(new
             {
                 ok = false,
                 error = "Validation failed",
@@ -139,7 +139,7 @@ public class ApplyChangeModel : PageModel
                 case DirectApplyOutcome.NotHeadOfDepartment:
                     return Forbid();
                 case DirectApplyOutcome.ValidationFailed:
-                    return UnprocessableEntity(new
+                    return new UnprocessableEntityObjectResult(new
                     {
                         ok = false,
                         error = "Validation failed",
@@ -157,7 +157,7 @@ public class ApplyChangeModel : PageModel
                 warnings.Add("Pending request was superseded by this change.");
             }
 
-            return Ok(new
+            return new OkObjectResult(new
             {
                 ok = true,
                 updated = new
