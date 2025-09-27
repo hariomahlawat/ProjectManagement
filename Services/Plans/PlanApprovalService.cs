@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 
 namespace ProjectManagement.Services.Plans;
@@ -108,6 +109,7 @@ public class PlanApprovalService
             {
                 ProjectId = projectId,
                 StageCode = stagePlan.StageCode,
+                SortOrder = Array.IndexOf(StageCodes.All, stagePlan.StageCode),
                 PlannedStart = stagePlan.PlannedStart,
                 PlannedDue = stagePlan.PlannedDue,
                 Status = StageStatus.NotStarted

@@ -41,6 +41,10 @@
     {
         <div id="open-plan-edit" data-open="1"></div>
     }
+    @if (TempData["OpenOffcanvas"] as string == "plan-review")
+    {
+        <div id="open-plan-review" data-open="1"></div>
+    }
     @if (TempData["Error"] is string err)
     {
         <div class="alert alert-danger alert-dismissible fade show" role="alert">
@@ -161,7 +165,17 @@
         <div class="col-lg-4 d-flex flex-column gap-3">
             @if (User.IsInRole("Admin") || User.IsInRole("PO") || User.IsInRole("HoD"))
             {
-                <div class="d-flex justify-content-end">
+                <div class="d-flex justify-content-end gap-2">
+                    @if (User.IsInRole("Admin") || User.IsInRole("HoD"))
+                    {
+                        <button class="btn btn-sm btn-outline-primary"
+                                type="button"
+                                data-bs-toggle="offcanvas"
+                                data-bs-target="#offcanvasPlanReview"
+                                aria-controls="offcanvasPlanReview">
+                            Review &amp; approve
+                        </button>
+                    }
                     <button class="btn btn-sm btn-outline-primary"
                             type="button"
                             data-bs-toggle="offcanvas"
@@ -182,6 +196,20 @@
         </div>
         <div class="offcanvas-body">
             <partial name="Projects/Procurement/_EditFormBody" model="Model.ProcurementEdit" />
+        </div>
+    </div>
+
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasPlanReview" aria-labelledby="offcanvasPlanReviewLabel">
+        <div class="offcanvas-header">
+            <h5 id="offcanvasPlanReviewLabel" class="mb-0">Review current plan</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+            @{
+                ViewBag.ProjectId = Model.Project.Id;
+                var diffs = await Model.PlanCompare.GetDiffAsync(Model.Project.Id);
+                await Html.RenderPartialAsync("/Pages/Projects/Timeline/_ReviewPlan", diffs);
+            }
         </div>
     </div>
 

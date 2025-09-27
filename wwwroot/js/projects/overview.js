@@ -50,4 +50,20 @@
             instance.show();
         }
     }
+
+    const planReview = document.getElementById('offcanvasPlanReview');
+    if (planReview) {
+        planReview.addEventListener('shown.bs.offcanvas', function () {
+            const firstAction = planReview.querySelector('button, input, select, textarea');
+            if (firstAction) {
+                firstAction.focus();
+            }
+        });
+
+        const reviewMarker = document.getElementById('open-plan-review');
+        if (reviewMarker && reviewMarker.dataset.open === '1') {
+            const instance = bootstrap.Offcanvas.getOrCreateInstance(planReview);
+            instance.show();
+        }
+    }
 })();

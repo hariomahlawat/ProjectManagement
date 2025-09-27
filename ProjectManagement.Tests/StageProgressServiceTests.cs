@@ -185,6 +185,7 @@ public class StageProgressServiceTests
             {
                 ProjectId = 1,
                 StageCode = code,
+                SortOrder = Array.IndexOf(StageCodes.All, code),
                 Status = status
             });
         }

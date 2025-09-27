@@ -1,0 +1,50 @@
+@model IReadOnlyList<ProjectManagement.Services.Stages.PlanCompareService.PlanDiffRow>
+@using ProjectManagement.Models.Stages
+
+<div class="small text-muted mb-2">
+    @if (Model.Count == 0)
+    {
+        <span>No stages found.</span>
+    }
+    else
+    {
+        <span>Differences vs last approved plan.</span>
+    }
+</div>
+
+<div class="table-responsive">
+    <table class="table table-sm align-middle">
+        <thead>
+            <tr>
+                <th>Stage</th>
+                <th class="text-center">Approved</th>
+                <th class="text-center">Current</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach (var row in Model)
+        {
+            var changed = row.OldStart != row.NewStart || row.OldDue != row.NewDue;
+            <tr class="@(changed ? "table-warning" : string.Empty)">
+                <td>
+                    <span class="fw-semibold">@StageCodes.DisplayNameOf(row.Code)</span>
+                    <div class="text-muted small">@row.Code</div>
+                </td>
+                <td class="text-center">
+                    @((row.OldStart?.ToString("yyyy-MM-dd") ?? "—") + " → " + (row.OldDue?.ToString("yyyy-MM-dd") ?? "—"))
+                </td>
+                <td class="text-center">
+                    @((row.NewStart?.ToString("yyyy-MM-dd") ?? "—") + " → " + (row.NewDue?.ToString("yyyy-MM-dd") ?? "—"))
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+</div>
+
+<form method="post" asp-page="/Projects/Timeline/Review" asp-route-id="@ViewBag.ProjectId" class="d-flex gap-2 justify-content-end mt-3">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="Input.ProjectId" value="@ViewBag.ProjectId" />
+    <button name="Input.Decision" value="Reject" class="btn btn-outline-secondary">Reject</button>
+    <button name="Input.Decision" value="Approve" class="btn btn-primary">Approve plan</button>
+</form>
