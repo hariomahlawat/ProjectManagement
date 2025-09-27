@@ -151,6 +151,7 @@ builder.Services.AddScoped<PlanApprovalService>();
 builder.Services.AddScoped<StageRulesService>();
 builder.Services.AddScoped<StageProgressService>();
 builder.Services.AddScoped<StageRequestService>();
+builder.Services.AddScoped<StageDecisionService>();
 builder.Services.AddScoped<PlanSnapshotService>();
 builder.Services.AddScoped<PlanCompareService>();
 builder.Services.AddScoped<ProjectFactsService>();
