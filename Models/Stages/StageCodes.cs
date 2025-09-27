@@ -5,6 +5,7 @@ namespace ProjectManagement.Models.Stages;
 
 public static class StageCodes
 {
+    public const string EOI = "EOI";
     public const string FS = "FS";
     public const string IPA = "IPA";
     public const string SOW = "SOW";
@@ -22,6 +23,7 @@ public static class StageCodes
 
     public static readonly string[] All =
     {
+        EOI,
         FS,
         IPA,
         SOW,
@@ -39,6 +41,7 @@ public static class StageCodes
     };
     private static readonly Dictionary<string, string> DisplayNames = new(StringComparer.OrdinalIgnoreCase)
     {
+        [EOI] = "Expression of Interest",
         [FS] = "Feasibility Study",
         [IPA] = "In-Principle Approval",
         [SOW] = "SOW Vetting",
