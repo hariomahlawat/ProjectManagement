@@ -240,15 +240,20 @@ public class EditPlanModel : PageModel
                 return RedirectToPage("/Projects/Overview", new { id });
             }
 
-            TempData["Flash"] = "Draft submitted for approval.";
-        }
-        else if (changes.Count > 0)
-        {
-            TempData["Flash"] = "Timeline saved as draft.";
+            TempData["Flash"] = "Plan submitted for HoD review.";
         }
         else
         {
-            TempData["Flash"] = "No changes were made.";
+            TempData["OpenOffcanvas"] = "plan-edit";
+
+            if (changes.Count > 0)
+            {
+                TempData["Flash"] = "Draft saved.";
+            }
+            else
+            {
+                TempData["Flash"] = "Draft saved. No changes detected.";
+            }
         }
 
         return RedirectToPage("/Projects/Overview", new { id });
@@ -398,15 +403,24 @@ public class EditPlanModel : PageModel
 
         if (submitForApproval)
         {
-            TempData["Flash"] = "Draft submitted for approval.";
-        }
-        else if (saveDraft)
-        {
-            TempData["Flash"] = "Timeline saved as draft.";
+            TempData["Flash"] = "Plan submitted for HoD review.";
         }
         else
         {
-            TempData["Flash"] = "Timeline recalculated as draft.";
+            TempData["OpenOffcanvas"] = "plan-edit";
+
+            if (saveDraft)
+            {
+                TempData["Flash"] = "Draft saved.";
+            }
+            else if (calculateOnly)
+            {
+                TempData["Flash"] = "Draft recalculated.";
+            }
+            else
+            {
+                TempData["Flash"] = "Draft updated.";
+            }
         }
 
         return RedirectToPage("/Projects/Overview", new { id });
