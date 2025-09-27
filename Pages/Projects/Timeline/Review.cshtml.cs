@@ -1,15 +1,15 @@
 using System;
+using System.ComponentModel.DataAnnotations;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Plans;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Pages.Projects.Timeline;
 
@@ -17,15 +17,15 @@ namespace ProjectManagement.Pages.Projects.Timeline;
 [ValidateAntiForgeryToken]
 public class ReviewModel : PageModel
 {
-    private readonly ApplicationDbContext _db;
+    private readonly PlanApprovalService _approval;
+    private readonly ProjectTimelineReadService _timeline;
     private readonly UserManager<ApplicationUser> _users;
     private readonly ILogger<ReviewModel> _logger;
-    private readonly PlanApprovalService _approval;
 
-    public ReviewModel(ApplicationDbContext db, PlanApprovalService approval, UserManager<ApplicationUser> users, ILogger<ReviewModel> logger)
+    public ReviewModel(PlanApprovalService approval, ProjectTimelineReadService timeline, UserManager<ApplicationUser> users, ILogger<ReviewModel> logger)
     {
-        _db = db;
         _approval = approval;
+        _timeline = timeline;
         _users = users;
         _logger = logger;
     }
@@ -62,23 +62,23 @@ public class ReviewModel : PageModel
                 var rejected = await _approval.RejectLatestPendingAsync(id, userId, Input.Note, ct);
                 if (rejected)
                 {
-                    TempData["Flash"] = "Draft rejected and returned to the project officer.";
+                    TempData["Flash"] = "Draft rejected and returned to the Project Officer.";
                     _logger.LogInformation("Plan review rejected for project {ProjectId} by user {UserId}.", id, userId);
+                    return RedirectToPage("/Projects/Overview", new { id });
                 }
-                else
-                {
-                    TempData["Error"] = "No pending draft found to reject.";
-                    TempData["OpenOffcanvas"] = "plan-review";
-                    _logger.LogWarning("Plan rejection attempted for project {ProjectId} by user {UserId}, but no draft was available.", id, userId);
-                }
+
+                TempData["Error"] = "No pending draft found to reject.";
+                TempData["OpenOffcanvas"] = "plan-review";
+                _logger.LogWarning("Plan rejection attempted for project {ProjectId} by user {UserId}, but no draft was available.", id, userId);
+                return RedirectToPage("/Projects/Overview", new { id });
             }
-            else
+
+            if (string.Equals(Input.Decision, "Approve", StringComparison.OrdinalIgnoreCase))
             {
-                var hasBackfill = await _db.ProjectStages
-                    .AnyAsync(s => s.ProjectId == id && s.RequiresBackfill, ct);
+                var hasBackfill = await _timeline.HasBackfillAsync(id, ct);
                 if (hasBackfill)
                 {
-                    TempData["Error"] = "Backfill required data before approval.";
+                    TempData["Error"] = "Resolve required procurement backfill before approval.";
                     TempData["OpenOffcanvas"] = "plan-review";
                     _logger.LogInformation("Plan approval blocked for project {ProjectId} due to pending backfill.", id);
                     return RedirectToPage("/Projects/Overview", new { id });
@@ -92,15 +92,27 @@ public class ReviewModel : PageModel
                 }
                 else
                 {
-                    TempData["Error"] = "No draft plan found to approve.";
+                    TempData["Error"] = "No draft to approve.";
                     TempData["OpenOffcanvas"] = "plan-review";
                     _logger.LogWarning("Plan approval attempted for project {ProjectId} by user {UserId}, but no draft was available.", id, userId);
                 }
+
+                return RedirectToPage("/Projects/Overview", new { id });
             }
+
+            TempData["Error"] = "Unknown action.";
+            TempData["OpenOffcanvas"] = "plan-review";
+            _logger.LogWarning("Unknown timeline review action {Decision} for project {ProjectId} by user {UserId}.", Input.Decision, id, userId);
         }
         catch (PlanApprovalValidationException ex)
         {
             TempData["Error"] = ex.Errors.Count > 0 ? string.Join(" ", ex.Errors) : ex.Message;
+            TempData["OpenOffcanvas"] = "plan-review";
+            _logger.LogWarning(ex, "Plan approval validation failed for project {ProjectId} by user {UserId}.", id, userId);
+        }
+        catch (ValidationException ex)
+        {
+            TempData["Error"] = ex.Message;
             TempData["OpenOffcanvas"] = "plan-review";
             _logger.LogWarning(ex, "Plan approval validation failed for project {ProjectId} by user {UserId}.", id, userId);
         }

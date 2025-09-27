@@ -66,6 +66,14 @@ public class EditPlanModel : PageModel
             return RedirectToPage("/Projects/Overview", new { id });
         }
 
+        var userId = _users.GetUserId(User);
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Forbid();
+        }
+
+        var isAdmin = User.IsInRole("Admin");
+
         var project = await _db.Projects
             .AsNoTracking()
             .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
@@ -75,13 +83,6 @@ public class EditPlanModel : PageModel
             return NotFound();
         }
 
-        var userId = _users.GetUserId(User);
-        if (string.IsNullOrEmpty(userId))
-        {
-            return Forbid();
-        }
-
-        var isAdmin = User.IsInRole("Admin");
         if (!isAdmin && !string.Equals(project.LeadPoUserId, userId, StringComparison.Ordinal))
         {
             _logger.LogWarning("User {UserId} attempted to edit plan for project {ProjectId} without permission.", userId, id);
