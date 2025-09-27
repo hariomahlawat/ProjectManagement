@@ -24,7 +24,7 @@ using ProjectManagement.ViewModels;
 namespace ProjectManagement.Pages.Projects.Timeline;
 
 [Authorize(Roles = "Admin,Project Officer,HoD")]
-[ValidateAntiForgeryToken]
+[AutoValidateAntiforgeryToken]
 public class EditPlanModel : PageModel
 {
     private readonly ApplicationDbContext _db;
@@ -103,7 +103,6 @@ public class EditPlanModel : PageModel
         return await HandleExactAsync(id, userId, principal, cancellationToken);
     }
 
-    [IgnoreAntiforgeryToken]
     public async Task<IActionResult> OnGetValidateAsync(int id, CancellationToken cancellationToken)
     {
         var userId = _userContext.UserId;
@@ -191,21 +190,20 @@ public class EditPlanModel : PageModel
 
     private async Task<IActionResult> HandleExactAsync(int id, string userId, ClaimsPrincipal principal, CancellationToken cancellationToken)
     {
-        if (Input.Rows is not null)
-        {
-            foreach (var row in Input.Rows)
-            {
-                if (string.IsNullOrWhiteSpace(row.Code))
-                {
-                    continue;
-                }
+        var rows = Input.Rows ??= new List<PlanEditInputRow>();
 
-                if (row.PlannedStart.HasValue && row.PlannedDue.HasValue &&
-                    row.PlannedStart.Value > row.PlannedDue.Value)
-                {
-                    var name = string.IsNullOrWhiteSpace(row.Name) ? row.Code : row.Name;
-                    ModelState.AddModelError(string.Empty, $"For {name}, Start date cannot be after Due date.");
-                }
+        foreach (var row in rows)
+        {
+            if (string.IsNullOrWhiteSpace(row.Code))
+            {
+                continue;
+            }
+
+            if (row.PlannedStart.HasValue && row.PlannedDue.HasValue &&
+                row.PlannedStart.Value > row.PlannedDue.Value)
+            {
+                var name = string.IsNullOrWhiteSpace(row.Name) ? row.Code : row.Name;
+                ModelState.AddModelError(string.Empty, $"For {name}, Start date cannot be after Due date.");
             }
         }
 
@@ -237,7 +235,7 @@ public class EditPlanModel : PageModel
 
         var changes = new List<StageChange>();
 
-        foreach (var row in Input.Rows)
+        foreach (var row in rows)
         {
             if (string.IsNullOrWhiteSpace(row.Code))
             {
@@ -384,37 +382,36 @@ public class EditPlanModel : PageModel
             ModelState.AddModelError(nameof(Input.NextStageStartPolicy), "Choose a valid next stage start policy.");
         }
 
-        if (Input.Rows is not null)
+        var rows = Input.Rows ??= new List<PlanEditInputRow>();
+
+        foreach (var row in rows)
         {
-            foreach (var row in Input.Rows)
+            if (string.IsNullOrWhiteSpace(row.Code))
             {
-                if (string.IsNullOrWhiteSpace(row.Code))
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                if (optionalStages.Contains(row.Code))
-                {
-                    if (!row.DurationDays.HasValue || row.DurationDays.Value <= 0)
-                    {
-                        row.DurationDays = null;
-                    }
-
-                    continue;
-                }
-
+            if (optionalStages.Contains(row.Code))
+            {
                 if (!row.DurationDays.HasValue || row.DurationDays.Value <= 0)
                 {
-                    var name = string.IsNullOrWhiteSpace(row.Name) ? row.Code : row.Name;
-                    ModelState.AddModelError(string.Empty, $"Duration for {name} must be a positive number of days.");
+                    row.DurationDays = null;
                 }
+
+                continue;
+            }
+
+            if (!row.DurationDays.HasValue || row.DurationDays.Value <= 0)
+            {
+                var name = string.IsNullOrWhiteSpace(row.Name) ? row.Code : row.Name;
+                ModelState.AddModelError(string.Empty, $"Duration for {name} must be a positive number of days.");
             }
         }
 
-        var anyDurationProvided = Input.Rows?.Any(r =>
+        var anyDurationProvided = rows.Any(r =>
             !string.IsNullOrWhiteSpace(r.Code) &&
             r.DurationDays.HasValue &&
-            r.DurationDays.Value > 0) == true;
+            r.DurationDays.Value > 0);
 
         if (submitForApproval && !anyDurationProvided)
         {
@@ -453,7 +450,7 @@ public class EditPlanModel : PageModel
 
         var extraSortStart = StageCodes.All.Length;
 
-        foreach (var row in Input.Rows)
+        foreach (var row in rows)
         {
             if (string.IsNullOrWhiteSpace(row.Code))
             {
