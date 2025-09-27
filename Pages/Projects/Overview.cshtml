@@ -263,17 +263,7 @@
                 ViewBag.HasBackfill = Model.HasBackfill;
                 ViewBag.PlanState = planState;
                 var diffs = await Model.PlanCompare.GetDraftVsCurrentAsync(Model.Project!.Id);
-                if (diffs == null || diffs.Count == 0)
-                {
-                    <div class="alert alert-secondary">No draft plan found to review.</div>
-                    <div class="text-end">
-                        <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="offcanvas">Close</button>
-                    </div>
-                }
-                else
-                {
-                    await Html.RenderPartialAsync("/Pages/Projects/Timeline/_ReviewPlan", diffs);
-                }
+                await Html.RenderPartialAsync("~/Pages/Projects/Timeline/_ReviewPlan.cshtml", diffs ?? Array.Empty<ProjectManagement.Services.Stages.PlanDiffRow>());
             }
         </div>
     </div>
