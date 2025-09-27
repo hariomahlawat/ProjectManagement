@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -99,7 +100,7 @@ public class EditPlanModel : PageModel
             return await HandleDurationsAsync(id, userId, cancellationToken);
         }
 
-        return await HandleExactAsync(id, userId, cancellationToken);
+        return await HandleExactAsync(id, userId, principal, cancellationToken);
     }
 
     [IgnoreAntiforgeryToken]
@@ -188,7 +189,7 @@ public class EditPlanModel : PageModel
         return RedirectToPage("/Projects/Overview", new { id });
     }
 
-    private async Task<IActionResult> HandleExactAsync(int id, string userId, CancellationToken cancellationToken)
+    private async Task<IActionResult> HandleExactAsync(int id, string userId, ClaimsPrincipal principal, CancellationToken cancellationToken)
     {
         if (Input.Rows is not null)
         {
