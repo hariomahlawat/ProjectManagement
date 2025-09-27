@@ -8,12 +8,17 @@ public static class HttpContextExtensions
 {
     public static IActionResult SetSuccess(this HttpContext context)
     {
+        return context.SetSuccess(new { ok = true });
+    }
+
+    public static IActionResult SetSuccess(this HttpContext context, object value)
+    {
         if (context is null)
         {
             throw new ArgumentNullException(nameof(context));
         }
 
-        return new JsonResult(new { ok = true })
+        return new JsonResult(value)
         {
             StatusCode = StatusCodes.Status200OK
         };

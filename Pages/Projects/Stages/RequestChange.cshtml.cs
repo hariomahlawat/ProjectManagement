@@ -42,7 +42,7 @@ public class RequestChangeModel : PageModel
 
         return result.Outcome switch
         {
-            StageRequestOutcome.Success => HttpContext.SetSuccess(),
+            StageRequestOutcome.Success when result.RequestId is int requestId => HttpContext.SetSuccess(new { ok = true, id = requestId }),
             StageRequestOutcome.NotProjectOfficer => Forbid(),
             StageRequestOutcome.StageNotFound => HttpContext.SetStatusCode(
                 StatusCodes.Status404NotFound,
