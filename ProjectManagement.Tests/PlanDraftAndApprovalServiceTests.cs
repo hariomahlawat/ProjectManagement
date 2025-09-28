@@ -30,8 +30,8 @@ public class PlanDraftAndApprovalServiceTests
         db.StageTemplates.Add(new StageTemplate
         {
             Version = PlanConstants.StageTemplateVersion,
-            Code = StageCodes.EOI,
-            Name = "Expression of Interest",
+            Code = StageCodes.FS,
+            Name = "Feasibility Study",
             Sequence = 10
         });
 
@@ -65,7 +65,7 @@ public class PlanDraftAndApprovalServiceTests
         Assert.NotEqual("other", draft.CreatedByUserId);
         Assert.Equal(2, draft.VersionNo);
         Assert.Single(draft.StagePlans);
-        Assert.Equal(StageCodes.EOI, draft.StagePlans[0].StageCode);
+        Assert.Equal(StageCodes.FS, draft.StagePlans[0].StageCode);
     }
 
     [Fact]
@@ -80,8 +80,8 @@ public class PlanDraftAndApprovalServiceTests
         db.StageTemplates.Add(new StageTemplate
         {
             Version = PlanConstants.StageTemplateVersion,
-            Code = StageCodes.EOI,
-            Name = "Expression of Interest",
+            Code = StageCodes.FS,
+            Name = "Feasibility Study",
             Sequence = 10
         });
 
@@ -125,8 +125,8 @@ public class PlanDraftAndApprovalServiceTests
         db.StageTemplates.Add(new StageTemplate
         {
             Version = PlanConstants.StageTemplateVersion,
-            Code = StageCodes.EOI,
-            Name = "Expression of Interest",
+            Code = StageCodes.FS,
+            Name = "Feasibility Study",
             Sequence = 10
         });
 
@@ -150,7 +150,7 @@ public class PlanDraftAndApprovalServiceTests
 
         orphan.StagePlans.Add(new StagePlan
         {
-            StageCode = StageCodes.EOI,
+            StageCode = StageCodes.FS,
             PlannedStart = new DateOnly(2024, 1, 1),
             PlannedDue = new DateOnly(2024, 1, 5)
         });
@@ -246,7 +246,7 @@ public class PlanDraftAndApprovalServiceTests
 
         plan.StagePlans.Add(new StagePlan
         {
-            StageCode = StageCodes.EOI,
+            StageCode = StageCodes.FS,
             PlannedStart = DateOnly.FromDateTime(DateTime.Today),
             PlannedDue = DateOnly.FromDateTime(DateTime.Today.AddDays(5))
         });
@@ -288,7 +288,7 @@ public class PlanDraftAndApprovalServiceTests
 
         draft.StagePlans.Add(new StagePlan
         {
-            StageCode = StageCodes.EOI,
+            StageCode = StageCodes.FS,
             PlannedStart = new DateOnly(2024, 1, 1),
             PlannedDue = new DateOnly(2024, 1, 10)
         });

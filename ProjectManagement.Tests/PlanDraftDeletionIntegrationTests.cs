@@ -54,7 +54,7 @@ public class PlanDraftDeletionIntegrationTests
 
         plan.StagePlans.Add(new StagePlan
         {
-            StageCode = StageCodes.EOI,
+            StageCode = StageCodes.FS,
             PlannedStart = new DateOnly(2024, 1, 5),
             PlannedDue = new DateOnly(2024, 1, 12)
         });

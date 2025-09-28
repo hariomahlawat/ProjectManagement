@@ -23,7 +23,6 @@ public static class StageCodes
 
     public static readonly string[] All =
     {
-        EOI,
         FS,
         IPA,
         SOW,

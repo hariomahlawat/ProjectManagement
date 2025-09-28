@@ -55,6 +55,11 @@ public sealed class StageDirectApplyService
 
         var normalizedStageCode = stageCode.Trim().ToUpperInvariant();
 
+        if (string.Equals(normalizedStageCode, StageCodes.EOI, StringComparison.OrdinalIgnoreCase))
+        {
+            return DirectApplyResult.StageNotFound();
+        }
+
         var stage = await _db.ProjectStages
             .Include(s => s.Project)
             .SingleOrDefaultAsync(
