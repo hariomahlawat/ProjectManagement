@@ -36,6 +36,9 @@ public sealed class TimelineItemVm
     public string? PendingStatus { get; init; }
     public DateOnly? PendingDate { get; init; }
 
+    public int? StartVarianceDays { get; init; }
+    public int? FinishVarianceDays { get; init; }
+
     public DateOnly Today { get; init; }
 
     public int SortOrder { get; init; }

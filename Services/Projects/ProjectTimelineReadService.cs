@@ -59,15 +59,41 @@ public sealed class ProjectTimelineReadService
         {
             var r = rows.FirstOrDefault(x => x.StageCode == code);
             pendingLookup.TryGetValue(code, out var pendingRequest);
+
+            var plannedStart = r?.PlannedStart;
+            var actualStart = r?.ActualStart;
+            var plannedEnd = r?.PlannedDue;
+            var actualEnd = r?.CompletedOn;
+
+            int? startVarianceDays = null;
+            if (plannedStart.HasValue && actualStart.HasValue)
+            {
+                var diff = actualStart.Value.DayNumber - plannedStart.Value.DayNumber;
+                if (diff != 0)
+                {
+                    startVarianceDays = diff;
+                }
+            }
+
+            int? finishVarianceDays = null;
+            if (plannedEnd.HasValue && actualEnd.HasValue)
+            {
+                var diff = actualEnd.Value.DayNumber - plannedEnd.Value.DayNumber;
+                if (diff != 0)
+                {
+                    finishVarianceDays = diff;
+                }
+            }
+
             items.Add(new TimelineItemVm
             {
                 Code = code,
                 Name = StageCodes.DisplayNameOf(code),
                 Status = r?.Status ?? StageStatus.NotStarted,
-                PlannedStart = r?.PlannedStart,
-                PlannedEnd = r?.PlannedDue,
-                ActualStart = r?.ActualStart,
-                CompletedOn = r?.CompletedOn,
+                PlannedStart = plannedStart,
+                PlannedEnd = plannedEnd,
+                ActualStart = actualStart,
+                CompletedOn = actualEnd,
                 IsAutoCompleted = r?.IsAutoCompleted ?? false,
                 AutoCompletedFromCode = r?.AutoCompletedFromCode,
                 RequiresBackfill = r?.RequiresBackfill ?? false,
@@ -75,7 +101,9 @@ public sealed class ProjectTimelineReadService
                 Today = today,
                 HasPendingRequest = pendingRequest is not null,
                 PendingStatus = pendingRequest?.RequestedStatus,
-                PendingDate = pendingRequest?.RequestedDate
+                PendingDate = pendingRequest?.RequestedDate,
+                StartVarianceDays = startVarianceDays,
+                FinishVarianceDays = finishVarianceDays
             });
         }
 
