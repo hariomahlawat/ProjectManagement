@@ -57,9 +57,9 @@ public class RequestChangeModel : PageModel
                 {
                     ok = false,
                     error = "validation",
-                    details = string.IsNullOrWhiteSpace(result.Error)
-                        ? Array.Empty<string>()
-                        : new[] { result.Error },
+                    details = result.Errors is { Count: > 0 }
+                        ? result.Errors.ToArray()
+                        : Array.Empty<string>(),
                     missingPredecessors = result.MissingPredecessors is { Count: > 0 }
                         ? result.MissingPredecessors.ToArray()
                         : Array.Empty<string>()

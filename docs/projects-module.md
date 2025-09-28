@@ -17,6 +17,9 @@ The projects feature brings together procurement data, execution timelines and c
 * `ProjectTimelineReadService` projects a complete timeline view model from `ProjectStages`, combining canonical stage codes (`StageCodes.All`) with per-stage metadata.
 * The same service highlights pending plan approvals and whether any stage still requires backfilling, feeding callouts on the overview screen. Per-user draft state (e.g. whether the current user owns a draft or submission) is sourced from `PlanReadService`.
 * Detailed plan editing uses `PlanReadService` to hydrate both exact date and duration editors. Drafts are scoped to the current user (`OwnerUserId`) so Project Officers and HoDs can work privately in parallel while the service filters out other users’ drafts. `PlanCompareService` produces diffs for the pending submission shown in the HoD review panel.
+* Change-management is coordinated by `StageValidationService`, a shared validator that enforces legal status transitions, prevents future-dated actuals, surfaces unmet predecessor stages (respecting the project’s PNC applicability flag) and recommends the earliest safe auto-start date derived from completed predecessors.
+* Project Officers submit `StageChangeRequest` records through `StageRequestService`. Validation errors are returned with structured error arrays and a list of missing predecessors so the UI can guide users before a HoD review.
+* HoDs can bypass the approval queue via `StageDirectApplyService`, which reuses the validator, can optionally backfill incomplete predecessors, supports admin completions without dates (marking the stage as incomplete data) and emits warnings when the update supersedes a pending request or requires auto-adjustments.
 
 ## Role assignment
 * The overview model builds an `AssignRolesVm` populated from the `HoD` and `Project Officer` role memberships, letting administrators record the responsible officers per project without leaving the page.

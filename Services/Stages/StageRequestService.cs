@@ -46,7 +46,7 @@ public class StageRequestService
 
         if (string.IsNullOrWhiteSpace(input.StageCode))
         {
-            return StageRequestResult.ValidationFailed("A stage code is required.");
+            return StageRequestResult.ValidationFailed(new[] { "A stage code is required." });
         }
 
         var stageCode = input.StageCode.Trim().ToUpperInvariant();
@@ -77,22 +77,24 @@ public class StageRequestService
 
         if (!validation.IsValid)
         {
-            string message;
+            var errors = new List<string>();
 
             if (validation.Errors.Count > 0)
             {
-                message = string.Join(" ", validation.Errors);
-            }
-            else if (validation.MissingPredecessors.Count > 0)
-            {
-                message = "Complete required predecessor stages first.";
-            }
-            else
-            {
-                message = "Validation failed.";
+                errors.AddRange(validation.Errors);
             }
 
-            return StageRequestResult.ValidationFailed(message, validation.MissingPredecessors);
+            if (validation.MissingPredecessors.Count > 0 && errors.Count == 0)
+            {
+                errors.Add("Complete required predecessor stages first.");
+            }
+
+            if (errors.Count == 0)
+            {
+                errors.Add("Validation failed.");
+            }
+
+            return StageRequestResult.ValidationFailed(errors, validation.MissingPredecessors);
         }
 
         var requestedDate = input.RequestedDate;
@@ -159,21 +161,83 @@ public sealed record StageChangeRequestInput
     public string? Note { get; set; }
 }
 
-public sealed record StageRequestResult(
-    StageRequestOutcome Outcome,
-    string? Error = null,
-    int? RequestId = null,
-    IReadOnlyList<string>? MissingPredecessors = null)
+public sealed record StageRequestResult
 {
-    public static StageRequestResult Success(int requestId) => new(StageRequestOutcome.Success, null, requestId);
-    public static StageRequestResult NotProjectOfficer() => new(StageRequestOutcome.NotProjectOfficer, null);
-    public static StageRequestResult StageNotFound() => new(StageRequestOutcome.StageNotFound, null);
+    public StageRequestOutcome Outcome { get; init; }
+    public string? Error { get; init; }
+    public int? RequestId { get; init; }
+    public IReadOnlyList<string> MissingPredecessors { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> Errors { get; init; } = Array.Empty<string>();
+
+    private StageRequestResult(
+        StageRequestOutcome outcome,
+        string? error,
+        int? requestId,
+        IReadOnlyList<string> missingPredecessors,
+        IReadOnlyList<string> errors)
+    {
+        Outcome = outcome;
+        Error = error;
+        RequestId = requestId;
+        MissingPredecessors = missingPredecessors;
+        Errors = errors;
+    }
+
+    public static StageRequestResult Success(int requestId)
+        => new(StageRequestOutcome.Success, null, requestId, Array.Empty<string>(), Array.Empty<string>());
+
+    public static StageRequestResult NotProjectOfficer()
+        => new(StageRequestOutcome.NotProjectOfficer, null, null, Array.Empty<string>(), Array.Empty<string>());
+
+    public static StageRequestResult StageNotFound()
+        => new(StageRequestOutcome.StageNotFound, null, null, Array.Empty<string>(), Array.Empty<string>());
+
     public static StageRequestResult DuplicatePending()
-        => new(StageRequestOutcome.DuplicatePending, "A pending request already exists for this stage.");
+        => new(
+            StageRequestOutcome.DuplicatePending,
+            "A pending request already exists for this stage.",
+            null,
+            Array.Empty<string>(),
+            Array.Empty<string>());
+
     public static StageRequestResult ValidationFailed(
-        string message,
+        IReadOnlyList<string>? errors,
         IReadOnlyList<string>? missingPredecessors = null)
-        => new(StageRequestOutcome.ValidationFailed, message, null, missingPredecessors);
+    {
+        var normalizedErrors = Normalize(errors);
+        var normalizedMissing = Normalize(missingPredecessors);
+        var message = normalizedErrors.Count > 0
+            ? normalizedErrors[0]
+            : "Validation failed.";
+
+        return new(StageRequestOutcome.ValidationFailed, message, null, normalizedMissing, normalizedErrors);
+    }
+
+    private static IReadOnlyList<string> Normalize(IReadOnlyList<string>? values)
+    {
+        if (values is null || values.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        if (values is string[] array)
+        {
+            return array;
+        }
+
+        if (values is List<string> list)
+        {
+            return list.ToArray();
+        }
+
+        var copy = new string[values.Count];
+        for (var i = 0; i < values.Count; i++)
+        {
+            copy[i] = values[i];
+        }
+
+        return copy;
+    }
 }
 
 public enum StageRequestOutcome
