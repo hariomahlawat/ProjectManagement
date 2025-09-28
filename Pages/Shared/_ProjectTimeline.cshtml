@@ -38,6 +38,23 @@
             {
               <span class="badge bg-warning-subtle text-warning border border-warning-subtle" title="Auto-completed when a later stage was completed.">inferred</span>
             }
+            @if (s.IsIncompleteData)
+            {
+              <span class="badge bg-secondary-subtle text-body-secondary border border-secondary-subtle">Incomplete data</span>
+            }
+            @if (s.HasPendingRequest)
+            {
+              <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
+                Pending: @s.PendingStatus@if (s.PendingDate.HasValue)
+                {
+                  <text> · @D(s.PendingDate)</text>
+                }
+              </span>
+            }
+            @if (s.IsOverdue)
+            {
+              <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Overdue</span>
+            }
             @if (s.RequiresBackfill)
             {
               <span class="ms-2 text-warning" title="Additional data required">⚠︎</span>

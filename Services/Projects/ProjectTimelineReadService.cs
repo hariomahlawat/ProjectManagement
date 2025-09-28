@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -8,14 +9,25 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services;
+using ProjectManagement.Utilities;
 using ProjectManagement.ViewModels;
 
 namespace ProjectManagement.Services.Projects;
 
 public sealed class ProjectTimelineReadService
 {
+    private const string PendingDecisionStatus = "Pending";
+    private static readonly TimeZoneInfo IndiaTimeZone = TimeZoneHelper.GetIst();
+
     private readonly ApplicationDbContext _db;
-    public ProjectTimelineReadService(ApplicationDbContext db) => _db = db;
+    private readonly IClock _clock;
+
+    public ProjectTimelineReadService(ApplicationDbContext db, IClock clock)
+    {
+        _db = db;
+        _clock = clock;
+    }
 
     public Task<bool> HasBackfillAsync(int projectId, CancellationToken ct = default)
         => _db.ProjectStages.AnyAsync(s => s.ProjectId == projectId && s.RequiresBackfill, ct);
@@ -23,14 +35,30 @@ public sealed class ProjectTimelineReadService
     public async Task<TimelineVm> GetAsync(int projectId, CancellationToken ct = default)
     {
         var rows = await _db.ProjectStages
+            .AsNoTracking()
             .Where(x => x.ProjectId == projectId)
             .ToListAsync(ct);
+
+        var pendingRequests = await _db.StageChangeRequests
+            .AsNoTracking()
+            .Where(r => r.ProjectId == projectId && r.DecisionStatus == PendingDecisionStatus)
+            .ToListAsync(ct);
+
+        var pendingLookup = pendingRequests
+            .GroupBy(r => r.StageCode, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                g => g.OrderByDescending(r => r.RequestedOn).First(),
+                StringComparer.OrdinalIgnoreCase);
+
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_clock.UtcNow, IndiaTimeZone).Date);
 
         var items = new List<TimelineItemVm>();
         var index = 0;
         foreach (var code in StageCodes.All)
         {
             var r = rows.FirstOrDefault(x => x.StageCode == code);
+            pendingLookup.TryGetValue(code, out var pendingRequest);
             items.Add(new TimelineItemVm
             {
                 Code = code,
@@ -43,7 +71,11 @@ public sealed class ProjectTimelineReadService
                 IsAutoCompleted = r?.IsAutoCompleted ?? false,
                 AutoCompletedFromCode = r?.AutoCompletedFromCode,
                 RequiresBackfill = r?.RequiresBackfill ?? false,
-                SortOrder = index++
+                SortOrder = index++,
+                Today = today,
+                HasPendingRequest = pendingRequest is not null,
+                PendingStatus = pendingRequest?.RequestedStatus,
+                PendingDate = pendingRequest?.RequestedDate
             });
         }
 

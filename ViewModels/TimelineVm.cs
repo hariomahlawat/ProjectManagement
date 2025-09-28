@@ -32,10 +32,20 @@ public sealed class TimelineItemVm
     public bool IsAutoCompleted { get; init; }
     public string? AutoCompletedFromCode { get; init; }
     public bool RequiresBackfill { get; init; }
+    public bool HasPendingRequest { get; init; }
+    public string? PendingStatus { get; init; }
+    public DateOnly? PendingDate { get; init; }
+
+    public DateOnly Today { get; init; }
 
     public int SortOrder { get; init; }
     public int? PlannedDurationDays =>
         (PlannedStart.HasValue && PlannedEnd.HasValue) ? (PlannedEnd.Value.DayNumber - PlannedStart.Value.DayNumber + 1) : null;
     public int? ActualDurationDays =>
         (ActualStart.HasValue && CompletedOn.HasValue) ? (CompletedOn.Value.DayNumber - ActualStart.Value.DayNumber + 1) : null;
+
+    public bool NeedsStart => (Status is StageStatus.InProgress or StageStatus.Completed) && ActualStart is null;
+    public bool NeedsFinish => Status == StageStatus.Completed && CompletedOn is null;
+    public bool IsIncompleteData => NeedsStart || NeedsFinish;
+    public bool IsOverdue => Status != StageStatus.Completed && PlannedEnd.HasValue && Today > PlannedEnd.Value;
 }
