@@ -466,18 +466,25 @@ using (var scope = app.Services.CreateScope())
     var db = services.GetRequiredService<ApplicationDbContext>();
     if (app.Environment.IsDevelopment() && db.Database.IsRelational())
     {
-        var conn = db.Database.GetDbConnection();
-        await conn.OpenAsync();
-        await using (var cmd = conn.CreateCommand())
+        var connectionString = db.Database.GetConnectionString();
+        if (!string.IsNullOrEmpty(connectionString))
         {
-            cmd.CommandText = "select current_database(), version()";
-            await using var reader = await cmd.ExecuteReaderAsync();
-            if (await reader.ReadAsync())
+            await using var conn = new NpgsqlConnection(connectionString);
+            await conn.OpenAsync();
+            await using (var cmd = conn.CreateCommand())
             {
-                app.Logger.LogInformation("Connected to database {Database}; {Version}", reader.GetString(0), reader.GetString(1));
+                cmd.CommandText = "select current_database(), version()";
+                await using var reader = await cmd.ExecuteReaderAsync();
+                if (await reader.ReadAsync())
+                {
+                    app.Logger.LogInformation(
+                        "Connected to database {Database}; {Version}",
+                        reader.GetString(0),
+                        reader.GetString(1));
+                }
             }
+            await conn.CloseAsync();
         }
-        await conn.CloseAsync();
     }
 
     if (db.Database.IsRelational())

@@ -55,7 +55,7 @@ public class DecideChangeModel : PageModel
             return Forbid();
         }
 
-        var connectionHash = ConnectionStringHasher.Hash(_db.Database.GetDbConnection().ConnectionString);
+        var connectionHash = ConnectionStringHasher.Hash(_db.Database.GetConnectionString());
         _logger.LogInformation(
             "DecideChange POST received. RequestId={RequestId}, Decision={Decision}, User={UserId}, ConnHash={ConnHash}",
             input.RequestId,

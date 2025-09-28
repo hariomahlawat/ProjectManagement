@@ -283,9 +283,10 @@ public class EditPlanModel : PageModel
         if (changes.Count > 0)
         {
             await _db.SaveChangesAsync(cancellationToken);
-            _logger.LogInformation("Exact timeline saved for Project {ProjectId}. Conn: {Conn}",
+            _logger.LogInformation(
+                "Exact timeline saved for Project {ProjectId}. Conn: {Conn}",
                 id,
-                _db.Database.GetDbConnection().ConnectionString);
+                _db.Database.GetConnectionString());
 
             var data = new Dictionary<string, string?>
             {
@@ -476,9 +477,10 @@ public class EditPlanModel : PageModel
         }
 
         await _db.SaveChangesAsync(ct);
-        _logger.LogInformation("Durations saved for Project {ProjectId}. Conn: {Conn}",
+        _logger.LogInformation(
+            "Durations saved for Project {ProjectId}. Conn: {Conn}",
             id,
-            _db.Database.GetDbConnection().ConnectionString);
+            _db.Database.GetConnectionString());
 
         PlanVersion draft;
         try
