@@ -241,6 +241,7 @@ public sealed class StageValidationService : IStageValidationService
 
     private static bool ValidateCompleteTransition(StageStatus current, out string? error)
     {
+        error = null;
         return current switch
         {
             StageStatus.NotStarted => true,
