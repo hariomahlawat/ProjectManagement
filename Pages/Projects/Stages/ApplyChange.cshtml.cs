@@ -68,8 +68,9 @@ public class ApplyChangeModel : PageModel
 
     public async Task<IActionResult> OnPostAsync([FromBody] ApplyChangeInput input, CancellationToken ct)
     {
-        var connectionHash = ConnectionStringHasher.Hash(_db.Database.GetConnectionString());
-        _logger.LogInformation("ApplyChange POST received. ConnHash={ConnHash}", connectionHash);
+        _logger.LogInformation(
+            "ApplyChange POST ConnHash={ConnHash}",
+            ConnectionStringHasher.Hash(_db.Database.GetConnectionString()));
 
         if (!ModelState.IsValid)
         {
