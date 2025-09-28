@@ -84,4 +84,80 @@ public class PlanGenerationServiceTests
         Assert.NotNull(eas.PlannedStart);
         Assert.NotNull(eas.PlannedDue);
     }
+
+    [Fact]
+    public async Task GenerateDraft_SyncsPlanMetadataWithScheduleSettings()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        db.Projects.Add(new Project
+        {
+            Id = 1,
+            Name = "Test Project",
+            CreatedByUserId = "seed"
+        });
+
+        db.ProjectScheduleSettings.Add(new ProjectScheduleSettings
+        {
+            ProjectId = 1,
+            AnchorStart = new DateOnly(2024, 5, 1),
+            IncludeWeekends = true,
+            SkipHolidays = false,
+            NextStageStartPolicy = NextStageStartPolicies.SameDay
+        });
+
+        db.StageTemplates.AddRange(
+            new StageTemplate { Version = PlanConstants.StageTemplateVersion, Code = StageCodes.BID, Name = "Bid Upload", Sequence = 50 },
+            new StageTemplate { Version = PlanConstants.StageTemplateVersion, Code = StageCodes.TEC, Name = "Technical Evaluation Committee", Sequence = 60 }
+        );
+
+        db.ProjectPlanDurations.AddRange(
+            new ProjectPlanDuration { ProjectId = 1, StageCode = StageCodes.BID, DurationDays = 3, SortOrder = 1 },
+            new ProjectPlanDuration { ProjectId = 1, StageCode = StageCodes.TEC, DurationDays = 2, SortOrder = 2 }
+        );
+
+        var plan = new PlanVersion
+        {
+            ProjectId = 1,
+            VersionNo = 1,
+            CreatedByUserId = "seed",
+            CreatedOn = DateTimeOffset.UtcNow,
+            Title = PlanVersion.ProjectTimelineTitle,
+            Status = PlanVersionStatus.Draft,
+            AnchorStageCode = StageCodes.BID,
+            AnchorDate = null,
+            SkipWeekends = true,
+            TransitionRule = PlanTransitionRule.NextWorkingDay,
+            PncApplicable = true
+        };
+
+        plan.StagePlans.Add(new StagePlan { StageCode = StageCodes.BID });
+        plan.StagePlans.Add(new StagePlan { StageCode = StageCodes.TEC });
+
+        db.PlanVersions.Add(plan);
+
+        await db.SaveChangesAsync();
+
+        var service = new PlanGenerationService(db);
+        await service.GenerateDraftAsync(1, plan.Id);
+
+        await db.Entry(plan).ReloadAsync();
+
+        Assert.False(plan.SkipWeekends);
+        Assert.Equal(PlanTransitionRule.SameDay, plan.TransitionRule);
+        Assert.Equal(new DateOnly(2024, 5, 1), plan.AnchorDate);
+
+        var bid = await db.StagePlans.SingleAsync(sp => sp.PlanVersionId == plan.Id && sp.StageCode == StageCodes.BID);
+        var tec = await db.StagePlans.SingleAsync(sp => sp.PlanVersionId == plan.Id && sp.StageCode == StageCodes.TEC);
+
+        Assert.NotNull(bid.PlannedStart);
+        Assert.NotNull(bid.PlannedDue);
+        Assert.NotNull(tec.PlannedStart);
+        Assert.NotNull(tec.PlannedDue);
+        Assert.Equal(bid.PlannedDue, tec.PlannedStart);
+    }
 }
