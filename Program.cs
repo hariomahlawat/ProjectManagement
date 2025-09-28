@@ -466,10 +466,10 @@ using (var scope = app.Services.CreateScope())
     var db = services.GetRequiredService<ApplicationDbContext>();
     if (app.Environment.IsDevelopment() && db.Database.IsRelational())
     {
-        var connectionString = db.Database.GetConnectionString();
-        if (!string.IsNullOrEmpty(connectionString))
+        var databaseConnectionString = db.Database.GetConnectionString();
+        if (!string.IsNullOrEmpty(databaseConnectionString))
         {
-            await using var conn = new NpgsqlConnection(connectionString);
+            await using var conn = new NpgsqlConnection(databaseConnectionString);
             await conn.OpenAsync();
             await using (var cmd = conn.CreateCommand())
             {
