@@ -14,6 +14,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Helpers;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Plans;
+using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Pages.Projects.Timeline;
 using ProjectManagement.Services;
