@@ -294,8 +294,7 @@
     const errorContainer = modalEl.querySelector('[data-direct-apply-errors]');
     const dateHint = modalEl.querySelector('[data-direct-apply-date-hint]');
     const missingPredecessorsContainer = modalEl.querySelector('[data-direct-apply-missing]');
-    const forceCheckbox = modalEl.querySelector('#forceBackfillPredecessors')
-      || modalEl.querySelector('[data-direct-apply-force]');
+    const forceCheckbox = modalEl.querySelector('[data-direct-apply-force]');
     const forceHint = modalEl.querySelector('[data-direct-apply-force-hint]');
     const submitButton = modalEl.querySelector('[data-direct-apply-submit]');
     const noDateWarning = modalEl.querySelector('[data-direct-apply-no-date-warning]');
