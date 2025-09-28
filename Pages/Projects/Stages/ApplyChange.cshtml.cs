@@ -6,8 +6,11 @@ using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Data;
 using ProjectManagement.Services.Stages;
 
 namespace ProjectManagement.Pages.Projects.Stages;
@@ -26,11 +29,13 @@ public class ApplyChangeModel : PageModel
         "Reopen"
     };
 
+    private readonly ApplicationDbContext _db;
     private readonly StageDirectApplyService _service;
 
-    public ApplyChangeModel(StageDirectApplyService service)
+    public ApplyChangeModel(ApplicationDbContext db, StageDirectApplyService service)
     {
-        _service = service;
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+        _service = service ?? throw new ArgumentNullException(nameof(service));
     }
 
     public class ApplyChangeInput
@@ -134,6 +139,19 @@ public class ApplyChangeModel : PageModel
         }
         catch (StageDirectApplyNotFoundException)
         {
+            var projectExists = await _db.Projects
+                .AsNoTracking()
+                .AnyAsync(p => p.Id == input.ProjectId, ct);
+
+            if (projectExists)
+            {
+                return StatusCode(StatusCodes.Status409Conflict, new
+                {
+                    ok = false,
+                    error = "stale"
+                });
+            }
+
             return NotFound(new { ok = false, error = "Project or stage not found." });
         }
         catch (StageDirectApplyNotHeadOfDepartmentException)
