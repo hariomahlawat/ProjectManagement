@@ -20,26 +20,28 @@ public sealed class StageDirectApplyService
     private const string DirectApplyLogAction = "DirectApply";
     private const string AppliedLogAction = "Applied";
     private const string AutoBackfillLogAction = "AutoBackfill";
+    private const string AdminCompletionNote = "Administrative completion (no dates) by HoD";
+    private const string AutoBackfillNoteTemplate = "Auto-backfilled (no dates) due to completion of {0}";
+    private const string ClampWarning = "CompletedOn was clamped to ActualStart";
 
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
-    private readonly IStageValidationService _validationService;
+    private readonly IStageValidationService _validator;
 
     public StageDirectApplyService(
         ApplicationDbContext db,
         IClock clock,
-        IStageValidationService validationService)
+        IStageValidationService validator)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
-        _validationService = validationService
-            ?? throw new ArgumentNullException(nameof(validationService));
+        _validator = validator ?? throw new ArgumentNullException(nameof(validator));
     }
 
     public async Task<DirectApplyResult> ApplyAsync(
         int projectId,
         string stageCode,
-        string newStatus,
+        string status,
         DateOnly? date,
         string? note,
         string hodUserId,
@@ -48,16 +50,12 @@ public sealed class StageDirectApplyService
     {
         if (string.IsNullOrWhiteSpace(stageCode))
         {
-            return DirectApplyResult.ValidationFailed(
-                "validation",
-                new[] { "A stage code is required." });
+            throw StageDirectApplyValidationException.FromMessages("A stage code is required.");
         }
 
-        if (string.IsNullOrWhiteSpace(newStatus))
+        if (string.IsNullOrWhiteSpace(status))
         {
-            return DirectApplyResult.ValidationFailed(
-                "validation",
-                new[] { "A status is required." });
+            throw StageDirectApplyValidationException.FromMessages("A status is required.");
         }
 
         if (string.IsNullOrWhiteSpace(hodUserId))
@@ -66,6 +64,11 @@ public sealed class StageDirectApplyService
         }
 
         var normalizedStageCode = stageCode.Trim().ToUpperInvariant();
+        var normalizedStatus = status.Trim();
+        var isReopen = string.Equals(normalizedStatus, "Reopen", StringComparison.OrdinalIgnoreCase);
+        var validationTargetStatus = isReopen
+            ? (date.HasValue ? StageStatus.InProgress : StageStatus.NotStarted).ToString()
+            : normalizedStatus;
 
         var stage = await _db.ProjectStages
             .Include(s => s.Project)
@@ -75,24 +78,17 @@ public sealed class StageDirectApplyService
 
         if (stage is null)
         {
-            return DirectApplyResult.StageNotFound();
+            throw new StageDirectApplyNotFoundException();
         }
 
         if (!string.Equals(stage.Project?.HodUserId, hodUserId, StringComparison.Ordinal))
         {
-            return DirectApplyResult.NotHeadOfDepartment();
+            throw new StageDirectApplyNotHeadOfDepartmentException();
         }
 
         var trimmedNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
-        var now = _clock.UtcNow;
-        var today = DateOnly.FromDateTime(now.UtcDateTime);
-        var normalizedStatus = newStatus.Trim();
-        var isReopen = string.Equals(normalizedStatus, "Reopen", StringComparison.OrdinalIgnoreCase);
-        var validationTargetStatus = isReopen
-            ? (date.HasValue ? StageStatus.InProgress : StageStatus.NotStarted).ToString()
-            : normalizedStatus;
 
-        var validation = await _validationService.ValidateAsync(
+        var validation = await _validator.ValidateAsync(
             projectId,
             normalizedStageCode,
             validationTargetStatus,
@@ -100,35 +96,30 @@ public sealed class StageDirectApplyService
             isHoD: true,
             ct);
 
-        var validationDetails = validation.Errors
-            .Concat(validation.Warnings)
-            .ToList();
+        var validationErrors = validation.Errors
+            .Where(e => !string.IsNullOrWhiteSpace(e))
+            .ToArray();
 
-        if (validationDetails.Count == 0 && validation.MissingPredecessors.Count > 0)
+        if (validationErrors.Length > 0)
         {
-            validationDetails.Add("Complete required predecessor stages first.");
+            throw new StageDirectApplyValidationException(validationErrors, validation.MissingPredecessors);
         }
 
-        if (validation.Errors.Count > 0)
-        {
-            return DirectApplyResult.ValidationFailed(
-                "validation",
-                validationDetails.Count == 0 ? Array.Empty<string>() : validationDetails,
-                validation.MissingPredecessors);
-        }
-
-        var warnings = new List<string>(validation.Warnings);
+        var warnings = new List<string>(validation.Warnings.Where(w => !string.IsNullOrWhiteSpace(w)));
 
         StageStatus targetStatus;
         if (isReopen)
         {
             targetStatus = date.HasValue ? StageStatus.InProgress : StageStatus.NotStarted;
         }
-        else if (!Enum.TryParse<StageStatus>(validationTargetStatus, ignoreCase: true, out targetStatus))
+        else if (!Enum.TryParse(validationTargetStatus, ignoreCase: true, out targetStatus))
         {
-            return DirectApplyResult.ValidationFailed(
-                "validation",
-                new[] { "The new status is not recognised." });
+            throw StageDirectApplyValidationException.FromMessages("The new status is not recognised.");
+        }
+
+        if (targetStatus == StageStatus.InProgress && !date.HasValue)
+        {
+            throw StageDirectApplyValidationException.FromMessages("Start date is required for InProgress.");
         }
 
         if (targetStatus is StageStatus.InProgress or StageStatus.Completed or StageStatus.Skipped)
@@ -175,6 +166,9 @@ public sealed class StageDirectApplyService
             }
         }
 
+        var now = _clock.UtcNow;
+        var today = DateOnly.FromDateTime(now.UtcDateTime);
+
         var pendingRequest = await _db.StageChangeRequests
             .SingleOrDefaultAsync(
                 r => r.ProjectId == stage.ProjectId
@@ -215,25 +209,32 @@ public sealed class StageDirectApplyService
             await _db.StageChangeLogs.AddAsync(supersededLog, ct);
         }
 
-        if (validation.MissingPredecessors.Count > 0)
+        var missingPredecessors = validation.MissingPredecessors?.Where(s => !string.IsNullOrWhiteSpace(s)).ToArray()
+            ?? Array.Empty<string>();
+
+        var backfilledStages = new List<string>();
+
+        if (missingPredecessors.Length > 0)
         {
             if (!forceBackfillPredecessors)
             {
-                return DirectApplyResult.ValidationFailed(
-                    "validation",
-                    validationDetails.Count == 0 ? Array.Empty<string>() : validationDetails,
-                    validation.MissingPredecessors);
+                var details = validation.Warnings.Where(w => !string.IsNullOrWhiteSpace(w)).ToList();
+                if (details.Count == 0)
+                {
+                    details.Add("Complete required predecessor stages first.");
+                }
+
+                throw new StageDirectApplyValidationException(details, missingPredecessors);
             }
 
-            var predecessorCodes = validation.MissingPredecessors.ToArray();
             var predecessors = await _db.ProjectStages
-                .Where(ps => ps.ProjectId == projectId && predecessorCodes.Contains(ps.StageCode))
+                .Where(ps => ps.ProjectId == projectId && missingPredecessors.Contains(ps.StageCode))
                 .ToListAsync(ct);
 
             var predecessorLookup = predecessors
                 .ToDictionary(ps => ps.StageCode, StringComparer.OrdinalIgnoreCase);
 
-            foreach (var predecessorCode in predecessorCodes)
+            foreach (var predecessorCode in missingPredecessors)
             {
                 if (!predecessorLookup.TryGetValue(predecessorCode, out var predecessor))
                 {
@@ -247,6 +248,11 @@ public sealed class StageDirectApplyService
                 predecessor.Status = StageStatus.Completed;
                 predecessor.ActualStart = null;
                 predecessor.CompletedOn = null;
+                predecessor.IsAutoCompleted = true;
+                predecessor.AutoCompletedFromCode = stage.StageCode;
+                predecessor.RequiresBackfill = true;
+
+                backfilledStages.Add(predecessor.StageCode);
 
                 var autoBackfillLog = new StageChangeLog
                 {
@@ -261,12 +267,17 @@ public sealed class StageDirectApplyService
                     ToCompletedOn = null,
                     UserId = hodUserId,
                     At = now,
-                    Note = $"Auto-backfilled (no dates) due to completion of {stage.StageCode}."
+                    Note = string.Format(AutoBackfillNoteTemplate, stage.StageCode)
                 };
 
                 await _db.StageChangeLogs.AddAsync(autoBackfillLog, ct);
             }
         }
+
+        bool adminCompletion = false;
+
+        stage.IsAutoCompleted = false;
+        stage.AutoCompletedFromCode = null;
 
         if (isReopen)
         {
@@ -275,105 +286,95 @@ public sealed class StageDirectApplyService
             {
                 var startDate = date ?? today;
                 stage.Status = StageStatus.InProgress;
-
-                if (validation.SuggestedAutoStart.HasValue && startDate >= validation.SuggestedAutoStart.Value)
-                {
-                    stage.ActualStart = validation.SuggestedAutoStart.Value;
-                }
-                else
-                {
-                    stage.ActualStart = startDate;
-                }
+                stage.ActualStart = startDate;
+                stage.RequiresBackfill = false;
             }
             else
             {
                 stage.Status = StageStatus.NotStarted;
                 stage.ActualStart = null;
+                stage.RequiresBackfill = false;
             }
         }
         else
         {
             switch (targetStatus)
             {
-                case StageStatus.InProgress:
-                {
-                    var startDate = date ?? today;
-                    stage.Status = StageStatus.InProgress;
-
-                    if (!stage.ActualStart.HasValue)
-                    {
-                        if (validation.SuggestedAutoStart.HasValue && startDate >= validation.SuggestedAutoStart.Value)
-                        {
-                            stage.ActualStart = validation.SuggestedAutoStart.Value;
-                        }
-                        else
-                        {
-                            stage.ActualStart = startDate;
-                        }
-                    }
-
+                case StageStatus.NotStarted:
+                    stage.Status = StageStatus.NotStarted;
+                    stage.ActualStart = null;
                     stage.CompletedOn = null;
+                    stage.RequiresBackfill = false;
                     break;
-                }
+                case StageStatus.InProgress:
+                    stage.Status = StageStatus.InProgress;
+                    stage.ActualStart = date!.Value;
+                    stage.CompletedOn = null;
+                    stage.RequiresBackfill = false;
+                    break;
                 case StageStatus.Completed:
                 {
                     stage.Status = StageStatus.Completed;
-
                     if (!date.HasValue)
                     {
                         stage.ActualStart = null;
                         stage.CompletedOn = null;
-                        warnings.Add("Incomplete data");
+                        adminCompletion = true;
+                        stage.RequiresBackfill = true;
                         break;
                     }
 
                     var completionDate = date.Value;
 
-                    if (!stage.ActualStart.HasValue)
+                    if (!stage.ActualStart.HasValue && validation.SuggestedAutoStart.HasValue && completionDate >= validation.SuggestedAutoStart.Value)
                     {
-                        if (validation.SuggestedAutoStart.HasValue && completionDate >= validation.SuggestedAutoStart.Value)
-                        {
-                            stage.ActualStart = validation.SuggestedAutoStart.Value;
-                        }
-                        else
-                        {
-                            stage.ActualStart = completionDate;
-                        }
+                        stage.ActualStart = validation.SuggestedAutoStart.Value;
                     }
 
-                    if (stage.ActualStart.HasValue && completionDate < stage.ActualStart.Value)
+                    stage.CompletedOn = completionDate;
+
+                    if (!stage.ActualStart.HasValue)
+                    {
+                        stage.RequiresBackfill = true;
+                    }
+                    else if (stage.CompletedOn.Value < stage.ActualStart.Value)
                     {
                         stage.CompletedOn = stage.ActualStart.Value;
-                        warnings.Add("Completion date adjusted to match actual start.");
+                        stage.RequiresBackfill = false;
+                        warnings.Add(ClampWarning);
                     }
                     else
                     {
-                        stage.CompletedOn = completionDate;
+                        stage.RequiresBackfill = false;
                     }
 
                     break;
                 }
                 case StageStatus.Blocked:
-                {
                     stage.Status = StageStatus.Blocked;
+                    stage.RequiresBackfill = false;
                     break;
-                }
                 case StageStatus.Skipped:
-                {
                     stage.Status = StageStatus.Skipped;
+                    stage.RequiresBackfill = false;
                     break;
-                }
                 default:
-                {
                     stage.Status = targetStatus;
+                    stage.RequiresBackfill = false;
                     break;
-                }
             }
+        }
+
+        if (stage.Status == StageStatus.Completed && (!stage.ActualStart.HasValue || !stage.CompletedOn.HasValue))
+        {
+            stage.RequiresBackfill = true;
         }
 
         var finalStatus = stage.Status;
         var finalActualStart = stage.ActualStart;
         var finalCompletedOn = stage.CompletedOn;
+
+        var logNote = CombineNotes(trimmedNote, adminCompletion ? AdminCompletionNote : null);
 
         var directApplyLog = new StageChangeLog
         {
@@ -388,7 +389,7 @@ public sealed class StageDirectApplyService
             ToCompletedOn = finalCompletedOn,
             UserId = hodUserId,
             At = now,
-            Note = trimmedNote
+            Note = logNote
         };
 
         var appliedLog = new StageChangeLog
@@ -404,96 +405,89 @@ public sealed class StageDirectApplyService
             ToCompletedOn = finalCompletedOn,
             UserId = hodUserId,
             At = now,
-            Note = trimmedNote
+            Note = logNote
         };
 
         await _db.StageChangeLogs.AddAsync(directApplyLog, ct);
         await _db.StageChangeLogs.AddAsync(appliedLog, ct);
         await _db.SaveChangesAsync(ct);
 
-        return DirectApplyResult.Success(
-            finalStatus,
+        if (superseded)
+        {
+            warnings.Add("Pending request was superseded by this change.");
+        }
+
+        return new DirectApplyResult(
+            finalStatus.ToString(),
             finalActualStart,
             finalCompletedOn,
-            superseded,
-            warnings);
+            backfilledStages.Count,
+            backfilledStages.ToArray(),
+            warnings.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+    }
+
+    private static string? CombineNotes(string? primary, string? secondary)
+    {
+        if (string.IsNullOrWhiteSpace(primary) && string.IsNullOrWhiteSpace(secondary))
+        {
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(primary))
+        {
+            return secondary;
+        }
+
+        if (string.IsNullOrWhiteSpace(secondary))
+        {
+            return primary;
+        }
+
+        return string.Create(primary.Length + secondary.Length + 3, (primary, secondary), static (span, state) =>
+        {
+            var (p, s) = state;
+            p.AsSpan().CopyTo(span);
+            span[p.Length] = ' ';
+            span[p.Length + 1] = '—';
+            span[p.Length + 2] = ' ';
+            s.AsSpan().CopyTo(span[(p.Length + 3)..]);
+        });
     }
 }
 
-public sealed record DirectApplyResult
+public sealed record DirectApplyResult(
+    string UpdatedStatus,
+    DateOnly? ActualStart,
+    DateOnly? CompletedOn,
+    int BackfilledCount,
+    string[] BackfilledStages,
+    string[] Warnings);
+
+public sealed class StageDirectApplyNotFoundException : Exception
 {
-    public DirectApplyOutcome Outcome { get; }
-    public string? Error { get; }
+}
+
+public sealed class StageDirectApplyNotHeadOfDepartmentException : Exception
+{
+}
+
+public sealed class StageDirectApplyValidationException : Exception
+{
+    public StageDirectApplyValidationException(
+        IEnumerable<string> details,
+        IEnumerable<string>? missingPredecessors = null)
+        : base("Stage direct apply validation failed.")
+    {
+        Details = details?.Where(d => !string.IsNullOrWhiteSpace(d)).Distinct().ToArray()
+            ?? Array.Empty<string>();
+
+        MissingPredecessors = missingPredecessors?.Where(m => !string.IsNullOrWhiteSpace(m)).Distinct().ToArray()
+            ?? Array.Empty<string>();
+    }
+
     public IReadOnlyList<string> Details { get; }
     public IReadOnlyList<string> MissingPredecessors { get; }
-    public IReadOnlyList<string> Warnings { get; }
-    public StageStatus? UpdatedStatus { get; }
-    public DateOnly? ActualStart { get; }
-    public DateOnly? CompletedOn { get; }
-    public bool SupersededRequest { get; }
 
-    private DirectApplyResult(
-        DirectApplyOutcome outcome,
-        string? error,
-        IReadOnlyList<string>? details,
-        IReadOnlyList<string>? missingPredecessors,
-        IReadOnlyList<string>? warnings,
-        StageStatus? updatedStatus,
-        DateOnly? actualStart,
-        DateOnly? completedOn,
-        bool supersededRequest)
-    {
-        Outcome = outcome;
-        Error = error;
-        Details = Normalize(details);
-        MissingPredecessors = Normalize(missingPredecessors);
-        Warnings = Normalize(warnings);
-        UpdatedStatus = updatedStatus;
-        ActualStart = actualStart;
-        CompletedOn = completedOn;
-        SupersededRequest = supersededRequest;
-    }
-
-    public static DirectApplyResult Success(
-        StageStatus updatedStatus,
-        DateOnly? actualStart,
-        DateOnly? completedOn,
-        bool supersededRequest,
-        IReadOnlyList<string>? warnings = null)
-        => new(DirectApplyOutcome.Success, null, Array.Empty<string>(), Array.Empty<string>(), warnings, updatedStatus, actualStart, completedOn, supersededRequest);
-
-    public static DirectApplyResult StageNotFound()
-        => new(DirectApplyOutcome.StageNotFound, null, Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(), null, null, null, false);
-
-    public static DirectApplyResult NotHeadOfDepartment()
-        => new(DirectApplyOutcome.NotHeadOfDepartment, null, Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(), null, null, null, false);
-
-    public static DirectApplyResult ValidationFailed(
-        string message,
-        IReadOnlyList<string>? details = null,
-        IReadOnlyList<string>? missingPredecessors = null)
-        => new(DirectApplyOutcome.ValidationFailed, message, details, missingPredecessors, Array.Empty<string>(), null, null, null, false);
-
-    private static IReadOnlyList<string> Normalize(IReadOnlyList<string>? values)
-    {
-        if (values is null || values.Count == 0)
-        {
-            return Array.Empty<string>();
-        }
-
-        if (values is List<string> list)
-        {
-            return list.ToArray();
-        }
-
-        return new List<string>(values);
-    }
-}
-
-public enum DirectApplyOutcome
-{
-    Success,
-    StageNotFound,
-    NotHeadOfDepartment,
-    ValidationFailed
+    public static StageDirectApplyValidationException FromMessages(params string[] messages)
+        => new(messages ?? Array.Empty<string>(), Array.Empty<string>());
 }
