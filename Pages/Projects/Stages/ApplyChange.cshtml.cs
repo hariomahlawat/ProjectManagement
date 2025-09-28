@@ -63,27 +63,17 @@ public class ApplyChangeModel : PageModel
                 .Select(e => string.IsNullOrWhiteSpace(e.ErrorMessage) ? "Invalid value." : e.ErrorMessage)
                 .ToArray();
 
-            return new UnprocessableEntityObjectResult(new { ok = false, error = "Validation failed", details = errs });
+            return ValidationFailure(errs);
         }
 
         if (input.ProjectId <= 0)
         {
-            return new UnprocessableEntityObjectResult(new
-            {
-                ok = false,
-                error = "Validation failed",
-                details = new[] { "ProjectId must be greater than zero." }
-            });
+            return ValidationFailure(new[] { "ProjectId must be greater than zero." });
         }
 
         if (string.IsNullOrWhiteSpace(input.StageCode))
         {
-            return new UnprocessableEntityObjectResult(new
-            {
-                ok = false,
-                error = "Validation failed",
-                details = new[] { "StageCode is required." }
-            });
+            return ValidationFailure(new[] { "StageCode is required." });
         }
 
         var statusMatch = AllowedStatuses.FirstOrDefault(
@@ -91,14 +81,9 @@ public class ApplyChangeModel : PageModel
 
         if (statusMatch is null)
         {
-            return new UnprocessableEntityObjectResult(new
+            return ValidationFailure(new[]
             {
-                ok = false,
-                error = "Validation failed",
-                details = new[]
-                {
-                    "Status must be one of: NotStarted, InProgress, Completed, Blocked, Skipped, Reopen."
-                }
+                "Status must be one of: NotStarted, InProgress, Completed, Blocked, Skipped, Reopen."
             });
         }
 
@@ -107,12 +92,7 @@ public class ApplyChangeModel : PageModel
 
         if (needsDate && input.Date is null)
         {
-            return new UnprocessableEntityObjectResult(new
-            {
-                ok = false,
-                error = "Validation failed",
-                details = new[] { "Date is required for the selected status." }
-            });
+            return ValidationFailure(new[] { "Date is required for the selected status." });
         }
 
         var hodUserId = User?.FindFirstValue(ClaimTypes.NameIdentifier)
@@ -143,19 +123,9 @@ public class ApplyChangeModel : PageModel
                 case DirectApplyOutcome.NotHeadOfDepartment:
                     return Forbid();
                 case DirectApplyOutcome.ValidationFailed:
-                    return new UnprocessableEntityObjectResult(new
-                    {
-                        ok = false,
-                        error = result.Error ?? "validation",
-                        details = result.Details is { Count: > 0 }
-                            ? result.Details.ToArray()
-                            : string.IsNullOrWhiteSpace(result.Error)
-                                ? Array.Empty<string>()
-                                : new[] { result.Error },
-                        missingPredecessors = result.MissingPredecessors is { Count: > 0 }
-                            ? result.MissingPredecessors.ToArray()
-                            : Array.Empty<string>()
-                    });
+                    return ValidationFailure(
+                        result.Details ?? Array.Empty<string>(),
+                        result.MissingPredecessors);
                 case DirectApplyOutcome.Success:
                 default:
                     break;
@@ -184,5 +154,25 @@ public class ApplyChangeModel : PageModel
         {
             throw;
         }
+    }
+
+    private static UnprocessableEntityObjectResult ValidationFailure(
+        IEnumerable<string> details,
+        IReadOnlyList<string>? missingPredecessors = null)
+    {
+        var detailArray = details?.Where(d => !string.IsNullOrWhiteSpace(d)).ToArray()
+                         ?? Array.Empty<string>();
+
+        var missingArray = missingPredecessors is { Count: > 0 }
+            ? missingPredecessors.ToArray()
+            : Array.Empty<string>();
+
+        return new UnprocessableEntityObjectResult(new
+        {
+            ok = false,
+            error = "validation",
+            details = detailArray,
+            missingPredecessors = missingArray
+        });
     }
 }
