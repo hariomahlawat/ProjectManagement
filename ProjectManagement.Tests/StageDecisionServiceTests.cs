@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
@@ -76,6 +77,34 @@ public sealed class StageDecisionServiceTests
                 Assert.Equal(new DateOnly(2024, 1, 15), log.ToActualStart);
                 Assert.Equal("Please approve", log.Note);
             });
+    }
+
+    [Fact]
+    public async Task ApproveAsync_AllowsCaseInsensitiveHodMatch()
+    {
+        var clock = new TestClock(new DateTimeOffset(2024, 6, 1, 9, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedProjectAsync(
+            db,
+            "HOD-CASE",
+            (StageCodes.IPA, StageStatus.NotStarted));
+
+        var request = await SeedRequestAsync(
+            db,
+            projectId: 1,
+            StageCodes.IPA,
+            StageStatus.InProgress.ToString(),
+            new DateOnly(2024, 6, 5),
+            note: null);
+
+        var service = CreateService(db, clock);
+        var result = await service.DecideAsync(
+            new StageDecisionInput(request.Id, StageDecisionAction.Approve, null),
+            "hod-case");
+
+        Assert.Equal(StageDecisionOutcome.Success, result.Outcome);
+        Assert.NotNull(result.Stage);
+        Assert.Equal(StageStatus.InProgress, result.Stage!.Status);
     }
 
     [Fact]
@@ -287,7 +316,7 @@ public sealed class StageDecisionServiceTests
     private static StageDecisionService CreateService(ApplicationDbContext db, TestClock clock)
     {
         var progress = new StageProgressService(db, clock, new FakeAudit(), new ProjectFactsReadService(db));
-        return new StageDecisionService(db, clock, progress);
+        return new StageDecisionService(db, clock, progress, NullLogger<StageDecisionService>.Instance);
     }
 
     private static ApplicationDbContext CreateContext()

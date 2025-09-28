@@ -16,6 +16,7 @@ using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.Utilities;
 using ProjectManagement.ViewModels;
 
 namespace ProjectManagement.Pages.Projects
@@ -73,6 +74,8 @@ namespace ProjectManagement.Pages.Projects
 
             Project = project;
 
+            var connectionHash = ConnectionStringHasher.Hash(_db.Database.GetDbConnection().ConnectionString);
+
             var projectStages = await _db.ProjectStages
                 .Where(s => s.ProjectId == id)
                 .ToListAsync(ct);
@@ -94,6 +97,10 @@ namespace ProjectManagement.Pages.Projects
             }
 
             Procurement = await _procureRead.GetAsync(id, ct);
+            _logger.LogInformation(
+                "Overview building timeline. ProjectId={ProjectId}, ConnHash={ConnHash}",
+                id,
+                connectionHash);
             Timeline = await _timelineRead.GetAsync(id, ct);
             PlanEdit = await _planRead.GetAsync(id, CurrentUserId, ct);
             HasBackfill = Timeline.HasBackfill;
@@ -124,9 +131,10 @@ namespace ProjectManagement.Pages.Projects
             var draftState = PlanEdit.State ?? new PlanEditorStateVm();
             var draftExists = draftState.HasMyDraft || draftState.HasPendingSubmission;
             ViewData["DiagDraftExists"] = draftExists ? "1" : "0";
-            _logger.LogInformation("Overview load for Project {ProjectId}. Conn: {Conn}. DraftExists={DraftExists}",
+            _logger.LogInformation(
+                "Overview load complete. ProjectId={ProjectId}, ConnHash={ConnHash}, DraftExists={DraftExists}",
                 id,
-                _db.Database.GetDbConnection().ConnectionString,
+                connectionHash,
                 draftExists);
 
             return Page();

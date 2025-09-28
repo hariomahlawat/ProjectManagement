@@ -189,6 +189,33 @@ public class StageDirectApplyServiceTests
         Assert.False(stage.RequiresBackfill);
     }
 
+    [Fact]
+    public async Task ApplyAsync_AllowsCaseInsensitiveHodMatch()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 9, 1, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStageAsync(db, StageStatus.NotStarted);
+
+        var project = await db.Projects.SingleAsync();
+        project.HodUserId = "HOD-1";
+        await db.SaveChangesAsync();
+
+        var validation = new StageValidationService(db, clock);
+        var service = new StageDirectApplyService(db, clock, validation);
+
+        var result = await service.ApplyAsync(
+            projectId: 1,
+            stageCode: StageCodes.IPA,
+            status: StageStatus.InProgress.ToString(),
+            date: new DateOnly(2024, 9, 5),
+            note: null,
+            hodUserId: "hod-1",
+            forceBackfillPredecessors: false,
+            CancellationToken.None);
+
+        Assert.Equal(StageStatus.InProgress.ToString(), result.UpdatedStatus);
+    }
+
     private static async Task SeedStageAsync(ApplicationDbContext db, StageStatus status, DateOnly? actualStart = null)
     {
         db.Projects.Add(new Project

@@ -5,11 +5,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Services.Stages;
 
@@ -29,12 +31,18 @@ public sealed class StageDecisionService
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly StageProgressService _stageProgressService;
+    private readonly ILogger<StageDecisionService> _logger;
 
-    public StageDecisionService(ApplicationDbContext db, IClock clock, StageProgressService stageProgressService)
+    public StageDecisionService(
+        ApplicationDbContext db,
+        IClock clock,
+        StageProgressService stageProgressService,
+        ILogger<StageDecisionService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _stageProgressService = stageProgressService ?? throw new ArgumentNullException(nameof(stageProgressService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task<StageDecisionResult> DecideAsync(StageDecisionInput input, string hodUserId, CancellationToken cancellationToken = default)
@@ -49,11 +57,23 @@ public sealed class StageDecisionService
             throw new ArgumentException("A valid user identifier is required.", nameof(hodUserId));
         }
 
+        var connectionHash = ConnectionStringHasher.Hash(_db.Database.GetDbConnection().ConnectionString);
+
+        _logger.LogInformation(
+            "Stage decision started. RequestId={RequestId}, User={UserId}, ConnHash={ConnHash}",
+            input.RequestId,
+            hodUserId,
+            connectionHash);
+
         var request = await _db.StageChangeRequests
             .SingleOrDefaultAsync(r => r.Id == input.RequestId, cancellationToken);
 
         if (request is null)
         {
+            _logger.LogWarning(
+                "Stage decision request not found. RequestId={RequestId}, ConnHash={ConnHash}",
+                input.RequestId,
+                connectionHash);
             return StageDecisionResult.RequestNotFound();
         }
 
@@ -65,16 +85,35 @@ public sealed class StageDecisionService
 
         if (stage is null)
         {
+            _logger.LogWarning(
+                "Stage decision stage not found. RequestId={RequestId}, ProjectId={ProjectId}, StageCode={StageCode}, ConnHash={ConnHash}",
+                input.RequestId,
+                request.ProjectId,
+                request.StageCode,
+                connectionHash);
             return StageDecisionResult.StageNotFound();
         }
 
-        if (!string.Equals(stage.Project?.HodUserId, hodUserId, StringComparison.Ordinal))
+        if (!string.Equals(stage.Project?.HodUserId, hodUserId, StringComparison.OrdinalIgnoreCase))
         {
+            _logger.LogWarning(
+                "Stage decision forbidden. RequestId={RequestId}, ProjectId={ProjectId}, StageCode={StageCode}, UserId={UserId}, ProjectHod={ProjectHod}, ConnHash={ConnHash}",
+                input.RequestId,
+                stage.ProjectId,
+                stage.StageCode,
+                hodUserId,
+                stage.Project?.HodUserId,
+                connectionHash);
             return StageDecisionResult.NotHeadOfDepartment();
         }
 
         if (!string.Equals(request.DecisionStatus, PendingDecisionStatus, StringComparison.Ordinal))
         {
+            _logger.LogInformation(
+                "Stage decision already processed. RequestId={RequestId}, Status={DecisionStatus}, ConnHash={ConnHash}",
+                input.RequestId,
+                request.DecisionStatus,
+                connectionHash);
             return StageDecisionResult.AlreadyDecided();
         }
 
@@ -111,16 +150,35 @@ public sealed class StageDecisionService
             await _db.StageChangeLogs.AddAsync(rejectionLog, cancellationToken);
             await _db.SaveChangesAsync(cancellationToken);
 
+            _logger.LogInformation(
+                "Stage decision rejected. RequestId={RequestId}, ProjectId={ProjectId}, StageCode={StageCode}, UserId={UserId}, ConnHash={ConnHash}",
+                input.RequestId,
+                stage.ProjectId,
+                stage.StageCode,
+                hodUserId,
+                connectionHash);
+
             return StageDecisionResult.Success(beforeStatus, beforeActualStart, beforeCompletedOn);
         }
 
         if (!Enum.TryParse<StageStatus>(request.RequestedStatus, ignoreCase: true, out var requestedStatus))
         {
+            _logger.LogWarning(
+                "Stage decision invalid status. RequestId={RequestId}, RequestedStatus={RequestedStatus}, ConnHash={ConnHash}",
+                input.RequestId,
+                request.RequestedStatus,
+                connectionHash);
             return StageDecisionResult.ValidationFailed("The requested status is not recognised.");
         }
 
         if (stage.Status == requestedStatus)
         {
+            _logger.LogInformation(
+                "Stage decision redundant. RequestId={RequestId}, StageCode={StageCode}, Status={Status}, ConnHash={ConnHash}",
+                input.RequestId,
+                stage.StageCode,
+                requestedStatus,
+                connectionHash);
             return StageDecisionResult.ValidationFailed("The project stage already has the requested status.");
         }
 
@@ -129,6 +187,15 @@ public sealed class StageDecisionService
             var message = string.IsNullOrEmpty(transitionError)
                 ? $"Changing from {stage.Status} to {requestedStatus} is not allowed."
                 : transitionError;
+            _logger.LogWarning(
+                "Stage decision transition invalid. RequestId={RequestId}, ProjectId={ProjectId}, StageCode={StageCode}, From={FromStatus}, To={ToStatus}, ConnHash={ConnHash}, Message={Message}",
+                input.RequestId,
+                stage.ProjectId,
+                stage.StageCode,
+                stage.Status,
+                requestedStatus,
+                connectionHash,
+                message);
             return StageDecisionResult.ValidationFailed(message);
         }
 
@@ -224,6 +291,16 @@ public sealed class StageDecisionService
         await _db.StageChangeLogs.AddAsync(approvedLog, cancellationToken);
         await _db.StageChangeLogs.AddAsync(appliedLog, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Stage decision approved. RequestId={RequestId}, ProjectId={ProjectId}, StageCode={StageCode}, UserId={UserId}, ConnHash={ConnHash}, Warnings={WarningCount}",
+            input.RequestId,
+            stage.ProjectId,
+            stage.StageCode,
+            hodUserId,
+            connectionHash,
+            warnings.Count);
+
         if (transaction is not null)
         {
             await transaction.CommitAsync(cancellationToken);
