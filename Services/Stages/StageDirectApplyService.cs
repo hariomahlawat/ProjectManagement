@@ -70,21 +70,57 @@ public sealed class StageDirectApplyService
             ? (date.HasValue ? StageStatus.InProgress : StageStatus.NotStarted).ToString()
             : normalizedStatus;
 
-        var stage = await _db.ProjectStages
-            .Include(s => s.Project)
-            .SingleOrDefaultAsync(
-                s => s.ProjectId == projectId && s.StageCode == normalizedStageCode,
-                ct);
+        var project = await _db.Projects
+            .Include(p => p.ProjectStages)
+            .SingleOrDefaultAsync(p => p.Id == projectId, ct);
 
-        if (stage is null)
+        if (project is null)
         {
             throw new StageDirectApplyNotFoundException();
         }
 
-        if (!string.Equals(stage.Project?.HodUserId, hodUserId, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(project.HodUserId, hodUserId, StringComparison.OrdinalIgnoreCase))
         {
             throw new StageDirectApplyNotHeadOfDepartmentException();
         }
+
+        var stageLookup = project.ProjectStages
+            .Where(s => !string.IsNullOrWhiteSpace(s.StageCode))
+            .ToDictionary(s => s.StageCode!, s => s, StringComparer.OrdinalIgnoreCase);
+
+        var createdStage = false;
+        foreach (var code in StageCodes.All)
+        {
+            if (stageLookup.ContainsKey(code))
+            {
+                continue;
+            }
+
+            var newStage = new ProjectStage
+            {
+                ProjectId = projectId,
+                StageCode = code,
+                SortOrder = ResolveSortOrder(code),
+                Status = StageStatus.NotStarted,
+                Project = project
+            };
+
+            project.ProjectStages.Add(newStage);
+            stageLookup[code] = newStage;
+            createdStage = true;
+        }
+
+        if (createdStage)
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+
+        if (!stageLookup.TryGetValue(normalizedStageCode, out var stage))
+        {
+            throw new StageDirectApplyNotFoundException();
+        }
+
+        stage.Project ??= project;
 
         var trimmedNote = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
 
@@ -424,6 +460,17 @@ public sealed class StageDirectApplyService
             backfilledStages.Count,
             backfilledStages.ToArray(),
             warnings.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+    }
+
+    private static int ResolveSortOrder(string stageCode)
+    {
+        if (string.IsNullOrWhiteSpace(stageCode))
+        {
+            return int.MaxValue;
+        }
+
+        var index = Array.IndexOf(StageCodes.All, stageCode);
+        return index >= 0 ? index : int.MaxValue;
     }
 
     private static string? CombineNotes(string? primary, string? secondary)

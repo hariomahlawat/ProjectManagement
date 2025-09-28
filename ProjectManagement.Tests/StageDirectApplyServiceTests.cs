@@ -216,6 +216,51 @@ public class StageDirectApplyServiceTests
         Assert.Equal(StageStatus.InProgress.ToString(), result.UpdatedStatus);
     }
 
+    [Fact]
+    public async Task ApplyAsync_WhenStageRowMissing_CreatesStagesAndUpdates()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 12, 1, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+
+        db.Projects.Add(new Project
+        {
+            Id = 1,
+            Name = "Project",
+            CreatedByUserId = "creator",
+            HodUserId = "hod-1",
+            CreatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var validation = new StageValidationService(db, clock);
+        var service = new StageDirectApplyService(db, clock, validation);
+
+        var completionDate = new DateOnly(2024, 11, 20);
+
+        var result = await service.ApplyAsync(
+            projectId: 1,
+            stageCode: StageCodes.FS,
+            status: StageStatus.Completed.ToString(),
+            date: completionDate,
+            note: null,
+            hodUserId: "hod-1",
+            forceBackfillPredecessors: false,
+            CancellationToken.None);
+
+        Assert.Equal(StageStatus.Completed.ToString(), result.UpdatedStatus);
+        Assert.Equal(completionDate, result.CompletedOn);
+
+        var stages = await db.ProjectStages.OrderBy(s => s.SortOrder).ToListAsync();
+        Assert.Equal(StageCodes.All.Length, stages.Count);
+        Assert.All(stages.Where(s => !string.Equals(s.StageCode, StageCodes.FS, StringComparison.OrdinalIgnoreCase)),
+            s => Assert.Equal(StageStatus.NotStarted, s.Status));
+
+        var stage = stages.Single(s => string.Equals(s.StageCode, StageCodes.FS, StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(StageStatus.Completed, stage.Status);
+        Assert.Null(stage.ActualStart);
+        Assert.Equal(completionDate, stage.CompletedOn);
+    }
+
     private static async Task SeedStageAsync(ApplicationDbContext db, StageStatus status, DateOnly? actualStart = null)
     {
         db.Projects.Add(new Project
