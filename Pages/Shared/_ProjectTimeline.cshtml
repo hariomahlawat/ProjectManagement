@@ -14,6 +14,11 @@
             StageStatus.InProgress => "badge bg-primary",
             _                      => "badge bg-secondary"
         };
+    string VarianceLabel(string name, int value)
+    {
+        var sign = value > 0 ? "+" : "−";
+        return $"{name} {sign}{Math.Abs(value)}d";
+    }
 }
 <link rel="stylesheet" href="~/css/projects/timeline.css" />
 
@@ -123,6 +128,16 @@
             <span class="text-muted ms-2@(s.ActualDurationDays.HasValue ? string.Empty : " d-none")" data-stage-duration>
               @(s.ActualDurationDays.HasValue ? $"({s.ActualDurationDays} d)" : string.Empty)
             </span>
+          </div>
+          <div class="pm-item-variance d-flex flex-wrap gap-1 mt-1">
+            @if (s.StartVarianceDays is int startVar && startVar != 0)
+            {
+              <span class="badge bg-secondary-subtle text-body-secondary border border-secondary-subtle" data-stage-start-variance>@VarianceLabel("Start", startVar)</span>
+            }
+            @if (s.FinishVarianceDays is int finishVar && finishVar != 0)
+            {
+              <span class="badge bg-secondary-subtle text-body-secondary border border-secondary-subtle" data-stage-finish-variance>@VarianceLabel("Finish", finishVar)</span>
+            }
           </div>
         </div>
       </div>
