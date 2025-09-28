@@ -468,7 +468,17 @@
         }
 
         if (response.status === 409) {
-          showToast('Blocked: plan version is awaiting HoD review.', 'warning');
+          const conflict = await response.json().catch(() => null);
+          if (conflict?.error === 'stale') {
+            showToast('Timeline changed since this page was loaded. Refreshing…', 'warning');
+            setTimeout(() => {
+              window.location.reload();
+            }, 1500);
+          } else if (conflict?.error === 'plan-pending') {
+            showToast('Blocked: plan version is awaiting HoD review.', 'warning');
+          } else {
+            showToast('Unable to update the stage right now.', 'danger');
+          }
           resetControls();
           return;
         }
