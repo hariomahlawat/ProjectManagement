@@ -1,5 +1,5 @@
 (function () {
-  const DATE_REQUIRED_STATUSES = new Set(['InProgress', 'Completed']);
+  const DATE_REQUIRED_STATUSES = new Set(['InProgress']);
 
   function escapeSelector(value) {
     if (typeof value !== 'string') {
@@ -200,6 +200,32 @@
     container.classList.remove('d-none');
   }
 
+  function renderMissingPredecessors(container, predecessors) {
+    if (!container) return;
+    const hasItems = Array.isArray(predecessors) && predecessors.length > 0;
+    if (!hasItems) {
+      container.classList.add('d-none');
+      container.replaceChildren();
+      return;
+    }
+
+    const header = document.createElement('div');
+    header.className = 'fw-semibold mb-1';
+    header.textContent = 'Predecessors not yet completed:';
+
+    const list = document.createElement('ul');
+    list.className = 'mb-0 ps-3';
+
+    predecessors.forEach((predecessor) => {
+      const item = document.createElement('li');
+      item.textContent = predecessor;
+      list.appendChild(item);
+    });
+
+    container.replaceChildren(header, list);
+    container.classList.remove('d-none');
+  }
+
   function handleWarnings(warnings) {
     if (!Array.isArray(warnings)) return;
     warnings.forEach((warning) => {
@@ -231,6 +257,9 @@
     const tokenInput = modalEl.querySelector('input[name="__RequestVerificationToken"]');
     const errorContainer = modalEl.querySelector('[data-direct-apply-errors]');
     const dateHint = modalEl.querySelector('[data-direct-apply-date-hint]');
+    const missingPredecessorsContainer = modalEl.querySelector('[data-direct-apply-missing]');
+    const forceCheckbox = modalEl.querySelector('[data-direct-apply-force]');
+    const forceHint = modalEl.querySelector('[data-direct-apply-force-hint]');
     const submitButton = modalEl.querySelector('[data-direct-apply-submit]');
 
     function setDateRequired(required) {
@@ -239,6 +268,20 @@
       if (dateHint) {
         dateHint.textContent = required ? 'Required.' : 'Optional.';
       }
+    }
+
+    function setForceHintHighlighted(highlighted) {
+      if (!forceHint) return;
+      forceHint.classList.toggle('text-danger', highlighted);
+      forceHint.classList.toggle('fw-semibold', highlighted);
+    }
+
+    if (forceCheckbox) {
+      forceCheckbox.addEventListener('change', () => {
+        if (forceCheckbox.checked) {
+          setForceHintHighlighted(false);
+        }
+      });
     }
 
     document.addEventListener('click', (event) => {
@@ -264,9 +307,14 @@
         errorContainer.classList.add('d-none');
         errorContainer.textContent = '';
       }
+      renderMissingPredecessors(missingPredecessorsContainer, []);
       if (noteInput) {
         noteInput.value = '';
       }
+      if (forceCheckbox) {
+        forceCheckbox.checked = false;
+      }
+      setForceHintHighlighted(false);
 
       const requiresDate = DATE_REQUIRED_STATUSES.has(status);
       setDateRequired(requiresDate);
@@ -305,7 +353,8 @@
         stageCode: stageInput.value,
         status: statusInput.value,
         date: dateInput && dateInput.value ? dateInput.value : null,
-        note: noteInput && noteInput.value ? noteInput.value.trim() : null
+        note: noteInput && noteInput.value ? noteInput.value.trim() : null,
+        forceBackfillPredecessors: forceCheckbox ? Boolean(forceCheckbox.checked) : false
       };
 
       if (!payload.projectId) {
@@ -326,6 +375,17 @@
           const data = await response.json().catch(() => null);
           const messages = data?.details || ['Validation failed.'];
           renderErrors(errorContainer, messages);
+          const missing = Array.isArray(data?.missingPredecessors) ? data.missingPredecessors : [];
+          renderMissingPredecessors(missingPredecessorsContainer, missing);
+          if (missing.length > 0) {
+            const shouldHighlight = !forceCheckbox || !forceCheckbox.checked;
+            setForceHintHighlighted(shouldHighlight);
+            if (shouldHighlight && forceCheckbox) {
+              forceCheckbox.focus();
+            }
+          } else {
+            setForceHintHighlighted(false);
+          }
           if (submitButton) submitButton.disabled = false;
           return;
         }
@@ -333,12 +393,16 @@
         if (response.status === 409) {
           showToast('Pending request was superseded by this change.', 'warning');
           modal.hide();
+          renderMissingPredecessors(missingPredecessorsContainer, []);
+          setForceHintHighlighted(false);
           if (submitButton) submitButton.disabled = false;
           return;
         }
 
         if (!response.ok) {
           showToast('Unable to update the stage right now.', 'danger');
+          renderMissingPredecessors(missingPredecessorsContainer, []);
+          setForceHintHighlighted(false);
           if (submitButton) submitButton.disabled = false;
           return;
         }
@@ -346,6 +410,8 @@
         const data = await response.json();
         if (!data?.ok) {
           showToast('Unable to update the stage right now.', 'danger');
+          renderMissingPredecessors(missingPredecessorsContainer, []);
+          setForceHintHighlighted(false);
           if (submitButton) submitButton.disabled = false;
           return;
         }
@@ -354,9 +420,16 @@
         modal.hide();
         showToast('Stage updated.', 'success');
         handleWarnings(data.warnings);
+        renderMissingPredecessors(missingPredecessorsContainer, []);
+        setForceHintHighlighted(false);
+        if (forceCheckbox) {
+          forceCheckbox.checked = false;
+        }
       } catch (error) {
         console.error(error);
         showToast('Unable to update the stage right now.', 'danger');
+        renderMissingPredecessors(missingPredecessorsContainer, []);
+        setForceHintHighlighted(false);
       } finally {
         if (submitButton) submitButton.disabled = false;
       }
