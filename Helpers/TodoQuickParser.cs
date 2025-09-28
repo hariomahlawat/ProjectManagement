@@ -74,6 +74,10 @@ namespace ProjectManagement.Helpers
         {
             var now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Ist).Date;
             int daysToMon = ((int)DayOfWeek.Monday - (int)now.DayOfWeek + 7) % 7;
+            if (daysToMon == 0)
+            {
+                daysToMon = 7;
+            }
             var mon = now.AddDays(daysToMon);
             return mon;
         }
