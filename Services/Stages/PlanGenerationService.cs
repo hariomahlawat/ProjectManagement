@@ -129,6 +129,12 @@ public sealed class PlanGenerationService
             .Include(v => v.StagePlans)
             .SingleAsync(v => v.Id == planVersionId && v.ProjectId == projectId, ct);
 
+        plan.SkipWeekends = !settings.IncludeWeekends;
+        plan.TransitionRule = string.Equals(settings.NextStageStartPolicy, NextStageStartPolicies.SameDay, StringComparison.Ordinal)
+            ? PlanTransitionRule.SameDay
+            : PlanTransitionRule.NextWorkingDay;
+        plan.AnchorDate = settings.AnchorStart;
+
         var stagePlans = plan.StagePlans
             .Where(sp => !string.IsNullOrWhiteSpace(sp.StageCode))
             .ToDictionary(sp => sp.StageCode!, sp => sp, StringComparer.OrdinalIgnoreCase);
