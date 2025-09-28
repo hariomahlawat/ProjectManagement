@@ -1,0 +1,56 @@
+@{
+    Layout = null;
+}
+
+<div class="modal fade" id="stageRequestModal" tabindex="-1" aria-labelledby="stageRequestLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" data-stage-request-form novalidate>
+                <div class="modal-header">
+                    <h5 class="modal-title" id="stageRequestLabel">Request stage change</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="projectId" />
+                    <input type="hidden" name="stageCode" />
+                    @Html.AntiForgeryToken()
+
+                    <div class="mb-3">
+                        <div class="fw-semibold" data-stage-request-stage></div>
+                        <div class="text-muted" data-stage-request-status></div>
+                    </div>
+
+                    <div class="alert alert-danger d-none" role="alert" data-stage-request-errors></div>
+                    <div class="alert alert-warning d-none" role="alert" data-stage-request-conflict>A pending request already exists…</div>
+                    <div class="alert alert-warning d-none" role="alert" data-stage-request-missing></div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="stageRequestTarget">Target status</label>
+                        <select class="form-select" id="stageRequestTarget" name="status" data-stage-request-target>
+                            <option value="NotStarted">Not started</option>
+                            <option value="InProgress">In progress</option>
+                            <option value="Completed">Completed</option>
+                            <option value="Skipped">Skipped</option>
+                            <option value="Blocked">Blocked</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="stageRequestDate">Requested date</label>
+                        <input type="date" class="form-control" id="stageRequestDate" name="date" data-stage-request-date />
+                        <div class="form-text" data-stage-request-date-hint>Optional.</div>
+                    </div>
+
+                    <div class="mb-0">
+                        <label class="form-label" for="stageRequestNote">Note <span class="text-muted">(optional)</span></label>
+                        <textarea class="form-control" id="stageRequestNote" name="note" rows="3" maxlength="1024" data-stage-request-note></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" data-stage-request-submit>Submit request</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

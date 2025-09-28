@@ -312,6 +312,7 @@
                             Another plan is already awaiting approval. You can keep editing your draft, but submitting is disabled until the review is complete.
                         </div>
                     }
+                    @{ ViewBag.IsProjectOfficerForProject = isThisProjectsPo; }
                     <partial name="_ProjectTimeline" model="Model.Timeline" />
                 </div>
             </div>
@@ -319,6 +320,7 @@
     </div>
 
     <partial name="_StageDirectApplyModal" />
+    <partial name="Projects/Stages/_StageRequestModal" />
 
     <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasProcurement" aria-labelledby="offcanvasProcurementLabel">
         <div class="offcanvas-header">

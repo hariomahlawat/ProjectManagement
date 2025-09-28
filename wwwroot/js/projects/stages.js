@@ -1,5 +1,6 @@
 (function () {
-  const DATE_REQUIRED_STATUSES = new Set(['InProgress']);
+  const DIRECT_DATE_REQUIRED_STATUSES = new Set(['InProgress']);
+  const REQUEST_DATE_REQUIRED_STATUSES = new Set(['InProgress', 'Completed']);
 
   function escapeSelector(value) {
     if (typeof value !== 'string') {
@@ -180,6 +181,45 @@
     });
   }
 
+  function updatePendingBadge(stageCode, status, dateIso) {
+    if (!stageCode) return;
+    const row = document.querySelector(`[data-stage-row="${escapeSelector(stageCode)}"]`);
+    if (!row) return;
+
+    const container = row.querySelector('[data-stage-pending]');
+    if (!container) return;
+
+    if (!status) {
+      container.textContent = '';
+      return;
+    }
+
+    const badge = document.createElement('span');
+    badge.className = 'badge bg-warning-subtle text-warning border border-warning-subtle';
+    badge.textContent = `Pending: ${statusLabel(status)}`;
+
+    if (dateIso) {
+      const formatted = formatDate(dateIso);
+      if (formatted && formatted !== '—') {
+        badge.textContent += ` · ${formatted}`;
+      }
+    }
+
+    container.replaceChildren(badge);
+  }
+
+  function disableRequestButton(stageCode) {
+    if (!stageCode) return;
+    const row = document.querySelector(`[data-stage-row="${escapeSelector(stageCode)}"]`);
+    if (!row) return;
+
+    const button = row.querySelector('[data-stage-request-button]');
+    if (button) {
+      button.disabled = true;
+      button.classList.add('disabled');
+    }
+  }
+
   function renderErrors(container, messages) {
     if (!container) return;
     const hasErrors = Array.isArray(messages) && messages.length > 0;
@@ -235,13 +275,9 @@
     });
   }
 
-  function boot() {
+  function bootDirectApply() {
     const modalEl = document.getElementById('stageDirectApplyModal');
     if (!modalEl) {
-      return;
-    }
-
-    if (typeof bootstrap === 'undefined' || !bootstrap.Modal || !bootstrap.Toast) {
       return;
     }
 
@@ -316,7 +352,7 @@
       }
       setForceHintHighlighted(false);
 
-      const requiresDate = DATE_REQUIRED_STATUSES.has(status);
+      const requiresDate = DIRECT_DATE_REQUIRED_STATUSES.has(status);
       setDateRequired(requiresDate);
       if (dateInput) {
         dateInput.value = defaultDate || (requiresDate ? todayIso() : '');
@@ -434,6 +470,220 @@
         if (submitButton) submitButton.disabled = false;
       }
     });
+  }
+
+  function bootStageRequest() {
+    const modalEl = document.getElementById('stageRequestModal');
+    if (!modalEl) {
+      return;
+    }
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    const form = modalEl.querySelector('[data-stage-request-form]');
+    const stageLabel = modalEl.querySelector('[data-stage-request-stage]');
+    const statusLabelEl = modalEl.querySelector('[data-stage-request-status]');
+    const projectInput = modalEl.querySelector('input[name="projectId"]');
+    const stageInput = modalEl.querySelector('input[name="stageCode"]');
+    const targetSelect = modalEl.querySelector('[data-stage-request-target]');
+    const dateInput = modalEl.querySelector('[data-stage-request-date]');
+    const dateHint = modalEl.querySelector('[data-stage-request-date-hint]');
+    const noteInput = modalEl.querySelector('[data-stage-request-note]');
+    const tokenInput = modalEl.querySelector('input[name="__RequestVerificationToken"]');
+    const errorContainer = modalEl.querySelector('[data-stage-request-errors]');
+    const conflictContainer = modalEl.querySelector('[data-stage-request-conflict]');
+    const missingContainer = modalEl.querySelector('[data-stage-request-missing]');
+    const submitButton = modalEl.querySelector('[data-stage-request-submit]');
+    let activeStageCurrentStatus = '';
+
+    function setDateRequired(required) {
+      if (!dateInput) return;
+      dateInput.required = required;
+      if (dateHint) {
+        dateHint.textContent = required ? 'Required.' : 'Optional.';
+      }
+    }
+
+    function updateStatusSummary() {
+      if (!statusLabelEl) return;
+      const targetStatus = targetSelect ? targetSelect.value : '';
+      const targetLabelRaw = statusLabel(targetStatus);
+      const targetLabel = targetLabelRaw || (targetStatus ? targetStatus : 'Select a status');
+      const currentLabel = statusLabel(activeStageCurrentStatus);
+      if (currentLabel) {
+        statusLabelEl.textContent = `Request change to ${targetLabel} (current: ${currentLabel})`;
+      } else {
+        statusLabelEl.textContent = `Request change to ${targetLabel}`;
+      }
+    }
+
+    document.addEventListener('click', (event) => {
+      const trigger = event.target.closest('[data-stage-request]');
+      if (!trigger) {
+        return;
+      }
+
+      if (trigger.disabled) {
+        return;
+      }
+
+      event.preventDefault();
+
+      const projectId = trigger.getAttribute('data-project') || '';
+      const stageCode = trigger.getAttribute('data-stage') || '';
+      const stageName = trigger.getAttribute('data-stage-name') || '';
+      const currentStatus = trigger.getAttribute('data-current-status') || '';
+      activeStageCurrentStatus = currentStatus;
+
+      if (projectInput) projectInput.value = projectId;
+      if (stageInput) stageInput.value = stageCode;
+      if (stageLabel) stageLabel.textContent = `${stageCode ? stageCode + ' — ' : ''}${stageName}`.trim();
+
+      if (targetSelect) {
+        targetSelect.value = currentStatus;
+        if (currentStatus && targetSelect.value !== currentStatus) {
+          targetSelect.value = 'NotStarted';
+        }
+        if (!currentStatus && targetSelect.value === '') {
+          targetSelect.value = 'NotStarted';
+        }
+      }
+
+      const selectedStatus = targetSelect ? targetSelect.value : '';
+      const requiresDate = REQUEST_DATE_REQUIRED_STATUSES.has(selectedStatus);
+      setDateRequired(requiresDate);
+      if (dateInput) {
+        dateInput.value = requiresDate ? todayIso() : '';
+      }
+
+      updateStatusSummary();
+
+      if (errorContainer) {
+        errorContainer.classList.add('d-none');
+        errorContainer.textContent = '';
+      }
+      if (conflictContainer) {
+        conflictContainer.classList.add('d-none');
+      }
+      renderMissingPredecessors(missingContainer, []);
+      if (noteInput) {
+        noteInput.value = '';
+      }
+
+      if (submitButton) {
+        submitButton.disabled = false;
+      }
+
+      modal.show();
+    });
+
+    if (targetSelect) {
+      targetSelect.addEventListener('change', () => {
+        const status = targetSelect.value;
+        const requiresDate = REQUEST_DATE_REQUIRED_STATUSES.has(status);
+        setDateRequired(requiresDate);
+        if (requiresDate && dateInput && !dateInput.value) {
+          dateInput.value = todayIso();
+        }
+        updateStatusSummary();
+      });
+    }
+
+    if (!form) {
+      return;
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (!projectInput || !stageInput || !targetSelect || !tokenInput) {
+        return;
+      }
+
+      if (submitButton) {
+        submitButton.disabled = true;
+      }
+
+      if (errorContainer) {
+        errorContainer.classList.add('d-none');
+        errorContainer.textContent = '';
+      }
+      if (conflictContainer) {
+        conflictContainer.classList.add('d-none');
+      }
+      renderMissingPredecessors(missingContainer, []);
+
+      const payload = {
+        projectId: Number.parseInt(projectInput.value, 10),
+        stageCode: stageInput.value,
+        requestedStatus: targetSelect.value,
+        requestedDate: dateInput && dateInput.value ? dateInput.value : null,
+        note: noteInput && noteInput.value ? noteInput.value.trim() : null
+      };
+
+      if (!payload.projectId) {
+        payload.projectId = 0;
+      }
+
+      try {
+        const response = await fetch('/Projects/Stages/RequestChange', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'RequestVerificationToken': tokenInput.value
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (response.status === 422) {
+          const data = await response.json().catch(() => null);
+          const messages = data?.details || ['Validation failed.'];
+          renderErrors(errorContainer, messages);
+          const missing = Array.isArray(data?.missingPredecessors) ? data.missingPredecessors : [];
+          renderMissingPredecessors(missingContainer, missing);
+          if (submitButton) submitButton.disabled = false;
+          return;
+        }
+
+        if (response.status === 409) {
+          if (conflictContainer) {
+            conflictContainer.classList.remove('d-none');
+          }
+          if (submitButton) submitButton.disabled = false;
+          return;
+        }
+
+        if (!response.ok) {
+          renderErrors(errorContainer, ['Unable to submit the request right now.']);
+          if (submitButton) submitButton.disabled = false;
+          return;
+        }
+
+        const data = await response.json().catch(() => null);
+        if (!data?.ok) {
+          renderErrors(errorContainer, ['Unable to submit the request right now.']);
+          if (submitButton) submitButton.disabled = false;
+          return;
+        }
+
+        modal.hide();
+        showToast('Request submitted.', 'success');
+        updatePendingBadge(stageInput.value, payload.requestedStatus, payload.requestedDate);
+        disableRequestButton(stageInput.value);
+      } catch (error) {
+        console.error(error);
+        renderErrors(errorContainer, ['Unable to submit the request right now.']);
+      } finally {
+        if (submitButton) submitButton.disabled = false;
+      }
+    });
+  }
+
+  function boot() {
+    if (typeof bootstrap === 'undefined' || !bootstrap.Modal || !bootstrap.Toast) {
+      return;
+    }
+
+    bootDirectApply();
+    bootStageRequest();
   }
 
   if (document.readyState === 'loading') {

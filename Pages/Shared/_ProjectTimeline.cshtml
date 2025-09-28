@@ -1,8 +1,9 @@
 @model ProjectManagement.ViewModels.TimelineVm
 @using System.Globalization
 @using ProjectManagement.Models.Execution
-@{
+@{ 
     var showDirectApply = User.IsInRole("HoD");
+    var canRequestChange = ViewBag?.IsProjectOfficerForProject is bool b && b;
 }
 @functions{
     string D(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
@@ -42,15 +43,17 @@
             {
               <span class="badge bg-secondary-subtle text-body-secondary border border-secondary-subtle">Incomplete data</span>
             }
-            @if (s.HasPendingRequest)
-            {
-              <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
-                Pending: @s.PendingStatus@if (s.PendingDate.HasValue)
-                {
-                  <text> · @D(s.PendingDate)</text>
-                }
-              </span>
-            }
+            <span data-stage-pending>
+              @if (s.HasPendingRequest)
+              {
+                <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
+                  Pending: @s.PendingStatus@if (s.PendingDate.HasValue)
+                  {
+                    <text> · @D(s.PendingDate)</text>
+                  }
+                </span>
+              }
+            </span>
             @if (s.IsOverdue)
             {
               <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Overdue</span>
@@ -61,41 +64,57 @@
               <a class="ms-1 small" asp-page="/Projects/Procurement/Edit" asp-route-id="@Model.ProjectId">Backfill…</a>
             }
           </div>
-          @if (showDirectApply)
-          {
-            <div class="dropdown">
-              <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                Actions
+          <div class="d-flex align-items-center gap-2">
+            @if (canRequestChange)
+            {
+              <button type="button"
+                      class="btn btn-sm btn-outline-primary"
+                      data-stage-request
+                      data-stage-request-button
+                      data-project="@Model.ProjectId"
+                      data-stage="@s.Code"
+                      data-stage-name="@s.Name"
+                      data-current-status="@s.Status"
+                      @(s.HasPendingRequest ? "disabled" : null)>
+                Request change
               </button>
-              <ul class="dropdown-menu">
-                <li>
-                  <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="InProgress" data-default-date="@s.ActualStart?.ToString("yyyy-MM-dd")">
-                    Start stage
-                  </button>
-                </li>
-                <li>
-                  <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="Completed" data-default-date="@s.CompletedOn?.ToString("yyyy-MM-dd")">
-                    Mark completed
-                  </button>
-                </li>
-                <li>
-                  <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="Blocked">
-                    Block
-                  </button>
-                </li>
-                <li>
-                  <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="Skipped">
-                    Skip
-                  </button>
-                </li>
-                <li>
-                  <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="Reopen">
-                    Reopen
-                  </button>
-                </li>
-              </ul>
-            </div>
-          }
+            }
+            @if (showDirectApply)
+            {
+              <div class="dropdown">
+                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  Actions
+                </button>
+                <ul class="dropdown-menu">
+                  <li>
+                    <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="InProgress" data-default-date="@s.ActualStart?.ToString("yyyy-MM-dd")">
+                      Start stage
+                    </button>
+                  </li>
+                  <li>
+                    <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="Completed" data-default-date="@s.CompletedOn?.ToString("yyyy-MM-dd")">
+                      Mark completed
+                    </button>
+                  </li>
+                  <li>
+                    <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="Blocked">
+                      Block
+                    </button>
+                  </li>
+                  <li>
+                    <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="Skipped">
+                      Skip
+                    </button>
+                  </li>
+                  <li>
+                    <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="Reopen">
+                      Reopen
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            }
+          </div>
         </div>
         <div class="pm-item-meta">
           <div>Planned: <span data-stage-planned-start>@D(s.PlannedStart)</span> — <span data-stage-planned-end>@D(s.PlannedEnd)</span></div>
