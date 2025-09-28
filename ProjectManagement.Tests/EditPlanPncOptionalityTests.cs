@@ -19,6 +19,7 @@ using ProjectManagement.Pages.Projects.Timeline;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.ViewModels;
 using Xunit;
 
 namespace ProjectManagement.Tests;
