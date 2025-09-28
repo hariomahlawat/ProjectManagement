@@ -17,23 +17,27 @@ public class PlanDraftService
     private readonly IClock _clock;
     private readonly ILogger<PlanDraftService> _logger;
     private readonly IAuditService _audit;
+    private readonly IUserContext _userContext;
 
-    public PlanDraftService(ApplicationDbContext db, IClock clock, ILogger<PlanDraftService> logger, IAuditService audit)
+    public PlanDraftService(
+        ApplicationDbContext db,
+        IClock clock,
+        ILogger<PlanDraftService> logger,
+        IAuditService audit,
+        IUserContext userContext)
     {
         _db = db;
         _clock = clock;
         _logger = logger;
         _audit = audit;
+        _userContext = userContext;
     }
 
-    public async Task<PlanVersion> CreateDraftAsync(int projectId, string userId, CancellationToken cancellationToken = default)
+    public async Task<PlanVersion> CreateOrGetDraftAsync(int projectId, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            throw new ArgumentException("A valid user identifier is required to create a draft.", nameof(userId));
-        }
+        var userId = GetCurrentUserId();
 
-        var existing = await _db.PlanVersions
+        var myDraft = await _db.PlanVersions
             .Include(p => p.StagePlans)
             .Where(p => p.ProjectId == projectId &&
                         p.Status == PlanVersionStatus.Draft &&
@@ -41,13 +45,24 @@ public class PlanDraftService
             .OrderByDescending(p => p.VersionNo)
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (existing != null)
+        if (myDraft is not null)
         {
-            if (!existing.StagePlans.Any())
-            {
-                await _db.Entry(existing).Collection(p => p.StagePlans).LoadAsync(cancellationToken);
-            }
-            return existing;
+            return myDraft;
+        }
+
+        var orphanDraft = await _db.PlanVersions
+            .Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == projectId &&
+                        p.Status == PlanVersionStatus.Draft &&
+                        p.OwnerUserId == null)
+            .OrderByDescending(p => p.VersionNo)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (orphanDraft is not null)
+        {
+            orphanDraft.OwnerUserId = userId;
+            await _db.SaveChangesAsync(cancellationToken);
+            return orphanDraft;
         }
 
         var hasPending = await _db.PlanVersions
@@ -62,6 +77,61 @@ public class PlanDraftService
             throw new PlanDraftLockedException("Your previous submission is awaiting approval and cannot be edited.");
         }
 
+        return await CreateDraftAsync(projectId, userId, cancellationToken);
+    }
+
+    public async Task<PlanVersion?> GetMyDraftAsync(int projectId, CancellationToken cancellationToken = default)
+    {
+        var userId = GetCurrentUserIdOrDefault();
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return null;
+        }
+
+        return await _db.PlanVersions
+            .Include(p => p.StagePlans)
+            .Where(p => p.ProjectId == projectId &&
+                        p.Status == PlanVersionStatus.Draft &&
+                        p.OwnerUserId == userId)
+            .OrderByDescending(p => p.VersionNo)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<PlanDraftDeleteResult> DeleteDraftAsync(int projectId, CancellationToken cancellationToken = default)
+    {
+        var userId = GetCurrentUserId();
+
+        var plan = await _db.PlanVersions
+            .Include(p => p.StagePlans)
+            .FirstOrDefaultAsync(p => p.ProjectId == projectId && p.OwnerUserId == userId, cancellationToken);
+
+        if (plan is null)
+        {
+            return PlanDraftDeleteResult.NotFound;
+        }
+
+        if (plan.Status != PlanVersionStatus.Draft)
+        {
+            return PlanDraftDeleteResult.Conflict;
+        }
+
+        if (plan.StagePlans.Count > 0)
+        {
+            _db.StagePlans.RemoveRange(plan.StagePlans);
+        }
+
+        _db.PlanVersions.Remove(plan);
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var deletedAt = _clock.UtcNow;
+        await Audit.Events.DraftDeleted(projectId, plan.Id, userId, deletedAt).WriteAsync(_audit);
+
+        return PlanDraftDeleteResult.Success;
+    }
+
+    private async Task<PlanVersion> CreateDraftAsync(int projectId, string userId, CancellationToken cancellationToken)
+    {
         var latestVersion = await _db.PlanVersions
             .Where(p => p.ProjectId == projectId)
             .Select(p => (int?)p.VersionNo)
@@ -110,98 +180,18 @@ public class PlanDraftService
         return plan;
     }
 
-    public async Task<PlanVersion> CreateOrGetDraftAsync(int projectId, string userId, CancellationToken cancellationToken = default)
+    private string GetCurrentUserId()
     {
+        var userId = _userContext.UserId;
         if (string.IsNullOrWhiteSpace(userId))
         {
-            throw new ArgumentException("A valid user identifier is required to create or get a draft.", nameof(userId));
+            throw new InvalidOperationException("Missing user id");
         }
 
-        var existing = await _db.PlanVersions
-            .Include(p => p.StagePlans)
-            .Where(p => p.ProjectId == projectId &&
-                        p.Status == PlanVersionStatus.Draft &&
-                        p.OwnerUserId == userId)
-            .OrderByDescending(p => p.VersionNo)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (existing is not null)
-        {
-            if (!existing.StagePlans.Any())
-            {
-                await _db.Entry(existing).Collection(p => p.StagePlans).LoadAsync(cancellationToken);
-            }
-
-            return existing;
-        }
-
-        var pending = await _db.PlanVersions
-            .AsNoTracking()
-            .Where(p => p.ProjectId == projectId &&
-                        p.Status == PlanVersionStatus.PendingApproval &&
-                        p.OwnerUserId == userId)
-            .Select(p => p.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (pending != 0)
-        {
-            throw new PlanDraftLockedException("Your submission is pending approval and cannot be modified until a decision is made.");
-        }
-
-        return await CreateDraftAsync(projectId, userId, cancellationToken);
+        return userId;
     }
 
-    public Task<PlanVersion?> GetDraftAsync(int projectId, string userId, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            return Task.FromResult<PlanVersion?>(null);
-        }
-
-        return _db.PlanVersions
-            .Include(p => p.StagePlans)
-            .Where(p => p.ProjectId == projectId &&
-                        p.Status == PlanVersionStatus.Draft &&
-                        p.OwnerUserId == userId)
-            .OrderByDescending(p => p.VersionNo)
-            .FirstOrDefaultAsync(cancellationToken);
-    }
-
-    public async Task<PlanDraftDeleteResult> DeleteDraftAsync(int projectId, string userId, CancellationToken cancellationToken = default)
-    {
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            throw new ArgumentException("A valid user identifier is required to delete a draft.", nameof(userId));
-        }
-
-        var plan = await _db.PlanVersions
-            .Include(p => p.StagePlans)
-            .FirstOrDefaultAsync(p => p.ProjectId == projectId && p.OwnerUserId == userId, cancellationToken);
-
-        if (plan is null)
-        {
-            return PlanDraftDeleteResult.NotFound;
-        }
-
-        if (plan.Status != PlanVersionStatus.Draft)
-        {
-            return PlanDraftDeleteResult.Conflict;
-        }
-
-        if (plan.StagePlans.Count > 0)
-        {
-            _db.StagePlans.RemoveRange(plan.StagePlans);
-        }
-
-        _db.PlanVersions.Remove(plan);
-
-        await _db.SaveChangesAsync(cancellationToken);
-
-        var deletedAt = _clock.UtcNow;
-        await Audit.Events.DraftDeleted(projectId, plan.Id, userId, deletedAt).WriteAsync(_audit);
-
-        return PlanDraftDeleteResult.Success;
-    }
+    private string? GetCurrentUserIdOrDefault() => _userContext.UserId;
 }
 
 public enum PlanDraftDeleteResult

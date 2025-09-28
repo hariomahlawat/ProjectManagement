@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -54,9 +55,10 @@ public class PlanDraftAndApprovalServiceTests
 
         await db.SaveChangesAsync();
 
-        var service = new PlanDraftService(db, new TestClock(), NullLogger<PlanDraftService>.Instance, new FakeAudit());
+        var userContext = new StubUserContext("po-user");
+        var service = new PlanDraftService(db, new TestClock(), NullLogger<PlanDraftService>.Instance, new FakeAudit(), userContext);
 
-        var draft = await service.CreateOrGetDraftAsync(1, "po-user");
+        var draft = await service.CreateOrGetDraftAsync(1);
 
         Assert.NotNull(draft);
         Assert.Equal("po-user", draft.OwnerUserId);
@@ -64,6 +66,106 @@ public class PlanDraftAndApprovalServiceTests
         Assert.Equal(2, draft.VersionNo);
         Assert.Single(draft.StagePlans);
         Assert.Equal(StageCodes.EOI, draft.StagePlans[0].StageCode);
+    }
+
+    [Fact]
+    public async Task CreateOrGetDraftAsync_AllowsIndependentDraftsPerUser()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        db.StageTemplates.Add(new StageTemplate
+        {
+            Version = PlanConstants.StageTemplateVersion,
+            Code = StageCodes.EOI,
+            Name = "Expression of Interest",
+            Sequence = 10
+        });
+
+        db.Projects.Add(new Project
+        {
+            Id = 2,
+            Name = "Privacy",
+            LeadPoUserId = "user-a"
+        });
+
+        await db.SaveChangesAsync();
+
+        var userAContext = new StubUserContext("user-a");
+        var serviceA = new PlanDraftService(db, new TestClock(), NullLogger<PlanDraftService>.Instance, new FakeAudit(), userAContext);
+
+        var draftA = await serviceA.CreateOrGetDraftAsync(2);
+
+        var userBContext = new StubUserContext("user-b");
+        var serviceB = new PlanDraftService(db, new TestClock(), NullLogger<PlanDraftService>.Instance, new FakeAudit(), userBContext);
+
+        var existingForB = await serviceB.GetMyDraftAsync(2);
+        Assert.Null(existingForB);
+
+        var draftB = await serviceB.CreateOrGetDraftAsync(2);
+
+        Assert.Equal("user-a", draftA.OwnerUserId);
+        Assert.Equal("user-b", draftB.OwnerUserId);
+        Assert.NotEqual(draftA.Id, draftB.Id);
+        Assert.Equal(2, await db.PlanVersions.CountAsync());
+    }
+
+    [Fact]
+    public async Task CreateOrGetDraftAsync_ClaimsOrphanDraft()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        db.StageTemplates.Add(new StageTemplate
+        {
+            Version = PlanConstants.StageTemplateVersion,
+            Code = StageCodes.EOI,
+            Name = "Expression of Interest",
+            Sequence = 10
+        });
+
+        db.Projects.Add(new Project
+        {
+            Id = 3,
+            Name = "Orphan",
+            LeadPoUserId = "owner"
+        });
+
+        var orphan = new PlanVersion
+        {
+            ProjectId = 3,
+            VersionNo = 1,
+            Title = "Orphan",
+            Status = PlanVersionStatus.Draft,
+            CreatedByUserId = "creator",
+            OwnerUserId = null,
+            CreatedOn = DateTimeOffset.UtcNow
+        };
+
+        orphan.StagePlans.Add(new StagePlan
+        {
+            StageCode = StageCodes.EOI,
+            PlannedStart = new DateOnly(2024, 1, 1),
+            PlannedDue = new DateOnly(2024, 1, 5)
+        });
+
+        db.PlanVersions.Add(orphan);
+        await db.SaveChangesAsync();
+
+        var userContext = new StubUserContext("new-owner");
+        var service = new PlanDraftService(db, new TestClock(), NullLogger<PlanDraftService>.Instance, new FakeAudit(), userContext);
+
+        var draft = await service.CreateOrGetDraftAsync(3);
+
+        Assert.Equal(orphan.Id, draft.Id);
+        Assert.Equal("new-owner", draft.OwnerUserId);
+        Assert.Equal(1, await db.PlanVersions.CountAsync());
     }
 
     [Fact]
@@ -196,9 +298,10 @@ public class PlanDraftAndApprovalServiceTests
 
         var clock = new TestClock(new DateTimeOffset(2024, 2, 1, 12, 0, 0, TimeSpan.Zero));
         var audit = new FakeAudit();
-        var service = new PlanDraftService(db, clock, NullLogger<PlanDraftService>.Instance, audit);
+        var userContext = new StubUserContext("owner");
+        var service = new PlanDraftService(db, clock, NullLogger<PlanDraftService>.Instance, audit, userContext);
 
-        var result = await service.DeleteDraftAsync(15, "owner");
+        var result = await service.DeleteDraftAsync(15);
 
         Assert.Equal(PlanDraftDeleteResult.Success, result);
         Assert.Empty(await db.PlanVersions.ToListAsync());
@@ -231,9 +334,10 @@ public class PlanDraftAndApprovalServiceTests
 
         await db.SaveChangesAsync();
 
-        var service = new PlanDraftService(db, new TestClock(), NullLogger<PlanDraftService>.Instance, new FakeAudit());
+        var userContext = new StubUserContext("someone-else");
+        var service = new PlanDraftService(db, new TestClock(), NullLogger<PlanDraftService>.Instance, new FakeAudit(), userContext);
 
-        var result = await service.DeleteDraftAsync(22, "someone-else");
+        var result = await service.DeleteDraftAsync(22);
 
         Assert.Equal(PlanDraftDeleteResult.NotFound, result);
         Assert.Single(await db.PlanVersions.ToListAsync());
@@ -261,9 +365,10 @@ public class PlanDraftAndApprovalServiceTests
 
         await db.SaveChangesAsync();
 
-        var service = new PlanDraftService(db, new TestClock(), NullLogger<PlanDraftService>.Instance, new FakeAudit());
+        var userContext = new StubUserContext("owner");
+        var service = new PlanDraftService(db, new TestClock(), NullLogger<PlanDraftService>.Instance, new FakeAudit(), userContext);
 
-        var result = await service.DeleteDraftAsync(30, "owner");
+        var result = await service.DeleteDraftAsync(30);
 
         Assert.Equal(PlanDraftDeleteResult.Conflict, result);
         Assert.Single(await db.PlanVersions.ToListAsync());
@@ -287,6 +392,37 @@ public class PlanDraftAndApprovalServiceTests
         {
             Entries.Add((action, data ?? new Dictionary<string, string?>(), userId));
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class StubUserContext : IUserContext
+    {
+        public StubUserContext(string? userId)
+        {
+            SetUser(userId);
+        }
+
+        public ClaimsPrincipal User { get; private set; } = new ClaimsPrincipal(new ClaimsIdentity());
+
+        public string? UserId { get; private set; }
+
+        public void SetUser(string? userId)
+        {
+            UserId = userId;
+
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity());
+                return;
+            }
+
+            var claims = new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, userId),
+                new Claim(ClaimTypes.Name, userId)
+            };
+
+            User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
         }
     }
 }
