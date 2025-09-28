@@ -64,6 +64,40 @@
     return Math.floor(diff / 86400000) + 1;
   }
 
+  function postJson(path, body, token) {
+    if (!path) {
+      throw new Error('Path is required');
+    }
+
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+
+    if (token) {
+      headers.RequestVerificationToken = token;
+    }
+
+    let requestUrl = path;
+    if (typeof window !== 'undefined' && window.location) {
+      try {
+        const url = new URL(path, window.location.origin);
+        if (url.host === window.location.host) {
+          url.protocol = window.location.protocol;
+        }
+        requestUrl = url.toString();
+      } catch (error) {
+        console.warn('Failed to normalise request URL. Using raw path.', error);
+      }
+    }
+
+    return fetch(requestUrl, {
+      method: 'POST',
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      credentials: 'same-origin'
+    });
+  }
+
   function badgeClass(status) {
     switch (status) {
       case 'Completed':
@@ -439,14 +473,7 @@
       }
 
       try {
-        const response = await fetch('/Projects/Stages/ApplyChange', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'RequestVerificationToken': tokenInput.value
-          },
-          body: JSON.stringify(payload)
-        });
+        const response = await postJson('/Projects/Stages/ApplyChange', payload, tokenInput.value);
 
         if (response.status === 422) {
           const data = await response.json().catch(() => null);
@@ -698,14 +725,7 @@
       }
 
       try {
-        const response = await fetch('/Projects/Stages/RequestChange', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'RequestVerificationToken': tokenInput.value
-          },
-          body: JSON.stringify(payload)
-        });
+        const response = await postJson('/Projects/Stages/RequestChange', payload, tokenInput.value);
 
         if (response.status === 422) {
           const data = await response.json().catch(() => null);
@@ -821,18 +841,11 @@
 
       try {
         console.debug('[DecideChange] requestId:', requestId, 'decision:', decision);
-        const response = await fetch('/Projects/Stages/DecideChange', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'RequestVerificationToken': token || ''
-          },
-          body: JSON.stringify({
-            requestId,
-            decision,
-            decisionNote: note
-          })
-        });
+        const response = await postJson('/Projects/Stages/DecideChange', {
+          requestId,
+          decision,
+          decisionNote: note
+        }, token || '');
 
         if (response.status === 403) {
           showToast('You are not allowed to decide this request.', 'danger');
