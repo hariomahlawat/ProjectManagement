@@ -8,6 +8,7 @@ using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.Tests.Fakes;
 using Xunit;
 
 namespace ProjectManagement.Tests;
@@ -17,7 +18,7 @@ public class StageRequestServiceTests
     [Fact]
     public async Task CreateAsync_CreatesPendingRequestAndLog()
     {
-        var clock = new TestClock(new DateTimeOffset(2024, 1, 10, 8, 30, 0, TimeSpan.Zero));
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 1, 10, 8, 30, 0, TimeSpan.Zero));
         await using var db = CreateContext();
         await SeedStageAsync(db, StageStatus.NotStarted);
 
@@ -57,7 +58,7 @@ public class StageRequestServiceTests
     [Fact]
     public async Task CreateAsync_DuplicatePendingReturnsConflict()
     {
-        var clock = new TestClock(new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero));
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
         await SeedStageAsync(db, StageStatus.NotStarted);
 
@@ -76,12 +77,14 @@ public class StageRequestServiceTests
 
         Assert.Equal(StageRequestOutcome.Success, first.Outcome);
         Assert.Equal(StageRequestOutcome.DuplicatePending, second.Outcome);
+        Assert.Equal("A pending request already exists for this stage.", second.Error);
+        Assert.Null(second.Details);
     }
 
     [Fact]
     public async Task CreateAsync_DisallowedTransitionReturnsValidationError()
     {
-        var clock = new TestClock(new DateTimeOffset(2024, 3, 1, 0, 0, 0, TimeSpan.Zero));
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 3, 1, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
         await SeedStageAsync(db, StageStatus.NotStarted);
 
@@ -104,7 +107,7 @@ public class StageRequestServiceTests
     [Fact]
     public async Task CreateAsync_CompletedBeforeActualStartReturnsValidationError()
     {
-        var clock = new TestClock(new DateTimeOffset(2024, 4, 1, 0, 0, 0, TimeSpan.Zero));
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 4, 1, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
         await SeedStageAsync(db, StageStatus.InProgress, new DateOnly(2024, 4, 10));
 
@@ -127,7 +130,7 @@ public class StageRequestServiceTests
     [Fact]
     public async Task CreateAsync_ReturnsMissingPredecessorsForIncompleteDependencies()
     {
-        var clock = new TestClock(new DateTimeOffset(2024, 5, 1, 0, 0, 0, TimeSpan.Zero));
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 1, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
         await SeedStageWithDependencyAsync(db);
 
@@ -148,6 +151,7 @@ public class StageRequestServiceTests
 
         var missingPredecessors = Assert.IsAssignableFrom<IReadOnlyList<string>>(result.MissingPredecessors);
         Assert.Contains(StageCodes.FS, missingPredecessors);
+        Assert.Equal("validation", result.Error);
     }
 
     private static async Task SeedStageAsync(ApplicationDbContext db, StageStatus status, DateOnly? actualStart = null)
@@ -211,10 +215,4 @@ public class StageRequestServiceTests
         return new ApplicationDbContext(options);
     }
 
-    private sealed class TestClock : IClock
-    {
-        public TestClock(DateTimeOffset now) => UtcNow = now;
-
-        public DateTimeOffset UtcNow { get; set; }
-    }
 }

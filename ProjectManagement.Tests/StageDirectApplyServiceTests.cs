@@ -9,6 +9,7 @@ using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.Tests.Fakes;
 using Xunit;
 
 namespace ProjectManagement.Tests;
@@ -18,7 +19,7 @@ public class StageDirectApplyServiceTests
     [Fact]
     public async Task DirectApply_Completed_SetsDatesAndLogs()
     {
-        var clock = new TestClock(new DateTimeOffset(2024, 5, 10, 9, 30, 0, TimeSpan.Zero));
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 10, 9, 30, 0, TimeSpan.Zero));
         await using var db = CreateContext();
         await SeedStageAsync(db, StageStatus.InProgress, new DateOnly(2024, 5, 1));
 
@@ -55,7 +56,7 @@ public class StageDirectApplyServiceTests
     [Fact]
     public async Task DirectApply_SupersedesPending()
     {
-        var clock = new TestClock(new DateTimeOffset(2024, 6, 1, 12, 0, 0, TimeSpan.Zero));
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 6, 1, 12, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
         await SeedStageAsync(db, StageStatus.NotStarted);
 
@@ -103,7 +104,7 @@ public class StageDirectApplyServiceTests
     [Fact]
     public async Task DirectApply_UnmetPredecessorsWithoutForce_ReturnsValidationFailure()
     {
-        var clock = new TestClock(new DateTimeOffset(2024, 7, 1, 0, 0, 0, TimeSpan.Zero));
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 7, 1, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
         await SeedStageAsync(db, StageStatus.InProgress, new DateOnly(2024, 6, 15));
 
@@ -137,7 +138,7 @@ public class StageDirectApplyServiceTests
     [Fact]
     public async Task DirectApply_ForceBackfillsPredecessorsAndCompletesStage()
     {
-        var clock = new TestClock(new DateTimeOffset(2024, 8, 15, 0, 0, 0, TimeSpan.Zero));
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 8, 15, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
 
         db.Projects.Add(new Project
@@ -199,12 +200,19 @@ public class StageDirectApplyServiceTests
 
         Assert.Contains(logs, l => l.StageCode == StageCodes.IPA && l.Action == "AutoBackfill");
         Assert.Contains(logs, l => l.StageCode == StageCodes.SOW && l.Action == "Applied");
+        Assert.All(
+            logs.Where(l => l.StageCode == StageCodes.IPA && l.Action == "AutoBackfill"),
+            log =>
+            {
+                Assert.Null(log.ToActualStart);
+                Assert.Null(log.ToCompletedOn);
+            });
     }
 
     [Fact]
     public async Task DirectApply_CompletionBeforeSuggestedStart_ReturnsValidationFailure()
     {
-        var clock = new TestClock(new DateTimeOffset(2024, 9, 10, 0, 0, 0, TimeSpan.Zero));
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 9, 10, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
 
         db.Projects.Add(new Project
@@ -253,6 +261,68 @@ public class StageDirectApplyServiceTests
         Assert.Contains(result.Details, d => d.Contains("Completion date cannot be earlier", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public async Task DirectApply_AdminCompletionWithoutDate_AllowsNullDatesWithWarning()
+    {
+        var clock = FakeClock.ForIstDate(2024, 10, 1);
+        await using var db = CreateContext();
+        await SeedStageAsync(db, StageStatus.InProgress, new DateOnly(2024, 9, 15));
+
+        var validation = new StageValidationService(db, clock);
+        var service = new StageDirectApplyService(db, clock, validation);
+
+        var result = await service.ApplyAsync(
+            projectId: 1,
+            stageCode: StageCodes.IPA,
+            newStatus: StageStatus.Completed.ToString(),
+            date: null,
+            note: null,
+            hodUserId: "hod-1",
+            forceBackfillPredecessors: false,
+            CancellationToken.None);
+
+        Assert.Equal(DirectApplyOutcome.Success, result.Outcome);
+        Assert.Equal(StageStatus.Completed, result.UpdatedStatus);
+        Assert.Null(result.ActualStart);
+        Assert.Null(result.CompletedOn);
+        Assert.Contains(result.Warnings, w => w.Contains("Incomplete data", StringComparison.OrdinalIgnoreCase));
+
+        var stage = await db.ProjectStages.SingleAsync();
+        Assert.Equal(StageStatus.Completed, stage.Status);
+        Assert.Null(stage.ActualStart);
+        Assert.Null(stage.CompletedOn);
+    }
+
+    [Fact]
+    public async Task DirectApply_ClampsCompletionDateAndAddsWarning()
+    {
+        var clock = FakeClock.ForIstDate(2024, 11, 1);
+        await using var db = CreateContext();
+        await SeedStageAsync(db, StageStatus.InProgress, new DateOnly(2024, 10, 10));
+
+        var validation = new StageValidationService(db, clock);
+        var service = new StageDirectApplyService(db, clock, validation);
+
+        var result = await service.ApplyAsync(
+            projectId: 1,
+            stageCode: StageCodes.IPA,
+            newStatus: StageStatus.Completed.ToString(),
+            date: new DateOnly(2024, 10, 5),
+            note: null,
+            hodUserId: "hod-1",
+            forceBackfillPredecessors: false,
+            CancellationToken.None);
+
+        Assert.Equal(DirectApplyOutcome.Success, result.Outcome);
+        Assert.Equal(StageStatus.Completed, result.UpdatedStatus);
+        Assert.Equal(new DateOnly(2024, 10, 10), result.ActualStart);
+        Assert.Equal(new DateOnly(2024, 10, 10), result.CompletedOn);
+        Assert.Contains(result.Warnings, w => w.Contains("adjusted", StringComparison.OrdinalIgnoreCase));
+
+        var stage = await db.ProjectStages.SingleAsync();
+        Assert.Equal(new DateOnly(2024, 10, 10), stage.CompletedOn);
+    }
+
     private static async Task SeedStageAsync(ApplicationDbContext db, StageStatus status, DateOnly? actualStart = null)
     {
         db.Projects.Add(new Project
@@ -285,10 +355,4 @@ public class StageDirectApplyServiceTests
         return new ApplicationDbContext(options);
     }
 
-    private sealed class TestClock : IClock
-    {
-        public TestClock(DateTimeOffset now) => UtcNow = now;
-
-        public DateTimeOffset UtcNow { get; set; }
-    }
 }

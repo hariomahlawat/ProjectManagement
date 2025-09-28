@@ -8,6 +8,7 @@ using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.Tests.Fakes;
 
 namespace ProjectManagement.Tests;
 
@@ -16,7 +17,7 @@ public class StageValidationServiceTests
     [Fact]
     public async Task ValidateAsync_CompletingStageWithFutureDate_ReturnsError()
     {
-        var clock = new TestClock(new DateTimeOffset(2024, 5, 10, 0, 0, 0, TimeSpan.Zero));
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 10, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
         await SeedAsync(db, new StageSeed(StageCodes.FS, StageStatus.InProgress, new DateOnly(2024, 5, 1), null));
 
@@ -36,7 +37,7 @@ public class StageValidationServiceTests
     [Fact]
     public async Task ValidateAsync_CompletingWithUnmetPredecessor_ReturnsMissingList()
     {
-        var clock = new TestClock(new DateTimeOffset(2024, 5, 10, 0, 0, 0, TimeSpan.Zero));
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 10, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
         await SeedAsync(
             db,
@@ -59,7 +60,7 @@ public class StageValidationServiceTests
     [Fact]
     public async Task ValidateAsync_CompletingBeforeAutoStart_ReturnsError()
     {
-        var clock = new TestClock(new DateTimeOffset(2024, 5, 15, 0, 0, 0, TimeSpan.Zero));
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 15, 0, 0, 0, TimeSpan.Zero));
         await using var db = CreateContext();
         await SeedAsync(
             db,
@@ -83,7 +84,8 @@ public class StageValidationServiceTests
     [Fact]
     public async Task ValidateAsync_StartingFromBlocked_AllowsTransition()
     {
-        var clock = new TestClock(new DateTimeOffset(2024, 5, 20, 0, 0, 0, TimeSpan.Zero));
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 20, 0, 0, 0, TimeSpan.Zero));
+
         await using var db = CreateContext();
         await SeedAsync(
             db,
@@ -103,6 +105,81 @@ public class StageValidationServiceTests
         Assert.Empty(result.Errors);
         Assert.Empty(result.MissingPredecessors);
         Assert.Equal(new DateOnly(2024, 5, 3), result.SuggestedAutoStart);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_PoCompletingWithoutDate_ReturnsError()
+    {
+        var clock = FakeClock.ForIstDate(2024, 6, 1);
+        await using var db = CreateContext();
+        await SeedAsync(
+            db,
+            new StageSeed(StageCodes.IPA, StageStatus.InProgress, new DateOnly(2024, 5, 20), null));
+
+        var service = new StageValidationService(db, clock);
+
+        var result = await service.ValidateAsync(
+            1,
+            StageCodes.IPA,
+            StageStatus.Completed.ToString(),
+            targetDate: null,
+            isHoD: false);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(
+            "completion date is required",
+            result.Errors,
+            StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_AutoStartSuggestedFromLatestPredecessor()
+    {
+        var clock = FakeClock.ForIstDate(2024, 7, 1);
+        await using var db = CreateContext();
+        await SeedAsync(
+            db,
+            new StageSeed(StageCodes.FS, StageStatus.Completed, new DateOnly(2024, 6, 1), new DateOnly(2024, 6, 5)),
+            new StageSeed(StageCodes.IPA, StageStatus.NotStarted, null, null));
+
+        var service = new StageValidationService(db, clock);
+
+        var result = await service.ValidateAsync(
+            1,
+            StageCodes.IPA,
+            StageStatus.InProgress.ToString(),
+            targetDate: new DateOnly(2024, 6, 6),
+            isHoD: false);
+
+        Assert.True(result.IsValid);
+        Assert.Empty(result.Errors);
+        Assert.Empty(result.MissingPredecessors);
+        Assert.Equal(new DateOnly(2024, 6, 5), result.SuggestedAutoStart);
+    }
+
+    [Fact]
+    public async Task ValidateAsync_HodCompletingBeforeAutoStart_ReturnsWarningAndError()
+    {
+        var clock = FakeClock.ForIstDate(2024, 8, 1);
+        await using var db = CreateContext();
+        await SeedAsync(
+            db,
+            new StageSeed(StageCodes.FS, StageStatus.Completed, new DateOnly(2024, 7, 10), new DateOnly(2024, 7, 15)),
+            new StageSeed(StageCodes.IPA, StageStatus.Completed, new DateOnly(2024, 7, 16), new DateOnly(2024, 7, 20)),
+            new StageSeed(StageCodes.SOW, StageStatus.InProgress, new DateOnly(2024, 7, 21), null));
+
+        var service = new StageValidationService(db, clock);
+
+        var result = await service.ValidateAsync(
+            1,
+            StageCodes.SOW,
+            StageStatus.Completed.ToString(),
+            targetDate: new DateOnly(2024, 7, 18),
+            isHoD: true);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("latest predecessor", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Warnings, w => w.Contains("force override", StringComparison.OrdinalIgnoreCase));
     }
 
     private static async Task SeedAsync(ApplicationDbContext db, params StageSeed[] stages)
@@ -160,10 +237,4 @@ public class StageValidationServiceTests
         DateOnly? ActualStart,
         DateOnly? CompletedOn);
 
-    private sealed class TestClock : IClock
-    {
-        public TestClock(DateTimeOffset now) => UtcNow = now;
-
-        public DateTimeOffset UtcNow { get; set; }
-    }
 }
