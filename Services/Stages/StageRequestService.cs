@@ -46,11 +46,6 @@ public class StageRequestService
 
         var stageCode = input.StageCode.Trim().ToUpperInvariant();
 
-        if (string.Equals(stageCode, StageCodes.EOI, StringComparison.OrdinalIgnoreCase))
-        {
-            return StageRequestResult.StageNotFound();
-        }
-
         var stage = await _db.ProjectStages
             .Include(s => s.Project)
             .SingleOrDefaultAsync(
