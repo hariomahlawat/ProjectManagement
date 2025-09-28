@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
@@ -96,7 +97,8 @@ public class StageRequestServiceTests
         }, "po-1");
 
         Assert.Equal(StageRequestOutcome.ValidationFailed, result.Outcome);
-        Assert.Contains("Changing from", result.Details);
+        var details = Assert.IsAssignableFrom<IReadOnlyList<string>>(result.Details);
+        Assert.Contains("Changing from", details);
     }
 
     [Fact]
@@ -118,7 +120,8 @@ public class StageRequestServiceTests
         }, "po-1");
 
         Assert.Equal(StageRequestOutcome.ValidationFailed, result.Outcome);
-        Assert.Contains("Completion date cannot be before the actual start date.", result.Details);
+        var details = Assert.IsAssignableFrom<IReadOnlyList<string>>(result.Details);
+        Assert.Contains("Completion date cannot be before the actual start date.", details);
     }
 
     [Fact]
@@ -140,8 +143,11 @@ public class StageRequestServiceTests
         }, "po-1");
 
         Assert.Equal(StageRequestOutcome.ValidationFailed, result.Outcome);
-        Assert.Contains("Complete required predecessor stages first.", result.Details);
-        Assert.Contains(StageCodes.FS, result.MissingPredecessors);
+        var details = Assert.IsAssignableFrom<IReadOnlyList<string>>(result.Details);
+        Assert.Contains("Complete required predecessor stages first.", details);
+
+        var missingPredecessors = Assert.IsAssignableFrom<IReadOnlyList<string>>(result.MissingPredecessors);
+        Assert.Contains(StageCodes.FS, missingPredecessors);
     }
 
     private static async Task SeedStageAsync(ApplicationDbContext db, StageStatus status, DateOnly? actualStart = null)
