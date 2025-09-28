@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Stages;
 
 namespace ProjectManagement.ViewModels;
 
@@ -10,12 +11,26 @@ public sealed class TimelineVm
     public int TotalStages { get; init; }
     public int CompletedCount { get; init; }
     public IReadOnlyList<TimelineItemVm> Items { get; init; } = Array.Empty<TimelineItemVm>();
+    public IReadOnlyList<TimelineStageRequestVm> PendingRequests { get; init; } = Array.Empty<TimelineStageRequestVm>();
 
     public bool HasBackfill => Items.Any(i => i.RequiresBackfill);
     public bool PlanPendingApproval { get; init; }
     public bool HasDraft { get; init; }
     public DateTimeOffset? LatestApprovalAt { get; init; }
     public string? LatestApprovalBy { get; init; }
+}
+
+public sealed class TimelineStageRequestVm
+{
+    public int RequestId { get; init; }
+    public string StageCode { get; init; } = string.Empty;
+    public string StageName { get; init; } = string.Empty;
+    public StageStatus CurrentStatus { get; init; } = StageStatus.NotStarted;
+    public string RequestedStatus { get; init; } = string.Empty;
+    public DateOnly? RequestedDate { get; init; }
+    public string? Note { get; init; }
+    public string RequestedBy { get; init; } = string.Empty;
+    public DateTimeOffset RequestedOn { get; init; }
 }
 
 public sealed class TimelineItemVm

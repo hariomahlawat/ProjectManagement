@@ -42,6 +42,10 @@ public sealed class StageDecisionServiceTests
 
         Assert.Equal(StageDecisionOutcome.Success, result.Outcome);
         Assert.Empty(result.Warnings);
+        Assert.NotNull(result.Stage);
+        Assert.Equal(StageStatus.InProgress, result.Stage!.Status);
+        Assert.Equal(new DateOnly(2024, 1, 15), result.Stage!.ActualStart);
+        Assert.Null(result.Stage!.CompletedOn);
 
         var stage = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.IPA);
         Assert.Equal(StageStatus.InProgress, stage.Status);
@@ -99,6 +103,10 @@ public sealed class StageDecisionServiceTests
             "hod-9");
 
         Assert.Equal(StageDecisionOutcome.Success, result.Outcome);
+        Assert.NotNull(result.Stage);
+        Assert.Equal(StageStatus.NotStarted, result.Stage!.Status);
+        Assert.Null(result.Stage!.ActualStart);
+        Assert.Null(result.Stage!.CompletedOn);
 
         var stage = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.IPA);
         Assert.Equal(StageStatus.NotStarted, stage.Status);
@@ -151,6 +159,10 @@ public sealed class StageDecisionServiceTests
 
         Assert.Equal(StageDecisionOutcome.Success, result.Outcome);
         Assert.Contains(result.Warnings, w => w.Contains("Completion date was earlier"));
+        Assert.NotNull(result.Stage);
+        Assert.Equal(StageStatus.Completed, result.Stage!.Status);
+        Assert.Equal(new DateOnly(2024, 3, 10), result.Stage!.CompletedOn);
+        Assert.Equal(new DateOnly(2024, 3, 10), result.Stage!.ActualStart);
 
         var stage = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.IPA);
         Assert.Equal(StageStatus.Completed, stage.Status);
@@ -193,6 +205,10 @@ public sealed class StageDecisionServiceTests
 
         Assert.Equal(StageDecisionOutcome.Success, result.Outcome);
         Assert.Contains(result.Warnings, w => w.Contains(StageCodes.IPA));
+        Assert.NotNull(result.Stage);
+        Assert.Equal(StageStatus.InProgress, result.Stage!.Status);
+        Assert.Equal(new DateOnly(2024, 4, 14), result.Stage!.ActualStart);
+        Assert.Null(result.Stage!.CompletedOn);
 
         var persistedRequest = await db.StageChangeRequests.SingleAsync(r => r.Id == request.Id);
         Assert.Contains(StageCodes.IPA, persistedRequest.DecisionNote);

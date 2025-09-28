@@ -220,6 +220,18 @@
     }
   }
 
+  function enableRequestButton(stageCode) {
+    if (!stageCode) return;
+    const row = document.querySelector(`[data-stage-row="${escapeSelector(stageCode)}"]`);
+    if (!row) return;
+
+    const button = row.querySelector('[data-stage-request-button]');
+    if (button) {
+      button.disabled = false;
+      button.classList.remove('disabled');
+    }
+  }
+
   function renderErrors(container, messages) {
     if (!container) return;
     const hasErrors = Array.isArray(messages) && messages.length > 0;
@@ -719,6 +731,167 @@
     });
   }
 
+  function bootStageDecisions() {
+    const list = document.querySelector('[data-stage-decision-list]');
+    if (!list) {
+      return;
+    }
+
+    const tokenInput = document.querySelector('[data-stage-decision-token]');
+    const token = tokenInput ? tokenInput.value : '';
+    const emptyState = document.querySelector('[data-stage-requests-empty]');
+
+    list.addEventListener('click', async (event) => {
+      const button = event.target.closest('[data-stage-decision]');
+      if (!button) {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (button.disabled) {
+        return;
+      }
+
+      const decisionRaw = button.getAttribute('data-stage-decision') || '';
+      const decision = decisionRaw.trim();
+      if (!decision) {
+        return;
+      }
+
+      const item = button.closest('[data-stage-request-item]');
+      if (!item) {
+        return;
+      }
+
+      const requestId = Number.parseInt(item.getAttribute('data-request-id') || '', 10);
+      if (!requestId) {
+        return;
+      }
+
+      const stageCode = item.getAttribute('data-stage-code') || '';
+      const stageLabel = item.getAttribute('data-stage-label') || stageCode || 'stage';
+      const noteInput = item.querySelector('[data-stage-decision-note]');
+      const note = noteInput && noteInput.value ? noteInput.value.trim() : null;
+      const errorContainer = item.querySelector('[data-stage-decision-error]');
+      const buttons = item.querySelectorAll('[data-stage-decision]');
+
+      const enableControls = () => {
+        buttons.forEach((btn) => {
+          btn.disabled = false;
+        });
+        if (noteInput) {
+          noteInput.disabled = false;
+        }
+      };
+
+      buttons.forEach((btn) => {
+        btn.disabled = true;
+      });
+      if (noteInput) {
+        noteInput.disabled = true;
+      }
+
+      if (errorContainer) {
+        errorContainer.classList.add('d-none');
+        errorContainer.textContent = '';
+      }
+
+      let removed = false;
+
+      try {
+        const response = await fetch('/Projects/Stages/DecideChange', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'RequestVerificationToken': token || ''
+          },
+          body: JSON.stringify({
+            requestId,
+            decision,
+            decisionNote: note
+          })
+        });
+
+        if (response.status === 403) {
+          showToast('You are not allowed to decide this request.', 'danger');
+          enableControls();
+          return;
+        }
+
+        if (response.status === 404 || response.status === 409) {
+          const message = response.status === 404
+            ? 'Request not found.'
+            : 'This request has already been decided.';
+          showToast(message, 'warning');
+          item.remove();
+          removed = true;
+          if (stageCode) {
+            updatePendingBadge(stageCode, null, null);
+            enableRequestButton(stageCode);
+          }
+          if (!list.querySelector('[data-stage-request-item]') && emptyState) {
+            emptyState.classList.remove('d-none');
+          }
+          return;
+        }
+
+        if (response.status === 422) {
+          const data422 = await response.json().catch(() => null);
+          const message = data422?.error || 'Validation failed.';
+          if (errorContainer) {
+            errorContainer.textContent = message;
+            errorContainer.classList.remove('d-none');
+          }
+          enableControls();
+          return;
+        }
+
+        if (!response.ok) {
+          showToast('Unable to update the stage right now.', 'danger');
+          enableControls();
+          return;
+        }
+
+        const data = await response.json().catch(() => null);
+        if (!data?.ok) {
+          showToast('Unable to update the stage right now.', 'danger');
+          enableControls();
+          return;
+        }
+
+        const updated = data.updated || null;
+        if (stageCode) {
+          updateStageRow(stageCode, updated?.status || null, updated);
+          updatePendingBadge(stageCode, null, null);
+          enableRequestButton(stageCode);
+        }
+
+        handleWarnings(data.warnings);
+
+        const decisionLower = decision.toLowerCase();
+        if (decisionLower === 'approve') {
+          showToast(`Approved change for ${stageLabel}.`, 'success');
+        } else {
+          showToast(`Rejected change for ${stageLabel}.`, 'info');
+        }
+
+        item.remove();
+        removed = true;
+        if (!list.querySelector('[data-stage-request-item]') && emptyState) {
+          emptyState.classList.remove('d-none');
+        }
+      } catch (error) {
+        console.error(error);
+        showToast('Unable to update the stage right now.', 'danger');
+      } finally {
+        if (!removed) {
+          enableControls();
+        }
+      }
+    });
+  }
+
   function boot() {
     if (typeof bootstrap === 'undefined' || !bootstrap.Modal || !bootstrap.Toast) {
       return;
@@ -726,6 +899,7 @@
 
     bootDirectApply();
     bootStageRequest();
+    bootStageDecisions();
   }
 
   if (document.readyState === 'loading') {
