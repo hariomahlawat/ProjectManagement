@@ -403,6 +403,12 @@
       });
     }
 
+    const resetControls = () => {
+      renderMissingPredecessors(missingPredecessorsContainer, []);
+      setForceHintHighlighted(false);
+      if (submitButton) submitButton.disabled = false;
+    };
+
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -462,44 +468,33 @@
         }
 
         if (response.status === 409) {
-          showToast('Pending request was superseded by this change.', 'warning');
-          modal.hide();
-          renderMissingPredecessors(missingPredecessorsContainer, []);
-          setForceHintHighlighted(false);
-          if (submitButton) submitButton.disabled = false;
+          showToast('Blocked: plan version is awaiting HoD review.', 'warning');
+          resetControls();
           return;
         }
 
         if (response.status === 403) {
-          showToast('You are not allowed to update this project stage.', 'danger');
-          renderMissingPredecessors(missingPredecessorsContainer, []);
-          setForceHintHighlighted(false);
-          if (submitButton) submitButton.disabled = false;
+          showToast('Not authorised for this project (HoD mismatch).', 'danger');
+          resetControls();
           return;
         }
 
         if (response.status === 404) {
-          showToast('Project or stage not found.', 'warning');
-          renderMissingPredecessors(missingPredecessorsContainer, []);
-          setForceHintHighlighted(false);
-          if (submitButton) submitButton.disabled = false;
+          showToast('Project or stage not found (stale UI).', 'warning');
+          resetControls();
           return;
         }
 
         if (!response.ok) {
           showToast('Unable to update the stage right now.', 'danger');
-          renderMissingPredecessors(missingPredecessorsContainer, []);
-          setForceHintHighlighted(false);
-          if (submitButton) submitButton.disabled = false;
+          resetControls();
           return;
         }
 
         const data = await response.json();
         if (!data?.ok) {
           showToast('Unable to update the stage right now.', 'danger');
-          renderMissingPredecessors(missingPredecessorsContainer, []);
-          setForceHintHighlighted(false);
-          if (submitButton) submitButton.disabled = false;
+          resetControls();
           return;
         }
 
@@ -815,6 +810,7 @@
       let removed = false;
 
       try {
+        console.debug('[DecideChange] requestId:', requestId, 'decision:', decision);
         const response = await fetch('/Projects/Stages/DecideChange', {
           method: 'POST',
           headers: {
