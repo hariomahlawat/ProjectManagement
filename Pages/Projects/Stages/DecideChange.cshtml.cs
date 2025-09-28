@@ -5,9 +5,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Helpers;
+using ProjectManagement.Data;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Pages.Projects.Stages;
 
@@ -17,11 +20,19 @@ public class DecideChangeModel : PageModel
 {
     private readonly StageDecisionService _stageDecisionService;
     private readonly IUserContext _userContext;
+    private readonly ApplicationDbContext _db;
+    private readonly ILogger<DecideChangeModel> _logger;
 
-    public DecideChangeModel(StageDecisionService stageDecisionService, IUserContext userContext)
+    public DecideChangeModel(
+        StageDecisionService stageDecisionService,
+        IUserContext userContext,
+        ApplicationDbContext db,
+        ILogger<DecideChangeModel> logger)
     {
         _stageDecisionService = stageDecisionService;
         _userContext = userContext;
+        _db = db;
+        _logger = logger;
     }
 
     public IActionResult OnGet() => NotFound();
@@ -43,6 +54,14 @@ public class DecideChangeModel : PageModel
         {
             return Forbid();
         }
+
+        var connectionHash = ConnectionStringHasher.Hash(_db.Database.GetDbConnection().ConnectionString);
+        _logger.LogInformation(
+            "DecideChange POST received. RequestId={RequestId}, Decision={Decision}, User={UserId}, ConnHash={ConnHash}",
+            input.RequestId,
+            input.Decision,
+            userId,
+            connectionHash);
 
         var serviceInput = new StageDecisionInput(input.RequestId, action, input.DecisionNote);
         var result = await _stageDecisionService.DecideAsync(serviceInput, userId, cancellationToken);

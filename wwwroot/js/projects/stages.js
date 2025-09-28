@@ -470,6 +470,22 @@
           return;
         }
 
+        if (response.status === 403) {
+          showToast('You are not allowed to update this project stage.', 'danger');
+          renderMissingPredecessors(missingPredecessorsContainer, []);
+          setForceHintHighlighted(false);
+          if (submitButton) submitButton.disabled = false;
+          return;
+        }
+
+        if (response.status === 404) {
+          showToast('Project or stage not found.', 'warning');
+          renderMissingPredecessors(missingPredecessorsContainer, []);
+          setForceHintHighlighted(false);
+          if (submitButton) submitButton.disabled = false;
+          return;
+        }
+
         if (!response.ok) {
           showToast('Unable to update the stage right now.', 'danger');
           renderMissingPredecessors(missingPredecessorsContainer, []);

@@ -81,7 +81,7 @@ public sealed class StageDirectApplyService
             throw new StageDirectApplyNotFoundException();
         }
 
-        if (!string.Equals(stage.Project?.HodUserId, hodUserId, StringComparison.Ordinal))
+        if (!string.Equals(stage.Project?.HodUserId, hodUserId, StringComparison.OrdinalIgnoreCase))
         {
             throw new StageDirectApplyNotHeadOfDepartmentException();
         }
