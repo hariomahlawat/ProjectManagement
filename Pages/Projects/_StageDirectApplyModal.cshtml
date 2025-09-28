@@ -1,8 +1,9 @@
 @{
     Layout = null;
+    var isHod = User.IsInRole("HoD");
 }
 
-<div class="modal fade" id="stageDirectApplyModal" tabindex="-1" aria-labelledby="stageDirectApplyLabel" aria-hidden="true">
+<div class="modal fade" id="stageDirectApplyModal" tabindex="-1" aria-labelledby="stageDirectApplyLabel" aria-hidden="true" data-actor-hod="@isHod.ToString().ToLowerInvariant()">
     <div class="modal-dialog">
         <div class="modal-content">
             <form method="post" data-direct-apply-form novalidate>
@@ -28,7 +29,8 @@
                     <div class="mb-3">
                         <label class="form-label" for="directApplyDate">Effective date</label>
                         <input type="date" class="form-control" id="directApplyDate" name="date" />
-                        <div class="form-text" data-direct-apply-date-hint>Optional.</div>
+                        <div class="form-text" data-direct-apply-date-hint>Optional</div>
+                        <div class="form-text text-warning d-none" data-direct-apply-no-date-warning>Will mark as Completed without dates and flag as Incomplete data.</div>
                     </div>
 
                     <div class="form-check mb-3">

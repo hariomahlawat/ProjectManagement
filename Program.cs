@@ -239,7 +239,7 @@ app.Use(async (ctx, next) =>
         "frame-ancestors 'none'; " +
         "img-src 'self' data:; " +
         "script-src 'self'; " +
-        "style-src 'self' 'unsafe-inline'; " +
+        "style-src 'self'; " +
         "font-src 'self' data:; " +
         "connect-src 'self';";
     await next();

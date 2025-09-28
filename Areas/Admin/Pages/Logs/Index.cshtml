@@ -116,7 +116,7 @@
 {
   <div class="pm-card pm-shadow p-3 mb-3">
     <h6 class="mb-2">Events per day</h6>
-    <div style="position:relative; height:240px;">
+    <div class="chart-container-240">
       <canvas id="logsPerDay"
               data-labels="@JsonSerializer.Serialize(Model.SeriesLabels)"
               data-values="@JsonSerializer.Serialize(Model.SeriesCounts)"></canvas>
@@ -135,7 +135,7 @@
         <th>@SortLink("User", "User", Model.Sort, Model.Dir)</th>
         <th>@SortLink("IP", "Ip", Model.Sort, Model.Dir)</th>
         <th>Message</th>
-        <th style="width: 1%"></th>
+        <th class="pm-column-narrow"></th>
       </tr>
     </thead>
     <tbody>
@@ -149,7 +149,7 @@
         <td class="text-nowrap">@r.Action</td>
         <td class="text-nowrap">@r.UserName</td>
         <td class="text-monospace">@r.Ip</td>
-        <td style="max-width: 420px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">@r.Message</td>
+        <td class="pm-truncate-420">@r.Message</td>
         <td>
           @if (!string.IsNullOrWhiteSpace(r.DataJson))
           {

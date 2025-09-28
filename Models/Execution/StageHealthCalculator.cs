@@ -33,6 +33,9 @@ public static class StageHealthCalculator
             var slip = CalculateSlip(stage, today);
             slipByStage[stage.StageCode] = slip;
 
+            // Health thresholds: 7+ days late marks the entire project Red, 1-6 days late (or due within 2 days)
+            // elevates to Amber unless a Red condition has already been met. Completed or skipped stages do not
+            // influence the proactive Amber threshold for upcoming work.
             if (slip >= 7)
             {
                 rag = ProjectRagStatus.Red;

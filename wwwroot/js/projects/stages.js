@@ -298,13 +298,28 @@
       || modalEl.querySelector('[data-direct-apply-force]');
     const forceHint = modalEl.querySelector('[data-direct-apply-force-hint]');
     const submitButton = modalEl.querySelector('[data-direct-apply-submit]');
+    const noDateWarning = modalEl.querySelector('[data-direct-apply-no-date-warning]');
+    const actorIsHod = modalEl.getAttribute('data-actor-hod') === 'true';
+    let activeStatus = '';
 
-    function setDateRequired(required) {
-      if (!dateInput) return;
-      dateInput.required = required;
-      if (dateHint) {
-        dateHint.textContent = required ? 'Required.' : 'Optional.';
+    function updateNoDateWarning(status) {
+      if (!noDateWarning || !dateInput) return;
+      const shouldShow = actorIsHod && status === 'Completed' && !dateInput.value;
+      noDateWarning.classList.toggle('d-none', !shouldShow);
+    }
+
+    function applyDateState(status, { resetValue = false } = {}) {
+      if (!dateInput) return false;
+      const requiresDate = DIRECT_DATE_REQUIRED_STATUSES.has(status);
+      dateInput.required = requiresDate;
+      if (resetValue) {
+        dateInput.value = requiresDate ? todayIso() : '';
       }
+      if (dateHint) {
+        dateHint.textContent = requiresDate ? 'Required' : 'Optional';
+      }
+      updateNoDateWarning(status);
+      return requiresDate;
     }
 
     function setForceHintHighlighted(highlighted) {
@@ -334,6 +349,7 @@
       const status = trigger.getAttribute('data-status') || '';
       const stageName = trigger.getAttribute('data-stage-name') || '';
       const defaultDate = trigger.getAttribute('data-default-date') || '';
+      activeStatus = status;
 
       if (projectInput) projectInput.value = projectId;
       if (stageInput) stageInput.value = stageCode;
@@ -353,11 +369,11 @@
       }
       setForceHintHighlighted(false);
 
-      const requiresDate = DIRECT_DATE_REQUIRED_STATUSES.has(status);
-      setDateRequired(requiresDate);
+      const requiresDate = applyDateState(status, { resetValue: true });
       if (dateInput) {
         dateInput.value = defaultDate || (requiresDate ? todayIso() : '');
       }
+      updateNoDateWarning(status);
 
       if (submitButton) {
         submitButton.disabled = false;
@@ -369,6 +385,13 @@
     if (!form) {
       return;
     }
+
+    if (dateInput) {
+      dateInput.addEventListener('input', () => {
+        updateNoDateWarning(activeStatus);
+      });
+    }
+
 
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -498,6 +521,7 @@
     const targetSelect = modalEl.querySelector('[data-stage-request-target]');
     const dateInput = modalEl.querySelector('[data-stage-request-date]');
     const dateHint = modalEl.querySelector('[data-stage-request-date-hint]');
+    const reopenHint = modalEl.querySelector('[data-stage-request-reopen-hint]');
     const noteInput = modalEl.querySelector('[data-stage-request-note]');
     const tokenInput = modalEl.querySelector('input[name="__RequestVerificationToken"]');
     const errorContainer = modalEl.querySelector('[data-stage-request-errors]');
@@ -506,12 +530,25 @@
     const submitButton = modalEl.querySelector('[data-stage-request-submit]');
     let activeStageCurrentStatus = '';
 
-    function setDateRequired(required) {
-      if (!dateInput) return;
-      dateInput.required = required;
-      if (dateHint) {
-        dateHint.textContent = required ? 'Required.' : 'Optional.';
+    function updateReopenHint(status) {
+      if (!reopenHint) return;
+      const shouldShow = status === 'InProgress' && activeStageCurrentStatus === 'Completed';
+      reopenHint.classList.toggle('d-none', !shouldShow);
+    }
+
+    function applyDateState(status, { resetValue = false } = {}) {
+      if (!dateInput) return false;
+      const requiresDate = REQUEST_DATE_REQUIRED_STATUSES.has(status);
+      dateInput.required = requiresDate;
+      if (resetValue) {
+        dateInput.value = requiresDate ? todayIso() : '';
       }
+      if (dateHint) {
+        const hintText = status === 'InProgress' || status === 'Completed' ? 'Required' : 'Optional';
+        dateHint.textContent = hintText;
+      }
+      updateReopenHint(status);
+      return requiresDate;
     }
 
     function updateStatusSummary() {
@@ -560,11 +597,7 @@
       }
 
       const selectedStatus = targetSelect ? targetSelect.value : '';
-      const requiresDate = REQUEST_DATE_REQUIRED_STATUSES.has(selectedStatus);
-      setDateRequired(requiresDate);
-      if (dateInput) {
-        dateInput.value = requiresDate ? todayIso() : '';
-      }
+      applyDateState(selectedStatus, { resetValue: true });
 
       updateStatusSummary();
 
@@ -590,10 +623,12 @@
     if (targetSelect) {
       targetSelect.addEventListener('change', () => {
         const status = targetSelect.value;
-        const requiresDate = REQUEST_DATE_REQUIRED_STATUSES.has(status);
-        setDateRequired(requiresDate);
+        const requiresDate = applyDateState(status);
         if (requiresDate && dateInput && !dateInput.value) {
           dateInput.value = todayIso();
+        }
+        if (!requiresDate && dateInput) {
+          dateInput.value = '';
         }
         updateStatusSummary();
       });

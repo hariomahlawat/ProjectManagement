@@ -120,10 +120,12 @@ public sealed class StageDecisionService
             return StageDecisionResult.ValidationFailed("The project stage already has the requested status.");
         }
 
-        if (!StageTransitionRules.IsTransitionAllowed(stage.Status, requestedStatus))
+        if (!StageTransitionPolicy.TryValidateTransition(stage.Status, requestedStatus, request.RequestedDate, out var transitionError))
         {
-            return StageDecisionResult.ValidationFailed(
-                $"Changing from {stage.Status} to {requestedStatus} is not allowed.");
+            var message = string.IsNullOrEmpty(transitionError)
+                ? $"Changing from {stage.Status} to {requestedStatus} is not allowed."
+                : transitionError;
+            return StageDecisionResult.ValidationFailed(message);
         }
 
         var warnings = new List<string>();
