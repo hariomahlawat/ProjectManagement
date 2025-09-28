@@ -198,6 +198,55 @@ namespace ProjectManagement.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "StageChangeLogs",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    StageCode = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    Action = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
+                    FromStatus = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: true),
+                    ToStatus = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: true),
+                    FromActualStart = table.Column<DateOnly>(type: "date", nullable: true),
+                    ToActualStart = table.Column<DateOnly>(type: "date", nullable: true),
+                    FromCompletedOn = table.Column<DateOnly>(type: "date", nullable: true),
+                    ToCompletedOn = table.Column<DateOnly>(type: "date", nullable: true),
+                    UserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
+                    At = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    Note = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StageChangeLogs", x => x.Id);
+                    table.CheckConstraint("CK_StageChangeLogs_Action", "\"Action\" IN ('Requested','Approved','Rejected','DirectApply','Applied','Superseded')");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "StageChangeRequests",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    StageCode = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    RequestedStatus = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
+                    RequestedDate = table.Column<DateOnly>(type: "date", nullable: true),
+                    Note = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: true),
+                    RequestedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
+                    RequestedOn = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    DecisionStatus = table.Column<string>(type: "character varying(12)", maxLength: 12, nullable: false, defaultValue: "Pending"),
+                    DecidedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
+                    DecidedOn = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    DecisionNote = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StageChangeRequests", x => x.Id);
+                    table.CheckConstraint("CK_StageChangeRequests_DecisionStatus", "\"DecisionStatus\" IN ('Pending','Approved','Rejected','Superseded')");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "StageDependencyTemplates",
                 columns: table => new
                 {
@@ -252,6 +301,21 @@ namespace ProjectManagement.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Statuses",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    SortOrder = table.Column<int>(type: "integer", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Statuses", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "TodoItems",
                 columns: table => new
                 {
@@ -272,6 +336,20 @@ namespace ProjectManagement.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_TodoItems", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Workflows",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Workflows", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -427,12 +505,42 @@ namespace ProjectManagement.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "WorkflowStatuses",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    SortOrder = table.Column<int>(type: "integer", nullable: false),
+                    WorkflowId = table.Column<int>(type: "integer", nullable: false),
+                    StatusId = table.Column<int>(type: "integer", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_WorkflowStatuses", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_WorkflowStatuses_Statuses_StatusId",
+                        column: x => x.StatusId,
+                        principalTable: "Statuses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_WorkflowStatuses_Workflows_WorkflowId",
+                        column: x => x.WorkflowId,
+                        principalTable: "Workflows",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "PlanVersions",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    OwnerUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
                     VersionNo = table.Column<int>(type: "integer", nullable: false),
                     Title = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     Status = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
@@ -442,7 +550,9 @@ namespace ProjectManagement.Migrations
                     SubmittedOn = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     ApprovedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
                     ApprovedOn = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    Reason = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true),
+                    RejectedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
+                    RejectedOn = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    RejectionNote = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true),
                     AnchorStageCode = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: true),
                     AnchorDate = table.Column<DateOnly>(type: "date", nullable: true),
                     SkipWeekends = table.Column<bool>(type: "boolean", nullable: false, defaultValue: true),
@@ -464,6 +574,18 @@ namespace ProjectManagement.Migrations
                         principalTable: "AspNetUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_PlanVersions_AspNetUsers_OwnerUserId",
+                        column: x => x.OwnerUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_PlanVersions_AspNetUsers_RejectedByUserId",
+                        column: x => x.RejectedByUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
                     table.ForeignKey(
                         name: "FK_PlanVersions_AspNetUsers_SubmittedByUserId",
                         column: x => x.SubmittedByUserId,
@@ -1057,10 +1179,27 @@ namespace ProjectManagement.Migrations
                 column: "CreatedByUserId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_PlanVersions_OwnerUserId",
+                table: "PlanVersions",
+                column: "OwnerUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PlanVersions_ProjectId_OwnerUserId",
+                table: "PlanVersions",
+                columns: new[] { "ProjectId", "OwnerUserId" },
+                unique: true,
+                filter: "\"Status\" = 'Draft' AND \"OwnerUserId\" IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_PlanVersions_ProjectId_VersionNo",
                 table: "PlanVersions",
                 columns: new[] { "ProjectId", "VersionNo" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PlanVersions_RejectedByUserId",
+                table: "PlanVersions",
+                column: "RejectedByUserId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_PlanVersions_SubmittedByUserId",
@@ -1214,6 +1353,18 @@ namespace ProjectManagement.Migrations
                 column: "ProjectId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_StageChangeLogs_ProjectId_StageCode_At",
+                table: "StageChangeLogs",
+                columns: new[] { "ProjectId", "StageCode", "At" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StageChangeRequests_ProjectId_StageCode",
+                table: "StageChangeRequests",
+                columns: new[] { "ProjectId", "StageCode" },
+                unique: true,
+                filter: "\"DecisionStatus\" = 'Pending'");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_StageDependencyTemplates_Version_FromStageCode_DependsOnSta~",
                 table: "StageDependencyTemplates",
                 columns: new[] { "Version", "FromStageCode", "DependsOnStageCode" },
@@ -1237,6 +1388,12 @@ namespace ProjectManagement.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_Statuses_Name",
+                table: "Statuses",
+                column: "Name",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_TodoItems_DeletedUtc",
                 table: "TodoItems",
                 column: "DeletedUtc");
@@ -1250,6 +1407,22 @@ namespace ProjectManagement.Migrations
                 name: "IX_TodoItems_OwnerId_Status_IsPinned_DueAtUtc",
                 table: "TodoItems",
                 columns: new[] { "OwnerId", "Status", "IsPinned", "DueAtUtc" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_WorkflowStatuses_Name_WorkflowId",
+                table: "WorkflowStatuses",
+                columns: new[] { "Name", "WorkflowId" },
+                filter: "\"Name\" IS NOT NULL AND \"WorkflowId\" IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_WorkflowStatuses_StatusId",
+                table: "WorkflowStatuses",
+                column: "StatusId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_WorkflowStatuses_WorkflowId",
+                table: "WorkflowStatuses",
+                column: "WorkflowId");
         }
 
         /// <inheritdoc />
@@ -1328,6 +1501,12 @@ namespace ProjectManagement.Migrations
                 name: "ProjectSupplyOrderFacts");
 
             migrationBuilder.DropTable(
+                name: "StageChangeLogs");
+
+            migrationBuilder.DropTable(
+                name: "StageChangeRequests");
+
+            migrationBuilder.DropTable(
                 name: "StageDependencyTemplates");
 
             migrationBuilder.DropTable(
@@ -1343,6 +1522,9 @@ namespace ProjectManagement.Migrations
                 name: "TodoItems");
 
             migrationBuilder.DropTable(
+                name: "WorkflowStatuses");
+
+            migrationBuilder.DropTable(
                 name: "AspNetRoles");
 
             migrationBuilder.DropTable(
@@ -1353,6 +1535,12 @@ namespace ProjectManagement.Migrations
 
             migrationBuilder.DropTable(
                 name: "PlanVersions");
+
+            migrationBuilder.DropTable(
+                name: "Statuses");
+
+            migrationBuilder.DropTable(
+                name: "Workflows");
 
             migrationBuilder.DropTable(
                 name: "ProjectStages");

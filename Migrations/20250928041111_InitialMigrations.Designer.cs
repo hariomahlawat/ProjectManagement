@@ -12,8 +12,8 @@ using ProjectManagement.Data;
 namespace ProjectManagement.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250927183355_AddStageChangeAudit")]
-    partial class AddStageChangeAudit
+    [Migration("20250928041111_InitialMigrations")]
+    partial class InitialMigrations
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
