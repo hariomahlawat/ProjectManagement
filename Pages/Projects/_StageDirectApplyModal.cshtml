@@ -1,0 +1,44 @@
+@{
+    Layout = null;
+}
+
+<div class="modal fade" id="stageDirectApplyModal" tabindex="-1" aria-labelledby="stageDirectApplyLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" data-direct-apply-form novalidate>
+                <div class="modal-header">
+                    <h5 class="modal-title" id="stageDirectApplyLabel">Update stage</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="projectId" />
+                    <input type="hidden" name="stageCode" />
+                    <input type="hidden" name="status" />
+                    @Html.AntiForgeryToken()
+
+                    <div class="mb-3">
+                        <div class="fw-semibold" data-direct-apply-stage></div>
+                        <div class="text-muted" data-direct-apply-status></div>
+                    </div>
+
+                    <div class="alert alert-danger d-none" role="alert" data-direct-apply-errors></div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="directApplyDate">Effective date</label>
+                        <input type="date" class="form-control" id="directApplyDate" name="date" />
+                        <div class="form-text" data-direct-apply-date-hint>Optional.</div>
+                    </div>
+
+                    <div class="mb-0">
+                        <label class="form-label" for="directApplyNote">Note <span class="text-muted">(optional)</span></label>
+                        <textarea class="form-control" id="directApplyNote" name="note" rows="3" maxlength="1024"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary" data-direct-apply-submit>Apply change</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

@@ -1,10 +1,14 @@
 @model ProjectManagement.ViewModels.TimelineVm
 @using System.Globalization
 @using ProjectManagement.Models.Execution
+@{
+    var showDirectApply = User.IsInRole("HoD");
+}
 @functions{
     string D(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
     string StatusChip(StageStatus s) =>
-        s switch {
+        s switch
+        {
             StageStatus.Completed  => "badge bg-success",
             StageStatus.InProgress => "badge bg-primary",
             _                      => "badge bg-secondary"
@@ -25,27 +29,64 @@
         StageStatus.InProgress => "pm-item is-active",
         _                      => "pm-item"
       };
-      <div class="@itemClass">
-        <div class="pm-item-header">
-          <span class="pm-item-title">@s.Name</span>
-          <span class="@StatusChip(s.Status)">@s.Status</span>
-          @if (s.IsAutoCompleted)
+      <div class="@itemClass" data-stage-row="@s.Code">
+        <div class="pm-item-header d-flex flex-wrap justify-content-between align-items-start gap-2">
+          <div class="d-flex flex-wrap align-items-center gap-2">
+            <span class="pm-item-title" data-stage-name="@s.Name">@s.Name</span>
+            <span class="@StatusChip(s.Status)" data-stage-status>@s.Status</span>
+            @if (s.IsAutoCompleted)
+            {
+              <span class="badge bg-warning-subtle text-warning border border-warning-subtle" title="Auto-completed when a later stage was completed.">inferred</span>
+            }
+            @if (s.RequiresBackfill)
+            {
+              <span class="ms-2 text-warning" title="Additional data required">⚠︎</span>
+              <a class="ms-1 small" asp-page="/Projects/Procurement/Edit" asp-route-id="@Model.ProjectId">Backfill…</a>
+            }
+          </div>
+          @if (showDirectApply)
           {
-            <span class="badge bg-warning-subtle text-warning border border-warning-subtle" title="Auto-completed when a later stage was completed.">inferred</span>
-          }
-          @if (s.RequiresBackfill)
-          {
-            <span class="ms-2 text-warning" title="Additional data required">⚠︎</span>
-            <a class="ms-1 small" asp-page="/Projects/Procurement/Edit" asp-route-id="@Model.ProjectId">Backfill…</a>
+            <div class="dropdown">
+              <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                Actions
+              </button>
+              <ul class="dropdown-menu">
+                <li>
+                  <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="InProgress" data-default-date="@s.ActualStart?.ToString("yyyy-MM-dd")">
+                    Start stage
+                  </button>
+                </li>
+                <li>
+                  <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="Completed" data-default-date="@s.CompletedOn?.ToString("yyyy-MM-dd")">
+                    Mark completed
+                  </button>
+                </li>
+                <li>
+                  <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="Blocked">
+                    Block
+                  </button>
+                </li>
+                <li>
+                  <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="Skipped">
+                    Skip
+                  </button>
+                </li>
+                <li>
+                  <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="Reopen">
+                    Reopen
+                  </button>
+                </li>
+              </ul>
+            </div>
           }
         </div>
         <div class="pm-item-meta">
-          <div>Planned: @D(s.PlannedStart) — @D(s.PlannedEnd)</div>
-          <div>Actual: @D(s.ActualStart) — @D(s.CompletedOn)
-            @if (s.ActualDurationDays.HasValue)
-            {
-              <span class="text-muted ms-2">(@s.ActualDurationDays d)</span>
-            }
+          <div>Planned: <span data-stage-planned-start>@D(s.PlannedStart)</span> — <span data-stage-planned-end>@D(s.PlannedEnd)</span></div>
+          <div>
+            Actual: <span data-stage-actual-start>@D(s.ActualStart)</span> — <span data-stage-completed>@D(s.CompletedOn)</span>
+            <span class="text-muted ms-2@(s.ActualDurationDays.HasValue ? string.Empty : " d-none")" data-stage-duration>
+              @(s.ActualDurationDays.HasValue ? $"({s.ActualDurationDays} d)" : string.Empty)
+            </span>
           </div>
         </div>
       </div>
