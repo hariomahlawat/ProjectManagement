@@ -20,7 +20,8 @@ public class StageRequestServiceTests
         await using var db = CreateContext();
         await SeedStageAsync(db, StageStatus.NotStarted);
 
-        var service = new StageRequestService(db, clock);
+        var validation = new StageValidationService(db, clock);
+        var service = new StageRequestService(db, clock, validation);
 
         var input = new StageChangeRequestInput
         {
@@ -59,7 +60,8 @@ public class StageRequestServiceTests
         await using var db = CreateContext();
         await SeedStageAsync(db, StageStatus.NotStarted);
 
-        var service = new StageRequestService(db, clock);
+        var validation = new StageValidationService(db, clock);
+        var service = new StageRequestService(db, clock, validation);
 
         var input = new StageChangeRequestInput
         {
@@ -82,7 +84,8 @@ public class StageRequestServiceTests
         await using var db = CreateContext();
         await SeedStageAsync(db, StageStatus.NotStarted);
 
-        var service = new StageRequestService(db, clock);
+        var validation = new StageValidationService(db, clock);
+        var service = new StageRequestService(db, clock, validation);
 
         var result = await service.CreateAsync(new StageChangeRequestInput
         {
@@ -93,7 +96,7 @@ public class StageRequestServiceTests
         }, "po-1");
 
         Assert.Equal(StageRequestOutcome.ValidationFailed, result.Outcome);
-        Assert.NotNull(result.Error);
+        Assert.Contains("Changing from", result.Details);
     }
 
     [Fact]
@@ -103,7 +106,8 @@ public class StageRequestServiceTests
         await using var db = CreateContext();
         await SeedStageAsync(db, StageStatus.InProgress, new DateOnly(2024, 4, 10));
 
-        var service = new StageRequestService(db, clock);
+        var validation = new StageValidationService(db, clock);
+        var service = new StageRequestService(db, clock, validation);
 
         var result = await service.CreateAsync(new StageChangeRequestInput
         {
@@ -114,7 +118,30 @@ public class StageRequestServiceTests
         }, "po-1");
 
         Assert.Equal(StageRequestOutcome.ValidationFailed, result.Outcome);
-        Assert.Equal("Completion date cannot be before the actual start date.", result.Error);
+        Assert.Contains("Completion date cannot be before the actual start date.", result.Details);
+    }
+
+    [Fact]
+    public async Task CreateAsync_ReturnsMissingPredecessorsForIncompleteDependencies()
+    {
+        var clock = new TestClock(new DateTimeOffset(2024, 5, 1, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStageWithDependencyAsync(db);
+
+        var validation = new StageValidationService(db, clock);
+        var service = new StageRequestService(db, clock, validation);
+
+        var result = await service.CreateAsync(new StageChangeRequestInput
+        {
+            ProjectId = 1,
+            StageCode = StageCodes.IPA,
+            RequestedStatus = StageStatus.Completed.ToString(),
+            RequestedDate = new DateOnly(2024, 5, 5)
+        }, "po-1");
+
+        Assert.Equal(StageRequestOutcome.ValidationFailed, result.Outcome);
+        Assert.Contains("Complete required predecessor stages first.", result.Details);
+        Assert.Contains(StageCodes.FS, result.MissingPredecessors);
     }
 
     private static async Task SeedStageAsync(ApplicationDbContext db, StageStatus status, DateOnly? actualStart = null)
@@ -135,6 +162,36 @@ public class StageRequestServiceTests
             Status = status,
             ActualStart = actualStart
         });
+
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedStageWithDependencyAsync(ApplicationDbContext db)
+    {
+        db.Projects.Add(new Project
+        {
+            Id = 1,
+            Name = "Project",
+            CreatedByUserId = "seed",
+            LeadPoUserId = "po-1"
+        });
+
+        db.ProjectStages.AddRange(
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.FS,
+                SortOrder = 0,
+                Status = StageStatus.InProgress
+            },
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.IPA,
+                SortOrder = 1,
+                Status = StageStatus.InProgress,
+                ActualStart = new DateOnly(2024, 4, 15)
+            });
 
         await db.SaveChangesAsync();
     }

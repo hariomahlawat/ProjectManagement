@@ -1,3 +1,4 @@
+using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -52,7 +53,19 @@ public class RequestChangeModel : PageModel
                 new { ok = false, error = result.Error }),
             StageRequestOutcome.ValidationFailed => HttpContext.SetStatusCode(
                 StatusCodes.Status422UnprocessableEntity,
-                new { ok = false, error = result.Error }),
+                new
+                {
+                    ok = false,
+                    error = result.Error ?? "validation",
+                    details = result.Details is { Count: > 0 }
+                        ? result.Details.ToArray()
+                        : string.IsNullOrWhiteSpace(result.Error)
+                            ? Array.Empty<string>()
+                            : new[] { result.Error },
+                    missingPredecessors = result.MissingPredecessors is { Count: > 0 }
+                        ? result.MissingPredecessors.ToArray()
+                        : Array.Empty<string>()
+                }),
             _ => HttpContext.SetInternalServerError()
         };
     }
