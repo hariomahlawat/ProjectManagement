@@ -22,7 +22,8 @@ public class ApplyChangeModel : PageModel
         "InProgress",
         "Completed",
         "Blocked",
-        "Skipped"
+        "Skipped",
+        "Reopen"
     };
 
     private readonly StageDirectApplyService _service;
@@ -94,7 +95,7 @@ public class ApplyChangeModel : PageModel
                 error = "Validation failed",
                 details = new[]
                 {
-                    "Status must be one of: NotStarted, InProgress, Completed, Blocked, Skipped."
+                    "Status must be one of: NotStarted, InProgress, Completed, Blocked, Skipped, Reopen."
                 }
             });
         }
