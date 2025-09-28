@@ -65,8 +65,8 @@ public class PlanDraftDeletionIntegrationTests
 
         var clock = new TestClock(new DateTimeOffset(2024, 3, 5, 8, 30, 0, TimeSpan.Zero));
         var audit = new RecordingAudit();
-        var planDraft = new PlanDraftService(db, clock, NullLogger<PlanDraftService>.Instance, audit);
         var userContext = new PrincipalUserContext(CreatePrincipal("po-user", "Project Officer"));
+        var planDraft = new PlanDraftService(db, clock, NullLogger<PlanDraftService>.Instance, audit, userContext);
         var page = new EditPlanModel(
             db,
             audit,

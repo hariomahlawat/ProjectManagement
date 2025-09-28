@@ -131,7 +131,7 @@ public class EditPlanModel : PageModel
             return Forbid();
         }
 
-        var draft = await _planDraft.GetDraftAsync(id, userId, cancellationToken);
+        var draft = await _planDraft.GetMyDraftAsync(id, cancellationToken);
         if (draft is null)
         {
             return new JsonResult(new { ok = true, errors = Array.Empty<string>() });
@@ -170,7 +170,7 @@ public class EditPlanModel : PageModel
             return Forbid();
         }
 
-        var result = await _planDraft.DeleteDraftAsync(id, userId, cancellationToken);
+        var result = await _planDraft.DeleteDraftAsync(id, cancellationToken);
 
         switch (result)
         {
@@ -218,7 +218,7 @@ public class EditPlanModel : PageModel
         PlanVersion draft;
         try
         {
-            draft = await _planDraft.CreateOrGetDraftAsync(id, userId, cancellationToken);
+            draft = await _planDraft.CreateOrGetDraftAsync(id, cancellationToken);
         }
         catch (PlanDraftLockedException ex)
         {
@@ -483,7 +483,7 @@ public class EditPlanModel : PageModel
         PlanVersion draft;
         try
         {
-            draft = await _planDraft.CreateOrGetDraftAsync(id, userId, ct);
+            draft = await _planDraft.CreateOrGetDraftAsync(id, ct);
         }
         catch (PlanDraftLockedException ex)
         {
@@ -496,6 +496,7 @@ public class EditPlanModel : PageModel
             pncRow.DurationDays.GetValueOrDefault() > 0;
 
         draft.PncApplicable = pncApplicable;
+        await _db.SaveChangesAsync(ct);
         await _planGeneration.GenerateDraftAsync(id, draft.Id, ct);
 
         if (!submitForApproval)
