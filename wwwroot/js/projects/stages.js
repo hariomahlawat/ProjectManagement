@@ -294,7 +294,8 @@
     const errorContainer = modalEl.querySelector('[data-direct-apply-errors]');
     const dateHint = modalEl.querySelector('[data-direct-apply-date-hint]');
     const missingPredecessorsContainer = modalEl.querySelector('[data-direct-apply-missing]');
-    const forceCheckbox = modalEl.querySelector('[data-direct-apply-force]');
+    const forceCheckbox = modalEl.querySelector('#forceBackfillPredecessors')
+      || modalEl.querySelector('[data-direct-apply-force]');
     const forceHint = modalEl.querySelector('[data-direct-apply-force-hint]');
     const submitButton = modalEl.querySelector('[data-direct-apply-submit]');
 
@@ -390,7 +391,7 @@
         status: statusInput.value,
         date: dateInput && dateInput.value ? dateInput.value : null,
         note: noteInput && noteInput.value ? noteInput.value.trim() : null,
-        forceBackfillPredecessors: forceCheckbox ? Boolean(forceCheckbox.checked) : false
+        forceBackfillPredecessors: !!document.querySelector('#forceBackfillPredecessors')?.checked
       };
 
       if (!payload.projectId) {
@@ -456,9 +457,19 @@
         modal.hide();
         showToast('Stage updated.', 'success');
         handleWarnings(data.warnings);
+        if (data.backfilled?.count > 0) {
+          const stages = Array.isArray(data.backfilled.stages) && data.backfilled.stages.length > 0
+            ? ` (${data.backfilled.stages.join(', ')})`
+            : '';
+          showToast(`Backfilled ${data.backfilled.count} predecessor stage(s)${stages}.`, 'info');
+        }
         renderMissingPredecessors(missingPredecessorsContainer, []);
         setForceHintHighlighted(false);
-        if (forceCheckbox) {
+        const modalForceCheckbox = document.querySelector('#forceBackfillPredecessors');
+        if (modalForceCheckbox) {
+          modalForceCheckbox.checked = false;
+        }
+        if (forceCheckbox && forceCheckbox !== modalForceCheckbox) {
           forceCheckbox.checked = false;
         }
       } catch (error) {

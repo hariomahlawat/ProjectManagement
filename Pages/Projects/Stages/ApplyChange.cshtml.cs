@@ -91,7 +91,7 @@ public class ApplyChangeModel : PageModel
 
         if (requiresDate && input.Date is null)
         {
-            return ValidationFailure(new[] { "Date is required for the selected status." });
+            return ValidationFailure(new[] { "Start date is required for InProgress." });
         }
 
         var hodUserId = User?.FindFirstValue(ClaimTypes.NameIdentifier)
@@ -115,39 +115,34 @@ public class ApplyChangeModel : PageModel
                 input.ForceBackfillPredecessors,
                 ct);
 
-            switch (result.Outcome)
-            {
-                case DirectApplyOutcome.StageNotFound:
-                    return NotFound(new { ok = false, error = "Project or stage not found." });
-                case DirectApplyOutcome.NotHeadOfDepartment:
-                    return Forbid();
-                case DirectApplyOutcome.ValidationFailed:
-                    return ValidationFailure(
-                        result.Details ?? Array.Empty<string>(),
-                        result.MissingPredecessors);
-                case DirectApplyOutcome.Success:
-                default:
-                    break;
-            }
-
-            var warnings = result.Warnings?.ToList() ?? new List<string>();
-
-            if (result.SupersededRequest)
-            {
-                warnings.Add("Pending request was superseded by this change.");
-            }
-
             return new OkObjectResult(new
             {
                 ok = true,
                 updated = new
                 {
-                    status = result.UpdatedStatus?.ToString(),
+                    status = result.UpdatedStatus,
                     actualStart = result.ActualStart?.ToString("yyyy-MM-dd"),
                     completedOn = result.CompletedOn?.ToString("yyyy-MM-dd")
                 },
-                warnings = warnings.Count == 0 ? Array.Empty<string>() : warnings.ToArray()
+                backfilled = new
+                {
+                    count = result.BackfilledCount,
+                    stages = result.BackfilledStages ?? Array.Empty<string>()
+                },
+                warnings = result.Warnings ?? Array.Empty<string>()
             });
+        }
+        catch (StageDirectApplyNotFoundException)
+        {
+            return NotFound(new { ok = false, error = "Project or stage not found." });
+        }
+        catch (StageDirectApplyNotHeadOfDepartmentException)
+        {
+            return Forbid();
+        }
+        catch (StageDirectApplyValidationException ex)
+        {
+            return ValidationFailure(ex.Details, ex.MissingPredecessors);
         }
         catch (OperationCanceledException)
         {
