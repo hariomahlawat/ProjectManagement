@@ -19,14 +19,21 @@ public sealed class StageDirectApplyService
     private const string SupersededLogAction = "Superseded";
     private const string DirectApplyLogAction = "DirectApply";
     private const string AppliedLogAction = "Applied";
+    private const string AutoBackfillLogAction = "AutoBackfill";
 
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
+    private readonly IStageValidationService _validationService;
 
-    public StageDirectApplyService(ApplicationDbContext db, IClock clock)
+    public StageDirectApplyService(
+        ApplicationDbContext db,
+        IClock clock,
+        IStageValidationService validationService)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _validationService = validationService
+            ?? throw new ArgumentNullException(nameof(validationService));
     }
 
     public async Task<DirectApplyResult> ApplyAsync(
@@ -36,16 +43,21 @@ public sealed class StageDirectApplyService
         DateOnly? date,
         string? note,
         string hodUserId,
+        bool forceBackfillPredecessors,
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(stageCode))
         {
-            return DirectApplyResult.ValidationFailed("A stage code is required.");
+            return DirectApplyResult.ValidationFailed(
+                "validation",
+                new[] { "A stage code is required." });
         }
 
         if (string.IsNullOrWhiteSpace(newStatus))
         {
-            return DirectApplyResult.ValidationFailed("A status is required.");
+            return DirectApplyResult.ValidationFailed(
+                "validation",
+                new[] { "A status is required." });
         }
 
         if (string.IsNullOrWhiteSpace(hodUserId))
@@ -75,36 +87,48 @@ public sealed class StageDirectApplyService
         var now = _clock.UtcNow;
         var today = DateOnly.FromDateTime(now.UtcDateTime);
         var normalizedStatus = newStatus.Trim();
-        var warnings = new List<string>();
-
         var isReopen = string.Equals(normalizedStatus, "Reopen", StringComparison.OrdinalIgnoreCase);
-        StageStatus targetStatus;
+        var validationTargetStatus = isReopen
+            ? (date.HasValue ? StageStatus.InProgress : StageStatus.NotStarted).ToString()
+            : normalizedStatus;
 
+        var validation = await _validationService.ValidateAsync(
+            projectId,
+            normalizedStageCode,
+            validationTargetStatus,
+            date,
+            isHoD: true,
+            ct);
+
+        var validationDetails = validation.Errors
+            .Concat(validation.Warnings)
+            .ToList();
+
+        if (validationDetails.Count == 0 && validation.MissingPredecessors.Count > 0)
+        {
+            validationDetails.Add("Complete required predecessor stages first.");
+        }
+
+        if (validation.Errors.Count > 0)
+        {
+            return DirectApplyResult.ValidationFailed(
+                "validation",
+                validationDetails.Count == 0 ? Array.Empty<string>() : validationDetails,
+                validation.MissingPredecessors);
+        }
+
+        var warnings = new List<string>(validation.Warnings);
+
+        StageStatus targetStatus;
         if (isReopen)
         {
-            if (stage.Status is not StageStatus.Completed and not StageStatus.Skipped)
-            {
-                return DirectApplyResult.ValidationFailed("Only completed or skipped stages can be reopened.");
-            }
-
             targetStatus = date.HasValue ? StageStatus.InProgress : StageStatus.NotStarted;
         }
-        else if (!Enum.TryParse<StageStatus>(normalizedStatus, ignoreCase: true, out targetStatus))
+        else if (!Enum.TryParse<StageStatus>(validationTargetStatus, ignoreCase: true, out targetStatus))
         {
-            return DirectApplyResult.ValidationFailed("The new status is not recognised.");
-        }
-        else
-        {
-            if (targetStatus == stage.Status)
-            {
-                return DirectApplyResult.ValidationFailed("The stage is already in the requested status.");
-            }
-
-            if (!StageTransitionRules.IsTransitionAllowed(stage.Status, targetStatus))
-            {
-                return DirectApplyResult.ValidationFailed(
-                    $"Changing from {stage.Status} to {targetStatus} is not allowed.");
-            }
+            return DirectApplyResult.ValidationFailed(
+                "validation",
+                new[] { "The new status is not recognised." });
         }
 
         if (targetStatus is StageStatus.InProgress or StageStatus.Completed or StageStatus.Skipped)
@@ -191,6 +215,59 @@ public sealed class StageDirectApplyService
             await _db.StageChangeLogs.AddAsync(supersededLog, ct);
         }
 
+        if (validation.MissingPredecessors.Count > 0)
+        {
+            if (!forceBackfillPredecessors)
+            {
+                return DirectApplyResult.ValidationFailed(
+                    "validation",
+                    validationDetails.Count == 0 ? Array.Empty<string>() : validationDetails,
+                    validation.MissingPredecessors);
+            }
+
+            var predecessorCodes = validation.MissingPredecessors.ToArray();
+            var predecessors = await _db.ProjectStages
+                .Where(ps => ps.ProjectId == projectId && predecessorCodes.Contains(ps.StageCode))
+                .ToListAsync(ct);
+
+            var predecessorLookup = predecessors
+                .ToDictionary(ps => ps.StageCode, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var predecessorCode in predecessorCodes)
+            {
+                if (!predecessorLookup.TryGetValue(predecessorCode, out var predecessor))
+                {
+                    continue;
+                }
+
+                var predecessorOriginalStatus = predecessor.Status;
+                var predecessorOriginalActualStart = predecessor.ActualStart;
+                var predecessorOriginalCompletedOn = predecessor.CompletedOn;
+
+                predecessor.Status = StageStatus.Completed;
+                predecessor.ActualStart = null;
+                predecessor.CompletedOn = null;
+
+                var autoBackfillLog = new StageChangeLog
+                {
+                    ProjectId = predecessor.ProjectId,
+                    StageCode = predecessor.StageCode,
+                    Action = AutoBackfillLogAction,
+                    FromStatus = predecessorOriginalStatus.ToString(),
+                    ToStatus = StageStatus.Completed.ToString(),
+                    FromActualStart = predecessorOriginalActualStart,
+                    ToActualStart = null,
+                    FromCompletedOn = predecessorOriginalCompletedOn,
+                    ToCompletedOn = null,
+                    UserId = hodUserId,
+                    At = now,
+                    Note = $"Auto-backfilled (no dates) due to completion of {stage.StageCode}."
+                };
+
+                await _db.StageChangeLogs.AddAsync(autoBackfillLog, ct);
+            }
+        }
+
         if (isReopen)
         {
             stage.CompletedOn = null;
@@ -198,7 +275,15 @@ public sealed class StageDirectApplyService
             {
                 var startDate = date ?? today;
                 stage.Status = StageStatus.InProgress;
-                stage.ActualStart = startDate;
+
+                if (validation.SuggestedAutoStart.HasValue && startDate >= validation.SuggestedAutoStart.Value)
+                {
+                    stage.ActualStart = validation.SuggestedAutoStart.Value;
+                }
+                else
+                {
+                    stage.ActualStart = startDate;
+                }
             }
             else
             {
@@ -214,25 +299,58 @@ public sealed class StageDirectApplyService
                 {
                     var startDate = date ?? today;
                     stage.Status = StageStatus.InProgress;
-                    stage.ActualStart ??= startDate;
+
+                    if (!stage.ActualStart.HasValue)
+                    {
+                        if (validation.SuggestedAutoStart.HasValue && startDate >= validation.SuggestedAutoStart.Value)
+                        {
+                            stage.ActualStart = validation.SuggestedAutoStart.Value;
+                        }
+                        else
+                        {
+                            stage.ActualStart = startDate;
+                        }
+                    }
+
                     stage.CompletedOn = null;
                     break;
                 }
                 case StageStatus.Completed:
                 {
-                    var completionDate = date ?? today;
                     stage.Status = StageStatus.Completed;
+
+                    if (!date.HasValue)
+                    {
+                        stage.ActualStart = null;
+                        stage.CompletedOn = null;
+                        warnings.Add("Incomplete data");
+                        break;
+                    }
+
+                    var completionDate = date.Value;
+
                     if (!stage.ActualStart.HasValue)
                     {
-                        stage.ActualStart = completionDate;
+                        if (validation.SuggestedAutoStart.HasValue && completionDate >= validation.SuggestedAutoStart.Value)
+                        {
+                            stage.ActualStart = validation.SuggestedAutoStart.Value;
+                        }
+                        else
+                        {
+                            stage.ActualStart = completionDate;
+                        }
                     }
 
                     if (stage.ActualStart.HasValue && completionDate < stage.ActualStart.Value)
                     {
-                        completionDate = stage.ActualStart.Value;
+                        stage.CompletedOn = stage.ActualStart.Value;
+                        warnings.Add("Completion date adjusted to match actual start.");
+                    }
+                    else
+                    {
+                        stage.CompletedOn = completionDate;
                     }
 
-                    stage.CompletedOn = completionDate;
                     break;
                 }
                 case StageStatus.Blocked:
@@ -306,6 +424,8 @@ public sealed record DirectApplyResult
 {
     public DirectApplyOutcome Outcome { get; }
     public string? Error { get; }
+    public IReadOnlyList<string> Details { get; }
+    public IReadOnlyList<string> MissingPredecessors { get; }
     public IReadOnlyList<string> Warnings { get; }
     public StageStatus? UpdatedStatus { get; }
     public DateOnly? ActualStart { get; }
@@ -315,6 +435,8 @@ public sealed record DirectApplyResult
     private DirectApplyResult(
         DirectApplyOutcome outcome,
         string? error,
+        IReadOnlyList<string>? details,
+        IReadOnlyList<string>? missingPredecessors,
         IReadOnlyList<string>? warnings,
         StageStatus? updatedStatus,
         DateOnly? actualStart,
@@ -323,7 +445,9 @@ public sealed record DirectApplyResult
     {
         Outcome = outcome;
         Error = error;
-        Warnings = NormalizeWarnings(warnings);
+        Details = Normalize(details);
+        MissingPredecessors = Normalize(missingPredecessors);
+        Warnings = Normalize(warnings);
         UpdatedStatus = updatedStatus;
         ActualStart = actualStart;
         CompletedOn = completedOn;
@@ -336,30 +460,33 @@ public sealed record DirectApplyResult
         DateOnly? completedOn,
         bool supersededRequest,
         IReadOnlyList<string>? warnings = null)
-        => new(DirectApplyOutcome.Success, null, warnings, updatedStatus, actualStart, completedOn, supersededRequest);
+        => new(DirectApplyOutcome.Success, null, Array.Empty<string>(), Array.Empty<string>(), warnings, updatedStatus, actualStart, completedOn, supersededRequest);
 
     public static DirectApplyResult StageNotFound()
-        => new(DirectApplyOutcome.StageNotFound, null, Array.Empty<string>(), null, null, null, false);
+        => new(DirectApplyOutcome.StageNotFound, null, Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(), null, null, null, false);
 
     public static DirectApplyResult NotHeadOfDepartment()
-        => new(DirectApplyOutcome.NotHeadOfDepartment, null, Array.Empty<string>(), null, null, null, false);
+        => new(DirectApplyOutcome.NotHeadOfDepartment, null, Array.Empty<string>(), Array.Empty<string>(), Array.Empty<string>(), null, null, null, false);
 
-    public static DirectApplyResult ValidationFailed(string message)
-        => new(DirectApplyOutcome.ValidationFailed, message, Array.Empty<string>(), null, null, null, false);
+    public static DirectApplyResult ValidationFailed(
+        string message,
+        IReadOnlyList<string>? details = null,
+        IReadOnlyList<string>? missingPredecessors = null)
+        => new(DirectApplyOutcome.ValidationFailed, message, details, missingPredecessors, Array.Empty<string>(), null, null, null, false);
 
-    private static IReadOnlyList<string> NormalizeWarnings(IReadOnlyList<string>? warnings)
+    private static IReadOnlyList<string> Normalize(IReadOnlyList<string>? values)
     {
-        if (warnings is null || warnings.Count == 0)
+        if (values is null || values.Count == 0)
         {
             return Array.Empty<string>();
         }
 
-        if (warnings is List<string> list)
+        if (values is List<string> list)
         {
             return list.ToArray();
         }
 
-        return new List<string>(warnings);
+        return new List<string>(values);
     }
 }
 

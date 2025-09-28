@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,11 +18,17 @@ public class StageRequestService
 
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
+    private readonly IStageValidationService _validationService;
 
-    public StageRequestService(ApplicationDbContext db, IClock clock)
+    public StageRequestService(
+        ApplicationDbContext db,
+        IClock clock,
+        IStageValidationService validationService)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _validationService = validationService
+            ?? throw new ArgumentNullException(nameof(validationService));
     }
 
     public async Task<StageRequestResult> CreateAsync(
@@ -62,33 +69,33 @@ public class StageRequestService
             return StageRequestResult.NotProjectOfficer();
         }
 
-        if (!Enum.TryParse<StageStatus>(input.RequestedStatus, ignoreCase: true, out var requestedStatus))
-        {
-            return StageRequestResult.ValidationFailed("The requested status is not recognised.");
-        }
+        var validation = await _validationService.ValidateAsync(
+            stage.ProjectId,
+            stage.StageCode,
+            input.RequestedStatus,
+            input.RequestedDate,
+            isHoD: false,
+            cancellationToken);
 
-        if (!StageTransitionRules.IsTransitionAllowed(stage.Status, requestedStatus))
+        if (!validation.IsValid)
         {
+            var details = validation.Errors
+                .Concat(validation.Warnings)
+                .ToList();
+
+            if (details.Count == 0 && validation.MissingPredecessors.Count > 0)
+            {
+                details.Add("Complete required predecessor stages first.");
+            }
+
             return StageRequestResult.ValidationFailed(
-                $"Changing from {stage.Status} to {requestedStatus} is not allowed.");
+                "validation",
+                details.Count == 0 ? Array.Empty<string>() : details,
+                validation.MissingPredecessors);
         }
 
         var requestedDate = input.RequestedDate;
-
-        if (requestedStatus == StageStatus.Completed)
-        {
-            if (requestedDate is null)
-            {
-                return StageRequestResult.ValidationFailed(
-                    "A completion date is required when requesting completion.");
-            }
-
-            if (stage.ActualStart.HasValue && requestedDate.Value < stage.ActualStart.Value)
-            {
-                return StageRequestResult.ValidationFailed(
-                    "Completion date cannot be before the actual start date.");
-            }
-        }
+        var requestedStatus = Enum.Parse<StageStatus>(input.RequestedStatus, ignoreCase: true);
 
         var trimmedNote = string.IsNullOrWhiteSpace(input.Note) ? null : input.Note.Trim();
 
@@ -151,13 +158,22 @@ public sealed record StageChangeRequestInput
     public string? Note { get; set; }
 }
 
-public sealed record StageRequestResult(StageRequestOutcome Outcome, string? Error = null, int? RequestId = null)
+public sealed record StageRequestResult(
+    StageRequestOutcome Outcome,
+    string? Error = null,
+    int? RequestId = null,
+    IReadOnlyList<string>? Details = null,
+    IReadOnlyList<string>? MissingPredecessors = null)
 {
     public static StageRequestResult Success(int requestId) => new(StageRequestOutcome.Success, null, requestId);
     public static StageRequestResult NotProjectOfficer() => new(StageRequestOutcome.NotProjectOfficer, null);
     public static StageRequestResult StageNotFound() => new(StageRequestOutcome.StageNotFound, null);
     public static StageRequestResult DuplicatePending() => new(StageRequestOutcome.DuplicatePending, "A pending request already exists for this stage.");
-    public static StageRequestResult ValidationFailed(string message) => new(StageRequestOutcome.ValidationFailed, message);
+    public static StageRequestResult ValidationFailed(
+        string message,
+        IReadOnlyList<string>? details = null,
+        IReadOnlyList<string>? missingPredecessors = null)
+        => new(StageRequestOutcome.ValidationFailed, message, null, details, missingPredecessors);
 }
 
 public enum StageRequestOutcome

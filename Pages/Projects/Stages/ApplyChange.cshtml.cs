@@ -50,6 +50,8 @@ public class ApplyChangeModel : PageModel
 
         [StringLength(1024)]
         public string? Note { get; set; }
+
+        public bool ForceBackfillPredecessors { get; set; }
     }
 
     public async Task<IActionResult> OnPostAsync([FromBody] ApplyChangeInput input, CancellationToken ct)
@@ -131,6 +133,7 @@ public class ApplyChangeModel : PageModel
                 input.Date,
                 input.Note,
                 hodUserId,
+                input.ForceBackfillPredecessors,
                 ct);
 
             switch (result.Outcome)
@@ -143,8 +146,15 @@ public class ApplyChangeModel : PageModel
                     return new UnprocessableEntityObjectResult(new
                     {
                         ok = false,
-                        error = "Validation failed",
-                        details = new[] { result.Error ?? "Validation failed." }
+                        error = result.Error ?? "validation",
+                        details = result.Details is { Count: > 0 }
+                            ? result.Details.ToArray()
+                            : string.IsNullOrWhiteSpace(result.Error)
+                                ? Array.Empty<string>()
+                                : new[] { result.Error },
+                        missingPredecessors = result.MissingPredecessors is { Count: > 0 }
+                            ? result.MissingPredecessors.ToArray()
+                            : Array.Empty<string>()
                     });
                 case DirectApplyOutcome.Success:
                 default:

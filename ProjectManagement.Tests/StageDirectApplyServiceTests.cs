@@ -22,7 +22,8 @@ public class StageDirectApplyServiceTests
         await using var db = CreateContext();
         await SeedStageAsync(db, StageStatus.InProgress, new DateOnly(2024, 5, 1));
 
-        var service = new StageDirectApplyService(db, clock);
+        var validation = new StageValidationService(db, clock);
+        var service = new StageDirectApplyService(db, clock, validation);
 
         var result = await service.ApplyAsync(
             projectId: 1,
@@ -31,6 +32,7 @@ public class StageDirectApplyServiceTests
             date: new DateOnly(2024, 5, 12),
             note: "  Completed ahead of schedule  ",
             hodUserId: "hod-1",
+            forceBackfillPredecessors: false,
             CancellationToken.None);
 
         Assert.Equal(DirectApplyOutcome.Success, result.Outcome);
@@ -69,7 +71,8 @@ public class StageDirectApplyServiceTests
         });
         await db.SaveChangesAsync();
 
-        var service = new StageDirectApplyService(db, clock);
+        var validation = new StageValidationService(db, clock);
+        var service = new StageDirectApplyService(db, clock, validation);
         var result = await service.ApplyAsync(
             projectId: 1,
             stageCode: StageCodes.IPA,
@@ -77,6 +80,7 @@ public class StageDirectApplyServiceTests
             date: new DateOnly(2024, 6, 2),
             note: null,
             hodUserId: "hod-1",
+            forceBackfillPredecessors: false,
             CancellationToken.None);
 
         Assert.Equal(DirectApplyOutcome.Success, result.Outcome);
@@ -94,6 +98,159 @@ public class StageDirectApplyServiceTests
         Assert.Contains(logs, l => l.Action == "Superseded" && l.ToStatus == StageStatus.Completed.ToString());
         Assert.Contains(logs, l => l.Action == "DirectApply" && l.ToStatus == StageStatus.InProgress.ToString());
         Assert.Contains(logs, l => l.Action == "Applied" && l.ToStatus == StageStatus.InProgress.ToString());
+    }
+
+    [Fact]
+    public async Task DirectApply_UnmetPredecessorsWithoutForce_ReturnsValidationFailure()
+    {
+        var clock = new TestClock(new DateTimeOffset(2024, 7, 1, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStageAsync(db, StageStatus.InProgress, new DateOnly(2024, 6, 15));
+
+        db.ProjectStages.Add(new ProjectStage
+        {
+            ProjectId = 1,
+            StageCode = StageCodes.FS,
+            SortOrder = 0,
+            Status = StageStatus.InProgress
+        });
+        await db.SaveChangesAsync();
+
+        var validation = new StageValidationService(db, clock);
+        var service = new StageDirectApplyService(db, clock, validation);
+
+        var result = await service.ApplyAsync(
+            projectId: 1,
+            stageCode: StageCodes.IPA,
+            newStatus: StageStatus.Completed.ToString(),
+            date: new DateOnly(2024, 7, 10),
+            note: null,
+            hodUserId: "hod-1",
+            forceBackfillPredecessors: false,
+            CancellationToken.None);
+
+        Assert.Equal(DirectApplyOutcome.ValidationFailed, result.Outcome);
+        Assert.Contains(StageCodes.FS, result.MissingPredecessors);
+        Assert.Contains("Complete required predecessor stages first.", result.Details);
+    }
+
+    [Fact]
+    public async Task DirectApply_ForceBackfillsPredecessorsAndCompletesStage()
+    {
+        var clock = new TestClock(new DateTimeOffset(2024, 8, 15, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+
+        db.Projects.Add(new Project
+        {
+            Id = 1,
+            Name = "Project",
+            CreatedByUserId = "creator",
+            HodUserId = "hod-1",
+            CreatedAt = DateTime.UtcNow
+        });
+
+        db.ProjectStages.AddRange(
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.IPA,
+                SortOrder = 1,
+                Status = StageStatus.NotStarted
+            },
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.SOW,
+                SortOrder = 2,
+                Status = StageStatus.InProgress,
+                ActualStart = new DateOnly(2024, 8, 1)
+            });
+        await db.SaveChangesAsync();
+
+        var validation = new StageValidationService(db, clock);
+        var service = new StageDirectApplyService(db, clock, validation);
+
+        var result = await service.ApplyAsync(
+            projectId: 1,
+            stageCode: StageCodes.SOW,
+            newStatus: StageStatus.Completed.ToString(),
+            date: new DateOnly(2024, 8, 20),
+            note: null,
+            hodUserId: "hod-1",
+            forceBackfillPredecessors: true,
+            CancellationToken.None);
+
+        Assert.Equal(DirectApplyOutcome.Success, result.Outcome);
+        Assert.Equal(StageStatus.Completed, result.UpdatedStatus);
+
+        var predecessor = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.IPA);
+        Assert.Equal(StageStatus.Completed, predecessor.Status);
+        Assert.Null(predecessor.ActualStart);
+        Assert.Null(predecessor.CompletedOn);
+
+        var stage = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.SOW);
+        Assert.Equal(StageStatus.Completed, stage.Status);
+        Assert.Equal(new DateOnly(2024, 8, 1), stage.ActualStart);
+        Assert.Equal(new DateOnly(2024, 8, 20), stage.CompletedOn);
+
+        var logs = await db.StageChangeLogs
+            .Where(l => l.StageCode == StageCodes.IPA || l.StageCode == StageCodes.SOW)
+            .ToListAsync();
+
+        Assert.Contains(logs, l => l.StageCode == StageCodes.IPA && l.Action == "AutoBackfill");
+        Assert.Contains(logs, l => l.StageCode == StageCodes.SOW && l.Action == "Applied");
+    }
+
+    [Fact]
+    public async Task DirectApply_CompletionBeforeSuggestedStart_ReturnsValidationFailure()
+    {
+        var clock = new TestClock(new DateTimeOffset(2024, 9, 10, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+
+        db.Projects.Add(new Project
+        {
+            Id = 1,
+            Name = "Project",
+            CreatedByUserId = "creator",
+            HodUserId = "hod-1",
+            CreatedAt = DateTime.UtcNow
+        });
+
+        db.ProjectStages.AddRange(
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.IPA,
+                SortOrder = 1,
+                Status = StageStatus.Completed,
+                ActualStart = new DateOnly(2024, 9, 1),
+                CompletedOn = new DateOnly(2024, 9, 5)
+            },
+            new ProjectStage
+            {
+                ProjectId = 1,
+                StageCode = StageCodes.SOW,
+                SortOrder = 2,
+                Status = StageStatus.InProgress,
+                ActualStart = new DateOnly(2024, 9, 6)
+            });
+        await db.SaveChangesAsync();
+
+        var validation = new StageValidationService(db, clock);
+        var service = new StageDirectApplyService(db, clock, validation);
+
+        var result = await service.ApplyAsync(
+            projectId: 1,
+            stageCode: StageCodes.SOW,
+            newStatus: StageStatus.Completed.ToString(),
+            date: new DateOnly(2024, 9, 4),
+            note: null,
+            hodUserId: "hod-1",
+            forceBackfillPredecessors: false,
+            CancellationToken.None);
+
+        Assert.Equal(DirectApplyOutcome.ValidationFailed, result.Outcome);
+        Assert.Contains(result.Details, d => d.Contains("Completion date cannot be earlier", StringComparison.Ordinal));
     }
 
     private static async Task SeedStageAsync(ApplicationDbContext db, StageStatus status, DateOnly? actualStart = null)
