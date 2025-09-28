@@ -68,9 +68,9 @@ public sealed class StageValidationService : IStageValidationService
         }
 
         var normalizedStageCode = stageCode.Trim().ToUpperInvariant();
-        var normalizedStatus = targetStatus.Trim();
+        var normalizedTargetStatus = targetStatus.Trim();
 
-        if (!Enum.TryParse<StageStatus>(normalizedStatus, ignoreCase: true, out var desiredStatus))
+        if (!Enum.TryParse(normalizedTargetStatus, ignoreCase: true, out StageStatus desiredStatus))
         {
             errors.Add("The target status is not recognised.");
             return BuildResult();
@@ -97,6 +97,11 @@ public sealed class StageValidationService : IStageValidationService
 
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_clock.UtcNow, IndiaTimeZone).Date);
 
+        if (targetDate.HasValue && targetDate.Value > today)
+        {
+            errors.Add("Date cannot be in the future.");
+        }
+
         if (!IsTransitionAllowed(stage.Status, desiredStatus, targetDate, out var transitionError))
         {
             if (!string.IsNullOrEmpty(transitionError))
@@ -109,35 +114,12 @@ public sealed class StageValidationService : IStageValidationService
             }
         }
 
-        if (desiredStatus == StageStatus.InProgress && targetDate.HasValue)
+        if (desiredStatus == StageStatus.Completed && !isHoD && !targetDate.HasValue)
         {
-            if (targetDate.Value > today)
-            {
-                errors.Add("Actual start date cannot be in the future.");
-            }
+            errors.Add("Completion date is required.");
         }
 
-        if (desiredStatus == StageStatus.Completed)
-        {
-            if (!targetDate.HasValue && !isHoD)
-            {
-                errors.Add("A completion date is required when completing a stage.");
-            }
-
-            if (targetDate.HasValue && targetDate.Value > today)
-            {
-                errors.Add("Completion date cannot be in the future.");
-            }
-
-            if (targetDate.HasValue && stage.ActualStart.HasValue && targetDate.Value < stage.ActualStart.Value)
-            {
-                errors.Add("Completion date cannot be before the actual start date.");
-            }
-        }
-
-        var requiresDependencies = desiredStatus is StageStatus.InProgress or StageStatus.Completed;
-
-        if (requiresDependencies)
+        if (desiredStatus is StageStatus.InProgress or StageStatus.Completed)
         {
             var pncApplicable = await ResolvePncApplicabilityAsync(projectId, ct);
             var predecessors = StageDependencies.RequiredPredecessors(stage.StageCode)
@@ -146,38 +128,43 @@ public sealed class StageValidationService : IStageValidationService
 
             if (predecessors.Count > 0)
             {
-                var completedDates = new List<DateOnly>();
+                List<DateOnly>? predecessorCompletionDates = desiredStatus == StageStatus.Completed
+                    ? new List<DateOnly>()
+                    : null;
 
                 foreach (var predecessorCode in predecessors)
                 {
-                    if (!stageLookup.TryGetValue(predecessorCode, out var predecessor) || predecessor.Status != StageStatus.Completed)
+                    if (!stageLookup.TryGetValue(predecessorCode, out var predecessor) ||
+                        predecessor.Status != StageStatus.Completed)
                     {
                         missingPredecessors.Add(predecessorCode);
                         continue;
                     }
 
-                    if (predecessor.CompletedOn.HasValue)
+                    if (desiredStatus == StageStatus.Completed && predecessor.CompletedOn.HasValue)
                     {
-                        completedDates.Add(predecessor.CompletedOn.Value);
+                        predecessorCompletionDates!.Add(predecessor.CompletedOn.Value);
                     }
                 }
 
-                if (completedDates.Count > 0)
+                if (desiredStatus == StageStatus.Completed && predecessorCompletionDates is { Count: > 0 })
                 {
-                    suggestedAutoStart = completedDates.Max();
+                    suggestedAutoStart = predecessorCompletionDates.Max();
                 }
             }
         }
 
-        if (desiredStatus == StageStatus.Completed && targetDate.HasValue && suggestedAutoStart.HasValue && targetDate.Value < suggestedAutoStart.Value)
+        if (desiredStatus == StageStatus.Completed &&
+            targetDate.HasValue &&
+            suggestedAutoStart.HasValue &&
+            targetDate.Value < suggestedAutoStart.Value)
         {
-            var message = $"Completion date cannot be earlier than {suggestedAutoStart.Value:yyyy-MM-dd}, when the latest predecessor completed.";
+            errors.Add($"Completion cannot be before latest predecessor completion ({suggestedAutoStart.Value:yyyy-MM-dd}).");
+
             if (isHoD)
             {
                 warnings.Add("Completion before the latest predecessor requires a force override.");
             }
-
-            errors.Add(message);
         }
 
         return BuildResult();
@@ -233,7 +220,7 @@ public sealed class StageValidationService : IStageValidationService
             StageStatus.Blocked => ValidateBlockTransition(current, out error),
             StageStatus.Skipped => ValidateSkipTransition(current, out error),
             StageStatus.NotStarted => ValidateReopenTransition(current, out error),
-            _ => false
+            _ => DenyTransition(current, target, out error)
         };
     }
 
@@ -246,39 +233,20 @@ public sealed class StageValidationService : IStageValidationService
             StageStatus.NotStarted => true,
             StageStatus.Blocked => true,
             StageStatus.Skipped => true,
-            StageStatus.Completed => ValidateCompletedToInProgress(targetDate, out error),
+            StageStatus.Completed when targetDate.HasValue => true,
+            StageStatus.Completed => Deny("Reopening a completed stage to InProgress requires an actual start date.", out error),
             _ => DenyTransition(current, StageStatus.InProgress, out error)
         };
     }
 
-    private static bool ValidateCompletedToInProgress(DateOnly? targetDate, out string? error)
-    {
-        if (targetDate.HasValue)
-        {
-            error = null;
-            return true;
-        }
-
-        error = "Reopening to InProgress requires an actual start date.";
-        return false;
-    }
-
-    private static bool DenyTransition(StageStatus current, StageStatus target, out string? error)
-    {
-        error = $"Changing from {current} to {target} is not allowed.";
-        return false;
-    }
-
     private static bool ValidateCompleteTransition(StageStatus current, out string? error)
     {
-        if (current == StageStatus.InProgress)
+        return current switch
         {
-            error = null;
-            return true;
-        }
-
-        error = $"Changing from {current} to {StageStatus.Completed} is not allowed.";
-        return false;
+            StageStatus.NotStarted => true,
+            StageStatus.InProgress => true,
+            _ => DenyTransition(current, StageStatus.Completed, out error)
+        };
     }
 
     private static bool ValidateBlockTransition(StageStatus current, out string? error)
@@ -313,7 +281,19 @@ public sealed class StageValidationService : IStageValidationService
             return true;
         }
 
-        error = "Only completed, skipped, or blocked stages can be reopened.";
+        error = "Only completed, skipped, or blocked stages can be reopened to NotStarted.";
+        return false;
+    }
+
+    private static bool DenyTransition(StageStatus current, StageStatus target, out string? error)
+    {
+        error = $"Changing from {current} to {target} is not allowed.";
+        return false;
+    }
+
+    private static bool Deny(string message, out string? error)
+    {
+        error = message;
         return false;
     }
 }
