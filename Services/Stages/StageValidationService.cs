@@ -255,12 +255,14 @@ public sealed class StageValidationService : IStageValidationService
 
     private static bool ValidateCompleteTransition(StageStatus current, out string? error)
     {
-        return current switch
+        if (current == StageStatus.InProgress)
         {
-            StageStatus.NotStarted => true,
-            StageStatus.InProgress => true,
-            _ => (error = $"Changing from {current} to {StageStatus.Completed} is not allowed.", false)
-        };
+            error = null;
+            return true;
+        }
+
+        error = $"Changing from {current} to {StageStatus.Completed} is not allowed.";
+        return false;
     }
 
     private static bool ValidateBlockTransition(StageStatus current, out string? error)
