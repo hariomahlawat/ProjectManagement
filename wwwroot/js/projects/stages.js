@@ -414,7 +414,7 @@
         status: statusInput.value,
         date: dateInput && dateInput.value ? dateInput.value : null,
         note: noteInput && noteInput.value ? noteInput.value.trim() : null,
-        forceBackfillPredecessors: !!document.querySelector('#forceBackfillPredecessors')?.checked
+        forceBackfillPredecessors: !!(forceCheckbox?.checked)
       };
 
       if (!payload.projectId) {
@@ -488,11 +488,7 @@
         }
         renderMissingPredecessors(missingPredecessorsContainer, []);
         setForceHintHighlighted(false);
-        const modalForceCheckbox = document.querySelector('#forceBackfillPredecessors');
-        if (modalForceCheckbox) {
-          modalForceCheckbox.checked = false;
-        }
-        if (forceCheckbox && forceCheckbox !== modalForceCheckbox) {
+        if (forceCheckbox) {
           forceCheckbox.checked = false;
         }
       } catch (error) {
