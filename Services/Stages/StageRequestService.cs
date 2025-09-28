@@ -1,13 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
-using ProjectManagement.Services;
 
 namespace ProjectManagement.Services.Stages;
 
@@ -79,19 +77,22 @@ public class StageRequestService
 
         if (!validation.IsValid)
         {
-            var details = validation.Errors
-                .Concat(validation.Warnings)
-                .ToList();
+            string message;
 
-            if (details.Count == 0 && validation.MissingPredecessors.Count > 0)
+            if (validation.Errors.Count > 0)
             {
-                details.Add("Complete required predecessor stages first.");
+                message = string.Join(" ", validation.Errors);
+            }
+            else if (validation.MissingPredecessors.Count > 0)
+            {
+                message = "Complete required predecessor stages first.";
+            }
+            else
+            {
+                message = "Validation failed.";
             }
 
-            return StageRequestResult.ValidationFailed(
-                "validation",
-                details.Count == 0 ? Array.Empty<string>() : details,
-                validation.MissingPredecessors);
+            return StageRequestResult.ValidationFailed(message, validation.MissingPredecessors);
         }
 
         var requestedDate = input.RequestedDate;
@@ -162,18 +163,17 @@ public sealed record StageRequestResult(
     StageRequestOutcome Outcome,
     string? Error = null,
     int? RequestId = null,
-    IReadOnlyList<string>? Details = null,
     IReadOnlyList<string>? MissingPredecessors = null)
 {
     public static StageRequestResult Success(int requestId) => new(StageRequestOutcome.Success, null, requestId);
     public static StageRequestResult NotProjectOfficer() => new(StageRequestOutcome.NotProjectOfficer, null);
     public static StageRequestResult StageNotFound() => new(StageRequestOutcome.StageNotFound, null);
-    public static StageRequestResult DuplicatePending() => new(StageRequestOutcome.DuplicatePending, "A pending request already exists for this stage.");
+    public static StageRequestResult DuplicatePending()
+        => new(StageRequestOutcome.DuplicatePending, "A pending request already exists for this stage.");
     public static StageRequestResult ValidationFailed(
         string message,
-        IReadOnlyList<string>? details = null,
         IReadOnlyList<string>? missingPredecessors = null)
-        => new(StageRequestOutcome.ValidationFailed, message, null, details, missingPredecessors);
+        => new(StageRequestOutcome.ValidationFailed, message, null, missingPredecessors);
 }
 
 public enum StageRequestOutcome

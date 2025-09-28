@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -54,29 +53,18 @@ public class RequestChangeModel : PageModel
                 new { ok = false, error = "duplicate" }),
             StageRequestOutcome.ValidationFailed => HttpContext.SetStatusCode(
                 StatusCodes.Status422UnprocessableEntity,
-                CreateValidationError(result.Details, result.MissingPredecessors)),
+                new
+                {
+                    ok = false,
+                    error = "validation",
+                    details = string.IsNullOrWhiteSpace(result.Error)
+                        ? Array.Empty<string>()
+                        : new[] { result.Error },
+                    missingPredecessors = result.MissingPredecessors is { Count: > 0 }
+                        ? result.MissingPredecessors.ToArray()
+                        : Array.Empty<string>()
+                }),
             _ => HttpContext.SetInternalServerError()
-        };
-    }
-
-    private static object CreateValidationError(
-        IReadOnlyList<string>? details,
-        IReadOnlyList<string>? missingPredecessors)
-    {
-        var detailArray = details is { Count: > 0 }
-            ? details.ToArray()
-            : Array.Empty<string>();
-
-        var missingArray = missingPredecessors is { Count: > 0 }
-            ? missingPredecessors.ToArray()
-            : Array.Empty<string>();
-
-        return new
-        {
-            ok = false,
-            error = "validation",
-            details = detailArray,
-            missingPredecessors = missingArray
         };
     }
 }
