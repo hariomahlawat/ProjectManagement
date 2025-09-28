@@ -32,3 +32,6 @@ This project is a .NET 8 ASP.NET Core application that provides tools for managi
 
 ## Documentation
 Additional technical documentation is available in the [docs](docs) directory.
+
+## Development guardrails
+- Inline styles and script handlers are forbidden in Razor views. Run `./tools/check-views.sh` before committing to ensure no `<script>` tags without `src`, `on*=` attributes, or `style="..."` slips into `.cshtml`/`.html` files.

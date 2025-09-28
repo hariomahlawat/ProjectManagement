@@ -165,6 +165,73 @@ body {
   width: 100%;
 }
 
+.chart-container-240 {
+  position: relative;
+  height: 240px;
+  width: 100%;
+}
+
+.pm-progress {
+  appearance: none;
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: 999px;
+  background-color: var(--bs-secondary-bg, #e9ecef);
+  overflow: hidden;
+}
+
+.pm-progress::-webkit-progress-bar {
+  background-color: var(--bs-secondary-bg, #e9ecef);
+  border-radius: 999px;
+}
+
+.pm-progress::-webkit-progress-value {
+  background-color: var(--bs-primary, #0d6efd);
+  border-radius: 999px;
+  transition: width .3s ease;
+}
+
+.pm-progress::-moz-progress-bar {
+  background-color: var(--bs-primary, #0d6efd);
+  border-radius: 999px;
+  transition: width .3s ease;
+}
+
+.pm-progress-slim {
+  height: 6px;
+}
+
+.pm-progress-fixed-180 {
+  width: 180px;
+  max-width: 100%;
+}
+
+.pm-scrollable-320 {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.pm-column-narrow {
+  width: 1%;
+  white-space: nowrap;
+}
+
+.pm-truncate-420 {
+  max-width: 420px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pm-sticky-offset-88 {
+  top: 88px;
+}
+
+.pm-form-max-520 {
+  max-width: 520px;
+}
+
 /* Ensure the canvas fills the wrapper, not the page */
 #loginsScatter {
   width: 100% !important;

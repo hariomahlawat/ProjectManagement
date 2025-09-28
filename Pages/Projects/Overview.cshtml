@@ -22,7 +22,7 @@
     var submissionBlocked = planState.HasPendingSubmission && !planState.PendingOwnedByCurrentUser;
     var completedStages = Model.Timeline.CompletedCount;
     var totalStages = Model.Timeline.TotalStages;
-    var progressPercent = totalStages == 0 ? 0 : (completedStages * 100 / totalStages);
+    var progressMax = totalStages == 0 ? 1 : totalStages;
     ViewData["Title"] = pageTitle;
 }
 
@@ -293,13 +293,11 @@
                         </div>
                         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
                             <div class="d-flex align-items-center gap-2">
-                                <div class="progress" style="width: 180px" aria-label="Stages completed">
-                                    <div class="progress-bar" role="progressbar"
-                                         style="width:@progressPercent%"
-                                         aria-valuenow="@completedStages"
-                                         aria-valuemin="0"
-                                         aria-valuemax="@totalStages"></div>
-                                </div>
+                                <progress class="pm-progress pm-progress-slim pm-progress-fixed-180"
+                                          value="@completedStages"
+                                          max="@progressMax"
+                                          aria-label="Stages completed">
+                                </progress>
                                 <span class="text-muted small">@completedStages of @totalStages</span>
                             </div>
                         </div>

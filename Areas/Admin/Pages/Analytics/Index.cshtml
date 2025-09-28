@@ -40,7 +40,7 @@
       <small class="text-muted">IST</small>
     </div>
 
-  <div style="position:relative; height:240px;">
+  <div class="chart-container-240">
     <canvas id="loginsPerDayChart"
             data-labels='@JsonSerializer.Serialize(Model.LoginsPerDay.Select(x => x.Date.ToString("dd MMM yyyy")))'
             data-values='@JsonSerializer.Serialize(Model.LoginsPerDay.Select(x => x.Count))'>

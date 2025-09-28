@@ -20,6 +20,7 @@ The projects feature brings together procurement data, execution timelines and c
 * Change-management is coordinated by `StageValidationService`, a shared validator that enforces legal status transitions, prevents future-dated actuals, surfaces unmet predecessor stages (respecting the project’s PNC applicability flag) and recommends the earliest safe auto-start date derived from completed predecessors.
 * Project Officers submit `StageChangeRequest` records through `StageRequestService`. Validation errors are returned with structured error arrays and a list of missing predecessors so the UI can guide users before a HoD review.
 * HoDs can bypass the approval queue via `StageDirectApplyService`, which reuses the validator, can optionally backfill incomplete predecessors, supports admin completions without dates (marking the stage as incomplete data) and emits warnings when the update supersedes a pending request or requires auto-adjustments.
+* Health chips are driven by `StageHealthCalculator`: a slip of seven days or more marks the project Red, one to six days slip (or work due within two days) elevates to Amber, and completed/skipped stages are excluded from the proactive Amber threshold so imminent work drives the signal.
 
 ## Role assignment
 * The overview model builds an `AssignRolesVm` populated from the `HoD` and `Project Officer` role memberships, letting administrators record the responsible officers per project without leaving the page.
