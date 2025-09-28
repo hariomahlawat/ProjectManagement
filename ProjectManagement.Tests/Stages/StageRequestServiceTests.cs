@@ -49,6 +49,7 @@ public class StageRequestServiceTests
         var missing = Assert.IsAssignableFrom<IReadOnlyList<string>>(result.MissingPredecessors);
         Assert.Single(missing);
         Assert.Equal(StageCodes.FS, missing[0]);
+        Assert.Contains("Complete required predecessor stages first.", result.Errors);
 
         var call = Assert.Single(validator.Calls);
         Assert.Equal(1, call.ProjectId);
@@ -89,6 +90,7 @@ public class StageRequestServiceTests
 
         Assert.Equal(StageRequestOutcome.Success, result.Outcome);
         Assert.True(result.RequestId.HasValue);
+        Assert.Empty(result.Errors);
 
         var request = await db.StageChangeRequests.SingleAsync();
         Assert.Equal("po-1", request.RequestedByUserId);

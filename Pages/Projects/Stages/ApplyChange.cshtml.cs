@@ -87,10 +87,9 @@ public class ApplyChangeModel : PageModel
             });
         }
 
-        var needsDate = string.Equals(statusMatch, "Completed", StringComparison.Ordinal)
-                         || string.Equals(statusMatch, "InProgress", StringComparison.Ordinal);
+        var requiresDate = string.Equals(statusMatch, "InProgress", StringComparison.Ordinal);
 
-        if (needsDate && input.Date is null)
+        if (requiresDate && input.Date is null)
         {
             return ValidationFailure(new[] { "Date is required for the selected status." });
         }
