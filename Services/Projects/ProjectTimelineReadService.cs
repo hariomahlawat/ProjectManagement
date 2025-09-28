@@ -44,6 +44,63 @@ public sealed class ProjectTimelineReadService
             .Where(r => r.ProjectId == projectId && r.DecisionStatus == PendingDecisionStatus)
             .ToListAsync(ct);
 
+        var rowLookup = rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.StageCode))
+            .ToDictionary(x => x.StageCode!, StringComparer.OrdinalIgnoreCase);
+
+        var requestedByIds = pendingRequests
+            .Select(r => r.RequestedByUserId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        Dictionary<string, string> userLookup;
+        if (requestedByIds.Length == 0)
+        {
+            userLookup = new Dictionary<string, string>(StringComparer.Ordinal);
+        }
+        else
+        {
+            var requestedUsers = await _db.Users
+                .AsNoTracking()
+                .Where(u => requestedByIds.Contains(u.Id))
+                .Select(u => new { u.Id, u.FullName, u.UserName, u.Email })
+                .ToListAsync(ct);
+
+            userLookup = requestedUsers.ToDictionary(
+                u => u.Id,
+                u => !string.IsNullOrWhiteSpace(u.FullName)
+                    ? u.FullName!
+                    : !string.IsNullOrWhiteSpace(u.UserName)
+                        ? u.UserName!
+                        : u.Email ?? u.Id,
+                StringComparer.Ordinal);
+        }
+
+        var pendingRequestVms = pendingRequests
+            .OrderByDescending(r => r.RequestedOn)
+            .Select(r =>
+            {
+                rowLookup.TryGetValue(r.StageCode, out var stageRow);
+                var requestedBy = userLookup.TryGetValue(r.RequestedByUserId, out var name)
+                    ? name
+                    : r.RequestedByUserId;
+
+                return new TimelineStageRequestVm
+                {
+                    RequestId = r.Id,
+                    StageCode = r.StageCode,
+                    StageName = StageCodes.DisplayNameOf(r.StageCode),
+                    CurrentStatus = stageRow?.Status ?? StageStatus.NotStarted,
+                    RequestedStatus = r.RequestedStatus,
+                    RequestedDate = r.RequestedDate,
+                    Note = r.Note,
+                    RequestedBy = requestedBy,
+                    RequestedOn = r.RequestedOn
+                };
+            })
+            .ToList();
+
         var pendingLookup = pendingRequests
             .GroupBy(r => r.StageCode, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
@@ -57,7 +114,7 @@ public sealed class ProjectTimelineReadService
         var index = 0;
         foreach (var code in StageCodes.All)
         {
-            var r = rows.FirstOrDefault(x => x.StageCode == code);
+            rowLookup.TryGetValue(code, out var r);
             pendingLookup.TryGetValue(code, out var pendingRequest);
 
             var plannedStart = r?.PlannedStart;
@@ -136,6 +193,7 @@ public sealed class ProjectTimelineReadService
             TotalStages = items.Count,
             CompletedCount = completed,
             Items = items,
+            PendingRequests = pendingRequestVms,
             PlanPendingApproval = openPlan?.Status == PlanVersionStatus.PendingApproval,
             HasDraft = openPlan is not null,
             LatestApprovalAt = approvalInfo?.PlanApprovedAt,

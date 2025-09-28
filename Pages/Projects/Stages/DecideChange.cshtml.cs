@@ -49,7 +49,17 @@ public class DecideChangeModel : PageModel
 
         return result.Outcome switch
         {
-            StageDecisionOutcome.Success => HttpContext.SetSuccess(),
+            StageDecisionOutcome.Success => HttpContext.SetSuccess(new
+            {
+                ok = true,
+                updated = result.Stage is null ? null : new
+                {
+                    status = result.Stage.Status.ToString(),
+                    actualStart = result.Stage.ActualStart?.ToString("yyyy-MM-dd"),
+                    completedOn = result.Stage.CompletedOn?.ToString("yyyy-MM-dd")
+                },
+                warnings = result.Warnings
+            }),
             StageDecisionOutcome.NotHeadOfDepartment => Forbid(),
             StageDecisionOutcome.RequestNotFound => HttpContext.SetStatusCode(
                 StatusCodes.Status404NotFound,

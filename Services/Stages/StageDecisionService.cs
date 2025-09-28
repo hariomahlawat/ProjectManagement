@@ -81,6 +81,10 @@ public sealed class StageDecisionService
         var trimmedNote = string.IsNullOrWhiteSpace(input.DecisionNote) ? null : input.DecisionNote.Trim();
         var now = _clock.UtcNow;
 
+        var beforeStatus = stage.Status;
+        var beforeActualStart = stage.ActualStart;
+        var beforeCompletedOn = stage.CompletedOn;
+
         if (input.Action == StageDecisionAction.Reject)
         {
             request.DecisionStatus = RejectedDecisionStatus;
@@ -107,7 +111,7 @@ public sealed class StageDecisionService
             await _db.StageChangeLogs.AddAsync(rejectionLog, cancellationToken);
             await _db.SaveChangesAsync(cancellationToken);
 
-            return StageDecisionResult.Success();
+            return StageDecisionResult.Success(beforeStatus, beforeActualStart, beforeCompletedOn);
         }
 
         if (!Enum.TryParse<StageStatus>(request.RequestedStatus, ignoreCase: true, out var requestedStatus))
@@ -159,10 +163,6 @@ public sealed class StageDecisionService
                     $"Predecessor stages are incomplete: {string.Join(", ", incompletePredecessors)}.");
             }
         }
-
-        var beforeStatus = stage.Status;
-        var beforeActualStart = stage.ActualStart;
-        var beforeCompletedOn = stage.CompletedOn;
 
         var useTransaction = _db.Database.IsRelational();
         await using var transaction = useTransaction
@@ -229,7 +229,7 @@ public sealed class StageDecisionService
             await transaction.CommitAsync(cancellationToken);
         }
 
-        return StageDecisionResult.Success(warnings);
+        return StageDecisionResult.Success(afterStatus, afterActualStart, afterCompletedOn, warnings);
     }
 
     private async Task<IReadOnlyList<string>> FindIncompletePredecessorsAsync(
@@ -291,36 +291,53 @@ public enum StageDecisionAction
     Reject
 }
 
+public sealed record StageDecisionStageSnapshot(StageStatus Status, DateOnly? ActualStart, DateOnly? CompletedOn);
+
 public sealed record StageDecisionResult
 {
-    private StageDecisionResult(StageDecisionOutcome outcome, string? error, IReadOnlyList<string>? warnings)
+    private StageDecisionResult(
+        StageDecisionOutcome outcome,
+        string? error,
+        IReadOnlyList<string>? warnings,
+        StageDecisionStageSnapshot? stage)
     {
         Outcome = outcome;
         Error = error;
         Warnings = warnings ?? Array.Empty<string>();
+        Stage = stage;
     }
 
     public StageDecisionOutcome Outcome { get; }
     public string? Error { get; }
     public IReadOnlyList<string> Warnings { get; }
 
-    public static StageDecisionResult Success(IReadOnlyList<string>? warnings = null)
-        => new(StageDecisionOutcome.Success, null, warnings);
+    public StageDecisionStageSnapshot? Stage { get; }
+
+    public static StageDecisionResult Success(
+        StageStatus status,
+        DateOnly? actualStart,
+        DateOnly? completedOn,
+        IReadOnlyList<string>? warnings = null)
+        => new(
+            StageDecisionOutcome.Success,
+            null,
+            warnings,
+            new StageDecisionStageSnapshot(status, actualStart, completedOn));
 
     public static StageDecisionResult NotHeadOfDepartment()
-        => new(StageDecisionOutcome.NotHeadOfDepartment, null, Array.Empty<string>());
+        => new(StageDecisionOutcome.NotHeadOfDepartment, null, Array.Empty<string>(), null);
 
     public static StageDecisionResult RequestNotFound()
-        => new(StageDecisionOutcome.RequestNotFound, null, Array.Empty<string>());
+        => new(StageDecisionOutcome.RequestNotFound, null, Array.Empty<string>(), null);
 
     public static StageDecisionResult StageNotFound()
-        => new(StageDecisionOutcome.StageNotFound, null, Array.Empty<string>());
+        => new(StageDecisionOutcome.StageNotFound, null, Array.Empty<string>(), null);
 
     public static StageDecisionResult AlreadyDecided()
-        => new(StageDecisionOutcome.AlreadyDecided, null, Array.Empty<string>());
+        => new(StageDecisionOutcome.AlreadyDecided, null, Array.Empty<string>(), null);
 
     public static StageDecisionResult ValidationFailed(string message)
-        => new(StageDecisionOutcome.ValidationFailed, message, Array.Empty<string>());
+        => new(StageDecisionOutcome.ValidationFailed, message, Array.Empty<string>(), null);
 }
 
 public enum StageDecisionOutcome
