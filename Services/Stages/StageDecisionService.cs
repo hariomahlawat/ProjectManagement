@@ -57,7 +57,7 @@ public sealed class StageDecisionService
             throw new ArgumentException("A valid user identifier is required.", nameof(hodUserId));
         }
 
-        var connectionHash = ConnectionStringHasher.Hash(_db.Database.GetDbConnection().ConnectionString);
+        var connectionHash = ConnectionStringHasher.Hash(_db.Database.GetConnectionString());
 
         _logger.LogInformation(
             "Stage decision started. RequestId={RequestId}, User={UserId}, ConnHash={ConnHash}",

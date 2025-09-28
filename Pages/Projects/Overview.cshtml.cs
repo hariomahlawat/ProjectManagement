@@ -74,7 +74,7 @@ namespace ProjectManagement.Pages.Projects
 
             Project = project;
 
-            var connectionHash = ConnectionStringHasher.Hash(_db.Database.GetDbConnection().ConnectionString);
+            var connectionHash = ConnectionStringHasher.Hash(_db.Database.GetConnectionString());
 
             var projectStages = await _db.ProjectStages
                 .Where(s => s.ProjectId == id)
