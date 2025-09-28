@@ -246,11 +246,27 @@ public sealed class StageValidationService : IStageValidationService
             StageStatus.NotStarted => true,
             StageStatus.Blocked => true,
             StageStatus.Skipped => true,
-            StageStatus.Completed => targetDate.HasValue
-                ? true
-                : (error = "Reopening to InProgress requires an actual start date.", false),
-            _ => (error = $"Changing from {current} to {StageStatus.InProgress} is not allowed.", false)
+            StageStatus.Completed => ValidateCompletedToInProgress(targetDate, out error),
+            _ => DenyTransition(current, StageStatus.InProgress, out error)
         };
+    }
+
+    private static bool ValidateCompletedToInProgress(DateOnly? targetDate, out string? error)
+    {
+        if (targetDate.HasValue)
+        {
+            error = null;
+            return true;
+        }
+
+        error = "Reopening to InProgress requires an actual start date.";
+        return false;
+    }
+
+    private static bool DenyTransition(StageStatus current, StageStatus target, out string? error)
+    {
+        error = $"Changing from {current} to {target} is not allowed.";
+        return false;
     }
 
     private static bool ValidateCompleteTransition(StageStatus current, out string? error)
