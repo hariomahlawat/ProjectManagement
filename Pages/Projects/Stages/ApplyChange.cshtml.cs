@@ -10,8 +10,10 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Pages.Projects.Stages;
 
@@ -31,11 +33,16 @@ public class ApplyChangeModel : PageModel
 
     private readonly ApplicationDbContext _db;
     private readonly StageDirectApplyService _service;
+    private readonly ILogger<ApplyChangeModel> _logger;
 
-    public ApplyChangeModel(ApplicationDbContext db, StageDirectApplyService service)
+    public ApplyChangeModel(
+        ApplicationDbContext db,
+        StageDirectApplyService service,
+        ILogger<ApplyChangeModel> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _service = service ?? throw new ArgumentNullException(nameof(service));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public class ApplyChangeInput
@@ -61,6 +68,9 @@ public class ApplyChangeModel : PageModel
 
     public async Task<IActionResult> OnPostAsync([FromBody] ApplyChangeInput input, CancellationToken ct)
     {
+        var connectionHash = ConnectionStringHasher.Hash(_db.Database.GetConnectionString());
+        _logger.LogInformation("ApplyChange POST received. ConnHash={ConnHash}", connectionHash);
+
         if (!ModelState.IsValid)
         {
             var errs = ModelState.Values
