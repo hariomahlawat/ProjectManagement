@@ -70,9 +70,9 @@
 }
 
 .pm-actions-trigger {
-  width: 2.5rem;
-  min-width: 2.5rem;
-  height: 2.5rem;
+  width: var(--pm-btn-icon);
+  min-width: var(--pm-btn-icon);
+  height: var(--pm-btn-icon);
   display: inline-flex;
   align-items: center;
   justify-content: center;
