@@ -138,7 +138,8 @@ public class ApplyChangeModel : PageModel
                 {
                     status = result.UpdatedStatus,
                     actualStart = result.ActualStart?.ToString("yyyy-MM-dd"),
-                    completedOn = result.CompletedOn?.ToString("yyyy-MM-dd")
+                    completedOn = result.CompletedOn?.ToString("yyyy-MM-dd"),
+                    requiresBackfill = result.RequiresBackfill
                 },
                 backfilled = new
                 {

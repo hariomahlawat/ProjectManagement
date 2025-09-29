@@ -161,6 +161,15 @@
     return `${today.getFullYear()}-${month}-${day}`;
   }
 
+  function computeIncompleteState(status, actualStart, completedOn, requiresBackfill) {
+    const normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : '';
+    const hasStart = !!actualStart;
+    const hasCompleted = !!completedOn;
+    const needsStart = (normalizedStatus === 'inprogress' || normalizedStatus === 'completed') && !hasStart;
+    const needsFinish = normalizedStatus === 'completed' && !hasCompleted;
+    return Boolean(requiresBackfill || needsStart || needsFinish);
+  }
+
   function updateStageRow(stageCode, payloadStatus, updated) {
     if (!stageCode) return;
     const row = document.querySelector(`[data-stage-row="${escapeSelector(stageCode)}"]`);
@@ -168,6 +177,16 @@
 
     const updatedStatus = (updated && updated.status) ? updated.status : payloadStatus;
     const statusText = updatedStatus || payloadStatus;
+    const actualStartIso = updated?.actualStart ?? null;
+    const completedIso = updated?.completedOn ?? null;
+    const requiresBackfill = Boolean(updated?.requiresBackfill);
+
+    if (requiresBackfill) {
+      row.setAttribute('data-requires-backfill', 'true');
+    } else {
+      row.removeAttribute('data-requires-backfill');
+    }
+
     const badge = row.querySelector('[data-stage-status]');
     if (badge) {
       badge.textContent = statusLabel(statusText);
@@ -176,17 +195,17 @@
 
     const actualSpan = row.querySelector('[data-stage-actual-start]');
     if (actualSpan) {
-      actualSpan.textContent = formatDate(updated?.actualStart ?? null);
+      actualSpan.textContent = formatDate(actualStartIso);
     }
 
     const completedSpan = row.querySelector('[data-stage-completed]');
     if (completedSpan) {
-      completedSpan.textContent = formatDate(updated?.completedOn ?? null);
+      completedSpan.textContent = formatDate(completedIso);
     }
 
     const durationSpan = row.querySelector('[data-stage-duration]');
     if (durationSpan) {
-      const days = calculateDurationDays(updated?.actualStart ?? null, updated?.completedOn ?? null);
+      const days = calculateDurationDays(actualStartIso, completedIso);
       if (days) {
         durationSpan.textContent = `(${days} d)`;
         durationSpan.classList.remove('d-none');
@@ -200,19 +219,40 @@
     triggers.forEach((trigger) => {
       const triggerStatus = trigger.getAttribute('data-status');
       if (triggerStatus === 'Completed') {
-        if (updated?.completedOn) {
-          trigger.setAttribute('data-default-date', updated.completedOn);
+        if (completedIso) {
+          trigger.setAttribute('data-default-date', completedIso);
         } else {
           trigger.removeAttribute('data-default-date');
         }
       } else if (triggerStatus === 'InProgress') {
-        if (updated?.actualStart) {
-          trigger.setAttribute('data-default-date', updated.actualStart);
+        if (actualStartIso) {
+          trigger.setAttribute('data-default-date', actualStartIso);
         } else {
           trigger.removeAttribute('data-default-date');
         }
       }
     });
+
+    const incompleteBadge = row.querySelector('[data-stage-incomplete]');
+    if (incompleteBadge) {
+      const showIncomplete = computeIncompleteState(updatedStatus, actualStartIso, completedIso, requiresBackfill);
+      incompleteBadge.classList.toggle('d-none', !showIncomplete);
+    }
+
+    const backfillIndicator = row.querySelector('[data-stage-backfill-indicator]');
+    if (backfillIndicator) {
+      backfillIndicator.classList.toggle('d-none', !requiresBackfill);
+    }
+
+    const backfillButton = row.querySelector('[data-stage-backfill-button]');
+    if (backfillButton) {
+      backfillButton.classList.toggle('d-none', !requiresBackfill);
+    }
+
+    const hasAnyBackfill = document.querySelector('[data-stage-backfill-button]:not(.d-none)') !== null;
+    document.dispatchEvent(new CustomEvent('pm:backfill-state-changed', {
+      detail: { hasBackfill: hasAnyBackfill }
+    }));
   }
 
   function updatePendingBadge(stageCode, status, dateIso) {
