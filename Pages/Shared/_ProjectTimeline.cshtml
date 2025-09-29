@@ -91,10 +91,11 @@
             @if (showDirectApply)
             {
               <div class="dropdown">
-                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                  Actions
+                <button class="btn btn-sm btn-outline-secondary pm-actions-trigger dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions">
+                  <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                  <span class="pm-actions-trigger-text">Actions</span>
                 </button>
-                <ul class="dropdown-menu">
+                <ul class="dropdown-menu dropdown-menu-end">
                   <li>
                     <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="InProgress" data-default-date="@s.ActualStart?.ToString("yyyy-MM-dd")">
                       Start stage
