@@ -21,7 +21,7 @@
 .pm-items {
   display: flex;
   flex-direction: column;
-  gap: 0;
+  gap: 16px;
 }
 
 .pm-item {
@@ -33,7 +33,7 @@
   content: "";
   position: absolute;
   left: -56px;
-  top: 12px;
+  top: 28px;
   width: 12px;
   height: 12px;
   border-radius: 50%;
@@ -53,16 +53,23 @@
 }
 
 .pm-item-card {
-  padding: 12px 0;
-  border-top: 1px solid var(--bs-border-color);
+  padding: 16px 20px;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 16px;
+  background-color: var(--bs-body-bg);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 16px;
+  border-left: 6px solid var(--bs-gray-300);
 }
 
-.pm-item:first-child .pm-item-card {
-  border-top: 0;
-  padding-top: 0;
+.pm-item.is-active .pm-item-card {
+  border-left-color: var(--bs-primary);
+}
+
+.pm-item.is-complete .pm-item-card {
+  border-left-color: var(--bs-success);
 }
 
 .pm-item-header {
@@ -160,38 +167,91 @@
 }
 
 .pm-item-dates {
+  display: grid;
+  gap: 12px;
+  color: var(--bs-gray-800);
+  font-size: 0.95rem;
+}
+
+@media (min-width: 768px) {
+  .pm-item-dates {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.pm-date-block {
+  background-color: var(--bs-gray-100);
+  border: 1px solid var(--bs-gray-200);
+  border-radius: 12px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  color: var(--bs-gray-700);
-  font-size: 0.9rem;
-}
-
-.pm-date-row {
-  display: grid;
-  grid-template-columns: 80px 1fr;
   gap: 8px;
-  align-items: baseline;
+  min-height: 100%;
+  position: relative;
 }
 
-.pm-date-label {
-  font-weight: 500;
-  color: var(--bs-gray-600);
+.pm-date-block.is-plan {
+  background-color: rgba(var(--bs-primary-rgb), 0.08);
+  border-color: rgba(var(--bs-primary-rgb), 0.22);
 }
 
-.pm-date-values {
+.pm-date-block.is-actual {
+  background-color: rgba(var(--bs-success-rgb), 0.09);
+  border-color: rgba(var(--bs-success-rgb), 0.28);
+}
+
+.pm-date-block-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pm-date-block.is-plan .pm-date-block-header {
+  color: var(--bs-primary);
+}
+
+.pm-date-block.is-actual .pm-date-block-header {
+  color: var(--bs-success);
+}
+
+.pm-date-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pm-date-badge::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: currentColor;
+  opacity: 0.6;
+}
+
+.pm-date-range {
   display: flex;
   align-items: baseline;
-  gap: 4px;
+  gap: 6px;
   flex-wrap: wrap;
+  font-weight: 600;
+}
+
+.pm-date-range span {
+  font-variant-numeric: tabular-nums;
 }
 
 .pm-date-duration {
   color: var(--bs-gray-600);
 }
 
-.pm-date-hint {
-  padding-left: 80px;
+.pm-date-meta {
+  margin-top: 2px;
 }
 
 .pm-item-variance {

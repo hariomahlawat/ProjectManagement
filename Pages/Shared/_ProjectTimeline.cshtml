@@ -225,17 +225,21 @@
             </span>
           </div>
           <div class="pm-item-dates">
-            <div class="pm-date-row">
-              <span class="pm-date-label">Planned</span>
-              <div class="pm-date-values">
+            <div class="pm-date-block is-plan">
+              <div class="pm-date-block-header">
+                <span class="pm-date-badge">Planned</span>
+              </div>
+              <div class="pm-date-range">
                 <span data-stage-planned-start>@D(s.PlannedStart)</span>
                 <span class="pm-date-sep">–</span>
                 <span data-stage-planned-end>@D(s.PlannedEnd)</span>
               </div>
             </div>
-            <div class="pm-date-row">
-              <span class="pm-date-label">Actual</span>
-              <div class="pm-date-values">
+            <div class="pm-date-block is-actual">
+              <div class="pm-date-block-header">
+                <span class="pm-date-badge">Actual</span>
+              </div>
+              <div class="pm-date-range">
                 <span data-stage-actual-start>@D(s.ActualStart)</span>
                 <span class="pm-date-sep">–</span>
                 <span data-stage-completed>@D(s.CompletedOn)</span>
@@ -243,20 +247,20 @@
                   @(s.ActualDurationDays.HasValue ? $"({s.ActualDurationDays} d)" : string.Empty)
                 </span>
               </div>
-            </div>
-            <div class="pm-date-hint small text-muted@(s.NeedsStart || s.NeedsFinish ? string.Empty : " d-none")" data-stage-date-hint>
-              @if (s.NeedsStart && s.NeedsFinish)
-              {
-                  <text>Actual start and finish missing</text>
-              }
-              else if (s.NeedsStart)
-              {
-                  <text>Actual start missing</text>
-              }
-              else if (s.NeedsFinish)
-              {
-                  <text>Actual finish missing</text>
-              }
+              <div class="pm-date-meta small text-muted@(s.NeedsStart || s.NeedsFinish ? string.Empty : " d-none")" data-stage-date-hint>
+                @if (s.NeedsStart && s.NeedsFinish)
+                {
+                    <text>Actual start and finish missing</text>
+                }
+                else if (s.NeedsStart)
+                {
+                    <text>Actual start missing</text>
+                }
+                else if (s.NeedsFinish)
+                {
+                    <text>Actual finish missing</text>
+                }
+              </div>
             </div>
           </div>
           <div class="pm-item-variance">
