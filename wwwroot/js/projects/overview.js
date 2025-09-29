@@ -51,6 +51,23 @@
         });
     }
 
+    function setBackfillVisibility(hasBackfill) {
+        const banner = document.querySelector('[data-backfill-banner]');
+        if (banner) {
+            banner.classList.toggle('d-none', !hasBackfill);
+        }
+
+        const summaryBadge = document.querySelector('[data-backfill-summary]');
+        if (summaryBadge) {
+            summaryBadge.classList.toggle('d-none', !hasBackfill);
+        }
+    }
+
+    document.addEventListener('pm:backfill-state-changed', (event) => {
+        const hasBackfill = !!event.detail?.hasBackfill;
+        setBackfillVisibility(hasBackfill);
+    });
+
     const procurement = document.getElementById('offcanvasProcurement');
     if (procurement) {
         procurement.addEventListener('shown.bs.offcanvas', function () {

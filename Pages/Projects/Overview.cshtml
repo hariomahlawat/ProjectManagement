@@ -98,15 +98,14 @@
         </div>
     }
 
-    @if (Model.HasBackfill)
-    {
-        <div class="alert alert-warning d-flex align-items-center justify-content-between" role="alert">
-            <div>
-                <strong>Action needed:</strong> Some earlier stages were auto-completed and need dates or costs.
-            </div>
-            <button type="button" class="btn btn-sm btn-outline-warning" data-action="open-backfill">Backfill now</button>
+    <div class="alert alert-warning d-flex align-items-center justify-content-between@(Model.HasBackfill ? string.Empty : " d-none")"
+         role="alert"
+         data-backfill-banner>
+        <div>
+            <strong>Action needed:</strong> Some earlier stages were auto-completed and need dates or costs.
         </div>
-    }
+        <button type="button" class="btn btn-sm btn-outline-warning" data-action="open-backfill">Backfill now</button>
+    </div>
 
     @if (project?.HodUserId == null || project?.LeadPoUserId == null)
     {
@@ -310,10 +309,11 @@
                                     {
                                         <span class="badge text-bg-secondary">Draft saved (not submitted)</span>
                                     }
-                                    @if (Model.HasBackfill)
-                                    {
-                                        <span class="badge text-bg-secondary" title="Resolve procurement backfill to proceed">Backfill required</span>
-                                    }
+                                    <span class="badge text-bg-secondary@(Model.HasBackfill ? string.Empty : " d-none")"
+                                          title="Resolve procurement backfill to proceed"
+                                          data-backfill-summary>
+                                        Backfill required
+                                    </span>
                                     @if (project?.PlanApprovedAt is DateTimeOffset approvedAt)
                                     {
                                         <span class="badge text-bg-success">Approved on @approvedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
@@ -437,9 +437,9 @@
 <partial name="_PlanDiscardDraftModal" model="Model.Project.Id" />
 
 @section Scripts {
-    <script src="~/js/projects/overview.js"></script>
-    <script src="~/js/projects/plan-edit.js"></script>
-    <script src="~/js/projects/stages.js"></script>
+    <script src="~/js/projects/overview.js" asp-append-version="true"></script>
+    <script src="~/js/projects/plan-edit.js" asp-append-version="true"></script>
+    <script src="~/js/projects/stages.js" asp-append-version="true"></script>
 }
 
 @functions {

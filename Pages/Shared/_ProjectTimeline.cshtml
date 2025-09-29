@@ -35,7 +35,7 @@
         StageStatus.InProgress => "pm-item is-active",
         _                      => "pm-item"
       };
-      <div class="@itemClass" data-stage-row="@s.Code">
+      <div class="@itemClass" data-stage-row="@s.Code" data-requires-backfill="@(s.RequiresBackfill ? "true" : "false")">
         <div class="pm-item-header d-flex flex-wrap justify-content-between align-items-start gap-2">
           <div class="d-flex flex-wrap align-items-center gap-2">
             <span class="pm-item-title" data-stage-name="@s.Name">@s.Name</span>
@@ -44,10 +44,12 @@
             {
               <span class="badge bg-warning-subtle text-warning border border-warning-subtle" title="Auto-completed when a later stage was completed.">inferred</span>
             }
-            @if (s.IsIncompleteData)
-            {
-              <span class="badge bg-secondary-subtle text-body-secondary border border-secondary-subtle">Incomplete data</span>
+            @{
+              var showIncomplete = s.IsIncompleteData || s.RequiresBackfill;
             }
+            <span class="badge bg-secondary-subtle text-body-secondary border border-secondary-subtle@(showIncomplete ? string.Empty : " d-none")" data-stage-incomplete>
+              Incomplete data
+            </span>
             <span data-stage-pending>
               @if (s.HasPendingRequest)
               {
@@ -63,11 +65,13 @@
             {
               <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Overdue</span>
             }
-            @if (s.RequiresBackfill)
-            {
-              <span class="ms-2 text-warning" title="Additional data required">⚠︎</span>
-              <button type="button" class="btn btn-link btn-sm px-0 align-baseline ms-1" data-action="open-backfill">Backfill…</button>
-            }
+            <span class="ms-2 text-warning@(s.RequiresBackfill ? string.Empty : " d-none")" title="Additional data required" data-stage-backfill-indicator>⚠︎</span>
+            <button type="button"
+                    class="btn btn-link btn-sm px-0 align-baseline ms-1@(s.RequiresBackfill ? string.Empty : " d-none")"
+                    data-action="open-backfill"
+                    data-stage-backfill-button>
+              Backfill…
+            </button>
           </div>
           <div class="d-flex align-items-center gap-2">
             @if (canRequestChange)

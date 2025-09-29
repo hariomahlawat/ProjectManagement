@@ -39,6 +39,7 @@ public class StageDirectApplyServiceTests
         Assert.Equal(StageStatus.Completed.ToString(), result.UpdatedStatus);
         Assert.Null(result.ActualStart);
         Assert.Null(result.CompletedOn);
+        Assert.True(result.RequiresBackfill);
         Assert.Equal(0, result.BackfilledCount);
         Assert.Empty(result.BackfilledStages);
         Assert.Empty(result.Warnings);
@@ -134,6 +135,7 @@ public class StageDirectApplyServiceTests
             CancellationToken.None);
 
         Assert.Equal(StageStatus.Completed.ToString(), result.UpdatedStatus);
+        Assert.False(result.RequiresBackfill);
         Assert.Equal(1, result.BackfilledCount);
         Assert.Contains(StageCodes.IPA, result.BackfilledStages);
 
@@ -183,6 +185,7 @@ public class StageDirectApplyServiceTests
             CancellationToken.None);
 
         Assert.Equal(new DateOnly(2024, 10, 10), result.CompletedOn);
+        Assert.False(result.RequiresBackfill);
         Assert.Contains(result.Warnings, w => w.Contains("clamped", StringComparison.OrdinalIgnoreCase));
 
         var stage = await db.ProjectStages.SingleAsync();
@@ -215,6 +218,7 @@ public class StageDirectApplyServiceTests
             CancellationToken.None);
 
         Assert.Equal(StageStatus.InProgress.ToString(), result.UpdatedStatus);
+        Assert.False(result.RequiresBackfill);
     }
 
     [Fact]
@@ -250,6 +254,7 @@ public class StageDirectApplyServiceTests
 
         Assert.Equal(StageStatus.Completed.ToString(), result.UpdatedStatus);
         Assert.Equal(completionDate, result.CompletedOn);
+        Assert.True(result.RequiresBackfill);
 
         var stages = await db.ProjectStages.OrderBy(s => s.SortOrder).ToListAsync();
         Assert.Equal(StageCodes.All.Length, stages.Count);

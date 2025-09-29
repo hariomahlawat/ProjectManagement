@@ -457,6 +457,7 @@ public sealed class StageDirectApplyService
             finalStatus.ToString(),
             finalActualStart,
             finalCompletedOn,
+            stage.RequiresBackfill,
             backfilledStages.Count,
             backfilledStages.ToArray(),
             warnings.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
@@ -506,6 +507,7 @@ public sealed record DirectApplyResult(
     string UpdatedStatus,
     DateOnly? ActualStart,
     DateOnly? CompletedOn,
+    bool RequiresBackfill,
     int BackfilledCount,
     string[] BackfilledStages,
     string[] Warnings);
