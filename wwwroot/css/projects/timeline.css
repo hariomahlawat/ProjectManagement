@@ -67,9 +67,9 @@
 
 .pm-item-header {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
-  align-items: start;
+  align-items: center;
 }
 
 .pm-item-heading {
@@ -86,11 +86,16 @@
 }
 
 .pm-item-actions {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
   min-width: 3rem;
   flex-wrap: nowrap;
+}
+
+.pm-item-actions > * {
+  flex: 0 0 auto;
 }
 
 .pm-primary-action {
