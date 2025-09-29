@@ -2,7 +2,7 @@
 @{
     Layout = null;
     var isHod = User.IsInRole("HoD");
-    var directApplyTokens = Antiforgery.GetAndStoreTokens(HttpContext);
+    var directApplyTokens = Antiforgery.GetAndStoreTokens(Context);
 }
 
 <div class="modal fade" id="stageDirectApplyModal" tabindex="-1" aria-labelledby="stageDirectApplyLabel" aria-hidden="true" data-actor-hod="@isHod.ToString().ToLowerInvariant()">
