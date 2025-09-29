@@ -34,5 +34,5 @@ public class ProjectStage
 
     public bool IsAutoCompleted { get; set; }
     public string? AutoCompletedFromCode { get; set; }
-    public bool RequiresBackfill { get; set; }
+    public bool RequiresBackfill { get; set; } = false;
 }
