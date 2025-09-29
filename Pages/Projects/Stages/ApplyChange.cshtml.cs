@@ -173,6 +173,14 @@ public class ApplyChangeModel : PageModel
         {
             return ValidationFailure(ex.Details, ex.MissingPredecessors);
         }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(ex, "Failed to apply direct stage change for project {ProjectId} stage {StageCode}.", input.ProjectId, input.StageCode);
+            return ValidationFailure(new[]
+            {
+                "Could not save stage update. The database may not allow blank dates for admin completion."
+            });
+        }
         catch (OperationCanceledException)
         {
             throw;

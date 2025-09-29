@@ -520,6 +520,23 @@ using (var scope = app.Services.CreateScope())
             ALTER TABLE "ProjectStages"
             ALTER COLUMN "RequiresBackfill" SET DEFAULT FALSE;
         """);
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE "ProjectStages"
+            ALTER COLUMN "ActualStart" DROP NOT NULL;
+        """);
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE "ProjectStages"
+            ALTER COLUMN "CompletedOn" DROP NOT NULL;
+        """);
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE "ProjectStages"
+            DROP CONSTRAINT IF EXISTS "CK_ProjectStages_CompletedHasDate";
+        """);
+        await db.Database.ExecuteSqlRawAsync("""
+            ALTER TABLE "ProjectStages"
+            ADD CONSTRAINT "CK_ProjectStages_CompletedHasDate"
+            CHECK ("Status" <> 'Completed' OR ("CompletedOn" IS NOT NULL AND "ActualStart" IS NOT NULL) OR "RequiresBackfill" IS TRUE);
+        """);
         var migrations = await db.Database.GetAppliedMigrationsAsync();
         if (!migrations.Contains("20250909153316_UseXminForTodoItem"))
         {

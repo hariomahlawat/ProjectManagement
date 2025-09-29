@@ -409,18 +409,28 @@ namespace ProjectManagement.Data
                 e.Property(x => x.StageCode).HasMaxLength(16);
             });
 
-            builder.Entity<ProjectStage>(e =>
-            {
-                e.HasIndex(x => new { x.ProjectId, x.StageCode }).IsUnique();
-                e.Property(x => x.StageCode).HasMaxLength(16);
-                e.Property(x => x.AutoCompletedFromCode).HasMaxLength(16);
-                e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
-                e.Property(x => x.ForecastStart).HasColumnType("date");
-                e.Property(x => x.ForecastDue).HasColumnType("date");
-                e.ToTable("ProjectStages", tb =>
-                    tb.HasCheckConstraint("CK_ProjectStages_CompletedHasDate",
-                        "\"Status\" <> 'Completed' OR (\"CompletedOn\" IS NOT NULL AND \"ActualStart\" IS NOT NULL)"));
-            });
+        var projectStageCompletedConstraint = "\"Status\" <> 'Completed' OR (\"CompletedOn\" IS NOT NULL AND \"ActualStart\" IS NOT NULL) OR \"RequiresBackfill\" IS TRUE";
+
+        if (Database.IsSqlServer())
+        {
+            projectStageCompletedConstraint = "[Status] <> 'Completed' OR ([CompletedOn] IS NOT NULL AND [ActualStart] IS NOT NULL) OR [RequiresBackfill] = 1";
+        }
+        else if (!Database.IsNpgsql())
+        {
+            projectStageCompletedConstraint = "Status <> 'Completed' OR (CompletedOn IS NOT NULL AND ActualStart IS NOT NULL) OR RequiresBackfill";
+        }
+
+        builder.Entity<ProjectStage>(e =>
+        {
+            e.HasIndex(x => new { x.ProjectId, x.StageCode }).IsUnique();
+            e.Property(x => x.StageCode).HasMaxLength(16);
+            e.Property(x => x.AutoCompletedFromCode).HasMaxLength(16);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32);
+            e.Property(x => x.ForecastStart).HasColumnType("date");
+            e.Property(x => x.ForecastDue).HasColumnType("date");
+            e.ToTable("ProjectStages", tb =>
+                tb.HasCheckConstraint("CK_ProjectStages_CompletedHasDate", projectStageCompletedConstraint));
+        });
 
             builder.Entity<StageShiftLog>(e =>
             {

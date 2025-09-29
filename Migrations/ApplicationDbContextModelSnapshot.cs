@@ -541,7 +541,7 @@ namespace ProjectManagement.Migrations
 
                     b.ToTable("ProjectStages", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ProjectStages_CompletedHasDate", "\"Status\" <> 'Completed' OR (\"CompletedOn\" IS NOT NULL AND \"ActualStart\" IS NOT NULL)");
+                        t.HasCheckConstraint("CK_ProjectStages_CompletedHasDate", "\"Status\" <> 'Completed' OR (\"CompletedOn\" IS NOT NULL AND \"ActualStart\" IS NOT NULL) OR \"RequiresBackfill\" IS TRUE");
                         });
                 });
 
