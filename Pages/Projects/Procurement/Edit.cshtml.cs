@@ -41,8 +41,7 @@ namespace ProjectManagement.Pages.Projects.Procurement
                 return NotFound();
             }
 
-            TempData["OpenOffcanvas"] = "procurement";
-            return RedirectToPage("/Projects/Overview", new { id });
+            return RedirectToPage("/Projects/Overview", new { id, oc = "procurement" });
         }
 
         public async Task<IActionResult> OnPostAsync(int id, CancellationToken ct)
@@ -55,8 +54,7 @@ namespace ProjectManagement.Pages.Projects.Procurement
             if (!ModelState.IsValid)
             {
                 TempData["Error"] = "Unable to save procurement details. Please review your input.";
-                TempData["OpenOffcanvas"] = "procurement";
-                return RedirectToPage("/Projects/Overview", new { id });
+                return RedirectToPage("/Projects/Overview", new { id, oc = "procurement" });
             }
 
             var userId = _users.GetUserId(User);
@@ -106,15 +104,13 @@ namespace ProjectManagement.Pages.Projects.Procurement
             if (errors.Count > 0)
             {
                 TempData["Error"] = string.Join(" ", errors);
-                TempData["OpenOffcanvas"] = "procurement";
-                return RedirectToPage("/Projects/Overview", new { id });
+                return RedirectToPage("/Projects/Overview", new { id, oc = "procurement" });
             }
 
             if (Input.SupplyOrderDate is { } date && date > DateOnly.FromDateTime(DateTime.UtcNow))
             {
                 TempData["Error"] = "Supply Order Date cannot be in the future.";
-                TempData["OpenOffcanvas"] = "procurement";
-                return RedirectToPage("/Projects/Overview", new { id });
+                return RedirectToPage("/Projects/Overview", new { id, oc = "procurement" });
             }
 
             await using var tx = await _db.Database.BeginTransactionAsync(ct);

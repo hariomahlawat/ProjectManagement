@@ -67,7 +67,7 @@
         <partial name="_AssignRolesOffcanvas" model="Model.AssignRoles" />
     </div>
 
-    @if (TempData["OpenOffcanvas"] as string == "procurement")
+    @if (string.Equals(Request.Query["oc"], "procurement", StringComparison.Ordinal))
     {
         <div id="open-procurement" data-open="1"></div>
     }
