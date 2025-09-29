@@ -1,6 +1,8 @@
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
 @{
     Layout = null;
     var isHod = User.IsInRole("HoD");
+    var directApplyTokens = Antiforgery.GetAndStoreTokens(HttpContext);
 }
 
 <div class="modal fade" id="stageDirectApplyModal" tabindex="-1" aria-labelledby="stageDirectApplyLabel" aria-hidden="true" data-actor-hod="@isHod.ToString().ToLowerInvariant()">
@@ -15,7 +17,7 @@
                     <input type="hidden" name="projectId" />
                     <input type="hidden" name="stageCode" />
                     <input type="hidden" name="status" />
-                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="__RequestVerificationToken" value="@directApplyTokens.RequestToken" />
 
                     <div class="alert alert-warning d-none" role="alert" data-direct-apply-missing></div>
 
