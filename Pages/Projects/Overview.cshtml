@@ -104,7 +104,7 @@
             <div>
                 <strong>Action needed:</strong> Some earlier stages were auto-completed and need dates or costs.
             </div>
-            <a class="btn btn-sm btn-outline-warning" asp-page="/Projects/Procurement/Edit" asp-route-id="@Model.Project!.Id">Backfill now</a>
+            <button type="button" class="btn btn-sm btn-outline-warning" data-action="open-backfill">Backfill now</button>
         </div>
     }
 
@@ -392,6 +392,7 @@
         </div>
     </div>
 
+    <partial name="Projects/_BackfillModal" model="Model.Backfill" />
     <partial name="_StageDirectApplyModal" />
     <partial name="Projects/Stages/_StageRequestModal" />
 

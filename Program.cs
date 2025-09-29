@@ -153,6 +153,7 @@ builder.Services.AddScoped<StageProgressService>();
 builder.Services.AddScoped<IStageValidationService, StageValidationService>();
 builder.Services.AddScoped<StageRequestService>();
 builder.Services.AddScoped<StageDirectApplyService>();
+builder.Services.AddScoped<StageBackfillService>();
 builder.Services.AddScoped<StageDecisionService>();
 builder.Services.AddScoped<PlanSnapshotService>();
 builder.Services.AddScoped<PlanCompareService>();

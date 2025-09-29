@@ -1,0 +1,49 @@
+@model ProjectManagement.Features.Backfill.BackfillViewModel
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    Layout = null;
+    var tokens = Antiforgery.GetAndStoreTokens(Context);
+    var hasStages = Model?.HasStages ?? false;
+}
+
+<div class="modal fade"
+     id="backfillModal"
+     tabindex="-1"
+     aria-labelledby="backfillModalLabel"
+     aria-hidden="true"
+     data-backfill-empty="@(!hasStages).ToString().ToLowerInvariant()">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="backfillModalLabel">Backfill missing stage details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form data-backfill-form novalidate>
+                    <input type="hidden" name="projectId" value="@Model?.ProjectId" data-backfill-project />
+                    <input type="hidden" name="__RequestVerificationToken" value="@tokens.RequestToken" data-backfill-token />
+
+                    <div class="alert alert-danger d-none" role="alert" data-backfill-errors></div>
+
+                    @if (hasStages)
+                    {
+                        <p class="text-muted small">
+                            Enter the actual start and completion dates for stages that were auto-completed without full data.
+                        </p>
+                        @await Html.PartialAsync("_BackfillForm", Model)
+                    }
+                    else
+                    {
+                        <div class="alert alert-success mb-0" role="status" data-backfill-empty-message>
+                            All procurement stages have complete data.
+                        </div>
+                    }
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="submitBackfillBtn" @(hasStages ? null : "disabled")>Save</button>
+            </div>
+        </div>
+    </div>
+</div>

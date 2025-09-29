@@ -3,6 +3,54 @@
         return;
     }
 
+    function showToast(message, variant) {
+        if (!message) {
+            return;
+        }
+
+        const variantMap = new Map([
+            ['success', 'text-bg-success'],
+            ['danger', 'text-bg-danger'],
+            ['warning', 'text-bg-warning'],
+            ['info', 'text-bg-primary']
+        ]);
+
+        const cssClass = variantMap.get(variant) || 'text-bg-primary';
+
+        let container = document.getElementById('overviewToastContainer');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'overviewToastContainer';
+            container.className = 'toast-container position-fixed top-0 end-0 p-3';
+            container.setAttribute('aria-live', 'polite');
+            container.setAttribute('aria-atomic', 'true');
+            document.body.appendChild(container);
+        }
+
+        const toast = document.createElement('div');
+        toast.className = `toast align-items-center ${cssClass} border-0`;
+        toast.setAttribute('role', 'status');
+        toast.setAttribute('aria-live', 'polite');
+        toast.setAttribute('aria-atomic', 'true');
+        toast.innerHTML = `
+            <div class="d-flex">
+                <div class="toast-body">${message}</div>
+                <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>`;
+
+        container.appendChild(toast);
+
+        const instance = bootstrap.Toast.getOrCreateInstance(toast, { delay: 4000 });
+        instance.show();
+
+        toast.addEventListener('hidden.bs.toast', () => {
+            toast.remove();
+            if (container.childElementCount === 0) {
+                container.remove();
+            }
+        });
+    }
+
     const procurement = document.getElementById('offcanvasProcurement');
     if (procurement) {
         procurement.addEventListener('shown.bs.offcanvas', function () {
@@ -48,6 +96,181 @@
         if (planMarker && planMarker.dataset.open === '1') {
             const instance = bootstrap.Offcanvas.getOrCreateInstance(planEdit);
             instance.show();
+        }
+    }
+
+    const backfillModal = document.getElementById('backfillModal');
+    if (backfillModal) {
+        const openButtons = document.querySelectorAll('[data-action="open-backfill"]');
+        const modalInstance = bootstrap.Modal.getOrCreateInstance(backfillModal);
+        const submitButton = backfillModal.querySelector('#submitBackfillBtn');
+        const form = backfillModal.querySelector('[data-backfill-form]');
+        const errorContainer = backfillModal.querySelector('[data-backfill-errors]');
+        const projectInput = backfillModal.querySelector('[data-backfill-project]');
+        const tokenInput = backfillModal.querySelector('[data-backfill-token]');
+        const emptyMessage = backfillModal.querySelector('[data-backfill-empty-message]');
+
+        function stageRows() {
+            return Array.from(backfillModal.querySelectorAll('[data-backfill-row]'));
+        }
+
+        function toggleSubmitState(disabled) {
+            if (!submitButton) {
+                return;
+            }
+
+            submitButton.disabled = disabled || stageRows().length === 0;
+        }
+
+        function clearErrors() {
+            if (!errorContainer) {
+                return;
+            }
+
+            errorContainer.classList.add('d-none');
+            errorContainer.innerHTML = '';
+        }
+
+        function renderErrors(messages) {
+            if (!errorContainer) {
+                return;
+            }
+
+            if (!Array.isArray(messages) || messages.length === 0) {
+                clearErrors();
+                return;
+            }
+
+            const safe = messages
+                .filter((msg) => typeof msg === 'string' && msg.trim().length > 0)
+                .map((msg) => msg
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;'));
+
+            if (safe.length === 0) {
+                clearErrors();
+                return;
+            }
+
+            errorContainer.classList.remove('d-none');
+            errorContainer.innerHTML = safe.map((line) => `<div>${line}</div>`).join('');
+        }
+
+        function collectPayload() {
+            const projectId = Number.parseInt(projectInput?.value || '0', 10);
+            const stages = stageRows().map((row) => {
+                const stageCode = row.getAttribute('data-stage-code') || '';
+                const startInput = row.querySelector('[data-backfill-start]');
+                const completedInput = row.querySelector('[data-backfill-completed]');
+                const actualStart = startInput && startInput.value ? startInput.value : null;
+                const completedOn = completedInput && completedInput.value ? completedInput.value : null;
+
+                return {
+                    stageCode,
+                    actualStart,
+                    completedOn
+                };
+            }).filter((stage) => stage.stageCode);
+
+            return {
+                projectId,
+                stages
+            };
+        }
+
+        openButtons.forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.preventDefault();
+
+                if (emptyMessage) {
+                    emptyMessage.classList.toggle('d-none', stageRows().length > 0);
+                }
+
+                clearErrors();
+                toggleSubmitState(false);
+                modalInstance.show();
+            });
+        });
+
+        backfillModal.addEventListener('shown.bs.modal', () => {
+            const firstInput = backfillModal.querySelector('[data-backfill-start], [data-backfill-completed]');
+            if (firstInput instanceof HTMLInputElement) {
+                firstInput.focus();
+            }
+        });
+
+        backfillModal.addEventListener('hidden.bs.modal', () => {
+            clearErrors();
+        });
+
+        async function submitBackfill() {
+            if (!submitButton || !tokenInput) {
+                return;
+            }
+
+            const payload = collectPayload();
+
+            if (!payload.projectId || payload.stages.length === 0) {
+                renderErrors(['Add at least one stage update before saving.']);
+                return;
+            }
+
+            toggleSubmitState(true);
+            clearErrors();
+
+            try {
+                const response = await fetch('/Projects/Stages/BackfillApply', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        RequestVerificationToken: tokenInput.value
+                    },
+                    body: JSON.stringify(payload),
+                    credentials: 'same-origin'
+                });
+
+                if (response.ok) {
+                    const instance = bootstrap.Modal.getInstance(backfillModal);
+                    instance?.hide();
+                    showToast('Stage dates updated.', 'success');
+                    setTimeout(() => window.location.reload(), 500);
+                    return;
+                }
+
+                if (response.status === 422) {
+                    const data = await response.json().catch(() => null);
+                    renderErrors(Array.isArray(data?.details) ? data.details : ['Validation failed.']);
+                } else if (response.status === 409) {
+                    const data = await response.json().catch(() => null);
+                    const message = typeof data?.message === 'string'
+                        ? data.message
+                        : 'Some stages no longer require backfill. Refresh the page and try again.';
+                    renderErrors([message]);
+                } else if (response.status === 404) {
+                    renderErrors(['Project or stages were not found. Refresh the page and try again.']);
+                } else if (response.status === 403) {
+                    renderErrors(['You are not authorised to backfill this project.']);
+                } else {
+                    renderErrors(['Unexpected error saving backfill changes.']);
+                }
+            } catch (error) {
+                console.error('Backfill request failed', error);
+                renderErrors(['Network error while saving backfill changes.']);
+            } finally {
+                toggleSubmitState(false);
+            }
+        }
+
+        if (submitButton) {
+            submitButton.addEventListener('click', submitBackfill);
+        }
+
+        if (form) {
+            form.addEventListener('submit', (event) => {
+                event.preventDefault();
+                submitBackfill();
+            });
         }
     }
 
