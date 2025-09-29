@@ -6,7 +6,7 @@
     var isProjectOfficer = ViewBag?.IsProjectOfficerForProject is bool b && b;
     var canRequestChange = isProjectOfficer || isHod;
 }
-@functions{
+@functions {
     string D(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
 
     string StatusPillClass(StageStatus s) => s switch
@@ -26,12 +26,12 @@
     (string text, string description, string cssClass) VarianceToken(string name, int value)
     {
         var magnitude = Math.Abs(value);
-        var cssClass = value switch
-        {
-            < 0 => "pm-chip pm-chip-early",
-            > 0 => "pm-chip pm-chip-late",
-            _   => "pm-chip pm-chip-on-time"
-        };
+
+        var cssClass = value < 0
+            ? "pm-chip pm-chip-early"
+            : value > 0
+                ? "pm-chip pm-chip-late"
+                : "pm-chip pm-chip-on-time";
 
         if (value == 0)
         {
