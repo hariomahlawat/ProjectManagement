@@ -1,6 +1,7 @@
 @model ProjectManagement.ViewModels.TimelineVm
 @using System.Globalization
 @using ProjectManagement.Models.Execution
+@using ProjectManagement.ViewModels
 @{ 
     var showDirectApply = User.IsInRole("HoD");
     var canRequestChange = ViewBag?.IsProjectOfficerForProject is bool b && b;
@@ -35,7 +36,13 @@
         StageStatus.InProgress => "pm-item is-active",
         _                      => "pm-item"
       };
-      <div class="@itemClass" data-stage-row="@s.Code">
+      <div class="@itemClass"
+           data-stage-row="@s.Code"
+           data-stage-name-value="@s.Name"
+           data-stage-actual-start="@s.ActualStart?.ToString("yyyy-MM-dd")"
+           data-stage-completed="@s.CompletedOn?.ToString("yyyy-MM-dd")"
+           data-stage-backfill-kind="@s.BackfillKind"
+           data-stage-status-value="@s.Status">
         <div class="pm-item-header d-flex flex-wrap justify-content-between align-items-start gap-2">
           <div class="d-flex flex-wrap align-items-center gap-2">
             <span class="pm-item-title" data-stage-name="@s.Name">@s.Name</span>
@@ -63,10 +70,25 @@
             {
               <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Overdue</span>
             }
-            @if (s.RequiresBackfill)
+            @switch (s.BackfillKind)
             {
-              <span class="ms-2 text-warning" title="Additional data required">⚠︎</span>
-              <a class="ms-1 small" asp-page="/Projects/Procurement/Edit" asp-route-id="@Model.ProjectId">Backfill…</a>
+              case TimelineBackfillKind.Procurement:
+              {
+                <span class="ms-2 text-warning" title="Procurement details missing">⚠︎</span>
+                <a class="ms-1 small"
+                   asp-page="/Projects/Procurement/Edit"
+                   asp-route-id="@Model.ProjectId">Backfill procurement…</a>
+                break;
+              }
+              case TimelineBackfillKind.Schedule:
+              {
+                <span class="ms-2 text-warning" title="Actual dates missing">⚠︎</span>
+                <a class="ms-1 small"
+                   asp-page="/Projects/Stages/Backfill"
+                   asp-route-projectId="@Model.ProjectId"
+                   asp-route-stageCode="@s.Code">Backfill dates…</a>
+                break;
+              }
             }
           </div>
           <div class="d-flex align-items-center gap-2">

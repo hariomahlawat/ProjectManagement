@@ -1,0 +1,42 @@
+@model int
+@{
+    Layout = null;
+}
+
+<div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasStageBackfill" aria-labelledby="offcanvasStageBackfillLabel">
+    <div class="offcanvas-header">
+        <div>
+            <h5 id="offcanvasStageBackfillLabel" class="mb-0">Backfill stage dates</h5>
+            <div class="text-muted small" data-stage-backfill-subtitle></div>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+        <form method="post" asp-page="/Projects/Stages/Backfill" data-stage-backfill-form>
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="Input.ProjectId" value="@Model" />
+            <input type="hidden" name="Input.StageCode" data-stage-backfill-stage />
+
+            <div class="mb-3">
+                <label class="form-label" for="stageBackfillActualStart">Actual start date</label>
+                <input type="date" class="form-control" id="stageBackfillActualStart" name="Input.ActualStart" data-stage-backfill-start />
+                <div class="form-text">Required. The date work on this stage actually began.</div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" for="stageBackfillCompletedOn">Completion date</label>
+                <input type="date" class="form-control" id="stageBackfillCompletedOn" name="Input.CompletedOn" data-stage-backfill-finish />
+                <div class="form-text">Required. The date this stage actually finished.</div>
+            </div>
+
+            <div class="alert alert-info d-none" role="status" data-stage-backfill-warning>
+                Actual start will be restored before marking the stage as completed.
+            </div>
+
+            <div class="d-flex justify-content-end gap-2">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="offcanvas">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save dates</button>
+            </div>
+        </form>
+    </div>
+</div>

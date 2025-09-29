@@ -19,6 +19,100 @@
         }
     }
 
+    const stageBackfill = document.getElementById('offcanvasStageBackfill');
+    if (stageBackfill) {
+        const form = stageBackfill.querySelector('[data-stage-backfill-form]');
+        const stageInput = stageBackfill.querySelector('[data-stage-backfill-stage]');
+        const startInput = stageBackfill.querySelector('[data-stage-backfill-start]');
+        const finishInput = stageBackfill.querySelector('[data-stage-backfill-finish]');
+        const subtitle = stageBackfill.querySelector('[data-stage-backfill-subtitle]');
+        const warning = stageBackfill.querySelector('[data-stage-backfill-warning]');
+
+        function findStageRow(stageCode) {
+            if (!stageCode) {
+                return null;
+            }
+
+            let escaped = stageCode;
+            if (window.CSS && typeof window.CSS.escape === 'function') {
+                escaped = window.CSS.escape(stageCode);
+            } else {
+                escaped = stageCode.replace(/"/g, '\\"');
+            }
+            return document.querySelector(`[data-stage-row="${escaped}"]`);
+        }
+
+        function populateStageBackfill(stageCode, startValue, finishValue) {
+            if (!stageInput || !form) {
+                return;
+            }
+
+            stageInput.value = stageCode || '';
+
+            const row = findStageRow(stageCode);
+            const stageName = row?.dataset.stageNameValue || stageCode || '';
+            if (subtitle) {
+                subtitle.textContent = stageName ? `For ${stageName}` : '';
+            }
+
+            const defaultStart = row?.dataset.stageActualStart || '';
+            const defaultFinish = row?.dataset.stageCompleted || '';
+
+            if (startInput) {
+                startInput.value = startValue || defaultStart || '';
+            }
+
+            if (finishInput) {
+                finishInput.value = finishValue || defaultFinish || '';
+            }
+
+            if (warning) {
+                if (row?.dataset.stageCompleted && !row.dataset.stageActualStart) {
+                    warning.classList.remove('d-none');
+                } else {
+                    warning.classList.add('d-none');
+                }
+            }
+        }
+
+        stageBackfill.addEventListener('shown.bs.offcanvas', function () {
+            if (startInput && !startInput.value) {
+                startInput.focus();
+                return;
+            }
+
+            if (finishInput) {
+                finishInput.focus();
+            }
+        });
+
+        stageBackfill.addEventListener('hidden.bs.offcanvas', function () {
+            if (form) {
+                form.reset();
+            }
+
+            if (subtitle) {
+                subtitle.textContent = '';
+            }
+
+            if (warning) {
+                warning.classList.add('d-none');
+            }
+        });
+
+        const backfillMarker = document.getElementById('open-stage-backfill');
+        if (backfillMarker && backfillMarker.dataset.open === '1') {
+            populateStageBackfill(
+                backfillMarker.dataset.stage || '',
+                backfillMarker.dataset.start || '',
+                backfillMarker.dataset.finish || ''
+            );
+
+            const instance = bootstrap.Offcanvas.getOrCreateInstance(stageBackfill);
+            instance.show();
+        }
+    }
+
     const assignRoles = document.getElementById('offcanvasAssignRoles');
     if (assignRoles) {
         assignRoles.addEventListener('shown.bs.offcanvas', function () {

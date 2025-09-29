@@ -25,6 +25,8 @@
     var completedStages = Model.Timeline.CompletedCount;
     var totalStages = Model.Timeline.TotalStages;
     var progressMax = totalStages == 0 ? 1 : totalStages;
+    var scheduleBackfillStage = Model.Timeline.Items.FirstOrDefault(i => i.BackfillKind == TimelineBackfillKind.Schedule);
+    var hasProcurementBackfill = Model.Timeline.Items.Any(i => i.BackfillKind == TimelineBackfillKind.Procurement);
     ViewData["Title"] = pageTitle;
 }
 
@@ -71,6 +73,13 @@
     {
         <div id="open-procurement" data-open="1"></div>
     }
+    @if (string.Equals(Request.Query["oc"], "backfill", StringComparison.Ordinal))
+    {
+        var stageCode = (string?)Request.Query["stage"];
+        var startDate = (string?)Request.Query["start"];
+        var finishDate = (string?)Request.Query["finish"];
+        <div id="open-stage-backfill" data-open="1" data-stage="@stageCode" data-start="@startDate" data-finish="@finishDate"></div>
+    }
     @if (TempData["OpenOffcanvas"] as string == "assign-roles")
     {
         <div id="open-assign-roles" data-open="1"></div>
@@ -102,9 +111,21 @@
     {
         <div class="alert alert-warning d-flex align-items-center justify-content-between" role="alert">
             <div>
-                <strong>Action needed:</strong> Some earlier stages were auto-completed and need dates or costs.
+                <strong>Action needed:</strong> Some earlier stages need actual dates or procurement details.
             </div>
-            <a class="btn btn-sm btn-outline-warning" asp-page="/Projects/Procurement/Edit" asp-route-id="@Model.Project!.Id">Backfill now</a>
+            <div class="d-flex flex-wrap gap-2">
+                @if (hasProcurementBackfill)
+                {
+                    <a class="btn btn-sm btn-outline-warning" asp-page="/Projects/Procurement/Edit" asp-route-id="@Model.Project!.Id">Procurement backfill</a>
+                }
+                @if (scheduleBackfillStage is not null)
+                {
+                    <a class="btn btn-sm btn-outline-warning"
+                       asp-page="/Projects/Stages/Backfill"
+                       asp-route-projectId="@Model.Project!.Id"
+                       asp-route-stageCode="@scheduleBackfillStage.Code">Stage dates backfill</a>
+                }
+            </div>
         </div>
     }
 
@@ -312,7 +333,7 @@
                                     }
                                     @if (Model.HasBackfill)
                                     {
-                                        <span class="badge text-bg-secondary" title="Resolve procurement backfill to proceed">Backfill required</span>
+                                        <span class="badge text-bg-secondary" title="Resolve outstanding backfill to proceed">Backfill required</span>
                                     }
                                     @if (project?.PlanApprovedAt is DateTimeOffset approvedAt)
                                     {
@@ -404,6 +425,8 @@
             <partial name="Projects/Procurement/_EditFormBody" model="Model.ProcurementEdit" />
         </div>
     </div>
+
+    <partial name="Projects/Stages/_StageBackfillOffcanvas" model="Model.Project.Id" />
 
     <div class="offcanvas offcanvas-end" tabindex="-1" id="offcanvasPlanReview" aria-labelledby="offcanvasPlanReviewLabel">
         <div class="offcanvas-header">

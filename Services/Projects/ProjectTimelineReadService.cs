@@ -19,6 +19,16 @@ public sealed class ProjectTimelineReadService
 {
     private const string PendingDecisionStatus = "Pending";
     private static readonly TimeZoneInfo IndiaTimeZone = TimeZoneHelper.GetIst();
+    private static readonly HashSet<string> ProcurementFactStages = new(StringComparer.OrdinalIgnoreCase)
+    {
+        StageCodes.IPA,
+        StageCodes.SOW,
+        StageCodes.AON,
+        StageCodes.BM,
+        StageCodes.COB,
+        StageCodes.PNC,
+        StageCodes.SO
+    };
 
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
@@ -121,6 +131,7 @@ public sealed class ProjectTimelineReadService
             var actualStart = r?.ActualStart;
             var plannedEnd = r?.PlannedDue;
             var actualEnd = r?.CompletedOn;
+            var status = r?.Status ?? StageStatus.NotStarted;
 
             int? startVarianceDays = null;
             if (plannedStart.HasValue && actualStart.HasValue)
@@ -142,18 +153,41 @@ public sealed class ProjectTimelineReadService
                 }
             }
 
+            var requiresBackfill = r?.RequiresBackfill ?? false;
+
+            var needsStart = (status is StageStatus.InProgress or StageStatus.Completed) && actualStart is null;
+            var needsFinish = status == StageStatus.Completed && actualEnd is null;
+            var backfillKind = TimelineBackfillKind.None;
+
+            if (requiresBackfill)
+            {
+                if (needsStart || needsFinish)
+                {
+                    backfillKind = TimelineBackfillKind.Schedule;
+                }
+                else if (ProcurementFactStages.Contains(code))
+                {
+                    backfillKind = TimelineBackfillKind.Procurement;
+                }
+                else
+                {
+                    backfillKind = TimelineBackfillKind.Schedule;
+                }
+            }
+
             items.Add(new TimelineItemVm
             {
                 Code = code,
                 Name = StageCodes.DisplayNameOf(code),
-                Status = r?.Status ?? StageStatus.NotStarted,
+                Status = status,
                 PlannedStart = plannedStart,
                 PlannedEnd = plannedEnd,
                 ActualStart = actualStart,
                 CompletedOn = actualEnd,
                 IsAutoCompleted = r?.IsAutoCompleted ?? false,
                 AutoCompletedFromCode = r?.AutoCompletedFromCode,
-                RequiresBackfill = r?.RequiresBackfill ?? false,
+                RequiresBackfill = requiresBackfill,
+                BackfillKind = backfillKind,
                 SortOrder = index++,
                 Today = today,
                 HasPendingRequest = pendingRequest is not null,

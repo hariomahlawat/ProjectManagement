@@ -13,7 +13,7 @@ public sealed class TimelineVm
     public IReadOnlyList<TimelineItemVm> Items { get; init; } = Array.Empty<TimelineItemVm>();
     public IReadOnlyList<TimelineStageRequestVm> PendingRequests { get; init; } = Array.Empty<TimelineStageRequestVm>();
 
-    public bool HasBackfill => Items.Any(i => i.RequiresBackfill);
+    public bool HasBackfill => Items.Any(i => i.BackfillKind != TimelineBackfillKind.None);
     public bool PlanPendingApproval { get; init; }
     public bool HasDraft { get; init; }
     public DateTimeOffset? LatestApprovalAt { get; init; }
@@ -47,6 +47,7 @@ public sealed class TimelineItemVm
     public bool IsAutoCompleted { get; init; }
     public string? AutoCompletedFromCode { get; init; }
     public bool RequiresBackfill { get; init; }
+    public TimelineBackfillKind BackfillKind { get; init; }
     public bool HasPendingRequest { get; init; }
     public string? PendingStatus { get; init; }
     public DateOnly? PendingDate { get; init; }
@@ -66,4 +67,11 @@ public sealed class TimelineItemVm
     public bool NeedsFinish => Status == StageStatus.Completed && CompletedOn is null;
     public bool IsIncompleteData => NeedsStart || NeedsFinish;
     public bool IsOverdue => Status != StageStatus.Completed && PlannedEnd.HasValue && Today > PlannedEnd.Value;
+}
+
+public enum TimelineBackfillKind
+{
+    None = 0,
+    Procurement = 1,
+    Schedule = 2
 }
