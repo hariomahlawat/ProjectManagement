@@ -12,7 +12,7 @@ using ProjectManagement.Data;
 namespace ProjectManagement.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250928162550_InitialMigrations")]
+    [Migration("20250929035552_InitialMigrations")]
     partial class InitialMigrations
     {
         /// <inheritdoc />
@@ -544,7 +544,7 @@ namespace ProjectManagement.Migrations
 
                     b.ToTable("ProjectStages", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ProjectStages_CompletedHasDate", "\"Status\" <> 'Completed' OR (\"CompletedOn\" IS NOT NULL AND \"ActualStart\" IS NOT NULL)");
+                            t.HasCheckConstraint("CK_ProjectStages_CompletedHasDate", "\"Status\" <> 'Completed' OR (\"CompletedOn\" IS NOT NULL AND \"ActualStart\" IS NOT NULL) OR \"RequiresBackfill\" IS TRUE");
                         });
                 });
 

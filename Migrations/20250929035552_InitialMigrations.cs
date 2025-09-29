@@ -837,7 +837,7 @@ namespace ProjectManagement.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_ProjectStages", x => x.Id);
-                    table.CheckConstraint("CK_ProjectStages_CompletedHasDate", "\"Status\" <> 'Completed' OR (\"CompletedOn\" IS NOT NULL AND \"ActualStart\" IS NOT NULL)");
+                    table.CheckConstraint("CK_ProjectStages_CompletedHasDate", "\"Status\" <> 'Completed' OR (\"CompletedOn\" IS NOT NULL AND \"ActualStart\" IS NOT NULL) OR \"RequiresBackfill\" IS TRUE");
                     table.ForeignKey(
                         name: "FK_ProjectStages_Projects_ProjectId",
                         column: x => x.ProjectId,
