@@ -181,19 +181,19 @@
     const magnitude = Math.abs(value);
     if (value === 0) {
       return {
-        text: `${name} on time`,
-        title: `${name} on time`,
-        cssClass: 'pm-chip pm-chip-on-time'
+        value: 'on time',
+        title: `${name} on time.`,
+        cssClass: 'pm-variance-value is-on-time'
       };
     }
 
     const sign = value > 0 ? '+' : '−';
-    const direction = value > 0 ? 'late' : 'early';
+    const direction = value > 0 ? 'later' : 'earlier';
     const plural = magnitude === 1 ? '' : 's';
     return {
-      text: `${name} ${sign}${magnitude}d`,
-      title: `${name} ${magnitude} day${plural} ${direction}`,
-      cssClass: value > 0 ? 'pm-chip pm-chip-late' : 'pm-chip pm-chip-early'
+      value: `${sign}${magnitude}d`,
+      title: `${name} ${magnitude} day${plural} ${direction} than plan.`,
+      cssClass: value > 0 ? 'pm-variance-value is-late' : 'pm-variance-value is-early'
     };
   }
 
@@ -316,33 +316,61 @@
       }
     }
 
+    const varianceLine = row.querySelector('[data-stage-variance-line]');
+
+    let hasStartVariance = false;
     const startChip = row.querySelector('[data-stage-start-variance]');
     if (startChip) {
+      const startSegment = startChip.closest('.pm-variance-segment');
       if (startVariance === null || startVariance === undefined || Number.isNaN(startVariance)) {
         startChip.classList.add('d-none');
         startChip.textContent = '';
+        if (startSegment) {
+          startSegment.classList.add('d-none');
+        }
       } else {
         const details = describeVariance('Start', startVariance);
-        startChip.textContent = details.text;
+        startChip.textContent = details.value;
         startChip.className = details.cssClass;
         startChip.setAttribute('title', details.title);
         startChip.setAttribute('aria-label', details.title);
         startChip.classList.remove('d-none');
+        if (startSegment) {
+          startSegment.classList.remove('d-none');
+        }
+        hasStartVariance = true;
       }
     }
 
+    let hasFinishVariance = false;
     const finishChip = row.querySelector('[data-stage-finish-variance]');
     if (finishChip) {
+      const finishSegment = finishChip.closest('.pm-variance-segment');
       if (finishVariance === null || finishVariance === undefined || Number.isNaN(finishVariance)) {
         finishChip.classList.add('d-none');
         finishChip.textContent = '';
+        if (finishSegment) {
+          finishSegment.classList.add('d-none');
+        }
       } else {
         const details = describeVariance('Finish', finishVariance);
-        finishChip.textContent = details.text;
+        finishChip.textContent = details.value;
         finishChip.className = details.cssClass;
         finishChip.setAttribute('title', details.title);
         finishChip.setAttribute('aria-label', details.title);
         finishChip.classList.remove('d-none');
+        if (finishSegment) {
+          finishSegment.classList.remove('d-none');
+        }
+        hasFinishVariance = true;
+      }
+    }
+
+    if (varianceLine) {
+      varianceLine.classList.toggle('d-none', !(hasStartVariance || hasFinishVariance));
+      const varianceSeparator = varianceLine.querySelector('.pm-variance-sep');
+      if (varianceSeparator) {
+        varianceSeparator.classList.toggle('d-none', !(hasStartVariance && hasFinishVariance));
       }
     }
 

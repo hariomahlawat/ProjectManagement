@@ -5,23 +5,26 @@
     {
         var culture = CultureInfo.GetCultureInfo("en-IN");
         var abs = System.Math.Abs(value);
+        var sign = value < 0 ? "−" : string.Empty;
 
         if (abs >= 1_00_00_000m)
         {
-            return $"₹ {(value / 1_00_00_000m).ToString("0.##", culture)} Cr";
+            return $"{sign}{(abs / 1_00_00_000m).ToString("0.##", culture)} Cr";
         }
 
         if (abs >= 1_00_000m)
         {
-            return $"₹ {(value / 1_00_000m).ToString("0.##", culture)} Lakh";
+            return $"{sign}{(abs / 1_00_000m).ToString("0.##", culture)} Lakh";
         }
 
-        return value.ToString("C2", culture);
+        return value.ToString("N2", culture);
     }
 
     string Money(decimal? value) => value.HasValue ? ShortInr(value.Value) : "—";
     string FullInr(decimal? value) => value.HasValue ? value.Value.ToString("C2", CultureInfo.GetCultureInfo("en-IN")) : "—";
-    string DateDmy(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
+    string DateDmy(DateOnly? d) => d.HasValue
+        ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture).Replace(' ', '\u00A0')
+        : "—";
 }
 
 <div class="card">
@@ -39,36 +42,47 @@
   </div>
 
   <div class="card-body">
-    <div class="row g-3">
-      <div class="col-md-6">
-        <div class="d-flex justify-content-between">
-          <span class="text-muted">IPA Cost</span>
-          <span class="fw-semibold" title="@FullInr(Model.IpaCost)">@Money(Model.IpaCost)</span>
-        </div>
-        <div class="d-flex justify-content-between">
-          <span class="text-muted">AON Cost</span>
-          <span class="fw-semibold" title="@FullInr(Model.AonCost)">@Money(Model.AonCost)</span>
-        </div>
-        <div class="d-flex justify-content-between">
-          <span class="text-muted">Benchmark Cost</span>
-          <span class="fw-semibold" title="@FullInr(Model.BenchmarkCost)">@Money(Model.BenchmarkCost)</span>
-        </div>
-      </div>
+    <div class="table-responsive">
+      <table class="table table-sm table-borderless align-middle mb-3">
+        <thead>
+          <tr>
+            <th scope="col" class="text-muted text-uppercase small">Metric</th>
+            <th scope="col" class="text-muted text-uppercase small text-end">₹</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row" class="text-muted">IPA Cost</th>
+            <td class="text-end fw-semibold@(Model.IpaCost.HasValue ? string.Empty : " text-muted")"
+                title="@(Model.IpaCost.HasValue ? FullInr(Model.IpaCost) : null)">@Money(Model.IpaCost)</td>
+          </tr>
+          <tr>
+            <th scope="row" class="text-muted">AON Cost</th>
+            <td class="text-end fw-semibold@(Model.AonCost.HasValue ? string.Empty : " text-muted")"
+                title="@(Model.AonCost.HasValue ? FullInr(Model.AonCost) : null)">@Money(Model.AonCost)</td>
+          </tr>
+          <tr>
+            <th scope="row" class="text-muted">Benchmark Cost</th>
+            <td class="text-end fw-semibold@(Model.BenchmarkCost.HasValue ? string.Empty : " text-muted")"
+                title="@(Model.BenchmarkCost.HasValue ? FullInr(Model.BenchmarkCost) : null)">@Money(Model.BenchmarkCost)</td>
+          </tr>
+          <tr>
+            <th scope="row" class="text-muted">L1 Cost</th>
+            <td class="text-end fw-semibold@(Model.L1Cost.HasValue ? string.Empty : " text-muted")"
+                title="@(Model.L1Cost.HasValue ? FullInr(Model.L1Cost) : null)">@Money(Model.L1Cost)</td>
+          </tr>
+          <tr>
+            <th scope="row" class="text-muted">PNC Cost</th>
+            <td class="text-end fw-semibold@(Model.PncCost.HasValue ? string.Empty : " text-muted")"
+                title="@(Model.PncCost.HasValue ? FullInr(Model.PncCost) : null)">@Money(Model.PncCost)</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
-      <div class="col-md-6">
-        <div class="d-flex justify-content-between">
-          <span class="text-muted">L1 Cost</span>
-          <span class="fw-semibold" title="@FullInr(Model.L1Cost)">@Money(Model.L1Cost)</span>
-        </div>
-        <div class="d-flex justify-content-between">
-          <span class="text-muted">PNC Cost</span>
-          <span class="fw-semibold" title="@FullInr(Model.PncCost)">@Money(Model.PncCost)</span>
-        </div>
-        <div class="d-flex justify-content-between">
-          <span class="text-muted">Supply Order Date</span>
-          <span class="fw-semibold">@DateDmy(Model.SupplyOrderDate)</span>
-        </div>
-      </div>
+    <div class="d-flex justify-content-between align-items-baseline">
+      <span class="text-muted">Supply Order Date</span>
+      <span class="fw-semibold@(Model.SupplyOrderDate.HasValue ? string.Empty : " text-muted")">@DateDmy(Model.SupplyOrderDate)</span>
     </div>
 
     <div class="mt-2 small text-muted">

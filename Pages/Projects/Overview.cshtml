@@ -295,108 +295,122 @@
             }
             <div class="card">
                 <div class="card-header">
-                    <div class="d-flex flex-column gap-2">
-                        <div class="d-flex flex-column flex-lg-row align-items-start align-items-lg-center gap-3 justify-content-lg-between">
-                            <div class="d-flex flex-wrap align-items-center gap-2">
-                                <h5 class="mb-0">Timeline</h5>
-                                @{ 
-                                    string? viewerRole = null;
-                                    if (isHoD && isThisProjectsPo)
-                                    {
-                                        viewerRole = "Head of Department & Project Officer";
-                                    }
-                                    else if (isHoD)
-                                    {
-                                        viewerRole = "Head of Department";
-                                    }
-                                    else if (isThisProjectsPo)
-                                    {
-                                        viewerRole = "Project Officer";
-                                    }
-                                }
-                                <div class="d-flex flex-wrap align-items-center gap-2 ms-lg-2 mt-2 mt-lg-0">
-                                    @if (!string.IsNullOrEmpty(viewerRole))
-                                    {
-                                        <span class="text-muted small" data-role-indicator title="Current permissions for timeline actions">Viewing as @viewerRole</span>
-                                    }
-                                    @if (pendingOwnedByCurrentUser)
-                                    {
-                                        <span class="badge text-bg-warning">Submitted for approval</span>
-                                    }
-                                    else if (Model.Timeline.PlanPendingApproval)
-                                    {
-                                        <span class="badge text-bg-warning">Another submission pending</span>
-                                    }
-                                    else if (hasMyDraft)
-                                    {
-                                        <span class="badge text-bg-secondary">Draft saved (not submitted)</span>
-                                    }
-                                    <span class="badge text-bg-secondary@(Model.HasBackfill ? string.Empty : " d-none")"
-                                          title="Resolve procurement backfill to proceed"
-                                          data-backfill-summary>
-                                        Backfill required
-                                    </span>
-                                    @if (project?.PlanApprovedAt is DateTimeOffset approvedAt)
-                                    {
-                                        <span class="badge text-bg-success">Approved on @approvedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
-                                    }
+                    @{
+                        string? viewerRole = null;
+                        if (isHoD && isThisProjectsPo)
+                        {
+                            viewerRole = "Head of Department & Project Officer";
+                        }
+                        else if (isHoD)
+                        {
+                            viewerRole = "Head of Department";
+                        }
+                        else if (isThisProjectsPo)
+                        {
+                            viewerRole = "Project Officer";
+                        }
+                    }
+                    <div class="pm-timeline-header">
+                        <div class="pm-timeline-header-main">
+                            <div class="pm-timeline-title">
+                                <div class="d-flex align-items-center gap-2">
+                                    <h5 class="mb-0">Timeline</h5>
+                                    <button type="button"
+                                            class="pm-status-legend"
+                                            data-bs-toggle="tooltip"
+                                            data-bs-placement="top"
+                                            title="Stage status">
+                                        <span aria-hidden="true">●</span>
+                                        <span class="visually-hidden">Stage status indicator</span>
+                                    </button>
                                 </div>
-                                @if (hasMyDraft && !pendingOwnedByCurrentUser)
+                                @if (!string.IsNullOrEmpty(viewerRole))
                                 {
-                                    <div class="d-flex flex-wrap align-items-center gap-2">
-                                        <button class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-2"
-                                                type="button"
-                                                data-bs-toggle="offcanvas"
-                                                data-bs-target="#offcanvasPlanEdit"
-                                                aria-controls="offcanvasPlanEdit">
-                                            <span>Your draft saved</span>
-                                            @if (planState.LastSavedOn is DateTimeOffset savedOn)
-                                            {
-                                                <span class="text-muted">@savedOn.ToLocalTime().ToString("dd MMM HH:mm")</span>
-                                            }
-                                            <span class="fw-semibold">Continue editing</span>
-                                        </button>
-                                        <button class="btn btn-sm btn-outline-secondary"
-                                                type="button"
-                                                data-bs-toggle="modal"
-                                                data-bs-target="#discardDraftModal">
-                                            Discard draft
-                                        </button>
+                                    <div class="text-muted small mt-1"
+                                         data-role-indicator
+                                         title="Current permissions for timeline actions">
+                                        Viewing as @viewerRole
                                     </div>
                                 }
                             </div>
-                            <div class="d-flex flex-wrap align-items-center gap-2 justify-content-lg-end">
-                                @if (planState.HasPendingSubmission && isHoD)
+                            <div class="pm-timeline-badges d-flex flex-wrap align-items-center gap-2 mt-2">
+                                @if (pendingOwnedByCurrentUser)
                                 {
-                                    <button class="btn btn-sm btn-outline-primary"
-                                            type="button"
-                                            data-bs-toggle="offcanvas"
-                                            data-bs-target="#offcanvasPlanReview"
-                                            aria-controls="offcanvasPlanReview">
-                                        Review &amp; approve
-                                    </button>
+                                    <span class="badge text-bg-warning">Submitted for approval</span>
                                 }
-                                @if (canEditTimeline && !(hasMyDraft && !pendingOwnedByCurrentUser))
+                                else if (Model.Timeline.PlanPendingApproval)
                                 {
-                                    <button class="btn btn-sm btn-outline-primary"
+                                    <span class="badge text-bg-warning">Another submission pending</span>
+                                }
+                                else if (hasMyDraft)
+                                {
+                                    <span class="badge text-bg-secondary">Draft saved (not submitted)</span>
+                                }
+                                <span class="badge text-bg-secondary@(Model.HasBackfill ? string.Empty : " d-none")"
+                                      title="Resolve procurement backfill to proceed"
+                                      data-backfill-summary>
+                                    Backfill required
+                                </span>
+                                @if (project?.PlanApprovedAt is DateTimeOffset approvedAt)
+                                {
+                                    <span class="badge text-bg-success">Approved on @approvedAt.ToLocalTime().ToString("dd MMM yyyy")</span>
+                                }
+                            </div>
+                            @if (hasMyDraft && !pendingOwnedByCurrentUser)
+                            {
+                                <div class="pm-timeline-draft d-flex flex-wrap align-items-center gap-2 mt-2">
+                                    <button class="btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-2"
                                             type="button"
                                             data-bs-toggle="offcanvas"
                                             data-bs-target="#offcanvasPlanEdit"
                                             aria-controls="offcanvasPlanEdit">
-                                        Edit timeline
+                                        <span>Your draft saved</span>
+                                        @if (planState.LastSavedOn is DateTimeOffset savedOn)
+                                        {
+                                            <span class="text-muted">@savedOn.ToLocalTime().ToString("dd MMM HH:mm")</span>
+                                        }
+                                        <span class="fw-semibold">Continue editing</span>
                                     </button>
-                                }
-                            </div>
+                                    <button class="btn btn-sm btn-outline-secondary"
+                                            type="button"
+                                            data-bs-toggle="modal"
+                                            data-bs-target="#discardDraftModal">
+                                        Discard draft
+                                    </button>
+                                </div>
+                            }
                         </div>
-                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                            <div class="d-flex align-items-center gap-2">
-                                <progress class="pm-progress pm-progress-slim pm-progress-fixed-180"
-                                          value="@completedStages"
-                                          max="@progressMax"
-                                          aria-label="Stages completed">
-                                </progress>
-                                <span class="text-muted small">@completedStages of @totalStages</span>
-                            </div>
+                        <div class="pm-timeline-header-actions">
+                            @if (planState.HasPendingSubmission && isHoD)
+                            {
+                                <button class="btn btn-sm btn-outline-primary w-100"
+                                        type="button"
+                                        data-bs-toggle="offcanvas"
+                                        data-bs-target="#offcanvasPlanReview"
+                                        aria-controls="offcanvasPlanReview">
+                                    Review &amp; approve
+                                </button>
+                            }
+                            @if (canEditTimeline && !(hasMyDraft && !pendingOwnedByCurrentUser))
+                            {
+                                <button class="btn btn-sm btn-outline-primary w-100"
+                                        type="button"
+                                        data-bs-toggle="offcanvas"
+                                        data-bs-target="#offcanvasPlanEdit"
+                                        aria-controls="offcanvasPlanEdit">
+                                    Edit timeline
+                                </button>
+                            }
+                        </div>
+                    </div>
+                    <div class="pm-timeline-progress mt-3">
+                        <progress class="pm-progress pm-progress-slim"
+                                  value="@completedStages"
+                                  max="@progressMax"
+                                  aria-label="Stages completed">
+                        </progress>
+                        <div class="pm-progress-caption text-muted small mt-1">
+                            @completedStages of @totalStages completed
                         </div>
                     </div>
                 </div>
