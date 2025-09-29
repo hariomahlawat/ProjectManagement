@@ -402,6 +402,30 @@
     });
   }
 
+  function updateStageRequestsContainer(listElement) {
+    const card = document.querySelector('[data-stage-requests-card]');
+    if (!card) {
+      return;
+    }
+
+    const list = listElement || card.querySelector('[data-stage-decision-list]');
+    const emptyState = card.querySelector('[data-stage-requests-empty]');
+    const hasItems = Boolean(list && list.querySelector('[data-stage-request-item]'));
+
+    if (hasItems) {
+      if (emptyState) {
+        emptyState.classList.add('d-none');
+      }
+      return;
+    }
+
+    if (emptyState) {
+      emptyState.classList.remove('d-none');
+    }
+
+    card.remove();
+  }
+
   function renderErrors(container, messages) {
     if (!container) return;
     const hasErrors = Array.isArray(messages) && messages.length > 0;
@@ -1000,10 +1024,7 @@
             item.remove();
           }
           const list = document.querySelector('[data-stage-decision-list]');
-          const emptyState = document.querySelector('[data-stage-requests-empty]');
-          if (list && !list.querySelector('[data-stage-request-item]') && emptyState) {
-            emptyState.classList.remove('d-none');
-          }
+          updateStageRequestsContainer(list);
           return;
         }
 
@@ -1044,10 +1065,7 @@
           item.remove();
         }
         const list = document.querySelector('[data-stage-decision-list]');
-        const emptyState = document.querySelector('[data-stage-requests-empty]');
-        if (list && !list.querySelector('[data-stage-request-item]') && emptyState) {
-          emptyState.classList.remove('d-none');
-        }
+        updateStageRequestsContainer(list);
       } catch (error) {
         console.error(error);
         showToast('Unable to update the stage right now.', 'danger');
@@ -1068,8 +1086,6 @@
 
     const tokenInput = document.querySelector('[data-stage-decision-token]');
     const token = tokenInput ? tokenInput.value : '';
-    const emptyState = document.querySelector('[data-stage-requests-empty]');
-
     list.addEventListener('click', async (event) => {
       const button = event.target.closest('[data-stage-decision]');
       if (!button) {
@@ -1153,9 +1169,7 @@
             updatePendingBadge(stageCode, null, null);
             enableRequestButton(stageCode);
           }
-          if (!list.querySelector('[data-stage-request-item]') && emptyState) {
-            emptyState.classList.remove('d-none');
-          }
+          updateStageRequestsContainer(list);
           return;
         }
 
@@ -1201,9 +1215,7 @@
 
         item.remove();
         removed = true;
-        if (!list.querySelector('[data-stage-request-item]') && emptyState) {
-          emptyState.classList.remove('d-none');
-        }
+        updateStageRequestsContainer(list);
       } catch (error) {
         console.error(error);
         showToast('Unable to update the stage right now.', 'danger');
