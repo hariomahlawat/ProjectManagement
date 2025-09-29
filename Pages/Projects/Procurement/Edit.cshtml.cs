@@ -33,9 +33,16 @@ namespace ProjectManagement.Pages.Projects.Procurement
         [BindProperty]
         public ProcurementEditInput Input { get; set; } = new();
 
-        public IActionResult OnGet(int id)
+        public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
         {
-            return NotFound();
+            var projectExists = await _db.Projects.AnyAsync(p => p.Id == id, ct);
+            if (!projectExists)
+            {
+                return NotFound();
+            }
+
+            TempData["OpenOffcanvas"] = "procurement";
+            return RedirectToPage("/Projects/Overview", new { id });
         }
 
         public async Task<IActionResult> OnPostAsync(int id, CancellationToken ct)
