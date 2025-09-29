@@ -338,19 +338,19 @@ namespace ProjectManagement.Data
                 {
                     e.ToTable(tb =>
                         tb.HasCheckConstraint("CK_StageChangeLogs_Action",
-                            "[Action] IN ('Requested','Approved','Rejected','DirectApply','Applied','Superseded')"));
+                            "[Action] IN ('Requested','Approved','Rejected','DirectApply','Applied','Superseded','AutoBackfill')"));
                 }
                 else if (Database.IsNpgsql())
                 {
                     e.ToTable(tb =>
                         tb.HasCheckConstraint("CK_StageChangeLogs_Action",
-                            "\"Action\" IN ('Requested','Approved','Rejected','DirectApply','Applied','Superseded')"));
+                            "\"Action\" IN ('Requested','Approved','Rejected','DirectApply','Applied','Superseded','AutoBackfill')"));
                 }
                 else
                 {
                     e.ToTable(tb =>
                         tb.HasCheckConstraint("CK_StageChangeLogs_Action",
-                            "Action IN ('Requested','Approved','Rejected','DirectApply','Applied','Superseded')"));
+                            "Action IN ('Requested','Approved','Rejected','DirectApply','Applied','Superseded','AutoBackfill')"));
                 }
             });
 
