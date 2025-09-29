@@ -155,10 +155,11 @@ public class StageDirectApplyServiceTests
             .Where(l => l.StageCode == StageCodes.IPA || l.StageCode == StageCodes.SOW)
             .ToListAsync();
 
-        Assert.Contains(logs, l => l.StageCode == StageCodes.IPA &&
-            string.Equals(l.Action, "AutoBackfill", StringComparison.OrdinalIgnoreCase) &&
-            l.Note != null &&
-            l.Note.Contains("Auto-backfilled (no dates) due to completion of", StringComparison.Ordinal));
+        var autoBackfillLogs = logs.Where(l => l.StageCode == StageCodes.IPA &&
+            string.Equals(l.Action, "AutoBackfill", StringComparison.OrdinalIgnoreCase)).ToList();
+        Assert.Single(autoBackfillLogs);
+        Assert.NotNull(autoBackfillLogs[0].Note);
+        Assert.Contains("Auto-backfilled (no dates) due to completion of", autoBackfillLogs[0].Note!, StringComparison.Ordinal);
     }
 
     [Fact]
