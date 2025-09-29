@@ -295,7 +295,9 @@ namespace ProjectManagement.Data
                 e.Property(x => x.DecidedByUserId).HasMaxLength(450);
                 e.Property(x => x.DecisionNote).HasMaxLength(1024);
 
-                var pendingIndex = e.HasIndex(x => new { x.ProjectId, x.StageCode }).IsUnique();
+                var pendingIndex = e.HasIndex(x => new { x.ProjectId, x.StageCode });
+                pendingIndex.IsUnique();
+                pendingIndex.HasDatabaseName("ux_stagechangerequests_pending");
 
                 if (Database.IsSqlServer())
                 {
@@ -334,23 +336,25 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Note).HasMaxLength(1024);
                 e.HasIndex(x => new { x.ProjectId, x.StageCode, x.At });
 
+                const string allowedStageLogActions = "('Requested','Approved','Rejected','DirectApply','Applied','Superseded','AutoBackfill')";
+
                 if (Database.IsSqlServer())
                 {
                     e.ToTable(tb =>
                         tb.HasCheckConstraint("CK_StageChangeLogs_Action",
-                            "[Action] IN ('Requested','Approved','Rejected','DirectApply','Applied','Superseded','AutoBackfill')"));
+                            $"[Action] IN {allowedStageLogActions}"));
                 }
                 else if (Database.IsNpgsql())
                 {
                     e.ToTable(tb =>
                         tb.HasCheckConstraint("CK_StageChangeLogs_Action",
-                            "\"Action\" IN ('Requested','Approved','Rejected','DirectApply','Applied','Superseded','AutoBackfill')"));
+                            $"\"Action\" IN {allowedStageLogActions}"));
                 }
                 else
                 {
                     e.ToTable(tb =>
                         tb.HasCheckConstraint("CK_StageChangeLogs_Action",
-                            "Action IN ('Requested','Approved','Rejected','DirectApply','Applied','Superseded','AutoBackfill')"));
+                            $"Action IN {allowedStageLogActions}"));
                 }
             });
 

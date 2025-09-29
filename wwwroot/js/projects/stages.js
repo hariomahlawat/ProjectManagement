@@ -500,7 +500,7 @@
             showToast('Timeline changed since this page was loaded. Refreshing…', 'warning');
             setTimeout(() => {
               window.location.reload();
-            }, 1500);
+            }, 800);
           } else if (conflict?.error === 'plan-pending') {
             showToast('Blocked: plan version is awaiting HoD review.', 'warning');
           } else {
