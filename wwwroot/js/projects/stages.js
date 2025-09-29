@@ -402,6 +402,18 @@
     });
   }
 
+  function handleStageRequestsCleared() {
+    const emptyState = document.querySelector('[data-stage-requests-empty]');
+    if (emptyState) {
+      emptyState.classList.remove('d-none');
+    }
+
+    const card = document.querySelector('[data-stage-requests-card]');
+    if (card && !card.querySelector('[data-stage-request-item]')) {
+      card.remove();
+    }
+  }
+
   function renderErrors(container, messages) {
     if (!container) return;
     const hasErrors = Array.isArray(messages) && messages.length > 0;
@@ -1000,9 +1012,8 @@
             item.remove();
           }
           const list = document.querySelector('[data-stage-decision-list]');
-          const emptyState = document.querySelector('[data-stage-requests-empty]');
-          if (list && !list.querySelector('[data-stage-request-item]') && emptyState) {
-            emptyState.classList.remove('d-none');
+          if (list && !list.querySelector('[data-stage-request-item]')) {
+            handleStageRequestsCleared();
           }
           return;
         }
@@ -1044,9 +1055,8 @@
           item.remove();
         }
         const list = document.querySelector('[data-stage-decision-list]');
-        const emptyState = document.querySelector('[data-stage-requests-empty]');
-        if (list && !list.querySelector('[data-stage-request-item]') && emptyState) {
-          emptyState.classList.remove('d-none');
+        if (list && !list.querySelector('[data-stage-request-item]')) {
+          handleStageRequestsCleared();
         }
       } catch (error) {
         console.error(error);
@@ -1068,7 +1078,6 @@
 
     const tokenInput = document.querySelector('[data-stage-decision-token]');
     const token = tokenInput ? tokenInput.value : '';
-    const emptyState = document.querySelector('[data-stage-requests-empty]');
 
     list.addEventListener('click', async (event) => {
       const button = event.target.closest('[data-stage-decision]');
@@ -1153,8 +1162,8 @@
             updatePendingBadge(stageCode, null, null);
             enableRequestButton(stageCode);
           }
-          if (!list.querySelector('[data-stage-request-item]') && emptyState) {
-            emptyState.classList.remove('d-none');
+          if (!list.querySelector('[data-stage-request-item]')) {
+            handleStageRequestsCleared();
           }
           return;
         }
@@ -1201,8 +1210,8 @@
 
         item.remove();
         removed = true;
-        if (!list.querySelector('[data-stage-request-item]') && emptyState) {
-          emptyState.classList.remove('d-none');
+        if (!list.querySelector('[data-stage-request-item]')) {
+          handleStageRequestsCleared();
         }
       } catch (error) {
         console.error(error);

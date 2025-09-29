@@ -237,58 +237,61 @@
             @if (isThisProjectsHod)
             {
                 var decisionTokens = Antiforgery.GetAndStoreTokens(HttpContext);
-                <div class="card" data-stage-requests-card>
-                    <div class="card-header">Stage change requests</div>
-                    <div class="card-body d-flex flex-column gap-3">
-                        <input type="hidden" value="@decisionTokens.RequestToken" data-stage-decision-token />
-                        <div class="text-muted small @(Model.Timeline.PendingRequests.Any() ? "d-none" : string.Empty)" data-stage-requests-empty>
-                            No pending stage change requests.
-                        </div>
-                        <div class="d-flex flex-column gap-3" data-stage-decision-list>
-                            @foreach (var request in Model.Timeline.PendingRequests)
-                            {
-                                var stageLabel = $"{request.StageCode} — {request.StageName}".Trim(' ', '—');
-                                <div class="border rounded p-3" data-stage-request-item data-request-id="@request.RequestId" data-stage-code="@request.StageCode" data-stage-label="@stageLabel">
-                                    <div class="d-flex justify-content-between align-items-start gap-2">
-                                        <div>
-                                            <div class="fw-semibold">@stageLabel</div>
-                                            <div class="text-muted small">
-                                                Requested by @request.RequestedBy on @request.RequestedOn.ToLocalTime().ToString("dd MMM yyyy")
+                <input type="hidden" value="@decisionTokens.RequestToken" data-stage-decision-token />
+                if (Model.Timeline.PendingRequests.Any())
+                {
+                    <div class="card" data-stage-requests-card>
+                        <div class="card-header">Stage change requests</div>
+                        <div class="card-body d-flex flex-column gap-3">
+                            <div class="text-muted small d-none" data-stage-requests-empty>
+                                No pending stage change requests.
+                            </div>
+                            <div class="d-flex flex-column gap-3" data-stage-decision-list>
+                                @foreach (var request in Model.Timeline.PendingRequests)
+                                {
+                                    var stageLabel = $"{request.StageCode} — {request.StageName}".Trim(' ', '—');
+                                    <div class="border rounded p-3" data-stage-request-item data-request-id="@request.RequestId" data-stage-code="@request.StageCode" data-stage-label="@stageLabel">
+                                        <div class="d-flex justify-content-between align-items-start gap-2">
+                                            <div>
+                                                <div class="fw-semibold">@stageLabel</div>
+                                                <div class="text-muted small">
+                                                    Requested by @request.RequestedBy on @request.RequestedOn.ToLocalTime().ToString("dd MMM yyyy")
+                                                </div>
                                             </div>
+                                            <span class="badge bg-warning text-dark">@StageStatusLabel(request.RequestedStatus)</span>
                                         </div>
-                                        <span class="badge bg-warning text-dark">@StageStatusLabel(request.RequestedStatus)</span>
-                                    </div>
-                                    <dl class="row small mt-3 mb-0">
-                                        <dt class="col-4">Current</dt>
-                                        <dd class="col-8">@StageStatusLabel(request.CurrentStatus)</dd>
-                                        <dt class="col-4">Target</dt>
-                                        <dd class="col-8">
-                                            @StageStatusLabel(request.RequestedStatus)
-                                            @if (request.RequestedDate.HasValue)
+                                        <dl class="row small mt-3 mb-0">
+                                            <dt class="col-4">Current</dt>
+                                            <dd class="col-8">@StageStatusLabel(request.CurrentStatus)</dd>
+                                            <dt class="col-4">Target</dt>
+                                            <dd class="col-8">
+                                                @StageStatusLabel(request.RequestedStatus)
+                                                @if (request.RequestedDate.HasValue)
+                                                {
+                                                    <span>· @request.RequestedDate.Value.ToString("dd MMM yyyy")</span>
+                                                }
+                                            </dd>
+                                            @if (!string.IsNullOrWhiteSpace(request.Note))
                                             {
-                                                <span>· @request.RequestedDate.Value.ToString("dd MMM yyyy")</span>
+                                                <dt class="col-4">PO note</dt>
+                                                <dd class="col-8">@request.Note</dd>
                                             }
-                                        </dd>
-                                        @if (!string.IsNullOrWhiteSpace(request.Note))
-                                        {
-                                            <dt class="col-4">PO note</dt>
-                                            <dd class="col-8">@request.Note</dd>
-                                        }
-                                    </dl>
-                                    <div class="mt-3">
-                                        <label class="form-label mb-1 small" for="decision-note-@request.RequestId">Decision note <span class="text-muted">(optional)</span></label>
-                                        <textarea class="form-control form-control-sm" id="decision-note-@request.RequestId" rows="2" maxlength="1024" data-stage-decision-note></textarea>
+                                        </dl>
+                                        <div class="mt-3">
+                                            <label class="form-label mb-1 small" for="decision-note-@request.RequestId">Decision note <span class="text-muted">(optional)</span></label>
+                                            <textarea class="form-control form-control-sm" id="decision-note-@request.RequestId" rows="2" maxlength="1024" data-stage-decision-note></textarea>
+                                        </div>
+                                        <div class="d-flex gap-2 mt-3">
+                                            <button type="button" class="btn btn-sm btn-success" data-stage-decision="Approve">Approve</button>
+                                            <button type="button" class="btn btn-sm btn-outline-danger" data-stage-decision="Reject">Reject</button>
+                                        </div>
+                                        <div class="text-danger small mt-2 d-none" data-stage-decision-error></div>
                                     </div>
-                                    <div class="d-flex gap-2 mt-3">
-                                        <button type="button" class="btn btn-sm btn-success" data-stage-decision="Approve">Approve</button>
-                                        <button type="button" class="btn btn-sm btn-outline-danger" data-stage-decision="Reject">Reject</button>
-                                    </div>
-                                    <div class="text-danger small mt-2 d-none" data-stage-decision-error></div>
-                                </div>
-                            }
+                                }
+                            </div>
                         </div>
                     </div>
-                </div>
+                }
             }
             <div class="card">
                 <div class="card-header">
