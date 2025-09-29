@@ -88,14 +88,17 @@
 .pm-item-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-width: 3rem;
+  flex-wrap: nowrap;
 }
 
 .pm-primary-action {
   color: var(--bs-body-color);
   text-decoration: none;
   padding: 0;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .pm-primary-action:hover,
