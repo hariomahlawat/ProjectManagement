@@ -125,21 +125,13 @@ public sealed class ProjectTimelineReadService
             int? startVarianceDays = null;
             if (plannedStart.HasValue && actualStart.HasValue)
             {
-                var diff = actualStart.Value.DayNumber - plannedStart.Value.DayNumber;
-                if (diff != 0)
-                {
-                    startVarianceDays = diff;
-                }
+                startVarianceDays = actualStart.Value.DayNumber - plannedStart.Value.DayNumber;
             }
 
             int? finishVarianceDays = null;
             if (plannedEnd.HasValue && actualEnd.HasValue)
             {
-                var diff = actualEnd.Value.DayNumber - plannedEnd.Value.DayNumber;
-                if (diff != 0)
-                {
-                    finishVarianceDays = diff;
-                }
+                finishVarianceDays = actualEnd.Value.DayNumber - plannedEnd.Value.DayNumber;
             }
 
             items.Add(new TimelineItemVm
@@ -160,7 +152,8 @@ public sealed class ProjectTimelineReadService
                 PendingStatus = pendingRequest?.RequestedStatus,
                 PendingDate = pendingRequest?.RequestedDate,
                 StartVarianceDays = startVarianceDays,
-                FinishVarianceDays = finishVarianceDays
+                FinishVarianceDays = finishVarianceDays,
+                PendingRequestId = pendingRequest?.Id
             });
         }
 

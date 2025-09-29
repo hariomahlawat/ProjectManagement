@@ -1,23 +1,52 @@
 @model ProjectManagement.ViewModels.TimelineVm
 @using System.Globalization
 @using ProjectManagement.Models.Execution
-@{ 
-    var showDirectApply = User.IsInRole("HoD");
-    var canRequestChange = ViewBag?.IsProjectOfficerForProject is bool b && b;
+@{
+    var isHod = User.IsInRole("HoD");
+    var isProjectOfficer = ViewBag?.IsProjectOfficerForProject is bool b && b;
+    var canRequestChange = isProjectOfficer || isHod;
 }
 @functions{
     string D(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
-    string StatusChip(StageStatus s) =>
-        s switch
-        {
-            StageStatus.Completed  => "badge bg-success",
-            StageStatus.InProgress => "badge bg-primary",
-            _                      => "badge bg-secondary"
-        };
-    string VarianceLabel(string name, int value)
+
+    string StatusPillClass(StageStatus s) => s switch
     {
-        var sign = value > 0 ? "+" : "−";
-        return $"{name} {sign}{Math.Abs(value)}d";
+        StageStatus.Completed  => "pm-pill pm-pill-success",
+        StageStatus.InProgress => "pm-pill pm-pill-primary",
+        _                      => "pm-pill pm-pill-muted"
+    };
+
+    string StatusLabel(StageStatus status) => status switch
+    {
+        StageStatus.Completed  => "Completed",
+        StageStatus.InProgress => "In progress",
+        _                      => "Not started"
+    };
+
+    (string text, string description, string cssClass) VarianceToken(string name, int value)
+    {
+        var magnitude = Math.Abs(value);
+        var cssClass = value switch
+        {
+            < 0 => "pm-chip pm-chip-early",
+            > 0 => "pm-chip pm-chip-late",
+            _   => "pm-chip pm-chip-on-time"
+        };
+
+        if (value == 0)
+        {
+            return ($"{name} on time", $"{name} on time", cssClass);
+        }
+
+        var text = value > 0
+            ? $"{name} +{magnitude}d"
+            : $"{name} −{magnitude}d";
+
+        var description = value > 0
+            ? $"{name} {magnitude} day{(magnitude == 1 ? string.Empty : "s")} late"
+            : $"{name} {magnitude} day{(magnitude == 1 ? string.Empty : "s")} early";
+
+        return (text, description, cssClass);
     }
 }
 <link rel="stylesheet" href="~/css/projects/timeline.css" />
@@ -36,113 +65,240 @@
         _                      => "pm-item"
       };
       <div class="@itemClass" data-stage-row="@s.Code" data-requires-backfill="@(s.RequiresBackfill ? "true" : "false")">
-        <div class="pm-item-header d-flex flex-wrap justify-content-between align-items-start gap-2">
-          <div class="d-flex flex-wrap align-items-center gap-2">
-            <span class="pm-item-title" data-stage-name="@s.Name">@s.Name</span>
-            <span class="@StatusChip(s.Status)" data-stage-status>@s.Status</span>
-            @if (s.IsAutoCompleted)
-            {
-              <span class="badge bg-warning-subtle text-warning border border-warning-subtle" title="Auto-completed when a later stage was completed.">inferred</span>
-            }
-            @{
-              var showIncomplete = s.IsIncompleteData || s.RequiresBackfill;
-            }
-            <span class="badge bg-secondary-subtle text-body-secondary border border-secondary-subtle@(showIncomplete ? string.Empty : " d-none")" data-stage-incomplete>
-              Incomplete data
-            </span>
-            <span data-stage-pending>
-              @if (s.HasPendingRequest)
-              {
-                <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
-                  Pending: @s.PendingStatus@if (s.PendingDate.HasValue)
-                  {
-                    <text> · @D(s.PendingDate)</text>
-                  }
-                </span>
-              }
-            </span>
-            @if (s.IsOverdue)
-            {
-              <span class="badge bg-danger-subtle text-danger border border-danger-subtle">Overdue</span>
-            }
-            <span class="ms-2 text-warning@(s.RequiresBackfill ? string.Empty : " d-none")" title="Additional data required" data-stage-backfill-indicator>⚠︎</span>
-            <button type="button"
-                    class="btn btn-link btn-sm px-0 align-baseline ms-1@(s.RequiresBackfill ? string.Empty : " d-none")"
-                    data-action="open-backfill"
-                    data-stage-backfill-button>
-              Backfill…
-            </button>
-          </div>
-          <div class="d-flex align-items-center gap-2">
-            @if (canRequestChange)
-            {
+        <div class="pm-item-card">
+          <div class="pm-item-header">
+            <div class="pm-item-heading">
+              <span class="@StatusPillClass(s.Status)"
+                    data-stage-status
+                    data-stage-status-pill
+                    aria-label="Stage status: @StatusLabel(s.Status)">
+                @StatusLabel(s.Status)
+              </span>
               <button type="button"
-                      class="btn btn-sm btn-outline-primary"
-                      data-stage-request
-                      data-stage-request-button
-                      data-project="@Model.ProjectId"
-                      data-stage="@s.Code"
-                      data-stage-name="@s.Name"
-                      data-current-status="@s.Status"
-                      @(s.HasPendingRequest ? "disabled" : null)>
-                Request change
+                      class="pm-pill pm-pill-warning@(s.RequiresBackfill ? string.Empty : " d-none")"
+                      data-action="open-backfill"
+                      data-stage-backfill-pill
+                      aria-label="Backfill required for @s.Name">
+                Backfill required
               </button>
-            }
-            @if (showDirectApply)
-            {
-              <div class="dropdown">
-                <button class="btn btn-sm btn-outline-secondary pm-actions-trigger dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Actions">
-                  <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-                  <span class="pm-actions-trigger-text">Actions</span>
+              <span class="pm-item-title text-truncate"
+                    title="@s.Name"
+                    data-stage-name>
+                @s.Name
+              </span>
+            </div>
+            <div class="pm-item-actions">
+              @if (canRequestChange)
+              {
+                <button type="button"
+                        class="btn btn-link btn-sm pm-primary-action d-none d-lg-inline"
+                        data-stage-request
+                        data-stage-request-button
+                        data-project="@Model.ProjectId"
+                        data-stage="@s.Code"
+                        data-stage-name="@s.Name"
+                        data-current-status="@s.Status"
+                        @(s.HasPendingRequest ? "disabled" : null)>
+                  Request
                 </button>
-                <ul class="dropdown-menu dropdown-menu-end">
-                  <li>
-                    <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="InProgress" data-default-date="@s.ActualStart?.ToString("yyyy-MM-dd")">
-                      Start stage
-                    </button>
-                  </li>
-                  <li>
-                    <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="Completed" data-default-date="@s.CompletedOn?.ToString("yyyy-MM-dd")">
-                      Mark completed
-                    </button>
-                  </li>
-                  <li>
-                    <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="Blocked">
-                      Block
-                    </button>
-                  </li>
-                  <li>
-                    <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="Skipped">
-                      Skip
-                    </button>
-                  </li>
-                  <li>
-                    <button class="dropdown-item" type="button" data-direct-apply data-project="@Model.ProjectId" data-stage="@s.Code" data-stage-name="@s.Name" data-status="Reopen">
-                      Reopen
-                    </button>
-                  </li>
+              }
+              <div class="dropdown">
+                <button class="btn pm-kebab" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Stage actions for @s.Name">
+                  <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" data-stage-action-menu>
+                  @if (isHod && s.HasPendingRequest && s.PendingRequestId is int requestId)
+                  {
+                    <li>
+                      <button class="dropdown-item"
+                              type="button"
+                              data-stage-decision-inline
+                              data-stage="@s.Code"
+                              data-stage-name="@s.Name"
+                              data-request-id="@requestId"
+                              data-decision="Approve">
+                        Approve
+                      </button>
+                    </li>
+                    <li>
+                      <button class="dropdown-item"
+                              type="button"
+                              data-stage-decision-inline
+                              data-stage="@s.Code"
+                              data-stage-name="@s.Name"
+                              data-request-id="@requestId"
+                              data-decision="Reject">
+                        Reject
+                      </button>
+                    </li>
+                    <li><hr class="dropdown-divider" /></li>
+                  }
+                  @if (isHod)
+                  {
+                    <li class="dropdown-header">Mark as…</li>
+                    <li>
+                      <button class="dropdown-item"
+                              type="button"
+                              data-direct-apply
+                              data-project="@Model.ProjectId"
+                              data-stage="@s.Code"
+                              data-stage-name="@s.Name"
+                              data-status="InProgress"
+                              data-default-date="@s.ActualStart?.ToString("yyyy-MM-dd")">
+                        In progress
+                      </button>
+                    </li>
+                    <li>
+                      <button class="dropdown-item"
+                              type="button"
+                              data-direct-apply
+                              data-project="@Model.ProjectId"
+                              data-stage="@s.Code"
+                              data-stage-name="@s.Name"
+                              data-status="Completed"
+                              data-default-date="@s.CompletedOn?.ToString("yyyy-MM-dd")">
+                        Completed
+                      </button>
+                    </li>
+                    <li>
+                      <button class="dropdown-item"
+                              type="button"
+                              data-direct-apply
+                              data-project="@Model.ProjectId"
+                              data-stage="@s.Code"
+                              data-stage-name="@s.Name"
+                              data-status="Blocked">
+                        Blocked
+                      </button>
+                    </li>
+                    <li>
+                      <button class="dropdown-item"
+                              type="button"
+                              data-direct-apply
+                              data-project="@Model.ProjectId"
+                              data-stage="@s.Code"
+                              data-stage-name="@s.Name"
+                              data-status="Skipped">
+                        Skipped
+                      </button>
+                    </li>
+                    <li>
+                      <button class="dropdown-item"
+                              type="button"
+                              data-direct-apply
+                              data-project="@Model.ProjectId"
+                              data-stage="@s.Code"
+                              data-stage-name="@s.Name"
+                              data-status="Reopen">
+                        Reopen
+                      </button>
+                    </li>
+                    @if (canRequestChange)
+                    {
+                      <li><hr class="dropdown-divider" /></li>
+                    }
+                  }
+                  @if (canRequestChange)
+                  {
+                    <li>
+                      <button class="dropdown-item"
+                              type="button"
+                              data-stage-request
+                              data-stage-request-button
+                              data-project="@Model.ProjectId"
+                              data-stage="@s.Code"
+                              data-stage-name="@s.Name"
+                              data-current-status="@s.Status"
+                              @(s.HasPendingRequest ? "disabled" : null)>
+                        Request change
+                      </button>
+                    </li>
+                  }
                 </ul>
               </div>
-            }
+            </div>
           </div>
-        </div>
-        <div class="pm-item-meta">
-          <div>Planned: <span data-stage-planned-start>@D(s.PlannedStart)</span> — <span data-stage-planned-end>@D(s.PlannedEnd)</span></div>
-          <div>
-            Actual: <span data-stage-actual-start>@D(s.ActualStart)</span> — <span data-stage-completed>@D(s.CompletedOn)</span>
-            <span class="text-muted ms-2@(s.ActualDurationDays.HasValue ? string.Empty : " d-none")" data-stage-duration>
-              @(s.ActualDurationDays.HasValue ? $"({s.ActualDurationDays} d)" : string.Empty)
+          <div class="pm-item-flags">
+            @if (s.IsAutoCompleted)
+            {
+              <span class="pm-flag" title="Auto-completed when a later stage finished." data-stage-autocomplete>Inferred</span>
+            }
+            <span class="pm-flag@(s.IsIncompleteData || s.RequiresBackfill ? string.Empty : " d-none")" data-stage-incomplete>
+              Incomplete data
+            </span>
+            <span class="pm-flag pm-flag-danger@(s.IsOverdue ? string.Empty : " d-none")" data-stage-overdue>Overdue</span>
+            <span class="pm-flag pm-flag-warning@(s.HasPendingRequest ? string.Empty : " d-none")" data-stage-pending>
+              @if (s.HasPendingRequest)
+              {
+                  <text>Pending: @s.PendingStatus</text>
+                  @if (s.PendingDate.HasValue)
+                  {
+                      <text> · @D(s.PendingDate)</text>
+                  }
+              }
             </span>
           </div>
-          <div class="pm-item-variance d-flex flex-wrap gap-1 mt-1">
-            @if (s.StartVarianceDays is int startVar && startVar != 0)
-            {
-              <span class="badge bg-secondary-subtle text-body-secondary border border-secondary-subtle" data-stage-start-variance>@VarianceLabel("Start", startVar)</span>
-            }
-            @if (s.FinishVarianceDays is int finishVar && finishVar != 0)
-            {
-              <span class="badge bg-secondary-subtle text-body-secondary border border-secondary-subtle" data-stage-finish-variance>@VarianceLabel("Finish", finishVar)</span>
-            }
+          <div class="pm-item-dates">
+            <div class="pm-date-row">
+              <span class="pm-date-label">Planned</span>
+              <div class="pm-date-values">
+                <span data-stage-planned-start>@D(s.PlannedStart)</span>
+                <span class="pm-date-sep">–</span>
+                <span data-stage-planned-end>@D(s.PlannedEnd)</span>
+              </div>
+            </div>
+            <div class="pm-date-row">
+              <span class="pm-date-label">Actual</span>
+              <div class="pm-date-values">
+                <span data-stage-actual-start>@D(s.ActualStart)</span>
+                <span class="pm-date-sep">–</span>
+                <span data-stage-completed>@D(s.CompletedOn)</span>
+                <span class="pm-date-duration@(s.ActualDurationDays.HasValue ? string.Empty : " d-none")" data-stage-duration>
+                  @(s.ActualDurationDays.HasValue ? $"({s.ActualDurationDays} d)" : string.Empty)
+                </span>
+              </div>
+            </div>
+            <div class="pm-date-hint small text-muted@(s.NeedsStart || s.NeedsFinish ? string.Empty : " d-none")" data-stage-date-hint>
+              @if (s.NeedsStart && s.NeedsFinish)
+              {
+                  <text>Actual start and finish missing</text>
+              }
+              else if (s.NeedsStart)
+              {
+                  <text>Actual start missing</text>
+              }
+              else if (s.NeedsFinish)
+              {
+                  <text>Actual finish missing</text>
+              }
+            </div>
+          </div>
+          <div class="pm-item-variance">
+            <div class="pm-variance-chips">
+              @if (s.PlannedStart.HasValue && s.ActualStart.HasValue && s.StartVarianceDays is int startVar)
+              {
+                  var variance = VarianceToken("Start", startVar);
+                  <span class="@variance.cssClass"
+                        data-stage-start-variance
+                        aria-label="@variance.description"
+                        title="@variance.description">
+                    @variance.text
+                  </span>
+              }
+              @if (s.PlannedEnd.HasValue && s.CompletedOn.HasValue && s.FinishVarianceDays is int finishVar)
+              {
+                  var variance = VarianceToken("Finish", finishVar);
+                  <span class="@variance.cssClass"
+                        data-stage-finish-variance
+                        aria-label="@variance.description"
+                        title="@variance.description">
+                    @variance.text
+                  </span>
+              }
+            </div>
+            <div class="pm-variance-hint small text-muted@(s.PlannedStart.HasValue || s.PlannedEnd.HasValue ? " d-none" : string.Empty)" data-stage-plan-hint>
+              No plan dates
+            </div>
           </div>
         </div>
       </div>
