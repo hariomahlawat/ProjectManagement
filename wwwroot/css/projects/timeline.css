@@ -67,7 +67,7 @@
 
 .pm-item-header {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
   align-items: start;
 }
@@ -88,14 +88,23 @@
 .pm-item-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-width: 3rem;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.pm-item-actions > * {
+  flex-shrink: 0;
 }
 
 .pm-primary-action {
   color: var(--bs-body-color);
   text-decoration: none;
   padding: 0;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .pm-primary-action:hover,
