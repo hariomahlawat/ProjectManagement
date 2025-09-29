@@ -99,13 +99,13 @@
   }
 
   function badgeClass(status) {
-    switch (status) {
-      case 'Completed':
-        return 'badge bg-success';
-      case 'InProgress':
-        return 'badge bg-primary';
+    switch ((status || '').toLowerCase()) {
+      case 'completed':
+        return 'pm-pill pm-pill-success';
+      case 'inprogress':
+        return 'pm-pill pm-pill-primary';
       default:
-        return 'badge bg-secondary';
+        return 'pm-pill pm-pill-muted';
     }
   }
 
@@ -161,13 +161,40 @@
     return `${today.getFullYear()}-${month}-${day}`;
   }
 
-  function computeIncompleteState(status, actualStart, completedOn, requiresBackfill) {
+  function computeNeedsStart(status, actualStart) {
     const normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : '';
-    const hasStart = !!actualStart;
-    const hasCompleted = !!completedOn;
-    const needsStart = (normalizedStatus === 'inprogress' || normalizedStatus === 'completed') && !hasStart;
-    const needsFinish = normalizedStatus === 'completed' && !hasCompleted;
+    return (normalizedStatus === 'inprogress' || normalizedStatus === 'completed') && !actualStart;
+  }
+
+  function computeNeedsFinish(status, completedOn) {
+    const normalizedStatus = typeof status === 'string' ? status.trim().toLowerCase() : '';
+    return normalizedStatus === 'completed' && !completedOn;
+  }
+
+  function computeIncompleteState(status, actualStart, completedOn, requiresBackfill) {
+    const needsStart = computeNeedsStart(status, actualStart);
+    const needsFinish = computeNeedsFinish(status, completedOn);
     return Boolean(requiresBackfill || needsStart || needsFinish);
+  }
+
+  function describeVariance(name, value) {
+    const magnitude = Math.abs(value);
+    if (value === 0) {
+      return {
+        text: `${name} on time`,
+        title: `${name} on time`,
+        cssClass: 'pm-chip pm-chip-on-time'
+      };
+    }
+
+    const sign = value > 0 ? '+' : '−';
+    const direction = value > 0 ? 'late' : 'early';
+    const plural = magnitude === 1 ? '' : 's';
+    return {
+      text: `${name} ${sign}${magnitude}d`,
+      title: `${name} ${magnitude} day${plural} ${direction}`,
+      cssClass: value > 0 ? 'pm-chip pm-chip-late' : 'pm-chip pm-chip-early'
+    };
   }
 
   function updateStageRow(stageCode, payloadStatus, updated) {
@@ -180,6 +207,16 @@
     const actualStartIso = updated?.actualStart ?? null;
     const completedIso = updated?.completedOn ?? null;
     const requiresBackfill = Boolean(updated?.requiresBackfill);
+    const startVariance = typeof updated?.startVarianceDays === 'number' ? updated.startVarianceDays : null;
+    const finishVariance = typeof updated?.finishVarianceDays === 'number' ? updated.finishVarianceDays : null;
+
+    const normalizedStatus = typeof statusText === 'string' ? statusText.trim().toLowerCase() : '';
+    row.classList.remove('is-complete', 'is-active');
+    if (normalizedStatus === 'completed') {
+      row.classList.add('is-complete');
+    } else if (normalizedStatus === 'inprogress') {
+      row.classList.add('is-active');
+    }
 
     if (requiresBackfill) {
       row.setAttribute('data-requires-backfill', 'true');
@@ -187,10 +224,11 @@
       row.removeAttribute('data-requires-backfill');
     }
 
-    const badge = row.querySelector('[data-stage-status]');
+    const badge = row.querySelector('[data-stage-status-pill]');
     if (badge) {
       badge.textContent = statusLabel(statusText);
       badge.className = badgeClass(statusText || '');
+      badge.setAttribute('aria-label', `Stage status: ${statusLabel(statusText)}`);
     }
 
     const actualSpan = row.querySelector('[data-stage-actual-start]');
@@ -233,23 +271,82 @@
       }
     });
 
+    const needsStart = computeNeedsStart(statusText, actualStartIso);
+    const needsFinish = computeNeedsFinish(statusText, completedIso);
+
     const incompleteBadge = row.querySelector('[data-stage-incomplete]');
     if (incompleteBadge) {
       const showIncomplete = computeIncompleteState(updatedStatus, actualStartIso, completedIso, requiresBackfill);
       incompleteBadge.classList.toggle('d-none', !showIncomplete);
     }
 
-    const backfillIndicator = row.querySelector('[data-stage-backfill-indicator]');
-    if (backfillIndicator) {
-      backfillIndicator.classList.toggle('d-none', !requiresBackfill);
+    const dateHint = row.querySelector('[data-stage-date-hint]');
+    if (dateHint) {
+      if (needsStart && needsFinish) {
+        dateHint.textContent = 'Actual start and finish missing';
+        dateHint.classList.remove('d-none');
+      } else if (needsStart) {
+        dateHint.textContent = 'Actual start missing';
+        dateHint.classList.remove('d-none');
+      } else if (needsFinish) {
+        dateHint.textContent = 'Actual finish missing';
+        dateHint.classList.remove('d-none');
+      } else {
+        dateHint.textContent = '';
+        dateHint.classList.add('d-none');
+      }
     }
 
-    const backfillButton = row.querySelector('[data-stage-backfill-button]');
-    if (backfillButton) {
-      backfillButton.classList.toggle('d-none', !requiresBackfill);
+    const backfillPill = row.querySelector('[data-stage-backfill-pill]');
+    if (backfillPill) {
+      backfillPill.classList.toggle('d-none', !requiresBackfill);
     }
 
-    const hasAnyBackfill = document.querySelector('[data-stage-backfill-button]:not(.d-none)') !== null;
+    const pendingFlag = row.querySelector('[data-stage-pending]');
+    if (pendingFlag && pendingFlag.classList.contains('pm-flag')) {
+      if (updated?.pendingStatus) {
+        const textParts = [`Pending: ${statusLabel(updated.pendingStatus)}`];
+        if (updated.pendingDate) {
+          textParts.push(`· ${formatDate(updated.pendingDate)}`);
+        }
+        pendingFlag.textContent = textParts.join(' ');
+        pendingFlag.classList.remove('d-none');
+      } else if (!updated?.pendingStatus && !pendingFlag.textContent.trim()) {
+        pendingFlag.classList.add('d-none');
+      }
+    }
+
+    const startChip = row.querySelector('[data-stage-start-variance]');
+    if (startChip) {
+      if (startVariance === null || startVariance === undefined || Number.isNaN(startVariance)) {
+        startChip.classList.add('d-none');
+        startChip.textContent = '';
+      } else {
+        const details = describeVariance('Start', startVariance);
+        startChip.textContent = details.text;
+        startChip.className = details.cssClass;
+        startChip.setAttribute('title', details.title);
+        startChip.setAttribute('aria-label', details.title);
+        startChip.classList.remove('d-none');
+      }
+    }
+
+    const finishChip = row.querySelector('[data-stage-finish-variance]');
+    if (finishChip) {
+      if (finishVariance === null || finishVariance === undefined || Number.isNaN(finishVariance)) {
+        finishChip.classList.add('d-none');
+        finishChip.textContent = '';
+      } else {
+        const details = describeVariance('Finish', finishVariance);
+        finishChip.textContent = details.text;
+        finishChip.className = details.cssClass;
+        finishChip.setAttribute('title', details.title);
+        finishChip.setAttribute('aria-label', details.title);
+        finishChip.classList.remove('d-none');
+      }
+    }
+
+    const hasAnyBackfill = document.querySelector('[data-stage-backfill-pill]:not(.d-none)') !== null;
     document.dispatchEvent(new CustomEvent('pm:backfill-state-changed', {
       detail: { hasBackfill: hasAnyBackfill }
     }));
@@ -265,21 +362,20 @@
 
     if (!status) {
       container.textContent = '';
+      container.classList.add('d-none');
       return;
     }
 
-    const badge = document.createElement('span');
-    badge.className = 'badge bg-warning-subtle text-warning border border-warning-subtle';
-    badge.textContent = `Pending: ${statusLabel(status)}`;
-
+    const parts = [`Pending: ${statusLabel(status)}`];
     if (dateIso) {
       const formatted = formatDate(dateIso);
       if (formatted && formatted !== '—') {
-        badge.textContent += ` · ${formatted}`;
+        parts.push(`· ${formatted}`);
       }
     }
 
-    container.replaceChildren(badge);
+    container.textContent = parts.join(' ');
+    container.classList.remove('d-none');
   }
 
   function disableRequestButton(stageCode) {
@@ -287,11 +383,11 @@
     const row = document.querySelector(`[data-stage-row="${escapeSelector(stageCode)}"]`);
     if (!row) return;
 
-    const button = row.querySelector('[data-stage-request-button]');
-    if (button) {
+    const buttons = row.querySelectorAll('[data-stage-request-button]');
+    buttons.forEach((button) => {
       button.disabled = true;
       button.classList.add('disabled');
-    }
+    });
   }
 
   function enableRequestButton(stageCode) {
@@ -299,11 +395,11 @@
     const row = document.querySelector(`[data-stage-row="${escapeSelector(stageCode)}"]`);
     if (!row) return;
 
-    const button = row.querySelector('[data-stage-request-button]');
-    if (button) {
+    const buttons = row.querySelectorAll('[data-stage-request-button]');
+    buttons.forEach((button) => {
       button.disabled = false;
       button.classList.remove('disabled');
-    }
+    });
   }
 
   function renderErrors(container, messages) {
@@ -512,6 +608,12 @@
         payload.projectId = 0;
       }
 
+      const stageCode = stageInput.value;
+      const row = stageCode ? document.querySelector(`[data-stage-row="${escapeSelector(stageCode)}"]`) : null;
+      if (row) {
+        row.setAttribute('data-loading', 'true');
+      }
+
       try {
         const response = await postJson('/Projects/Stages/ApplyChange', payload, tokenInput.value);
 
@@ -597,6 +699,9 @@
         setForceHintHighlighted(false);
       } finally {
         if (submitButton) submitButton.disabled = false;
+        if (row) {
+          row.removeAttribute('data-loading');
+        }
       }
     });
   }
@@ -764,6 +869,12 @@
         payload.projectId = 0;
       }
 
+      const stageCodeValue = stageInput.value;
+      const row = stageCodeValue ? document.querySelector(`[data-stage-row="${escapeSelector(stageCodeValue)}"]`) : null;
+      if (row) {
+        row.setAttribute('data-loading', 'true');
+      }
+
       try {
         const response = await postJson('/Projects/Stages/RequestChange', payload, tokenInput.value);
 
@@ -807,6 +918,144 @@
         renderErrors(errorContainer, ['Unable to submit the request right now.']);
       } finally {
         if (submitButton) submitButton.disabled = false;
+        if (row) {
+          row.removeAttribute('data-loading');
+        }
+      }
+    });
+  }
+
+  function bootInlineStageDecisions() {
+    document.addEventListener('click', async (event) => {
+      const button = event.target.closest('[data-stage-decision-inline]');
+      if (!button) {
+        return;
+      }
+
+      event.preventDefault();
+
+      if (button.disabled) {
+        return;
+      }
+
+      const decisionRaw = button.getAttribute('data-decision') || '';
+      const decision = decisionRaw.trim();
+      if (!decision) {
+        return;
+      }
+
+      const requestId = Number.parseInt(button.getAttribute('data-request-id') || '', 10);
+      if (!requestId) {
+        return;
+      }
+
+      const dropdownMenu = button.closest('.dropdown-menu');
+      if (dropdownMenu) {
+        const toggle = dropdownMenu.previousElementSibling;
+        if (toggle) {
+          const dropdown = bootstrap.Dropdown.getOrCreateInstance(toggle);
+          dropdown.hide();
+        }
+      }
+
+      const stageCode = button.getAttribute('data-stage') || '';
+      const stageLabel = button.getAttribute('data-stage-name') || stageCode || 'stage';
+      const tokenInput = document.querySelector('[data-stage-decision-token]');
+      const token = tokenInput ? tokenInput.value : '';
+
+      if (!token) {
+        showToast('Unable to update the stage right now.', 'danger');
+        return;
+      }
+
+      button.disabled = true;
+      const row = button.closest('[data-stage-row]');
+      if (row) {
+        row.setAttribute('data-loading', 'true');
+      }
+
+      try {
+        const response = await postJson('/Projects/Stages/DecideChange', {
+          requestId,
+          decision,
+          decisionNote: null
+        }, token || '');
+
+        if (response.status === 403) {
+          showToast('You are not allowed to decide this request.', 'danger');
+          return;
+        }
+
+        if (response.status === 404 || response.status === 409) {
+          const message = response.status === 404
+            ? 'Request not found.'
+            : 'This request has already been decided.';
+          showToast(message, 'warning');
+          if (stageCode) {
+            updatePendingBadge(stageCode, null, null);
+            enableRequestButton(stageCode);
+          }
+          const item = document.querySelector(`[data-stage-request-item][data-request-id="${requestId}"]`);
+          if (item) {
+            item.remove();
+          }
+          const list = document.querySelector('[data-stage-decision-list]');
+          const emptyState = document.querySelector('[data-stage-requests-empty]');
+          if (list && !list.querySelector('[data-stage-request-item]') && emptyState) {
+            emptyState.classList.remove('d-none');
+          }
+          return;
+        }
+
+        if (response.status === 422) {
+          showToast('Unable to update the stage right now.', 'danger');
+          return;
+        }
+
+        if (!response.ok) {
+          showToast('Unable to update the stage right now.', 'danger');
+          return;
+        }
+
+        const data = await response.json().catch(() => null);
+        if (!data?.ok) {
+          showToast('Unable to update the stage right now.', 'danger');
+          return;
+        }
+
+        const updated = data.updated || null;
+        if (stageCode) {
+          updateStageRow(stageCode, updated?.status || null, updated);
+          updatePendingBadge(stageCode, null, null);
+          enableRequestButton(stageCode);
+        }
+
+        handleWarnings(data.warnings);
+
+        const decisionLower = decision.toLowerCase();
+        if (decisionLower === 'approve') {
+          showToast(`Approved change for ${stageLabel}.`, 'success');
+        } else {
+          showToast(`Rejected change for ${stageLabel}.`, 'info');
+        }
+
+        const item = document.querySelector(`[data-stage-request-item][data-request-id="${requestId}"]`);
+        if (item) {
+          item.remove();
+        }
+        const list = document.querySelector('[data-stage-decision-list]');
+        const emptyState = document.querySelector('[data-stage-requests-empty]');
+        if (list && !list.querySelector('[data-stage-request-item]') && emptyState) {
+          emptyState.classList.remove('d-none');
+        }
+      } catch (error) {
+        console.error(error);
+        showToast('Unable to update the stage right now.', 'danger');
+      } finally {
+        button.disabled = false;
+        if (row) {
+          row.removeAttribute('data-loading');
+        }
       }
     });
   }
@@ -973,6 +1222,7 @@
 
     bootDirectApply();
     bootStageRequest();
+    bootInlineStageDecisions();
     bootStageDecisions();
   }
 

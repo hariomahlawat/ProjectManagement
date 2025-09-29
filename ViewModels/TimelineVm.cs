@@ -50,6 +50,7 @@ public sealed class TimelineItemVm
     public bool HasPendingRequest { get; init; }
     public string? PendingStatus { get; init; }
     public DateOnly? PendingDate { get; init; }
+    public int? PendingRequestId { get; init; }
 
     public int? StartVarianceDays { get; init; }
     public int? FinishVarianceDays { get; init; }
