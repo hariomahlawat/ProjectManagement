@@ -154,6 +154,8 @@ public sealed class StageBackfillService
             stage.ActualStart = resolvedStart;
             stage.CompletedOn = resolvedCompleted;
             stage.RequiresBackfill = false;
+            stage.IsAutoCompleted = false;
+            stage.AutoCompletedFromCode = null;
 
             var log = new StageChangeLog
             {
