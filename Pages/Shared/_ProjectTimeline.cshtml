@@ -88,20 +88,6 @@
               </span>
             </div>
             <div class="pm-item-actions">
-              @if (canRequestChange)
-              {
-                <button type="button"
-                        class="btn btn-link btn-sm pm-primary-action"
-                        data-stage-request
-                        data-stage-request-button
-                        data-project="@Model.ProjectId"
-                        data-stage="@s.Code"
-                        data-stage-name="@s.Name"
-                        data-current-status="@s.Status"
-                        @(s.HasPendingRequest ? "disabled" : null)>
-                  Request
-                </button>
-              }
               <div class="dropdown">
                 <button class="btn pm-kebab" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Stage actions for @s.Name">
                   <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
