@@ -26,7 +26,9 @@ public class StageBackfillServiceTests
             StageCode = StageCodes.IPA,
             SortOrder = 1,
             Status = StageStatus.Completed,
-            RequiresBackfill = true
+            RequiresBackfill = true,
+            IsAutoCompleted = true,
+            AutoCompletedFromCode = StageCodes.SOW
         });
         await db.SaveChangesAsync();
 
@@ -48,11 +50,49 @@ public class StageBackfillServiceTests
         Assert.Equal(new DateOnly(2024, 11, 20), stage.ActualStart);
         Assert.Equal(new DateOnly(2024, 11, 25), stage.CompletedOn);
         Assert.False(stage.RequiresBackfill);
+        Assert.False(stage.IsAutoCompleted);
+        Assert.Null(stage.AutoCompletedFromCode);
 
         var log = await db.StageChangeLogs.SingleAsync();
         Assert.Equal("Backfill", log.Action);
         Assert.Equal(new DateOnly(2024, 11, 20), log.ToActualStart);
         Assert.Equal(new DateOnly(2024, 11, 25), log.ToCompletedOn);
+    }
+
+    [Fact]
+    public async Task ApplyAsync_WhenBackfillingAutoCompletedStage_ClearsInferredFlags()
+    {
+        var clock = FakeClock.ForIstDate(new DateOnly(2024, 12, 5));
+        await using var db = CreateContext();
+
+        db.ProjectStages.Add(new ProjectStage
+        {
+            ProjectId = 1,
+            StageCode = StageCodes.IPA,
+            SortOrder = 1,
+            Status = StageStatus.Completed,
+            ActualStart = new DateOnly(2024, 11, 1),
+            CompletedOn = new DateOnly(2024, 11, 5),
+            RequiresBackfill = true,
+            IsAutoCompleted = true,
+            AutoCompletedFromCode = StageCodes.SOW
+        });
+        await db.SaveChangesAsync();
+
+        var service = new StageBackfillService(db, clock);
+
+        await service.ApplyAsync(
+            projectId: 1,
+            updates: new[]
+            {
+                new StageBackfillUpdate(StageCodes.IPA, new DateOnly(2024, 11, 2), new DateOnly(2024, 11, 6))
+            },
+            userId: "user-1",
+            ct: CancellationToken.None);
+
+        var stage = await db.ProjectStages.SingleAsync();
+        Assert.False(stage.IsAutoCompleted);
+        Assert.Null(stage.AutoCompletedFromCode);
     }
 
     [Fact]
