@@ -1,0 +1,51 @@
+@model ProjectManagement.Features.Backfill.BackfillViewModel
+@{
+    var todayIso = Model?.Today.ToString("yyyy-MM-dd");
+}
+
+<div class="d-flex flex-column gap-3" data-backfill-stage-list>
+@if (Model?.Stages is { Count: > 0 } stages)
+{
+    foreach (var stage in stages)
+    {
+        var startValue = stage.ActualStart?.ToString("yyyy-MM-dd");
+        var completedValue = stage.CompletedOn?.ToString("yyyy-MM-dd");
+        <section class="border rounded p-3" data-backfill-row data-stage-code="@stage.StageCode">
+            <div class="d-flex flex-wrap justify-content-between align-items-start gap-2">
+                <div>
+                    <div class="fw-semibold">@stage.StageName</div>
+                    <div class="text-muted small">@stage.StageCode</div>
+                </div>
+                @if (stage.IsAutoCompleted && !string.IsNullOrWhiteSpace(stage.AutoCompletedFromName))
+                {
+                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle">
+                        Auto-completed after @stage.AutoCompletedFromName (@stage.AutoCompletedFromCode)
+                    </span>
+                }
+            </div>
+            <div class="row g-3 mt-2">
+                <div class="col-md-6">
+                    <label class="form-label" for="backfill-start-@stage.StageCode">Actual start date</label>
+                    <input type="date"
+                           class="form-control"
+                           id="backfill-start-@stage.StageCode"
+                           data-backfill-start
+                           value="@startValue"
+                           max="@todayIso"
+                           required />
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label" for="backfill-completed-@stage.StageCode">Completed on</label>
+                    <input type="date"
+                           class="form-control"
+                           id="backfill-completed-@stage.StageCode"
+                           data-backfill-completed
+                           value="@completedValue"
+                           max="@todayIso"
+                           required />
+                </div>
+            </div>
+        </section>
+    }
+}
+</div>

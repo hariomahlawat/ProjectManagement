@@ -10,10 +10,12 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
+using ProjectManagement.Features.Backfill;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.Utilities;
@@ -30,10 +32,11 @@ namespace ProjectManagement.Pages.Projects
         private readonly UserManager<ApplicationUser> _users;
         private readonly PlanReadService _planRead;
         private readonly ILogger<OverviewModel> _logger;
+        private readonly IClock _clock;
 
         public PlanCompareService PlanCompare { get; }
 
-        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger)
+        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock)
         {
             _db = db;
             _procureRead = procureRead;
@@ -42,6 +45,7 @@ namespace ProjectManagement.Pages.Projects
             _planRead = planRead;
             PlanCompare = planCompare;
             _logger = logger;
+            _clock = clock;
         }
 
         public Project Project { get; private set; } = default!;
@@ -52,6 +56,7 @@ namespace ProjectManagement.Pages.Projects
         public AssignRolesVm AssignRoles { get; private set; } = default!;
         public TimelineVm Timeline { get; private set; } = default!;
         public PlanEditorVm PlanEdit { get; private set; } = default!;
+        public BackfillViewModel Backfill { get; private set; } = BackfillViewModel.Empty;
         public bool HasBackfill { get; private set; }
         public bool RequiresPlanApproval { get; private set; }
         public string? CurrentUserId { get; private set; }
@@ -104,6 +109,7 @@ namespace ProjectManagement.Pages.Projects
             Timeline = await _timelineRead.GetAsync(id, ct);
             PlanEdit = await _planRead.GetAsync(id, CurrentUserId, ct);
             HasBackfill = Timeline.HasBackfill;
+            Backfill = BuildBackfillViewModel(id);
             RequiresPlanApproval = Timeline.PlanPendingApproval;
 
             ProcurementEdit = new ProcurementEditVm
@@ -138,6 +144,36 @@ namespace ProjectManagement.Pages.Projects
                 draftExists);
 
             return Page();
+        }
+
+        private BackfillViewModel BuildBackfillViewModel(int projectId)
+        {
+            if (Timeline is null)
+            {
+                return BackfillViewModel.Empty;
+            }
+
+            var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(_clock.UtcNow, TimeZoneHelper.GetIst()).Date);
+
+            var stages = Timeline.Items
+                .Where(item => item.RequiresBackfill)
+                .Select(item => new BackfillStageViewModel
+                {
+                    StageCode = item.Code,
+                    StageName = item.Name,
+                    ActualStart = item.ActualStart,
+                    CompletedOn = item.CompletedOn,
+                    IsAutoCompleted = item.IsAutoCompleted,
+                    AutoCompletedFromCode = item.AutoCompletedFromCode
+                })
+                .ToArray();
+
+            return new BackfillViewModel
+            {
+                ProjectId = projectId,
+                Today = today,
+                Stages = stages
+            };
         }
 
         private async Task<AssignRolesVm> BuildAssignRolesVmAsync(Project project)
