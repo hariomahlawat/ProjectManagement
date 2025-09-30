@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Linq;
 using ProjectManagement.Models.Execution;
 
 namespace ProjectManagement.Models
@@ -52,6 +53,7 @@ namespace ProjectManagement.Models
         public ApplicationUser? PlanApprovedByUser { get; set; }
 
         private ICollection<ProjectStage> _projectStages = new List<ProjectStage>();
+        private ICollection<ProjectPhoto> _photos = new List<ProjectPhoto>();
 
         public ICollection<ProjectStage> ProjectStages
         {
@@ -66,5 +68,23 @@ namespace ProjectManagement.Models
             get => ProjectStages;
             set => ProjectStages = value;
         }
+
+        public ICollection<ProjectPhoto> Photos
+        {
+            get => _photos;
+            set => _photos = value ?? new List<ProjectPhoto>();
+        }
+
+        public int? CoverPhotoId { get; set; }
+
+        public int CoverPhotoVersion { get; set; } = 1;
+
+        [NotMapped]
+        public ProjectPhoto? CoverPhoto => CoverPhotoId.HasValue
+            ? Photos.FirstOrDefault(p => p.Id == CoverPhotoId.Value)
+            : null;
+
+        [NotMapped]
+        public int? CurrentCoverPhotoVersion => CoverPhoto?.Version ?? (CoverPhotoId.HasValue ? CoverPhotoVersion : null);
     }
 }

@@ -74,6 +74,7 @@ namespace ProjectManagement.Pages.Projects
                 .Include(p => p.PlanApprovedByUser)
                 .Include(p => p.SponsoringUnit)
                 .Include(p => p.SponsoringLineDirectorate)
+                .Include(p => p.Photos)
                 .FirstOrDefaultAsync(p => p.Id == id, ct);
 
             if (project is null)

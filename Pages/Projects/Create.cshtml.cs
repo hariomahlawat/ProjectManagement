@@ -171,7 +171,8 @@ namespace ProjectManagement.Pages.Projects
                 SponsoringUnitId = Input.SponsoringUnitId,
                 SponsoringLineDirectorateId = Input.SponsoringLineDirectorateId,
                 CreatedByUserId = currentUserId,
-                CreatedAt = _clock.UtcNow.UtcDateTime
+                CreatedAt = _clock.UtcNow.UtcDateTime,
+                CoverPhotoVersion = 1
             };
 
             _db.Projects.Add(project);
