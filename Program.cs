@@ -202,6 +202,13 @@ builder.Services.AddRazorPages(options =>
 
 var app = builder.Build();
 
+// Ensure the database schema is up to date before handling requests
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    await db.Database.MigrateAsync();
+}
+
 if (runForecastBackfill)
 {
     using var scope = app.Services.CreateScope();
