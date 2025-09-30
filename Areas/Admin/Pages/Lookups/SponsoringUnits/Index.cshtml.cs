@@ -30,7 +30,7 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string Status { get; set; } = "active";
 
-    [BindProperty(SupportsGet = true, Name = "page")]
+    [BindProperty(SupportsGet = true, Name = "pageNumber")]
     public int PageNumber { get; set; } = 1;
 
     public IReadOnlyList<Row> Items { get; private set; } = Array.Empty<Row>();
@@ -96,7 +96,7 @@ public class IndexModel : PageModel
         if (offset == 0)
         {
             StatusMessage = "No changes made.";
-            return RedirectToPage(new { page = Math.Max(1, PageNumber), q = Q, status = Status });
+            return RedirectToPage(new { pageNumber = Math.Max(1, PageNumber), q = Q, status = Status });
         }
 
         var units = await _db.SponsoringUnits
@@ -114,7 +114,7 @@ public class IndexModel : PageModel
         if (targetIndex == currentIndex)
         {
             StatusMessage = offset < 0 ? "Already at the top." : "Already at the bottom.";
-            return RedirectToPage(new { page = Math.Max(1, PageNumber), q = Q, status = Status });
+            return RedirectToPage(new { pageNumber = Math.Max(1, PageNumber), q = Q, status = Status });
         }
 
         var unit = units[currentIndex];
@@ -144,7 +144,7 @@ public class IndexModel : PageModel
             StatusMessage = "No changes made.";
         }
 
-        return RedirectToPage(new { page = Math.Max(1, PageNumber), q = Q, status = Status });
+        return RedirectToPage(new { pageNumber = Math.Max(1, PageNumber), q = Q, status = Status });
     }
 
     public sealed class Row

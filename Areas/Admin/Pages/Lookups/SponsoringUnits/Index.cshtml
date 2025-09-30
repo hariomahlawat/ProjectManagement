@@ -25,7 +25,7 @@
                 <option value="all" selected="@(string.Equals(Model.Status, "all", StringComparison.OrdinalIgnoreCase) ? "selected" : null)">All</option>
             </select>
         </div>
-        <input type="hidden" name="page" value="1" />
+        <input type="hidden" name="pageNumber" value="1" />
         <div class="col-12">
             <button type="submit" class="btn btn-outline-primary">Apply</button>
         </div>
@@ -81,7 +81,7 @@ else
                             <form method="post" asp-page-handler="Move" class="d-inline">
                                 <input type="hidden" name="id" value="@item.Id" />
                                 <input type="hidden" name="offset" value="-1" />
-                                <input type="hidden" name="page" value="@Model.PageNumber" />
+                                <input type="hidden" name="pageNumber" value="@Model.PageNumber" />
                                 <input type="hidden" name="q" value="@Model.Q" />
                                 <input type="hidden" name="status" value="@Model.Status" />
                                 <button type="submit" class="btn btn-sm btn-outline-secondary" title="Move up">↑</button>
@@ -89,7 +89,7 @@ else
                             <form method="post" asp-page-handler="Move" class="d-inline">
                                 <input type="hidden" name="id" value="@item.Id" />
                                 <input type="hidden" name="offset" value="1" />
-                                <input type="hidden" name="page" value="@Model.PageNumber" />
+                                <input type="hidden" name="pageNumber" value="@Model.PageNumber" />
                                 <input type="hidden" name="q" value="@Model.Q" />
                                 <input type="hidden" name="status" value="@Model.Status" />
                                 <button type="submit" class="btn btn-sm btn-outline-secondary" title="Move down">↓</button>
@@ -105,11 +105,11 @@ else
     <nav aria-label="Pagination" class="mt-3">
         <ul class="pagination">
             <li class="page-item @(Model.PageNumber <= 1 ? "disabled" : string.Empty)">
-                <a class="page-link" asp-route-page="@(Model.PageNumber - 1)" asp-route-q="@Model.Q" asp-route-status="@Model.Status">Previous</a>
+                <a class="page-link" asp-route-pageNumber="@(Model.PageNumber - 1)" asp-route-q="@Model.Q" asp-route-status="@Model.Status">Previous</a>
             </li>
             <li class="page-item disabled"><span class="page-link">Page @Model.PageNumber of @Model.TotalPages</span></li>
             <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : string.Empty)">
-                <a class="page-link" asp-route-page="@(Model.PageNumber + 1)" asp-route-q="@Model.Q" asp-route-status="@Model.Status">Next</a>
+                <a class="page-link" asp-route-pageNumber="@(Model.PageNumber + 1)" asp-route-q="@Model.Q" asp-route-status="@Model.Status">Next</a>
             </li>
         </ul>
     </nav>
