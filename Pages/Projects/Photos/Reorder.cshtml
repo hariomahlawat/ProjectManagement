@@ -18,47 +18,46 @@
     }
     else
     {
-        <div class="table-responsive">
-            <table class="table align-middle">
-                <thead>
-                    <tr>
-                        <th scope="col">Photo</th>
-                        <th scope="col" style="width: 140px;">Ordinal</th>
-                        <th scope="col">Caption</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @for (var i = 0; i < Model.Input.Items.Count; i++)
-                {
-                    var item = Model.Input.Items[i];
-                    var photo = Model.Photos.FirstOrDefault(p => p.Id == item.PhotoId);
-                    <tr>
-                        <td style="width: 160px;">
-                            <img src="@Url.Page("./View", new { id = Model.Project.Id, photoId = item.PhotoId, size = "sm" })" alt="Photo preview" class="img-thumbnail" style="max-width: 128px;" />
-                            <input asp-for="Input.Items[i].PhotoId" type="hidden" />
-                        </td>
-                        <td>
-                            <input asp-for="Input.Items[i].Ordinal" class="form-control" type="number" min="1" />
-                            <span asp-validation-for="Input.Items[i].Ordinal" class="text-danger"></span>
-                        </td>
-                        <td>
-                            @if (photo is not null && !string.IsNullOrWhiteSpace(photo.Caption))
-                            {
-                                <div>@photo.Caption</div>
-                            }
-                            else
-                            {
-                                <span class="text-muted">No caption</span>
-                            }
-                        </td>
-                    </tr>
-                }
-                </tbody>
-            </table>
+        <p class="text-muted">Drag and drop the photo cards to update the display order. The position numbers are used as a fallback when JavaScript is unavailable.</p>
+        <div class="pm-photo-grid" data-photo-reorder>
+        @for (var i = 0; i < Model.Input.Items.Count; i++)
+        {
+            var item = Model.Input.Items[i];
+            var photo = Model.Photos.FirstOrDefault(p => p.Id == item.PhotoId);
+            <div class="pm-photo-grid-item" data-photo-item>
+                <div class="pm-photo-frame">
+                    <img src="@Url.Page("./View", new { id = Model.Project.Id, photoId = item.PhotoId, size = "sm" })" alt="Photo preview" />
+                    @if (photo?.IsCover == true)
+                    {
+                        <span class="pm-photo-cover-badge">Cover</span>
+                    }
+                </div>
+                <input asp-for="Input.Items[i].PhotoId" type="hidden" />
+                <div>
+                    <label asp-for="Input.Items[i].Ordinal" class="form-label">Position</label>
+                    <input asp-for="Input.Items[i].Ordinal" class="form-control form-control-sm" type="number" min="1" data-photo-ordinal />
+                    <span asp-validation-for="Input.Items[i].Ordinal" class="text-danger small"></span>
+                </div>
+                <div class="text-muted small">
+                    @if (photo is not null && !string.IsNullOrWhiteSpace(photo.Caption))
+                    {
+                        <span>@photo.Caption</span>
+                    }
+                    else
+                    {
+                        <span>No caption provided.</span>
+                    }
+                </div>
+            </div>
+        }
         </div>
 
-        <button type="submit" class="btn btn-primary">Save order</button>
+        <button type="submit" class="btn btn-primary mt-3">Save order</button>
     }
 
     <a asp-page="./Index" asp-route-id="@Model.Project.Id" class="btn btn-link">Cancel</a>
 </form>
+
+@section Scripts {
+    <script src="~/js/widgets/project-photo-gallery.js" asp-append-version="true"></script>
+}
