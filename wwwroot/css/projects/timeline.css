@@ -90,6 +90,13 @@
   margin-left: 0.25rem;
 }
 
+.badge-plan-missing-hint {
+  font-size: 0.75rem;
+  color: var(--bs-secondary-color);
+  line-height: 1.25;
+  margin-left: 0.25rem;
+}
+
 .pm-item-title {
   font-weight: 600;
   min-width: 0;

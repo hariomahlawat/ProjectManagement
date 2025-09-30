@@ -1,6 +1,7 @@
 @model ProjectManagement.ViewModels.TimelineVm
 @using System.Globalization
 @using ProjectManagement.Models.Execution
+@using Microsoft.AspNetCore.Mvc.Rendering
 @{
     var isHod = User.IsInRole("HoD");
     var isProjectOfficer = ViewBag?.IsProjectOfficerForProject is bool b && b;
@@ -83,11 +84,15 @@
               </button>
               @if (s.IsPlanMissingDiscrepancy)
               {
+                var planMissingHintId = TagBuilder.CreateSanitizedId($"plan-missing-hint-{s.Code}", "_");
                 <span class="badge bg-warning-subtle text-warning-emphasis badge-plan-missing"
-                      title="Actual dates exist but planned dates are missing"
                       aria-label="Discrepancy: plan missing"
+                      aria-describedby="@planMissingHintId"
                       data-badge="plan-missing">
                   Plan missing
+                </span>
+                <span id="@planMissingHintId" class="badge-plan-missing-hint">
+                  Actual dates exist but planned dates are missing.
                 </span>
               }
               <span class="pm-item-title text-truncate"
