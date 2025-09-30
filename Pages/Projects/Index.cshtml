@@ -36,6 +36,7 @@
             <table class="table align-middle">
                 <thead>
                     <tr>
+                        <th class="text-center">Cover</th>
                         <th>Name</th>
                         <th>Case File #</th>
                         <th>Category</th>
@@ -48,6 +49,35 @@
                 @foreach (var project in Model.Projects)
                 {
                     <tr>
+                        <td class="text-center">
+                            @{
+                                var coverThumb = project.CoverPhotoId.HasValue
+                                    ? Url.Page("/Projects/Photos/View", new
+                                    {
+                                        id = project.Id,
+                                        photoId = project.CoverPhotoId,
+                                        size = "sm",
+                                        v = project.CoverPhotoVersion
+                                    })
+                                    : null;
+                            }
+                            <div class="ratio ratio-4x3 d-inline-block" style="width: 96px;">
+                                @if (!string.IsNullOrEmpty(coverThumb))
+                                {
+                                    <img class="w-100 h-100 object-fit-cover rounded border"
+                                         width="96"
+                                         height="72"
+                                         src="@coverThumb"
+                                         alt="@($"{project.Name} cover photo")" />
+                                }
+                                else
+                                {
+                                    <div class="w-100 h-100 rounded border bg-light d-flex align-items-center justify-content-center text-muted small">
+                                        <span>—</span>
+                                    </div>
+                                }
+                            </div>
+                        </td>
                         <td>
                             <a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="fw-semibold text-decoration-none">
                                 @project.Name

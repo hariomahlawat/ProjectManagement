@@ -62,6 +62,10 @@ namespace ProjectManagement.Pages.Projects
         public bool RequiresPlanApproval { get; private set; }
         public string? CurrentUserId { get; private set; }
         public ProjectMetaChangeRequestVm? MetaChangeRequest { get; private set; }
+        public IReadOnlyList<ProjectPhoto> Photos { get; private set; } = Array.Empty<ProjectPhoto>();
+        public ProjectPhoto? CoverPhoto { get; private set; }
+        public int? CoverPhotoVersion { get; private set; }
+        public string? CoverPhotoUrl { get; private set; }
 
         public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
         {
@@ -83,6 +87,27 @@ namespace ProjectManagement.Pages.Projects
             }
 
             Project = project;
+
+            Photos = project.Photos
+                .OrderBy(p => p.Ordinal)
+                .ThenBy(p => p.Id)
+                .ToList();
+
+            if (project.CoverPhotoId.HasValue)
+            {
+                CoverPhoto = Photos.FirstOrDefault(p => p.Id == project.CoverPhotoId.Value);
+                CoverPhotoVersion = CoverPhoto?.Version ?? project.CoverPhotoVersion;
+                if (CoverPhoto is not null)
+                {
+                    CoverPhotoUrl = Url.Page("/Projects/Photos/View", new
+                    {
+                        id = project.Id,
+                        photoId = CoverPhoto.Id,
+                        size = "md",
+                        v = CoverPhotoVersion
+                    });
+                }
+            }
 
             var connectionHash = ConnectionStringHasher.Hash(_db.Database.GetConnectionString());
 
