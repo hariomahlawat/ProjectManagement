@@ -68,16 +68,38 @@ else
                     </td>
                     <td>@item.ProjectCount</td>
                     <td class="text-end">
-                        <div class="btn-group">
-                            <a class="btn btn-sm btn-outline-secondary" asp-page="./Edit" asp-route-id="@item.Id">Edit</a>
-                            @if (item.IsActive)
-                            {
-                                <a class="btn btn-sm btn-outline-danger" asp-page="./Deactivate" asp-route-id="@item.Id">Deactivate</a>
-                            }
-                            else
-                            {
-                                <a class="btn btn-sm btn-outline-success" asp-page="./Deactivate" asp-route-id="@item.Id" asp-route-restore="true">Reactivate</a>
-                            }
+                        <div class="btn-toolbar justify-content-end" role="toolbar">
+                            <div class="btn-group me-2" role="group">
+                                <form method="post" asp-page-handler="Move" asp-route-id="@item.Id" asp-route-offset="-1" class="d-inline">
+                                    <input type="hidden" name="q" value="@Model.Q" />
+                                    <input type="hidden" name="status" value="@Model.Status" />
+                                    <input type="hidden" name="page" value="@Model.PageNumber" />
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary" title="Move up">
+                                        <span aria-hidden="true">↑</span>
+                                        <span class="visually-hidden">Move @item.Name up</span>
+                                    </button>
+                                </form>
+                                <form method="post" asp-page-handler="Move" asp-route-id="@item.Id" asp-route-offset="1" class="d-inline">
+                                    <input type="hidden" name="q" value="@Model.Q" />
+                                    <input type="hidden" name="status" value="@Model.Status" />
+                                    <input type="hidden" name="page" value="@Model.PageNumber" />
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary" title="Move down">
+                                        <span aria-hidden="true">↓</span>
+                                        <span class="visually-hidden">Move @item.Name down</span>
+                                    </button>
+                                </form>
+                            </div>
+                            <div class="btn-group" role="group">
+                                <a class="btn btn-sm btn-outline-secondary" asp-page="./Edit" asp-route-id="@item.Id">Edit</a>
+                                @if (item.IsActive)
+                                {
+                                    <a class="btn btn-sm btn-outline-danger" asp-page="./Deactivate" asp-route-id="@item.Id">Deactivate</a>
+                                }
+                                else
+                                {
+                                    <a class="btn btn-sm btn-outline-success" asp-page="./Deactivate" asp-route-id="@item.Id" asp-route-restore="true">Reactivate</a>
+                                }
+                            </div>
                         </div>
                     </td>
                 </tr>
