@@ -1,0 +1,66 @@
+@page "/Projects/{id:int}/Photos/{photoId:int}/Edit"
+@model ProjectManagement.Pages.Projects.Photos.EditModel
+@{
+    ViewData["Title"] = "Edit Project Photo";
+}
+
+<h1 class="mb-4">Edit Project Photo</h1>
+
+<div class="mb-4">
+    <img src="@Url.Page("./View", new { id = Model.Project.Id, photoId = Model.Photo.Id, size = "md" })" alt="Current project photo" class="img-fluid rounded" style="max-width: 320px;" />
+</div>
+
+<form method="post" enctype="multipart/form-data">
+    <input asp-for="Input.ProjectId" type="hidden" />
+    <input asp-for="Input.PhotoId" type="hidden" />
+    <input asp-for="Input.RowVersion" type="hidden" />
+
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+    <div class="mb-3">
+        <label asp-for="Input.File" class="form-label">Replace image (optional)</label>
+        <input asp-for="Input.File" class="form-control" type="file" accept="image/*" />
+        <span asp-validation-for="Input.File" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Input.Caption" class="form-label">Caption</label>
+        <textarea asp-for="Input.Caption" class="form-control" rows="3"></textarea>
+        <span asp-validation-for="Input.Caption" class="text-danger"></span>
+    </div>
+
+    <div class="form-check mb-3">
+        <input asp-for="Input.SetAsCover" class="form-check-input" />
+        <label asp-for="Input.SetAsCover" class="form-check-label">Set as cover photo</label>
+    </div>
+
+    <fieldset class="border rounded p-3 mb-3">
+        <legend class="float-none w-auto fs-6 px-2">Crop (optional)</legend>
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label asp-for="Input.CropX" class="form-label">X</label>
+                <input asp-for="Input.CropX" class="form-control" type="number" />
+                <span asp-validation-for="Input.CropX" class="text-danger"></span>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="Input.CropY" class="form-label">Y</label>
+                <input asp-for="Input.CropY" class="form-control" type="number" />
+                <span asp-validation-for="Input.CropY" class="text-danger"></span>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="Input.CropWidth" class="form-label">Width</label>
+                <input asp-for="Input.CropWidth" class="form-control" type="number" min="1" />
+                <span asp-validation-for="Input.CropWidth" class="text-danger"></span>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="Input.CropHeight" class="form-label">Height</label>
+                <input asp-for="Input.CropHeight" class="form-control" type="number" min="1" />
+                <span asp-validation-for="Input.CropHeight" class="text-danger"></span>
+            </div>
+        </div>
+        <p class="text-muted mt-3 mb-0">Provide crop values to reframe the existing image or apply to the replacement.</p>
+    </fieldset>
+
+    <button type="submit" class="btn btn-primary">Save changes</button>
+    <a asp-page="./Index" asp-route-id="@Model.Project.Id" class="btn btn-link">Cancel</a>
+</form>
