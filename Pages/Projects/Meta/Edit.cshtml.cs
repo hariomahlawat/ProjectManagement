@@ -34,6 +34,8 @@ public class EditModel : PageModel
     public MetaEditInput Input { get; set; } = new();
 
     public IReadOnlyList<SelectListItem> CategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
+    public IReadOnlyList<SelectListItem> SponsoringUnitOptions { get; private set; } = Array.Empty<SelectListItem>();
+    public IReadOnlyList<SelectListItem> LineDirectorateOptions { get; private set; } = Array.Empty<SelectListItem>();
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
@@ -47,6 +49,7 @@ public class EditModel : PageModel
         }
 
         await LoadCategoryOptionsAsync(project.CategoryId, cancellationToken);
+        await LoadLookupOptionsAsync(project.SponsoringUnitId, project.SponsoringLineDirectorateId, cancellationToken);
 
         Input = new MetaEditInput
         {
@@ -55,6 +58,8 @@ public class EditModel : PageModel
             Description = project.Description,
             CaseFileNumber = project.CaseFileNumber,
             CategoryId = project.CategoryId,
+            SponsoringUnitId = project.SponsoringUnitId,
+            SponsoringLineDirectorateId = project.SponsoringLineDirectorateId,
             RowVersion = Convert.ToBase64String(project.RowVersion)
         };
 
@@ -69,6 +74,7 @@ public class EditModel : PageModel
         }
 
         await LoadCategoryOptionsAsync(Input.CategoryId, cancellationToken);
+        await LoadLookupOptionsAsync(Input.SponsoringUnitId, Input.SponsoringLineDirectorateId, cancellationToken);
 
         byte[] rowVersionBytes = Array.Empty<byte>();
         if (string.IsNullOrWhiteSpace(Input.RowVersion))
@@ -153,15 +159,45 @@ public class EditModel : PageModel
             }
         }
 
+        if (Input.SponsoringUnitId.HasValue)
+        {
+            var unitActive = await _db.SponsoringUnits
+                .AsNoTracking()
+                .AnyAsync(u => u.Id == Input.SponsoringUnitId.Value && u.IsActive, cancellationToken);
+
+            if (!unitActive)
+            {
+                ModelState.AddModelError("Input.SponsoringUnitId", ProjectValidationMessages.InactiveSponsoringUnit);
+                return Page();
+            }
+        }
+
+        if (Input.SponsoringLineDirectorateId.HasValue)
+        {
+            var lineActive = await _db.LineDirectorates
+                .AsNoTracking()
+                .AnyAsync(l => l.Id == Input.SponsoringLineDirectorateId.Value && l.IsActive, cancellationToken);
+
+            if (!lineActive)
+            {
+                ModelState.AddModelError("Input.SponsoringLineDirectorateId", ProjectValidationMessages.InactiveLineDirectorate);
+                return Page();
+            }
+        }
+
         var previousName = project.Name;
         var previousDescription = project.Description;
         var previousCaseFileNumber = project.CaseFileNumber;
         var previousCategoryId = project.CategoryId;
+        var previousSponsoringUnitId = project.SponsoringUnitId;
+        var previousSponsoringLineDirectorateId = project.SponsoringLineDirectorateId;
 
         project.Name = trimmedName;
         project.Description = trimmedDescription;
         project.CaseFileNumber = trimmedCaseFileNumber;
         project.CategoryId = selectedCategoryId;
+        project.SponsoringUnitId = Input.SponsoringUnitId;
+        project.SponsoringLineDirectorateId = Input.SponsoringLineDirectorateId;
 
         _db.Entry(project).Property(p => p.RowVersion).OriginalValue = rowVersionBytes;
 
@@ -174,6 +210,7 @@ public class EditModel : PageModel
             ModelState.AddModelError(string.Empty, "The project was modified by someone else. Please reload and try again.");
             await _db.Entry(project).ReloadAsync(cancellationToken);
             await LoadCategoryOptionsAsync(project.CategoryId, cancellationToken);
+            await LoadLookupOptionsAsync(project.SponsoringUnitId, project.SponsoringLineDirectorateId, cancellationToken);
 
             Input = new MetaEditInput
             {
@@ -182,6 +219,8 @@ public class EditModel : PageModel
                 Description = project.Description,
                 CaseFileNumber = project.CaseFileNumber,
                 CategoryId = project.CategoryId,
+                SponsoringUnitId = project.SponsoringUnitId,
+                SponsoringLineDirectorateId = project.SponsoringLineDirectorateId,
                 RowVersion = Convert.ToBase64String(project.RowVersion)
             };
 
@@ -200,7 +239,11 @@ public class EditModel : PageModel
                 ["CaseFileNumberBefore"] = previousCaseFileNumber,
                 ["CaseFileNumberAfter"] = project.CaseFileNumber,
                 ["CategoryIdBefore"] = previousCategoryId?.ToString(),
-                ["CategoryIdAfter"] = project.CategoryId?.ToString()
+                ["CategoryIdAfter"] = project.CategoryId?.ToString(),
+                ["SponsoringUnitIdBefore"] = previousSponsoringUnitId?.ToString(),
+                ["SponsoringUnitIdAfter"] = project.SponsoringUnitId?.ToString(),
+                ["SponsoringLineDirectorateIdBefore"] = previousSponsoringLineDirectorateId?.ToString(),
+                ["SponsoringLineDirectorateIdAfter"] = project.SponsoringLineDirectorateId?.ToString()
             },
             userId: userId,
             userName: User.Identity?.Name);
@@ -225,6 +268,12 @@ public class EditModel : PageModel
         public string? CaseFileNumber { get; set; }
 
         public int? CategoryId { get; set; }
+
+        [Display(Name = "Sponsoring Unit")]
+        public int? SponsoringUnitId { get; set; }
+
+        [Display(Name = "Sponsoring Line Dte")]
+        public int? SponsoringLineDirectorateId { get; set; }
 
         public string RowVersion { get; set; } = string.Empty;
     }
@@ -258,5 +307,67 @@ public class EditModel : PageModel
 
         AddOptions(null, string.Empty);
         CategoryOptions = options;
+    }
+
+    private async Task LoadLookupOptionsAsync(int? sponsoringUnitId, int? sponsoringLineDirectorateId, CancellationToken cancellationToken)
+    {
+        var units = await _db.SponsoringUnits
+            .AsNoTracking()
+            .Where(u => u.IsActive)
+            .OrderBy(u => u.SortOrder)
+            .ThenBy(u => u.Name)
+            .Select(u => new { u.Id, u.Name })
+            .ToListAsync(cancellationToken);
+
+        var directorates = await _db.LineDirectorates
+            .AsNoTracking()
+            .Where(l => l.IsActive)
+            .OrderBy(l => l.SortOrder)
+            .ThenBy(l => l.Name)
+            .Select(l => new { l.Id, l.Name })
+            .ToListAsync(cancellationToken);
+
+        var unitItems = units.Select(u => (Id: u.Id, Name: u.Name)).ToList();
+        if (sponsoringUnitId.HasValue && unitItems.All(u => u.Id != sponsoringUnitId.Value))
+        {
+            var selectedUnit = await _db.SponsoringUnits
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == sponsoringUnitId.Value, cancellationToken);
+            if (selectedUnit is not null)
+            {
+                unitItems.Add((selectedUnit.Id, $"{selectedUnit.Name} (inactive)"));
+            }
+        }
+
+        var directorateItems = directorates.Select(l => (Id: l.Id, Name: l.Name)).ToList();
+        if (sponsoringLineDirectorateId.HasValue && directorateItems.All(l => l.Id != sponsoringLineDirectorateId.Value))
+        {
+            var selectedDirectorate = await _db.LineDirectorates
+                .AsNoTracking()
+                .FirstOrDefaultAsync(l => l.Id == sponsoringLineDirectorateId.Value, cancellationToken);
+            if (selectedDirectorate is not null)
+            {
+                directorateItems.Add((selectedDirectorate.Id, $"{selectedDirectorate.Name} (inactive)"));
+            }
+        }
+
+        SponsoringUnitOptions = BuildLookupOptions(unitItems, sponsoringUnitId);
+        LineDirectorateOptions = BuildLookupOptions(directorateItems, sponsoringLineDirectorateId);
+    }
+
+    private static IReadOnlyList<SelectListItem> BuildLookupOptions(IEnumerable<(int Id, string Name)> items, int? selectedId)
+    {
+        var list = new List<SelectListItem>
+        {
+            new("— (none) —", string.Empty, selectedId is null)
+        };
+
+        var selectedValue = selectedId?.ToString();
+        foreach (var (id, name) in items)
+        {
+            list.Add(new SelectListItem(name, id.ToString(), selectedValue == id.ToString()));
+        }
+
+        return list;
     }
 }

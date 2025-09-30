@@ -1,0 +1,41 @@
+@page "{id:int}"
+@model ProjectManagement.Areas.Admin.Pages.Lookups.SponsoringUnits.DeactivateModel
+@{
+    var actionVerb = Model.Restore ? "Reactivate" : "Deactivate";
+    ViewData["Title"] = $"{actionVerb} Sponsoring Unit";
+}
+
+<h1 class="mb-4">@ViewData["Title"]</h1>
+
+<div class="col-lg-6">
+    <div class="alert alert-warning">
+        <p class="mb-2"><strong>@Model.Name</strong></p>
+        @if (Model.Restore)
+        {
+            <p class="mb-0">This unit will be available for selection once reactivated.</p>
+        }
+        else if (Model.ProjectCount > 0)
+        {
+            <p class="mb-0">This unit is referenced by <strong>@Model.ProjectCount</strong> project(s). Active assignments must be cleared before deactivation.</p>
+        }
+        else
+        {
+            <p class="mb-0">Deactivated units cannot be selected when creating or editing projects.</p>
+        }
+    </div>
+
+    <form method="post" class="d-flex gap-2">
+        <button type="submit" class="btn btn-@(Model.Restore ? "success" : "danger")">@actionVerb</button>
+        <a asp-page="./Index" class="btn btn-outline-secondary">Cancel</a>
+    </form>
+</div>
+
+@if (!ModelState.IsValid)
+{
+    <div class="text-danger mt-3">
+        @foreach (var error in ViewData.ModelState.Values.SelectMany(v => v.Errors))
+        {
+            <div>@error.ErrorMessage</div>
+        }
+    </div>
+}
