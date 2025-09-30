@@ -239,8 +239,7 @@ public class EditModel : PageModel
             .ToListAsync(cancellationToken);
 
         var children = categories
-            .GroupBy(c => c.ParentId)
-            .ToDictionary(g => g.Key, g => g.ToList(), comparer: EqualityComparer<int?>.Default);
+            .ToLookup(c => c.ParentId);
 
         var options = new List<SelectListItem>
         {
@@ -249,12 +248,7 @@ public class EditModel : PageModel
 
         void AddOptions(int? parentId, string prefix)
         {
-            if (!children.TryGetValue(parentId, out var items))
-            {
-                return;
-            }
-
-            foreach (var category in items)
+            foreach (var category in children[parentId])
             {
                 var text = string.IsNullOrEmpty(prefix) ? category.Name : $"{prefix}{category.Name}";
                 options.Add(new SelectListItem(text, category.Id.ToString(), category.Id == selectedCategoryId));
