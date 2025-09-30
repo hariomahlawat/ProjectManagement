@@ -7,6 +7,9 @@ This module documents cross-cutting infrastructure and service abstractions.
 ### `Infrastructure/EnforcePasswordChangeFilter.cs`
 An `IAsyncPageFilter` applied globally. After authentication, it checks `ApplicationUser.MustChangePassword` and redirects to `/Identity/Account/Manage/ChangePassword` until the password is updated. Login, logout and the change-password page itself are exempt from the check.
 
+### Project photo storage
+`ProjectPhotoService` reads its limits from `ProjectPhotoOptions`: max upload size, minimum dimensions, allowed MIME types and the derivative presets that define width, height and quality per size key.【F:Services/Projects/ProjectPhotoOptions.cs†L6-L33】  The constructor also honours the `PM_UPLOAD_ROOT` environment variable (falling back to `/var/pm/uploads`) and builds deterministic paths under `projects/{projectId}` for every derivative it writes.【F:Services/Projects/ProjectPhotoService.cs†L36-L60】【F:Services/Projects/ProjectPhotoService.cs†L495-L536】  Operators should provision that root with write permissions for the application user, create the `projects` sub-folder on first deploy if it does not already exist, and ensure the volume has enough space for all configured derivatives.【F:Services/Projects/ProjectPhotoService.cs†L458-L512】  If an antivirus engine is available, register an `IVirusScanner` implementation so each upload stream is scanned before processing; otherwise the optional dependency can be left null.【F:Services/Projects/ProjectPhotoService.cs†L52-L55】【F:Services/Projects/ProjectPhotoService.cs†L375-L405】  When rotating configuration, keep the size keys stable so existing derivatives continue to resolve—changes to width/quality only affect images created after the update.
+
 ## Services
 
 ### `Services/IAuditService` and `AuditService`
