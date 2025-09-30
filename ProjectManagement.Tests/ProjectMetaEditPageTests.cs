@@ -260,7 +260,7 @@ public sealed class ProjectMetaEditPageTests
             },
             TempData = new TempDataDictionary(
                 new DefaultHttpContext(),
-                new SessionStateTempDataProvider(new TempDataSerializer()))
+                new SessionStateTempDataProvider(new DefaultTempDataSerializer()))
         };
 
         return page;
