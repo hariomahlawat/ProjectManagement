@@ -46,6 +46,7 @@ namespace ProjectManagement.Data
         public DbSet<ProjectPlanSnapshotRow> ProjectPlanSnapshotRows => Set<ProjectPlanSnapshotRow>();
         public DbSet<ProjectStage> ProjectStages => Set<ProjectStage>();
         public DbSet<ProjectComment> ProjectComments => Set<ProjectComment>();
+        public DbSet<ProjectMetaChangeRequest> ProjectMetaChangeRequests => Set<ProjectMetaChangeRequest>();
         public DbSet<ProjectCommentAttachment> ProjectCommentAttachments => Set<ProjectCommentAttachment>();
         public DbSet<ProjectCommentMention> ProjectCommentMentions => Set<ProjectCommentMention>();
         public DbSet<ProjectScheduleSettings> ProjectScheduleSettings => Set<ProjectScheduleSettings>();
@@ -104,6 +105,18 @@ namespace ProjectManagement.Data
                 e.HasOne(x => x.Snapshot)
                     .WithMany(x => x.Rows)
                     .HasForeignKey(x => x.SnapshotId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ProjectMetaChangeRequest>(e =>
+            {
+                e.Property(x => x.ProposedName).HasMaxLength(100);
+                e.Property(x => x.ProposedCaseFileNumber).HasMaxLength(64);
+                e.Property(x => x.DecisionStatus).HasMaxLength(32).IsRequired();
+                e.Property(x => x.RequestedByUserId).HasMaxLength(64).IsRequired();
+                e.HasOne(x => x.Project)
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
 
