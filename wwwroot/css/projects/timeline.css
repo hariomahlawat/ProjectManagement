@@ -368,9 +368,9 @@
 }
 
 .pm-pill-warning {
-  background-color: rgba(var(--bs-warning-rgb), 0.18);
-  color: var(--bs-warning);
-  border-color: rgba(var(--bs-warning-rgb), 0.3);
+  background-color: var(--bs-warning-bg-subtle);
+  color: var(--bs-warning-text-emphasis);
+  border-color: var(--bs-warning-border-subtle);
 }
 
 .pm-pill:disabled {
