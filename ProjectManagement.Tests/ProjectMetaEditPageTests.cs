@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.AspNetCore.Mvc.ViewFeatures.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
@@ -257,7 +258,9 @@ public sealed class ProjectMetaEditPageTests
             {
                 HttpContext = new DefaultHttpContext()
             },
-            TempData = new TempDataDictionary(new DefaultHttpContext(), new SessionStateTempDataProvider())
+            TempData = new TempDataDictionary(
+                new DefaultHttpContext(),
+                new SessionStateTempDataProvider(new TempDataSerializer()))
         };
 
         return page;
