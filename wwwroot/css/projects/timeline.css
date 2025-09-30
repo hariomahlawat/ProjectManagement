@@ -240,18 +240,44 @@
 
 .pm-date-range {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
+  align-items: flex-end;
+  gap: 12px;
   flex-wrap: wrap;
-  font-weight: 600;
 }
 
-.pm-date-range span {
+.pm-date {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1 1 140px;
+  min-width: 120px;
+}
+
+.pm-date-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--bs-gray-600);
+}
+
+.pm-date-value {
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
+.pm-date-range-sep {
+  font-weight: 600;
+  align-self: center;
+  color: var(--bs-gray-500);
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .pm-date-duration {
+  margin-top: 2px;
   color: var(--bs-gray-600);
+  font-weight: 500;
 }
 
 .pm-date-meta {
