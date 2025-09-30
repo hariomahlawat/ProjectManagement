@@ -53,6 +53,11 @@ public class BackfillApplyModel : PageModel
             "BackfillApply POST ProjectId={ProjectId}",
             input?.ProjectId);
 
+        if (input is null)
+        {
+            return ValidationFailure(new[] { "A request body is required." });
+        }
+
         if (!ModelState.IsValid)
         {
             var details = ModelState.Values
