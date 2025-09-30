@@ -14,6 +14,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Pages.Projects
 {
@@ -40,6 +41,8 @@ namespace ProjectManagement.Pages.Projects
         public IEnumerable<SelectListItem> HodList { get; private set; } = Array.Empty<SelectListItem>();
         public IEnumerable<SelectListItem> PoList { get; private set; } = Array.Empty<SelectListItem>();
         public IEnumerable<SelectListItem> StageOptions { get; private set; } = Array.Empty<SelectListItem>();
+        public IEnumerable<SelectListItem> SponsoringUnitOptions { get; private set; } = Array.Empty<SelectListItem>();
+        public IEnumerable<SelectListItem> LineDirectorateOptions { get; private set; } = Array.Empty<SelectListItem>();
 
         public class InputModel
         {
@@ -67,6 +70,12 @@ namespace ProjectManagement.Pages.Projects
 
             [DataType(DataType.Date)]
             public DateTime? LastStageCompletedOn { get; set; }
+
+            [Display(Name = "Sponsoring Unit")]
+            public int? SponsoringUnitId { get; set; }
+
+            [Display(Name = "Sponsoring Line Dte")]
+            public int? SponsoringLineDirectorateId { get; set; }
         }
 
         public async Task OnGetAsync()
@@ -104,11 +113,6 @@ namespace ProjectManagement.Pages.Projects
                 }
             }
 
-            if (!ModelState.IsValid)
-            {
-                return Page();
-            }
-
             string? caseFileNumber = null;
             if (!string.IsNullOrWhiteSpace(Input.CaseFileNumber))
             {
@@ -119,6 +123,33 @@ namespace ProjectManagement.Pages.Projects
                     ModelState.AddModelError("Input.CaseFileNumber", "Case file number already exists.");
                     return Page();
                 }
+            }
+
+            if (Input.SponsoringUnitId.HasValue)
+            {
+                var unitIsActive = await _db.SponsoringUnits
+                    .AnyAsync(u => u.Id == Input.SponsoringUnitId.Value && u.IsActive);
+
+                if (!unitIsActive)
+                {
+                    ModelState.AddModelError("Input.SponsoringUnitId", ProjectValidationMessages.InactiveSponsoringUnit);
+                }
+            }
+
+            if (Input.SponsoringLineDirectorateId.HasValue)
+            {
+                var directorateIsActive = await _db.LineDirectorates
+                    .AnyAsync(l => l.Id == Input.SponsoringLineDirectorateId.Value && l.IsActive);
+
+                if (!directorateIsActive)
+                {
+                    ModelState.AddModelError("Input.SponsoringLineDirectorateId", ProjectValidationMessages.InactiveLineDirectorate);
+                }
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return Page();
             }
 
             var currentUserId = _users.GetUserId(User);
@@ -137,6 +168,8 @@ namespace ProjectManagement.Pages.Projects
                 CategoryId = categoryId,
                 HodUserId = string.IsNullOrWhiteSpace(Input.HodUserId) ? null : Input.HodUserId,
                 LeadPoUserId = string.IsNullOrWhiteSpace(Input.PoUserId) ? null : Input.PoUserId,
+                SponsoringUnitId = Input.SponsoringUnitId,
+                SponsoringLineDirectorateId = Input.SponsoringLineDirectorateId,
                 CreatedByUserId = currentUserId,
                 CreatedAt = _clock.UtcNow.UtcDateTime
             };
@@ -181,7 +214,9 @@ namespace ProjectManagement.Pages.Projects
                     ["CaseFileNumber"] = project.CaseFileNumber,
                     ["CategoryId"] = project.CategoryId?.ToString(),
                     ["HodUserId"] = project.HodUserId,
-                    ["LeadPoUserId"] = project.LeadPoUserId
+                    ["LeadPoUserId"] = project.LeadPoUserId,
+                    ["SponsoringUnitId"] = project.SponsoringUnitId?.ToString(),
+                    ["SponsoringLineDirectorateId"] = project.SponsoringLineDirectorateId?.ToString()
                 },
                 userId: currentUserId,
                 userName: User.Identity?.Name
@@ -208,6 +243,48 @@ namespace ProjectManagement.Pages.Projects
             StageOptions = StageCodes.All
                 .Select(code => new SelectListItem(code, code))
                 .ToList();
+
+            await LoadSponsoringLookupsAsync();
+        }
+
+        private async Task LoadSponsoringLookupsAsync()
+        {
+            var unitOptions = await _db.SponsoringUnits
+                .Where(u => u.IsActive)
+                .OrderBy(u => u.SortOrder)
+                .ThenBy(u => u.Name)
+                .Select(u => new SelectListItem(u.Name, u.Id.ToString()))
+                .ToListAsync();
+
+            var directorateOptions = await _db.LineDirectorates
+                .Where(l => l.IsActive)
+                .OrderBy(l => l.SortOrder)
+                .ThenBy(l => l.Name)
+                .Select(l => new SelectListItem(l.Name, l.Id.ToString()))
+                .ToListAsync();
+
+            SponsoringUnitOptions = PrependEmpty(unitOptions, Input.SponsoringUnitId);
+            LineDirectorateOptions = PrependEmpty(directorateOptions, Input.SponsoringLineDirectorateId);
+        }
+
+        private static IEnumerable<SelectListItem> PrependEmpty(IEnumerable<SelectListItem> items, int? selectedValue)
+        {
+            var list = new List<SelectListItem>
+            {
+                new("— (none) —", string.Empty, selectedValue is null)
+            };
+
+            var selectedString = selectedValue?.ToString();
+            list.AddRange(items.Select(item =>
+            {
+                var clone = new SelectListItem(item.Text, item.Value)
+                {
+                    Selected = selectedString is not null && string.Equals(item.Value, selectedString, StringComparison.Ordinal)
+                };
+                return clone;
+            }));
+
+            return list;
         }
 
         private static IEnumerable<SelectListItem> BuildUserOptions(IEnumerable<ApplicationUser> users)

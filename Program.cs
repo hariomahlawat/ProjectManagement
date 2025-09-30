@@ -405,6 +405,83 @@ eventsApi.MapDelete("/{id:guid}", async (Guid id, ApplicationDbContext db, ICloc
     return Results.Ok();
 }).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HoD" });
 
+var lookupApi = app.MapGroup("/api/lookups")
+    .RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,HoD,Project Officer" });
+
+lookupApi.MapGet("/sponsoring-units", async (
+    ApplicationDbContext db,
+    [FromQuery(Name = "q")] string? query,
+    [FromQuery] int page,
+    [FromQuery] int pageSize) =>
+{
+    var term = string.IsNullOrWhiteSpace(query) ? null : query.Trim();
+    var currentPage = page < 1 ? 1 : page;
+    var size = pageSize < 1 ? 20 : Math.Min(pageSize, 50);
+
+    var units = db.SponsoringUnits
+        .AsNoTracking()
+        .Where(u => u.IsActive);
+
+    if (!string.IsNullOrEmpty(term))
+    {
+        units = units.Where(u => EF.Functions.ILike(u.Name, $"%{term}%"));
+    }
+
+    var total = await units.CountAsync();
+    var items = await units
+        .OrderBy(u => u.SortOrder)
+        .ThenBy(u => u.Name)
+        .Skip((currentPage - 1) * size)
+        .Take(size)
+        .Select(u => new { id = u.Id, name = u.Name })
+        .ToListAsync();
+
+    return Results.Ok(new
+    {
+        items,
+        total,
+        page = currentPage,
+        pageSize = size
+    });
+});
+
+lookupApi.MapGet("/line-directorates", async (
+    ApplicationDbContext db,
+    [FromQuery(Name = "q")] string? query,
+    [FromQuery] int page,
+    [FromQuery] int pageSize) =>
+{
+    var term = string.IsNullOrWhiteSpace(query) ? null : query.Trim();
+    var currentPage = page < 1 ? 1 : page;
+    var size = pageSize < 1 ? 20 : Math.Min(pageSize, 50);
+
+    var directorates = db.LineDirectorates
+        .AsNoTracking()
+        .Where(l => l.IsActive);
+
+    if (!string.IsNullOrEmpty(term))
+    {
+        directorates = directorates.Where(l => EF.Functions.ILike(l.Name, $"%{term}%"));
+    }
+
+    var total = await directorates.CountAsync();
+    var items = await directorates
+        .OrderBy(l => l.SortOrder)
+        .ThenBy(l => l.Name)
+        .Skip((currentPage - 1) * size)
+        .Take(size)
+        .Select(l => new { id = l.Id, name = l.Name })
+        .ToListAsync();
+
+    return Results.Ok(new
+    {
+        items,
+        total,
+        page = currentPage,
+        pageSize = size
+    });
+});
+
 eventsApi.MapPost("/{id:guid}/task", async (Guid id, ApplicationDbContext db, ITodoService todos, UserManager<ApplicationUser> users, ClaimsPrincipal user) =>
 {
     var ev = await db.Events.FirstOrDefaultAsync(e => e.Id == id);

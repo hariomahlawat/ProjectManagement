@@ -57,6 +57,19 @@
                         <div class="form-text">Appears when the category has active children.</div>
                     </div>
                 </div>
+                <div class="row g-3 mt-0">
+                    <div class="col-md-6">
+                        <label asp-for="Input.SponsoringUnitId" class="form-label">Sponsoring Unit</label>
+                        <select asp-for="Input.SponsoringUnitId" class="form-select js-async-select" asp-items="Model.SponsoringUnitOptions" data-source="/api/lookups/sponsoring-units" data-search-placeholder="Search sponsoring units"></select>
+                        <div class="form-text">Optional; can be set later.</div>
+                        <span asp-validation-for="Input.SponsoringUnitId" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <label asp-for="Input.SponsoringLineDirectorateId" class="form-label">Sponsoring Line Dte</label>
+                        <select asp-for="Input.SponsoringLineDirectorateId" class="form-select js-async-select" asp-items="Model.LineDirectorateOptions" data-source="/api/lookups/line-directorates" data-search-placeholder="Search line directorates"></select>
+                        <span asp-validation-for="Input.SponsoringLineDirectorateId" class="text-danger"></span>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -108,5 +121,6 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/widgets/async-select.js" asp-append-version="true" defer></script>
     <script src="~/js/projects/create.js" asp-append-version="true"></script>
 }

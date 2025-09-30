@@ -203,6 +203,12 @@
                             }
                         </dd>
 
+                        <dt class="col-sm-4">Sponsoring Unit</dt>
+                        <dd class="col-sm-8">@(Model.Project?.SponsoringUnit?.Name ?? "—")</dd>
+
+                        <dt class="col-sm-4">Sponsoring Line Dte</dt>
+                        <dd class="col-sm-8">@(Model.Project?.SponsoringLineDirectorate?.Name ?? "—")</dd>
+
                         <dt class="col-sm-4">Head of Department</dt>
                         <dd class="col-sm-8">@DisplayUser(project?.HodUser)</dd>
 
@@ -339,6 +345,32 @@
                                     <div>
                                         <span class="fw-semibold">@metaRequest.Category.ProposedValue</span>
                                         @if (metaRequest.Category.HasChanged)
+                                        {
+                                            <span class="badge text-bg-warning ms-1">Changed</span>
+                                        }
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="fw-semibold">Sponsoring Unit</div>
+                                    <div class="text-muted small">Current</div>
+                                    <div>@metaRequest.SponsoringUnit.CurrentValue</div>
+                                    <div class="text-muted small mt-1">Proposed</div>
+                                    <div>
+                                        <span class="fw-semibold">@metaRequest.SponsoringUnit.ProposedValue</span>
+                                        @if (metaRequest.SponsoringUnit.HasChanged)
+                                        {
+                                            <span class="badge text-bg-warning ms-1">Changed</span>
+                                        }
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="fw-semibold">Sponsoring Line Dte</div>
+                                    <div class="text-muted small">Current</div>
+                                    <div>@metaRequest.SponsoringLineDirectorate.CurrentValue</div>
+                                    <div class="text-muted small mt-1">Proposed</div>
+                                    <div>
+                                        <span class="fw-semibold">@metaRequest.SponsoringLineDirectorate.ProposedValue</span>
+                                        @if (metaRequest.SponsoringLineDirectorate.HasChanged)
                                         {
                                             <span class="badge text-bg-warning ms-1">Changed</span>
                                         }

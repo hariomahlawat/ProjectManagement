@@ -35,6 +35,10 @@ public sealed class ProjectMetaChangeRequestVm
 
     public ProjectMetaChangeFieldVm Category { get; init; } = new("", "", false);
 
+    public ProjectMetaChangeFieldVm SponsoringUnit { get; init; } = new("", "", false);
+
+    public ProjectMetaChangeFieldVm SponsoringLineDirectorate { get; init; } = new("", "", false);
+
     public bool HasDrift { get; init; }
 
     public IReadOnlyList<ProjectMetaChangeDriftVm> Drift { get; init; } = Array.Empty<ProjectMetaChangeDriftVm>();

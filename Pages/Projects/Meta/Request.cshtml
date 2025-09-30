@@ -26,6 +26,16 @@
         <span asp-validation-for="Input.CategoryId" class="text-danger"></span>
     </div>
     <div class="mb-3">
+        <label asp-for="Input.SponsoringUnitId" class="form-label">Sponsoring Unit</label>
+        <select asp-for="Input.SponsoringUnitId" class="form-select js-async-select" asp-items="Model.SponsoringUnitOptions" data-source="/api/lookups/sponsoring-units" data-search-placeholder="Search sponsoring units"></select>
+        <span asp-validation-for="Input.SponsoringUnitId" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
+        <label asp-for="Input.SponsoringLineDirectorateId" class="form-label">Sponsoring Line Dte</label>
+        <select asp-for="Input.SponsoringLineDirectorateId" class="form-select js-async-select" asp-items="Model.LineDirectorateOptions" data-source="/api/lookups/line-directorates" data-search-placeholder="Search line directorates"></select>
+        <span asp-validation-for="Input.SponsoringLineDirectorateId" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
         <label asp-for="Input.CaseFileNumber" class="form-label"></label>
         <input asp-for="Input.CaseFileNumber" class="form-control" />
         <span asp-validation-for="Input.CaseFileNumber" class="text-danger"></span>
@@ -38,3 +48,8 @@
     <button type="submit" class="btn btn-primary">Send request</button>
     <a asp-page="/Projects/Overview" asp-route-id="@Model.Input.ProjectId" class="btn btn-link">Cancel</a>
 </form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/widgets/async-select.js" asp-append-version="true" defer></script>
+}

@@ -37,6 +37,8 @@ public sealed class RequestModel : PageModel
     public string ProjectName { get; private set; } = string.Empty;
 
     public IReadOnlyList<SelectListItem> CategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
+    public IReadOnlyList<SelectListItem> SponsoringUnitOptions { get; private set; } = Array.Empty<SelectListItem>();
+    public IReadOnlyList<SelectListItem> LineDirectorateOptions { get; private set; } = Array.Empty<SelectListItem>();
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
@@ -62,10 +64,13 @@ public sealed class RequestModel : PageModel
             Name = project.Name,
             Description = project.Description,
             CaseFileNumber = project.CaseFileNumber,
-            CategoryId = project.CategoryId
+            CategoryId = project.CategoryId,
+            SponsoringUnitId = project.SponsoringUnitId,
+            SponsoringLineDirectorateId = project.SponsoringLineDirectorateId
         };
 
         await LoadCategoryOptionsAsync(project.CategoryId, cancellationToken);
+        await LoadLookupOptionsAsync(project.SponsoringUnitId, project.SponsoringLineDirectorateId, cancellationToken);
 
         return Page();
     }
@@ -78,6 +83,7 @@ public sealed class RequestModel : PageModel
         }
 
         await LoadCategoryOptionsAsync(Input.CategoryId, cancellationToken);
+        await LoadLookupOptionsAsync(Input.SponsoringUnitId, Input.SponsoringLineDirectorateId, cancellationToken);
 
         var project = await _db.Projects
             .AsNoTracking()
@@ -101,6 +107,32 @@ public sealed class RequestModel : PageModel
             return Page();
         }
 
+        if (Input.SponsoringUnitId.HasValue)
+        {
+            var unitActive = await _db.SponsoringUnits
+                .AsNoTracking()
+                .AnyAsync(u => u.Id == Input.SponsoringUnitId.Value && u.IsActive, cancellationToken);
+
+            if (!unitActive)
+            {
+                ModelState.AddModelError("Input.SponsoringUnitId", ProjectValidationMessages.InactiveSponsoringUnit);
+                return Page();
+            }
+        }
+
+        if (Input.SponsoringLineDirectorateId.HasValue)
+        {
+            var lineActive = await _db.LineDirectorates
+                .AsNoTracking()
+                .AnyAsync(l => l.Id == Input.SponsoringLineDirectorateId.Value && l.IsActive, cancellationToken);
+
+            if (!lineActive)
+            {
+                ModelState.AddModelError("Input.SponsoringLineDirectorateId", ProjectValidationMessages.InactiveLineDirectorate);
+                return Page();
+            }
+        }
+
         var submission = new ProjectMetaChangeRequestSubmission
         {
             ProjectId = id,
@@ -108,6 +140,8 @@ public sealed class RequestModel : PageModel
             Description = Input.Description,
             CaseFileNumber = Input.CaseFileNumber,
             CategoryId = Input.CategoryId,
+            SponsoringUnitId = Input.SponsoringUnitId,
+            SponsoringLineDirectorateId = Input.SponsoringLineDirectorateId,
             Reason = Input.Reason
         };
 
@@ -175,6 +209,68 @@ public sealed class RequestModel : PageModel
         CategoryOptions = options;
     }
 
+    private async Task LoadLookupOptionsAsync(int? sponsoringUnitId, int? sponsoringLineDirectorateId, CancellationToken cancellationToken)
+    {
+        var units = await _db.SponsoringUnits
+            .AsNoTracking()
+            .Where(u => u.IsActive)
+            .OrderBy(u => u.SortOrder)
+            .ThenBy(u => u.Name)
+            .Select(u => new { u.Id, u.Name })
+            .ToListAsync(cancellationToken);
+
+        var directorates = await _db.LineDirectorates
+            .AsNoTracking()
+            .Where(l => l.IsActive)
+            .OrderBy(l => l.SortOrder)
+            .ThenBy(l => l.Name)
+            .Select(l => new { l.Id, l.Name })
+            .ToListAsync(cancellationToken);
+
+        var unitItems = units.Select(u => (Id: u.Id, Name: u.Name)).ToList();
+        if (sponsoringUnitId.HasValue && unitItems.All(u => u.Id != sponsoringUnitId.Value))
+        {
+            var selectedUnit = await _db.SponsoringUnits
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == sponsoringUnitId.Value, cancellationToken);
+            if (selectedUnit is not null)
+            {
+                unitItems.Add((selectedUnit.Id, $"{selectedUnit.Name} (inactive)"));
+            }
+        }
+
+        var directorateItems = directorates.Select(l => (Id: l.Id, Name: l.Name)).ToList();
+        if (sponsoringLineDirectorateId.HasValue && directorateItems.All(l => l.Id != sponsoringLineDirectorateId.Value))
+        {
+            var selectedDirectorate = await _db.LineDirectorates
+                .AsNoTracking()
+                .FirstOrDefaultAsync(l => l.Id == sponsoringLineDirectorateId.Value, cancellationToken);
+            if (selectedDirectorate is not null)
+            {
+                directorateItems.Add((selectedDirectorate.Id, $"{selectedDirectorate.Name} (inactive)"));
+            }
+        }
+
+        SponsoringUnitOptions = BuildLookupOptions(unitItems, sponsoringUnitId);
+        LineDirectorateOptions = BuildLookupOptions(directorateItems, sponsoringLineDirectorateId);
+    }
+
+    private static IReadOnlyList<SelectListItem> BuildLookupOptions(IEnumerable<(int Id, string Name)> items, int? selected)
+    {
+        var list = new List<SelectListItem>
+        {
+            new("— (none) —", string.Empty, selected is null)
+        };
+
+        var selectedValue = selected?.ToString();
+        foreach (var (id, name) in items)
+        {
+            list.Add(new SelectListItem(name, id.ToString(), selectedValue == id.ToString()));
+        }
+
+        return list;
+    }
+
     public sealed class RequestInput
     {
         public int ProjectId { get; set; }
@@ -190,6 +286,12 @@ public sealed class RequestModel : PageModel
         public string? CaseFileNumber { get; set; }
 
         public int? CategoryId { get; set; }
+
+        [Display(Name = "Sponsoring Unit")]
+        public int? SponsoringUnitId { get; set; }
+
+        [Display(Name = "Sponsoring Line Dte")]
+        public int? SponsoringLineDirectorateId { get; set; }
 
         [StringLength(1024)]
         public string? Reason { get; set; }

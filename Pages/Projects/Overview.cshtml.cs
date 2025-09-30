@@ -72,6 +72,8 @@ namespace ProjectManagement.Pages.Projects
                 .Include(p => p.HodUser)
                 .Include(p => p.LeadPoUser)
                 .Include(p => p.PlanApprovedByUser)
+                .Include(p => p.SponsoringUnit)
+                .Include(p => p.SponsoringLineDirectorate)
                 .FirstOrDefaultAsync(p => p.Id == id, ct);
 
             if (project is null)
@@ -220,6 +222,59 @@ namespace ProjectManagement.Pages.Projects
             var proposedCaseFileNumber = string.IsNullOrWhiteSpace(payload.CaseFileNumber) ? null : payload.CaseFileNumber.Trim();
             var proposedCaseFileDisplay = Format(proposedCaseFileNumber);
             var proposedCategoryId = payload.CategoryId;
+            var proposedUnitId = payload.SponsoringUnitId;
+            var proposedLineDirectorateId = payload.SponsoringLineDirectorateId;
+
+            var currentUnitDisplay = Format(project.SponsoringUnit?.Name);
+            var currentLineDirectorateDisplay = Format(project.SponsoringLineDirectorate?.Name);
+
+            var originalUnitName = request.OriginalSponsoringUnitId.HasValue
+                ? await _db.SponsoringUnits.AsNoTracking()
+                    .Where(u => u.Id == request.OriginalSponsoringUnitId.Value)
+                    .Select(u => u.Name)
+                    .FirstOrDefaultAsync(ct)
+                : null;
+            var originalUnitDisplay = request.OriginalSponsoringUnitId.HasValue
+                ? (string.IsNullOrWhiteSpace(originalUnitName) ? "(inactive)" : Format(originalUnitName))
+                : "—";
+
+            var originalLineName = request.OriginalSponsoringLineDirectorateId.HasValue
+                ? await _db.LineDirectorates.AsNoTracking()
+                    .Where(l => l.Id == request.OriginalSponsoringLineDirectorateId.Value)
+                    .Select(l => l.Name)
+                    .FirstOrDefaultAsync(ct)
+                : null;
+            var originalLineDisplay = request.OriginalSponsoringLineDirectorateId.HasValue
+                ? (string.IsNullOrWhiteSpace(originalLineName) ? "(inactive)" : Format(originalLineName))
+                : "—";
+
+            string proposedUnitDisplay;
+            if (proposedUnitId.HasValue)
+            {
+                var proposedUnitName = await _db.SponsoringUnits.AsNoTracking()
+                    .Where(u => u.Id == proposedUnitId.Value)
+                    .Select(u => u.Name)
+                    .FirstOrDefaultAsync(ct);
+                proposedUnitDisplay = string.IsNullOrWhiteSpace(proposedUnitName) ? "(inactive)" : Format(proposedUnitName);
+            }
+            else
+            {
+                proposedUnitDisplay = "—";
+            }
+
+            string proposedLineDisplay;
+            if (proposedLineDirectorateId.HasValue)
+            {
+                var proposedLineName = await _db.LineDirectorates.AsNoTracking()
+                    .Where(l => l.Id == proposedLineDirectorateId.Value)
+                    .Select(l => l.Name)
+                    .FirstOrDefaultAsync(ct);
+                proposedLineDisplay = string.IsNullOrWhiteSpace(proposedLineName) ? "(inactive)" : Format(proposedLineName);
+            }
+            else
+            {
+                proposedLineDisplay = "—";
+            }
 
             var originalCategoryDisplay = "—";
             if (request.OriginalCategoryId.HasValue)
@@ -266,6 +321,12 @@ namespace ProjectManagement.Pages.Projects
                     case ProjectMetaChangeDriftFields.Category:
                         drift.Add(new ProjectMetaChangeDriftVm("Category", originalCategoryDisplay, currentCategoryDisplay, false));
                         break;
+                    case ProjectMetaChangeDriftFields.SponsoringUnit:
+                        drift.Add(new ProjectMetaChangeDriftVm("Sponsoring Unit", originalUnitDisplay, currentUnitDisplay, false));
+                        break;
+                    case ProjectMetaChangeDriftFields.SponsoringLineDirectorate:
+                        drift.Add(new ProjectMetaChangeDriftVm("Sponsoring Line Dte", originalLineDisplay, currentLineDirectorateDisplay, false));
+                        break;
                     case ProjectMetaChangeDriftFields.ProjectRecord:
                         drift.Add(new ProjectMetaChangeDriftVm("Project record", "Submission snapshot", "Updated after submission", true));
                         break;
@@ -287,6 +348,8 @@ namespace ProjectManagement.Pages.Projects
                 Description = new ProjectMetaChangeFieldVm(Format(project.Description), proposedDescriptionDisplay, !string.Equals(project.Description ?? string.Empty, proposedDescription ?? string.Empty, StringComparison.Ordinal)),
                 CaseFileNumber = new ProjectMetaChangeFieldVm(Format(project.CaseFileNumber), proposedCaseFileDisplay, !string.Equals(project.CaseFileNumber ?? string.Empty, proposedCaseFileNumber ?? string.Empty, StringComparison.Ordinal)),
                 Category = new ProjectMetaChangeFieldVm(currentCategoryDisplay, proposedCategoryDisplay, project.CategoryId != proposedCategoryId),
+                SponsoringUnit = new ProjectMetaChangeFieldVm(currentUnitDisplay, proposedUnitDisplay, project.SponsoringUnitId != proposedUnitId),
+                SponsoringLineDirectorate = new ProjectMetaChangeFieldVm(currentLineDirectorateDisplay, proposedLineDisplay, project.SponsoringLineDirectorateId != proposedLineDirectorateId),
                 HasDrift = drift.Count > 0,
                 Drift = drift
             };
