@@ -67,4 +67,8 @@ public sealed class TimelineItemVm
     public bool NeedsFinish => Status == StageStatus.Completed && CompletedOn is null;
     public bool IsIncompleteData => NeedsStart || NeedsFinish;
     public bool IsOverdue => Status != StageStatus.Completed && PlannedEnd.HasValue && Today > PlannedEnd.Value;
+
+    public bool HasPlanDates => PlannedStart.HasValue && PlannedEnd.HasValue;
+    public bool HasActualDates => ActualStart.HasValue || CompletedOn.HasValue;
+    public bool IsPlanMissingDiscrepancy => HasActualDates && !HasPlanDates;
 }
