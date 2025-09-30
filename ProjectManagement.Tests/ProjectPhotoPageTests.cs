@@ -22,8 +22,8 @@ using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
-using ProjectManagement.Pages.Projects.Photos;
-using ProjectManagement.Pages.Projects;
+using PhotosIndexModel = ProjectManagement.Pages.Projects.Photos.IndexModel;
+using ProjectsOverviewModel = ProjectManagement.Pages.Projects.OverviewModel;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
@@ -144,19 +144,19 @@ public sealed class ProjectPhotoPageTests
         }
     }
 
-    private static IndexModel CreateIndexPage(ApplicationDbContext db, FakeUserContext userContext)
+    private static PhotosIndexModel CreateIndexPage(ApplicationDbContext db, FakeUserContext userContext)
     {
-        return new IndexModel(db, userContext, new ThrowingPhotoService(), NullLogger<IndexModel>.Instance);
+        return new PhotosIndexModel(db, userContext, new ThrowingPhotoService(), NullLogger<PhotosIndexModel>.Instance);
     }
 
-    private static OverviewModel CreateOverviewPage(ApplicationDbContext db, IClock clock)
+    private static ProjectsOverviewModel CreateOverviewPage(ApplicationDbContext db, IClock clock)
     {
         var procure = new ProjectProcurementReadService(db);
         var timeline = new ProjectTimelineReadService(db, clock);
         var planRead = new PlanReadService(db);
         var planCompare = new PlanCompareService(db);
         var userManager = CreateUserManager(db);
-        return new OverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<OverviewModel>.Instance, clock);
+        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock);
     }
 
     private static UserManager<ApplicationUser> CreateUserManager(ApplicationDbContext db)
@@ -234,8 +234,7 @@ public sealed class ProjectPhotoPageTests
     private static async Task<MemoryStream> CreateImageStreamAsync(int width, int height)
     {
         var stream = new MemoryStream();
-        using var image = new Image<Rgba32>(width, height);
-        image.Mutate(ctx => ctx.Clear(new Rgba32(40, 120, 220, 255)));
+        using var image = new Image<Rgba32>(width, height, new Rgba32(40, 120, 220, 255));
         await image.SaveAsync(stream, new PngEncoder());
         stream.Position = 0;
         return stream;
