@@ -88,6 +88,8 @@ public sealed class ProjectMetaChangeDecisionService
             return ProjectMetaDecisionResult.AlreadyDecided();
         }
 
+        var driftFields = ProjectMetaChangeDriftDetector.Detect(project, request);
+
         ProjectMetaChangeRequestPayload? appliedPayload = null;
         Dictionary<string, string?>? beforeValues = null;
 
@@ -123,7 +125,7 @@ public sealed class ProjectMetaChangeDecisionService
 
         if (request.DecisionStatus == ProjectMetaDecisionStatuses.Approved && appliedPayload is not null && beforeValues is not null)
         {
-            await LogApprovalAsync(request, project, user, appliedPayload, beforeValues);
+            await LogApprovalAsync(request, project, user, appliedPayload, beforeValues, driftFields);
         }
         else if (request.DecisionStatus == ProjectMetaDecisionStatuses.Rejected)
         {
@@ -240,8 +242,11 @@ public sealed class ProjectMetaChangeDecisionService
         Project project,
         ProjectMetaDecisionUser user,
         ProjectMetaChangeRequestPayload payload,
-        IReadOnlyDictionary<string, string?> before)
+        IReadOnlyDictionary<string, string?> before,
+        IReadOnlyCollection<string> driftFields)
     {
+        var driftDetected = driftFields.Count > 0;
+
         var header = new Dictionary<string, string?>
         {
             ["ProjectId"] = project.Id.ToString(),
@@ -249,7 +254,9 @@ public sealed class ProjectMetaChangeDecisionService
             ["DecidedByUserId"] = request.DecidedByUserId,
             ["DecisionNote"] = request.DecisionNote,
             ["RequestedByUserId"] = request.RequestedByUserId,
-            ["RequestNote"] = request.RequestNote
+            ["RequestNote"] = request.RequestNote,
+            ["DriftDetected"] = driftDetected ? "true" : "false",
+            ["DriftFields"] = driftDetected ? string.Join(',', driftFields) : null
         };
 
         await _audit.LogAsync(

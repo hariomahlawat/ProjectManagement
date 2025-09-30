@@ -996,6 +996,26 @@ namespace ProjectManagement.Migrations
                     b.Property<int>("ProjectId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("OriginalCaseFileNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<int?>("OriginalCategoryId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OriginalDescription")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("OriginalName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<byte[]>("OriginalRowVersion")
+                        .HasMaxLength(8)
+                        .HasColumnType("bytea");
+
                     b.Property<string>("RequestNote")
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");

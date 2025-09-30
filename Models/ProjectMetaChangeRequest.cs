@@ -27,5 +27,15 @@ namespace ProjectManagement.Models
         public string? DecidedByUserId { get; set; }
 
         public DateTimeOffset? DecidedOnUtc { get; set; }
+
+        public string OriginalName { get; set; } = string.Empty;
+
+        public string? OriginalDescription { get; set; }
+
+        public int? OriginalCategoryId { get; set; }
+
+        public string? OriginalCaseFileNumber { get; set; }
+
+        public byte[]? OriginalRowVersion { get; set; }
     }
 }
