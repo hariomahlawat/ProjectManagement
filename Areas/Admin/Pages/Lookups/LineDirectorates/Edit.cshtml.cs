@@ -80,16 +80,16 @@ public class EditModel : PageModel
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         await _audit.LogAsync(
             "Lookups.LineDirectorateUpdated",
-            new Dictionary<string, string?>
+            userId: userId,
+            userName: User.Identity?.Name,
+            data: new Dictionary<string, string?>
             {
                 ["LineDirectorateId"] = entity.Id.ToString(),
                 ["NameBefore"] = originalName,
                 ["NameAfter"] = entity.Name,
                 ["SortOrderBefore"] = originalSortOrder.ToString(),
                 ["SortOrderAfter"] = entity.SortOrder.ToString()
-            },
-            userId: userId,
-            userName: User.Identity?.Name);
+            });
 
         TempData["StatusMessage"] = $"Updated '{entity.Name}'.";
         return RedirectToPage("./Index");

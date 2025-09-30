@@ -88,12 +88,12 @@ else
 
     <nav aria-label="Pagination" class="mt-3">
         <ul class="pagination">
-            <li class="page-item @(Model.Page <= 1 ? "disabled" : string.Empty)">
-                <a class="page-link" asp-route-page="@(Model.Page - 1)" asp-route-q="@Model.Q" asp-route-status="@Model.Status">Previous</a>
+            <li class="page-item @(Model.PageNumber <= 1 ? "disabled" : string.Empty)">
+                <a class="page-link" asp-route-page="@(Model.PageNumber - 1)" asp-route-q="@Model.Q" asp-route-status="@Model.Status">Previous</a>
             </li>
-            <li class="page-item disabled"><span class="page-link">Page @Model.Page of @Model.TotalPages</span></li>
-            <li class="page-item @(Model.Page >= Model.TotalPages ? "disabled" : string.Empty)">
-                <a class="page-link" asp-route-page="@(Model.Page + 1)" asp-route-q="@Model.Q" asp-route-status="@Model.Status">Next</a>
+            <li class="page-item disabled"><span class="page-link">Page @Model.PageNumber of @Model.TotalPages</span></li>
+            <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : string.Empty)">
+                <a class="page-link" asp-route-page="@(Model.PageNumber + 1)" asp-route-q="@Model.Q" asp-route-status="@Model.Status">Next</a>
             </li>
         </ul>
     </nav>
