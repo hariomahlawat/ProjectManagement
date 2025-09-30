@@ -78,6 +78,22 @@ else
                             {
                                 <a class="btn btn-sm btn-outline-success" asp-page="./Deactivate" asp-route-id="@item.Id" asp-route-restore="true">Reactivate</a>
                             }
+                            <form method="post" asp-page-handler="Move" class="d-inline">
+                                <input type="hidden" name="id" value="@item.Id" />
+                                <input type="hidden" name="offset" value="-1" />
+                                <input type="hidden" name="page" value="@Model.PageNumber" />
+                                <input type="hidden" name="q" value="@Model.Q" />
+                                <input type="hidden" name="status" value="@Model.Status" />
+                                <button type="submit" class="btn btn-sm btn-outline-secondary" title="Move up">↑</button>
+                            </form>
+                            <form method="post" asp-page-handler="Move" class="d-inline">
+                                <input type="hidden" name="id" value="@item.Id" />
+                                <input type="hidden" name="offset" value="1" />
+                                <input type="hidden" name="page" value="@Model.PageNumber" />
+                                <input type="hidden" name="q" value="@Model.Q" />
+                                <input type="hidden" name="status" value="@Model.Status" />
+                                <button type="submit" class="btn btn-sm btn-outline-secondary" title="Move down">↓</button>
+                            </form>
                         </div>
                     </td>
                 </tr>

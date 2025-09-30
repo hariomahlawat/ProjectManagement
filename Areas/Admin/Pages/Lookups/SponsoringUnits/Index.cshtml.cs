@@ -91,6 +91,62 @@ public class IndexModel : PageModel
             .ToListAsync();
     }
 
+    public async Task<IActionResult> OnPostMoveAsync(int id, int offset)
+    {
+        if (offset == 0)
+        {
+            StatusMessage = "No changes made.";
+            return RedirectToPage(new { page = Math.Max(1, PageNumber), q = Q, status = Status });
+        }
+
+        var units = await _db.SponsoringUnits
+            .OrderBy(u => u.SortOrder)
+            .ThenBy(u => u.Name)
+            .ToListAsync();
+
+        var currentIndex = units.FindIndex(u => u.Id == id);
+        if (currentIndex < 0)
+        {
+            return NotFound();
+        }
+
+        var targetIndex = Math.Clamp(currentIndex + offset, 0, units.Count - 1);
+        if (targetIndex == currentIndex)
+        {
+            StatusMessage = offset < 0 ? "Already at the top." : "Already at the bottom.";
+            return RedirectToPage(new { page = Math.Max(1, PageNumber), q = Q, status = Status });
+        }
+
+        var unit = units[currentIndex];
+        units.RemoveAt(currentIndex);
+        units.Insert(targetIndex, unit);
+
+        var anyChanges = false;
+        for (var i = 0; i < units.Count; i++)
+        {
+            var desiredOrder = i + 1;
+            if (units[i].SortOrder != desiredOrder)
+            {
+                units[i].SortOrder = desiredOrder;
+                anyChanges = true;
+            }
+        }
+
+        if (anyChanges)
+        {
+            await _db.SaveChangesAsync();
+            StatusMessage = offset < 0
+                ? $"Moved '{unit.Name}' up."
+                : $"Moved '{unit.Name}' down.";
+        }
+        else
+        {
+            StatusMessage = "No changes made.";
+        }
+
+        return RedirectToPage(new { page = Math.Max(1, PageNumber), q = Q, status = Status });
+    }
+
     public sealed class Row
     {
         public int Id { get; init; }
