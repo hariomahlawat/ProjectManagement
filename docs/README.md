@@ -8,5 +8,6 @@ The documentation for the platform is organised into focused guides so teams can
 - [Razor Pages](razor-pages.md)
 - [Extending the Module](extending.md)
 - [Projects Module](projects-module.md)
+- [Storyboard User Guide](user-guide/README.md)
 
 Each file can be maintained independently to keep the guides concise and easier to navigate.
