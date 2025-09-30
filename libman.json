@@ -13,7 +13,14 @@
     {
       "library": "fullcalendar@6.1.19",
       "destination": "wwwroot/lib/fullcalendar/bundle/",
-      "files": [ "index.global.min.js" ]
+      "files": [
+        "index.global.min.js"
+      ]
+    },
+    {
+      "provider": "unpkg",
+      "library": "cropperjs@2.0.1",
+      "destination": "wwwroot/lib/cropperjs/"
     }
   ]
 }
