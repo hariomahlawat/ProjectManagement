@@ -311,8 +311,7 @@ public sealed class ProjectPhotoServiceTests
     private static async Task<MemoryStream> CreateImageStreamAsync(int width, int height, bool saveAsBmp = false)
     {
         var stream = new MemoryStream();
-        using var image = new Image<Rgba32>(width, height);
-        image.Mutate(ctx => ctx.Clear(new Rgba32(200, 80, 60, 255)));
+        using var image = new Image<Rgba32>(width, height, new Rgba32(200, 80, 60, 255));
 
         if (saveAsBmp)
         {
@@ -330,8 +329,7 @@ public sealed class ProjectPhotoServiceTests
     private static async Task<MemoryStream> CreateTransparentImageStreamAsync(int width, int height)
     {
         var stream = new MemoryStream();
-        using var image = new Image<Rgba32>(width, height);
-        image.Mutate(ctx => ctx.Clear(new Rgba32(50, 120, 200, 120)));
+        using var image = new Image<Rgba32>(width, height, new Rgba32(50, 120, 200, 120));
         await image.SaveAsync(stream, new PngEncoder());
         stream.Position = 0;
         return stream;
