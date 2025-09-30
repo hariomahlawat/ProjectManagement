@@ -32,3 +32,22 @@
 - No inline scripts.
 - Server-side role checks on all POSTs.
 - Antiforgery tokens on forms.
+
+## Correcting HoD Stage Start Dates
+
+The stage transition services (`StageRequestService`, `StageDirectApplyService`, and
+`StageProgressService`) all invoke `StageValidationService` before a state change is
+committed. The validator rejects any request that leaves a stage in the same status,
+so a HoD cannot submit another "start" action while the stage is already
+`InProgress`. Because `ActualStart` is only set the first time a stage enters
+`InProgress`, there is no direct edit path to correct a mistakenly entered start
+date while the stage remains active.
+
+To replace an incorrect start date, the HoD must temporarily move the stage to a
+status that allows reopening—typically `Completed`, using the admin completion flow
+if necessary—and then immediately submit a `status: "Reopen"` transition with the
+corrected date. Reopening returns the stage to `InProgress` and overwrites
+`ActualStart`. If needed, the HoD can then transition the stage back to the desired
+status (for example, leaving it `InProgress` or completing it again with the proper
+finish details). Every intermediate transition is recorded in the audit trail, but
+this sequence is the supported approach given the current validation rules.
