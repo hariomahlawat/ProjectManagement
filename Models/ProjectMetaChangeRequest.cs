@@ -14,6 +14,8 @@ namespace ProjectManagement.Models
 
         public string Payload { get; set; } = string.Empty;
 
+        public string? RequestNote { get; set; }
+
         public string DecisionStatus { get; set; } = "Pending";
 
         public string? DecisionNote { get; set; }

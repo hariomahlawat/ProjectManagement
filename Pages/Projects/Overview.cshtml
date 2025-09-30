@@ -170,7 +170,22 @@
     <div class="row g-3 mb-4">
         <div class="col-lg-8 d-flex flex-column gap-3">
             <div class="card">
-                <div class="card-header">Project details</div>
+                <div class="card-header d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
+                    <span>Project details</span>
+                    @if (isThisProjectsPo || isAdmin || isHoD)
+                    {
+                        <div class="d-flex flex-wrap gap-2">
+                            @if (isThisProjectsPo)
+                            {
+                                <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Meta/Request" asp-route-id="@Model.Project!.Id">Request change</a>
+                            }
+                            @if (isAdmin || isHoD)
+                            {
+                                <a class="btn btn-sm btn-outline-secondary" asp-page="/Projects/Meta/Edit" asp-route-id="@Model.Project!.Id">Edit details</a>
+                            }
+                        </div>
+                    }
+                </div>
                 <div class="card-body">
                     <dl class="row mb-0">
                         <dt class="col-sm-4">Description</dt>
@@ -234,6 +249,104 @@
             </div>
         </div>
         <div class="col-lg-4 d-flex flex-column gap-3">
+            @if (Model.MetaChangeRequest is { } metaRequest)
+            {
+                if (isHoD || isAdmin)
+                {
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="d-flex flex-column">
+                                <span>Meta change pending</span>
+                                <span class="text-muted small">Requested @metaRequest.RequestedOnUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</span>
+                            </div>
+                        </div>
+                        <div class="card-body d-flex flex-column gap-3">
+                            <div>
+                                <div class="fw-semibold">@metaRequest.RequestedBy</div>
+                                @if (!string.IsNullOrWhiteSpace(metaRequest.RequestNote))
+                                {
+                                    <div class="mt-2">
+                                        <div class="text-muted small text-uppercase">PO note</div>
+                                        <div>@metaRequest.RequestNote</div>
+                                    </div>
+                                }
+                            </div>
+                            <div class="d-flex flex-column gap-3">
+                                <div>
+                                    <div class="fw-semibold">Name</div>
+                                    <div class="text-muted small">Current</div>
+                                    <div>@metaRequest.Name.CurrentValue</div>
+                                    <div class="text-muted small mt-1">Proposed</div>
+                                    <div>
+                                        <span class="fw-semibold">@metaRequest.Name.ProposedValue</span>
+                                        @if (metaRequest.Name.HasChanged)
+                                        {
+                                            <span class="badge text-bg-warning ms-1">Changed</span>
+                                        }
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="fw-semibold">Description</div>
+                                    <div class="text-muted small">Current</div>
+                                    <div>@metaRequest.Description.CurrentValue</div>
+                                    <div class="text-muted small mt-1">Proposed</div>
+                                    <div class="border rounded p-2 bg-light">
+                                        @metaRequest.Description.ProposedValue
+                                    </div>
+                                    @if (metaRequest.Description.HasChanged)
+                                    {
+                                        <span class="badge text-bg-warning mt-1">Changed</span>
+                                    }
+                                </div>
+                                <div>
+                                    <div class="fw-semibold">Case file number</div>
+                                    <div class="text-muted small">Current</div>
+                                    <div>@metaRequest.CaseFileNumber.CurrentValue</div>
+                                    <div class="text-muted small mt-1">Proposed</div>
+                                    <div>
+                                        <span class="fw-semibold">@metaRequest.CaseFileNumber.ProposedValue</span>
+                                        @if (metaRequest.CaseFileNumber.HasChanged)
+                                        {
+                                            <span class="badge text-bg-warning ms-1">Changed</span>
+                                        }
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="fw-semibold">Category</div>
+                                    <div class="text-muted small">Current</div>
+                                    <div>@metaRequest.Category.CurrentValue</div>
+                                    <div class="text-muted small mt-1">Proposed</div>
+                                    <div>
+                                        <span class="fw-semibold">@metaRequest.Category.ProposedValue</span>
+                                        @if (metaRequest.Category.HasChanged)
+                                        {
+                                            <span class="badge text-bg-warning ms-1">Changed</span>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                            <form method="post" class="d-flex flex-column gap-3" asp-page="/Projects/Meta/Decide" asp-route-id="@Model.Project!.Id">
+                                <input type="hidden" name="RequestId" value="@metaRequest.RequestId" />
+                                <div>
+                                    <label for="meta-decision-note" class="form-label small mb-1">Decision note <span class="text-muted">(optional)</span></label>
+                                    <textarea id="meta-decision-note" name="Note" rows="2" maxlength="1024" class="form-control form-control-sm"></textarea>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button type="submit" name="Action" value="Approve" class="btn btn-sm btn-success">Approve</button>
+                                    <button type="submit" name="Action" value="Reject" class="btn btn-sm btn-outline-danger">Reject</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                }
+                else if (isThisProjectsPo)
+                {
+                    <div class="alert alert-info" role="alert">
+                        <div class="fw-semibold mb-1">Meta change request sent</div>
+                        <div class="small">Awaiting HoD review.</div>
+                    </div>
+                }
+            }
             @if (isThisProjectsHod)
             {
                 if (Model.Timeline.PendingRequests.Any())

@@ -1,4 +1,5 @@
 using System;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -18,10 +19,10 @@ public sealed class ProjectMetaChangeDecisionServiceTests
     {
         await using var db = CreateContext();
         await SeedProjectAsync(db, "hod-owner");
-        await SeedRequestAsync(db, 1);
+        await SeedRequestAsync(db, 1, payloadName: "Project");
 
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 1, 8, 0, 0, TimeSpan.Zero));
-        var service = new ProjectMetaChangeDecisionService(db, clock, NullLogger<ProjectMetaChangeDecisionService>.Instance);
+        var service = new ProjectMetaChangeDecisionService(db, clock, NullLogger<ProjectMetaChangeDecisionService>.Instance, new FakeAudit());
 
         var result = await service.DecideAsync(
             new ProjectMetaDecisionInput(1, ProjectMetaDecisionAction.Approve, null),
@@ -34,14 +35,14 @@ public sealed class ProjectMetaChangeDecisionServiceTests
     }
 
     [Fact]
-    public async Task DecideAsync_AssignedHod_Succeeds()
+    public async Task DecideAsync_AssignedHod_SucceedsAndUpdatesRequest()
     {
         await using var db = CreateContext();
         await SeedProjectAsync(db, "hod-owner");
-        await SeedRequestAsync(db, 1);
+        await SeedRequestAsync(db, 1, payloadName: "Project");
 
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 1, 9, 30, 0, TimeSpan.Zero));
-        var service = new ProjectMetaChangeDecisionService(db, clock, NullLogger<ProjectMetaChangeDecisionService>.Instance);
+        var service = new ProjectMetaChangeDecisionService(db, clock, NullLogger<ProjectMetaChangeDecisionService>.Instance, new FakeAudit());
 
         var result = await service.DecideAsync(
             new ProjectMetaDecisionInput(1, ProjectMetaDecisionAction.Approve, "looks good"),
@@ -61,10 +62,10 @@ public sealed class ProjectMetaChangeDecisionServiceTests
     {
         await using var db = CreateContext();
         await SeedProjectAsync(db, "hod-owner");
-        await SeedRequestAsync(db, 1);
+        await SeedRequestAsync(db, 1, payloadName: "Project");
 
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 2, 10, 0, 0, TimeSpan.Zero));
-        var service = new ProjectMetaChangeDecisionService(db, clock, NullLogger<ProjectMetaChangeDecisionService>.Instance);
+        var service = new ProjectMetaChangeDecisionService(db, clock, NullLogger<ProjectMetaChangeDecisionService>.Instance, new FakeAudit());
 
         var result = await service.DecideAsync(
             new ProjectMetaDecisionInput(1, ProjectMetaDecisionAction.Reject, "missing info"),
@@ -76,6 +77,87 @@ public sealed class ProjectMetaChangeDecisionServiceTests
         Assert.Equal(ProjectMetaDecisionStatuses.Rejected, request.DecisionStatus);
         Assert.Equal("missing info", request.DecisionNote);
         Assert.Equal("admin-user", request.DecidedByUserId);
+    }
+
+    [Fact]
+    public async Task DecideAsync_ApproveAppliesChangesToProject()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, "hod-owner");
+        await db.ProjectCategories.AddAsync(new ProjectCategory
+        {
+            Id = 5,
+            Name = "Infrastructure",
+            IsActive = true
+        });
+        await db.SaveChangesAsync();
+        await SeedRequestAsync(db, 1, payloadName: "Updated", payloadDescription: "New", payloadCaseFile: "CF-100", payloadCategoryId: 5);
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 3, 9, 0, 0, TimeSpan.Zero));
+        var service = new ProjectMetaChangeDecisionService(db, clock, NullLogger<ProjectMetaChangeDecisionService>.Instance, new FakeAudit());
+
+        var result = await service.DecideAsync(
+            new ProjectMetaDecisionInput(1, ProjectMetaDecisionAction.Approve, null),
+            new ProjectMetaDecisionUser("hod-owner", IsAdmin: false, IsHoD: true));
+
+        Assert.Equal(ProjectMetaDecisionOutcome.Success, result.Outcome);
+
+        var project = await db.Projects.SingleAsync();
+        Assert.Equal("Updated", project.Name);
+        Assert.Equal("New", project.Description);
+        Assert.Equal("CF-100", project.CaseFileNumber);
+        Assert.Equal(5, project.CategoryId);
+    }
+
+    [Fact]
+    public async Task DecideAsync_ApproveInactiveCategory_ReturnsValidationError()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, "hod-owner");
+        await db.ProjectCategories.AddAsync(new ProjectCategory
+        {
+            Id = 6,
+            Name = "Old",
+            IsActive = false
+        });
+        await db.SaveChangesAsync();
+        await SeedRequestAsync(db, 1, payloadName: "Updated", payloadCategoryId: 6);
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 4, 9, 0, 0, TimeSpan.Zero));
+        var service = new ProjectMetaChangeDecisionService(db, clock, NullLogger<ProjectMetaChangeDecisionService>.Instance, new FakeAudit());
+
+        var result = await service.DecideAsync(
+            new ProjectMetaDecisionInput(1, ProjectMetaDecisionAction.Approve, null),
+            new ProjectMetaDecisionUser("hod-owner", IsAdmin: false, IsHoD: true));
+
+        Assert.Equal(ProjectMetaDecisionOutcome.ValidationFailed, result.Outcome);
+        Assert.Equal(ProjectValidationMessages.InactiveCategory, result.Error);
+    }
+
+    [Fact]
+    public async Task DecideAsync_ApproveDuplicateCaseFile_ReturnsValidationError()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, "hod-owner");
+        await db.Projects.AddAsync(new Project
+        {
+            Id = 2,
+            Name = "Other",
+            CreatedByUserId = "creator",
+            CaseFileNumber = "CF-200"
+        });
+        await db.SaveChangesAsync();
+        await SeedRequestAsync(db, 1, payloadName: "Updated", payloadCaseFile: "CF-200");
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 5, 9, 0, 0, TimeSpan.Zero));
+        var service = new ProjectMetaChangeDecisionService(db, clock, NullLogger<ProjectMetaChangeDecisionService>.Instance, new FakeAudit());
+
+        var result = await service.DecideAsync(
+            new ProjectMetaDecisionInput(1, ProjectMetaDecisionAction.Approve, null),
+            new ProjectMetaDecisionUser("hod-owner", IsAdmin: false, IsHoD: true));
+
+        Assert.Equal(ProjectMetaDecisionOutcome.ValidationFailed, result.Outcome);
+        Assert.Equal(ProjectValidationMessages.DuplicateCaseFileNumber, result.Error);
     }
 
     private static async Task SeedProjectAsync(ApplicationDbContext db, string hodUserId)
@@ -91,15 +173,25 @@ public sealed class ProjectMetaChangeDecisionServiceTests
         await db.SaveChangesAsync();
     }
 
-    private static async Task SeedRequestAsync(ApplicationDbContext db, int projectId)
+    private static async Task SeedRequestAsync(ApplicationDbContext db, int projectId, string payloadName, string? payloadDescription = null, string? payloadCaseFile = null, int? payloadCategoryId = null)
     {
+        var payload = JsonSerializer.Serialize(new ProjectMetaChangeRequestPayload
+        {
+            Name = payloadName,
+            Description = payloadDescription,
+            CaseFileNumber = payloadCaseFile,
+            CategoryId = payloadCategoryId
+        });
+
         await db.ProjectMetaChangeRequests.AddAsync(new ProjectMetaChangeRequest
         {
             Id = 1,
             ProjectId = projectId,
-            ChangeType = "Name",
-            Payload = "{}",
-            DecisionStatus = ProjectMetaDecisionStatuses.Pending
+            ChangeType = ProjectMetaChangeRequestChangeTypes.Meta,
+            Payload = payload,
+            DecisionStatus = ProjectMetaDecisionStatuses.Pending,
+            RequestedByUserId = "po-user",
+            RequestedOnUtc = DateTimeOffset.UtcNow
         });
 
         await db.SaveChangesAsync();
@@ -112,5 +204,11 @@ public sealed class ProjectMetaChangeDecisionServiceTests
             .Options;
 
         return new ApplicationDbContext(options);
+    }
+
+    private sealed class FakeAudit : IAuditService
+    {
+        public Task LogAsync(string action, string? message = null, string level = "Info", string? userId = null, string? userName = null, IDictionary<string, string?>? data = null, HttpContext? http = null)
+            => Task.CompletedTask;
     }
 }
