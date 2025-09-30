@@ -12,7 +12,7 @@ using ProjectManagement.Data;
 namespace ProjectManagement.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250930154447_InitialMigrations")]
+    [Migration("20250930165625_InitialMigrations")]
     partial class InitialMigrations
     {
         /// <inheritdoc />
@@ -550,6 +550,47 @@ namespace ProjectManagement.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.LineDirectorate", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("SortOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("LineDirectorates");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Plans.PlanApprovalLog", b =>
                 {
                     b.Property<int>("Id")
@@ -835,6 +876,12 @@ namespace ProjectManagement.Migrations
                         .IsRequired()
                         .HasColumnType("bytea");
 
+                    b.Property<int?>("SponsoringLineDirectorateId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("SponsoringUnitId")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CaseFileNumber")
@@ -851,6 +898,10 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("Name");
 
                     b.HasIndex("PlanApprovedByUserId");
+
+                    b.HasIndex("SponsoringLineDirectorateId");
+
+                    b.HasIndex("SponsoringUnitId");
 
                     b.ToTable("Projects");
                 });
@@ -1232,6 +1283,12 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(8)
                         .HasColumnType("bytea");
 
+                    b.Property<int?>("OriginalSponsoringLineDirectorateId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("OriginalSponsoringUnitId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Payload")
                         .IsRequired()
                         .HasColumnType("text");
@@ -1498,6 +1555,47 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("ProjectId", "StageCode", "CreatedOn");
 
                     b.ToTable("StageShiftLogs");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.SponsoringUnit", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("SortOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp without time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("SponsoringUnits");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Stages.StageChangeLog", b =>
@@ -2044,6 +2142,16 @@ namespace ProjectManagement.Migrations
                         .HasForeignKey("PlanApprovedByUserId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("ProjectManagement.Models.LineDirectorate", "SponsoringLineDirectorate")
+                        .WithMany("Projects")
+                        .HasForeignKey("SponsoringLineDirectorateId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ProjectManagement.Models.SponsoringUnit", "SponsoringUnit")
+                        .WithMany("Projects")
+                        .HasForeignKey("SponsoringUnitId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Category");
 
                     b.Navigation("HodUser");
@@ -2051,6 +2159,10 @@ namespace ProjectManagement.Migrations
                     b.Navigation("LeadPoUser");
 
                     b.Navigation("PlanApprovedByUser");
+
+                    b.Navigation("SponsoringLineDirectorate");
+
+                    b.Navigation("SponsoringUnit");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectAonFact", b =>
@@ -2252,6 +2364,11 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Workflow");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.LineDirectorate", b =>
+                {
+                    b.Navigation("Projects");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Plans.PlanVersion", b =>
                 {
                     b.Navigation("ApprovalLogs");
@@ -2283,6 +2400,11 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Mentions");
 
                     b.Navigation("Replies");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.SponsoringUnit", b =>
+                {
+                    b.Navigation("Projects");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Status", b =>

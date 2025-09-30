@@ -176,6 +176,23 @@ namespace ProjectManagement.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "LineDirectorates",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Name = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false, defaultValue: true),
+                    SortOrder = table.Column<int>(type: "integer", nullable: false, defaultValue: 0),
+                    CreatedUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false, defaultValueSql: "now() at time zone 'utc'"),
+                    UpdatedUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false, defaultValueSql: "now() at time zone 'utc'")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_LineDirectorates", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "ProjectCategories",
                 columns: table => new
                 {
@@ -195,6 +212,23 @@ namespace ProjectManagement.Migrations
                         principalTable: "ProjectCategories",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SponsoringUnits",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Name = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false, defaultValue: true),
+                    SortOrder = table.Column<int>(type: "integer", nullable: false, defaultValue: 0),
+                    CreatedUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false, defaultValueSql: "now() at time zone 'utc'"),
+                    UpdatedUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false, defaultValueSql: "now() at time zone 'utc'")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SponsoringUnits", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -472,6 +506,8 @@ namespace ProjectManagement.Migrations
                     RowVersion = table.Column<byte[]>(type: "bytea", nullable: false),
                     ActivePlanVersionNo = table.Column<int>(type: "integer", nullable: true),
                     CategoryId = table.Column<int>(type: "integer", nullable: true),
+                    SponsoringUnitId = table.Column<int>(type: "integer", nullable: true),
+                    SponsoringLineDirectorateId = table.Column<int>(type: "integer", nullable: true),
                     HodUserId = table.Column<string>(type: "text", nullable: true),
                     LeadPoUserId = table.Column<string>(type: "text", nullable: true),
                     PlanApprovedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
@@ -497,9 +533,21 @@ namespace ProjectManagement.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.SetNull);
                     table.ForeignKey(
+                        name: "FK_Projects_LineDirectorates_SponsoringLineDirectorateId",
+                        column: x => x.SponsoringLineDirectorateId,
+                        principalTable: "LineDirectorates",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
                         name: "FK_Projects_ProjectCategories_CategoryId",
                         column: x => x.CategoryId,
                         principalTable: "ProjectCategories",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Projects_SponsoringUnits_SponsoringUnitId",
+                        column: x => x.SponsoringUnitId,
+                        principalTable: "SponsoringUnits",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -716,7 +764,9 @@ namespace ProjectManagement.Migrations
                     OriginalDescription = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
                     OriginalCategoryId = table.Column<int>(type: "integer", nullable: true),
                     OriginalCaseFileNumber = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
-                    OriginalRowVersion = table.Column<byte[]>(type: "bytea", maxLength: 8, nullable: true)
+                    OriginalRowVersion = table.Column<byte[]>(type: "bytea", maxLength: 8, nullable: true),
+                    OriginalSponsoringUnitId = table.Column<int>(type: "integer", nullable: true),
+                    OriginalSponsoringLineDirectorateId = table.Column<int>(type: "integer", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -1192,6 +1242,12 @@ namespace ProjectManagement.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_LineDirectorates_Name",
+                table: "LineDirectorates",
+                column: "Name",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_PlanApprovalLogs_PerformedByUserId",
                 table: "PlanApprovalLogs",
                 column: "PerformedByUserId");
@@ -1370,6 +1426,16 @@ namespace ProjectManagement.Migrations
                 column: "PlanApprovedByUserId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Projects_SponsoringLineDirectorateId",
+                table: "Projects",
+                column: "SponsoringLineDirectorateId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Projects_SponsoringUnitId",
+                table: "Projects",
+                column: "SponsoringUnitId");
+
+            migrationBuilder.CreateIndex(
                 name: "UX_Projects_CaseFileNumber",
                 table: "Projects",
                 column: "CaseFileNumber",
@@ -1391,6 +1457,12 @@ namespace ProjectManagement.Migrations
                 name: "IX_ProjectSupplyOrderFacts_ProjectId",
                 table: "ProjectSupplyOrderFacts",
                 column: "ProjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SponsoringUnits_Name",
+                table: "SponsoringUnits",
+                column: "Name",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_StageChangeLogs_ProjectId_StageCode_At",
@@ -1595,7 +1667,13 @@ namespace ProjectManagement.Migrations
                 name: "AspNetUsers");
 
             migrationBuilder.DropTable(
+                name: "LineDirectorates");
+
+            migrationBuilder.DropTable(
                 name: "ProjectCategories");
+
+            migrationBuilder.DropTable(
+                name: "SponsoringUnits");
         }
     }
 }
