@@ -11,6 +11,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Utilities;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Advanced;
 using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.Formats.Webp;
@@ -473,7 +474,7 @@ namespace ProjectManagement.Services.Projects
                     {
                         var encoder = new PngEncoder
                         {
-                            ColorType = PngColorType.Rgba,
+                            ColorType = PngColorType.Rgb,
                             CompressionLevel = PngCompressionLevel.BestCompression
                         };
 
