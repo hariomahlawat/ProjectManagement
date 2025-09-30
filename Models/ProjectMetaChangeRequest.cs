@@ -37,5 +37,9 @@ namespace ProjectManagement.Models
         public string? OriginalCaseFileNumber { get; set; }
 
         public byte[]? OriginalRowVersion { get; set; }
+
+        public int? OriginalSponsoringUnitId { get; set; }
+
+        public int? OriginalSponsoringLineDirectorateId { get; set; }
     }
 }

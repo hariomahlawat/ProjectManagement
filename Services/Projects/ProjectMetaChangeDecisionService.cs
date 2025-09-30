@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -213,26 +214,98 @@ public sealed class ProjectMetaChangeDecisionService
             }
         }
 
+        var sponsoringUnitId = payload.SponsoringUnitId;
+        string? newSponsoringUnitName = null;
+        if (sponsoringUnitId.HasValue)
+        {
+            var unit = await _db.SponsoringUnits
+                .AsNoTracking()
+                .Select(u => new { u.Id, u.Name, u.IsActive })
+                .SingleOrDefaultAsync(u => u.Id == sponsoringUnitId.Value, cancellationToken);
+
+            if (unit is null || !unit.IsActive)
+            {
+                return (ProjectMetaDecisionResult.ValidationFailed(ProjectValidationMessages.InactiveSponsoringUnit), default!, new Dictionary<string, string?>());
+            }
+
+            newSponsoringUnitName = unit.Name;
+        }
+
+        var sponsoringLineDirectorateId = payload.SponsoringLineDirectorateId;
+        string? newLineDirectorateName = null;
+        if (sponsoringLineDirectorateId.HasValue)
+        {
+            var line = await _db.LineDirectorates
+                .AsNoTracking()
+                .Select(l => new { l.Id, l.Name, l.IsActive })
+                .SingleOrDefaultAsync(l => l.Id == sponsoringLineDirectorateId.Value, cancellationToken);
+
+            if (line is null || !line.IsActive)
+            {
+                return (ProjectMetaDecisionResult.ValidationFailed(ProjectValidationMessages.InactiveLineDirectorate), default!, new Dictionary<string, string?>());
+            }
+
+            newLineDirectorateName = line.Name;
+        }
+
+        string? currentUnitName = null;
+        if (project.SponsoringUnitId.HasValue)
+        {
+            currentUnitName = await _db.SponsoringUnits
+                .AsNoTracking()
+                .Where(u => u.Id == project.SponsoringUnitId.Value)
+                .Select(u => u.Name)
+                .SingleOrDefaultAsync(cancellationToken);
+        }
+
+        string? currentLineDirectorateName = null;
+        if (project.SponsoringLineDirectorateId.HasValue)
+        {
+            currentLineDirectorateName = await _db.LineDirectorates
+                .AsNoTracking()
+                .Where(l => l.Id == project.SponsoringLineDirectorateId.Value)
+                .Select(l => l.Name)
+                .SingleOrDefaultAsync(cancellationToken);
+        }
+
         var before = new Dictionary<string, string?>
         {
             ["NameBefore"] = project.Name,
             ["DescriptionBefore"] = project.Description,
             ["CaseFileNumberBefore"] = project.CaseFileNumber,
-            ["CategoryIdBefore"] = project.CategoryId?.ToString()
+            ["CategoryIdBefore"] = project.CategoryId?.ToString(),
+            ["SponsoringUnitIdBefore"] = project.SponsoringUnitId?.ToString(),
+            ["SponsoringUnitNameBefore"] = currentUnitName,
+            ["SponsoringLineDirectorateIdBefore"] = project.SponsoringLineDirectorateId?.ToString(),
+            ["SponsoringLineDirectorateNameBefore"] = currentLineDirectorateName
         };
 
         project.Name = trimmedName!;
         project.Description = trimmedDescription;
         project.CaseFileNumber = trimmedCaseFileNumber;
         project.CategoryId = categoryId;
+        project.SponsoringUnitId = sponsoringUnitId;
+        project.SponsoringLineDirectorateId = sponsoringLineDirectorateId;
 
         var cleanedPayload = new ProjectMetaChangeRequestPayload
         {
             Name = trimmedName!,
             Description = trimmedDescription,
             CaseFileNumber = trimmedCaseFileNumber,
-            CategoryId = categoryId
+            CategoryId = categoryId,
+            SponsoringUnitId = sponsoringUnitId,
+            SponsoringLineDirectorateId = sponsoringLineDirectorateId
         };
+
+        if (!string.IsNullOrEmpty(newSponsoringUnitName))
+        {
+            before["SponsoringUnitNameAfter"] = newSponsoringUnitName;
+        }
+
+        if (!string.IsNullOrEmpty(newLineDirectorateName))
+        {
+            before["SponsoringLineDirectorateNameAfter"] = newLineDirectorateName;
+        }
 
         return (null, cleanedPayload, before);
     }
@@ -264,6 +337,30 @@ public sealed class ProjectMetaChangeDecisionService
             data: header,
             userId: user.UserId);
 
+        var afterUnitName = before.TryGetValue("SponsoringUnitNameAfter", out var suAfter)
+            ? suAfter
+            : null;
+        if (afterUnitName is null && payload.SponsoringUnitId.HasValue)
+        {
+            afterUnitName = await _db.SponsoringUnits
+                .AsNoTracking()
+                .Where(u => u.Id == payload.SponsoringUnitId.Value)
+                .Select(u => u.Name)
+                .SingleOrDefaultAsync();
+        }
+
+        var afterLineName = before.TryGetValue("SponsoringLineDirectorateNameAfter", out var slAfter)
+            ? slAfter
+            : null;
+        if (afterLineName is null && payload.SponsoringLineDirectorateId.HasValue)
+        {
+            afterLineName = await _db.LineDirectorates
+                .AsNoTracking()
+                .Where(l => l.Id == payload.SponsoringLineDirectorateId.Value)
+                .Select(l => l.Name)
+                .SingleOrDefaultAsync();
+        }
+
         var diff = new Dictionary<string, string?>
         {
             ["ProjectId"] = project.Id.ToString(),
@@ -275,7 +372,15 @@ public sealed class ProjectMetaChangeDecisionService
             ["CaseFileNumberBefore"] = before.TryGetValue("CaseFileNumberBefore", out var cb) ? cb : null,
             ["CaseFileNumberAfter"] = payload.CaseFileNumber,
             ["CategoryIdBefore"] = before.TryGetValue("CategoryIdBefore", out var cab) ? cab : null,
-            ["CategoryIdAfter"] = payload.CategoryId?.ToString()
+            ["CategoryIdAfter"] = payload.CategoryId?.ToString(),
+            ["SponsoringUnitIdBefore"] = before.TryGetValue("SponsoringUnitIdBefore", out var sub) ? sub : null,
+            ["SponsoringUnitIdAfter"] = payload.SponsoringUnitId?.ToString(),
+            ["SponsoringUnitNameBefore"] = before.TryGetValue("SponsoringUnitNameBefore", out var sunb) ? sunb : null,
+            ["SponsoringUnitNameAfter"] = afterUnitName,
+            ["SponsoringLineDirectorateIdBefore"] = before.TryGetValue("SponsoringLineDirectorateIdBefore", out var slib) ? slib : null,
+            ["SponsoringLineDirectorateIdAfter"] = payload.SponsoringLineDirectorateId?.ToString(),
+            ["SponsoringLineDirectorateNameBefore"] = before.TryGetValue("SponsoringLineDirectorateNameBefore", out var slnb) ? slnb : null,
+            ["SponsoringLineDirectorateNameAfter"] = afterLineName
         };
 
         await _audit.LogAsync(

@@ -59,6 +59,8 @@ public sealed class ProjectMetaChangeRequestService
             ? null
             : submission.CaseFileNumber.Trim();
         var categoryId = submission.CategoryId;
+        var sponsoringUnitId = submission.SponsoringUnitId;
+        var sponsoringLineDirectorateId = submission.SponsoringLineDirectorateId;
 
         if (!string.IsNullOrEmpty(trimmedCaseFileNumber))
         {
@@ -96,12 +98,46 @@ public sealed class ProjectMetaChangeRequestService
             }
         }
 
+        if (sponsoringUnitId.HasValue)
+        {
+            var unitExists = await _db.SponsoringUnits
+                .AsNoTracking()
+                .AnyAsync(u => u.Id == sponsoringUnitId.Value && u.IsActive, cancellationToken);
+
+            if (!unitExists)
+            {
+                return ProjectMetaChangeRequestSubmissionResult.ValidationFailed(
+                    new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["SponsoringUnitId"] = new[] { ProjectValidationMessages.InactiveSponsoringUnit }
+                    });
+            }
+        }
+
+        if (sponsoringLineDirectorateId.HasValue)
+        {
+            var lineExists = await _db.LineDirectorates
+                .AsNoTracking()
+                .AnyAsync(l => l.Id == sponsoringLineDirectorateId.Value && l.IsActive, cancellationToken);
+
+            if (!lineExists)
+            {
+                return ProjectMetaChangeRequestSubmissionResult.ValidationFailed(
+                    new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["SponsoringLineDirectorateId"] = new[] { ProjectValidationMessages.InactiveLineDirectorate }
+                    });
+            }
+        }
+
         var payload = new ProjectMetaChangeRequestPayload
         {
             Name = trimmedName,
             Description = trimmedDescription,
             CaseFileNumber = trimmedCaseFileNumber,
-            CategoryId = categoryId
+            CategoryId = categoryId,
+            SponsoringUnitId = sponsoringUnitId,
+            SponsoringLineDirectorateId = sponsoringLineDirectorateId
         };
 
         var reason = string.IsNullOrWhiteSpace(submission.Reason)
@@ -136,6 +172,8 @@ public sealed class ProjectMetaChangeRequestService
             target.OriginalCaseFileNumber = project.CaseFileNumber;
             target.OriginalCategoryId = project.CategoryId;
             target.OriginalRowVersion = SnapshotRowVersion(project);
+            target.OriginalSponsoringUnitId = project.SponsoringUnitId;
+            target.OriginalSponsoringLineDirectorateId = project.SponsoringLineDirectorateId;
         }
 
         if (pending is not null)
@@ -165,7 +203,9 @@ public sealed class ProjectMetaChangeRequestService
             OriginalDescription = project.Description,
             OriginalCaseFileNumber = project.CaseFileNumber,
             OriginalCategoryId = project.CategoryId,
-            OriginalRowVersion = SnapshotRowVersion(project)
+            OriginalRowVersion = SnapshotRowVersion(project),
+            OriginalSponsoringUnitId = project.SponsoringUnitId,
+            OriginalSponsoringLineDirectorateId = project.SponsoringLineDirectorateId
         };
 
         await _db.ProjectMetaChangeRequests.AddAsync(request, cancellationToken);
@@ -186,6 +226,10 @@ public sealed class ProjectMetaChangeRequestSubmission
     public string? CaseFileNumber { get; set; }
 
     public int? CategoryId { get; set; }
+
+    public int? SponsoringUnitId { get; set; }
+
+    public int? SponsoringLineDirectorateId { get; set; }
 
     public string? Reason { get; set; }
 }

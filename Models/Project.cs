@@ -34,6 +34,12 @@ namespace ProjectManagement.Models
         public int? CategoryId { get; set; }
         public ProjectCategory? Category { get; set; }
 
+        public int? SponsoringUnitId { get; set; }
+        public SponsoringUnit? SponsoringUnit { get; set; }
+
+        public int? SponsoringLineDirectorateId { get; set; }
+        public LineDirectorate? SponsoringLineDirectorate { get; set; }
+
         // Assignments
         public string? HodUserId { get; set; }
         public ApplicationUser? HodUser { get; set; }
