@@ -182,7 +182,7 @@
 
 .pm-item-dates {
   display: grid;
-  gap: 8px;
+  gap: 4px;
   color: var(--bs-gray-800);
   font-size: 0.95rem;
 }
@@ -251,7 +251,7 @@
 .pm-date-range {
   display: flex;
   align-items: flex-end;
-  gap: 8px;
+  gap: 3px;
   flex-wrap: wrap;
 }
 
