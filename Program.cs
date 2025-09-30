@@ -169,6 +169,9 @@ builder.Services.AddScoped<IForecastWriter, ForecastWriter>();
 builder.Services.AddScoped<ForecastBackfillService>();
 builder.Services.AddScoped<ProjectMetaChangeRequestService>();
 builder.Services.AddScoped<ProjectMetaChangeDecisionService>();
+builder.Services.Configure<ProjectPhotoOptions>(
+    builder.Configuration.GetSection("ProjectPhotos"));
+builder.Services.AddScoped<IProjectPhotoService, ProjectPhotoService>();
 
 builder.Services.ConfigureHttpJsonOptions(o =>
 {
