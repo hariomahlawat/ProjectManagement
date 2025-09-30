@@ -19,6 +19,52 @@ public static class Audit
 
             return new AuditEvent("Plan.DraftDeleted", userId, data);
         }
+
+        public static AuditEvent ProjectPhotoAdded(int projectId, int photoId, string userId, bool isCover)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["PhotoId"] = photoId.ToString(),
+                ["IsCover"] = isCover ? "true" : "false"
+            };
+
+            return new AuditEvent("Project.PhotoAdded", userId, data);
+        }
+
+        public static AuditEvent ProjectPhotoUpdated(int projectId, int photoId, string userId, string changeType)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["PhotoId"] = photoId.ToString(),
+                ["ChangeType"] = changeType
+            };
+
+            return new AuditEvent("Project.PhotoUpdated", userId, data);
+        }
+
+        public static AuditEvent ProjectPhotoRemoved(int projectId, int photoId, string userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["PhotoId"] = photoId.ToString()
+            };
+
+            return new AuditEvent("Project.PhotoRemoved", userId, data);
+        }
+
+        public static AuditEvent ProjectPhotoReordered(int projectId, string userId, IEnumerable<int> orderedPhotoIds)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["Order"] = string.Join(',', orderedPhotoIds)
+            };
+
+            return new AuditEvent("Project.PhotoReordered", userId, data);
+        }
     }
 }
 
