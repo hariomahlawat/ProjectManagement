@@ -1,6 +1,6 @@
 .pm-timeline-grid {
   display: grid;
-  grid-template-columns: 40px 1fr;
+  grid-template-columns: 24px 1fr;
   gap: 12px;
   position: relative;
 }
@@ -11,7 +11,7 @@
 
 .pm-rail-line {
   position: absolute;
-  left: 20px;
+  left: 14px;
   top: 0;
   bottom: 0;
   width: 2px;
@@ -32,7 +32,7 @@
 .pm-item::before {
   content: "";
   position: absolute;
-  left: -40px;
+  left: -24px;
   top: 28px;
   width: 12px;
   height: 12px;
@@ -61,7 +61,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  border-left: 6px solid var(--bs-gray-300);
+  border-left: 3px solid var(--bs-gray-300);
 }
 
 .pm-item.is-active .pm-item-card {
