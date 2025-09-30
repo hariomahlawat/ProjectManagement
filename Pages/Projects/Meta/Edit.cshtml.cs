@@ -85,9 +85,27 @@ public class EditModel : PageModel
             return Forbid();
         }
 
+        var trimmedCaseFileNumber = string.IsNullOrWhiteSpace(Input.CaseFileNumber)
+            ? null
+            : Input.CaseFileNumber.Trim();
+
+        if (!string.IsNullOrEmpty(trimmedCaseFileNumber))
+        {
+            var exists = await _db.Projects
+                .AnyAsync(
+                    p => p.CaseFileNumber == trimmedCaseFileNumber && p.Id != project.Id,
+                    cancellationToken);
+
+            if (exists)
+            {
+                ModelState.AddModelError("Input.CaseFileNumber", "Case file number already exists.");
+                return Page();
+            }
+        }
+
         project.Name = Input.Name.Trim();
         project.Description = string.IsNullOrWhiteSpace(Input.Description) ? null : Input.Description.Trim();
-        project.CaseFileNumber = string.IsNullOrWhiteSpace(Input.CaseFileNumber) ? null : Input.CaseFileNumber.Trim();
+        project.CaseFileNumber = trimmedCaseFileNumber;
 
         await _db.SaveChangesAsync(cancellationToken);
 

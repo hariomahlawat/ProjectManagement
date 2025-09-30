@@ -104,6 +104,49 @@ public sealed class ProjectMetaEditPageTests
         Assert.Equal("Admin Updated", project.Name);
     }
 
+    [Fact]
+    public async Task OnPostAsync_DuplicateCaseFileNumber_ReturnsValidationError()
+    {
+        await using var db = CreateContext();
+        await db.Projects.AddRangeAsync(
+            new Project
+            {
+                Id = 10,
+                Name = "Existing",
+                CreatedByUserId = "creator",
+                CaseFileNumber = "CF-001"
+            },
+            new Project
+            {
+                Id = 11,
+                Name = "Target",
+                CreatedByUserId = "creator",
+                HodUserId = "hod-11",
+                CaseFileNumber = "CF-002"
+            });
+        await db.SaveChangesAsync();
+
+        var userContext = new FakeUserContext("hod-11", isHoD: true);
+        var page = CreatePage(db, userContext);
+        page.Input = new EditModel.MetaEditInput
+        {
+            ProjectId = 11,
+            Name = "Target",
+            CaseFileNumber = "  cf-001  "
+        };
+
+        var result = await page.OnPostAsync(11, CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.False(page.ModelState.IsValid);
+        Assert.Contains(
+            page.ModelState["Input.CaseFileNumber"].Errors,
+            e => string.Equals(e.ErrorMessage, "Case file number already exists.", StringComparison.Ordinal));
+
+        var project = await db.Projects.SingleAsync(p => p.Id == 11);
+        Assert.Equal("CF-002", project.CaseFileNumber);
+    }
+
     private static EditModel CreatePage(ApplicationDbContext db, IUserContext userContext)
     {
         var page = new EditModel(db, userContext)
