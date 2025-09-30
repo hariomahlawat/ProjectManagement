@@ -45,6 +45,7 @@ namespace ProjectManagement.Data
         public DbSet<ProjectPlanSnapshot> ProjectPlanSnapshots => Set<ProjectPlanSnapshot>();
         public DbSet<ProjectPlanSnapshotRow> ProjectPlanSnapshotRows => Set<ProjectPlanSnapshotRow>();
         public DbSet<ProjectStage> ProjectStages => Set<ProjectStage>();
+        public DbSet<ProjectMetaChangeRequest> ProjectMetaChangeRequests => Set<ProjectMetaChangeRequest>();
         public DbSet<ProjectComment> ProjectComments => Set<ProjectComment>();
         public DbSet<ProjectCommentAttachment> ProjectCommentAttachments => Set<ProjectCommentAttachment>();
         public DbSet<ProjectCommentMention> ProjectCommentMentions => Set<ProjectCommentMention>();
