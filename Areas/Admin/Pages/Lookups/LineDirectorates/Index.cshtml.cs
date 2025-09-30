@@ -30,8 +30,8 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string Status { get; set; } = "active";
 
-    [BindProperty(SupportsGet = true)]
-    public int Page { get; set; } = 1;
+    [BindProperty(SupportsGet = true, Name = "page")]
+    public int PageNumber { get; set; } = 1;
 
     public IReadOnlyList<Row> Items { get; private set; } = Array.Empty<Row>();
 
@@ -67,17 +67,17 @@ public class IndexModel : PageModel
         TotalCount = await query.CountAsync();
         TotalPages = Math.Max(1, (int)Math.Ceiling(TotalCount / (double)PageSize));
 
-        if (Page < 1)
+        if (PageNumber < 1)
         {
-            Page = 1;
+            PageNumber = 1;
         }
-        else if (Page > TotalPages)
+        else if (PageNumber > TotalPages)
         {
-            Page = TotalPages;
+            PageNumber = TotalPages;
         }
 
         Items = await query
-            .Skip((Page - 1) * PageSize)
+            .Skip((PageNumber - 1) * PageSize)
             .Take(PageSize)
             .Select(l => new Row
             {

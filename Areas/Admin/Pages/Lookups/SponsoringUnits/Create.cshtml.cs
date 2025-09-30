@@ -68,14 +68,14 @@ public class CreateModel : PageModel
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         await _audit.LogAsync(
             "Lookups.SponsoringUnitCreated",
-            new Dictionary<string, string?>
+            userId: userId,
+            userName: User.Identity?.Name,
+            data: new Dictionary<string, string?>
             {
                 ["SponsoringUnitId"] = unit.Id.ToString(),
                 ["Name"] = unit.Name,
                 ["SortOrder"] = unit.SortOrder.ToString()
-            },
-            userId: userId,
-            userName: User.Identity?.Name);
+            });
 
         TempData["StatusMessage"] = $"Created '{unit.Name}'.";
         return RedirectToPage("./Index");

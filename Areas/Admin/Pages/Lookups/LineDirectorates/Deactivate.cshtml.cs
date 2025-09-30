@@ -74,13 +74,13 @@ public class DeactivateModel : PageModel
 
                 await _audit.LogAsync(
                     "Lookups.LineDirectorateReactivated",
-                    new Dictionary<string, string?>
+                    userId: userId,
+                    userName: User.Identity?.Name,
+                    data: new Dictionary<string, string?>
                     {
                         ["LineDirectorateId"] = entity.Id.ToString(),
                         ["Name"] = entity.Name
-                    },
-                    userId: userId,
-                    userName: User.Identity?.Name);
+                    });
             }
 
             TempData["StatusMessage"] = $"Reactivated '{entity.Name}'.";
@@ -95,13 +95,13 @@ public class DeactivateModel : PageModel
 
                 await _audit.LogAsync(
                     "Lookups.LineDirectorateDeactivated",
-                    new Dictionary<string, string?>
+                    userId: userId,
+                    userName: User.Identity?.Name,
+                    data: new Dictionary<string, string?>
                     {
                         ["LineDirectorateId"] = entity.Id.ToString(),
                         ["Name"] = entity.Name
-                    },
-                    userId: userId,
-                    userName: User.Identity?.Name);
+                    });
             }
 
             TempData["StatusMessage"] = $"Deactivated '{entity.Name}'.";

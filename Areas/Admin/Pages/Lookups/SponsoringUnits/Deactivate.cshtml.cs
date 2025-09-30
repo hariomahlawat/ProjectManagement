@@ -75,13 +75,13 @@ public class DeactivateModel : PageModel
 
                 await _audit.LogAsync(
                     "Lookups.SponsoringUnitReactivated",
-                    new Dictionary<string, string?>
+                    userId: userId,
+                    userName: User.Identity?.Name,
+                    data: new Dictionary<string, string?>
                     {
                         ["SponsoringUnitId"] = unit.Id.ToString(),
                         ["Name"] = unit.Name
-                    },
-                    userId: userId,
-                    userName: User.Identity?.Name);
+                    });
             }
 
             TempData["StatusMessage"] = $"Reactivated '{unit.Name}'.";
@@ -96,13 +96,13 @@ public class DeactivateModel : PageModel
 
                 await _audit.LogAsync(
                     "Lookups.SponsoringUnitDeactivated",
-                    new Dictionary<string, string?>
+                    userId: userId,
+                    userName: User.Identity?.Name,
+                    data: new Dictionary<string, string?>
                     {
                         ["SponsoringUnitId"] = unit.Id.ToString(),
                         ["Name"] = unit.Name
-                    },
-                    userId: userId,
-                    userName: User.Identity?.Name);
+                    });
             }
 
             TempData["StatusMessage"] = $"Deactivated '{unit.Name}'.";

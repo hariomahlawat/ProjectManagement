@@ -84,16 +84,16 @@ public class EditModel : PageModel
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         await _audit.LogAsync(
             "Lookups.SponsoringUnitUpdated",
-            new Dictionary<string, string?>
+            userId: userId,
+            userName: User.Identity?.Name,
+            data: new Dictionary<string, string?>
             {
                 ["SponsoringUnitId"] = unit.Id.ToString(),
                 ["NameBefore"] = originalName,
                 ["NameAfter"] = unit.Name,
                 ["SortOrderBefore"] = originalSort.ToString(),
                 ["SortOrderAfter"] = unit.SortOrder.ToString()
-            },
-            userId: userId,
-            userName: User.Identity?.Name);
+            });
 
         TempData["StatusMessage"] = $"Updated '{unit.Name}'.";
         return RedirectToPage("./Index");

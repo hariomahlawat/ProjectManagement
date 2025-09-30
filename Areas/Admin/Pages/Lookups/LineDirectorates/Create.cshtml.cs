@@ -63,14 +63,14 @@ public class CreateModel : PageModel
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         await _audit.LogAsync(
             "Lookups.LineDirectorateCreated",
-            new Dictionary<string, string?>
+            userId: userId,
+            userName: User.Identity?.Name,
+            data: new Dictionary<string, string?>
             {
                 ["LineDirectorateId"] = entity.Id.ToString(),
                 ["Name"] = entity.Name,
                 ["SortOrder"] = entity.SortOrder.ToString()
-            },
-            userId: userId,
-            userName: User.Identity?.Name);
+            });
 
         TempData["StatusMessage"] = $"Created '{entity.Name}'.";
         return RedirectToPage("./Index");
