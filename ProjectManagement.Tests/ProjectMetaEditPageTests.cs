@@ -12,6 +12,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Pages.Projects.Meta;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Projects;
 using Xunit;
 
 namespace ProjectManagement.Tests;
@@ -102,6 +103,49 @@ public sealed class ProjectMetaEditPageTests
         Assert.IsType<RedirectToPageResult>(result);
         var project = await db.Projects.SingleAsync(p => p.Id == 8);
         Assert.Equal("Admin Updated", project.Name);
+    }
+
+    [Fact]
+    public async Task OnPostAsync_DuplicateCaseFileNumber_ReturnsPageWithError()
+    {
+        await using var db = CreateContext();
+        await db.Projects.AddRangeAsync(
+            new Project
+            {
+                Id = 10,
+                Name = "Existing",
+                CaseFileNumber = "CF-999",
+                CreatedByUserId = "creator",
+                HodUserId = "hod-10"
+            },
+            new Project
+            {
+                Id = 11,
+                Name = "Editable",
+                CaseFileNumber = "CF-321",
+                CreatedByUserId = "creator",
+                HodUserId = "hod-owner"
+            });
+        await db.SaveChangesAsync();
+
+        var userContext = new FakeUserContext("hod-owner", isHoD: true);
+        var page = CreatePage(db, userContext);
+        page.Input = new EditModel.MetaEditInput
+        {
+            ProjectId = 11,
+            Name = "Editable Updated",
+            CaseFileNumber = "  CF-999  "
+        };
+
+        var result = await page.OnPostAsync(11, CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.True(page.ModelState.TryGetValue("Input.CaseFileNumber", out var entry));
+        var error = Assert.Single(entry!.Errors);
+        Assert.Equal(ProjectValidationMessages.DuplicateCaseFileNumber, error.ErrorMessage);
+
+        var project = await db.Projects.SingleAsync(p => p.Id == 11);
+        Assert.Equal("CF-321", project.CaseFileNumber);
     }
 
     private static EditModel CreatePage(ApplicationDbContext db, IUserContext userContext)

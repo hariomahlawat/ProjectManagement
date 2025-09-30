@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Pages.Projects.Meta;
 
@@ -85,9 +86,32 @@ public class EditModel : PageModel
             return Forbid();
         }
 
-        project.Name = Input.Name.Trim();
-        project.Description = string.IsNullOrWhiteSpace(Input.Description) ? null : Input.Description.Trim();
-        project.CaseFileNumber = string.IsNullOrWhiteSpace(Input.CaseFileNumber) ? null : Input.CaseFileNumber.Trim();
+        var trimmedName = Input.Name.Trim();
+        var trimmedDescription = string.IsNullOrWhiteSpace(Input.Description) ? null : Input.Description.Trim();
+        var trimmedCaseFileNumber = string.IsNullOrWhiteSpace(Input.CaseFileNumber)
+            ? null
+            : Input.CaseFileNumber.Trim();
+
+        if (!string.IsNullOrEmpty(trimmedCaseFileNumber))
+        {
+            var duplicate = await _db.Projects
+                .AsNoTracking()
+                .AnyAsync(
+                    p => p.Id != id
+                        && p.CaseFileNumber != null
+                        && p.CaseFileNumber == trimmedCaseFileNumber,
+                    cancellationToken);
+
+            if (duplicate)
+            {
+                ModelState.AddModelError("Input.CaseFileNumber", ProjectValidationMessages.DuplicateCaseFileNumber);
+                return Page();
+            }
+        }
+
+        project.Name = trimmedName;
+        project.Description = trimmedDescription;
+        project.CaseFileNumber = trimmedCaseFileNumber;
 
         await _db.SaveChangesAsync(cancellationToken);
 
