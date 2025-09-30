@@ -164,6 +164,41 @@ namespace ProjectManagement.Data
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
+            builder.Entity<ProjectMetaChangeRequest>(e =>
+            {
+                e.Property(x => x.ChangeType).HasMaxLength(64).IsRequired();
+                e.Property(x => x.Payload).IsRequired();
+                e.Property(x => x.RequestNote).HasMaxLength(1024);
+                e.Property(x => x.DecisionStatus).HasMaxLength(32).IsRequired();
+                e.Property(x => x.DecisionNote).HasMaxLength(1024);
+                e.Property(x => x.RequestedByUserId).HasMaxLength(450);
+                e.Property(x => x.DecidedByUserId).HasMaxLength(450);
+                e.Property(x => x.RequestedOnUtc).IsRequired();
+                e.HasOne(x => x.Project)
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                if (Database.IsSqlServer())
+                {
+                    e.HasIndex(x => x.ProjectId)
+                        .HasDatabaseName("ux_projectmetachangerequests_pending")
+                        .HasFilter("[DecisionStatus] = 'Pending'")
+                        .IsUnique();
+                }
+                else if (Database.IsNpgsql())
+                {
+                    e.HasIndex(x => x.ProjectId)
+                        .HasDatabaseName("ux_projectmetachangerequests_pending")
+                        .HasFilter("\"DecisionStatus\" = 'Pending'")
+                        .IsUnique();
+                }
+                else
+                {
+                    e.HasIndex(x => x.ProjectId);
+                }
+            });
+
             void ConfigureMoneyFact<T>(EntityTypeBuilder<T> entityBuilder, string amountColumn, string checkName)
                 where T : ProjectFactBase
             {

@@ -167,6 +167,8 @@ builder.Services.AddScoped<PlanGenerationService>();
 builder.Services.AddScoped<IScheduleEngine, ScheduleEngine>();
 builder.Services.AddScoped<IForecastWriter, ForecastWriter>();
 builder.Services.AddScoped<ForecastBackfillService>();
+builder.Services.AddScoped<ProjectMetaChangeRequestService>();
+builder.Services.AddScoped<ProjectMetaChangeDecisionService>();
 
 builder.Services.ConfigureHttpJsonOptions(o =>
 {

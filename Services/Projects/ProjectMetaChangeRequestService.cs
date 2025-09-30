@@ -58,6 +58,7 @@ public sealed class ProjectMetaChangeRequestService
         var trimmedCaseFileNumber = string.IsNullOrWhiteSpace(submission.CaseFileNumber)
             ? null
             : submission.CaseFileNumber.Trim();
+        var categoryId = submission.CategoryId;
 
         if (!string.IsNullOrEmpty(trimmedCaseFileNumber))
         {
@@ -79,34 +80,71 @@ public sealed class ProjectMetaChangeRequestService
             }
         }
 
-        var payload = JsonSerializer.Serialize(new ProjectMetaChangeRequestPayload
+        if (categoryId.HasValue)
+        {
+            var categoryExists = await _db.ProjectCategories
+                .AsNoTracking()
+                .AnyAsync(c => c.Id == categoryId.Value && c.IsActive, cancellationToken);
+
+            if (!categoryExists)
+            {
+                return ProjectMetaChangeRequestSubmissionResult.ValidationFailed(
+                    new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["CategoryId"] = new[] { ProjectValidationMessages.InactiveCategory }
+                    });
+            }
+        }
+
+        var payload = new ProjectMetaChangeRequestPayload
         {
             Name = trimmedName,
             Description = trimmedDescription,
-            CaseFileNumber = trimmedCaseFileNumber
-        });
+            CaseFileNumber = trimmedCaseFileNumber,
+            CategoryId = categoryId
+        };
+
+        var reason = string.IsNullOrWhiteSpace(submission.Reason)
+            ? null
+            : submission.Reason.Trim();
+
+        var serializedPayload = JsonSerializer.Serialize(payload);
+
+        var pending = await _db.ProjectMetaChangeRequests
+            .SingleOrDefaultAsync(
+                r => r.ProjectId == project.Id && r.DecisionStatus == ProjectMetaDecisionStatuses.Pending,
+                cancellationToken);
+
+        var now = _clock.UtcNow;
+
+        if (pending is not null)
+        {
+            pending.Payload = serializedPayload;
+            pending.RequestedByUserId = userId;
+            pending.RequestedOnUtc = now;
+            pending.ChangeType = ProjectMetaChangeRequestChangeTypes.Meta;
+            pending.RequestNote = reason;
+
+            await _db.SaveChangesAsync(cancellationToken);
+
+            return ProjectMetaChangeRequestSubmissionResult.Success(pending.Id);
+        }
 
         var request = new ProjectMetaChangeRequest
         {
             ProjectId = project.Id,
             ChangeType = ProjectMetaChangeRequestChangeTypes.Meta,
-            Payload = payload,
+            Payload = serializedPayload,
             RequestedByUserId = userId,
-            RequestedOnUtc = _clock.UtcNow,
-            DecisionStatus = ProjectMetaDecisionStatuses.Pending
+            RequestedOnUtc = now,
+            DecisionStatus = ProjectMetaDecisionStatuses.Pending,
+            RequestNote = reason
         };
 
         await _db.ProjectMetaChangeRequests.AddAsync(request, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
 
         return ProjectMetaChangeRequestSubmissionResult.Success(request.Id);
-    }
-
-    private sealed class ProjectMetaChangeRequestPayload
-    {
-        public string Name { get; set; } = string.Empty;
-        public string? Description { get; set; }
-        public string? CaseFileNumber { get; set; }
     }
 }
 
@@ -119,6 +157,10 @@ public sealed class ProjectMetaChangeRequestSubmission
     public string? Description { get; set; }
 
     public string? CaseFileNumber { get; set; }
+
+    public int? CategoryId { get; set; }
+
+    public string? Reason { get; set; }
 }
 
 public sealed record ProjectMetaChangeRequestSubmissionResult

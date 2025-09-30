@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 using ProjectManagement.Data;
 using ProjectManagement.Features.Backfill;
 using ProjectManagement.Models;
@@ -60,6 +61,7 @@ namespace ProjectManagement.Pages.Projects
         public bool HasBackfill { get; private set; }
         public bool RequiresPlanApproval { get; private set; }
         public string? CurrentUserId { get; private set; }
+        public ProjectMetaChangeRequestVm? MetaChangeRequest { get; private set; }
 
         public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
         {
@@ -143,6 +145,15 @@ namespace ProjectManagement.Pages.Projects
                 connectionHash,
                 draftExists);
 
+            var pendingMetaRequest = await _db.ProjectMetaChangeRequests
+                .AsNoTracking()
+                .SingleOrDefaultAsync(r => r.ProjectId == id && r.DecisionStatus == ProjectMetaDecisionStatuses.Pending, ct);
+
+            if (pendingMetaRequest is not null)
+            {
+                MetaChangeRequest = await BuildMetaChangeRequestVmAsync(project, pendingMetaRequest, ct);
+            }
+
             return Page();
         }
 
@@ -174,6 +185,93 @@ namespace ProjectManagement.Pages.Projects
                 Today = today,
                 Stages = stages
             };
+        }
+
+        private async Task<ProjectMetaChangeRequestVm?> BuildMetaChangeRequestVmAsync(Project project, ProjectMetaChangeRequest request, CancellationToken ct)
+        {
+            ProjectMetaChangeRequestPayload? payload;
+
+            try
+            {
+                payload = JsonSerializer.Deserialize<ProjectMetaChangeRequestPayload>(request.Payload,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "Failed to parse meta change payload for request {RequestId}.", request.Id);
+                return null;
+            }
+
+            if (payload is null)
+            {
+                _logger.LogWarning("Meta change payload for request {RequestId} was null.", request.Id);
+                return null;
+            }
+
+            static string Format(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value.Trim();
+
+            var proposedNameRaw = string.IsNullOrWhiteSpace(payload.Name) ? project.Name : payload.Name.Trim();
+            var proposedNameDisplay = Format(proposedNameRaw);
+            var proposedDescription = string.IsNullOrWhiteSpace(payload.Description) ? null : payload.Description.Trim();
+            var proposedDescriptionDisplay = Format(proposedDescription);
+            var proposedCaseFileNumber = string.IsNullOrWhiteSpace(payload.CaseFileNumber) ? null : payload.CaseFileNumber.Trim();
+            var proposedCaseFileDisplay = Format(proposedCaseFileNumber);
+            var proposedCategoryId = payload.CategoryId;
+
+            var currentCategoryDisplay = CategoryPath.Any()
+                ? string.Join(" › ", CategoryPath.Select(c => c.Name))
+                : "—";
+
+            string proposedCategoryDisplay = "—";
+            if (proposedCategoryId.HasValue)
+            {
+                var proposedPath = await BuildCategoryPathAsync(proposedCategoryId.Value, ct);
+                if (proposedPath.Any())
+                {
+                    proposedCategoryDisplay = string.Join(" › ", proposedPath.Select(c => c.Name));
+                }
+            }
+
+            var requestedBy = await GetDisplayNameAsync(request.RequestedByUserId);
+
+            return new ProjectMetaChangeRequestVm
+            {
+                RequestId = request.Id,
+                RequestedBy = requestedBy,
+                RequestedByUserId = request.RequestedByUserId,
+                RequestedOnUtc = request.RequestedOnUtc,
+                RequestNote = request.RequestNote,
+                Name = new ProjectMetaChangeFieldVm(project.Name, proposedNameDisplay, !string.Equals(project.Name, proposedNameRaw, StringComparison.Ordinal)),
+                Description = new ProjectMetaChangeFieldVm(Format(project.Description), proposedDescriptionDisplay, !string.Equals(project.Description ?? string.Empty, proposedDescription ?? string.Empty, StringComparison.Ordinal)),
+                CaseFileNumber = new ProjectMetaChangeFieldVm(Format(project.CaseFileNumber), proposedCaseFileDisplay, !string.Equals(project.CaseFileNumber ?? string.Empty, proposedCaseFileNumber ?? string.Empty, StringComparison.Ordinal)),
+                Category = new ProjectMetaChangeFieldVm(currentCategoryDisplay, proposedCategoryDisplay, project.CategoryId != proposedCategoryId)
+            };
+        }
+
+        private async Task<string> GetDisplayNameAsync(string? userId)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return "Unknown";
+            }
+
+            var user = await _users.FindByIdAsync(userId);
+            if (user is null)
+            {
+                return "Unknown";
+            }
+
+            if (!string.IsNullOrWhiteSpace(user.FullName))
+            {
+                return user.FullName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(user.UserName))
+            {
+                return user.UserName!;
+            }
+
+            return user.Email ?? user.Id;
         }
 
         private async Task<AssignRolesVm> BuildAssignRolesVmAsync(Project project)
