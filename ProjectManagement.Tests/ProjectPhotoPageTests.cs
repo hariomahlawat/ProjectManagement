@@ -1,0 +1,390 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Security.Claims;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc.Routing;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.AspNetCore.Mvc.ViewFeatures.Infrastructure;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
+using ProjectManagement.Data;
+using ProjectManagement.Models;
+using ProjectManagement.Pages.Projects.Photos;
+using ProjectManagement.Pages.Projects;
+using ProjectManagement.Services;
+using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Stages;
+using ProjectManagement.Tests.Fakes;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Png;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
+using Xunit;
+
+namespace ProjectManagement.Tests;
+
+public sealed class ProjectPhotoPageTests
+{
+    [Fact]
+    public async Task Index_AllowsAdmins()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 1);
+
+        var page = CreateIndexPage(db, new FakeUserContext("admin-1", isAdmin: true));
+        var result = await page.OnGetAsync(1, CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+    }
+
+    [Fact]
+    public async Task Index_AllowsAssignedHod()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 2, hodUserId: "hod-2");
+
+        var page = CreateIndexPage(db, new FakeUserContext("hod-2", isHoD: true));
+        var result = await page.OnGetAsync(2, CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+    }
+
+    [Fact]
+    public async Task Index_AllowsAssignedProjectOfficer()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 3, leadPoUserId: "po-3");
+
+        var page = CreateIndexPage(db, new FakeUserContext("po-3", isProjectOfficer: true));
+        var result = await page.OnGetAsync(3, CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+    }
+
+    [Fact]
+    public async Task Index_ForbidsUnassignedUser()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 4, hodUserId: "hod-owner", leadPoUserId: "po-owner");
+
+        var page = CreateIndexPage(db, new FakeUserContext("po-guest", isProjectOfficer: true));
+        var result = await page.OnGetAsync(4, CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(result);
+    }
+
+    [Fact]
+    public async Task Index_RemoveAction_ForbidsUnrelatedUser()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 5, hodUserId: "hod-owner", leadPoUserId: "po-owner");
+        var project = await db.Projects.SingleAsync(p => p.Id == 5);
+
+        var page = CreateIndexPage(db, new FakeUserContext("intruder", isProjectOfficer: true));
+        ConfigurePageContext(page);
+
+        var rowVersion = Convert.ToBase64String(project.RowVersion);
+        var result = await page.OnPostRemoveAsync(5, photoId: 10, rowVersion, CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(result);
+    }
+
+    [Fact]
+    public async Task Overview_ReflectsGalleryChanges()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 6);
+
+        var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 8, 0, 0, TimeSpan.Zero));
+        var options = CreateOptions();
+        var root = CreateTempRoot();
+        SetUploadRoot(root);
+        try
+        {
+            var photoService = new ProjectPhotoService(db, clock, new RecordingAudit(), Options.Create(options), NullLogger<ProjectPhotoService>.Instance);
+
+            await using var stream = await CreateImageStreamAsync(1600, 1200);
+            var added = await photoService.AddAsync(6, stream, "cover.png", "image/png", "creator", true, "Cover", CancellationToken.None);
+
+            var overview = CreateOverviewPage(db, clock);
+            ConfigurePageContext(overview);
+
+            var firstResult = await overview.OnGetAsync(6, CancellationToken.None);
+            Assert.IsType<PageResult>(firstResult);
+            Assert.Single(overview.Photos);
+            Assert.Equal(added.Id, overview.CoverPhoto?.Id);
+            Assert.Equal(added.Version, overview.CoverPhotoVersion);
+
+            await photoService.RemoveAsync(6, added.Id, "creator", CancellationToken.None);
+            db.ChangeTracker.Clear();
+
+            var secondResult = await overview.OnGetAsync(6, CancellationToken.None);
+            Assert.IsType<PageResult>(secondResult);
+            Assert.Empty(overview.Photos);
+            Assert.Null(overview.CoverPhoto);
+            Assert.Null(overview.CoverPhotoVersion);
+        }
+        finally
+        {
+            ResetUploadRoot();
+            CleanupTempRoot(root);
+        }
+    }
+
+    private static IndexModel CreateIndexPage(ApplicationDbContext db, FakeUserContext userContext)
+    {
+        return new IndexModel(db, userContext, new ThrowingPhotoService(), NullLogger<IndexModel>.Instance);
+    }
+
+    private static OverviewModel CreateOverviewPage(ApplicationDbContext db, IClock clock)
+    {
+        var procure = new ProjectProcurementReadService(db);
+        var timeline = new ProjectTimelineReadService(db, clock);
+        var planRead = new PlanReadService(db);
+        var planCompare = new PlanCompareService(db);
+        var userManager = CreateUserManager(db);
+        return new OverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<OverviewModel>.Instance, clock);
+    }
+
+    private static UserManager<ApplicationUser> CreateUserManager(ApplicationDbContext db)
+    {
+        var services = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton<ILookupNormalizer, UpperInvariantLookupNormalizer>()
+            .BuildServiceProvider();
+
+        return new UserManager<ApplicationUser>(
+            new UserStore<ApplicationUser>(db),
+            Options.Create(new IdentityOptions()),
+            new PasswordHasher<ApplicationUser>(),
+            Array.Empty<IUserValidator<ApplicationUser>>(),
+            Array.Empty<IPasswordValidator<ApplicationUser>>(),
+            services.GetRequiredService<ILookupNormalizer>(),
+            new IdentityErrorDescriber(),
+            services,
+            NullLogger<UserManager<ApplicationUser>>.Instance);
+    }
+
+    private static ApplicationDbContext CreateContext()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+        return new ApplicationDbContext(options);
+    }
+
+    private static async Task SeedProjectAsync(ApplicationDbContext db, int projectId, string? hodUserId = null, string? leadPoUserId = null)
+    {
+        db.Projects.Add(new Project
+        {
+            Id = projectId,
+            Name = $"Project {projectId}",
+            CreatedByUserId = "creator",
+            HodUserId = hodUserId,
+            LeadPoUserId = leadPoUserId,
+            RowVersion = new byte[] { 2 }
+        });
+        await db.SaveChangesAsync();
+    }
+
+    private static void ConfigurePageContext(PageModel page, ClaimsPrincipal? user = null)
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.RequestServices = new ServiceCollection()
+            .AddSingleton<ITempDataProvider, SessionStateTempDataProvider>()
+            .BuildServiceProvider();
+        httpContext.User = user ?? new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, "page-user")
+        }, "Test"));
+
+        var actionContext = new ActionContext(httpContext, new RouteData(), new ActionDescriptor());
+        page.PageContext = new PageContext(actionContext)
+        {
+            ViewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
+        };
+        page.TempData = new TempDataDictionary(httpContext, httpContext.RequestServices.GetRequiredService<ITempDataProvider>());
+        page.Url = new SimpleUrlHelper(page.PageContext);
+    }
+
+    private static ProjectPhotoOptions CreateOptions()
+    {
+        return new ProjectPhotoOptions
+        {
+            Derivatives = new Dictionary<string, ProjectPhotoDerivativeOptions>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["xl"] = new ProjectPhotoDerivativeOptions { Width = 1600, Height = 1200, Quality = 90 }
+            }
+        };
+    }
+
+    private static async Task<MemoryStream> CreateImageStreamAsync(int width, int height)
+    {
+        var stream = new MemoryStream();
+        using var image = new Image<Rgba32>(width, height);
+        image.Mutate(ctx => ctx.Clear(new Rgba32(40, 120, 220, 255)));
+        await image.SaveAsync(stream, new PngEncoder());
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static string CreateTempRoot()
+    {
+        return Path.Combine(Path.GetTempPath(), "pm-photos-tests", Guid.NewGuid().ToString("N"));
+    }
+
+    private static void SetUploadRoot(string root)
+    {
+        Directory.CreateDirectory(root);
+        Environment.SetEnvironmentVariable("PM_UPLOAD_ROOT", root);
+    }
+
+    private static void ResetUploadRoot()
+    {
+        Environment.SetEnvironmentVariable("PM_UPLOAD_ROOT", null);
+    }
+
+    private static void CleanupTempRoot(string root)
+    {
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    private sealed class ThrowingPhotoService : IProjectPhotoService
+    {
+        public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, ProjectPhotoCrop crop, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public Task<ProjectPhoto?> ReplaceAsync(int projectId, int photoId, Stream content, string originalFileName, string? contentType, string userId, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public Task<ProjectPhoto?> ReplaceAsync(int projectId, int photoId, Stream content, string originalFileName, string? contentType, string userId, ProjectPhotoCrop crop, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public Task<ProjectPhoto?> UpdateCaptionAsync(int projectId, int photoId, string? caption, string userId, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public Task<ProjectPhoto?> UpdateCropAsync(int projectId, int photoId, ProjectPhotoCrop crop, string userId, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public Task<bool> RemoveAsync(int projectId, int photoId, string userId, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public Task ReorderAsync(int projectId, IReadOnlyList<int> orderedPhotoIds, string userId, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public Task<(Stream Stream, string ContentType)?> OpenDerivativeAsync(int projectId, int photoId, string sizeKey, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public string GetDerivativePath(ProjectPhoto photo, string sizeKey)
+            => throw new NotImplementedException();
+    }
+
+    private sealed class FakeUserContext : IUserContext
+    {
+        public FakeUserContext(string userId, bool isAdmin = false, bool isHoD = false, bool isProjectOfficer = false)
+        {
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.NameIdentifier, userId)
+            };
+
+            if (isAdmin)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, "Admin"));
+            }
+
+            if (isHoD)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, "HoD"));
+            }
+
+            if (isProjectOfficer)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, "Project Officer"));
+            }
+
+            User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
+            UserId = userId;
+        }
+
+        public ClaimsPrincipal User { get; }
+
+        public string? UserId { get; }
+    }
+
+    private sealed class SimpleUrlHelper : IUrlHelper
+    {
+        public SimpleUrlHelper(ActionContext context)
+        {
+            ActionContext = context;
+        }
+
+        public ActionContext ActionContext { get; }
+
+        public string? Action(UrlActionContext actionContext) => throw new NotImplementedException();
+
+        public string? Content(string? contentPath) => contentPath;
+
+        public bool IsLocalUrl(string? url) => true;
+
+        public string? Link(string? routeName, object? values) => throw new NotImplementedException();
+
+        public string? RouteUrl(UrlRouteContext routeContext) => throw new NotImplementedException();
+
+        public string? RouteUrl(string? routeName, object? values, string? protocol, string? host, string? fragment) => throw new NotImplementedException();
+
+        public string? RouteUrl(string? routeName, object? values) => throw new NotImplementedException();
+
+        public string? RouteUrl(string? routeName, object? values, string? protocol, string? host) => throw new NotImplementedException();
+
+        public string? Page(string? pageName, string? pageHandler, object? values, string? protocol, string? host, string? fragment)
+        {
+            return $"/Pages{pageName}?{values}";
+        }
+
+        public string? Page(string? pageName, string? pageHandler, object? values, string? protocol) => throw new NotImplementedException();
+
+        public string? Page(string? pageName, string? pageHandler, object? values) => throw new NotImplementedException();
+
+        public string? Page(string? pageName, string? pageHandler, object? values, string? protocol, string? host) => throw new NotImplementedException();
+
+        public string? Page(string? pageName, object? values) => Page(pageName, null, values, null, null, null);
+
+        public string? RouteUrl(string? routeName, object? values, string? protocol) => throw new NotImplementedException();
+
+        public string? Action(string? action, string? controller, object? values, string? protocol, string? host, string? fragment) => throw new NotImplementedException();
+
+        public string? Action(string? action, string? controller, object? values) => throw new NotImplementedException();
+
+        public string? Action(string? action, string? controller, object? values, string? protocol) => throw new NotImplementedException();
+    }
+
+    private sealed class FixedClock : IClock
+    {
+        public FixedClock(DateTimeOffset now)
+        {
+            UtcNow = now;
+        }
+
+        public DateTimeOffset UtcNow { get; }
+    }
+}
