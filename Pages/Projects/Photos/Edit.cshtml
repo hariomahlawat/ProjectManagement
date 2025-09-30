@@ -1,13 +1,30 @@
 @page "/Projects/{id:int}/Photos/{photoId:int}/Edit"
 @model ProjectManagement.Pages.Projects.Photos.EditModel
+@using Microsoft.Extensions.Options
+@using ProjectManagement.Services.Projects
+@inject IOptions<ProjectPhotoOptions> PhotoOptions
 @{
     ViewData["Title"] = "Edit Project Photo";
+    var derivativeSettings = PhotoOptions.Value.Derivatives;
+    var coverOptions = derivativeSettings.TryGetValue("xl", out var xlOptions)
+        ? xlOptions
+        : new ProjectPhotoDerivativeOptions { Width = 1600, Height = 1200 };
+    var largeOptions = derivativeSettings.TryGetValue("md", out var mdOptions)
+        ? mdOptions
+        : new ProjectPhotoDerivativeOptions { Width = 1200, Height = 900 };
+    var thumbOptions = derivativeSettings.TryGetValue("sm", out var smOptions)
+        ? smOptions
+        : new ProjectPhotoDerivativeOptions { Width = 800, Height = 600 };
+    var originalPhotoUrl = Url.Page("./View", new { id = Model.Project.Id, photoId = Model.Photo.Id, size = "md" });
+    var editorInitialUrl = Url.Page("./View", new { id = Model.Project.Id, photoId = Model.Photo.Id, size = "xl" });
 }
 
 <h1 class="mb-4">Edit Project Photo</h1>
 
-<div class="mb-4">
-    <img src="@Url.Page("./View", new { id = Model.Project.Id, photoId = Model.Photo.Id, size = "md" })" alt="Current project photo" class="img-fluid rounded" style="max-width: 320px;" />
+<div class="mb-4" style="max-width: 320px;">
+    <div class="pm-photo-frame">
+        <img src="@originalPhotoUrl" alt="Current project photo" class="img-fluid" />
+    </div>
 </div>
 
 <form method="post" enctype="multipart/form-data">
@@ -21,6 +38,7 @@
         <label asp-for="Input.File" class="form-label">Replace image (optional)</label>
         <input asp-for="Input.File" class="form-control" type="file" accept="image/*" />
         <span asp-validation-for="Input.File" class="text-danger"></span>
+        <div class="form-text">Select a new file to replace the photo. Minimum size @(coverOptions.Width)×@(coverOptions.Height).</div>
     </div>
 
     <div class="mb-3">
@@ -35,32 +53,59 @@
     </div>
 
     <fieldset class="border rounded p-3 mb-3">
-        <legend class="float-none w-auto fs-6 px-2">Crop (optional)</legend>
-        <div class="row g-3">
-            <div class="col-md-3">
-                <label asp-for="Input.CropX" class="form-label">X</label>
-                <input asp-for="Input.CropX" class="form-control" type="number" />
-                <span asp-validation-for="Input.CropX" class="text-danger"></span>
+        <legend class="float-none w-auto fs-6 px-2">Crop &amp; preview</legend>
+        <p class="text-muted small project-photo-editor__fallback">JavaScript is disabled, so the existing crop will be centred automatically.</p>
+        <div class="project-photo-editor" data-photo-editor data-photo-editor-input="#Input_File" data-photo-editor-initial-url="@editorInitialUrl">
+            <div class="project-photo-editor__canvas">
+                <img data-photo-editor-image alt="Project photo ready for cropping" />
             </div>
-            <div class="col-md-3">
-                <label asp-for="Input.CropY" class="form-label">Y</label>
-                <input asp-for="Input.CropY" class="form-control" type="number" />
-                <span asp-validation-for="Input.CropY" class="text-danger"></span>
+            <div class="d-flex flex-column gap-3">
+                <p class="text-muted mb-0 project-photo-editor__placeholder" data-photo-editor-placeholder>Select a new photo or adjust the crop on the existing image.</p>
+                <div class="project-photo-preview-grid" data-photo-editor-previews>
+                    <div class="project-photo-preview-item">
+                        <div class="project-photo-preview-frame" data-photo-editor-preview="xl" data-width="@coverOptions.Width" data-height="@coverOptions.Height">
+                            <img alt="Cover preview" />
+                            <span class="pm-photo-cover-badge">Cover</span>
+                        </div>
+                        <div class="project-photo-preview-label">Cover (@coverOptions.Width × @coverOptions.Height)</div>
+                    </div>
+                    <div class="project-photo-preview-item">
+                        <div class="project-photo-preview-frame" data-photo-editor-preview="md" data-width="@largeOptions.Width" data-height="@largeOptions.Height">
+                            <img alt="Large preview" />
+                        </div>
+                        <div class="project-photo-preview-label">Large (@largeOptions.Width × @largeOptions.Height)</div>
+                    </div>
+                    <div class="project-photo-preview-item">
+                        <div class="project-photo-preview-frame" data-photo-editor-preview="sm" data-width="@thumbOptions.Width" data-height="@thumbOptions.Height">
+                            <img alt="Thumbnail preview" />
+                        </div>
+                        <div class="project-photo-preview-label">Thumbnail (@thumbOptions.Width × @thumbOptions.Height)</div>
+                    </div>
+                </div>
             </div>
-            <div class="col-md-3">
-                <label asp-for="Input.CropWidth" class="form-label">Width</label>
-                <input asp-for="Input.CropWidth" class="form-control" type="number" min="1" />
-                <span asp-validation-for="Input.CropWidth" class="text-danger"></span>
-            </div>
-            <div class="col-md-3">
-                <label asp-for="Input.CropHeight" class="form-label">Height</label>
-                <input asp-for="Input.CropHeight" class="form-control" type="number" min="1" />
-                <span asp-validation-for="Input.CropHeight" class="text-danger"></span>
-            </div>
+
+            <input asp-for="Input.CropX" type="hidden" data-photo-editor-field="x" />
+            <input asp-for="Input.CropY" type="hidden" data-photo-editor-field="y" />
+            <input asp-for="Input.CropWidth" type="hidden" data-photo-editor-field="width" />
+            <input asp-for="Input.CropHeight" type="hidden" data-photo-editor-field="height" />
         </div>
-        <p class="text-muted mt-3 mb-0">Provide crop values to reframe the existing image or apply to the replacement.</p>
+        <noscript>
+            <style>
+                .project-photo-editor { display: none !important; }
+                .project-photo-editor__fallback { display: block !important; }
+            </style>
+        </noscript>
     </fieldset>
 
     <button type="submit" class="btn btn-primary">Save changes</button>
     <a asp-page="./Index" asp-route-id="@Model.Project.Id" class="btn btn-link">Cancel</a>
 </form>
+
+@section Styles {
+    <link rel="stylesheet" href="~/lib/cropperjs/dist/cropper.css" asp-append-version="true" />
+}
+
+@section Scripts {
+    <script src="~/lib/cropperjs/dist/cropper.js" asp-append-version="true"></script>
+    <script src="~/js/widgets/project-photo-gallery.js" asp-append-version="true"></script>
+}
