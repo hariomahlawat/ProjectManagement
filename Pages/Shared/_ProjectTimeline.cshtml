@@ -81,6 +81,15 @@
                       aria-label="Backfill required for @s.Name">
                 Backfill required
               </button>
+              @if (s.IsPlanMissingDiscrepancy)
+              {
+                <span class="badge bg-warning-subtle text-warning-emphasis badge-plan-missing"
+                      title="Actual dates exist but planned dates are missing"
+                      aria-label="Discrepancy: plan missing"
+                      data-badge="plan-missing">
+                  Plan missing
+                </span>
+              }
               <span class="pm-item-title text-truncate"
                     title="@s.Name"
                     data-stage-name>
@@ -286,7 +295,7 @@
                   </span>
               }
             </div>
-            <div class="pm-variance-hint small text-muted@(s.PlannedStart.HasValue || s.PlannedEnd.HasValue ? " d-none" : string.Empty)" data-stage-plan-hint>
+            <div class="pm-variance-hint small text-muted@(s.HasPlanDates || s.IsPlanMissingDiscrepancy ? " d-none" : string.Empty)" data-stage-plan-hint>
               No plan dates
             </div>
           </div>

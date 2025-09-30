@@ -86,6 +86,10 @@
   min-width: 0;
 }
 
+.badge-plan-missing {
+  margin-left: 0.25rem;
+}
+
 .pm-item-title {
   font-weight: 600;
   min-width: 0;
