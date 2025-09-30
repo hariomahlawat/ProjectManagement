@@ -45,6 +45,7 @@ namespace ProjectManagement.Data
         public DbSet<ProjectPlanSnapshot> ProjectPlanSnapshots => Set<ProjectPlanSnapshot>();
         public DbSet<ProjectPlanSnapshotRow> ProjectPlanSnapshotRows => Set<ProjectPlanSnapshotRow>();
         public DbSet<ProjectStage> ProjectStages => Set<ProjectStage>();
+        public DbSet<ProjectPhoto> ProjectPhotos => Set<ProjectPhoto>();
         public DbSet<ProjectMetaChangeRequest> ProjectMetaChangeRequests => Set<ProjectMetaChangeRequest>();
         public DbSet<ProjectComment> ProjectComments => Set<ProjectComment>();
         public DbSet<ProjectCommentAttachment> ProjectCommentAttachments => Set<ProjectCommentAttachment>();
@@ -74,6 +75,15 @@ namespace ProjectManagement.Data
                     .HasFilter("\"CaseFileNumber\" IS NOT NULL");
                 ConfigureRowVersion(e);
                 e.Property(x => x.CreatedByUserId).HasMaxLength(64).IsRequired();
+                e.Property(x => x.CoverPhotoVersion).HasDefaultValue(1).IsConcurrencyToken();
+                e.HasMany(x => x.Photos)
+                    .WithOne(x => x.Project)
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne<ProjectPhoto>()
+                    .WithMany()
+                    .HasForeignKey(x => x.CoverPhotoId)
+                    .OnDelete(DeleteBehavior.SetNull);
                 e.HasOne(x => x.Category)
                     .WithMany(x => x.Projects)
                     .HasForeignKey(x => x.CategoryId)
@@ -91,6 +101,42 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.PlanApprovedByUserId)
                     .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            builder.Entity<ProjectPhoto>(e =>
+            {
+                e.Property(x => x.StorageKey).HasMaxLength(260).IsRequired();
+                e.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
+                e.Property(x => x.ContentType).HasMaxLength(128).IsRequired();
+                e.Property(x => x.Caption).HasMaxLength(512);
+                e.Property(x => x.Version).HasDefaultValue(1).IsConcurrencyToken();
+                e.Property(x => x.Ordinal).HasDefaultValue(1);
+                e.Property(x => x.CreatedUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                e.Property(x => x.UpdatedUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                e.HasIndex(x => new { x.ProjectId, x.Ordinal }).IsUnique();
+
+                if (Database.IsSqlServer())
+                {
+                    e.HasIndex(nameof(ProjectPhoto.ProjectId))
+                        .HasDatabaseName("UX_ProjectPhotos_Cover")
+                        .IsUnique()
+                        .HasFilter("[IsCover] = 1");
+                    e.Property(x => x.CreatedUtc).HasDefaultValueSql("GETUTCDATE()");
+                    e.Property(x => x.UpdatedUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else if (Database.IsNpgsql())
+                {
+                    e.HasIndex(nameof(ProjectPhoto.ProjectId))
+                        .HasDatabaseName("UX_ProjectPhotos_Cover")
+                        .IsUnique()
+                        .HasFilter("\"IsCover\" = TRUE");
+                }
+                else
+                {
+                    e.HasIndex(x => x.ProjectId).HasDatabaseName("IX_ProjectPhotos_ProjectId");
+                    e.Property(x => x.CreatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                    e.Property(x => x.UpdatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
             });
 
             builder.Entity<ProjectPlanSnapshot>(e =>
