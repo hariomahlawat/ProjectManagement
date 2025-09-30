@@ -30,7 +30,7 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string Status { get; set; } = "active";
 
-    [BindProperty(SupportsGet = true, Name = "page")]
+    [BindProperty(SupportsGet = true, Name = "pageNumber")]
     public int PageNumber { get; set; } = 1;
 
     public IReadOnlyList<Row> Items { get; private set; } = Array.Empty<Row>();
@@ -95,7 +95,7 @@ public class IndexModel : PageModel
         if (offset == 0)
         {
             StatusMessage = "No changes made.";
-            return RedirectToPage(new { q = Q, status = Status, page = PageNumber });
+            return RedirectToPage(new { q = Q, status = Status, pageNumber = PageNumber });
         }
 
         var lineDirectorate = await _db.LineDirectorates.SingleOrDefaultAsync(l => l.Id == id);
@@ -113,7 +113,7 @@ public class IndexModel : PageModel
         if (index < 0)
         {
             StatusMessage = "Unable to reorder line directorates.";
-            return RedirectToPage(new { q = Q, status = Status, page = PageNumber });
+            return RedirectToPage(new { q = Q, status = Status, pageNumber = PageNumber });
         }
 
         var targetIndex = Math.Clamp(index + offset, 0, siblings.Count - 1);
@@ -122,7 +122,7 @@ public class IndexModel : PageModel
             StatusMessage = offset < 0
                 ? $"'{lineDirectorate.Name}' is already at the top."
                 : $"'{lineDirectorate.Name}' is already at the bottom.";
-            return RedirectToPage(new { q = Q, status = Status, page = PageNumber });
+            return RedirectToPage(new { q = Q, status = Status, pageNumber = PageNumber });
         }
 
         var moving = siblings[index];
@@ -143,7 +143,7 @@ public class IndexModel : PageModel
             ? $"Moved '{lineDirectorate.Name}' up."
             : $"Moved '{lineDirectorate.Name}' down.";
 
-        return RedirectToPage(new { q = Q, status = Status, page = PageNumber });
+        return RedirectToPage(new { q = Q, status = Status, pageNumber = PageNumber });
     }
 
     public sealed class Row
