@@ -56,6 +56,8 @@ namespace ProjectManagement.Data
         public DbSet<Status> Statuses => Set<Status>();
         public DbSet<Workflow> Workflows => Set<Workflow>();
         public DbSet<WorkflowStatus> WorkflowStatuses => Set<WorkflowStatus>();
+        public DbSet<SponsoringUnit> SponsoringUnits => Set<SponsoringUnit>();
+        public DbSet<LineDirectorate> LineDirectorates => Set<LineDirectorate>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -75,6 +77,14 @@ namespace ProjectManagement.Data
                 e.HasOne(x => x.Category)
                     .WithMany(x => x.Projects)
                     .HasForeignKey(x => x.CategoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.SponsoringUnit)
+                    .WithMany(x => x.Projects)
+                    .HasForeignKey(x => x.SponsoringUnitId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.SponsoringLineDirectorate)
+                    .WithMany(x => x.Projects)
+                    .HasForeignKey(x => x.SponsoringLineDirectorateId)
                     .OnDelete(DeleteBehavior.Restrict);
                 e.Property(x => x.PlanApprovedByUserId).HasMaxLength(450);
                 e.HasOne(x => x.PlanApprovedByUser)
@@ -162,6 +172,54 @@ namespace ProjectManagement.Data
                     .WithMany(x => x.Children)
                     .HasForeignKey(x => x.ParentId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            builder.Entity<SponsoringUnit>(e =>
+            {
+                e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+                e.HasIndex(x => x.Name).IsUnique();
+                e.Property(x => x.IsActive).HasDefaultValue(true);
+                e.Property(x => x.SortOrder).HasDefaultValue(0);
+
+                if (Database.IsSqlServer())
+                {
+                    e.Property(x => x.CreatedUtc).HasDefaultValueSql("GETUTCDATE()");
+                    e.Property(x => x.UpdatedUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else if (Database.IsNpgsql())
+                {
+                    e.Property(x => x.CreatedUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                    e.Property(x => x.UpdatedUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                }
+                else
+                {
+                    e.Property(x => x.CreatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                    e.Property(x => x.UpdatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+            });
+
+            builder.Entity<LineDirectorate>(e =>
+            {
+                e.Property(x => x.Name).HasMaxLength(200).IsRequired();
+                e.HasIndex(x => x.Name).IsUnique();
+                e.Property(x => x.IsActive).HasDefaultValue(true);
+                e.Property(x => x.SortOrder).HasDefaultValue(0);
+
+                if (Database.IsSqlServer())
+                {
+                    e.Property(x => x.CreatedUtc).HasDefaultValueSql("GETUTCDATE()");
+                    e.Property(x => x.UpdatedUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else if (Database.IsNpgsql())
+                {
+                    e.Property(x => x.CreatedUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                    e.Property(x => x.UpdatedUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                }
+                else
+                {
+                    e.Property(x => x.CreatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                    e.Property(x => x.UpdatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
             });
 
             builder.Entity<ProjectMetaChangeRequest>(e =>
