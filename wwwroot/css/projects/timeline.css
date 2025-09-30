@@ -21,7 +21,7 @@
 .pm-items {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .pm-item {
@@ -53,14 +53,14 @@
 }
 
 .pm-item-card {
-  padding: 16px 20px;
+  padding: 12px 16px;
   border: 1px solid var(--bs-border-color);
   border-radius: 16px;
   background-color: var(--bs-body-bg);
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
   border-left: 6px solid var(--bs-gray-300);
 }
 
