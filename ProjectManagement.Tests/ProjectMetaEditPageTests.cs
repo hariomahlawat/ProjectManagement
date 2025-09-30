@@ -260,7 +260,7 @@ public sealed class ProjectMetaEditPageTests
             },
             TempData = new TempDataDictionary(
                 new DefaultHttpContext(),
-                new SessionStateTempDataProvider(new DefaultTempDataSerializer()))
+                new FakeTempDataProvider())
         };
 
         return page;
@@ -273,6 +273,23 @@ public sealed class ProjectMetaEditPageTests
             .Options;
 
         return new ApplicationDbContext(options);
+    }
+
+    private sealed class FakeTempDataProvider : ITempDataProvider
+    {
+        private IDictionary<string, object?> _data = new Dictionary<string, object?>();
+
+        public IDictionary<string, object?> LoadTempData(HttpContext context)
+        {
+            var result = _data;
+            _data = new Dictionary<string, object?>();
+            return result;
+        }
+
+        public void SaveTempData(HttpContext context, IDictionary<string, object?> values)
+        {
+            _data = new Dictionary<string, object?>(values);
+        }
     }
 
     private sealed class FakeUserContext : IUserContext
