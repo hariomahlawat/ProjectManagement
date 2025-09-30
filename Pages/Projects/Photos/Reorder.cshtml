@@ -1,0 +1,64 @@
+@page "/Projects/{id:int}/Photos/Reorder"
+@model ProjectManagement.Pages.Projects.Photos.ReorderModel
+@{
+    ViewData["Title"] = "Reorder Project Photos";
+}
+
+<h1 class="mb-4">Reorder Project Photos</h1>
+<p class="text-muted">Set the display order for project photos. Lower numbers appear first.</p>
+
+<form method="post">
+    <input asp-for="Input.ProjectId" type="hidden" />
+    <input asp-for="Input.RowVersion" type="hidden" />
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+    @if (!Model.Photos.Any())
+    {
+        <div class="alert alert-info">No photos available to reorder.</div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th scope="col">Photo</th>
+                        <th scope="col" style="width: 140px;">Ordinal</th>
+                        <th scope="col">Caption</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @for (var i = 0; i < Model.Input.Items.Count; i++)
+                {
+                    var item = Model.Input.Items[i];
+                    var photo = Model.Photos.FirstOrDefault(p => p.Id == item.PhotoId);
+                    <tr>
+                        <td style="width: 160px;">
+                            <img src="@Url.Page("./View", new { id = Model.Project.Id, photoId = item.PhotoId, size = "sm" })" alt="Photo preview" class="img-thumbnail" style="max-width: 128px;" />
+                            <input asp-for="Input.Items[i].PhotoId" type="hidden" />
+                        </td>
+                        <td>
+                            <input asp-for="Input.Items[i].Ordinal" class="form-control" type="number" min="1" />
+                            <span asp-validation-for="Input.Items[i].Ordinal" class="text-danger"></span>
+                        </td>
+                        <td>
+                            @if (photo is not null && !string.IsNullOrWhiteSpace(photo.Caption))
+                            {
+                                <div>@photo.Caption</div>
+                            }
+                            else
+                            {
+                                <span class="text-muted">No caption</span>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Save order</button>
+    }
+
+    <a asp-page="./Index" asp-route-id="@Model.Project.Id" class="btn btn-link">Cancel</a>
+</form>

@@ -1,0 +1,59 @@
+@page "/Projects/{id:int}/Photos/Upload"
+@model ProjectManagement.Pages.Projects.Photos.UploadModel
+@{
+    ViewData["Title"] = "Upload Project Photo";
+}
+
+<h1 class="mb-4">Upload Project Photo</h1>
+
+<form method="post" enctype="multipart/form-data">
+    <input asp-for="Input.ProjectId" type="hidden" />
+    <input asp-for="Input.RowVersion" type="hidden" />
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+    <div class="mb-3">
+        <label asp-for="Input.File" class="form-label">Photo</label>
+        <input asp-for="Input.File" class="form-control" type="file" accept="image/*" />
+        <span asp-validation-for="Input.File" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Input.Caption" class="form-label">Caption (optional)</label>
+        <textarea asp-for="Input.Caption" class="form-control" rows="3"></textarea>
+        <span asp-validation-for="Input.Caption" class="text-danger"></span>
+    </div>
+
+    <div class="form-check mb-3">
+        <input asp-for="Input.SetAsCover" class="form-check-input" />
+        <label asp-for="Input.SetAsCover" class="form-check-label">Set as cover photo</label>
+    </div>
+
+    <fieldset class="border rounded p-3 mb-3">
+        <legend class="float-none w-auto fs-6 px-2">Crop (optional)</legend>
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label asp-for="Input.CropX" class="form-label">X</label>
+                <input asp-for="Input.CropX" class="form-control" type="number" />
+                <span asp-validation-for="Input.CropX" class="text-danger"></span>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="Input.CropY" class="form-label">Y</label>
+                <input asp-for="Input.CropY" class="form-control" type="number" />
+                <span asp-validation-for="Input.CropY" class="text-danger"></span>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="Input.CropWidth" class="form-label">Width</label>
+                <input asp-for="Input.CropWidth" class="form-control" type="number" min="1" />
+                <span asp-validation-for="Input.CropWidth" class="text-danger"></span>
+            </div>
+            <div class="col-md-3">
+                <label asp-for="Input.CropHeight" class="form-label">Height</label>
+                <input asp-for="Input.CropHeight" class="form-control" type="number" min="1" />
+                <span asp-validation-for="Input.CropHeight" class="text-danger"></span>
+            </div>
+        </div>
+    </fieldset>
+
+    <button type="submit" class="btn btn-primary">Upload</button>
+    <a asp-page="./Index" asp-route-id="@Model.Project.Id" class="btn btn-link">Cancel</a>
+</form>
