@@ -1,9 +1,15 @@
 @page
 @model ProjectManagement.Areas.Admin.Pages.Lookups.LineDirectorates.IndexModel
-@{
+@{ 
     ViewData["Title"] = "Sponsoring Line Directorates";
 }
 
+<nav aria-label="breadcrumb" class="mb-2">
+  <ol class="breadcrumb small mb-0">
+    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Line Directorates</li>
+  </ol>
+</nav>
 <h1 class="mb-4">Sponsoring Line Directorates</h1>
 
 @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))

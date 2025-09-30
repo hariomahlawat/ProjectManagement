@@ -1,9 +1,16 @@
 @page "{id:int}"
 @model ProjectManagement.Areas.Admin.Pages.Lookups.SponsoringUnits.EditModel
-@{
+@{ 
     ViewData["Title"] = "Edit Sponsoring Unit";
 }
 
+<nav aria-label="breadcrumb" class="mb-2">
+  <ol class="breadcrumb small mb-0">
+    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
+    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Lookups/SponsoringUnits/Index">Sponsoring Units</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Edit</li>
+  </ol>
+</nav>
 <h1 class="mb-4">Edit Sponsoring Unit</h1>
 
 <form method="post" class="col-md-6">
