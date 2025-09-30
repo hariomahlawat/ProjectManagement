@@ -40,7 +40,7 @@
     return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
   };
 
-  const monthFormatter = new Intl.DateTimeFormat('en-GB', { month: 'short' });
+  const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'short' });
   const formatDisplayDate = (date) => {
     const d = date instanceof Date ? date : new Date(date);
     return `${pad(d.getDate())} ${monthFormatter.format(d)} ${d.getFullYear()}`;
