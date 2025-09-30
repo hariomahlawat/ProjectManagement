@@ -117,6 +117,27 @@ public sealed class ProjectMetaChangeRequestService
 
         var now = _clock.UtcNow;
 
+        static byte[]? SnapshotRowVersion(Project project)
+        {
+            if (project.RowVersion is null || project.RowVersion.Length == 0)
+            {
+                return null;
+            }
+
+            var copy = new byte[project.RowVersion.Length];
+            Array.Copy(project.RowVersion, copy, project.RowVersion.Length);
+            return copy;
+        }
+
+        void ApplySnapshot(ProjectMetaChangeRequest target)
+        {
+            target.OriginalName = project.Name;
+            target.OriginalDescription = project.Description;
+            target.OriginalCaseFileNumber = project.CaseFileNumber;
+            target.OriginalCategoryId = project.CategoryId;
+            target.OriginalRowVersion = SnapshotRowVersion(project);
+        }
+
         if (pending is not null)
         {
             pending.Payload = serializedPayload;
@@ -124,6 +145,7 @@ public sealed class ProjectMetaChangeRequestService
             pending.RequestedOnUtc = now;
             pending.ChangeType = ProjectMetaChangeRequestChangeTypes.Meta;
             pending.RequestNote = reason;
+            ApplySnapshot(pending);
 
             await _db.SaveChangesAsync(cancellationToken);
 
@@ -138,7 +160,12 @@ public sealed class ProjectMetaChangeRequestService
             RequestedByUserId = userId,
             RequestedOnUtc = now,
             DecisionStatus = ProjectMetaDecisionStatuses.Pending,
-            RequestNote = reason
+            RequestNote = reason,
+            OriginalName = project.Name,
+            OriginalDescription = project.Description,
+            OriginalCaseFileNumber = project.CaseFileNumber,
+            OriginalCategoryId = project.CategoryId,
+            OriginalRowVersion = SnapshotRowVersion(project)
         };
 
         await _db.ProjectMetaChangeRequests.AddAsync(request, cancellationToken);

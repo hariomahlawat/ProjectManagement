@@ -210,6 +210,9 @@ namespace ProjectManagement.Pages.Projects
 
             static string Format(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value.Trim();
 
+            var originalNameDisplay = Format(request.OriginalName);
+            var originalDescriptionDisplay = Format(request.OriginalDescription);
+            var originalCaseFileDisplay = Format(request.OriginalCaseFileNumber);
             var proposedNameRaw = string.IsNullOrWhiteSpace(payload.Name) ? project.Name : payload.Name.Trim();
             var proposedNameDisplay = Format(proposedNameRaw);
             var proposedDescription = string.IsNullOrWhiteSpace(payload.Description) ? null : payload.Description.Trim();
@@ -217,6 +220,16 @@ namespace ProjectManagement.Pages.Projects
             var proposedCaseFileNumber = string.IsNullOrWhiteSpace(payload.CaseFileNumber) ? null : payload.CaseFileNumber.Trim();
             var proposedCaseFileDisplay = Format(proposedCaseFileNumber);
             var proposedCategoryId = payload.CategoryId;
+
+            var originalCategoryDisplay = "—";
+            if (request.OriginalCategoryId.HasValue)
+            {
+                var originalPath = await BuildCategoryPathAsync(request.OriginalCategoryId.Value, ct);
+                if (originalPath.Any())
+                {
+                    originalCategoryDisplay = string.Join(" › ", originalPath.Select(c => c.Name));
+                }
+            }
 
             var currentCategoryDisplay = CategoryPath.Any()
                 ? string.Join(" › ", CategoryPath.Select(c => c.Name))
@@ -234,6 +247,31 @@ namespace ProjectManagement.Pages.Projects
 
             var requestedBy = await GetDisplayNameAsync(request.RequestedByUserId);
 
+            var driftFields = ProjectMetaChangeDriftDetector.Detect(project, request);
+            var drift = new List<ProjectMetaChangeDriftVm>();
+
+            foreach (var field in driftFields)
+            {
+                switch (field)
+                {
+                    case ProjectMetaChangeDriftFields.Name:
+                        drift.Add(new ProjectMetaChangeDriftVm("Name", originalNameDisplay, Format(project.Name), false));
+                        break;
+                    case ProjectMetaChangeDriftFields.Description:
+                        drift.Add(new ProjectMetaChangeDriftVm("Description", originalDescriptionDisplay, Format(project.Description), false));
+                        break;
+                    case ProjectMetaChangeDriftFields.CaseFileNumber:
+                        drift.Add(new ProjectMetaChangeDriftVm("Case file number", originalCaseFileDisplay, Format(project.CaseFileNumber), false));
+                        break;
+                    case ProjectMetaChangeDriftFields.Category:
+                        drift.Add(new ProjectMetaChangeDriftVm("Category", originalCategoryDisplay, currentCategoryDisplay, false));
+                        break;
+                    case ProjectMetaChangeDriftFields.ProjectRecord:
+                        drift.Add(new ProjectMetaChangeDriftVm("Project record", "Submission snapshot", "Updated after submission", true));
+                        break;
+                }
+            }
+
             return new ProjectMetaChangeRequestVm
             {
                 RequestId = request.Id,
@@ -241,10 +279,16 @@ namespace ProjectManagement.Pages.Projects
                 RequestedByUserId = request.RequestedByUserId,
                 RequestedOnUtc = request.RequestedOnUtc,
                 RequestNote = request.RequestNote,
+                OriginalName = originalNameDisplay,
+                OriginalDescription = originalDescriptionDisplay,
+                OriginalCaseFileNumber = originalCaseFileDisplay,
+                OriginalCategory = originalCategoryDisplay,
                 Name = new ProjectMetaChangeFieldVm(project.Name, proposedNameDisplay, !string.Equals(project.Name, proposedNameRaw, StringComparison.Ordinal)),
                 Description = new ProjectMetaChangeFieldVm(Format(project.Description), proposedDescriptionDisplay, !string.Equals(project.Description ?? string.Empty, proposedDescription ?? string.Empty, StringComparison.Ordinal)),
                 CaseFileNumber = new ProjectMetaChangeFieldVm(Format(project.CaseFileNumber), proposedCaseFileDisplay, !string.Equals(project.CaseFileNumber ?? string.Empty, proposedCaseFileNumber ?? string.Empty, StringComparison.Ordinal)),
-                Category = new ProjectMetaChangeFieldVm(currentCategoryDisplay, proposedCategoryDisplay, project.CategoryId != proposedCategoryId)
+                Category = new ProjectMetaChangeFieldVm(currentCategoryDisplay, proposedCategoryDisplay, project.CategoryId != proposedCategoryId),
+                HasDrift = drift.Count > 0,
+                Drift = drift
             };
         }
 

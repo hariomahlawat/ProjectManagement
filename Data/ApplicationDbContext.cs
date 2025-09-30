@@ -174,6 +174,10 @@ namespace ProjectManagement.Data
                 e.Property(x => x.RequestedByUserId).HasMaxLength(450);
                 e.Property(x => x.DecidedByUserId).HasMaxLength(450);
                 e.Property(x => x.RequestedOnUtc).IsRequired();
+                e.Property(x => x.OriginalName).HasMaxLength(100).IsRequired();
+                e.Property(x => x.OriginalDescription).HasMaxLength(1000);
+                e.Property(x => x.OriginalCaseFileNumber).HasMaxLength(50);
+                e.Property(x => x.OriginalRowVersion).HasMaxLength(8);
                 e.HasOne(x => x.Project)
                     .WithMany()
                     .HasForeignKey(x => x.ProjectId)
