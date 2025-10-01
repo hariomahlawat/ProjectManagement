@@ -58,7 +58,9 @@
             <div class="card-body">
                 <h2 class="h6 text-uppercase text-muted">Project</h2>
                 <p class="mb-1 fw-semibold">@Model.Project?.Name</p>
-                <p class="mb-0 text-muted">Project code: @Model.Project?.ProjectCode</p>
+                <p class="mb-0 text-muted">
+                    Case file number: @(string.IsNullOrWhiteSpace(Model.Project?.CaseFileNumber) ? "—" : Model.Project!.CaseFileNumber)
+                </p>
             </div>
         </div>
     </div>
