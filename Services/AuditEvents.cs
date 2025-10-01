@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using ProjectManagement.Models;
 
 namespace ProjectManagement.Services;
 
@@ -64,6 +65,102 @@ public static class Audit
             };
 
             return new AuditEvent("Project.PhotoReordered", userId, data);
+        }
+
+        public static AuditEvent ProjectDocumentRequested(int projectId, int requestId, string userId, ProjectDocumentRequestType type, int? documentId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["RequestId"] = requestId.ToString(),
+                ["Type"] = type.ToString(),
+                ["DocumentId"] = documentId?.ToString()
+            };
+
+            return new AuditEvent("Project.DocumentRequested", userId, data);
+        }
+
+        public static AuditEvent ProjectDocumentApproved(int projectId, int requestId, string userId, ProjectDocumentRequestType type, int? documentId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["RequestId"] = requestId.ToString(),
+                ["Type"] = type.ToString(),
+                ["DocumentId"] = documentId?.ToString()
+            };
+
+            return new AuditEvent("Project.DocumentApproved", userId, data);
+        }
+
+        public static AuditEvent ProjectDocumentRejected(int projectId, int requestId, string userId, ProjectDocumentRequestType type, int? documentId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["RequestId"] = requestId.ToString(),
+                ["Type"] = type.ToString(),
+                ["DocumentId"] = documentId?.ToString()
+            };
+
+            return new AuditEvent("Project.DocumentRejected", userId, data);
+        }
+
+        public static AuditEvent ProjectDocumentPublished(int projectId, int documentId, string? userId, int fileStamp)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["DocumentId"] = documentId.ToString(),
+                ["FileStamp"] = fileStamp.ToString()
+            };
+
+            return new AuditEvent("Project.DocumentPublished", userId, data);
+        }
+
+        public static AuditEvent ProjectDocumentReplaced(int projectId, int documentId, string? userId, int fileStamp)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["DocumentId"] = documentId.ToString(),
+                ["FileStamp"] = fileStamp.ToString()
+            };
+
+            return new AuditEvent("Project.DocumentReplaced", userId, data);
+        }
+
+        public static AuditEvent ProjectDocumentRemoved(int projectId, int documentId, string? userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["DocumentId"] = documentId.ToString()
+            };
+
+            return new AuditEvent("Project.DocumentRemoved", userId, data);
+        }
+
+        public static AuditEvent ProjectDocumentRestored(int projectId, int documentId, string? userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["DocumentId"] = documentId.ToString()
+            };
+
+            return new AuditEvent("Project.DocumentRestored", userId, data);
+        }
+
+        public static AuditEvent ProjectDocumentHardDeleted(int projectId, int documentId, string? userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["DocumentId"] = documentId.ToString()
+            };
+
+            return new AuditEvent("Project.DocumentHardDeleted", userId, data);
         }
     }
 }

@@ -13,6 +13,13 @@ namespace ProjectManagement.Models
         Cancelled = 4
     }
 
+    public enum ProjectDocumentRequestType
+    {
+        Upload = 1,
+        Replace = 2,
+        Delete = 3
+    }
+
     public class ProjectDocumentRequest
     {
         public int Id { get; set; }
@@ -39,6 +46,21 @@ namespace ProjectManagement.Models
 
         [Required]
         public ProjectDocumentRequestStatus Status { get; set; } = ProjectDocumentRequestStatus.Draft;
+
+        [Required]
+        public ProjectDocumentRequestType RequestType { get; set; } = ProjectDocumentRequestType.Upload;
+
+        [MaxLength(260)]
+        public string? TempStorageKey { get; set; }
+
+        [MaxLength(260)]
+        public string? OriginalFileName { get; set; }
+
+        [MaxLength(128)]
+        public string? ContentType { get; set; }
+
+        [Range(0, long.MaxValue)]
+        public long? FileSize { get; set; }
 
         [Required]
         [MaxLength(450)]
