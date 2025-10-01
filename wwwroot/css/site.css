@@ -144,6 +144,54 @@ body {
     font-size: 1rem;
 }
 
+.project-photo-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 220px;
+    height: 100%;
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.project-photo-empty-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .5rem;
+    max-width: 20rem;
+    width: 100%;
+    word-break: break-word;
+}
+
+.project-photo-empty-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3.5rem;
+    height: 3.5rem;
+    border-radius: 50%;
+    background-color: rgba(45, 108, 223, .12);
+    color: var(--pm-primary);
+    font-size: 1.75rem;
+    margin-bottom: .25rem;
+}
+
+.project-photo-empty .btn {
+    white-space: nowrap;
+}
+
+@media (max-width: 576px) {
+    .project-photo-empty {
+        min-height: 180px;
+        padding: 1.25rem;
+    }
+
+    .project-photo-empty-body {
+        gap: .4rem;
+    }
+}
+
 /* Responsive behaviour */
 @media (max-width: 992px) {
   .hero {
