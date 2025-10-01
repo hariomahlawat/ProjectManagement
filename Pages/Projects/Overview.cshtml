@@ -242,7 +242,33 @@
                     }
                     else if (coverPhoto is null)
                     {
-                        <p class="text-muted mb-0">No project photos have been uploaded yet.</p>
+                        @{
+                            var emptyStateHeadingId = $"project-photo-empty-title-{Model.Project?.Id ?? 0}";
+                            var emptyStateDescriptionId = $"{emptyStateHeadingId}-desc";
+                        }
+                        <div class="project-photo-empty border rounded bg-light-subtle text-center"
+                             role="region"
+                             aria-labelledby="@emptyStateHeadingId"
+                             aria-describedby="@emptyStateDescriptionId">
+                            <div class="project-photo-empty-body">
+                                <span class="project-photo-empty-icon" aria-hidden="true">
+                                    <i class="bi bi-images"></i>
+                                </span>
+                                <h3 id="@emptyStateHeadingId" class="h6 fw-semibold mb-2">No photos yet</h3>
+                                <p id="@emptyStateDescriptionId" class="mb-3 text-muted">
+                                    Add a cover or gallery photo to help everyone recognise this project at a glance.
+                                </p>
+                                @if (canManagePhotos)
+                                {
+                                    <a class="btn btn-sm btn-primary"
+                                       asp-page="/Projects/Photos/Index"
+                                       asp-route-id="@Model.Project!.Id"
+                                       aria-label="Upload the first project photo">
+                                        Upload photo
+                                    </a>
+                                }
+                            </div>
+                        </div>
                     }
                 </div>
             </div>
