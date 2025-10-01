@@ -50,6 +50,8 @@ namespace ProjectManagement.Data
         public DbSet<ProjectComment> ProjectComments => Set<ProjectComment>();
         public DbSet<ProjectCommentAttachment> ProjectCommentAttachments => Set<ProjectCommentAttachment>();
         public DbSet<ProjectCommentMention> ProjectCommentMentions => Set<ProjectCommentMention>();
+        public DbSet<ProjectDocument> ProjectDocuments => Set<ProjectDocument>();
+        public DbSet<ProjectDocumentRequest> ProjectDocumentRequests => Set<ProjectDocumentRequest>();
         public DbSet<ProjectScheduleSettings> ProjectScheduleSettings => Set<ProjectScheduleSettings>();
         public DbSet<ProjectPlanDuration> ProjectPlanDurations => Set<ProjectPlanDuration>();
         public DbSet<Holiday> Holidays => Set<Holiday>();
@@ -136,6 +138,131 @@ namespace ProjectManagement.Data
                     e.HasIndex(x => x.ProjectId).HasDatabaseName("IX_ProjectPhotos_ProjectId");
                     e.Property(x => x.CreatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
                     e.Property(x => x.UpdatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+            });
+
+            builder.Entity<ProjectDocument>(e =>
+            {
+                ConfigureRowVersion(e);
+                e.Property(x => x.ProjectId).IsRequired();
+                e.Property(x => x.StageId).IsRequired(false);
+                e.Property(x => x.RequestId).IsRequired(false);
+                e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+                e.Property(x => x.Description).HasMaxLength(2000);
+                e.Property(x => x.StorageKey).HasMaxLength(260).IsRequired();
+                e.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
+                e.Property(x => x.ContentType).HasMaxLength(128).IsRequired();
+                e.Property(x => x.FileSize).IsRequired();
+                e.Property(x => x.UploadedByUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.IsArchived).HasDefaultValue(false);
+                e.Property(x => x.ArchivedAtUtc).IsRequired(false);
+                e.Property(x => x.ArchivedByUserId).HasMaxLength(450);
+                e.HasIndex(x => new { x.ProjectId, x.StageId, x.IsArchived });
+                e.HasIndex(x => x.ProjectId);
+                e.HasOne(x => x.Project)
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.Stage)
+                    .WithMany()
+                    .HasForeignKey(x => x.StageId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                e.HasOne(x => x.Request)
+                    .WithOne(x => x.Document)
+                    .HasForeignKey<ProjectDocument>(x => x.RequestId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                e.HasOne(x => x.UploadedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.UploadedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.ArchivedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.ArchivedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                if (Database.IsSqlServer())
+                {
+                    e.Property(x => x.UploadedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else if (Database.IsNpgsql())
+                {
+                    e.Property(x => x.UploadedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                }
+                else
+                {
+                    e.Property(x => x.UploadedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+
+                e.ToTable(tb =>
+                {
+                    tb.HasCheckConstraint("ck_projectdocuments_filesize", "\"FileSize\" >= 0");
+                });
+            });
+
+            builder.Entity<ProjectDocumentRequest>(e =>
+            {
+                ConfigureRowVersion(e);
+                e.Property(x => x.ProjectId).IsRequired();
+                e.Property(x => x.StageId).IsRequired(false);
+                e.Property(x => x.DocumentId).IsRequired(false);
+                e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+                e.Property(x => x.Description).HasMaxLength(2000);
+                e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).HasDefaultValue(ProjectDocumentRequestStatus.Draft).IsRequired();
+                e.Property(x => x.RequestedByUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.ReviewedByUserId).HasMaxLength(450);
+                e.Property(x => x.ReviewedAtUtc).IsRequired(false);
+                e.Property(x => x.ReviewerNote).HasMaxLength(2000);
+                e.HasIndex(x => new { x.ProjectId, x.Status });
+                e.HasIndex(x => x.ProjectId);
+                e.HasOne(x => x.Project)
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.Stage)
+                    .WithMany()
+                    .HasForeignKey(x => x.StageId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                e.HasOne(x => x.Document)
+                    .WithOne(x => x.Request)
+                    .HasForeignKey<ProjectDocumentRequest>(x => x.DocumentId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                e.HasOne(x => x.RequestedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.RequestedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.ReviewedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.ReviewedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                if (Database.IsSqlServer())
+                {
+                    e.Property(x => x.RequestedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else if (Database.IsNpgsql())
+                {
+                    e.Property(x => x.RequestedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                }
+                else
+                {
+                    e.Property(x => x.RequestedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+
+                var pendingIndex = e.HasIndex(x => new { x.ProjectId, x.StageId })
+                    .HasDatabaseName("ux_projectdocumentrequests_pending")
+                    .IsUnique();
+
+                if (Database.IsSqlServer())
+                {
+                    pendingIndex.HasFilter("[Status] IN ('Draft', 'Submitted')");
+                }
+                else if (Database.IsNpgsql())
+                {
+                    pendingIndex.HasFilter("\"Status\" IN ('Draft', 'Submitted')");
+                }
+                else
+                {
+                    pendingIndex.HasFilter("Status IN ('Draft', 'Submitted')");
                 }
             });
 
