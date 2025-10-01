@@ -310,34 +310,6 @@
                         </div>
                     </div>
 
-                    @if (!additionalPhotos.Any() && coverPhoto is null)
-                    {
-                        var emptyStateHeadingId = $"project-photo-empty-title-{Model.Project?.Id ?? 0}";
-                        var emptyStateDescriptionId = $"{emptyStateHeadingId}-desc";
-                        <div class="project-photo-empty border rounded bg-light-subtle text-center"
-                             role="region"
-                             aria-labelledby="@emptyStateHeadingId"
-                             aria-describedby="@emptyStateDescriptionId">
-                            <div class="project-photo-empty-body">
-                                <span class="project-photo-empty-icon" aria-hidden="true">
-                                    <i class="bi bi-images"></i>
-                                </span>
-                                <h3 id="@emptyStateHeadingId" class="h6 fw-semibold mb-2">No photos yet</h3>
-                                <p id="@emptyStateDescriptionId" class="mb-3 text-muted">
-                                    Add a cover or gallery photo to help everyone recognise this project at a glance.
-                                </p>
-                                @if (canManagePhotos)
-                                {
-                                    <a class="btn btn-primary"
-                                       asp-page="/Projects/Photos/Index"
-                                       asp-route-id="@Model.Project!.Id"
-                                       aria-label="Upload the first project photo">
-                                        Upload photo
-                                    </a>
-                                }
-                            </div>
-                        </div>
-                    }
                 </div>
             </div>
             <partial name="_ProjectProcurementAtAGlance" model="Model.Procurement" />
@@ -406,15 +378,15 @@
                     }
                 </div>
             </div>
-            @if (additionalPhotos.Any())
-            {
-                <div class="card pm-card">
-                    <div class="card-body pm-card-body">
-                        <div class="project-gallery" data-gallery data-gallery-project="@Model.Project!.Id" data-gallery-modal-id="@galleryModalId">
-                            <div class="project-gallery__header">
-                                <h3 class="h6 mb-2">Gallery</h3>
-                                <p class="text-muted small mb-0">Browse project highlights without leaving the page.</p>
-                            </div>
+            <div class="card pm-card">
+                <div class="card-body pm-card-body">
+                    <div class="project-gallery" data-gallery data-gallery-project="@Model.Project!.Id" data-gallery-modal-id="@(galleryModalId ?? string.Empty)">
+                        <div class="project-gallery__header">
+                            <h3 class="h6 mb-2">Gallery</h3>
+                            <p class="text-muted small mb-0">Browse project highlights without leaving the page.</p>
+                        </div>
+                        @if (additionalPhotos.Any())
+                        {
                             <div class="project-gallery__grid" role="list">
                                 @for (var i = 0; i < previewPhotos.Count; i++)
                                 {
@@ -474,9 +446,40 @@
                                     </div>
                                 </a>
                             </div>
-                        </div>
+                        }
+                        else
+                        {
+                            var emptyStateHeadingId = $"project-photo-empty-title-{Model.Project?.Id ?? 0}";
+                            var emptyStateDescriptionId = $"{emptyStateHeadingId}-desc";
+                            <div class="project-photo-empty border rounded bg-light-subtle text-center"
+                                 role="region"
+                                 aria-labelledby="@emptyStateHeadingId"
+                                 aria-describedby="@emptyStateDescriptionId">
+                                <div class="project-photo-empty-body">
+                                    <span class="project-photo-empty-icon" aria-hidden="true">
+                                        <i class="bi bi-images"></i>
+                                    </span>
+                                    <h3 id="@emptyStateHeadingId" class="h6 fw-semibold mb-2">No photos yet</h3>
+                                    <p id="@emptyStateDescriptionId" class="mb-3 text-muted">
+                                        Add a cover or gallery photo to help everyone recognise this project at a glance.
+                                    </p>
+                                    @if (canManagePhotos)
+                                    {
+                                        <a class="btn btn-primary"
+                                           asp-page="/Projects/Photos/Index"
+                                           asp-route-id="@Model.Project!.Id"
+                                           aria-label="Upload the first project photo">
+                                            Upload photo
+                                        </a>
+                                    }
+                                </div>
+                            </div>
+                        }
                     </div>
                 </div>
+            </div>
+            @if (additionalPhotos.Any())
+            {
                 <partial name="_ProjectPhotoLightbox" model="galleryModalModel" />
             }
         </div>
