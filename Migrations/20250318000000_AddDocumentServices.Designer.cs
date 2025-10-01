@@ -16,7 +16,7 @@ namespace ProjectManagement.Migrations
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            new ApplicationDbContextModelSnapshot().BuildModel(modelBuilder);
+            new ApplicationDbContextModelSnapshot().BuildModelSnapshot(modelBuilder);
 #pragma warning restore 612, 618
         }
     }
