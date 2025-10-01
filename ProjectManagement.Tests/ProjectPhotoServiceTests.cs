@@ -14,9 +14,11 @@ using ProjectManagement.Services.Projects;
 using ProjectManagement.Tests.Fakes;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Bmp;
+using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 using Xunit;
 
 namespace ProjectManagement.Tests;
@@ -225,6 +227,40 @@ public sealed class ProjectPhotoServiceTests
     }
 
     [Fact]
+    public async Task AddAsync_StripsMetadataFromDerivatives()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 29);
+
+        await using var stream = await CreateImageStreamWithExifAsync(1600, 1200);
+
+        var root = CreateTempRoot();
+        SetUploadRoot(root);
+        try
+        {
+            var options = CreateOptions();
+            var service = CreateService(db, options);
+
+            var photo = await service.AddAsync(29, stream, "metadata.jpg", "image/jpeg", "owner", false, null, CancellationToken.None);
+
+            var derivativePath = service.GetDerivativePath(photo, "xl");
+            Assert.True(File.Exists(derivativePath));
+
+            await using var derivativeStream = new FileStream(derivativePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var derivativeImage = await Image.LoadAsync<Rgba32>(derivativeStream);
+
+            Assert.Null(derivativeImage.Metadata.ExifProfile);
+            Assert.Null(derivativeImage.Metadata.IptcProfile);
+            Assert.Null(derivativeImage.Metadata.XmpProfile);
+        }
+        finally
+        {
+            ResetUploadRoot();
+            CleanupTempRoot(root);
+        }
+    }
+
+    [Fact]
     public async Task RemoveAsync_DeletesDerivativesAndClearsCover()
     {
         await using var db = CreateContext();
@@ -368,6 +404,20 @@ public sealed class ProjectPhotoServiceTests
         var stream = new MemoryStream();
         using var image = new Image<Rgba32>(width, height, new Rgba32(50, 120, 200, 120));
         await image.SaveAsync(stream, new PngEncoder());
+        stream.Position = 0;
+        return stream;
+    }
+
+    private static async Task<MemoryStream> CreateImageStreamWithExifAsync(int width, int height)
+    {
+        var stream = new MemoryStream();
+        using var image = new Image<Rgba32>(width, height, new Rgba32(30, 60, 90, 255));
+
+        var exif = new ExifProfile();
+        exif.SetValue(ExifTag.ImageDescription, "Test Image");
+        image.Metadata.ExifProfile = exif;
+
+        await image.SaveAsync(stream, new JpegEncoder());
         stream.Position = 0;
         return stream;
     }
