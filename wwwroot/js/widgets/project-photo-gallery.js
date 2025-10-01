@@ -5,6 +5,58 @@
     md: { width: 1200, height: 900 },
     sm: { width: 800, height: 600 }
   };
+  const GRID_PREVIEW_MAX_EDGE = 320;
+
+  function normalizeSize(size) {
+    if (!size || !isPositiveNumber(size.width) || !isPositiveNumber(size.height)) {
+      return null;
+    }
+
+    const width = Math.max(1, Math.round(size.width));
+    const height = Math.max(1, Math.round(size.height));
+    return { width, height };
+  }
+
+  function computeGridSize(size) {
+    const normalized = normalizeSize(size);
+    if (!normalized) {
+      return null;
+    }
+
+    const { width, height } = normalized;
+    const maxEdge = GRID_PREVIEW_MAX_EDGE;
+    if (width <= maxEdge && height <= maxEdge) {
+      return normalized;
+    }
+
+    const scale = Math.min(maxEdge / width, maxEdge / height);
+    const scaledWidth = Math.max(1, Math.round(width * scale));
+    const scaledHeight = Math.max(1, Math.round(height * scale));
+    return { width: scaledWidth, height: scaledHeight };
+  }
+
+  function applyCanvasToImage(imageElement, containerElement, canvas) {
+    if (!imageElement || !containerElement || !canvas) {
+      return;
+    }
+
+    try {
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+      imageElement.src = dataUrl;
+      containerElement.classList.add('is-loaded');
+    } catch (err) {
+      containerElement.classList.remove('is-loaded');
+    }
+  }
+
+  function clearPreviewImage(imageElement, containerElement) {
+    if (imageElement) {
+      imageElement.removeAttribute('src');
+    }
+    if (containerElement) {
+      containerElement.classList.remove('is-loaded');
+    }
+  }
 
   function parseSize(element) {
     if (!element) {
@@ -237,11 +289,29 @@
       height: editor.querySelector('input[data-photo-editor-field="height"]')
     };
 
-    const previews = Array.from(previewGrid.querySelectorAll('[data-photo-editor-preview]')).map((element) => ({
-      element,
-      image: element.querySelector('img'),
-      size: parseSize(element)
-    })).filter((preview) => preview.image && preview.size);
+    const previews = Array.from(previewGrid.querySelectorAll('[data-photo-editor-preview]')).map((element) => {
+      const itemElement = element.closest('[data-photo-preview-item]');
+      const expandedPanel = itemElement ? itemElement.querySelector('[data-photo-preview-expanded]') : null;
+      const expandedImage = expandedPanel ? expandedPanel.querySelector('[data-photo-preview-large]') : null;
+      const openButton = element.querySelector('[data-photo-preview-open]');
+      const closeButton = expandedPanel ? expandedPanel.querySelector('[data-photo-preview-close]') : null;
+      const previewImage = element.querySelector('[data-photo-preview-thumb]') || element.querySelector('img');
+      const size = parseSize(element);
+      return {
+        key: element.getAttribute('data-photo-editor-preview') || '',
+        element,
+        itemElement,
+        image: previewImage,
+        size,
+        gridSize: computeGridSize(size),
+        expandedPanel,
+        expandedImage,
+        openButton,
+        closeButton,
+        isOpen: false,
+        fullSequence: 0
+      };
+    }).filter((preview) => preview.image && preview.size);
 
     const expandToggle = editor.querySelector('[data-photo-editor-toggle]');
     const expandToggleLabel = expandToggle ? expandToggle.querySelector('[data-photo-editor-toggle-label]') : null;
@@ -323,6 +393,172 @@
     let activeObjectUrl = null;
     let lastDetail = null;
     let previewSequence = 0;
+    let activePreview = null;
+
+    function closePreview(preview, restoreFocus) {
+      if (!preview || !preview.isOpen) {
+        return;
+      }
+
+      preview.isOpen = false;
+      preview.fullSequence += 1;
+
+      if (preview.itemElement) {
+        preview.itemElement.classList.remove('is-expanded');
+      }
+
+      clearPreviewImage(preview.expandedImage, preview.expandedPanel);
+
+      if (preview.expandedPanel) {
+        preview.expandedPanel.classList.remove('is-visible');
+        preview.expandedPanel.setAttribute('aria-hidden', 'true');
+      }
+
+      if (activePreview === preview) {
+        activePreview = null;
+        document.documentElement.classList.remove('has-project-photo-preview-dialog');
+        document.body.classList.remove('has-project-photo-preview-dialog');
+      }
+
+      if (restoreFocus && preview.openButton) {
+        preview.openButton.focus({ preventScroll: true });
+      }
+    }
+
+    function closeActivePreview(restoreFocus) {
+      if (activePreview) {
+        closePreview(activePreview, restoreFocus);
+      }
+    }
+
+    function requestPreviewCanvas(size) {
+      const normalized = normalizeSize(size);
+      if (!normalized) {
+        return Promise.reject(new Error('Invalid preview dimensions'));
+      }
+
+      if (selection && typeof selection.$toCanvas === 'function') {
+        try {
+          const result = selection.$toCanvas({ width: normalized.width, height: normalized.height });
+          return Promise.resolve(result).then((canvas) => {
+            if (canvas && canvas.width > 0 && canvas.height > 0) {
+              return canvas;
+            }
+            throw new Error('Empty canvas');
+          });
+        } catch (err) {
+          return Promise.reject(err);
+        }
+      }
+
+      if (cropper && typeof cropper.getCroppedCanvas === 'function') {
+        let canvas = null;
+        try {
+          canvas = cropper.getCroppedCanvas({ width: normalized.width, height: normalized.height });
+        } catch (err) {
+          return Promise.reject(err);
+        }
+
+        if (canvas && canvas.width > 0 && canvas.height > 0) {
+          return Promise.resolve(canvas);
+        }
+
+        return Promise.reject(new Error('Empty canvas'));
+      }
+
+      return Promise.reject(new Error('Preview unavailable'));
+    }
+
+    function renderFullPreview(preview) {
+      if (!preview || !preview.isOpen || !preview.size) {
+        return;
+      }
+
+      const requestId = preview.fullSequence + 1;
+      preview.fullSequence = requestId;
+
+      clearPreviewImage(preview.expandedImage, preview.expandedPanel);
+
+      requestPreviewCanvas(preview.size).then((canvas) => {
+        if (!canvas || preview.fullSequence !== requestId || !preview.isOpen) {
+          return;
+        }
+
+        if (preview.expandedImage && preview.expandedPanel) {
+          applyCanvasToImage(preview.expandedImage, preview.expandedPanel, canvas);
+        }
+      }).catch(() => {
+        if (preview.fullSequence === requestId && preview.expandedPanel) {
+          preview.expandedPanel.classList.remove('is-loaded');
+        }
+      });
+    }
+
+    function openPreview(preview) {
+      if (!preview || preview.isOpen) {
+        return;
+      }
+
+      if (activePreview && activePreview !== preview) {
+        closePreview(activePreview, false);
+      }
+
+      preview.isOpen = true;
+      activePreview = preview;
+
+      document.documentElement.classList.add('has-project-photo-preview-dialog');
+      document.body.classList.add('has-project-photo-preview-dialog');
+
+      if (preview.itemElement) {
+        preview.itemElement.classList.add('is-expanded');
+      }
+
+      if (preview.expandedPanel) {
+        preview.expandedPanel.classList.add('is-visible');
+        preview.expandedPanel.setAttribute('aria-hidden', 'false');
+      }
+
+      clearPreviewImage(preview.expandedImage, preview.expandedPanel);
+
+      renderFullPreview(preview);
+
+      window.setTimeout(() => {
+        if (preview.closeButton) {
+          preview.closeButton.focus({ preventScroll: true });
+        } else if (preview.expandedPanel && typeof preview.expandedPanel.focus === 'function') {
+          preview.expandedPanel.focus({ preventScroll: true });
+        }
+      }, 0);
+    }
+
+    previews.forEach((preview) => {
+      if (preview.openButton) {
+        preview.openButton.addEventListener('click', (event) => {
+          event.preventDefault();
+          if (preview.isOpen) {
+            closePreview(preview, true);
+          } else {
+            openPreview(preview);
+          }
+        });
+      }
+
+      if (preview.closeButton) {
+        preview.closeButton.addEventListener('click', (event) => {
+          event.preventDefault();
+          closePreview(preview, true);
+        });
+      }
+
+      if (preview.expandedPanel) {
+        preview.expandedPanel.addEventListener('click', (event) => {
+          if (event.target === preview.expandedPanel) {
+            event.preventDefault();
+            closePreview(preview, true);
+          }
+        });
+      }
+    });
 
     if (expandToggle) {
       expandToggle.addEventListener('click', (event) => {
@@ -332,6 +568,14 @@
     }
 
     document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' || event.key === 'Esc') {
+        if (activePreview && activePreview.isOpen) {
+          event.preventDefault();
+          closeActivePreview(true);
+          return;
+        }
+      }
+
       if (!isExpanded) {
         return;
       }
@@ -351,13 +595,19 @@
     }
 
     function clearPreviews() {
+      closeActivePreview(false);
       previews.forEach((preview) => {
-        if (preview.image) {
-          preview.image.removeAttribute('src');
+        preview.fullSequence += 1;
+        preview.isOpen = false;
+        if (preview.itemElement) {
+          preview.itemElement.classList.remove('is-expanded');
         }
-        if (preview.element) {
-          preview.element.classList.remove('is-loaded');
+        if (preview.expandedPanel) {
+          preview.expandedPanel.classList.remove('is-visible');
+          preview.expandedPanel.setAttribute('aria-hidden', 'true');
         }
+        clearPreviewImage(preview.image, preview.element);
+        clearPreviewImage(preview.expandedImage, preview.expandedPanel);
       });
     }
 
@@ -466,64 +716,37 @@
       }
 
       const currentSequence = ++previewSequence;
-      if (selection && typeof selection.$toCanvas === 'function') {
-        previews.forEach((preview) => {
-          const { image: previewImage, element, size } = preview;
-          if (!previewImage || !size) {
-            return;
-          }
+      previews.forEach((preview) => {
+        const { image: previewImage, element, gridSize } = preview;
+        if (!previewImage || !element || !gridSize) {
+          clearPreviewImage(previewImage, element);
+          return;
+        }
 
-          selection.$toCanvas({ width: size.width, height: size.height }).then((canvas) => {
-            if (currentSequence !== previewSequence) {
-              return;
-            }
+        element.classList.remove('is-loaded');
 
-            if (canvas && canvas.width > 0 && canvas.height > 0) {
-              try {
-                previewImage.src = canvas.toDataURL('image/jpeg', 0.92);
-                element.classList.add('is-loaded');
-              } catch (err) {
-                element.classList.remove('is-loaded');
-              }
-            }
-          }).catch(() => {
-            if (element) {
-              element.classList.remove('is-loaded');
-            }
-          });
-        });
-      } else if (cropper && typeof cropper.getCroppedCanvas === 'function') {
-        previews.forEach((preview) => {
-          const { image: previewImage, element, size } = preview;
-          if (!previewImage || !size) {
-            return;
-          }
-
-          let canvas = null;
-          try {
-            canvas = cropper.getCroppedCanvas({ width: size.width, height: size.height });
-          } catch (err) {
-            canvas = null;
-          }
-
+        requestPreviewCanvas(gridSize).then((canvas) => {
           if (currentSequence !== previewSequence) {
             return;
           }
 
           if (canvas && canvas.width > 0 && canvas.height > 0) {
-            try {
-              previewImage.src = canvas.toDataURL('image/jpeg', 0.92);
-              element.classList.add('is-loaded');
-            } catch (err) {
-              element.classList.remove('is-loaded');
-            }
-          } else if (element) {
-            element.classList.remove('is-loaded');
+            applyCanvasToImage(previewImage, element, canvas);
+          } else {
+            clearPreviewImage(previewImage, element);
+          }
+        }).catch(() => {
+          if (currentSequence === previewSequence) {
+            clearPreviewImage(previewImage, element);
           }
         });
-      } else {
-        clearPreviews();
-      }
+      });
+
+      previews.forEach((preview) => {
+        if (preview.isOpen) {
+          renderFullPreview(preview);
+        }
+      });
     }
 
     function applyCropDetail(detail, scale) {
