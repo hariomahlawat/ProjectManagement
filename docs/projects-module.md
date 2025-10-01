@@ -44,8 +44,15 @@ All authenticated users can enter the project overview to gather context, but wr
 9. **Project photos and gallery**
   Admins, assigned HoDs and the project’s Project Officer can open the photo workspace; the page double-checks the caller’s role assignments before allowing gallery changes and falls back to a 403 when the user is not authorised.【F:Pages/Projects/Photos/Index.cshtml.cs†L18-L121】  Uploads run through `ProjectPhotoService`, which sanitises file names, enforces size and dimension rules, supports optional cropping, and generates derivative images beneath a deterministic `projects/{projectId}/{storageKey}-{size}.(webp|png)` folder structure.【F:Services/Projects/ProjectPhotoService.cs†L82-L207】【F:Services/Projects/ProjectPhotoService.cs†L244-L420】【F:Services/Projects/ProjectPhotoService.cs†L501-L536】  Setting a new cover photo automatically clears previous covers and updates the project’s `CoverPhotoVersion`, while deletes remove derivative files and promote the next available photo (falling back to clearing the cover when none remain); every add/update/remove operation emits an audit event for traceability.【F:Services/Projects/ProjectPhotoService.cs†L210-L360】  The overview page reloads the ordered gallery and cover metadata on every request, so changes made in the photo workspace are immediately reflected for all viewers.【F:Pages/Projects/Overview.cshtml.cs†L94-L138】
 
+#### Accessibility manual QA — photo reorder
+
+1. Open **Projects → Photos → Reorder** for a project with at least two uploaded images.
+2. Tab to a photo card, press Space to grab it, then use the arrow keys to move it; confirm the live region announces the selection and each move.
+3. Press Escape while a card is grabbed to cancel the move and hear the cancellation announcement.
+4. Complete a drag-and-drop reorder with the mouse and verify the final position is announced and focus returns to the moved card.
+
 10. **Audit and iterate**
-   Almost every mutating action—project creation, role assignment, procurement updates, stage requests, stage decisions and comment changes—records an audit event with contextual metadata. These trails allow administrators to reconstruct the project narrative over time and update this documentation as new capabilities ship.
+  Almost every mutating action—project creation, role assignment, procurement updates, stage requests, stage decisions and comment changes—records an audit event with contextual metadata. These trails allow administrators to reconstruct the project narrative over time and update this documentation as new capabilities ship.
 
 ## Updating this storyboard
 

@@ -98,7 +98,9 @@
     </div>
 
     <div class="form-check mb-3">
-        <input asp-for="Input.SetAsCover" class="form-check-input" />
+        <input asp-for="Input.SetAsCover"
+               class="form-check-input"
+               aria-label="Set this uploaded photo as the cover image for @Model.Project.Name" />
         <label asp-for="Input.SetAsCover" class="form-check-label">Set as cover photo</label>
     </div>
 

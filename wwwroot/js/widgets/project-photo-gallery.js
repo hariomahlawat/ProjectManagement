@@ -372,15 +372,41 @@
     return closest.element;
   }
 
+  function getItemCaption(item, fallbackIndex) {
+    if (!item) {
+      return 'photo';
+    }
+
+    const caption = item.getAttribute('data-photo-caption');
+    if (caption && caption.trim().length > 0) {
+      return caption.trim();
+    }
+
+    if (typeof fallbackIndex === 'number') {
+      return `Photo ${fallbackIndex + 1}`;
+    }
+
+    return 'photo';
+  }
+
   function refreshOrdinals(container) {
-    let index = 0;
-    container.querySelectorAll('[data-photo-item]').forEach((item) => {
+    const items = Array.from(container.querySelectorAll('[data-photo-item]'));
+    const total = items.length;
+
+    items.forEach((item, index) => {
+      const position = index + 1;
       const ordinalInput = item.querySelector('[data-photo-ordinal]');
+      const caption = getItemCaption(item, index);
       if (ordinalInput) {
-        index += 1;
-        ordinalInput.value = String(index);
+        ordinalInput.value = String(position);
+        ordinalInput.setAttribute('aria-label', `Display position for ${caption}`);
       }
+      item.setAttribute('aria-setsize', String(total));
+      item.setAttribute('aria-posinset', String(position));
+      item.setAttribute('aria-label', `${caption} – position ${position} of ${total}`);
     });
+
+    return { items, total };
   }
 
   function initReorder(container) {
@@ -388,12 +414,104 @@
       return;
     }
 
-    const items = container.querySelectorAll('[data-photo-item]');
+    const items = Array.from(container.querySelectorAll('[data-photo-item]'));
     if (!items.length) {
       return;
     }
 
+    const root = container.closest('[data-photo-reorder-root]') || container;
+    const statusRegion = root.querySelector('[data-photo-reorder-status]');
     let activeItem = null;
+
+    refreshOrdinals(container);
+    if (statusRegion) {
+      statusRegion.textContent = '';
+    }
+    container.setAttribute('aria-expanded', 'false');
+
+    function announce(message) {
+      if (statusRegion) {
+        statusRegion.textContent = message;
+      }
+    }
+
+    function updateExpandedState() {
+      container.setAttribute('aria-expanded', activeItem ? 'true' : 'false');
+    }
+
+    function activateItem(item) {
+      if (activeItem && activeItem !== item) {
+        deactivateItem(activeItem);
+      }
+      activeItem = item;
+      if (activeItem) {
+        activeItem.classList.add('is-dragging');
+        activeItem.setAttribute('aria-grabbed', 'true');
+      }
+      updateExpandedState();
+    }
+
+    function deactivateItem(item, options = {}) {
+      if (!item) {
+        return;
+      }
+      item.classList.remove('is-dragging');
+      item.setAttribute('aria-grabbed', 'false');
+      if (options.restoreFocus) {
+        item.focus();
+      }
+      if (activeItem === item) {
+        activeItem = null;
+      }
+      updateExpandedState();
+    }
+
+    function announcePickup(item) {
+      const caption = getItemCaption(item);
+      announce(`${caption} selected. Use arrow keys to change position, Enter to drop, or Escape to cancel.`);
+    }
+
+    function announceDrop(item, position, total) {
+      const caption = getItemCaption(item);
+      announce(`${caption} placed in position ${position} of ${total}.`);
+    }
+
+    function announceCancel(item) {
+      const caption = getItemCaption(item);
+      announce(`Cancelled moving ${caption}.`);
+    }
+
+    function announceBoundary(item, direction) {
+      const caption = getItemCaption(item);
+      announce(`${caption} is already at the ${direction < 0 ? 'start' : 'end'} of the list.`);
+    }
+
+    function moveItem(item, direction) {
+      const currentItems = Array.from(container.querySelectorAll('[data-photo-item]'));
+      const index = currentItems.indexOf(item);
+      if (index === -1) {
+        return;
+      }
+
+      const newIndex = index + direction;
+      if (newIndex < 0 || newIndex >= currentItems.length) {
+        announceBoundary(item, direction);
+        return;
+      }
+
+      if (direction > 0) {
+        const reference = currentItems[newIndex].nextElementSibling;
+        container.insertBefore(item, reference || null);
+      } else {
+        const reference = currentItems[newIndex];
+        container.insertBefore(item, reference);
+      }
+
+      const { items: updatedItems, total } = refreshOrdinals(container);
+      const position = updatedItems.indexOf(item) + 1;
+      item.focus();
+      announce(`${getItemCaption(item)} moved to position ${position} of ${total}.`);
+    }
 
     container.addEventListener('dragover', (event) => {
       if (!activeItem) {
@@ -413,33 +531,65 @@
         return;
       }
       event.preventDefault();
+      const item = activeItem;
       const afterElement = getDragAfterElement(container, event.clientY);
       if (!afterElement) {
-        container.appendChild(activeItem);
-      } else if (afterElement !== activeItem) {
-        container.insertBefore(activeItem, afterElement);
+        container.appendChild(item);
+      } else if (afterElement !== item) {
+        container.insertBefore(item, afterElement);
       }
-      activeItem.classList.remove('is-dragging');
-      activeItem = null;
-      refreshOrdinals(container);
+      const { items: updatedItems, total } = refreshOrdinals(container);
+      const position = updatedItems.indexOf(item) + 1;
+      deactivateItem(item, { restoreFocus: true });
+      announceDrop(item, position, total);
     });
 
     container.addEventListener('dragend', () => {
-      if (activeItem) {
-        activeItem.classList.remove('is-dragging');
-        activeItem = null;
-        refreshOrdinals(container);
+      if (!activeItem) {
+        return;
       }
+      const item = activeItem;
+      deactivateItem(item, { restoreFocus: true });
+      refreshOrdinals(container);
+      announceCancel(item);
     });
 
     items.forEach((item) => {
       item.setAttribute('draggable', 'true');
       item.addEventListener('dragstart', (event) => {
-        activeItem = item;
-        item.classList.add('is-dragging');
+        activateItem(item);
         if (event.dataTransfer) {
           event.dataTransfer.effectAllowed = 'move';
           event.dataTransfer.setData('text/plain', '');
+        }
+        announcePickup(item);
+      });
+      item.addEventListener('keydown', (event) => {
+        const key = event.key;
+        if (key === ' ' || key === 'Spacebar' || key === 'Enter') {
+          event.preventDefault();
+          if (activeItem === item) {
+            const { items: updatedItems, total } = refreshOrdinals(container);
+            const position = updatedItems.indexOf(item) + 1;
+            deactivateItem(item, { restoreFocus: true });
+            announceDrop(item, position, total);
+          } else {
+            if (activeItem && activeItem !== item) {
+              const previous = activeItem;
+              deactivateItem(previous);
+              announceCancel(previous);
+            }
+            activateItem(item);
+            announcePickup(item);
+          }
+        } else if ((key === 'Escape' || key === 'Esc') && activeItem === item) {
+          event.preventDefault();
+          deactivateItem(item, { restoreFocus: true });
+          announceCancel(item);
+        } else if (activeItem === item && (key === 'ArrowUp' || key === 'ArrowLeft' || key === 'ArrowDown' || key === 'ArrowRight')) {
+          event.preventDefault();
+          const direction = key === 'ArrowUp' || key === 'ArrowLeft' ? -1 : 1;
+          moveItem(item, direction);
         }
       });
     });
