@@ -6,20 +6,21 @@
     --pm-text-secondary: #4b5563;
     --pm-muted: #6b7280;
     --pm-border: #e5e7eb;
-    --pm-surface: #ffffff;
+    --pm-surface: #f6eee3;
     --pm-card: #f8fafc;
     --pm-shadow: 0 8px 20px rgba(0,0,0,.06);
 }
 
 body {
     color: var(--pm-text);
+    background-color: var(--pm-surface);
 }
 
 /* ---------- Cards ---------- */
 .pm-card {
     border: 1px solid rgba(15, 23, 42, .08);
     border-radius: 1rem;
-    background: linear-gradient(180deg, rgba(255, 255, 255, .98) 0%, rgba(248, 250, 252, .98) 100%);
+    background: linear-gradient(180deg, rgba(246, 238, 227, .98) 0%, rgba(240, 231, 219, .98) 100%);
     box-shadow: 0 24px 40px -32px rgba(15, 23, 42, .35);
     overflow: hidden;
 }
@@ -149,7 +150,7 @@ body {
 }
 
 .pm-footer {
-    background: #fff;
+    background: var(--pm-surface);
 }
 
 /* --- Landing hero --- */
