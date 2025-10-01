@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Storage;
 using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Services
@@ -32,13 +33,22 @@ namespace ProjectManagement.Services
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         };
 
-        public ProjectCommentService(ApplicationDbContext db, IClock clock, IAuditService audit, ILogger<ProjectCommentService> logger)
+        public ProjectCommentService(ApplicationDbContext db,
+                                     IClock clock,
+                                     IAuditService audit,
+                                     IUploadRootProvider uploadRootProvider,
+                                     ILogger<ProjectCommentService> logger)
         {
             _db = db;
             _clock = clock;
             _audit = audit;
             _logger = logger;
-            _basePath = Environment.GetEnvironmentVariable("PM_UPLOAD_ROOT") ?? "/var/pm/uploads";
+            if (uploadRootProvider == null)
+            {
+                throw new ArgumentNullException(nameof(uploadRootProvider));
+            }
+
+            _basePath = uploadRootProvider.RootPath;
         }
 
         public async Task<ProjectComment> CreateAsync(int projectId,

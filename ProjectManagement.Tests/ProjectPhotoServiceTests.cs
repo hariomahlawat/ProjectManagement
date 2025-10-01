@@ -11,6 +11,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Storage;
 using ProjectManagement.Tests.Fakes;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Bmp;
@@ -496,7 +497,9 @@ public sealed class ProjectPhotoServiceTests
     {
         var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 12, 0, 0, TimeSpan.Zero));
         var audit = new RecordingAudit();
-        return new ProjectPhotoService(db, clock, audit, Options.Create(options), NullLogger<ProjectPhotoService>.Instance);
+        var optionsWrapper = Options.Create(options);
+        var uploadRoot = new UploadRootProvider(optionsWrapper);
+        return new ProjectPhotoService(db, clock, audit, optionsWrapper, uploadRoot, NullLogger<ProjectPhotoService>.Instance);
     }
 
     private static ProjectPhotoOptions CreateOptions()
