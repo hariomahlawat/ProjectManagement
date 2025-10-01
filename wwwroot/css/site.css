@@ -6,8 +6,8 @@
     --pm-text-secondary: #4b5563;
     --pm-muted: #6b7280;
     --pm-border: #e5e7eb;
-    --pm-surface: #f6eee3;
-    --pm-card: #f8fafc;
+    --pm-surface: #f5f7fb;
+    --pm-card: #ffffff;
     --pm-shadow: 0 8px 20px rgba(0,0,0,.06);
 }
 
@@ -20,8 +20,8 @@ body {
 .pm-card {
     border: 1px solid rgba(15, 23, 42, .08);
     border-radius: 1rem;
-    background: linear-gradient(180deg, rgba(246, 238, 227, .98) 0%, rgba(240, 231, 219, .98) 100%);
-    box-shadow: 0 24px 40px -32px rgba(15, 23, 42, .35);
+    background-color: var(--pm-card);
+    box-shadow: 0 18px 30px -24px rgba(15, 23, 42, .2);
     overflow: hidden;
 }
 
