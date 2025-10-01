@@ -252,7 +252,7 @@ app.Use(async (ctx, next) =>
         "default-src 'self'; " +
         "base-uri 'self'; " +
         "frame-ancestors 'none'; " +
-        "img-src 'self' data:; " +
+        "img-src 'self' data: blob:; " +
         "script-src 'self'; " +
         "style-src 'self'; " +
         "font-src 'self' data:; " +
