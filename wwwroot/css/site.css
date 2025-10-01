@@ -15,6 +15,110 @@ body {
     color: var(--pm-text);
 }
 
+/* ---------- Cards ---------- */
+.pm-card {
+    border: 1px solid rgba(15, 23, 42, .08);
+    border-radius: 1rem;
+    background: linear-gradient(180deg, rgba(255, 255, 255, .98) 0%, rgba(248, 250, 252, .98) 100%);
+    box-shadow: 0 24px 40px -32px rgba(15, 23, 42, .35);
+    overflow: hidden;
+}
+
+.pm-card-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    background: linear-gradient(180deg, rgba(45, 108, 223, .08) 0%, rgba(45, 108, 223, .03) 100%);
+    border-bottom: 1px solid rgba(15, 23, 42, .06);
+}
+
+.pm-card-heading {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    min-width: 0;
+}
+
+.pm-card-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: .85rem;
+    background-color: rgba(45, 108, 223, .12);
+    color: var(--pm-primary);
+    font-size: 1.25rem;
+    flex-shrink: 0;
+}
+
+.pm-card-title {
+    margin: 0;
+    font-weight: 600;
+    letter-spacing: .15px;
+    color: var(--pm-text);
+}
+
+.pm-card-subtitle {
+    margin: .125rem 0 0;
+    font-size: .85rem;
+    color: var(--pm-text-secondary);
+}
+
+.pm-card-actions {
+    margin-left: auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+}
+
+.pm-card-meta {
+    margin-left: auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+}
+
+.pm-card-progress {
+    position: relative;
+    width: 140px;
+    height: 6px;
+    border-radius: 999px;
+    background-color: rgba(15, 23, 42, .08);
+    overflow: hidden;
+}
+
+.pm-card-progress-bar {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, var(--pm-primary) 0%, var(--pm-primary-hover) 100%);
+    border-radius: inherit;
+    transition: width .3s ease;
+}
+
+.pm-card-body {
+    padding: 1.25rem 1.5rem;
+}
+
+.pm-card-body > :last-child {
+    margin-bottom: 0;
+}
+
+@media (max-width: 575.98px) {
+    .pm-card-header,
+    .pm-card-body {
+        padding: 1rem 1.125rem;
+    }
+
+    .pm-card-progress {
+        width: 100%;
+    }
+}
+
 /* ---------- Header & footer ---------- */
 .pm-header .navbar-brand {
     letter-spacing: .2px;

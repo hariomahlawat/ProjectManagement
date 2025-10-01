@@ -24,30 +24,33 @@
     string DateDmy(DateOnly? d) => d.HasValue ? d.Value.ToString("dd MMM yyyy", CultureInfo.CurrentCulture) : "—";
 }
 
-<div class="card">
-  <div class="card-header">
-    <div class="card-action-bar">
-      <div class="d-flex align-items-center gap-2">
-        <i class="bi bi-receipt" aria-hidden="true"></i>
-        <span class="fw-semibold">Procurement At-a-Glance</span>
+<div class="card pm-card h-100">
+  <div class="card-header pm-card-header">
+    <div class="pm-card-heading">
+      <span class="pm-card-icon" aria-hidden="true">
+        <i class="bi bi-receipt"></i>
+      </span>
+      <div>
+        <h2 class="pm-card-title h5 mb-0">Procurement at a glance</h2>
+        <p class="pm-card-subtitle mb-0">Key budget markers for this project.</p>
       </div>
-      @if (User.IsInRole("Admin") || User.IsInRole("HoD") || User.IsInRole("Project Officer"))
-      {
-        <div class="card-action-bar-actions">
-          <button type="button"
-                  class="btn btn-link card-action-link"
-                  data-bs-toggle="offcanvas"
-                  data-bs-target="#offcanvasProcurement"
-                  aria-controls="offcanvasProcurement">
-            <i class="bi bi-pencil-square" aria-hidden="true"></i>
-            <span>Edit procurement</span>
-          </button>
-        </div>
-      }
     </div>
+    @if (User.IsInRole("Admin") || User.IsInRole("HoD") || User.IsInRole("Project Officer"))
+    {
+      <div class="pm-card-actions">
+        <button type="button"
+                class="btn btn-link card-action-link"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#offcanvasProcurement"
+                aria-controls="offcanvasProcurement">
+          <i class="bi bi-pencil-square" aria-hidden="true"></i>
+          <span>Edit procurement</span>
+        </button>
+      </div>
+    }
   </div>
 
-  <div class="card-body">
+  <div class="card-body pm-card-body">
     <div class="row g-3">
       <div class="col-md-6">
         <div class="d-flex justify-content-between">
