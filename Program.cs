@@ -25,6 +25,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Helpers;
+using ProjectManagement.Configuration;
 using ProjectManagement.Contracts;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
@@ -173,6 +174,8 @@ builder.Services.AddScoped<ProjectMetaChangeRequestService>();
 builder.Services.AddScoped<ProjectMetaChangeDecisionService>();
 builder.Services.Configure<ProjectPhotoOptions>(
     builder.Configuration.GetSection("ProjectPhotos"));
+builder.Services.Configure<ProjectDocumentOptions>(
+    builder.Configuration.GetSection("ProjectDocuments"));
 builder.Services.AddSingleton<IConfigureOptions<ProjectPhotoOptions>, ProjectPhotoOptionsSetup>();
 builder.Services.AddSingleton<IUploadRootProvider, UploadRootProvider>();
 builder.Services.AddScoped<IProjectPhotoService, ProjectPhotoService>();

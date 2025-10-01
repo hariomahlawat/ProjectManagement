@@ -21,6 +21,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
+using ProjectManagement.Configuration;
 using Microsoft.Net.Http.Headers;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
@@ -123,7 +124,8 @@ public sealed class ProjectPhotoPageTests
         try
         {
             var optionsWrapper = Options.Create(options);
-            var uploadRoot = new UploadRootProvider(optionsWrapper);
+            var documentOptions = Options.Create(new ProjectDocumentOptions());
+            var uploadRoot = new UploadRootProvider(optionsWrapper, documentOptions);
             var photoService = new ProjectPhotoService(db, clock, new RecordingAudit(), optionsWrapper, uploadRoot, NullLogger<ProjectPhotoService>.Instance);
 
             await using var stream = await CreateImageStreamAsync(1600, 1200);
