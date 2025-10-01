@@ -22,7 +22,7 @@ using ProjectManagement.Services.Documents;
 
 namespace ProjectManagement.Pages.Projects.Documents;
 
-[Authorize(Roles = "Admin,Project Officer")]
+[Authorize(Roles = "Admin,HoD,Project Officer")]
 [AutoValidateAntiforgeryToken]
 public class UploadRequestModel : PageModel
 {
@@ -197,8 +197,14 @@ public class UploadRequestModel : PageModel
             return true;
         }
 
-        return principal.IsInRole("Project Officer") &&
-            string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase);
+        if (principal.IsInRole("Project Officer") &&
+            string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return principal.IsInRole("HoD") &&
+            string.Equals(project.HodUserId, userId, StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task<IEnumerable<SelectListItem>> BuildStageOptionsAsync(int projectId, CancellationToken cancellationToken)
