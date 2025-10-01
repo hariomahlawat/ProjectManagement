@@ -150,6 +150,13 @@ public class UploadModel : PageModel
             TempData["Flash"] = "Photo uploaded.";
             return RedirectToPage("./Index", new { id });
         }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Invalid crop selection while uploading photo for project {ProjectId}", id);
+            ModelState.AddModelError(string.Empty,
+                "We couldn't process that crop. Keep the crop box inside the image, maintain the 4:3 ratio, and try again.");
+            return Page();
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error uploading photo for project {ProjectId}", id);
