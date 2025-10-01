@@ -22,7 +22,8 @@ namespace ProjectManagement.Services.Projects
         {
             ["xl"] = new ProjectPhotoDerivativeOptions { Width = 1600, Height = 1200, Quality = 90 },
             ["md"] = new ProjectPhotoDerivativeOptions { Width = 1200, Height = 900, Quality = 85 },
-            ["sm"] = new ProjectPhotoDerivativeOptions { Width = 800, Height = 600, Quality = 80 }
+            ["sm"] = new ProjectPhotoDerivativeOptions { Width = 800, Height = 600, Quality = 80 },
+            ["xs"] = new ProjectPhotoDerivativeOptions { Width = 400, Height = 300, Quality = 75 }
         };
 
         public int MaxProcessingConcurrency { get; set; } = Math.Max(Environment.ProcessorCount / 2, 1);

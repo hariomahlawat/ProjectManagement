@@ -136,6 +136,8 @@ public sealed class ProjectPhotoServiceTests
             Assert.Equal("image/webp", photo.ContentType);
             Assert.True(photo.IsCover);
 
+            Assert.True(options.Derivatives.ContainsKey("xs"));
+
             var derivativePaths = options.Derivatives.Keys
                 .Select(key => service.GetDerivativePath(photo, key))
                 .ToList();
@@ -243,15 +245,18 @@ public sealed class ProjectPhotoServiceTests
 
             var photo = await service.AddAsync(29, stream, "metadata.jpg", "image/jpeg", "owner", false, null, CancellationToken.None);
 
-            var derivativePath = service.GetDerivativePath(photo, "xl");
-            Assert.True(File.Exists(derivativePath));
+            foreach (var key in options.Derivatives.Keys)
+            {
+                var derivativePath = service.GetDerivativePath(photo, key);
+                Assert.True(File.Exists(derivativePath));
 
-            await using var derivativeStream = new FileStream(derivativePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            using var derivativeImage = await Image.LoadAsync<Rgba32>(derivativeStream);
+                await using var derivativeStream = new FileStream(derivativePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using var derivativeImage = await Image.LoadAsync<Rgba32>(derivativeStream);
 
-            Assert.Null(derivativeImage.Metadata.ExifProfile);
-            Assert.Null(derivativeImage.Metadata.IptcProfile);
-            Assert.Null(derivativeImage.Metadata.XmpProfile);
+                Assert.Null(derivativeImage.Metadata.ExifProfile);
+                Assert.Null(derivativeImage.Metadata.IptcProfile);
+                Assert.Null(derivativeImage.Metadata.XmpProfile);
+            }
         }
         finally
         {
@@ -376,7 +381,9 @@ public sealed class ProjectPhotoServiceTests
             Derivatives = new Dictionary<string, ProjectPhotoDerivativeOptions>(StringComparer.OrdinalIgnoreCase)
             {
                 ["xl"] = new ProjectPhotoDerivativeOptions { Width = 1600, Height = 1200, Quality = 90 },
-                ["sm"] = new ProjectPhotoDerivativeOptions { Width = 800, Height = 600, Quality = 80 }
+                ["md"] = new ProjectPhotoDerivativeOptions { Width = 1200, Height = 900, Quality = 85 },
+                ["sm"] = new ProjectPhotoDerivativeOptions { Width = 800, Height = 600, Quality = 80 },
+                ["xs"] = new ProjectPhotoDerivativeOptions { Width = 400, Height = 300, Quality = 75 }
             }
         };
     }

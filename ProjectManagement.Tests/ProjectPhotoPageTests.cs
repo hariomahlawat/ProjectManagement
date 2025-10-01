@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,6 +26,8 @@ using ProjectManagement.Models;
 using PhotosIndexModel = ProjectManagement.Pages.Projects.Photos.IndexModel;
 using PhotoViewModel = ProjectManagement.Pages.Projects.Photos.ViewModel;
 using ProjectsOverviewModel = ProjectManagement.Pages.Projects.OverviewModel;
+using UploadModel = ProjectManagement.Pages.Projects.Photos.UploadModel;
+using EditModel = ProjectManagement.Pages.Projects.Photos.EditModel;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
@@ -232,11 +235,152 @@ public sealed class ProjectPhotoPageTests
         var status = Assert.IsType<StatusCodeResult>(result);
         Assert.Equal(StatusCodes.Status304NotModified, status.StatusCode);
         Assert.False(photoService.OpenDerivativeCalled);
+
+        var headers = page.Response.GetTypedHeaders();
+        Assert.Equal(TimeSpan.FromDays(7), headers.CacheControl?.MaxAge);
+        Assert.Equal(etag, headers.ETag?.Tag);
+        Assert.Equal(DateTime.SpecifyKind(photo.UpdatedUtc, DateTimeKind.Utc), headers.LastModified?.UtcDateTime);
+    }
+
+    [Fact]
+    public async Task View_ReturnsNotModified_ForPlaceholderWhenIfNoneMatchMatches()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 13, leadPoUserId: "viewer");
+
+        var userContext = new FakeUserContext("viewer", isProjectOfficer: true);
+        var photoService = new StubPhotoService();
+        var page = new PhotoViewModel(db, userContext, photoService);
+        ConfigurePageContext(page, userContext.User);
+
+        const string etag = "\"pp-placeholder-sm\"";
+        page.Request.Headers["If-None-Match"] = etag;
+
+        var result = await page.OnGetAsync(13, 999, "sm", CancellationToken.None);
+
+        var status = Assert.IsType<StatusCodeResult>(result);
+        Assert.Equal(StatusCodes.Status304NotModified, status.StatusCode);
+        Assert.False(photoService.OpenDerivativeCalled);
+
+        var headers = page.Response.GetTypedHeaders();
+        Assert.Equal(TimeSpan.FromDays(7), headers.CacheControl?.MaxAge);
+        Assert.Equal(etag, headers.ETag?.Tag);
+    }
+
+    [Fact]
+    public async Task Upload_ForbidsUnassignedProjectOfficer_OnGet()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 21, hodUserId: "hod-owner", leadPoUserId: "lead-owner");
+
+        var userContext = new FakeUserContext("intruder", isProjectOfficer: true);
+        var page = CreateUploadPage(db, userContext);
+        ConfigurePageContext(page, userContext.User);
+
+        var result = await page.OnGetAsync(21, CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(result);
+    }
+
+    [Fact]
+    public async Task Upload_ForbidsUnassignedProjectOfficer_OnPost()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 22, hodUserId: "hod-owner", leadPoUserId: "lead-owner");
+
+        var userContext = new FakeUserContext("intruder", isProjectOfficer: true);
+        var page = CreateUploadPage(db, userContext);
+        ConfigurePageContext(page, userContext.User);
+
+        page.Input = new UploadInput
+        {
+            ProjectId = 22,
+            RowVersion = Convert.ToBase64String(db.Projects.Single(p => p.Id == 22).RowVersion)
+        };
+
+        var result = await page.OnPostAsync(22, CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(result);
+    }
+
+    [Fact]
+    public async Task Edit_ForbidsUnassignedProjectOfficer_OnGet()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 23, hodUserId: "hod-owner", leadPoUserId: "lead-owner");
+
+        db.ProjectPhotos.Add(new ProjectPhoto
+        {
+            Id = 24,
+            ProjectId = 23,
+            StorageKey = "photos/23/24.png",
+            OriginalFileName = "cover.png",
+            ContentType = "image/png",
+            Width = 800,
+            Height = 600,
+            Ordinal = 1,
+            Version = 1
+        });
+        await db.SaveChangesAsync();
+
+        var userContext = new FakeUserContext("intruder", isProjectOfficer: true);
+        var page = CreateEditPage(db, userContext);
+        ConfigurePageContext(page, userContext.User);
+
+        var result = await page.OnGetAsync(23, 24, CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(result);
+    }
+
+    [Fact]
+    public async Task Edit_ForbidsUnassignedProjectOfficer_OnPost()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 25, hodUserId: "hod-owner", leadPoUserId: "lead-owner");
+
+        db.ProjectPhotos.Add(new ProjectPhoto
+        {
+            Id = 26,
+            ProjectId = 25,
+            StorageKey = "photos/25/26.png",
+            OriginalFileName = "cover.png",
+            ContentType = "image/png",
+            Width = 800,
+            Height = 600,
+            Ordinal = 1,
+            Version = 1
+        });
+        await db.SaveChangesAsync();
+
+        var userContext = new FakeUserContext("intruder", isProjectOfficer: true);
+        var page = CreateEditPage(db, userContext);
+        ConfigurePageContext(page, userContext.User);
+
+        page.Input = new EditInput
+        {
+            ProjectId = 25,
+            PhotoId = 26,
+            RowVersion = Convert.ToBase64String(db.Projects.Single(p => p.Id == 25).RowVersion)
+        };
+
+        var result = await page.OnPostAsync(25, 26, CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(result);
     }
 
     private static PhotosIndexModel CreateIndexPage(ApplicationDbContext db, FakeUserContext userContext)
     {
         return new PhotosIndexModel(db, userContext, new ThrowingPhotoService(), NullLogger<PhotosIndexModel>.Instance);
+    }
+
+    private static UploadModel CreateUploadPage(ApplicationDbContext db, FakeUserContext userContext)
+    {
+        return new UploadModel(db, userContext, new StubPhotoService(), NullLogger<UploadModel>.Instance);
+    }
+
+    private static EditModel CreateEditPage(ApplicationDbContext db, FakeUserContext userContext)
+    {
+        return new EditModel(db, userContext, new StubPhotoService(), NullLogger<EditModel>.Instance);
     }
 
     private static ProjectsOverviewModel CreateOverviewPage(ApplicationDbContext db, IClock clock)

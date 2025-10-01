@@ -130,7 +130,7 @@ public class ViewModel : PageModel
         }
 
         var normalized = size.Trim().ToLowerInvariant();
-        return normalized is "sm" or "md" or "xl" ? normalized : null;
+        return normalized is "xs" or "sm" or "md" or "xl" ? normalized : null;
     }
 
     private bool CanViewProject(Project project, string userId)
