@@ -17,6 +17,12 @@
         : new ProjectPhotoDerivativeOptions { Width = 800, Height = 600 };
     var originalPhotoUrl = Url.Page("./View", new { id = Model.Project.Id, photoId = Model.Photo.Id, size = "md" });
     var editorInitialUrl = Url.Page("./View", new { id = Model.Project.Id, photoId = Model.Photo.Id, size = "xl" });
+    var coverLabelId = "project-photo-preview-label-xl";
+    var coverMetaId = "project-photo-preview-meta-xl";
+    var largeLabelId = "project-photo-preview-label-md";
+    var largeMetaId = "project-photo-preview-meta-md";
+    var thumbLabelId = "project-photo-preview-label-sm";
+    var thumbMetaId = "project-photo-preview-meta-sm";
 }
 
 <h1 class="mb-4">Edit Project Photo</h1>
@@ -79,24 +85,129 @@
             <div class="project-photo-editor__sidebar">
                 <p class="text-muted mb-0 project-photo-editor__placeholder" data-photo-editor-placeholder>Select a new photo or adjust the crop on the existing image.</p>
                 <div class="project-photo-preview-grid" data-photo-editor-previews>
-                    <div class="project-photo-preview-item">
-                        <div class="project-photo-preview-frame" data-photo-editor-preview="xl" data-width="@coverOptions.Width" data-height="@coverOptions.Height">
-                            <img alt="Cover preview" />
+                    <div class="project-photo-preview-item" data-photo-preview-item>
+                        <div class="project-photo-preview-frame"
+                             data-photo-editor-preview="xl"
+                             data-width="@coverOptions.Width"
+                             data-height="@coverOptions.Height">
+                            <img alt="Cover preview" data-photo-preview-thumb />
                             <span class="pm-photo-cover-badge">Cover</span>
+                            <button type="button"
+                                    class="project-photo-preview-action"
+                                    data-photo-preview-open
+                                    aria-haspopup="dialog"
+                                    aria-controls="project-photo-preview-expanded-xl"
+                                    aria-label="Open full-size cover preview">
+                                <span class="project-photo-preview-action-icon" aria-hidden="true"></span>
+                                <span class="project-photo-preview-action-text">Open preview</span>
+                            </button>
                         </div>
-                        <div class="project-photo-preview-label">Cover (@coverOptions.Width × @coverOptions.Height)</div>
+                        <div class="project-photo-preview-label" id="@coverLabelId">Cover (@coverOptions.Width × @coverOptions.Height)</div>
+                        <div class="project-photo-preview-expanded"
+                             id="project-photo-preview-expanded-xl"
+                             data-photo-preview-expanded
+                             role="dialog"
+                             aria-modal="true"
+                             aria-labelledby="@coverLabelId"
+                             aria-describedby="@coverMetaId"
+                             aria-hidden="true"
+                             tabindex="-1">
+                            <div class="project-photo-preview-expanded-dialog">
+                                <button type="button"
+                                        class="btn-close project-photo-preview-close"
+                                        data-photo-preview-close
+                                        aria-label="Close full preview"></button>
+                                <div class="project-photo-preview-expanded-media">
+                                    <img alt="Cover derivative preview" data-photo-preview-large />
+                                </div>
+                                <div class="project-photo-preview-expanded-meta" id="@coverMetaId">
+                                    <div class="project-photo-preview-meta-title">Cover derivative</div>
+                                    <div class="project-photo-preview-meta-size">@coverOptions.Width × @coverOptions.Height</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="project-photo-preview-item">
-                        <div class="project-photo-preview-frame" data-photo-editor-preview="md" data-width="@largeOptions.Width" data-height="@largeOptions.Height">
-                            <img alt="Large preview" />
+                    <div class="project-photo-preview-item" data-photo-preview-item>
+                        <div class="project-photo-preview-frame"
+                             data-photo-editor-preview="md"
+                             data-width="@largeOptions.Width"
+                             data-height="@largeOptions.Height">
+                            <img alt="Large preview" data-photo-preview-thumb />
+                            <button type="button"
+                                    class="project-photo-preview-action"
+                                    data-photo-preview-open
+                                    aria-haspopup="dialog"
+                                    aria-controls="project-photo-preview-expanded-md"
+                                    aria-label="Open full-size large preview">
+                                <span class="project-photo-preview-action-icon" aria-hidden="true"></span>
+                                <span class="project-photo-preview-action-text">Open preview</span>
+                            </button>
                         </div>
-                        <div class="project-photo-preview-label">Large (@largeOptions.Width × @largeOptions.Height)</div>
+                        <div class="project-photo-preview-label" id="@largeLabelId">Large (@largeOptions.Width × @largeOptions.Height)</div>
+                        <div class="project-photo-preview-expanded"
+                             id="project-photo-preview-expanded-md"
+                             data-photo-preview-expanded
+                             role="dialog"
+                             aria-modal="true"
+                             aria-labelledby="@largeLabelId"
+                             aria-describedby="@largeMetaId"
+                             aria-hidden="true"
+                             tabindex="-1">
+                            <div class="project-photo-preview-expanded-dialog">
+                                <button type="button"
+                                        class="btn-close project-photo-preview-close"
+                                        data-photo-preview-close
+                                        aria-label="Close full preview"></button>
+                                <div class="project-photo-preview-expanded-media">
+                                    <img alt="Large derivative preview" data-photo-preview-large />
+                                </div>
+                                <div class="project-photo-preview-expanded-meta" id="@largeMetaId">
+                                    <div class="project-photo-preview-meta-title">Large derivative</div>
+                                    <div class="project-photo-preview-meta-size">@largeOptions.Width × @largeOptions.Height</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="project-photo-preview-item">
-                        <div class="project-photo-preview-frame" data-photo-editor-preview="sm" data-width="@thumbOptions.Width" data-height="@thumbOptions.Height">
-                            <img alt="Thumbnail preview" />
+                    <div class="project-photo-preview-item" data-photo-preview-item>
+                        <div class="project-photo-preview-frame"
+                             data-photo-editor-preview="sm"
+                             data-width="@thumbOptions.Width"
+                             data-height="@thumbOptions.Height">
+                            <img alt="Thumbnail preview" data-photo-preview-thumb />
+                            <button type="button"
+                                    class="project-photo-preview-action"
+                                    data-photo-preview-open
+                                    aria-haspopup="dialog"
+                                    aria-controls="project-photo-preview-expanded-sm"
+                                    aria-label="Open full-size thumbnail preview">
+                                <span class="project-photo-preview-action-icon" aria-hidden="true"></span>
+                                <span class="project-photo-preview-action-text">Open preview</span>
+                            </button>
                         </div>
-                        <div class="project-photo-preview-label">Thumbnail (@thumbOptions.Width × @thumbOptions.Height)</div>
+                        <div class="project-photo-preview-label" id="@thumbLabelId">Thumbnail (@thumbOptions.Width × @thumbOptions.Height)</div>
+                        <div class="project-photo-preview-expanded"
+                             id="project-photo-preview-expanded-sm"
+                             data-photo-preview-expanded
+                             role="dialog"
+                             aria-modal="true"
+                             aria-labelledby="@thumbLabelId"
+                             aria-describedby="@thumbMetaId"
+                             aria-hidden="true"
+                             tabindex="-1">
+                            <div class="project-photo-preview-expanded-dialog">
+                                <button type="button"
+                                        class="btn-close project-photo-preview-close"
+                                        data-photo-preview-close
+                                        aria-label="Close full preview"></button>
+                                <div class="project-photo-preview-expanded-media">
+                                    <img alt="Thumbnail derivative preview" data-photo-preview-large />
+                                </div>
+                                <div class="project-photo-preview-expanded-meta" id="@thumbMetaId">
+                                    <div class="project-photo-preview-meta-title">Thumbnail derivative</div>
+                                    <div class="project-photo-preview-meta-size">@thumbOptions.Width × @thumbOptions.Height</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
