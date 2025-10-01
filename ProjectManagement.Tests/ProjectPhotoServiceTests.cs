@@ -262,7 +262,7 @@ public sealed class ProjectPhotoServiceTests
 
             Assert.NotNull(derivative);
             Assert.True(File.Exists(service.GetDerivativePath(photo, "xl", preferWebp: true)));
-            derivative!.Stream.Dispose();
+            derivative!.Value.Stream.Dispose();
         }
         finally
         {

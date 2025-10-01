@@ -240,12 +240,12 @@ namespace ProjectManagement.Services.Projects
                 return null;
             }
 
-            foreach (var candidate in EnumerateDerivativeCandidates(photo, sizeKey, preferWebp))
+            foreach (var (path, contentType) in EnumerateDerivativeCandidates(photo, sizeKey, preferWebp))
             {
-                if (File.Exists(candidate.Path))
+                if (File.Exists(path))
                 {
-                    var stream = new FileStream(candidate.Path, FileMode.Open, FileAccess.Read, FileShare.Read);
-                    return (stream, candidate.ContentType);
+                    var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    return (stream, contentType);
                 }
             }
 

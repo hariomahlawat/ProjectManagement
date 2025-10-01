@@ -186,7 +186,8 @@ public sealed class ProjectPhotoPageTests
         var headers = page.Response.GetTypedHeaders();
         Assert.Equal(TimeSpan.FromDays(7), headers.CacheControl?.MaxAge);
         Assert.Equal("Accept", page.Response.Headers[HeaderNames.Vary]);
-        Assert.Contains("webp", headers.ETag?.Tag);
+        Assert.NotNull(headers.ETag);
+        Assert.Contains("webp", headers.ETag!.Tag.Value, StringComparison.OrdinalIgnoreCase);
         Assert.True(photoService.OpenDerivativeCalled);
         Assert.True(photoService.PreferWebpRequested);
     }
