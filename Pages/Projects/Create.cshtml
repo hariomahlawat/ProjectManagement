@@ -34,7 +34,8 @@
                     </div>
                     <div class="col-md-6">
                         <label asp-for="Input.Description" class="form-label"></label>
-                        <textarea asp-for="Input.Description" class="form-control" rows="3"></textarea>
+                        <textarea asp-for="Input.Description" class="form-control" rows="3" maxlength="1000"></textarea>
+                        <div class="form-text" data-char-count-for="Input_Description">0/1000</div>
                         <span asp-validation-for="Input.Description" class="text-danger"></span>
                     </div>
                 </div>
@@ -122,5 +123,6 @@
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script src="~/js/widgets/async-select.js" asp-append-version="true" defer></script>
+    <script src="~/js/widgets/char-count.js" asp-append-version="true" defer></script>
     <script src="~/js/projects/create.js" asp-append-version="true"></script>
 }
