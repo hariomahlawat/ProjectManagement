@@ -32,12 +32,14 @@
     var additionalPhotos = Model.Photos.Where(p => coverPhoto == null || p.Id != coverPhoto.Id).ToList();
     Func<ProjectPhoto, string, int?, string> photoUrl = (photo, size, version) =>
         Url.Page("/Projects/Photos/View", new { id = Model.Project!.Id, photoId = photo.Id, size, v = version })!;
+    var coverXs = coverPhoto != null ? photoUrl(coverPhoto, "xs", coverVersion) : null;
     var coverSm = coverPhoto != null ? photoUrl(coverPhoto, "sm", coverVersion) : null;
     var coverMd = coverPhoto != null ? photoUrl(coverPhoto, "md", coverVersion) : null;
     var coverXl = coverPhoto != null ? photoUrl(coverPhoto, "xl", coverVersion) : null;
     var coverSrcSet = coverPhoto != null
         ? string.Join(", ", new[]
         {
+            $"{coverXs} 400w",
             $"{coverSm} 800w",
             $"{coverMd} 1200w",
             $"{coverXl} 1600w"
@@ -210,7 +212,7 @@
                                 <img class="w-100 h-100 object-fit-cover rounded border"
                                      width="360"
                                      height="270"
-                                     src="@coverMd"
+                                     src="@coverXs"
                                      srcset="@coverSrcSet"
                                      sizes="(min-width: 992px) 360px, 100vw"
                                      alt="@(string.IsNullOrWhiteSpace(coverPhoto.Caption) ? $"{project?.Name} cover photo" : coverPhoto.Caption)" />
