@@ -285,6 +285,11 @@ body {
     }
 }
 
+.project-overview__description {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
 .project-photo-empty {
     display: flex;
     align-items: center;
