@@ -1,0 +1,140 @@
+@page
+@model ProjectManagement.Pages.Projects.Documents.Approvals.ReviewModel
+@{
+    ViewData["Title"] ??= $"Review document request – {Model.Project.Name}";
+
+    string FormatFileSize(long? bytes)
+    {
+        if (!bytes.HasValue || bytes.Value <= 0)
+        {
+            return "—";
+        }
+
+        double size = bytes.Value;
+        string[] units = { "bytes", "KB", "MB", "GB", "TB" };
+        var unitIndex = 0;
+        while (size >= 1024 && unitIndex < units.Length - 1)
+        {
+            size /= 1024;
+            unitIndex++;
+        }
+
+        return unitIndex == 0
+            ? string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:0} {1}", size, units[unitIndex])
+            : string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:0.##} {1}", size, units[unitIndex]);
+    }
+
+    string ApproveButtonLabel => Model.Request.RequestType switch
+    {
+        ProjectManagement.Models.ProjectDocumentRequestType.Upload => "Approve & publish",
+        ProjectManagement.Models.ProjectDocumentRequestType.Replace => "Approve & overwrite",
+        ProjectManagement.Models.ProjectDocumentRequestType.Delete => "Approve removal",
+        _ => "Approve"
+    };
+}
+
+<div class="row gy-4">
+    <div class="col-12">
+        <a class="btn btn-link px-0" asp-page="./Index" asp-route-id="@Model.Project.Id">&larr; Back to approvals</a>
+        <h1 class="h2 mt-2">Review document request</h1>
+        <p class="text-muted">Moderate pending document changes for <strong>@Model.Project.Name</strong>.</p>
+    </div>
+
+    <div class="col-lg-7">
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body">
+                <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+                    <span class="badge text-bg-primary">@Model.Request.Stage</span>
+                    @if (!string.IsNullOrWhiteSpace(Model.Request.StageCode))
+                    {
+                        <span class="badge text-bg-light text-muted">@Model.Request.StageCode</span>
+                    }
+                    <span class="badge text-bg-secondary">@Model.Request.Action</span>
+                </div>
+
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Nomenclature</dt>
+                    <dd class="col-sm-8">@Model.Request.Title</dd>
+
+                    <dt class="col-sm-4">Requested by</dt>
+                    <dd class="col-sm-8">@Model.Request.RequestedBy</dd>
+
+                    <dt class="col-sm-4">Requested on</dt>
+                    <dd class="col-sm-8">@Model.Request.RequestedAtLocal.ToString("dd MMM yyyy, h:mm tt", System.Globalization.CultureInfo.InvariantCulture) IST</dd>
+
+                    <dt class="col-sm-4">Original filename</dt>
+                    <dd class="col-sm-8">@(!string.IsNullOrWhiteSpace(Model.Request.OriginalFileName) ? Model.Request.OriginalFileName : "—")</dd>
+
+                    <dt class="col-sm-4">File size</dt>
+                    <dd class="col-sm-8">@FormatFileSize(Model.Request.FileSize)</dd>
+
+                    <dt class="col-sm-4">Content type</dt>
+                    <dd class="col-sm-8">@(!string.IsNullOrWhiteSpace(Model.Request.ContentType) ? Model.Request.ContentType : "—")</dd>
+
+                    @if (!string.IsNullOrWhiteSpace(Model.Request.Description))
+                    {
+                        <dt class="col-sm-4">Submitter note</dt>
+                        <dd class="col-sm-8">@Model.Request.Description</dd>
+                    }
+                </dl>
+            </div>
+        </div>
+
+        @if (Model.Request.Document is not null)
+        {
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body">
+                    <h2 class="h6 text-uppercase text-muted mb-3">Current document</h2>
+                    <dl class="row mb-0">
+                        <dt class="col-sm-4">Title</dt>
+                        <dd class="col-sm-8">@Model.Request.Document.Title</dd>
+
+                        <dt class="col-sm-4">Filename</dt>
+                        <dd class="col-sm-8">@Model.Request.Document.OriginalFileName</dd>
+
+                        <dt class="col-sm-4">File size</dt>
+                        <dd class="col-sm-8">@FormatFileSize(Model.Request.Document.FileSize)</dd>
+
+                        <dt class="col-sm-4">File stamp</dt>
+                        <dd class="col-sm-8">@Model.Request.Document.FileStamp</dd>
+
+                        <dt class="col-sm-4">Last uploaded</dt>
+                        <dd class="col-sm-8">@Model.Request.Document.UploadedAtLocal.ToString("dd MMM yyyy, h:mm tt", System.Globalization.CultureInfo.InvariantCulture) IST by @Model.Request.Document.UploadedBy</dd>
+
+                        @if (Model.Request.Document.IsArchived)
+                        {
+                            <dt class="col-sm-4">Status</dt>
+                            <dd class="col-sm-8"><span class="badge text-bg-warning">Archived</span></dd>
+                        }
+                    </dl>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="col-lg-5">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <h2 class="h5 mb-3">Decision</h2>
+                <p class="text-muted">Approvals publish the change immediately. Rejections discard staged files.</p>
+
+                <form method="post" novalidate>
+                    <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+                    <input type="hidden" asp-for="Input.RequestId" />
+                    <input type="hidden" asp-for="Input.RowVersion" />
+
+                    <div class="mb-3">
+                        <label asp-for="Input.Note" class="form-label">Decision note</label>
+                        <textarea asp-for="Input.Note" class="form-control" rows="4" placeholder="Optional feedback for the requester"></textarea>
+                        <span asp-validation-for="Input.Note" class="text-danger"></span>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="submit" class="btn btn-success" asp-page-handler="Approve">@ApproveButtonLabel</button>
+                        <button type="submit" class="btn btn-outline-danger" asp-page-handler="Reject">Reject</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>

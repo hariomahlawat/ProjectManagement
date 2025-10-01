@@ -1,0 +1,77 @@
+@page
+@model ProjectManagement.Pages.Projects.Documents.Approvals.IndexModel
+@{
+    ViewData["Title"] ??= $"Document approvals – {Model.Project.Name}";
+
+    string FormatFileSize(long? bytes)
+    {
+        if (!bytes.HasValue || bytes.Value <= 0)
+        {
+            return "—";
+        }
+
+        double size = bytes.Value;
+        var units = new[] { "bytes", "KB", "MB", "GB", "TB" };
+        var unitIndex = 0;
+        while (size >= 1024 && unitIndex < units.Length - 1)
+        {
+            size /= 1024;
+            unitIndex++;
+        }
+
+        return unitIndex == 0
+            ? string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:0} {1}", size, units[unitIndex])
+            : string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:0.##} {1}", size, units[unitIndex]);
+    }
+}
+
+<div class="row gy-4">
+    <div class="col-12">
+        <a class="btn btn-link px-0" asp-page="../../Overview" asp-route-id="@Model.Project.Id">&larr; Back to project overview</a>
+        <h1 class="h2 mt-2">Document approvals</h1>
+        <p class="text-muted">Review pending document requests for <strong>@Model.Project.Name</strong>.</p>
+    </div>
+
+    <div class="col-12">
+        @if (Model.Requests.Count == 0)
+        {
+            <div class="alert alert-info" role="alert">
+                There are no pending document requests for this project.
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">Stage</th>
+                            <th scope="col">Nomenclature</th>
+                            <th scope="col">Action</th>
+                            <th scope="col">Requested by</th>
+                            <th scope="col">Requested on</th>
+                            <th scope="col">File size</th>
+                            <th scope="col" class="text-end">&nbsp;</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var request in Model.Requests)
+                        {
+                            <tr>
+                                <td>@request.Stage</td>
+                                <td class="fw-semibold">@request.Nomenclature</td>
+                                <td>@request.Action</td>
+                                <td>@request.RequestedBy</td>
+                                <td>@request.RequestedAtLocal.ToString("dd MMM yyyy, h:mm tt", System.Globalization.CultureInfo.InvariantCulture) IST</td>
+                                <td>@FormatFileSize(request.FileSize)</td>
+                                <td class="text-end">
+                                    <a class="btn btn-sm btn-primary" asp-page="./Review" asp-route-id="@Model.Project.Id" asp-route-requestId="@request.RequestId">Review</a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+</div>
