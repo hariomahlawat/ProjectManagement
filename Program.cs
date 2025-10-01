@@ -107,7 +107,7 @@ builder.Services.ConfigureApplicationCookie(opt =>
     opt.Cookie.Path = "/";
     opt.Cookie.HttpOnly = true;
     opt.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-    opt.Cookie.SameSite = SameSiteMode.Strict;
+    opt.Cookie.SameSite = Microsoft.AspNetCore.Http.SameSiteMode.Strict;
     opt.ExpireTimeSpan = TimeSpan.FromMinutes(60);
     opt.SlidingExpiration = true;
 });
