@@ -43,7 +43,7 @@ public sealed class ReviewModel : PageModel
 
     public ProjectSummaryViewModel Project { get; private set; } = default!;
 
-    public RequestDetailViewModel Request { get; private set; } = default!;
+    public RequestDetailViewModel RequestDetail { get; private set; } = default!;
 
     public async Task<IActionResult> OnGetAsync(int id, int requestId, CancellationToken cancellationToken)
     {
@@ -232,8 +232,14 @@ public sealed class ReviewModel : PageModel
         return true;
     }
 
-    private static bool TryDecodeRowVersion(string value, out byte[] rowVersion)
+    private static bool TryDecodeRowVersion(string? value, out byte[] rowVersion)
     {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            rowVersion = Array.Empty<byte>();
+            return false;
+        }
+
         try
         {
             rowVersion = Convert.FromBase64String(value);
@@ -281,7 +287,7 @@ public sealed class ReviewModel : PageModel
                 request.Document.Status == ProjectDocumentStatus.SoftDeleted);
         }
 
-        Request = new RequestDetailViewModel(
+        RequestDetail = new RequestDetailViewModel(
             request.Id,
             stageDisplay,
             request.Stage?.StageCode ?? string.Empty,

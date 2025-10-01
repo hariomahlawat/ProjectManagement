@@ -3,7 +3,7 @@
 @{
     ViewData["Title"] ??= $"Review document request – {Model.Project.Name}";
 
-    string FormatFileSize(long? bytes)
+    System.Func<long?, string> formatFileSize = bytes =>
     {
         if (!bytes.HasValue || bytes.Value <= 0)
         {
@@ -22,9 +22,9 @@
         return unitIndex == 0
             ? string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:0} {1}", size, units[unitIndex])
             : string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0:0.##} {1}", size, units[unitIndex]);
-    }
+    };
 
-    string ApproveButtonLabel => Model.Request.RequestType switch
+    string approveButtonLabel = Model.RequestDetail.RequestType switch
     {
         ProjectManagement.Models.ProjectDocumentRequestType.Upload => "Approve & publish",
         ProjectManagement.Models.ProjectDocumentRequestType.Replace => "Approve & overwrite",
@@ -44,64 +44,64 @@
         <div class="card border-0 shadow-sm mb-4">
             <div class="card-body">
                 <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
-                    <span class="badge text-bg-primary">@Model.Request.Stage</span>
-                    @if (!string.IsNullOrWhiteSpace(Model.Request.StageCode))
+                    <span class="badge text-bg-primary">@Model.RequestDetail.Stage</span>
+                    @if (!string.IsNullOrWhiteSpace(Model.RequestDetail.StageCode))
                     {
-                        <span class="badge text-bg-light text-muted">@Model.Request.StageCode</span>
+                        <span class="badge text-bg-light text-muted">@Model.RequestDetail.StageCode</span>
                     }
-                    <span class="badge text-bg-secondary">@Model.Request.Action</span>
+                    <span class="badge text-bg-secondary">@Model.RequestDetail.Action</span>
                 </div>
 
                 <dl class="row mb-0">
                     <dt class="col-sm-4">Nomenclature</dt>
-                    <dd class="col-sm-8">@Model.Request.Title</dd>
+                    <dd class="col-sm-8">@Model.RequestDetail.Title</dd>
 
                     <dt class="col-sm-4">Requested by</dt>
-                    <dd class="col-sm-8">@Model.Request.RequestedBy</dd>
+                    <dd class="col-sm-8">@Model.RequestDetail.RequestedBy</dd>
 
                     <dt class="col-sm-4">Requested on</dt>
-                    <dd class="col-sm-8">@Model.Request.RequestedAtLocal.ToString("dd MMM yyyy, h:mm tt", System.Globalization.CultureInfo.InvariantCulture) IST</dd>
+                    <dd class="col-sm-8">@Model.RequestDetail.RequestedAtLocal.ToString("dd MMM yyyy, h:mm tt", System.Globalization.CultureInfo.InvariantCulture) IST</dd>
 
                     <dt class="col-sm-4">Original filename</dt>
-                    <dd class="col-sm-8">@(!string.IsNullOrWhiteSpace(Model.Request.OriginalFileName) ? Model.Request.OriginalFileName : "—")</dd>
+                    <dd class="col-sm-8">@(!string.IsNullOrWhiteSpace(Model.RequestDetail.OriginalFileName) ? Model.RequestDetail.OriginalFileName : "—")</dd>
 
                     <dt class="col-sm-4">File size</dt>
-                    <dd class="col-sm-8">@FormatFileSize(Model.Request.FileSize)</dd>
+                    <dd class="col-sm-8">@formatFileSize(Model.RequestDetail.FileSize)</dd>
 
                     <dt class="col-sm-4">Content type</dt>
-                    <dd class="col-sm-8">@(!string.IsNullOrWhiteSpace(Model.Request.ContentType) ? Model.Request.ContentType : "—")</dd>
+                    <dd class="col-sm-8">@(!string.IsNullOrWhiteSpace(Model.RequestDetail.ContentType) ? Model.RequestDetail.ContentType : "—")</dd>
 
-                    @if (!string.IsNullOrWhiteSpace(Model.Request.Description))
+                    @if (!string.IsNullOrWhiteSpace(Model.RequestDetail.Description))
                     {
                         <dt class="col-sm-4">Submitter note</dt>
-                        <dd class="col-sm-8">@Model.Request.Description</dd>
+                        <dd class="col-sm-8">@Model.RequestDetail.Description</dd>
                     }
                 </dl>
             </div>
         </div>
 
-        @if (Model.Request.Document is not null)
+        @if (Model.RequestDetail.Document is not null)
         {
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-body">
                     <h2 class="h6 text-uppercase text-muted mb-3">Current document</h2>
                     <dl class="row mb-0">
                         <dt class="col-sm-4">Title</dt>
-                        <dd class="col-sm-8">@Model.Request.Document.Title</dd>
+                        <dd class="col-sm-8">@Model.RequestDetail.Document.Title</dd>
 
                         <dt class="col-sm-4">Filename</dt>
-                        <dd class="col-sm-8">@Model.Request.Document.OriginalFileName</dd>
+                        <dd class="col-sm-8">@Model.RequestDetail.Document.OriginalFileName</dd>
 
                         <dt class="col-sm-4">File size</dt>
-                        <dd class="col-sm-8">@FormatFileSize(Model.Request.Document.FileSize)</dd>
+                        <dd class="col-sm-8">@formatFileSize(Model.RequestDetail.Document.FileSize)</dd>
 
                         <dt class="col-sm-4">File stamp</dt>
-                        <dd class="col-sm-8">@Model.Request.Document.FileStamp</dd>
+                        <dd class="col-sm-8">@Model.RequestDetail.Document.FileStamp</dd>
 
                         <dt class="col-sm-4">Last uploaded</dt>
-                        <dd class="col-sm-8">@Model.Request.Document.UploadedAtLocal.ToString("dd MMM yyyy, h:mm tt", System.Globalization.CultureInfo.InvariantCulture) IST by @Model.Request.Document.UploadedBy</dd>
+                        <dd class="col-sm-8">@Model.RequestDetail.Document.UploadedAtLocal.ToString("dd MMM yyyy, h:mm tt", System.Globalization.CultureInfo.InvariantCulture) IST by @Model.RequestDetail.Document.UploadedBy</dd>
 
-                        @if (Model.Request.Document.IsArchived)
+                        @if (Model.RequestDetail.Document.IsArchived)
                         {
                             <dt class="col-sm-4">Status</dt>
                             <dd class="col-sm-8"><span class="badge text-bg-warning">Archived</span></dd>
@@ -130,7 +130,7 @@
                     </div>
 
                     <div class="d-flex flex-wrap gap-2">
-                        <button type="submit" class="btn btn-success" asp-page-handler="Approve">@ApproveButtonLabel</button>
+                        <button type="submit" class="btn btn-success" asp-page-handler="Approve">@approveButtonLabel</button>
                         <button type="submit" class="btn btn-outline-danger" asp-page-handler="Reject">Reject</button>
                     </div>
                 </form>
