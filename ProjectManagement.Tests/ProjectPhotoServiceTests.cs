@@ -133,17 +133,22 @@ public sealed class ProjectPhotoServiceTests
 
             Assert.Equal(1200, photo.Width);
             Assert.Equal(900, photo.Height);
-            Assert.Equal("image/webp", photo.ContentType);
+            Assert.Equal("image/jpeg", photo.ContentType);
             Assert.True(photo.IsCover);
 
             Assert.True(options.Derivatives.ContainsKey("xs"));
 
-            var derivativePaths = options.Derivatives.Keys
-                .Select(key => service.GetDerivativePath(photo, key))
+            var webpPaths = options.Derivatives.Keys
+                .Select(key => service.GetDerivativePath(photo, key, preferWebp: true))
+                .ToList();
+            var fallbackPaths = options.Derivatives.Keys
+                .Select(key => service.GetDerivativePath(photo, key, preferWebp: false))
                 .ToList();
 
-            Assert.All(derivativePaths, path => Assert.True(File.Exists(path)));
-            Assert.All(derivativePaths, path => Assert.EndsWith(".webp", path, StringComparison.OrdinalIgnoreCase));
+            Assert.All(webpPaths, path => Assert.True(File.Exists(path)));
+            Assert.All(webpPaths, path => Assert.EndsWith(".webp", path, StringComparison.OrdinalIgnoreCase));
+            Assert.All(fallbackPaths, path => Assert.True(File.Exists(path)));
+            Assert.All(fallbackPaths, path => Assert.EndsWith(".jpg", path, StringComparison.OrdinalIgnoreCase));
         }
         finally
         {
@@ -171,9 +176,12 @@ public sealed class ProjectPhotoServiceTests
             var project = await db.Projects.SingleAsync(p => p.Id == 17);
             Assert.Equal(photo.Version, project.CoverPhotoVersion);
 
-            var derivativeBefore = service.GetDerivativePath(photo, "xl");
-            Assert.True(File.Exists(derivativeBefore));
-            Assert.EndsWith(".png", derivativeBefore, StringComparison.OrdinalIgnoreCase);
+            var derivativeBeforeFallback = service.GetDerivativePath(photo, "xl", preferWebp: false);
+            var derivativeBeforeWebp = service.GetDerivativePath(photo, "xl", preferWebp: true);
+            Assert.True(File.Exists(derivativeBeforeFallback));
+            Assert.True(File.Exists(derivativeBeforeWebp));
+            Assert.EndsWith(".png", derivativeBeforeFallback, StringComparison.OrdinalIgnoreCase);
+            Assert.EndsWith(".webp", derivativeBeforeWebp, StringComparison.OrdinalIgnoreCase);
 
             var updatedCrop = new ProjectPhotoCrop(0, 0, 800, 600);
             var updated = await service.UpdateCropAsync(17, photo.Id, updatedCrop, "creator", CancellationToken.None);
@@ -250,10 +258,10 @@ public sealed class ProjectPhotoServiceTests
 
             var photo = await service.AddAsync(31, stream, "fresh.png", "image/png", "user", true, null, CancellationToken.None);
 
-            var derivative = await service.OpenDerivativeAsync(31, photo.Id, "xl", CancellationToken.None);
+            var derivative = await service.OpenDerivativeAsync(31, photo.Id, "xl", preferWebp: true, CancellationToken.None);
 
             Assert.NotNull(derivative);
-            Assert.True(File.Exists(service.GetDerivativePath(photo, "xl")));
+            Assert.True(File.Exists(service.GetDerivativePath(photo, "xl", preferWebp: true)));
             derivative!.Stream.Dispose();
         }
         finally
@@ -282,7 +290,7 @@ public sealed class ProjectPhotoServiceTests
 
             foreach (var key in options.Derivatives.Keys)
             {
-                var derivativePath = service.GetDerivativePath(photo, key);
+                var derivativePath = service.GetDerivativePath(photo, key, preferWebp: false);
                 Assert.True(File.Exists(derivativePath));
 
                 await using var derivativeStream = new FileStream(derivativePath, FileMode.Open, FileAccess.Read, FileShare.Read);
@@ -317,7 +325,12 @@ public sealed class ProjectPhotoServiceTests
             var photo = await service.AddAsync(31, stream, "delete.png", "image/png", "owner", true, null, CancellationToken.None);
 
             var paths = options.Derivatives.Keys
-                .Select(key => service.GetDerivativePath(photo, key))
+                .SelectMany(key => new[]
+                {
+                    service.GetDerivativePath(photo, key, preferWebp: true),
+                    service.GetDerivativePath(photo, key, preferWebp: false)
+                })
+                .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
             var removed = await service.RemoveAsync(31, photo.Id, "owner", CancellationToken.None);

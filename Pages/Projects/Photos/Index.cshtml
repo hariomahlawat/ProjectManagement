@@ -43,7 +43,23 @@ else
                     : $"photo in position {photo.Ordinal}";
                 <tr>
                     <td style="width: 140px;">
-                        <img src="@Url.Page("./View", new { id = Model.Project.Id, photoId = photo.Id, size = "sm" })" alt="Project photo preview" class="img-thumbnail" style="max-width: 128px;" />
+                        @{ 
+                            var previewSm = Url.Page("./View", new { id = Model.Project.Id, photoId = photo.Id, size = "sm" });
+                            var previewMd = Url.Page("./View", new { id = Model.Project.Id, photoId = photo.Id, size = "md" });
+                            var previewSrcSet = string.Join(", ", new[]
+                            {
+                                $"{previewSm} 1x",
+                                $"{previewMd} 2x"
+                            });
+                        }
+                        <picture>
+                            <source type="image/webp" srcset="@previewSrcSet" />
+                            <img src="@previewSm"
+                                 srcset="@previewSrcSet"
+                                 alt="Project photo preview"
+                                 class="img-thumbnail"
+                                 style="max-width: 128px;" />
+                        </picture>
                     </td>
                     <td>
                         @if (!string.IsNullOrWhiteSpace(photo.Caption))

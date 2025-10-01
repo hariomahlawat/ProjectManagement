@@ -35,6 +35,14 @@
     var coverSm = coverPhoto != null ? photoUrl(coverPhoto, "sm", coverVersion) : null;
     var coverMd = coverPhoto != null ? photoUrl(coverPhoto, "md", coverVersion) : null;
     var coverXl = coverPhoto != null ? photoUrl(coverPhoto, "xl", coverVersion) : null;
+    var coverSrcSet = coverPhoto != null
+        ? string.Join(", ", new[]
+        {
+            $"{coverSm} 800w",
+            $"{coverMd} 1200w",
+            $"{coverXl} 1600w"
+        })
+        : null;
     ViewData["Title"] = pageTitle;
 }
 
@@ -195,13 +203,18 @@
                     <div class="ratio ratio-4x3" style="max-width: 360px;">
                         @if (coverPhoto != null)
                         {
-                            <img class="w-100 h-100 object-fit-cover rounded border"
-                                 width="360"
-                                 height="270"
-                                 src="@coverMd"
-                                 srcset="@coverSm 800w, @coverMd 1200w, @coverXl 1600w"
-                                 sizes="(min-width: 992px) 360px, 100vw"
-                                 alt="@(string.IsNullOrWhiteSpace(coverPhoto.Caption) ? $"{project?.Name} cover photo" : coverPhoto.Caption)" />
+                            <picture>
+                                <source type="image/webp"
+                                        srcset="@coverSrcSet"
+                                        sizes="(min-width: 992px) 360px, 100vw" />
+                                <img class="w-100 h-100 object-fit-cover rounded border"
+                                     width="360"
+                                     height="270"
+                                     src="@coverMd"
+                                     srcset="@coverSrcSet"
+                                     sizes="(min-width: 992px) 360px, 100vw"
+                                     alt="@(string.IsNullOrWhiteSpace(coverPhoto.Caption) ? $"{project?.Name} cover photo" : coverPhoto.Caption)" />
+                            </picture>
                         }
                         else
                         {
@@ -223,14 +236,24 @@
                             {
                                 var thumbUrl = photoUrl(photo, "sm", photo.Version);
                                 var largeUrl = photoUrl(photo, "xl", photo.Version);
+                                var thumbSrcSet = string.Join(", ", new[]
+                                {
+                                    $"{thumbUrl} 1x",
+                                    $"{largeUrl} 2x"
+                                });
                                 <a class="text-decoration-none" href="@largeUrl" target="_blank" rel="noopener">
                                     <div class="ratio ratio-4x3" style="width: 140px;">
-                                        <img class="w-100 h-100 object-fit-cover rounded border"
-                                             loading="lazy"
-                                             width="140"
-                                             height="105"
-                                             src="@thumbUrl"
-                                             alt="@(string.IsNullOrWhiteSpace(photo.Caption) ? $"{project?.Name} photo" : photo.Caption)" />
+                                        <picture>
+                                            <source type="image/webp"
+                                                    srcset="@thumbSrcSet" />
+                                            <img class="w-100 h-100 object-fit-cover rounded border"
+                                                 loading="lazy"
+                                                 width="140"
+                                                 height="105"
+                                                 src="@thumbUrl"
+                                                 srcset="@thumbSrcSet"
+                                                 alt="@(string.IsNullOrWhiteSpace(photo.Caption) ? $"{project?.Name} photo" : photo.Caption)" />
+                                        </picture>
                                     </div>
                                     @if (!string.IsNullOrWhiteSpace(photo.Caption))
                                     {

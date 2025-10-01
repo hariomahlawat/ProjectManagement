@@ -52,9 +52,13 @@ namespace ProjectManagement.Services.Projects
 
         Task ReorderAsync(int projectId, IReadOnlyList<int> orderedPhotoIds, string userId, CancellationToken cancellationToken);
 
-        Task<(Stream Stream, string ContentType)?> OpenDerivativeAsync(int projectId, int photoId, string sizeKey, CancellationToken cancellationToken);
+        Task<(Stream Stream, string ContentType)?> OpenDerivativeAsync(int projectId,
+                                                                      int photoId,
+                                                                      string sizeKey,
+                                                                      bool preferWebp,
+                                                                      CancellationToken cancellationToken);
 
-        string GetDerivativePath(ProjectPhoto photo, string sizeKey);
+        string GetDerivativePath(ProjectPhoto photo, string sizeKey, bool preferWebp);
     }
 
     public readonly record struct ProjectPhotoCrop(int X, int Y, int Width, int Height);
