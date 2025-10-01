@@ -167,6 +167,11 @@ public sealed class DocumentDecisionService : IDocumentDecisionService
             decidedByUserId,
             cancellationToken);
 
+        if (!string.IsNullOrWhiteSpace(request.Title))
+        {
+            document.Title = request.Title;
+        }
+
         document.RequestId = request.Id;
         request.TempStorageKey = null;
     }

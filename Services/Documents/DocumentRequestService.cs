@@ -67,6 +67,7 @@ public sealed class DocumentRequestService : IDocumentRequestService
 
     public async Task<ProjectDocumentRequest> CreateReplaceRequestAsync(
         int documentId,
+        string? newTitle,
         DocumentFileDescriptor file,
         string requestedByUserId,
         CancellationToken cancellationToken)
@@ -89,12 +90,16 @@ public sealed class DocumentRequestService : IDocumentRequestService
 
         await EnsureNoPendingForDocumentAsync(documentId, cancellationToken);
 
+        var title = string.IsNullOrWhiteSpace(newTitle)
+            ? document.Title
+            : newTitle.Trim();
+
         var request = new ProjectDocumentRequest
         {
             ProjectId = document.ProjectId,
             StageId = document.StageId,
             DocumentId = document.Id,
-            Title = document.Title,
+            Title = title,
             RequestType = ProjectDocumentRequestType.Replace,
             Status = ProjectDocumentRequestStatus.Submitted,
             TempStorageKey = file.StorageKey,
@@ -116,6 +121,7 @@ public sealed class DocumentRequestService : IDocumentRequestService
 
     public async Task<ProjectDocumentRequest> CreateDeleteRequestAsync(
         int documentId,
+        string? reason,
         string requestedByUserId,
         CancellationToken cancellationToken)
     {
@@ -146,6 +152,7 @@ public sealed class DocumentRequestService : IDocumentRequestService
             FileSize = document.FileSize,
             RequestedByUserId = requestedByUserId,
             RequestedAtUtc = _clock.UtcNow,
+            Description = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(),
         };
 
         _db.ProjectDocumentRequests.Add(request);

@@ -16,12 +16,14 @@ public interface IDocumentRequestService
 
     Task<ProjectDocumentRequest> CreateReplaceRequestAsync(
         int documentId,
+        string? newTitle,
         DocumentFileDescriptor file,
         string requestedByUserId,
         CancellationToken cancellationToken);
 
     Task<ProjectDocumentRequest> CreateDeleteRequestAsync(
         int documentId,
+        string? reason,
         string requestedByUserId,
         CancellationToken cancellationToken);
 }
