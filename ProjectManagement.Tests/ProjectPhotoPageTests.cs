@@ -37,6 +37,8 @@ using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using Xunit;
+using static ProjectManagement.Pages.Projects.Photos.EditModel;
+using static ProjectManagement.Pages.Projects.Photos.UploadModel;
 
 namespace ProjectManagement.Tests;
 
