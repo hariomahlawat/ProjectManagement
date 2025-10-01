@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -66,6 +67,23 @@ namespace ProjectManagement.Pages.Projects
         public ProjectPhoto? CoverPhoto { get; private set; }
         public int? CoverPhotoVersion { get; private set; }
         public string? CoverPhotoUrl { get; private set; }
+
+        [BindProperty(SupportsGet = true)]
+        public string? DocumentStageFilter { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public string? DocumentStatusFilter { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public int DocumentPage { get; set; } = 1;
+
+        public ProjectDocumentListViewModel DocumentList { get; private set; } = ProjectDocumentListViewModel.Empty;
+
+        public IReadOnlyList<ProjectDocumentPendingRequestViewModel> DocumentPendingRequests { get; private set; } = Array.Empty<ProjectDocumentPendingRequestViewModel>();
+
+        public bool IsDocumentApprover { get; private set; }
+
+        public int DocumentPendingRequestCount { get; private set; }
 
         public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
         {
@@ -182,8 +200,448 @@ namespace ProjectManagement.Pages.Projects
                 MetaChangeRequest = await BuildMetaChangeRequestVmAsync(project, pendingMetaRequest, ct);
             }
 
+            var isAdmin = User.IsInRole("Admin");
+            var isHoD = User.IsInRole("HoD");
+
+            await LoadDocumentOverviewAsync(project, isAdmin, isHoD, ct);
+
             return Page();
         }
+
+        private async Task LoadDocumentOverviewAsync(Project project, bool isAdmin, bool isHoD, CancellationToken ct)
+        {
+            var isApprover = isAdmin || isHoD;
+            IsDocumentApprover = isApprover;
+
+            var normalizedStage = NormalizeDocumentStage(DocumentStageFilter);
+            var normalizedStatus = NormalizeDocumentStatus(DocumentStatusFilter, isApprover);
+
+            DocumentStageFilter = normalizedStage;
+            DocumentStatusFilter = normalizedStatus;
+
+            var page = DocumentPage <= 0 ? 1 : DocumentPage;
+
+            var documents = await _db.ProjectDocuments
+                .AsNoTracking()
+                .Where(d => d.ProjectId == project.Id && !d.IsArchived)
+                .Include(d => d.Stage)
+                .Include(d => d.UploadedByUser)
+                .ToListAsync(ct);
+
+            if (!isApprover)
+            {
+                documents = documents
+                    .Where(d => d.Status == ProjectDocumentStatus.Published)
+                    .ToList();
+            }
+
+            var pendingRequests = await _db.ProjectDocumentRequests
+                .AsNoTracking()
+                .Where(r => r.ProjectId == project.Id && r.Status == ProjectDocumentRequestStatus.Submitted)
+                .Include(r => r.Stage)
+                .Include(r => r.Document)
+                .Include(r => r.RequestedByUser)
+                .OrderByDescending(r => r.RequestedAtUtc)
+                .ToListAsync(ct);
+
+            DocumentPendingRequestCount = pendingRequests.Count;
+
+            var tz = TimeZoneHelper.GetIst();
+
+            if (isApprover)
+            {
+                DocumentPendingRequests = pendingRequests
+                    .OrderByDescending(r => r.RequestedAtUtc)
+                    .Take(5)
+                    .Select(r => BuildPendingRequestSummary(project.Id, r, tz))
+                    .ToList();
+            }
+            else
+            {
+                DocumentPendingRequests = Array.Empty<ProjectDocumentPendingRequestViewModel>();
+            }
+
+            var pendingByDocumentId = pendingRequests
+                .Where(r => r.DocumentId.HasValue)
+                .GroupBy(r => r.DocumentId!.Value)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var filteredDocuments = documents
+                .Where(d => StageMatches(d.Stage?.StageCode, normalizedStage))
+                .OrderBy(d => StageOrder(d.Stage?.StageCode))
+                .ThenByDescending(d => d.UploadedAtUtc)
+                .ThenBy(d => d.Id)
+                .ToList();
+
+            var filteredRequests = pendingRequests
+                .Where(r => StageMatches(r.Stage?.StageCode, normalizedStage))
+                .OrderBy(r => StageOrder(r.Stage?.StageCode))
+                .ThenByDescending(r => r.RequestedAtUtc)
+                .ThenBy(r => r.Id)
+                .ToList();
+
+            var usingPending = string.Equals(normalizedStatus, ProjectDocumentListViewModel.PendingStatusValue, StringComparison.OrdinalIgnoreCase) && isApprover;
+
+            var rows = usingPending
+                ? filteredRequests.Select(r => BuildPendingRow(r, tz)).ToList()
+                : filteredDocuments.Select(d => BuildDocumentRow(d, pendingByDocumentId, tz)).ToList();
+
+            var totalItems = rows.Count;
+            var totalPages = Math.Max(1, (int)Math.Ceiling(totalItems / (double)ProjectDocumentListViewModel.DefaultPageSize));
+
+            if (page > totalPages)
+            {
+                page = totalPages;
+            }
+
+            var pageRows = rows
+                .Skip((page - 1) * ProjectDocumentListViewModel.DefaultPageSize)
+                .Take(ProjectDocumentListViewModel.DefaultPageSize)
+                .ToList();
+
+            var groups = pageRows
+                .GroupBy(r => r.StageCode, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(g => StageOrder(g.Key))
+                .ThenBy(g => g.Key ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+                .Select(g => new ProjectDocumentStageGroupViewModel(
+                    string.IsNullOrEmpty(g.Key) ? null : g.Key,
+                    g.First().StageDisplayName,
+                    g.ToList()))
+                .ToList();
+
+            var stageFilters = BuildStageFilters(documents, pendingRequests, normalizedStage);
+            var statusFilters = BuildStatusFilters(normalizedStatus, isApprover);
+
+            DocumentPage = page;
+
+            DocumentList = new ProjectDocumentListViewModel(
+                groups,
+                stageFilters,
+                statusFilters,
+                normalizedStage,
+                usingPending ? ProjectDocumentListViewModel.PendingStatusValue : ProjectDocumentListViewModel.PublishedStatusValue,
+                page,
+                ProjectDocumentListViewModel.DefaultPageSize,
+                totalItems);
+        }
+
+        private IReadOnlyList<ProjectDocumentFilterOptionViewModel> BuildStageFilters(
+            IReadOnlyCollection<ProjectDocument> documents,
+            IReadOnlyCollection<ProjectDocumentRequest> pendingRequests,
+            string? selectedStage)
+        {
+            var filters = new List<ProjectDocumentFilterOptionViewModel>
+            {
+                new(null, "All stages", string.IsNullOrEmpty(selectedStage))
+            };
+
+            var stageCodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var code in StageCodes.All)
+            {
+                stageCodes.Add(code);
+            }
+
+            foreach (var stage in Stages)
+            {
+                if (!string.IsNullOrWhiteSpace(stage.StageCode))
+                {
+                    stageCodes.Add(stage.StageCode);
+                }
+            }
+
+            foreach (var document in documents)
+            {
+                if (!string.IsNullOrWhiteSpace(document.Stage?.StageCode))
+                {
+                    stageCodes.Add(document.Stage.StageCode);
+                }
+            }
+
+            foreach (var request in pendingRequests)
+            {
+                if (!string.IsNullOrWhiteSpace(request.Stage?.StageCode))
+                {
+                    stageCodes.Add(request.Stage.StageCode);
+                }
+            }
+
+            var orderedCodes = stageCodes
+                .OrderBy(StageOrder)
+                .ThenBy(code => code, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var code in orderedCodes)
+            {
+                var label = string.Format(CultureInfo.InvariantCulture, "{0} ({1})", StageCodes.DisplayNameOf(code), code);
+                filters.Add(new ProjectDocumentFilterOptionViewModel(
+                    code,
+                    label,
+                    string.Equals(code, selectedStage, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            var hasUnassigned = documents.Any(d => d.StageId is null) || pendingRequests.Any(r => r.StageId is null);
+
+            if (hasUnassigned || string.Equals(selectedStage, ProjectDocumentListViewModel.UnassignedStageValue, StringComparison.OrdinalIgnoreCase))
+            {
+                filters.Add(new ProjectDocumentFilterOptionViewModel(
+                    ProjectDocumentListViewModel.UnassignedStageValue,
+                    "General",
+                    string.Equals(selectedStage, ProjectDocumentListViewModel.UnassignedStageValue, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            return filters;
+        }
+
+        private static IReadOnlyList<ProjectDocumentFilterOptionViewModel> BuildStatusFilters(string selectedStatus, bool isApprover)
+        {
+            var filters = new List<ProjectDocumentFilterOptionViewModel>
+            {
+                new(ProjectDocumentListViewModel.PublishedStatusValue, "Published", !string.Equals(selectedStatus, ProjectDocumentListViewModel.PendingStatusValue, StringComparison.OrdinalIgnoreCase))
+            };
+
+            if (isApprover)
+            {
+                filters.Add(new ProjectDocumentFilterOptionViewModel(
+                    ProjectDocumentListViewModel.PendingStatusValue,
+                    "Pending",
+                    string.Equals(selectedStatus, ProjectDocumentListViewModel.PendingStatusValue, StringComparison.OrdinalIgnoreCase)));
+            }
+
+            return filters;
+        }
+
+        private ProjectDocumentRowViewModel BuildDocumentRow(
+            ProjectDocument document,
+            IReadOnlyDictionary<int, ProjectDocumentRequest> pendingRequests,
+            TimeZoneInfo tz)
+        {
+            var stageCode = document.Stage?.StageCode;
+            var stageDisplay = BuildStageDisplayName(stageCode);
+            var uploadedBy = FormatUser(document.UploadedByUser);
+            var uploadedOn = TimeZoneInfo.ConvertTime(document.UploadedAtUtc, tz);
+            var metadata = string.Format(CultureInfo.InvariantCulture, "Uploaded on {0:dd MMM yyyy} by {1}", uploadedOn, uploadedBy);
+            var title = string.IsNullOrWhiteSpace(document.Title) ? document.OriginalFileName : document.Title;
+            var statusLabel = document.Status == ProjectDocumentStatus.Published ? "Published" : "Removed";
+            var statusVariant = document.Status == ProjectDocumentStatus.Published ? "success" : "secondary";
+            string? secondarySummary = null;
+            ProjectDocumentRequestType? pendingType = null;
+            var isPending = false;
+            int? requestId = null;
+
+            if (pendingRequests.TryGetValue(document.Id, out var pending))
+            {
+                isPending = true;
+                statusLabel = "Pending";
+                statusVariant = "warning";
+                pendingType = pending.RequestType;
+                requestId = pending.Id;
+                var pendingBy = FormatUser(pending.RequestedByUser);
+                var pendingOn = TimeZoneInfo.ConvertTime(pending.RequestedAtUtc, tz);
+                secondarySummary = string.Format(
+                    CultureInfo.InvariantCulture,
+                    "{0} request submitted on {1:dd MMM yyyy} by {2}",
+                    DescribeRequestType(pending.RequestType),
+                    pendingOn,
+                    pendingBy);
+            }
+
+            var previewUrl = Url.Page("/Projects/Documents/Preview", new { documentId = document.Id });
+
+            return new ProjectDocumentRowViewModel(
+                stageCode,
+                stageDisplay,
+                document.Id,
+                requestId,
+                title,
+                document.OriginalFileName,
+                FormatFileSize(document.FileSize),
+                metadata,
+                statusLabel,
+                statusVariant,
+                isPending,
+                document.Status == ProjectDocumentStatus.SoftDeleted,
+                previewUrl,
+                secondarySummary,
+                pendingType);
+        }
+
+        private ProjectDocumentRowViewModel BuildPendingRow(ProjectDocumentRequest request, TimeZoneInfo tz)
+        {
+            var stageCode = request.Stage?.StageCode;
+            var stageDisplay = BuildStageDisplayName(stageCode);
+            var requestedBy = FormatUser(request.RequestedByUser);
+            var requestedOn = TimeZoneInfo.ConvertTime(request.RequestedAtUtc, tz);
+            var metadata = string.Format(CultureInfo.InvariantCulture, "Requested on {0:dd MMM yyyy} by {1}", requestedOn, requestedBy);
+            var title = string.IsNullOrWhiteSpace(request.Title)
+                ? (request.OriginalFileName ?? request.Document?.OriginalFileName ?? "Pending document")
+                : request.Title;
+            var previewUrl = request.DocumentId.HasValue
+                ? Url.Page("/Projects/Documents/Preview", new { documentId = request.DocumentId.Value })
+                : null;
+
+            var secondarySummary = string.Format(
+                CultureInfo.InvariantCulture,
+                "{0} request awaiting review",
+                DescribeRequestType(request.RequestType));
+
+            var fileName = request.OriginalFileName ?? request.Document?.OriginalFileName;
+
+            return new ProjectDocumentRowViewModel(
+                stageCode,
+                stageDisplay,
+                request.DocumentId,
+                request.Id,
+                title,
+                fileName,
+                FormatFileSize(request.FileSize ?? request.Document?.FileSize),
+                metadata,
+                "Pending",
+                "warning",
+                true,
+                false,
+                previewUrl,
+                secondarySummary,
+                request.RequestType);
+        }
+
+        private ProjectDocumentPendingRequestViewModel BuildPendingRequestSummary(int projectId, ProjectDocumentRequest request, TimeZoneInfo tz)
+        {
+            var requestedBy = FormatUser(request.RequestedByUser);
+            var requestedOn = TimeZoneInfo.ConvertTime(request.RequestedAtUtc, tz);
+            var summary = string.Format(CultureInfo.InvariantCulture, "Requested on {0:dd MMM yyyy, HH:mm} by {1}", requestedOn, requestedBy);
+            var fileName = request.OriginalFileName ?? request.Document?.OriginalFileName ?? "—";
+            var reviewUrl = Url.Page("/Projects/Documents/Approvals/Review", new { id = projectId, requestId = request.Id }) ?? string.Empty;
+            var rowVersion = request.RowVersion is { Length: > 0 }
+                ? Convert.ToBase64String(request.RowVersion)
+                : string.Empty;
+
+            return new ProjectDocumentPendingRequestViewModel(
+                request.Id,
+                string.IsNullOrWhiteSpace(request.Title) ? fileName : request.Title,
+                BuildStageDisplayName(request.Stage?.StageCode),
+                string.Format(CultureInfo.InvariantCulture, "{0} request", DescribeRequestType(request.RequestType)),
+                summary,
+                fileName,
+                FormatFileSize(request.FileSize ?? request.Document?.FileSize),
+                rowVersion,
+                reviewUrl,
+                request.RequestedAtUtc,
+                requestedBy);
+        }
+
+        private static string BuildStageDisplayName(string? stageCode)
+        {
+            if (string.IsNullOrWhiteSpace(stageCode))
+            {
+                return "General";
+            }
+
+            return string.Format(CultureInfo.InvariantCulture, "{0} ({1})", StageCodes.DisplayNameOf(stageCode), stageCode);
+        }
+
+        private static string? NormalizeDocumentStage(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            if (string.Equals(value, "all", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            if (string.Equals(value, ProjectDocumentListViewModel.UnassignedStageValue, StringComparison.OrdinalIgnoreCase))
+            {
+                return ProjectDocumentListViewModel.UnassignedStageValue;
+            }
+
+            return value.Trim().ToUpperInvariant();
+        }
+
+        private static string NormalizeDocumentStatus(string? value, bool isApprover)
+        {
+            if (isApprover && string.Equals(value, ProjectDocumentListViewModel.PendingStatusValue, StringComparison.OrdinalIgnoreCase))
+            {
+                return ProjectDocumentListViewModel.PendingStatusValue;
+            }
+
+            return ProjectDocumentListViewModel.PublishedStatusValue;
+        }
+
+        private static bool StageMatches(string? stageCode, string? filter)
+        {
+            if (string.IsNullOrEmpty(filter))
+            {
+                return true;
+            }
+
+            if (string.Equals(filter, ProjectDocumentListViewModel.UnassignedStageValue, StringComparison.OrdinalIgnoreCase))
+            {
+                return string.IsNullOrEmpty(stageCode);
+            }
+
+            return string.Equals(stageCode, filter, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string FormatFileSize(long? bytes)
+        {
+            if (!bytes.HasValue)
+            {
+                return "—";
+            }
+
+            if (bytes.Value < 1024)
+            {
+                return string.Format(CultureInfo.InvariantCulture, "{0} B", bytes.Value);
+            }
+
+            double value = bytes.Value;
+            string[] units = { "B", "KB", "MB", "GB", "TB" };
+            var unit = 0;
+
+            while (value >= 1024 && unit < units.Length - 1)
+            {
+                value /= 1024;
+                unit++;
+            }
+
+            if (unit == 0)
+            {
+                return string.Format(CultureInfo.InvariantCulture, "{0} {1}", bytes.Value, units[unit]);
+            }
+
+            return string.Format(CultureInfo.InvariantCulture, "{0:0.##} {1}", value, units[unit]);
+        }
+
+        private static string FormatUser(ApplicationUser? user)
+        {
+            if (user is null)
+            {
+                return "Unknown";
+            }
+
+            if (!string.IsNullOrWhiteSpace(user.FullName))
+            {
+                return user.FullName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(user.UserName))
+            {
+                return user.UserName!;
+            }
+
+            return string.IsNullOrWhiteSpace(user.Email) ? "Unknown" : user.Email!;
+        }
+
+        private static string DescribeRequestType(ProjectDocumentRequestType type) => type switch
+        {
+            ProjectDocumentRequestType.Upload => "Upload",
+            ProjectDocumentRequestType.Replace => "Replacement",
+            ProjectDocumentRequestType.Delete => "Removal",
+            _ => "Request"
+        };
 
         private BackfillViewModel BuildBackfillViewModel(int projectId)
         {
