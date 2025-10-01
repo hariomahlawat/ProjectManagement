@@ -438,6 +438,9 @@ namespace ProjectManagement.Services.Projects
             {
                 using var image = await Image.LoadAsync<Rgba32>(content, cancellationToken);
                 image.Mutate(ctx => ctx.AutoOrient());
+                image.Metadata.ExifProfile = null;
+                image.Metadata.IptcProfile = null;
+                image.Metadata.XmpProfile = null;
 
                 if (image.Width < _options.MinWidth || image.Height < _options.MinHeight)
                 {
@@ -491,6 +494,10 @@ namespace ProjectManagement.Services.Projects
                         Size = new Size(derivative.Width, derivative.Height),
                         Sampler = KnownResamplers.Lanczos3
                     }));
+
+                    clone.Metadata.ExifProfile = null;
+                    clone.Metadata.IptcProfile = null;
+                    clone.Metadata.XmpProfile = null;
 
                     var ms = new MemoryStream();
                     if (hasTransparency)
