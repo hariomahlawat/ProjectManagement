@@ -194,6 +194,51 @@ body {
     white-space: nowrap;
 }
 
+/* ---------- Card action helpers ---------- */
+.card-action-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .75rem;
+}
+
+.card-action-bar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+    margin-left: auto;
+}
+
+.card-action-link {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    padding: .25rem .5rem;
+    border-radius: .5rem;
+    font-weight: 600;
+    color: var(--bs-link-color);
+}
+
+.card-action-link:hover,
+.card-action-link:focus {
+    text-decoration: none;
+}
+
+.card-action-link:hover {
+    background-color: rgba(var(--bs-link-color-rgb, 13, 110, 253), .08);
+}
+
+.card-action-link:focus-visible {
+    outline: 2px solid var(--bs-focus-ring-color, rgba(13, 110, 253, .4));
+    outline-offset: 2px;
+    background-color: rgba(var(--bs-link-color-rgb, 13, 110, 253), .12);
+}
+
+.card-action-link .bi {
+    font-size: 1rem;
+}
+
 /* ---------- Project gallery ---------- */
 .project-gallery {
     border: 1px solid var(--pm-border);

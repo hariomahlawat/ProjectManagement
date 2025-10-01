@@ -189,15 +189,18 @@
 
     <div class="card mb-4">
         <div class="card-body">
-            <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2 mb-3">
+            <div class="card-action-bar mb-3">
                 <h2 class="h5 mb-0">Project photos</h2>
                 @if (canManagePhotos)
                 {
-                    <a class="btn btn-sm btn-outline-primary"
-                       asp-page="/Projects/Photos/Index"
-                       asp-route-id="@Model.Project!.Id">
-                        Manage photos
-                    </a>
+                    <div class="card-action-bar-actions">
+                        <a class="btn btn-link card-action-link"
+                           asp-page="/Projects/Photos/Index"
+                           asp-route-id="@Model.Project!.Id">
+                            <i class="bi bi-sliders" aria-hidden="true"></i>
+                            <span>Manage photos</span>
+                        </a>
+                    </div>
                 }
             </div>
             <div class="row g-4 align-items-start">
@@ -383,7 +386,7 @@
                         </p>
                         @if (canManagePhotos)
                         {
-                            <a class="btn btn-sm btn-primary"
+                            <a class="btn btn-primary"
                                asp-page="/Projects/Photos/Index"
                                asp-route-id="@Model.Project!.Id"
                                aria-label="Upload the first project photo">
