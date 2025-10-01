@@ -1,0 +1,97 @@
+@using System.Linq
+@using System.Text.Encodings.Web
+@using System.Text.Json
+@using ProjectManagement.Models
+@model ProjectManagement.ViewModels.ProjectPhotoLightboxViewModel
+@{
+    if (Model.Photos.Count == 0)
+    {
+        return;
+    }
+
+    var modalId = Model.ModalId;
+    var labelId = $"{modalId}-title";
+    var captionId = $"{modalId}-caption";
+    var counterId = $"{modalId}-counter";
+    var options = new JsonSerializerOptions
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
+    var payload = Model.Photos
+        .Select((photo, index) =>
+        {
+            var version = Model.GetVersion(photo);
+            var caption = string.IsNullOrWhiteSpace(photo.Caption) ? null : photo.Caption;
+            var alt = caption ?? $"{Model.ProjectName} photo";
+            var thumb = new
+            {
+                src = Url.Page("/Projects/Photos/View", new { id = Model.ProjectId, photoId = photo.Id, size = "sm", v = version }),
+                srcSet = string.Join(", ", new[]
+                {
+                    Url.Page("/Projects/Photos/View", new { id = Model.ProjectId, photoId = photo.Id, size = "sm", v = version }) + " 1x",
+                    Url.Page("/Projects/Photos/View", new { id = Model.ProjectId, photoId = photo.Id, size = "md", v = version }) + " 2x"
+                })
+            };
+            var stage = new
+            {
+                src = Url.Page("/Projects/Photos/View", new { id = Model.ProjectId, photoId = photo.Id, size = "xl", v = version }),
+                srcSet = string.Join(", ", new[]
+                {
+                    Url.Page("/Projects/Photos/View", new { id = Model.ProjectId, photoId = photo.Id, size = "md", v = version }) + " 1x",
+                    Url.Page("/Projects/Photos/View", new { id = Model.ProjectId, photoId = photo.Id, size = "xl", v = version }) + " 2x"
+                }),
+                sizes = "(min-width: 992px) 960px, 100vw"
+            };
+
+            return new
+            {
+                id = photo.Id,
+                index,
+                caption,
+                alt,
+                thumb,
+                stage
+            };
+        })
+        .ToList();
+
+    var json = JsonSerializer.Serialize(payload, options);
+}
+
+<div class="modal fade project-gallery-modal" id="@modalId" tabindex="-1" aria-labelledby="@labelId" aria-describedby="@captionId" aria-hidden="true" data-gallery-modal>
+    <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="@labelId">Photo gallery</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close gallery"></button>
+            </div>
+            <div class="modal-body">
+                <div class="project-gallery-modal__content" data-gallery-lightbox>
+                    <div class="project-gallery-modal__stage">
+                        <picture data-gallery-picture>
+                            <img data-gallery-image class="project-gallery-modal__image" alt="" />
+                        </picture>
+                        <div class="project-gallery-modal__stage-controls">
+                            <button type="button" class="btn btn-outline-light project-gallery-modal__control" data-gallery-prev aria-controls="@captionId" aria-label="Previous photo">
+                                <span aria-hidden="true">&larr;</span>
+                            </button>
+                            <button type="button" class="btn btn-outline-light project-gallery-modal__control" data-gallery-next aria-controls="@captionId" aria-label="Next photo">
+                                <span aria-hidden="true">&rarr;</span>
+                            </button>
+                        </div>
+                        <div class="project-gallery-modal__counter" id="@counterId" data-gallery-counter aria-live="polite"></div>
+                    </div>
+                    <div class="project-gallery-modal__meta">
+                        <p class="project-gallery-modal__caption" id="@captionId" data-gallery-caption aria-live="polite"></p>
+                        <div class="project-gallery-modal__thumbnails" data-gallery-thumbnails role="list"></div>
+                        <div class="project-gallery-modal__fallback">
+                            <p class="mb-0">JavaScript is disabled. <a class="link-primary" asp-page="/Projects/Photos/Index" asp-route-id="@Model.ProjectId">View all project photos</a>.</p>
+                        </div>
+                    </div>
+                </div>
+                <script type="application/json" data-gallery-data>@Html.Raw(json)</script>
+            </div>
+        </div>
+    </div>
+</div>

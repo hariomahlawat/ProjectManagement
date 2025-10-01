@@ -281,40 +281,85 @@
 
                         @if (additionalPhotos.Any())
                         {
-                            <div>
-                                <h3 class="h6 mb-2">Gallery</h3>
-                                <div class="d-flex flex-wrap gap-3">
-                                    @foreach (var photo in additionalPhotos)
+                            var previewPhotos = additionalPhotos.Take(4).ToList();
+                            var remainingPhotos = Math.Max(0, additionalPhotos.Count - previewPhotos.Count);
+                            var galleryModalId = $"project-gallery-modal-{Model.Project!.Id}";
+                            var galleryModalModel = new ProjectPhotoLightboxViewModel(
+                                Model.Project!.Id,
+                                project?.Name ?? "Project",
+                                Model.Photos,
+                                coverPhoto?.Id,
+                                Model.CoverPhotoVersion ?? coverPhoto?.Version,
+                                galleryModalId);
+
+                            <div class="project-gallery" data-gallery data-gallery-project="@Model.Project!.Id" data-gallery-modal-id="@galleryModalId">
+                                <div class="project-gallery__header">
+                                    <h3 class="h6 mb-2">Gallery</h3>
+                                    <p class="text-muted small mb-0">Browse project highlights without leaving the page.</p>
+                                </div>
+                                <div class="project-gallery__grid" role="list">
+                                    @for (var i = 0; i < previewPhotos.Count; i++)
                                     {
+                                        var photo = previewPhotos[i];
                                         var thumbUrl = photoUrl(photo, "sm", photo.Version);
+                                        var mediumUrl = photoUrl(photo, "md", photo.Version);
                                         var largeUrl = photoUrl(photo, "xl", photo.Version);
                                         var thumbSrcSet = string.Join(", ", new[]
                                         {
                                             $"{thumbUrl} 1x",
+                                            $"{mediumUrl} 1.5x",
                                             $"{largeUrl} 2x"
                                         });
-                                        <a class="text-decoration-none" href="@largeUrl" target="_blank" rel="noopener">
-                                            <div class="ratio ratio-4x3" style="width: 140px;">
+                                        var captionText = string.IsNullOrWhiteSpace(photo.Caption) ? null : photo.Caption;
+                                        var altText = captionText ?? $"{project?.Name ?? "Project"} photo";
+                                        var itemClasses = "project-gallery__item" + (i == 0 ? " project-gallery__item--featured" : string.Empty);
+                                        <a class="@itemClasses"
+                                           role="listitem"
+                                           href="@largeUrl"
+                                           data-gallery-trigger
+                                           data-gallery-photo-id="@photo.Id"
+                                           data-gallery-full="@largeUrl"
+                                           data-gallery-srcset="@thumbSrcSet"
+                                           data-gallery-caption="@captionText"
+                                           data-gallery-alt="@altText"
+                                           aria-label="View photo @(i + 1) of @additionalPhotos.Count@(captionText is null ? string.Empty : $": {captionText}")">
+                                            <div class="project-gallery__media">
                                                 <picture>
-                                                    <source type="image/webp"
-                                                            srcset="@thumbSrcSet" />
-                                                    <img class="w-100 h-100 object-fit-cover rounded border"
+                                                    <source type="image/webp" srcset="@thumbSrcSet" />
+                                                    <img class="project-gallery__img"
                                                          loading="lazy"
-                                                         width="140"
-                                                         height="105"
+                                                         width="320"
+                                                         height="240"
                                                          src="@thumbUrl"
                                                          srcset="@thumbSrcSet"
-                                                         alt="@(string.IsNullOrWhiteSpace(photo.Caption) ? $"{project?.Name} photo" : photo.Caption)" />
+                                                         alt="@altText" />
                                                 </picture>
                                             </div>
-                                            @if (!string.IsNullOrWhiteSpace(photo.Caption))
-                                            {
-                                                <small class="d-block text-muted text-truncate mt-1" title="@photo.Caption">@photo.Caption</small>
-                                            }
+                                            <div class="project-gallery__overlay" aria-hidden="true">
+                                                <span class="project-gallery__overlay-text">@(captionText ?? "View photo")</span>
+                                            </div>
                                         </a>
                                     }
+
+                                    <a class="project-gallery__item project-gallery__item--cta"
+                                       role="listitem"
+                                       href="@Url.Page("/Projects/Photos/Index", new { id = Model.Project!.Id })"
+                                       data-gallery-open
+                                       aria-controls="@galleryModalId"
+                                       aria-label="View the full project photo gallery">
+                                        <div class="project-gallery__cta-body">
+                                            <span class="project-gallery__cta-icon" aria-hidden="true">&#128247;</span>
+                                            <span class="project-gallery__cta-text">View gallery</span>
+                                            @if (remainingPhotos > 0)
+                                            {
+                                                <span class="project-gallery__cta-meta">+@remainingPhotos more</span>
+                                            }
+                                        </div>
+                                    </a>
                                 </div>
                             </div>
+
+                            <partial name="_ProjectPhotoLightbox" model="galleryModalModel" />
                         }
                     </div>
                 </div>
@@ -760,6 +805,7 @@
 <partial name="_PlanDiscardDraftModal" model="Model.Project.Id" />
 
 @section Scripts {
+    <script type="module" src="~/js/gallery-lightbox.js" asp-append-version="true"></script>
     <script src="~/js/projects/overview.js" asp-append-version="true"></script>
     <script src="~/js/projects/plan-edit.js" asp-append-version="true"></script>
     <script src="~/js/projects/stages.js" asp-append-version="true"></script>
