@@ -172,10 +172,10 @@ builder.Services.AddScoped<IForecastWriter, ForecastWriter>();
 builder.Services.AddScoped<ForecastBackfillService>();
 builder.Services.AddScoped<ProjectMetaChangeRequestService>();
 builder.Services.AddScoped<ProjectMetaChangeDecisionService>();
-builder.Services.Configure<ProjectPhotoOptions>(
-    builder.Configuration.GetSection("ProjectPhotos"));
-builder.Services.Configure<ProjectDocumentOptions>(
-    builder.Configuration.GetSection("ProjectDocuments"));
+builder.Services.AddOptions<ProjectPhotoOptions>()
+    .Bind(builder.Configuration.GetSection("ProjectPhotos"));
+builder.Services.AddOptions<ProjectDocumentOptions>()
+    .Bind(builder.Configuration.GetSection("ProjectDocuments"));
 builder.Services.AddSingleton<IConfigureOptions<ProjectPhotoOptions>, ProjectPhotoOptionsSetup>();
 builder.Services.AddSingleton<IUploadRootProvider, UploadRootProvider>();
 builder.Services.AddScoped<IProjectPhotoService, ProjectPhotoService>();
