@@ -21,6 +21,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Net.Http.Headers;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using PhotosIndexModel = ProjectManagement.Pages.Projects.Photos.IndexModel;
@@ -173,16 +174,21 @@ public sealed class ProjectPhotoPageTests
         var userContext = new FakeUserContext("viewer", isProjectOfficer: true);
         var photoService = new StubPhotoService
         {
-            DerivativeToReturn = (new MemoryStream(new byte[] { 1, 2, 3 }), "image/png")
+            DerivativeToReturn = (new MemoryStream(new byte[] { 1, 2, 3 }), "image/webp")
         };
         var page = new PhotoViewModel(db, userContext, photoService);
         ConfigurePageContext(page, userContext.User);
+        page.Request.Headers[HeaderNames.Accept] = "image/webp";
 
         var result = await page.OnGetAsync(7, 8, "sm", CancellationToken.None);
 
         Assert.IsType<FileStreamResult>(result);
         var headers = page.Response.GetTypedHeaders();
         Assert.Equal(TimeSpan.FromDays(7), headers.CacheControl?.MaxAge);
+        Assert.Equal("Accept", page.Response.Headers[HeaderNames.Vary]);
+        Assert.Contains("webp", headers.ETag?.Tag);
+        Assert.True(photoService.OpenDerivativeCalled);
+        Assert.True(photoService.PreferWebpRequested);
     }
 
     [Fact]
@@ -201,6 +207,7 @@ public sealed class ProjectPhotoPageTests
         Assert.IsType<FileContentResult>(result);
         var headers = page.Response.GetTypedHeaders();
         Assert.Equal(TimeSpan.FromDays(7), headers.CacheControl?.MaxAge);
+        Assert.Equal("Accept", page.Response.Headers[HeaderNames.Vary]);
     }
 
     [Fact]
@@ -526,10 +533,14 @@ public sealed class ProjectPhotoPageTests
         public Task ReorderAsync(int projectId, IReadOnlyList<int> orderedPhotoIds, string userId, CancellationToken cancellationToken)
             => throw new NotImplementedException();
 
-        public Task<(Stream Stream, string ContentType)?> OpenDerivativeAsync(int projectId, int photoId, string sizeKey, CancellationToken cancellationToken)
+        public Task<(Stream Stream, string ContentType)?> OpenDerivativeAsync(int projectId,
+                                                                             int photoId,
+                                                                             string sizeKey,
+                                                                             bool preferWebp,
+                                                                             CancellationToken cancellationToken)
             => throw new NotImplementedException();
 
-        public string GetDerivativePath(ProjectPhoto photo, string sizeKey)
+        public string GetDerivativePath(ProjectPhoto photo, string sizeKey, bool preferWebp)
             => throw new NotImplementedException();
     }
 
@@ -538,6 +549,8 @@ public sealed class ProjectPhotoPageTests
         public (Stream Stream, string ContentType)? DerivativeToReturn { get; set; }
 
         public bool OpenDerivativeCalled { get; private set; }
+
+        public bool? PreferWebpRequested { get; private set; }
 
         public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, CancellationToken cancellationToken)
             => throw new NotImplementedException();
@@ -563,13 +576,18 @@ public sealed class ProjectPhotoPageTests
         public Task ReorderAsync(int projectId, IReadOnlyList<int> orderedPhotoIds, string userId, CancellationToken cancellationToken)
             => throw new NotImplementedException();
 
-        public Task<(Stream Stream, string ContentType)?> OpenDerivativeAsync(int projectId, int photoId, string sizeKey, CancellationToken cancellationToken)
+        public Task<(Stream Stream, string ContentType)?> OpenDerivativeAsync(int projectId,
+                                                                             int photoId,
+                                                                             string sizeKey,
+                                                                             bool preferWebp,
+                                                                             CancellationToken cancellationToken)
         {
             OpenDerivativeCalled = true;
+            PreferWebpRequested = preferWebp;
             return Task.FromResult(DerivativeToReturn);
         }
 
-        public string GetDerivativePath(ProjectPhoto photo, string sizeKey)
+        public string GetDerivativePath(ProjectPhoto photo, string sizeKey, bool preferWebp)
             => throw new NotImplementedException();
     }
 

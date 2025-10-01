@@ -65,28 +65,36 @@ public class ViewModel : PageModel
             return PlaceholderResult(requestedSize);
         }
 
-        var etag = new EntityTagHeaderValue($"\"pp-{photo.ProjectId}-{photo.Id}-v{photo.Version}-{requestedSize}\"");
-        var cacheHeaders = Response.GetTypedHeaders();
-        cacheHeaders.CacheControl = new CacheControlHeaderValue
-        {
-            Public = true,
-            MaxAge = TimeSpan.FromDays(7)
-        };
-        cacheHeaders.ETag = etag;
-        cacheHeaders.LastModified = DateTime.SpecifyKind(photo.UpdatedUtc, DateTimeKind.Utc);
-
-        var ifNoneMatch = Request.GetTypedHeaders().IfNoneMatch;
-        if (ifNoneMatch != null && ifNoneMatch.Any(tag => tag.Equals(etag)))
-        {
-            return StatusCode(StatusCodes.Status304NotModified);
-        }
-
         try
         {
-            var derivative = await _photoService.OpenDerivativeAsync(id, photoId, requestedSize, cancellationToken);
+            var preferWebp = Request.GetTypedHeaders().Accept?.Any(value =>
+                value.MediaType.HasValue &&
+                string.Equals(value.MediaType.Value, "image/webp", StringComparison.OrdinalIgnoreCase)) ?? false;
+
+            Response.Headers[HeaderNames.Vary] = HeaderNames.Accept;
+
+            var derivative = await _photoService.OpenDerivativeAsync(id, photoId, requestedSize, preferWebp, cancellationToken);
             if (derivative is null)
             {
                 return PlaceholderResult(requestedSize);
+            }
+
+            var formatTag = GetFormatToken(derivative.Value.ContentType);
+            var etag = new EntityTagHeaderValue($"\"pp-{photo.ProjectId}-{photo.Id}-v{photo.Version}-{requestedSize}-{formatTag}\"");
+            var cacheHeaders = Response.GetTypedHeaders();
+            cacheHeaders.CacheControl = new CacheControlHeaderValue
+            {
+                Public = true,
+                MaxAge = TimeSpan.FromDays(7)
+            };
+            cacheHeaders.ETag = etag;
+            cacheHeaders.LastModified = DateTime.SpecifyKind(photo.UpdatedUtc, DateTimeKind.Utc);
+
+            var ifNoneMatch = Request.GetTypedHeaders().IfNoneMatch;
+            if (ifNoneMatch != null && ifNoneMatch.Any(tag => tag.Equals(etag)))
+            {
+                derivative.Value.Stream.Dispose();
+                return StatusCode(StatusCodes.Status304NotModified);
             }
 
             var result = new FileStreamResult(derivative.Value.Stream, derivative.Value.ContentType)
@@ -104,6 +112,8 @@ public class ViewModel : PageModel
 
     private IActionResult PlaceholderResult(string size)
     {
+        Response.Headers[HeaderNames.Vary] = HeaderNames.Accept;
+
         var etag = new EntityTagHeaderValue($"\"pp-placeholder-{size}\"");
         var headers = Response.GetTypedHeaders();
         headers.CacheControl = new CacheControlHeaderValue
@@ -157,5 +167,22 @@ public class ViewModel : PageModel
         }
 
         return false;
+}
+
+    private static string GetFormatToken(string contentType)
+    {
+        if (string.IsNullOrWhiteSpace(contentType))
+        {
+            return "unknown";
+        }
+
+        return contentType.ToLowerInvariant() switch
+        {
+            "image/webp" => "webp",
+            "image/png" => "png",
+            "image/jpeg" => "jpeg",
+            "image/jpg" => "jpeg",
+            _ => "other"
+        };
     }
 }

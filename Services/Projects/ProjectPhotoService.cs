@@ -13,6 +13,7 @@ using ProjectManagement.Utilities;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Advanced;
 using SixLabors.ImageSharp.Formats;
+using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.Formats.Webp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -224,7 +225,11 @@ namespace ProjectManagement.Services.Projects
             await Audit.Events.ProjectPhotoReordered(projectId, userId, orderedPhotoIds).WriteAsync(_audit);
         }
 
-        public async Task<(Stream Stream, string ContentType)?> OpenDerivativeAsync(int projectId, int photoId, string sizeKey, CancellationToken cancellationToken)
+        public async Task<(Stream Stream, string ContentType)?> OpenDerivativeAsync(int projectId,
+                                                                                    int photoId,
+                                                                                    string sizeKey,
+                                                                                    bool preferWebp,
+                                                                                    CancellationToken cancellationToken)
         {
             var photo = await _db.ProjectPhotos
                 .AsNoTracking()
@@ -235,17 +240,19 @@ namespace ProjectManagement.Services.Projects
                 return null;
             }
 
-            var path = GetDerivativePath(photo, sizeKey);
-            if (!File.Exists(path))
+            foreach (var candidate in EnumerateDerivativeCandidates(photo, sizeKey, preferWebp))
             {
-                return null;
+                if (File.Exists(candidate.Path))
+                {
+                    var stream = new FileStream(candidate.Path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                    return (stream, candidate.ContentType);
+                }
             }
 
-            var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-            return (stream, photo.ContentType);
+            return null;
         }
 
-        public string GetDerivativePath(ProjectPhoto photo, string sizeKey)
+        public string GetDerivativePath(ProjectPhoto photo, string sizeKey, bool preferWebp)
         {
             if (photo == null)
             {
@@ -257,12 +264,59 @@ namespace ProjectManagement.Services.Projects
                 throw new KeyNotFoundException($"Derivative size '{sizeKey}' is not configured.");
             }
 
-            var extension = string.Equals(photo.ContentType, "image/png", StringComparison.OrdinalIgnoreCase)
-                ? ".png"
-                : ".webp";
+            var directory = BuildProjectDirectory(photo.ProjectId);
+            var extension = preferWebp ? ".webp" : GetFallbackExtension(photo);
+            return Path.Combine(directory, $"{photo.StorageKey}-{sizeKey}{extension}");
+        }
+
+        private IEnumerable<(string Path, string ContentType)> EnumerateDerivativeCandidates(ProjectPhoto photo,
+                                                                                             string sizeKey,
+                                                                                             bool preferWebp)
+        {
+            if (!_options.Derivatives.ContainsKey(sizeKey))
+            {
+                yield break;
+            }
 
             var directory = BuildProjectDirectory(photo.ProjectId);
-            return Path.Combine(directory, $"{photo.StorageKey}-{sizeKey}{extension}");
+            var basePath = Path.Combine(directory, $"{photo.StorageKey}-{sizeKey}");
+            var fallbackExtension = GetFallbackExtension(photo);
+            var fallbackContentType = GetFallbackContentType(photo);
+
+            var fallbackCandidates = new List<(string Path, string ContentType)>
+            {
+                ($"{basePath}{fallbackExtension}", fallbackContentType)
+            };
+
+            if (!string.Equals(fallbackExtension, ".png", StringComparison.OrdinalIgnoreCase))
+            {
+                fallbackCandidates.Add(($"{basePath}.png", "image/png"));
+            }
+
+            if (!string.Equals(fallbackExtension, ".jpg", StringComparison.OrdinalIgnoreCase))
+            {
+                fallbackCandidates.Add(($"{basePath}.jpg", "image/jpeg"));
+            }
+
+            if (!string.Equals(fallbackExtension, ".jpeg", StringComparison.OrdinalIgnoreCase))
+            {
+                fallbackCandidates.Add(($"{basePath}.jpeg", "image/jpeg"));
+            }
+
+            var webpCandidate = ($"{basePath}.webp", "image/webp");
+
+            var ordered = preferWebp
+                ? Enumerable.Repeat(webpCandidate, 1).Concat(fallbackCandidates)
+                : fallbackCandidates.Concat(Enumerable.Repeat(webpCandidate, 1));
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var candidate in ordered)
+            {
+                if (seen.Add(candidate.Path))
+                {
+                    yield return candidate;
+                }
+            }
         }
 
         private void EnsureSemaphores()
@@ -311,7 +365,7 @@ namespace ProjectManagement.Services.Projects
                 ProjectId = projectId,
                 StorageKey = storageKey,
                 OriginalFileName = sanitizedName,
-                ContentType = validation.OutputContentType,
+                ContentType = validation.FallbackContentType,
                 Width = validation.CroppedWidth,
                 Height = validation.CroppedHeight,
                 Ordinal = ordinal + 1,
@@ -391,7 +445,7 @@ namespace ProjectManagement.Services.Projects
             await WriteImageFilesAsync(projectId, photo.StorageKey, validation, cancellationToken);
 
             photo.OriginalFileName = SanitizeFileName(originalFileName ?? photo.OriginalFileName);
-            photo.ContentType = validation.OutputContentType;
+            photo.ContentType = validation.FallbackContentType;
             photo.Width = validation.CroppedWidth;
             photo.Height = validation.CroppedHeight;
             photo.Version += 1;
@@ -463,13 +517,13 @@ namespace ProjectManagement.Services.Projects
                 image.Mutate(ctx => ctx.Crop(cropRectangle));
 
                 var hasTransparency = DetectTransparency(image);
-                var outputContentType = hasTransparency ? "image/png" : "image/webp";
+                var fallbackContentType = hasTransparency ? "image/png" : "image/jpeg";
 
                 var derivativeFiles = await GenerateDerivativesAsync(image, hasTransparency, cancellationToken);
 
                 var result = new ImageValidationResult
                 {
-                    OutputContentType = outputContentType,
+                    FallbackContentType = fallbackContentType,
                     DerivativeFiles = derivativeFiles,
                     CroppedWidth = image.Width,
                     CroppedHeight = image.Height
@@ -483,11 +537,11 @@ namespace ProjectManagement.Services.Projects
             }
         }
 
-        private async Task<Dictionary<string, InMemoryFile>> GenerateDerivativesAsync(Image<Rgba32> image,
-                                                                                       bool hasTransparency,
-                                                                                       CancellationToken cancellationToken)
+        private async Task<Dictionary<string, DerivativeSet>> GenerateDerivativesAsync(Image<Rgba32> image,
+                                                                                         bool hasTransparency,
+                                                                                         CancellationToken cancellationToken)
         {
-            var map = new Dictionary<string, InMemoryFile>(StringComparer.OrdinalIgnoreCase);
+            var map = new Dictionary<string, DerivativeSet>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var kvp in _options.Derivatives)
             {
@@ -508,28 +562,45 @@ namespace ProjectManagement.Services.Projects
                     clone.Metadata.IptcProfile = null;
                     clone.Metadata.XmpProfile = null;
 
-                    var ms = new MemoryStream();
+                    var webpStream = new MemoryStream();
+                    var webpEncoder = new WebpEncoder
+                    {
+                        FileFormat = WebpFileFormatType.Lossy,
+                        Quality = derivative.Quality
+                    };
+
+                    await clone.SaveAsync(webpStream, webpEncoder, cancellationToken);
+                    webpStream.Position = 0;
+
+                    var fallbackStream = new MemoryStream();
                     if (hasTransparency)
                     {
-                        var encoder = new PngEncoder
+                        var pngEncoder = new PngEncoder
                         {
                             ColorType = PngColorType.Rgb,
                             CompressionLevel = PngCompressionLevel.BestCompression
                         };
 
-                        await clone.SaveAsync(ms, encoder, cancellationToken);
-                        map[sizeKey] = new InMemoryFile(ms, ".png");
+                        await clone.SaveAsync(fallbackStream, pngEncoder, cancellationToken);
+                        fallbackStream.Position = 0;
+
+                        map[sizeKey] = new DerivativeSet(
+                            new InMemoryFile(webpStream, ".webp", "image/webp"),
+                            new InMemoryFile(fallbackStream, ".png", "image/png"));
                     }
                     else
                     {
-                        var encoder = new WebpEncoder
+                        var jpegEncoder = new JpegEncoder
                         {
-                            FileFormat = WebpFileFormatType.Lossy,
                             Quality = derivative.Quality
                         };
 
-                        await clone.SaveAsync(ms, encoder, cancellationToken);
-                        map[sizeKey] = new InMemoryFile(ms, ".webp");
+                        await clone.SaveAsync(fallbackStream, jpegEncoder, cancellationToken);
+                        fallbackStream.Position = 0;
+
+                        map[sizeKey] = new DerivativeSet(
+                            new InMemoryFile(webpStream, ".webp", "image/webp"),
+                            new InMemoryFile(fallbackStream, ".jpg", "image/jpeg"));
                     }
                 }
                 finally
@@ -551,21 +622,38 @@ namespace ProjectManagement.Services.Projects
 
             foreach (var kvp in validation.DerivativeFiles)
             {
-                var path = Path.Combine(directory, $"{storageKey}-{kvp.Key}{kvp.Value.Extension}");
-                kvp.Value.Stream.Position = 0;
-                await using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
-                await kvp.Value.Stream.CopyToAsync(fs, cancellationToken);
-                kvp.Value.Stream.Dispose();
+                await WriteDerivativeFileAsync(directory, storageKey, kvp.Key, kvp.Value.Webp, cancellationToken);
+                await WriteDerivativeFileAsync(directory, storageKey, kvp.Key, kvp.Value.Fallback, cancellationToken);
             }
+        }
+
+        private static async Task WriteDerivativeFileAsync(string directory,
+                                                            string storageKey,
+                                                            string sizeKey,
+                                                            InMemoryFile file,
+                                                            CancellationToken cancellationToken)
+        {
+            var path = Path.Combine(directory, $"{storageKey}-{sizeKey}{file.Extension}");
+            file.Stream.Position = 0;
+            await using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
+            await file.Stream.CopyToAsync(fs, cancellationToken);
+            file.Stream.Dispose();
         }
 
         private void DeleteAllFiles(ProjectPhoto photo)
         {
             foreach (var key in _options.Derivatives.Keys)
             {
-                var path = GetDerivativePath(photo, key);
-                if (File.Exists(path))
+                var directory = BuildProjectDirectory(photo.ProjectId);
+                var basePath = Path.Combine(directory, $"{photo.StorageKey}-{key}");
+                foreach (var extension in new[] { ".webp", ".jpg", ".jpeg", ".png" })
                 {
+                    var path = $"{basePath}{extension}";
+                    if (!File.Exists(path))
+                    {
+                        continue;
+                    }
+
                     try
                     {
                         File.Delete(path);
@@ -585,6 +673,28 @@ namespace ProjectManagement.Services.Projects
         private string BuildProjectDirectory(int projectId)
         {
             return Path.Combine(_basePath, "projects", projectId.ToString());
+        }
+
+        private static string GetFallbackExtension(ProjectPhoto photo)
+        {
+            return photo.ContentType?.ToLowerInvariant() switch
+            {
+                "image/png" => ".png",
+                "image/jpeg" => ".jpg",
+                "image/jpg" => ".jpg",
+                _ => ".webp"
+            };
+        }
+
+        private static string GetFallbackContentType(ProjectPhoto photo)
+        {
+            return photo.ContentType?.ToLowerInvariant() switch
+            {
+                "image/png" => "image/png",
+                "image/jpeg" => "image/jpeg",
+                "image/jpg" => "image/jpeg",
+                _ => "image/webp"
+            };
         }
 
         private static Rectangle ValidateCrop(int width, int height, ProjectPhotoCrop crop)
@@ -671,7 +781,7 @@ namespace ProjectManagement.Services.Projects
 
         private async Task<MemoryStream> LoadOriginalAsync(ProjectPhoto photo, CancellationToken cancellationToken)
         {
-            var path = GetDerivativePath(photo, "xl");
+            var path = GetDerivativePath(photo, "xl", preferWebp: true);
             if (!File.Exists(path))
             {
                 throw new FileNotFoundException("Original derivative not found for recropping.", path);
@@ -701,20 +811,29 @@ namespace ProjectManagement.Services.Projects
 
         private sealed record ImageValidationResult
         {
-            public string OutputContentType { get; init; } = "image/webp";
+            public string FallbackContentType { get; init; } = "image/jpeg";
 
-            public Dictionary<string, InMemoryFile> DerivativeFiles { get; init; } = new(StringComparer.OrdinalIgnoreCase);
+            public Dictionary<string, DerivativeSet> DerivativeFiles { get; init; } = new(StringComparer.OrdinalIgnoreCase);
 
             public int CroppedWidth { get; init; }
 
             public int CroppedHeight { get; init; }
         }
 
-        private sealed record InMemoryFile(MemoryStream Stream, string Extension)
+        private sealed record DerivativeSet(InMemoryFile Webp, InMemoryFile Fallback)
+        {
+            public InMemoryFile Webp { get; } = Webp;
+
+            public InMemoryFile Fallback { get; } = Fallback;
+        }
+
+        private sealed record InMemoryFile(MemoryStream Stream, string Extension, string ContentType)
         {
             public MemoryStream Stream { get; } = Stream;
 
             public string Extension { get; } = Extension;
+
+            public string ContentType { get; } = ContentType;
         }
     }
 }
