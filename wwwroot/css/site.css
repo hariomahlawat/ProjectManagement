@@ -145,9 +145,16 @@ body {
 }
 
 .project-photo-cover {
-    flex: 0 0 360px;
     width: 100%;
     max-width: 360px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+@media (min-width: 992px) and (max-width: 1199.98px) {
+    .project-photo-cover {
+        max-width: 320px;
+    }
 }
 
 .project-photo-empty {

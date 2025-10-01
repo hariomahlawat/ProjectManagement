@@ -200,155 +200,159 @@
                     </a>
                 }
             </div>
-            <div class="d-flex flex-column flex-lg-row gap-3">
-                <div class="flex-shrink-0 project-photo-cover">
-                    <div class="ratio ratio-4x3 w-100">
-                        @if (coverPhoto != null)
+            <div class="row g-4 align-items-start">
+                <div class="col-12 col-lg-5 col-xl-4">
+                    <div class="project-photo-cover">
+                        <div class="ratio ratio-4x3 w-100">
+                            @if (coverPhoto != null)
+                            {
+                                <picture>
+                                    <source type="image/webp"
+                                            srcset="@coverSrcSet"
+                                            sizes="(min-width: 1200px) 360px, (min-width: 992px) 320px, 100vw" />
+                                    <img class="w-100 h-100 object-fit-cover rounded border"
+                                         width="360"
+                                         height="270"
+                                         src="@coverXs"
+                                         srcset="@coverSrcSet"
+                                         sizes="(min-width: 1200px) 360px, (min-width: 992px) 320px, 100vw"
+                                         alt="@(string.IsNullOrWhiteSpace(coverPhoto.Caption) ? $"{project?.Name} cover photo" : coverPhoto.Caption)" />
+                                </picture>
+                            }
+                            else
+                            {
+                                <div class="d-flex align-items-center justify-content-center w-100 h-100 rounded border bg-light text-muted">
+                                    <span>No cover photo</span>
+                                </div>
+                            }
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(coverPhoto?.Caption))
                         {
-                            <picture>
-                                <source type="image/webp"
-                                        srcset="@coverSrcSet"
-                                        sizes="(min-width: 992px) 360px, 100vw" />
-                                <img class="w-100 h-100 object-fit-cover rounded border"
-                                     width="360"
-                                     height="270"
-                                     src="@coverXs"
-                                     srcset="@coverSrcSet"
-                                     sizes="(min-width: 992px) 360px, 100vw"
-                                     alt="@(string.IsNullOrWhiteSpace(coverPhoto.Caption) ? $"{project?.Name} cover photo" : coverPhoto.Caption)" />
-                            </picture>
+                            <div class="mt-2 text-muted small">@coverPhoto.Caption</div>
                         }
-                        else
+                    </div>
+                </div>
+                <div class="col-12 col-lg-7 col-xl-8">
+                    <div class="d-flex flex-column gap-3">
+                        <div class="d-flex flex-column flex-md-row align-items-md-start justify-content-between gap-2">
+                            <h3 class="h6 mb-0">Project details</h3>
+                            @if (isThisProjectsPo || isAdmin || isHoD)
+                            {
+                                <div class="d-flex flex-wrap gap-2">
+                                    @if (isThisProjectsPo)
+                                    {
+                                        <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Meta/Request" asp-route-id="@Model.Project!.Id">Request change</a>
+                                    }
+                                    @if (isAdmin || isHoD)
+                                    {
+                                        <a class="btn btn-sm btn-outline-secondary" asp-page="/Projects/Meta/Edit" asp-route-id="@Model.Project!.Id">Edit details</a>
+                                    }
+                                </div>
+                            }
+                        </div>
+                        <dl class="row mb-0">
+                            <dt class="col-sm-4">Description</dt>
+                            <dd class="col-sm-8">@(!string.IsNullOrWhiteSpace(project?.Description) ? project.Description : "—")</dd>
+
+                            <dt class="col-sm-4">Category</dt>
+                            <dd class="col-sm-8">
+                                @if (Model.CategoryPath.Any())
+                                {
+                                    <span class="badge text-bg-light">@string.Join(" › ", Model.CategoryPath.Select(c => c.Name))</span>
+                                }
+                                else
+                                {
+                                    <span>—</span>
+                                }
+                            </dd>
+
+                            <dt class="col-sm-4">Sponsoring Unit</dt>
+                            <dd class="col-sm-8">@(Model.Project?.SponsoringUnit?.Name ?? "—")</dd>
+
+                            <dt class="col-sm-4">Sponsoring Line Dte</dt>
+                            <dd class="col-sm-8">@(Model.Project?.SponsoringLineDirectorate?.Name ?? "—")</dd>
+
+                            <dt class="col-sm-4">Head of Department</dt>
+                            <dd class="col-sm-8">@DisplayUser(project?.HodUser)</dd>
+
+                            <dt class="col-sm-4">Project Officer</dt>
+                            <dd class="col-sm-8">@DisplayUser(project?.LeadPoUser)</dd>
+                        </dl>
+
+                        @if (additionalPhotos.Any())
                         {
-                            <div class="d-flex align-items-center justify-content-center w-100 h-100 rounded border bg-light text-muted">
-                                <span>No cover photo</span>
+                            <div>
+                                <h3 class="h6 mb-2">Gallery</h3>
+                                <div class="d-flex flex-wrap gap-3">
+                                    @foreach (var photo in additionalPhotos)
+                                    {
+                                        var thumbUrl = photoUrl(photo, "sm", photo.Version);
+                                        var largeUrl = photoUrl(photo, "xl", photo.Version);
+                                        var thumbSrcSet = string.Join(", ", new[]
+                                        {
+                                            $"{thumbUrl} 1x",
+                                            $"{largeUrl} 2x"
+                                        });
+                                        <a class="text-decoration-none" href="@largeUrl" target="_blank" rel="noopener">
+                                            <div class="ratio ratio-4x3" style="width: 140px;">
+                                                <picture>
+                                                    <source type="image/webp"
+                                                            srcset="@thumbSrcSet" />
+                                                    <img class="w-100 h-100 object-fit-cover rounded border"
+                                                         loading="lazy"
+                                                         width="140"
+                                                         height="105"
+                                                         src="@thumbUrl"
+                                                         srcset="@thumbSrcSet"
+                                                         alt="@(string.IsNullOrWhiteSpace(photo.Caption) ? $"{project?.Name} photo" : photo.Caption)" />
+                                                </picture>
+                                            </div>
+                                            @if (!string.IsNullOrWhiteSpace(photo.Caption))
+                                            {
+                                                <small class="d-block text-muted text-truncate mt-1" title="@photo.Caption">@photo.Caption</small>
+                                            }
+                                        </a>
+                                    }
+                                </div>
                             </div>
                         }
                     </div>
-                    @if (!string.IsNullOrWhiteSpace(coverPhoto?.Caption))
-                    {
-                        <div class="mt-2 text-muted small">@coverPhoto.Caption</div>
-                    }
-                </div>
-                <div class="flex-grow-1">
-                    @if (additionalPhotos.Any())
-                    {
-                        <div class="d-flex flex-wrap gap-3">
-                            @foreach (var photo in additionalPhotos)
-                            {
-                                var thumbUrl = photoUrl(photo, "sm", photo.Version);
-                                var largeUrl = photoUrl(photo, "xl", photo.Version);
-                                var thumbSrcSet = string.Join(", ", new[]
-                                {
-                                    $"{thumbUrl} 1x",
-                                    $"{largeUrl} 2x"
-                                });
-                                <a class="text-decoration-none" href="@largeUrl" target="_blank" rel="noopener">
-                                    <div class="ratio ratio-4x3" style="width: 140px;">
-                                        <picture>
-                                            <source type="image/webp"
-                                                    srcset="@thumbSrcSet" />
-                                            <img class="w-100 h-100 object-fit-cover rounded border"
-                                                 loading="lazy"
-                                                 width="140"
-                                                 height="105"
-                                                 src="@thumbUrl"
-                                                 srcset="@thumbSrcSet"
-                                                 alt="@(string.IsNullOrWhiteSpace(photo.Caption) ? $"{project?.Name} photo" : photo.Caption)" />
-                                        </picture>
-                                    </div>
-                                    @if (!string.IsNullOrWhiteSpace(photo.Caption))
-                                    {
-                                        <small class="d-block text-muted text-truncate mt-1" title="@photo.Caption">@photo.Caption</small>
-                                    }
-                                </a>
-                            }
-                        </div>
-                    }
-                    else if (coverPhoto is null)
-                    {
-                        var emptyStateHeadingId = $"project-photo-empty-title-{Model.Project?.Id ?? 0}";
-                        var emptyStateDescriptionId = $"{emptyStateHeadingId}-desc";
-                        <div class="project-photo-empty border rounded bg-light-subtle text-center"
-                             role="region"
-                             aria-labelledby="@emptyStateHeadingId"
-                             aria-describedby="@emptyStateDescriptionId">
-                            <div class="project-photo-empty-body">
-                                <span class="project-photo-empty-icon" aria-hidden="true">
-                                    <i class="bi bi-images"></i>
-                                </span>
-                                <h3 id="@emptyStateHeadingId" class="h6 fw-semibold mb-2">No photos yet</h3>
-                                <p id="@emptyStateDescriptionId" class="mb-3 text-muted">
-                                    Add a cover or gallery photo to help everyone recognise this project at a glance.
-                                </p>
-                                @if (canManagePhotos)
-                                {
-                                    <a class="btn btn-sm btn-primary"
-                                       asp-page="/Projects/Photos/Index"
-                                       asp-route-id="@Model.Project!.Id"
-                                       aria-label="Upload the first project photo">
-                                        Upload photo
-                                    </a>
-                                }
-                            </div>
-                        </div>
-                    }
                 </div>
             </div>
+
+            @if (!additionalPhotos.Any() && coverPhoto is null)
+            {
+                var emptyStateHeadingId = $"project-photo-empty-title-{Model.Project?.Id ?? 0}";
+                var emptyStateDescriptionId = $"{emptyStateHeadingId}-desc";
+                <div class="project-photo-empty border rounded bg-light-subtle text-center"
+                     role="region"
+                     aria-labelledby="@emptyStateHeadingId"
+                     aria-describedby="@emptyStateDescriptionId">
+                    <div class="project-photo-empty-body">
+                        <span class="project-photo-empty-icon" aria-hidden="true">
+                            <i class="bi bi-images"></i>
+                        </span>
+                        <h3 id="@emptyStateHeadingId" class="h6 fw-semibold mb-2">No photos yet</h3>
+                        <p id="@emptyStateDescriptionId" class="mb-3 text-muted">
+                            Add a cover or gallery photo to help everyone recognise this project at a glance.
+                        </p>
+                        @if (canManagePhotos)
+                        {
+                            <a class="btn btn-sm btn-primary"
+                               asp-page="/Projects/Photos/Index"
+                               asp-route-id="@Model.Project!.Id"
+                               aria-label="Upload the first project photo">
+                                Upload photo
+                            </a>
+                        }
+                    </div>
+                </div>
+            }
         </div>
     </div>
 
     <div class="row g-3 mb-4">
         <div class="col-lg-8 d-flex flex-column gap-3">
-            <div class="card">
-                <div class="card-header d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
-                    <span>Project details</span>
-                    @if (isThisProjectsPo || isAdmin || isHoD)
-                    {
-                        <div class="d-flex flex-wrap gap-2">
-                            @if (isThisProjectsPo)
-                            {
-                                <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Meta/Request" asp-route-id="@Model.Project!.Id">Request change</a>
-                            }
-                            @if (isAdmin || isHoD)
-                            {
-                                <a class="btn btn-sm btn-outline-secondary" asp-page="/Projects/Meta/Edit" asp-route-id="@Model.Project!.Id">Edit details</a>
-                            }
-                        </div>
-                    }
-                </div>
-                <div class="card-body">
-                    <dl class="row mb-0">
-                        <dt class="col-sm-4">Description</dt>
-                        <dd class="col-sm-8">@(!string.IsNullOrWhiteSpace(project?.Description) ? project.Description : "—")</dd>
-
-                        <dt class="col-sm-4">Category</dt>
-                        <dd class="col-sm-8">
-                            @if (Model.CategoryPath.Any())
-                            {
-                                <span class="badge text-bg-light">@string.Join(" › ", Model.CategoryPath.Select(c => c.Name))</span>
-                            }
-                            else
-                            {
-                                <span>—</span>
-                            }
-                        </dd>
-
-                        <dt class="col-sm-4">Sponsoring Unit</dt>
-                        <dd class="col-sm-8">@(Model.Project?.SponsoringUnit?.Name ?? "—")</dd>
-
-                        <dt class="col-sm-4">Sponsoring Line Dte</dt>
-                        <dd class="col-sm-8">@(Model.Project?.SponsoringLineDirectorate?.Name ?? "—")</dd>
-
-                        <dt class="col-sm-4">Head of Department</dt>
-                        <dd class="col-sm-8">@DisplayUser(project?.HodUser)</dd>
-
-                        <dt class="col-sm-4">Project Officer</dt>
-                        <dd class="col-sm-8">@DisplayUser(project?.LeadPoUser)</dd>
-                    </dl>
-                </div>
-            </div>
-
             <partial name="_ProjectProcurementAtAGlance" model="Model.Procurement" />
 
             <div class="card">
