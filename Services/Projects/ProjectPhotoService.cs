@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Storage;
 using ProjectManagement.Utilities;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Advanced;
@@ -39,6 +40,7 @@ namespace ProjectManagement.Services.Projects
                                    IClock clock,
                                    IAuditService audit,
                                    IOptions<ProjectPhotoOptions> options,
+                                   IUploadRootProvider uploadRootProvider,
                                    ILogger<ProjectPhotoService> logger,
                                    IVirusScanner? virusScanner = null)
         {
@@ -48,8 +50,12 @@ namespace ProjectManagement.Services.Projects
             _options = options.Value;
             _logger = logger;
             _virusScanner = virusScanner;
-            var configuredRoot = string.IsNullOrWhiteSpace(_options.StorageRoot) ? "/var/pm/uploads" : _options.StorageRoot;
-            _basePath = Environment.GetEnvironmentVariable("PM_UPLOAD_ROOT") ?? configuredRoot;
+            if (uploadRootProvider == null)
+            {
+                throw new ArgumentNullException(nameof(uploadRootProvider));
+            }
+
+            _basePath = uploadRootProvider.RootPath;
 
             EnsureSemaphores();
         }

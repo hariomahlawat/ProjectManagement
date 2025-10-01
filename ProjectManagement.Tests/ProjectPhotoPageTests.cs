@@ -31,6 +31,7 @@ using UploadModel = ProjectManagement.Pages.Projects.Photos.UploadModel;
 using EditModel = ProjectManagement.Pages.Projects.Photos.EditModel;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Storage;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.Tests.Fakes;
 using SixLabors.ImageSharp;
@@ -121,7 +122,9 @@ public sealed class ProjectPhotoPageTests
         SetUploadRoot(root);
         try
         {
-            var photoService = new ProjectPhotoService(db, clock, new RecordingAudit(), Options.Create(options), NullLogger<ProjectPhotoService>.Instance);
+            var optionsWrapper = Options.Create(options);
+            var uploadRoot = new UploadRootProvider(optionsWrapper);
+            var photoService = new ProjectPhotoService(db, clock, new RecordingAudit(), optionsWrapper, uploadRoot, NullLogger<ProjectPhotoService>.Instance);
 
             await using var stream = await CreateImageStreamAsync(1600, 1200);
             var added = await photoService.AddAsync(6, stream, "cover.png", "image/png", "creator", true, "Cover", CancellationToken.None);

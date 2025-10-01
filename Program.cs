@@ -16,6 +16,7 @@ using ProjectManagement.Services;
 using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Scheduling;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Storage;
 using ProjectManagement.Infrastructure;
 using Markdig;
 using Ganss.Xss;
@@ -173,6 +174,7 @@ builder.Services.AddScoped<ProjectMetaChangeDecisionService>();
 builder.Services.Configure<ProjectPhotoOptions>(
     builder.Configuration.GetSection("ProjectPhotos"));
 builder.Services.AddSingleton<IConfigureOptions<ProjectPhotoOptions>, ProjectPhotoOptionsSetup>();
+builder.Services.AddSingleton<IUploadRootProvider, UploadRootProvider>();
 builder.Services.AddScoped<IProjectPhotoService, ProjectPhotoService>();
 
 builder.Services.ConfigureHttpJsonOptions(o =>
