@@ -186,6 +186,61 @@ public sealed class ProjectPhotoServiceTests
     }
 
     [Fact]
+    public async Task AddAsync_AcceptsCropWithRoundingVariance()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 14);
+
+        await using var stream = await CreateImageStreamAsync(1600, 1200);
+
+        var root = CreateTempRoot();
+        SetUploadRoot(root);
+        try
+        {
+            var options = CreateOptions();
+            var service = CreateService(db, options);
+
+            var crop = new ProjectPhotoCrop(10, 15, 1066, 800);
+            var photo = await service.AddAsync(14, stream, "variance.png", "image/png", "user", false, null, crop, CancellationToken.None);
+
+            Assert.Equal(1066, photo.Width);
+            Assert.Equal(800, photo.Height);
+        }
+        finally
+        {
+            ResetUploadRoot();
+            CleanupTempRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task AddAsync_RejectsCropOutsideAspectTolerance()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 15);
+
+        await using var stream = await CreateImageStreamAsync(1600, 1200);
+
+        var root = CreateTempRoot();
+        SetUploadRoot(root);
+        try
+        {
+            var options = CreateOptions();
+            var service = CreateService(db, options);
+
+            var crop = new ProjectPhotoCrop(0, 0, 1065, 800);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                service.AddAsync(15, stream, "bad-variance.png", "image/png", "user", false, null, crop, CancellationToken.None));
+        }
+        finally
+        {
+            ResetUploadRoot();
+            CleanupTempRoot(root);
+        }
+    }
+
+    [Fact]
     public async Task UpdateCropAsync_ReusesOriginalAndBumpsVersion()
     {
         await using var db = CreateContext();
