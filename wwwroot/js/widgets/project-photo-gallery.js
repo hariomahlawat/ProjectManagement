@@ -243,6 +243,79 @@
       size: parseSize(element)
     })).filter((preview) => preview.image && preview.size);
 
+    const expandToggle = editor.querySelector('[data-photo-editor-toggle]');
+    const expandToggleLabel = expandToggle ? expandToggle.querySelector('[data-photo-editor-toggle-label]') : null;
+    const expandedClass = 'project-photo-editor--expanded';
+    const pageExpandedClass = 'has-expanded-project-photo-editor';
+    let isExpanded = false;
+    let backdrop = null;
+
+    function ensureBackdrop() {
+      if (backdrop && backdrop.parentNode) {
+        return backdrop;
+      }
+
+      if (!backdrop) {
+        backdrop = document.createElement('div');
+        backdrop.className = 'project-photo-editor-backdrop';
+        backdrop.addEventListener('click', () => {
+          collapseExpansion();
+        });
+      }
+
+      document.body.appendChild(backdrop);
+      return backdrop;
+    }
+
+    function removeBackdrop() {
+      if (backdrop && backdrop.parentNode) {
+        backdrop.parentNode.removeChild(backdrop);
+      }
+    }
+
+    function syncExpansionState(expanded) {
+      const nextState = !!expanded;
+      if (nextState === isExpanded) {
+        return;
+      }
+
+      isExpanded = nextState;
+      editor.classList.toggle(expandedClass, isExpanded);
+
+      if (isExpanded) {
+        document.documentElement.classList.add(pageExpandedClass);
+        document.body.classList.add(pageExpandedClass);
+        ensureBackdrop();
+      } else {
+        document.documentElement.classList.remove(pageExpandedClass);
+        document.body.classList.remove(pageExpandedClass);
+        removeBackdrop();
+      }
+
+      if (expandToggle) {
+        expandToggle.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+      }
+
+      if (expandToggleLabel) {
+        expandToggleLabel.textContent = isExpanded ? 'Exit full-screen' : 'Expand editor';
+      }
+
+      window.requestAnimationFrame(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+    }
+
+    function collapseExpansion() {
+      if (!isExpanded) {
+        return;
+      }
+
+      syncExpansionState(false);
+      if (expandToggle) {
+        expandToggle.focus({ preventScroll: true });
+      }
+    }
+
     let cropper = null;
     let selection = null;
     let isModernCropper = false;
@@ -250,6 +323,24 @@
     let activeObjectUrl = null;
     let lastDetail = null;
     let previewSequence = 0;
+
+    if (expandToggle) {
+      expandToggle.addEventListener('click', (event) => {
+        event.preventDefault();
+        syncExpansionState(!isExpanded);
+      });
+    }
+
+    document.addEventListener('keydown', (event) => {
+      if (!isExpanded) {
+        return;
+      }
+
+      if (event.key === 'Escape' || event.key === 'Esc') {
+        event.preventDefault();
+        collapseExpansion();
+      }
+    });
 
     function setActiveState(isActive) {
       editor.classList.toggle('is-active', !!isActive);
@@ -558,6 +649,8 @@
     }
 
     function resetEditor() {
+      collapseExpansion();
+
       if (cropper) {
         if (typeof cropper.destroy === 'function') {
           cropper.destroy();

@@ -57,11 +57,26 @@
     <fieldset class="border rounded p-3 mb-3">
         <legend class="float-none w-auto fs-6 px-2">Crop &amp; preview</legend>
         <p class="text-muted small project-photo-editor__fallback">JavaScript is disabled, so the existing crop will be centred automatically.</p>
-        <div class="project-photo-editor" data-photo-editor data-photo-editor-input="#Input_File" data-photo-editor-initial-url="@editorInitialUrl">
-            <div class="project-photo-editor__canvas">
+        <div class="project-photo-editor"
+             data-photo-editor
+             data-photo-editor-input="#Input_File"
+             data-photo-editor-initial-url="@editorInitialUrl">
+            <div class="project-photo-editor__toolbar">
+                <button type="button"
+                        class="btn btn-outline-secondary btn-sm project-photo-editor__toggle"
+                        data-photo-editor-toggle
+                        aria-expanded="false"
+                        aria-controls="project-photo-editor-canvas">
+                    <span class="project-photo-editor__toggle-icon" aria-hidden="true"></span>
+                    <span data-photo-editor-toggle-label>Expand editor</span>
+                </button>
+            </div>
+
+            <div class="project-photo-editor__canvas" id="project-photo-editor-canvas">
                 <img data-photo-editor-image alt="Project photo ready for cropping" />
             </div>
-            <div class="d-flex flex-column gap-3">
+
+            <div class="project-photo-editor__sidebar">
                 <p class="text-muted mb-0 project-photo-editor__placeholder" data-photo-editor-placeholder>Select a new photo or adjust the crop on the existing image.</p>
                 <div class="project-photo-preview-grid" data-photo-editor-previews>
                     <div class="project-photo-preview-item">
