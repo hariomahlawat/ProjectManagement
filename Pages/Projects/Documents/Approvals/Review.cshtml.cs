@@ -215,7 +215,7 @@ public sealed class ReviewModel : PageModel
             .AsNoTracking()
             .Include(r => r.Stage)
             .Include(r => r.Document)
-            .ThenInclude(d => d.UploadedByUser)
+            .ThenInclude(d => d!.UploadedByUser)
             .Include(r => r.RequestedByUser)
             .FirstOrDefaultAsync(r => r.ProjectId == projectId && r.Id == requestId, cancellationToken);
     }
