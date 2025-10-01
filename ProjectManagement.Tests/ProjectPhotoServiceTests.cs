@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
@@ -498,7 +499,8 @@ public sealed class ProjectPhotoServiceTests
         var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 12, 0, 0, TimeSpan.Zero));
         var audit = new RecordingAudit();
         var optionsWrapper = Options.Create(options);
-        var uploadRoot = new UploadRootProvider(optionsWrapper);
+        var documentOptions = Options.Create(new ProjectDocumentOptions());
+        var uploadRoot = new UploadRootProvider(optionsWrapper, documentOptions);
         return new ProjectPhotoService(db, clock, audit, optionsWrapper, uploadRoot, NullLogger<ProjectPhotoService>.Instance);
     }
 

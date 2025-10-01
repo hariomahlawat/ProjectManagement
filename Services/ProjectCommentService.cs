@@ -20,7 +20,7 @@ namespace ProjectManagement.Services
         private readonly IClock _clock;
         private readonly IAuditService _audit;
         private readonly ILogger<ProjectCommentService> _logger;
-        private readonly string _basePath;
+        private readonly IUploadRootProvider _uploadRootProvider;
 
         public const long MaxAttachmentSizeBytes = 25 * 1024 * 1024; // 25 MB per file
 
@@ -43,12 +43,7 @@ namespace ProjectManagement.Services
             _clock = clock;
             _audit = audit;
             _logger = logger;
-            if (uploadRootProvider == null)
-            {
-                throw new ArgumentNullException(nameof(uploadRootProvider));
-            }
-
-            _basePath = uploadRootProvider.RootPath;
+            _uploadRootProvider = uploadRootProvider ?? throw new ArgumentNullException(nameof(uploadRootProvider));
         }
 
         public async Task<ProjectComment> CreateAsync(int projectId,
@@ -343,7 +338,8 @@ namespace ProjectManagement.Services
 
         private string BuildCommentDirectory(int projectId, int commentId)
         {
-            return Path.Combine(_basePath, "projects", projectId.ToString(), "comments", commentId.ToString());
+            var baseDirectory = _uploadRootProvider.GetProjectCommentsRoot(projectId);
+            return Path.Combine(baseDirectory, commentId.ToString());
         }
     }
 }

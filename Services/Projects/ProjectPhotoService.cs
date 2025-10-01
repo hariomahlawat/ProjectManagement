@@ -30,7 +30,7 @@ namespace ProjectManagement.Services.Projects
         private readonly ProjectPhotoOptions _options;
         private readonly ILogger<ProjectPhotoService> _logger;
         private readonly IVirusScanner? _virusScanner;
-        private readonly string _basePath;
+        private readonly IUploadRootProvider _uploadRootProvider;
 
         private static readonly object SemaphoreSync = new();
         private static SemaphoreSlim? _processingSemaphore;
@@ -50,12 +50,7 @@ namespace ProjectManagement.Services.Projects
             _options = options.Value;
             _logger = logger;
             _virusScanner = virusScanner;
-            if (uploadRootProvider == null)
-            {
-                throw new ArgumentNullException(nameof(uploadRootProvider));
-            }
-
-            _basePath = uploadRootProvider.RootPath;
+            _uploadRootProvider = uploadRootProvider ?? throw new ArgumentNullException(nameof(uploadRootProvider));
 
             EnsureSemaphores();
         }
@@ -678,7 +673,7 @@ namespace ProjectManagement.Services.Projects
 
         private string BuildProjectDirectory(int projectId)
         {
-            return Path.Combine(_basePath, "projects", projectId.ToString());
+            return _uploadRootProvider.GetProjectPhotosRoot(projectId);
         }
 
         private static string GetFallbackExtension(ProjectPhoto photo)
