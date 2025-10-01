@@ -114,8 +114,6 @@ public class IndexModel : PageModel
             return RedirectToPage(new { id });
         }
 
-        var wasCover = project.CoverPhotoId == photoId;
-
         try
         {
             var removed = await _photoService.RemoveAsync(project.Id, photoId, userId, cancellationToken);
@@ -123,11 +121,6 @@ public class IndexModel : PageModel
             {
                 TempData["Error"] = "Photo could not be removed.";
                 return RedirectToPage(new { id });
-            }
-
-            if (wasCover)
-            {
-                await SetFallbackCoverAsync(project, photoId, cancellationToken);
             }
 
             TempData["Flash"] = "Photo removed.";
@@ -181,23 +174,4 @@ public class IndexModel : PageModel
         }
     }
 
-    private async Task SetFallbackCoverAsync(Project project, int removedPhotoId, CancellationToken cancellationToken)
-    {
-        var nextCover = await _db.ProjectPhotos
-            .Where(p => p.ProjectId == project.Id && p.Id != removedPhotoId)
-            .OrderBy(p => p.Ordinal)
-            .ThenBy(p => p.Id)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (nextCover is null)
-        {
-            return;
-        }
-
-        nextCover.IsCover = true;
-        project.CoverPhotoId = nextCover.Id;
-        project.CoverPhotoVersion = nextCover.Version;
-
-        await _db.SaveChangesAsync(cancellationToken);
-    }
 }

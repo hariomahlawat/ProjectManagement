@@ -154,8 +154,31 @@ namespace ProjectManagement.Services.Projects
 
             if (photo.Project?.CoverPhotoId == photo.Id)
             {
-                photo.Project.CoverPhotoId = null;
-                photo.Project.CoverPhotoVersion = 0;
+                var replacement = await _db.ProjectPhotos
+                    .Where(p => p.ProjectId == projectId)
+                    .OrderBy(p => p.Ordinal)
+                    .ThenBy(p => p.Id)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (replacement != null)
+                {
+                    await _db.ProjectPhotos
+                        .Where(p => p.ProjectId == projectId && p.Id != replacement.Id && p.IsCover)
+                        .ExecuteUpdateAsync(setters => setters.SetProperty(p => p.IsCover, false), cancellationToken);
+
+                    replacement.IsCover = true;
+                    replacement.Version += 1;
+                    replacement.UpdatedUtc = _clock.UtcNow.UtcDateTime;
+
+                    photo.Project.CoverPhotoId = replacement.Id;
+                    photo.Project.CoverPhotoVersion = replacement.Version;
+                }
+                else
+                {
+                    photo.Project.CoverPhotoId = null;
+                    photo.Project.CoverPhotoVersion = 0;
+                }
+
                 await _db.SaveChangesAsync(cancellationToken);
             }
 
