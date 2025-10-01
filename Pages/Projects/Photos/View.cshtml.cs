@@ -70,7 +70,7 @@ public class ViewModel : PageModel
         cacheHeaders.CacheControl = new CacheControlHeaderValue
         {
             Public = true,
-            MaxAge = TimeSpan.FromMinutes(10)
+            MaxAge = TimeSpan.FromDays(7)
         };
         cacheHeaders.ETag = etag;
         cacheHeaders.LastModified = DateTime.SpecifyKind(photo.UpdatedUtc, DateTimeKind.Utc);
@@ -109,7 +109,7 @@ public class ViewModel : PageModel
         headers.CacheControl = new CacheControlHeaderValue
         {
             Public = true,
-            MaxAge = TimeSpan.FromMinutes(5)
+            MaxAge = TimeSpan.FromDays(7)
         };
         headers.ETag = etag;
 
