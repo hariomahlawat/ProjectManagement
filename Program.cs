@@ -22,6 +22,7 @@ using Ganss.Xss;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Helpers;
 using ProjectManagement.Contracts;
 using System.Text.Json.Serialization;
@@ -171,6 +172,7 @@ builder.Services.AddScoped<ProjectMetaChangeRequestService>();
 builder.Services.AddScoped<ProjectMetaChangeDecisionService>();
 builder.Services.Configure<ProjectPhotoOptions>(
     builder.Configuration.GetSection("ProjectPhotos"));
+builder.Services.AddSingleton<IConfigureOptions<ProjectPhotoOptions>, ProjectPhotoOptionsSetup>();
 builder.Services.AddScoped<IProjectPhotoService, ProjectPhotoService>();
 
 builder.Services.ConfigureHttpJsonOptions(o =>

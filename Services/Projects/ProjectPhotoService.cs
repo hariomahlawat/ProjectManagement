@@ -47,7 +47,8 @@ namespace ProjectManagement.Services.Projects
             _options = options.Value;
             _logger = logger;
             _virusScanner = virusScanner;
-            _basePath = Environment.GetEnvironmentVariable("PM_UPLOAD_ROOT") ?? "/var/pm/uploads";
+            var configuredRoot = string.IsNullOrWhiteSpace(_options.StorageRoot) ? "/var/pm/uploads" : _options.StorageRoot;
+            _basePath = Environment.GetEnvironmentVariable("PM_UPLOAD_ROOT") ?? configuredRoot;
 
             EnsureSemaphores();
         }
