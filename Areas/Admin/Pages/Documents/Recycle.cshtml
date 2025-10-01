@@ -81,8 +81,8 @@
             <strong>@Model.TotalCount</strong> document(s), totaling <strong>@Model.TotalSizeDisplay</strong>.
         </div>
         <div class="btn-group">
-            <button type="submit" class="btn btn-outline-primary" form="selectionForm" asp-page-handler="RestoreSelected" @(hasRows ? null : "disabled")>Restore selected</button>
-            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#confirmBulkDelete" @(hasRows ? null : "disabled")>Hard delete selected</button>
+            <button type="submit" class="btn btn-outline-primary" form="selectionForm" asp-page-handler="RestoreSelected" disabled="@(hasRows ? null : "disabled")">Restore selected</button>
+            <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#confirmBulkDelete" disabled="@(hasRows ? null : "disabled")">Hard delete selected</button>
         </div>
     </div>
 
@@ -134,7 +134,7 @@
                         <td>
                             @if (row.DeletedAtUtc.HasValue)
                             {
-                                var deletedIst = TimeFmt.ToIst(row.DeletedAtUtc.Value.UtcDateTime);
+                                var deletedIst = IstClock.ToIst(row.DeletedAtUtc.Value.UtcDateTime);
                                 <div>@deletedIst.ToString("dd MMM yyyy HH:mm") IST</div>
                             }
                             else
@@ -183,5 +183,5 @@
         "All selected documents and their files will be permanently removed. This cannot be undone.",
         "selectionForm",
         "Delete selected",
-        Url.Page(null, new { handler = "HardDeleteSelected" })))" />
+        Url.Page(null, pageHandler: "HardDeleteSelected")))" />
 </div>
