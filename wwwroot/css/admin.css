@@ -1,19 +1,26 @@
+:root {
+    --admin-users-bg: var(--bs-primary-bg-subtle, #dbeafe);
+    --admin-analytics-bg: var(--bs-info-bg-subtle, #cff4fc);
+    --admin-logs-bg: var(--bs-warning-bg-subtle, #fef3c7);
+    --admin-card-fg: var(--pm-text, #1f2937);
+}
+
 .admin-card {
-    color: #333;
+    color: var(--admin-card-fg);
     min-height: 8rem;
     transition: transform 0.2s ease-in-out;
 }
 
 .admin-card.users {
-    background-color: #a3d5ff;
+    background-color: var(--admin-users-bg);
 }
 
 .admin-card.analytics {
-    background-color: #a5e9e1;
+    background-color: var(--admin-analytics-bg);
 }
 
 .admin-card.logs {
-    background-color: #ffcdd2;
+    background-color: var(--admin-logs-bg);
 }
 
 .admin-card:hover {
