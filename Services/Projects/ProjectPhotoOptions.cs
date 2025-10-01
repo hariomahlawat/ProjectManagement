@@ -29,6 +29,8 @@ namespace ProjectManagement.Services.Projects
         public int MaxProcessingConcurrency { get; set; } = Math.Max(Environment.ProcessorCount / 2, 1);
 
         public int MaxEncodingConcurrency { get; set; } = Math.Max(Environment.ProcessorCount / 2, 1);
+
+        public string StorageRoot { get; set; } = string.Empty;
     }
 
     public class ProjectPhotoDerivativeOptions

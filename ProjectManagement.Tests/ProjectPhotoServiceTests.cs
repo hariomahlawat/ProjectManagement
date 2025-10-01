@@ -232,6 +232,38 @@ public sealed class ProjectPhotoServiceTests
     }
 
     [Fact]
+    public async Task OpenDerivativeAsync_UsesConfiguredStorageRoot()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 31);
+
+        ResetUploadRoot();
+
+        var options = CreateOptions();
+        var root = CreateTempRoot();
+        options.StorageRoot = root;
+
+        try
+        {
+            await using var stream = await CreateImageStreamAsync(1600, 1200);
+            var service = CreateService(db, options);
+
+            var photo = await service.AddAsync(31, stream, "fresh.png", "image/png", "user", true, null, CancellationToken.None);
+
+            var derivative = await service.OpenDerivativeAsync(31, photo.Id, "xl", CancellationToken.None);
+
+            Assert.NotNull(derivative);
+            Assert.True(File.Exists(service.GetDerivativePath(photo, "xl")));
+            derivative!.Stream.Dispose();
+        }
+        finally
+        {
+            CleanupTempRoot(root);
+            ResetUploadRoot();
+        }
+    }
+
+    [Fact]
     public async Task AddAsync_StripsMetadataFromDerivatives()
     {
         await using var db = CreateContext();
