@@ -310,11 +310,11 @@ namespace ProjectManagement.Services.Projects
                 : fallbackCandidates.Concat(Enumerable.Repeat(webpCandidate, 1));
 
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var candidate in ordered)
+            foreach (var (path, contentType) in ordered)
             {
-                if (seen.Add(candidate.Path))
+                if (seen.Add(path))
                 {
-                    yield return candidate;
+                    yield return (path, contentType);
                 }
             }
         }
