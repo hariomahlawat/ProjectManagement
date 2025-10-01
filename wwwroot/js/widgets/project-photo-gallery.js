@@ -26,6 +26,55 @@
     return Math.min(Math.max(value, min), max);
   }
 
+  function isPositiveNumber(value) {
+    return Number.isFinite(value) && value > 0;
+  }
+
+  function firstPositive(...values) {
+    for (const value of values) {
+      if (isPositiveNumber(value)) {
+        return value;
+      }
+    }
+    return null;
+  }
+
+  function clampCropBox(rawX, rawY, rawWidth, rawHeight, naturalWidth, naturalHeight) {
+    if (!isPositiveNumber(naturalWidth) || !isPositiveNumber(naturalHeight)) {
+      return null;
+    }
+
+    if (!Number.isFinite(rawX) || !Number.isFinite(rawY) || !Number.isFinite(rawWidth) || !Number.isFinite(rawHeight)) {
+      return null;
+    }
+
+    const rawRight = rawX + rawWidth;
+    const rawBottom = rawY + rawHeight;
+
+    if (!Number.isFinite(rawRight) || !Number.isFinite(rawBottom)) {
+      return null;
+    }
+
+    const clampedLeft = clamp(rawX, 0, naturalWidth);
+    const clampedTop = clamp(rawY, 0, naturalHeight);
+    const clampedRight = clamp(rawRight, 0, naturalWidth);
+    const clampedBottom = clamp(rawBottom, 0, naturalHeight);
+
+    const clampedWidth = clampedRight - clampedLeft;
+    const clampedHeight = clampedBottom - clampedTop;
+
+    if (clampedWidth <= 0 || clampedHeight <= 0) {
+      return null;
+    }
+
+    return {
+      x: clampedLeft,
+      y: clampedTop,
+      width: clampedWidth,
+      height: clampedHeight
+    };
+  }
+
   function formatNumber(value) {
     return Number.isFinite(value) ? String(Math.round(value)) : '';
   }
@@ -109,41 +158,50 @@
     function updateHiddenFields(detail, scale) {
       if (!detail) {
         resetFields();
-        return;
+        clearPreviews();
+        return false;
       }
 
-      let cropX;
-      let cropY;
-      let cropWidth;
-      let cropHeight;
+      const naturalWidth = firstPositive(scale && scale.naturalWidth, detail.naturalWidth, image && image.naturalWidth);
+      const naturalHeight = firstPositive(scale && scale.naturalHeight, detail.naturalHeight, image && image.naturalHeight);
 
-      if (scale) {
-        const { scaleX, scaleY, offsetX, offsetY } = scale;
-        cropX = clamp((detail.x - offsetX) * scaleX, 0, Number.MAX_SAFE_INTEGER);
-        cropY = clamp((detail.y - offsetY) * scaleY, 0, Number.MAX_SAFE_INTEGER);
-        cropWidth = clamp(detail.width * scaleX, 0, Number.MAX_SAFE_INTEGER);
-        cropHeight = clamp(detail.height * scaleY, 0, Number.MAX_SAFE_INTEGER);
-      } else {
-        const x = Number.isFinite(detail.naturalX) ? detail.naturalX : detail.x;
-        const y = Number.isFinite(detail.naturalY) ? detail.naturalY : detail.y;
-        const width = Number.isFinite(detail.naturalWidth) ? detail.naturalWidth : detail.width;
-        const height = Number.isFinite(detail.naturalHeight) ? detail.naturalHeight : detail.height;
+      if (!isPositiveNumber(naturalWidth) || !isPositiveNumber(naturalHeight)) {
+        resetFields();
+        clearPreviews();
+        return false;
+      }
 
-        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(width) || !Number.isFinite(height)) {
-          resetFields();
-          return;
+      let cropBox = null;
+
+      if (scale && Number.isFinite(scale.scaleX) && Number.isFinite(scale.scaleY) && scale.scaleX > 0 && scale.scaleY > 0 && Number.isFinite(scale.offsetX) && Number.isFinite(scale.offsetY)) {
+        if (Number.isFinite(detail.x) && Number.isFinite(detail.y) && Number.isFinite(detail.width) && Number.isFinite(detail.height)) {
+          const rawX = (detail.x - scale.offsetX) * scale.scaleX;
+          const rawY = (detail.y - scale.offsetY) * scale.scaleY;
+          const rawWidth = detail.width * scale.scaleX;
+          const rawHeight = detail.height * scale.scaleY;
+          cropBox = clampCropBox(rawX, rawY, rawWidth, rawHeight, naturalWidth, naturalHeight);
         }
+      } else {
+        const rawX = Number.isFinite(detail.naturalX) ? detail.naturalX : detail.x;
+        const rawY = Number.isFinite(detail.naturalY) ? detail.naturalY : detail.y;
+        const rawWidth = Number.isFinite(detail.naturalWidth) ? detail.naturalWidth : detail.width;
+        const rawHeight = Number.isFinite(detail.naturalHeight) ? detail.naturalHeight : detail.height;
 
-        cropX = clamp(x, 0, Number.MAX_SAFE_INTEGER);
-        cropY = clamp(y, 0, Number.MAX_SAFE_INTEGER);
-        cropWidth = clamp(width, 0, Number.MAX_SAFE_INTEGER);
-        cropHeight = clamp(height, 0, Number.MAX_SAFE_INTEGER);
+        cropBox = clampCropBox(rawX, rawY, rawWidth, rawHeight, naturalWidth, naturalHeight);
       }
 
-      if (hiddenFields.x) hiddenFields.x.value = formatNumber(cropX);
-      if (hiddenFields.y) hiddenFields.y.value = formatNumber(cropY);
-      if (hiddenFields.width) hiddenFields.width.value = formatNumber(cropWidth);
-      if (hiddenFields.height) hiddenFields.height.value = formatNumber(cropHeight);
+      if (!cropBox) {
+        resetFields();
+        clearPreviews();
+        return false;
+      }
+
+      if (hiddenFields.x) hiddenFields.x.value = formatNumber(cropBox.x);
+      if (hiddenFields.y) hiddenFields.y.value = formatNumber(cropBox.y);
+      if (hiddenFields.width) hiddenFields.width.value = formatNumber(cropBox.width);
+      if (hiddenFields.height) hiddenFields.height.value = formatNumber(cropBox.height);
+
+      return true;
     }
 
     function computeScale(detail) {
@@ -172,7 +230,9 @@
         scaleX: naturalWidth / imageRect.width,
         scaleY: naturalHeight / imageRect.height,
         offsetX: imageRect.left - canvasRect.left,
-        offsetY: imageRect.top - canvasRect.top
+        offsetY: imageRect.top - canvasRect.top,
+        naturalWidth,
+        naturalHeight
       };
     }
 
@@ -252,7 +312,9 @@
       }
 
       lastDetail = detail;
-      updateHiddenFields(detail, scale || null);
+      if (!updateHiddenFields(detail, scale || null)) {
+        return;
+      }
       updatePreviews();
     }
 
