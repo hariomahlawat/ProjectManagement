@@ -315,8 +315,7 @@
                                         });
                                         var captionText = string.IsNullOrWhiteSpace(photo.Caption) ? null : photo.Caption;
                                         var altText = captionText ?? $"{project?.Name ?? "Project"} photo";
-                                        var itemClasses = "project-gallery__item" + (i == 0 ? " project-gallery__item--featured" : string.Empty);
-                                        <a class="@itemClasses"
+                                        <a class="project-gallery__item"
                                            role="listitem"
                                            href="@largeUrl"
                                            data-gallery-trigger
