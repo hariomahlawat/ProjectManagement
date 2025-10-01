@@ -4,6 +4,12 @@ using ProjectManagement.Models.Execution;
 
 namespace ProjectManagement.Models
 {
+    public enum ProjectDocumentStatus
+    {
+        Published = 1,
+        SoftDeleted = 2
+    }
+
     public class ProjectDocument
     {
         public int Id { get; set; }
@@ -42,6 +48,12 @@ namespace ProjectManagement.Models
 
         [Range(0, long.MaxValue)]
         public long FileSize { get; set; }
+
+        [Required]
+        public ProjectDocumentStatus Status { get; set; } = ProjectDocumentStatus.Published;
+
+        [Range(0, int.MaxValue)]
+        public int FileStamp { get; set; }
 
         [Required]
         [MaxLength(450)]

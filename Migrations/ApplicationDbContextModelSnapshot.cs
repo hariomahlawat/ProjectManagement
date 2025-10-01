@@ -1232,6 +1232,11 @@ namespace ProjectManagement.Migrations
                     b.Property<long>("FileSize")
                         .HasColumnType("bigint");
 
+                    b.Property<int>("FileStamp")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
                     b.Property<bool>("IsArchived")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -1260,6 +1265,13 @@ namespace ProjectManagement.Migrations
                         .IsRequired()
                         .HasMaxLength(260)
                         .HasColumnType("character varying(260)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Published");
 
                     b.Property<string>("Title")
                         .IsRequired()
@@ -1309,6 +1321,17 @@ namespace ProjectManagement.Migrations
                     b.Property<int?>("DocumentId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("ContentType")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<long?>("FileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("OriginalFileName")
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
                     b.Property<int>("ProjectId")
                         .HasColumnType("integer");
 
@@ -1348,15 +1371,28 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("character varying(32)")
                         .HasDefaultValue("Draft");
 
+                    b.Property<string>("TempStorageKey")
+                        .HasMaxLength(260)
+                        .HasColumnType("character varying(260)");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("RequestType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Upload");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DocumentId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("ux_projectdocumentrequests_pending_document")
+                        .HasFilter("\"DocumentId\" IS NOT NULL AND \"Status\" IN ('Draft', 'Submitted')");
 
                     b.HasIndex("ProjectId");
 
@@ -1365,11 +1401,6 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("ReviewedByUserId");
 
                     b.HasIndex("StageId");
-
-                    b.HasIndex("ProjectId", "StageId")
-                        .IsUnique()
-                        .HasDatabaseName("ux_projectdocumentrequests_pending")
-                        .HasFilter("\"Status\" IN ('Draft', 'Submitted')");
 
                     b.HasIndex("ProjectId", "Status");
 

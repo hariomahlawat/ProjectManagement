@@ -66,7 +66,7 @@ public sealed class UploadRootProvider : IUploadRootProvider
     public string GetProjectDocumentsRoot(int projectId)
     {
         var projectRoot = GetProjectRoot(projectId);
-        return EnsureDirectory(CombineOptional(projectRoot, _documentOptions.DocumentsSubpath));
+        return EnsureDirectory(CombineOptional(projectRoot, _documentOptions.StorageSubPath));
     }
 
     public string GetProjectCommentsRoot(int projectId)

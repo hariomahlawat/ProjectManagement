@@ -153,6 +153,11 @@ namespace ProjectManagement.Data
                 e.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
                 e.Property(x => x.ContentType).HasMaxLength(128).IsRequired();
                 e.Property(x => x.FileSize).IsRequired();
+                e.Property(x => x.Status).HasConversion<string>()
+                    .HasMaxLength(32)
+                    .HasDefaultValue(ProjectDocumentStatus.Published)
+                    .IsRequired();
+                e.Property(x => x.FileStamp).HasDefaultValue(0).IsRequired();
                 e.Property(x => x.UploadedByUserId).HasMaxLength(450).IsRequired();
                 e.Property(x => x.IsArchived).HasDefaultValue(false);
                 e.Property(x => x.ArchivedAtUtc).IsRequired(false);
@@ -208,6 +213,11 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Title).HasMaxLength(200).IsRequired();
                 e.Property(x => x.Description).HasMaxLength(2000);
                 e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).HasDefaultValue(ProjectDocumentRequestStatus.Draft).IsRequired();
+                e.Property(x => x.RequestType).HasConversion<string>().HasMaxLength(32).HasDefaultValue(ProjectDocumentRequestType.Upload).IsRequired();
+                e.Property(x => x.TempStorageKey).HasMaxLength(260);
+                e.Property(x => x.OriginalFileName).HasMaxLength(260);
+                e.Property(x => x.ContentType).HasMaxLength(128);
+                e.Property(x => x.FileSize).IsRequired(false);
                 e.Property(x => x.RequestedByUserId).HasMaxLength(450).IsRequired();
                 e.Property(x => x.ReviewedByUserId).HasMaxLength(450);
                 e.Property(x => x.ReviewedAtUtc).IsRequired(false);
@@ -248,21 +258,21 @@ namespace ProjectManagement.Data
                     e.Property(x => x.RequestedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
                 }
 
-                var pendingIndex = e.HasIndex(x => new { x.ProjectId, x.StageId })
-                    .HasDatabaseName("ux_projectdocumentrequests_pending")
+                var pendingForDocumentIndex = e.HasIndex(x => x.DocumentId)
+                    .HasDatabaseName("ux_projectdocumentrequests_pending_document")
                     .IsUnique();
 
                 if (Database.IsSqlServer())
                 {
-                    pendingIndex.HasFilter("[Status] IN ('Draft', 'Submitted')");
+                    pendingForDocumentIndex.HasFilter("[DocumentId] IS NOT NULL AND [Status] IN ('Draft', 'Submitted')");
                 }
                 else if (Database.IsNpgsql())
                 {
-                    pendingIndex.HasFilter("\"Status\" IN ('Draft', 'Submitted')");
+                    pendingForDocumentIndex.HasFilter("\"DocumentId\" IS NOT NULL AND \"Status\" IN ('Draft', 'Submitted')");
                 }
                 else
                 {
-                    pendingIndex.HasFilter("Status IN ('Draft', 'Submitted')");
+                    pendingForDocumentIndex.HasFilter("DocumentId IS NOT NULL AND Status IN ('Draft', 'Submitted')");
                 }
             });
 
