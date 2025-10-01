@@ -107,13 +107,18 @@
     <fieldset class="border rounded p-3 mb-3">
         <legend class="float-none w-auto fs-6 px-2">Crop &amp; preview</legend>
         <p class="text-muted small project-photo-editor__fallback">JavaScript is disabled, so the photo will be centre-cropped automatically.</p>
-        <div class="project-photo-editor" data-photo-editor data-photo-editor-input="#Input_File">
+        <div class="project-photo-editor"
+             data-photo-editor
+             data-photo-editor-input="#Input_File"
+             aria-describedby="project-photo-editor-placeholder project-photo-preview-helper">
             <div class="project-photo-editor__canvas">
                 <img data-photo-editor-image alt="Selected photo ready for cropping" />
             </div>
             <div class="d-flex flex-column gap-3">
-                <p class="text-muted mb-0 project-photo-editor__placeholder" data-photo-editor-placeholder>Select a photo to enable cropping and preview the derived sizes.</p>
-                <div class="project-photo-preview-grid" data-photo-editor-previews>
+                <p class="text-muted mb-0 project-photo-editor__placeholder"
+                   id="project-photo-editor-placeholder"
+                   data-photo-editor-placeholder>Select a photo to enable cropping. The crop box is locked to a 4:3 aspect ratio and must stay completely within the photo.</p>
+                <div class="project-photo-preview-grid" data-photo-editor-previews aria-describedby="project-photo-preview-helper">
                     <div class="project-photo-preview-item">
                         <div class="project-photo-preview-frame" data-photo-editor-preview="xl" data-width="@coverOptions.Width" data-height="@coverOptions.Height">
                             <img alt="Cover preview" />
@@ -134,6 +139,7 @@
                         <div class="project-photo-preview-label">Thumbnail (@thumbOptions.Width × @thumbOptions.Height)</div>
                     </div>
                 </div>
+                <p class="text-muted small mb-0" id="project-photo-preview-helper">The selection drives the cover, large, and thumbnail previews. Keep the crop within the image bounds so each derived size stays filled.</p>
             </div>
 
             <input asp-for="Input.CropX" type="hidden" data-photo-editor-field="x" />
