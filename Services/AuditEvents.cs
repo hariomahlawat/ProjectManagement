@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Threading.Tasks;
 using ProjectManagement.Models;
 
@@ -161,6 +162,28 @@ public static class Audit
             };
 
             return new AuditEvent("Project.DocumentHardDeleted", userId, data);
+        }
+
+        public static AuditEvent ProjectDocumentsRestoredBulk(string? userId, IReadOnlyCollection<int> documentIds)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["Count"] = documentIds.Count.ToString(CultureInfo.InvariantCulture),
+                ["DocumentIds"] = string.Join(',', documentIds)
+            };
+
+            return new AuditEvent("Project.DocumentRestoredBulk", userId, data);
+        }
+
+        public static AuditEvent ProjectDocumentsHardDeletedBulk(string? userId, IReadOnlyCollection<int> documentIds)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["Count"] = documentIds.Count.ToString(CultureInfo.InvariantCulture),
+                ["DocumentIds"] = string.Join(',', documentIds)
+            };
+
+            return new AuditEvent("Project.DocumentHardDeletedBulk", userId, data);
         }
     }
 }
