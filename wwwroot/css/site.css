@@ -108,6 +108,30 @@ body {
     margin-bottom: 0;
 }
 
+.procurement-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: .5rem 1rem;
+}
+
+.procurement-metrics > div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: .5rem;
+    padding-block: .125rem;
+}
+
+.procurement-metrics .procurement-label {
+    color: var(--pm-muted);
+}
+
+.procurement-metrics .procurement-value {
+    margin-left: auto;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
 @media (max-width: 575.98px) {
     .pm-card-header,
     .pm-card-body {

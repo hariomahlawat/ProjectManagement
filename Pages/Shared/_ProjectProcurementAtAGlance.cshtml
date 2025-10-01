@@ -51,35 +51,30 @@
   </div>
 
   <div class="card-body pm-card-body">
-    <div class="row g-3">
-      <div class="col-md-6">
-        <div class="d-flex justify-content-between">
-          <span class="text-muted">IPA Cost</span>
-          <span class="fw-semibold" title="@FullInr(Model.IpaCost)">@Money(Model.IpaCost)</span>
-        </div>
-        <div class="d-flex justify-content-between">
-          <span class="text-muted">AON Cost</span>
-          <span class="fw-semibold" title="@FullInr(Model.AonCost)">@Money(Model.AonCost)</span>
-        </div>
-        <div class="d-flex justify-content-between">
-          <span class="text-muted">Benchmark Cost</span>
-          <span class="fw-semibold" title="@FullInr(Model.BenchmarkCost)">@Money(Model.BenchmarkCost)</span>
-        </div>
+    <div class="procurement-metrics">
+      <div>
+        <span class="procurement-label text-muted">IPA Cost</span>
+        <span class="procurement-value fw-semibold" title="@FullInr(Model.IpaCost)">@Money(Model.IpaCost)</span>
       </div>
-
-      <div class="col-md-6">
-        <div class="d-flex justify-content-between">
-          <span class="text-muted">L1 Cost</span>
-          <span class="fw-semibold" title="@FullInr(Model.L1Cost)">@Money(Model.L1Cost)</span>
-        </div>
-        <div class="d-flex justify-content-between">
-          <span class="text-muted">PNC Cost</span>
-          <span class="fw-semibold" title="@FullInr(Model.PncCost)">@Money(Model.PncCost)</span>
-        </div>
-        <div class="d-flex justify-content-between">
-          <span class="text-muted">Supply Order Date</span>
-          <span class="fw-semibold">@DateDmy(Model.SupplyOrderDate)</span>
-        </div>
+      <div>
+        <span class="procurement-label text-muted">AON Cost</span>
+        <span class="procurement-value fw-semibold" title="@FullInr(Model.AonCost)">@Money(Model.AonCost)</span>
+      </div>
+      <div>
+        <span class="procurement-label text-muted">Benchmark Cost</span>
+        <span class="procurement-value fw-semibold" title="@FullInr(Model.BenchmarkCost)">@Money(Model.BenchmarkCost)</span>
+      </div>
+      <div>
+        <span class="procurement-label text-muted">L1 Cost</span>
+        <span class="procurement-value fw-semibold" title="@FullInr(Model.L1Cost)">@Money(Model.L1Cost)</span>
+      </div>
+      <div>
+        <span class="procurement-label text-muted">PNC Cost</span>
+        <span class="procurement-value fw-semibold" title="@FullInr(Model.PncCost)">@Money(Model.PncCost)</span>
+      </div>
+      <div>
+        <span class="procurement-label text-muted">Supply Order Date</span>
+        <span class="procurement-value fw-semibold">@DateDmy(Model.SupplyOrderDate)</span>
       </div>
     </div>
 
