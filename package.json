@@ -5,7 +5,9 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "lint:views": "./tools/check-views.sh"
+    "lint:views": "./tools/check-views.sh",
+    "build": "npm run build:js",
+    "build:js": "browserify wwwroot/js/widgets/project-photo-gallery.js -o wwwroot/js/widgets/project-photo-gallery.legacy.js -t [ babelify --configFile ./babel.config.json ] --debug"
   },
   "repository": {
     "type": "git",
@@ -18,5 +20,13 @@
   "bugs": {
     "url": "https://github.com/hariomahlawat/ProjectManagement/issues"
   },
-  "homepage": "https://github.com/hariomahlawat/ProjectManagement#readme"
+  "homepage": "https://github.com/hariomahlawat/ProjectManagement#readme",
+  "devDependencies": {
+    "@babel/cli": "^7.24.7",
+    "@babel/core": "^7.24.7",
+    "@babel/preset-env": "^7.24.7",
+    "babelify": "^10.0.0",
+    "browserify": "^17.0.0",
+    "core-js": "^3.37.1"
+  }
 }
