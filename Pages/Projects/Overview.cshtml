@@ -242,10 +242,8 @@
                     }
                     else if (coverPhoto is null)
                     {
-                        @{
-                            var emptyStateHeadingId = $"project-photo-empty-title-{Model.Project?.Id ?? 0}";
-                            var emptyStateDescriptionId = $"{emptyStateHeadingId}-desc";
-                        }
+                        var emptyStateHeadingId = $"project-photo-empty-title-{Model.Project?.Id ?? 0}";
+                        var emptyStateDescriptionId = $"{emptyStateHeadingId}-desc";
                         <div class="project-photo-empty border rounded bg-light-subtle text-center"
                              role="region"
                              aria-labelledby="@emptyStateHeadingId"
