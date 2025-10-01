@@ -215,11 +215,14 @@ public sealed class ProjectPhotoServiceTests
 
             var refreshedFirst = await db.ProjectPhotos.SingleAsync(p => p.Id == first.Id);
             var refreshedProject = await db.Projects.SingleAsync(p => p.Id == 23);
+            var coverCount = await db.ProjectPhotos.CountAsync(p => p.ProjectId == 23 && p.IsCover);
 
             Assert.False(refreshedFirst.IsCover);
             Assert.True(second.IsCover);
+            Assert.Equal(2, second.Version);
             Assert.Equal(second.Id, refreshedProject.CoverPhotoId);
             Assert.Equal(second.Version, refreshedProject.CoverPhotoVersion);
+            Assert.Equal(1, coverCount);
         }
         finally
         {
