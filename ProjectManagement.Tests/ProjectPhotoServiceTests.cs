@@ -263,6 +263,43 @@ public sealed class ProjectPhotoServiceTests
         }
     }
 
+    [Fact]
+    public async Task RemoveAsync_PromotesNextPhotoToCover()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 41);
+
+        var root = CreateTempRoot();
+        SetUploadRoot(root);
+        try
+        {
+            var options = CreateOptions();
+            var service = CreateService(db, options);
+
+            await using var firstStream = await CreateImageStreamAsync(1600, 1200);
+            var cover = await service.AddAsync(41, firstStream, "cover.png", "image/png", "owner", true, null, CancellationToken.None);
+
+            await using var secondStream = await CreateImageStreamAsync(1600, 1200);
+            var second = await service.AddAsync(41, secondStream, "second.png", "image/png", "owner", false, "Second", CancellationToken.None);
+
+            var removed = await service.RemoveAsync(41, cover.Id, "owner", CancellationToken.None);
+            Assert.True(removed);
+
+            var project = await db.Projects.SingleAsync(p => p.Id == 41);
+            var refreshedSecond = await db.ProjectPhotos.SingleAsync(p => p.Id == second.Id);
+
+            Assert.True(refreshedSecond.IsCover);
+            Assert.Equal(refreshedSecond.Id, project.CoverPhotoId);
+            Assert.Equal(refreshedSecond.Version, project.CoverPhotoVersion);
+            Assert.Equal(2, refreshedSecond.Version);
+        }
+        finally
+        {
+            ResetUploadRoot();
+            CleanupTempRoot(root);
+        }
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
