@@ -410,6 +410,11 @@ h1, .h1 { font-size: 1.25rem; }
   justify-content: center;
 }
 
+.project-photo-editor.is-active .project-photo-editor__canvas {
+  aspect-ratio: auto;
+  display: block;
+}
+
 .project-photo-editor__canvas img {
   display: block;
   max-width: 100%;
