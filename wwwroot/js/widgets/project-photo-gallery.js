@@ -35,7 +35,7 @@
       return;
     }
 
-    const cropperConstructor = window.Cropper;
+    const cropperConstructor = window.Cropper?.default ?? window.Cropper;
     if (typeof cropperConstructor !== 'function') {
       editor.classList.add('project-photo-editor--unsupported');
       return;
@@ -66,6 +66,8 @@
 
     let cropper = null;
     let selection = null;
+    let isModernCropper = false;
+    let legacyListenerCleanup = null;
     let activeObjectUrl = null;
     let lastDetail = null;
     let previewSequence = 0;
@@ -105,16 +107,38 @@
     }
 
     function updateHiddenFields(detail, scale) {
-      if (!detail || !scale) {
+      if (!detail) {
         resetFields();
         return;
       }
 
-      const { scaleX, scaleY, offsetX, offsetY } = scale;
-      const cropX = clamp((detail.x - offsetX) * scaleX, 0, Number.MAX_SAFE_INTEGER);
-      const cropY = clamp((detail.y - offsetY) * scaleY, 0, Number.MAX_SAFE_INTEGER);
-      const cropWidth = clamp(detail.width * scaleX, 0, Number.MAX_SAFE_INTEGER);
-      const cropHeight = clamp(detail.height * scaleY, 0, Number.MAX_SAFE_INTEGER);
+      let cropX;
+      let cropY;
+      let cropWidth;
+      let cropHeight;
+
+      if (scale) {
+        const { scaleX, scaleY, offsetX, offsetY } = scale;
+        cropX = clamp((detail.x - offsetX) * scaleX, 0, Number.MAX_SAFE_INTEGER);
+        cropY = clamp((detail.y - offsetY) * scaleY, 0, Number.MAX_SAFE_INTEGER);
+        cropWidth = clamp(detail.width * scaleX, 0, Number.MAX_SAFE_INTEGER);
+        cropHeight = clamp(detail.height * scaleY, 0, Number.MAX_SAFE_INTEGER);
+      } else {
+        const x = Number.isFinite(detail.naturalX) ? detail.naturalX : detail.x;
+        const y = Number.isFinite(detail.naturalY) ? detail.naturalY : detail.y;
+        const width = Number.isFinite(detail.naturalWidth) ? detail.naturalWidth : detail.width;
+        const height = Number.isFinite(detail.naturalHeight) ? detail.naturalHeight : detail.height;
+
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(width) || !Number.isFinite(height)) {
+          resetFields();
+          return;
+        }
+
+        cropX = clamp(x, 0, Number.MAX_SAFE_INTEGER);
+        cropY = clamp(y, 0, Number.MAX_SAFE_INTEGER);
+        cropWidth = clamp(width, 0, Number.MAX_SAFE_INTEGER);
+        cropHeight = clamp(height, 0, Number.MAX_SAFE_INTEGER);
+      }
 
       if (hiddenFields.x) hiddenFields.x.value = formatNumber(cropX);
       if (hiddenFields.y) hiddenFields.y.value = formatNumber(cropY);
@@ -153,19 +177,52 @@
     }
 
     function updatePreviews() {
-      if (!selection || previews.length === 0) {
+      if (previews.length === 0) {
         clearPreviews();
         return;
       }
 
       const currentSequence = ++previewSequence;
-      previews.forEach((preview) => {
-        const { image: previewImage, element, size } = preview;
-        if (!previewImage || !size) {
-          return;
-        }
+      if (selection && typeof selection.$toCanvas === 'function') {
+        previews.forEach((preview) => {
+          const { image: previewImage, element, size } = preview;
+          if (!previewImage || !size) {
+            return;
+          }
 
-        selection.$toCanvas({ width: size.width, height: size.height }).then((canvas) => {
+          selection.$toCanvas({ width: size.width, height: size.height }).then((canvas) => {
+            if (currentSequence !== previewSequence) {
+              return;
+            }
+
+            if (canvas && canvas.width > 0 && canvas.height > 0) {
+              try {
+                previewImage.src = canvas.toDataURL('image/jpeg', 0.92);
+                element.classList.add('is-loaded');
+              } catch (err) {
+                element.classList.remove('is-loaded');
+              }
+            }
+          }).catch(() => {
+            if (element) {
+              element.classList.remove('is-loaded');
+            }
+          });
+        });
+      } else if (cropper && typeof cropper.getCroppedCanvas === 'function') {
+        previews.forEach((preview) => {
+          const { image: previewImage, element, size } = preview;
+          if (!previewImage || !size) {
+            return;
+          }
+
+          let canvas = null;
+          try {
+            canvas = cropper.getCroppedCanvas({ width: size.width, height: size.height });
+          } catch (err) {
+            canvas = null;
+          }
+
           if (currentSequence !== previewSequence) {
             return;
           }
@@ -177,26 +234,38 @@
             } catch (err) {
               element.classList.remove('is-loaded');
             }
-          }
-        }).catch(() => {
-          if (element) {
+          } else if (element) {
             element.classList.remove('is-loaded');
           }
         });
-      });
+      } else {
+        clearPreviews();
+      }
     }
 
-    function handleSelectionChange(detail) {
+    function applyCropDetail(detail, scale) {
       if (!detail || detail.width <= 0 || detail.height <= 0) {
+        lastDetail = null;
         resetFields();
         clearPreviews();
         return;
       }
 
       lastDetail = detail;
-      const scale = computeScale(detail);
-      updateHiddenFields(detail, scale);
+      updateHiddenFields(detail, scale || null);
       updatePreviews();
+    }
+
+    function handleSelectionChange(detail) {
+      const scale = isModernCropper ? computeScale(detail) : null;
+      applyCropDetail(detail, scale);
+    }
+
+    function handleLegacyCrop(detail) {
+      applyCropDetail(detail, null);
+      if (detail && detail.width > 0 && detail.height > 0) {
+        setActiveState(true);
+      }
     }
 
     function bindSelectionListeners() {
@@ -237,30 +306,75 @@
         responsive: true
       });
 
-      selection = cropper.getCropperSelection();
-      bindSelectionListeners();
+      isModernCropper = cropper && typeof cropper.getCropperSelection === 'function' && typeof cropper.getCropperCanvas === 'function' && typeof cropper.getCropperImage === 'function';
 
-      if (selection) {
-        const detail = {
-          x: selection.x,
-          y: selection.y,
-          width: selection.width,
-          height: selection.height
-        };
-        handleSelectionChange(detail);
+      if (isModernCropper) {
+        selection = cropper.getCropperSelection();
+        bindSelectionListeners();
+
+        if (selection) {
+          const detail = {
+            x: selection.x,
+            y: selection.y,
+            width: selection.width,
+            height: selection.height
+          };
+          handleSelectionChange(detail);
+          setActiveState(true);
+        } else {
+          setActiveState(false);
+        }
       } else {
-        setActiveState(false);
+        selection = null;
+        if (legacyListenerCleanup) {
+          legacyListenerCleanup();
+        }
+
+        const handleReady = () => {
+          if (cropper && typeof cropper.getData === 'function') {
+            handleLegacyCrop(cropper.getData(true));
+          }
+          setActiveState(true);
+        };
+
+        const handleCropEvent = (event) => {
+          handleLegacyCrop(event && event.detail ? event.detail : null);
+        };
+
+        image.addEventListener('ready', handleReady);
+        image.addEventListener('crop', handleCropEvent);
+
+        legacyListenerCleanup = () => {
+          image.removeEventListener('ready', handleReady);
+          image.removeEventListener('crop', handleCropEvent);
+          legacyListenerCleanup = null;
+        };
+
+        if (cropper && typeof cropper.getData === 'function') {
+          handleLegacyCrop(cropper.getData(true));
+        } else {
+          setActiveState(false);
+        }
       }
     }
 
     function resetEditor() {
       if (cropper) {
-        const cropperCanvas = cropper.getCropperCanvas();
-        if (cropperCanvas && cropperCanvas.parentNode) {
-          cropperCanvas.parentNode.removeChild(cropperCanvas);
+        if (typeof cropper.destroy === 'function') {
+          cropper.destroy();
+        } else {
+          const cropperCanvas = typeof cropper.getCropperCanvas === 'function' ? cropper.getCropperCanvas() : null;
+          if (cropperCanvas && cropperCanvas.parentNode) {
+            cropperCanvas.parentNode.removeChild(cropperCanvas);
+          }
         }
         cropper = null;
         selection = null;
+        isModernCropper = false;
+      }
+
+      if (legacyListenerCleanup) {
+        legacyListenerCleanup();
       }
 
       revokeObjectUrl();
@@ -290,19 +404,25 @@
       if (cropper) {
         try {
           cropper.replace(source);
-          selection = cropper.getCropperSelection();
-          window.setTimeout(() => {
-            if (selection) {
-              const detail = {
-                x: selection.x,
-                y: selection.y,
-                width: selection.width,
-                height: selection.height
-              };
-              handleSelectionChange(detail);
-            }
-            setActiveState(true);
-          }, 0);
+          if (isModernCropper) {
+            selection = cropper.getCropperSelection();
+            window.setTimeout(() => {
+              if (selection) {
+                const detail = {
+                  x: selection.x,
+                  y: selection.y,
+                  width: selection.width,
+                  height: selection.height
+                };
+                handleSelectionChange(detail);
+              }
+              setActiveState(true);
+            }, 0);
+          } else if (cropper && typeof cropper.getData === 'function') {
+            window.setTimeout(() => {
+              handleLegacyCrop(cropper.getData(true));
+            }, 0);
+          }
         } catch (err) {
           resetEditor();
           return;
@@ -311,7 +431,7 @@
         image.src = source;
         image.addEventListener('load', () => {
           ensureCropperReady();
-          if (selection) {
+          if (isModernCropper && selection) {
             const detail = {
               x: selection.x,
               y: selection.y,
@@ -320,6 +440,8 @@
             };
             handleSelectionChange(detail);
             setActiveState(true);
+          } else if (!isModernCropper && cropper && typeof cropper.getData === 'function') {
+            handleLegacyCrop(cropper.getData(true));
           }
         }, { once: true });
       }
@@ -342,8 +464,16 @@
     }
 
     window.addEventListener('resize', () => {
-      if (lastDetail) {
-        handleSelectionChange(lastDetail);
+      if (!cropper) {
+        return;
+      }
+
+      if (isModernCropper) {
+        if (lastDetail) {
+          handleSelectionChange(lastDetail);
+        }
+      } else if (typeof cropper.getData === 'function') {
+        handleLegacyCrop(cropper.getData(true));
       }
     });
 
