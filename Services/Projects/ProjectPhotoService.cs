@@ -709,7 +709,7 @@ namespace ProjectManagement.Services.Projects
                 throw new InvalidOperationException("Crop rectangle must be within the image bounds.");
             }
 
-            if (Math.Abs(crop.Width * 3 - crop.Height * 4) > 1)
+            if (Math.Abs(crop.Width * 3 - crop.Height * 4) > 2)
             {
                 throw new InvalidOperationException("Crop rectangle must maintain a 4:3 aspect ratio.");
             }

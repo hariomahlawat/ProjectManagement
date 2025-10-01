@@ -79,6 +79,136 @@
     return Number.isFinite(value) ? String(Math.round(value)) : '';
   }
 
+  function quantizeCropBox(cropBox, naturalWidth, naturalHeight) {
+    if (!cropBox || !isPositiveNumber(naturalWidth) || !isPositiveNumber(naturalHeight)) {
+      return null;
+    }
+
+    const safeWidth = Math.floor(naturalWidth);
+    const safeHeight = Math.floor(naturalHeight);
+    const maxX = Math.max(0, safeWidth - 1);
+    const maxY = Math.max(0, safeHeight - 1);
+
+    const clampInt = (value, min, max) => {
+      if (!Number.isFinite(value)) {
+        return min;
+      }
+      const rounded = Math.round(value);
+      return Math.min(Math.max(rounded, min), max);
+    };
+
+    const clampDimension = (value, min, max) => {
+      if (!Number.isFinite(value)) {
+        return min;
+      }
+      const rounded = Math.round(value);
+      return Math.min(Math.max(rounded, min), max);
+    };
+
+    const roundedX = clampInt(cropBox.x, 0, maxX);
+    const roundedY = clampInt(cropBox.y, 0, maxY);
+
+    const maxWidth = Math.max(1, safeWidth - roundedX);
+    const maxHeight = Math.max(1, safeHeight - roundedY);
+
+    const widthValues = new Set();
+    const heightValues = new Set();
+
+    const pushWidth = (value) => {
+      if (!Number.isFinite(value)) {
+        return;
+      }
+      const clamped = clampDimension(value, 1, maxWidth);
+      widthValues.add(clamped);
+    };
+
+    const pushHeight = (value) => {
+      if (!Number.isFinite(value)) {
+        return;
+      }
+      const clamped = clampDimension(value, 1, maxHeight);
+      heightValues.add(clamped);
+    };
+
+    pushWidth(cropBox.width);
+    pushWidth(Math.floor(cropBox.width));
+    pushWidth(Math.ceil(cropBox.width));
+    pushHeight(cropBox.height);
+    pushHeight(Math.floor(cropBox.height));
+    pushHeight(Math.ceil(cropBox.height));
+
+    const candidates = new Map();
+    const addCandidate = (rawWidth, rawHeight) => {
+      if (!Number.isFinite(rawWidth) || !Number.isFinite(rawHeight)) {
+        return;
+      }
+      const width = clampDimension(rawWidth, 1, maxWidth);
+      const height = clampDimension(rawHeight, 1, maxHeight);
+      const key = `${width}x${height}`;
+      if (candidates.has(key)) {
+        return;
+      }
+
+      const ratioDiff = Math.abs(width * 3 - height * 4);
+      const distance = Math.abs(width - cropBox.width) + Math.abs(height - cropBox.height);
+      candidates.set(key, { width, height, ratioDiff, distance });
+    };
+
+    const widthList = Array.from(widthValues);
+    const heightList = Array.from(heightValues);
+
+    widthList.forEach((width) => {
+      heightList.forEach((height) => {
+        addCandidate(width, height);
+      });
+      addCandidate(width, width / ASPECT_RATIO);
+    });
+
+    heightList.forEach((height) => {
+      addCandidate(height * ASPECT_RATIO, height);
+    });
+
+    if (candidates.size === 0) {
+      return null;
+    }
+
+    let best = null;
+    candidates.forEach((candidate) => {
+      const priority = candidate.ratioDiff <= 1 ? 0 : 1;
+      if (!best) {
+        best = { ...candidate, priority };
+        return;
+      }
+
+      if (priority < best.priority) {
+        best = { ...candidate, priority };
+        return;
+      }
+
+      if (priority === best.priority) {
+        if (candidate.ratioDiff < best.ratioDiff) {
+          best = { ...candidate, priority };
+          return;
+        }
+
+        if (candidate.ratioDiff === best.ratioDiff && candidate.distance < best.distance) {
+          best = { ...candidate, priority };
+        }
+      }
+    });
+
+    if (!best) {
+      return null;
+    }
+
+    return {
+      x: roundedX,
+      y: roundedY,
+      width: best.width,
+      height: best.height
+    };
+  }
+
   function initPhotoEditor(editor) {
     if (!editor) {
       return;
@@ -196,10 +326,12 @@
         return false;
       }
 
-      if (hiddenFields.x) hiddenFields.x.value = formatNumber(cropBox.x);
-      if (hiddenFields.y) hiddenFields.y.value = formatNumber(cropBox.y);
-      if (hiddenFields.width) hiddenFields.width.value = formatNumber(cropBox.width);
-      if (hiddenFields.height) hiddenFields.height.value = formatNumber(cropBox.height);
+      const quantizedCrop = quantizeCropBox(cropBox, naturalWidth, naturalHeight) || cropBox;
+
+      if (hiddenFields.x) hiddenFields.x.value = formatNumber(quantizedCrop.x);
+      if (hiddenFields.y) hiddenFields.y.value = formatNumber(quantizedCrop.y);
+      if (hiddenFields.width) hiddenFields.width.value = formatNumber(quantizedCrop.width);
+      if (hiddenFields.height) hiddenFields.height.value = formatNumber(quantizedCrop.height);
 
       return true;
     }
