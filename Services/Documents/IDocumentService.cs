@@ -7,6 +7,8 @@ namespace ProjectManagement.Services.Documents;
 
 public interface IDocumentService
 {
+    int CreateTempRequestToken();
+
     Task<DocumentFileDescriptor> SaveTempAsync(
         int requestId,
         Stream content,

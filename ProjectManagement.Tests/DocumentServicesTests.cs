@@ -124,7 +124,7 @@ public sealed class DocumentServicesTests
             var document = await db.ProjectDocuments.SingleAsync();
             using var replacement = CreatePdfStream(1536, payload: "New content");
             var tempReplace = await documentService.SaveTempAsync(2, replacement, "manual.pdf", "application/pdf", CancellationToken.None);
-            await requestService.CreateReplaceRequestAsync(document.Id, tempReplace, "requestor", CancellationToken.None);
+            await requestService.CreateReplaceRequestAsync(document.Id, null, tempReplace, "requestor", CancellationToken.None);
 
             var replaceRequest = await db.ProjectDocumentRequests
                 .OrderByDescending(r => r.Id)
@@ -230,13 +230,13 @@ public sealed class DocumentServicesTests
 
             using var replacement = CreatePdfStream(1024, payload: "replace");
             var tempReplace = await documentService.SaveTempAsync(2, replacement, "replace.pdf", "application/pdf", CancellationToken.None);
-            await requestService.CreateReplaceRequestAsync(document.Id, tempReplace, "requestor", CancellationToken.None);
+            await requestService.CreateReplaceRequestAsync(document.Id, null, tempReplace, "requestor", CancellationToken.None);
 
             using var another = CreatePdfStream(1024, payload: "again");
             var tempSecond = await documentService.SaveTempAsync(3, another, "replace.pdf", "application/pdf", CancellationToken.None);
 
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                requestService.CreateReplaceRequestAsync(document.Id, tempSecond, "requestor", CancellationToken.None));
+                requestService.CreateReplaceRequestAsync(document.Id, null, tempSecond, "requestor", CancellationToken.None));
 
             await documentService.DeleteTempAsync(tempSecond.StorageKey, CancellationToken.None);
         }

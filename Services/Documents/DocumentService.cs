@@ -26,6 +26,7 @@ public sealed class DocumentService : IDocumentService
     private readonly ILogger<DocumentService>? _logger;
 
     private static readonly string[] PdfMagic = { "%PDF-" };
+    private static int _tempRequestTokenSeed = (int)(DateTime.UtcNow.Ticks & 0x7FFFFFFF);
 
     public DocumentService(
         ApplicationDbContext db,
@@ -43,6 +44,18 @@ public sealed class DocumentService : IDocumentService
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
         _virusScanner = virusScanner;
         _logger = logger;
+    }
+
+    public int CreateTempRequestToken()
+    {
+        var next = Interlocked.Increment(ref _tempRequestTokenSeed);
+        if (next <= 0)
+        {
+            Interlocked.Exchange(ref _tempRequestTokenSeed, 1);
+            next = Interlocked.Increment(ref _tempRequestTokenSeed);
+        }
+
+        return next;
     }
 
     public async Task<DocumentFileDescriptor> SaveTempAsync(

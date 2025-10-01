@@ -1,0 +1,70 @@
+@page
+@model ProjectManagement.Pages.Projects.Documents.ReplaceRequestModel
+@{
+    ViewData["Title"] = $"Replace document – {Model.Project?.Name}";
+}
+
+<div class="row justify-content-between gy-4">
+    <div class="col-lg-8 col-xl-6">
+        <a class="btn btn-link px-0" asp-page="../Overview" asp-route-id="@Model.Input.ProjectId">&larr; Back to documents</a>
+        <h1 class="h2 mt-2">Request document replacement</h1>
+        <p class="text-muted">The existing document stays live until the replacement is approved.</p>
+
+        <div class="card border-0 shadow-sm mb-4">
+            <div class="card-body">
+                <h2 class="h6 text-uppercase text-muted mb-3">Current document</h2>
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Title</dt>
+                    <dd class="col-sm-8">@Model.DocumentTitle</dd>
+                    <dt class="col-sm-4">Stage</dt>
+                    <dd class="col-sm-8">@Model.DocumentStage</dd>
+                    <dt class="col-sm-4">Filename</dt>
+                    <dd class="col-sm-8">@Model.DocumentFileName</dd>
+                </dl>
+            </div>
+        </div>
+
+        <form method="post" enctype="multipart/form-data" novalidate data-doc-request>
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+            <input type="hidden" asp-for="Input.ProjectId" />
+            <input type="hidden" asp-for="Input.DocumentId" />
+
+            <div class="mb-3">
+                <label asp-for="Input.Nomenclature" class="form-label">New nomenclature (optional)</label>
+                <input asp-for="Input.Nomenclature" class="form-control" autocomplete="off" />
+                <span asp-validation-for="Input.Nomenclature" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3" data-doc-dropzone>
+                <label class="form-label" for="replaceFile">Upload replacement PDF</label>
+                <div class="doc-request-drop border border-2 border-secondary-subtle rounded-3 p-4 text-center" data-doc-drop-target tabindex="0" role="button" aria-describedby="replace-upload-help">
+                    <div class="fw-semibold" data-doc-drop-label>Drag &amp; drop a PDF or browse</div>
+                    <div class="text-muted small" data-doc-drop-filename></div>
+                </div>
+                <input asp-for="Input.File" class="form-control visually-hidden" id="replaceFile" data-doc-file data-max-size="@Model.MaxFileSizeBytes" data-allowed="@string.Join(',', Model.AllowedContentTypes)" />
+                <span asp-validation-for="Input.File" class="text-danger"></span>
+                <div id="replace-upload-help" class="form-text">PDF only • ≤ 25 MB</div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-primary">Submit request</button>
+                <a asp-page="../Overview" asp-route-id="@Model.Input.ProjectId" class="btn btn-link">Cancel</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card bg-light border-0 shadow-sm">
+            <div class="card-body">
+                <h2 class="h6 text-uppercase text-muted">Project</h2>
+                <p class="mb-1 fw-semibold">@Model.Project?.Name</p>
+                <p class="mb-0 text-muted">Project code: @Model.Project?.ProjectCode</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/projects/document-requests.js" asp-append-version="true"></script>
+}
