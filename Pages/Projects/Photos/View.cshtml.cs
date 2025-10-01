@@ -51,7 +51,7 @@ public class ViewModel : PageModel
             return NotFound();
         }
 
-        if (!CanViewProject(project, userId))
+        if (!ProjectAccessGuard.CanViewProject(project, _userContext.User, userId))
         {
             return Forbid();
         }
@@ -142,32 +142,6 @@ public class ViewModel : PageModel
         var normalized = size.Trim().ToLowerInvariant();
         return normalized is "xs" or "sm" or "md" or "xl" ? normalized : null;
     }
-
-    private bool CanViewProject(Project project, string userId)
-    {
-        var principal = _userContext.User;
-        if (principal.IsInRole("Admin"))
-        {
-            return true;
-        }
-
-        if (principal.IsInRole("HoD") && string.Equals(project.HodUserId, userId, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (string.Equals(project.LeadPoUserId, userId, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (principal.IsInRole("Project Officer"))
-        {
-            return true;
-        }
-
-        return false;
-}
 
     private static string GetFormatToken(string contentType)
     {

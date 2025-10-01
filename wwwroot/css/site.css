@@ -1286,3 +1286,7 @@ body.has-project-photo-preview-dialog {
 .pm-photo-grid-item .pm-photo-cover-badge {
   position: absolute;
 }
+
+.doc-preview-frame {
+  min-height: 70vh;
+}

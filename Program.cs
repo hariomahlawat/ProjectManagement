@@ -33,6 +33,8 @@ using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
 using ProjectManagement.Utilities;
 using ProjectManagement.Services.Stages;
+using Microsoft.Net.Http.Headers;
+using System.Threading;
 
 var runForecastBackfill = args.Any(a => string.Equals(a, "--backfill-forecast", StringComparison.OrdinalIgnoreCase));
 
@@ -261,6 +263,7 @@ app.Use(async (ctx, next) =>
         "default-src 'self'; " +
         "base-uri 'self'; " +
         "frame-ancestors 'none'; " +
+        "frame-src 'self'; " +
         "img-src 'self' data: blob:; " +
         "script-src 'self'; " +
         "style-src 'self'; " +
@@ -516,6 +519,76 @@ app.MapGet("/api/categories/children", async (int parentId, ApplicationDbContext
 
     return Results.Ok(items);
 }).RequireAuthorization("Project.Create");
+
+app.MapGet("/Projects/Documents/View", async (
+    int documentId,
+    HttpContext httpContext,
+    ApplicationDbContext db,
+    IUserContext userContext,
+    IDocumentService documentService,
+    CancellationToken cancellationToken) =>
+{
+    var userId = userContext.UserId;
+    if (string.IsNullOrEmpty(userId))
+    {
+        return Results.Challenge();
+    }
+
+    var document = await db.ProjectDocuments
+        .AsNoTracking()
+        .Include(d => d.Project)
+        .FirstOrDefaultAsync(d => d.Id == documentId, cancellationToken);
+
+    if (document is null || document.Project is null)
+    {
+        return Results.NotFound();
+    }
+
+    if (document.Status != ProjectDocumentStatus.Published || document.IsArchived)
+    {
+        return Results.NotFound();
+    }
+
+    if (!ProjectAccessGuard.CanViewProject(document.Project, userContext.User, userId))
+    {
+        return Results.Forbid();
+    }
+
+    var etag = new EntityTagHeaderValue($"\"doc-{document.Id}-v{document.FileStamp}\"");
+
+    var responseHeaders = httpContext.Response.GetTypedHeaders();
+    responseHeaders.CacheControl = new CacheControlHeaderValue
+    {
+        Private = true,
+        MaxAge = TimeSpan.FromDays(7)
+    };
+    responseHeaders.ETag = etag;
+
+    var requestEtags = httpContext.Request.GetTypedHeaders().IfNoneMatch;
+    if (requestEtags is not null && requestEtags.Any(tag => tag.Equals(EntityTagHeaderValue.Any) || tag.Equals(etag)))
+    {
+        return Results.StatusCode(StatusCodes.Status304NotModified);
+    }
+
+    var streamResult = await documentService.OpenStreamAsync(documentId, cancellationToken);
+    if (streamResult is null)
+    {
+        return Results.NotFound();
+    }
+
+    var safeFileName = Path.GetFileName(streamResult.FileName).Replace("\"", string.Empty);
+    var disposition = new ContentDispositionHeaderValue("inline")
+    {
+        FileNameStar = safeFileName,
+        FileName = safeFileName
+    };
+
+    httpContext.Response.Headers[HeaderNames.ContentDisposition] = disposition.ToString();
+    httpContext.Response.ContentType = "application/pdf";
+    httpContext.Response.ContentLength = streamResult.Length;
+
+    return Results.File(streamResult.Stream, contentType: "application/pdf", enableRangeProcessing: true);
+}).RequireAuthorization();
 
 app.MapRazorPages();
 

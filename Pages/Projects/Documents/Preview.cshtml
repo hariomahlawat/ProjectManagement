@@ -1,0 +1,47 @@
+@page "/Projects/Documents/Preview"
+@model ProjectManagement.Pages.Projects.Documents.PreviewModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>@ViewData["Title"] - Document Preview</title>
+    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="~/lib/bootstrap-icons/font/bootstrap-icons.min.css" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+</head>
+<body class="bg-light">
+    <div class="container py-4">
+        <div class="d-flex align-items-center mb-3">
+            <a asp-page="/Projects/Overview" asp-route-id="@Model.Document.ProjectId" class="btn btn-link px-0 me-3">
+                <i class="bi bi-arrow-left"></i>
+                <span class="ms-1">Back to project</span>
+            </a>
+            <div>
+                <h1 class="h4 mb-0">@Model.Document.Title</h1>
+                <div class="text-muted small">@Model.Document.OriginalFileName</div>
+            </div>
+        </div>
+
+        <div class="card shadow-sm mb-3">
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-3">Nomenclature</dt>
+                    <dd class="col-sm-9">@Model.Document.Title</dd>
+                    <dt class="col-sm-3">Stage</dt>
+                    <dd class="col-sm-9">@Model.Document.StageDisplayName</dd>
+                    <dt class="col-sm-3">Uploaded on/by</dt>
+                    <dd class="col-sm-9">@Model.Document.UploadedSummary</dd>
+                </dl>
+            </div>
+        </div>
+
+        <div class="ratio ratio-4x3 doc-preview-frame">
+            <iframe src="@Model.ViewUrl" title="@Model.Document.Title" class="w-100 h-100 border rounded bg-white"></iframe>
+        </div>
+    </div>
+</body>
+</html>
