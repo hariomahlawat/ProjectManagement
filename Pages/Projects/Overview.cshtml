@@ -213,15 +213,32 @@
                     <p class="pm-card-subtitle mb-0">Description and key project facts</p>
                 </div>
             </div>
-            @if (canManagePhotos)
+            @if (canManagePhotos || isThisProjectsPo || isAdmin || isHoD)
             {
                 <div class="pm-card-actions">
-                    <a class="btn btn-link card-action-link"
-                       asp-page="/Projects/Photos/Index"
-                       asp-route-id="@Model.Project!.Id">
-                        <i class="bi bi-sliders" aria-hidden="true"></i>
-                        <span>Manage photos</span>
-                    </a>
+                    <div class="d-flex flex-wrap gap-2">
+                        @if (canManagePhotos)
+                        {
+                            <a class="btn btn-link card-action-link"
+                               asp-page="/Projects/Photos/Index"
+                               asp-route-id="@Model.Project!.Id">
+                                <i class="bi bi-sliders" aria-hidden="true"></i>
+                                <span>Manage photos</span>
+                            </a>
+                        }
+                        @if (isThisProjectsPo)
+                        {
+                            <a class="btn btn-sm btn-outline-primary"
+                               asp-page="/Projects/Meta/Request"
+                               asp-route-id="@Model.Project!.Id">Request change</a>
+                        }
+                        @if (isAdmin || isHoD)
+                        {
+                            <a class="btn btn-sm btn-outline-secondary"
+                               asp-page="/Projects/Meta/Edit"
+                               asp-route-id="@Model.Project!.Id">Edit details</a>
+                        }
+                    </div>
                 </div>
             }
         </div>
@@ -259,23 +276,7 @@
                     </div>
                 </div>
                 <div class="col-12 col-lg-7 col-xl-8">
-                    <div class="d-flex flex-column gap-3">
-                        <div class="d-flex flex-column flex-md-row align-items-md-start justify-content-between gap-2">
-                            @if (isThisProjectsPo || isAdmin || isHoD)
-                            {
-                                <div class="d-flex flex-wrap gap-2">
-                                    @if (isThisProjectsPo)
-                                    {
-                                        <a class="btn btn-sm btn-outline-primary" asp-page="/Projects/Meta/Request" asp-route-id="@Model.Project!.Id">Request change</a>
-                                    }
-                                    @if (isAdmin || isHoD)
-                                    {
-                                        <a class="btn btn-sm btn-outline-secondary" asp-page="/Projects/Meta/Edit" asp-route-id="@Model.Project!.Id">Edit details</a>
-                                    }
-                                </div>
-                            }
-                        </div>
-                        <dl class="row mb-0">
+                    <dl class="row mb-0">
                             <dt class="col-sm-4">Description</dt>
                             <dd class="col-sm-8">@(!string.IsNullOrWhiteSpace(project?.Description) ? project.Description : "—")</dd>
 
@@ -303,8 +304,6 @@
                             <dt class="col-sm-4">Project Officer</dt>
                             <dd class="col-sm-8">@DisplayUser(project?.LeadPoUser)</dd>
                         </dl>
-
-                    </div>
                 </div>
             </div>
 
