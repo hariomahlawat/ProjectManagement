@@ -23,6 +23,7 @@ using Microsoft.Extensions.DependencyInjection;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using PhotosIndexModel = ProjectManagement.Pages.Projects.Photos.IndexModel;
+using PhotoViewModel = ProjectManagement.Pages.Projects.Photos.ViewModel;
 using ProjectsOverviewModel = ProjectManagement.Pages.Projects.OverviewModel;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
@@ -142,6 +143,95 @@ public sealed class ProjectPhotoPageTests
             ResetUploadRoot();
             CleanupTempRoot(root);
         }
+    }
+
+    [Fact]
+    public async Task View_SetsExtendedCacheHeaders_ForPhotos()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 7, leadPoUserId: "viewer");
+        var photo = new ProjectPhoto
+        {
+            Id = 8,
+            ProjectId = 7,
+            StorageKey = "photos/7/8.png",
+            OriginalFileName = "cover.png",
+            ContentType = "image/png",
+            Width = 800,
+            Height = 600,
+            Ordinal = 1,
+            UpdatedUtc = new DateTime(2024, 10, 8, 12, 0, 0, DateTimeKind.Utc)
+        };
+        db.ProjectPhotos.Add(photo);
+        await db.SaveChangesAsync();
+
+        var userContext = new FakeUserContext("viewer", isProjectOfficer: true);
+        var photoService = new StubPhotoService
+        {
+            DerivativeToReturn = (new MemoryStream(new byte[] { 1, 2, 3 }), "image/png")
+        };
+        var page = new PhotoViewModel(db, userContext, photoService);
+        ConfigurePageContext(page, userContext.User);
+
+        var result = await page.OnGetAsync(7, 8, "sm", CancellationToken.None);
+
+        Assert.IsType<FileStreamResult>(result);
+        var headers = page.Response.GetTypedHeaders();
+        Assert.Equal(TimeSpan.FromDays(7), headers.CacheControl?.MaxAge);
+    }
+
+    [Fact]
+    public async Task View_SetsExtendedCacheHeaders_ForPlaceholder()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 9, leadPoUserId: "viewer");
+
+        var userContext = new FakeUserContext("viewer", isProjectOfficer: true);
+        var photoService = new StubPhotoService();
+        var page = new PhotoViewModel(db, userContext, photoService);
+        ConfigurePageContext(page, userContext.User);
+
+        var result = await page.OnGetAsync(9, 999, "sm", CancellationToken.None);
+
+        Assert.IsType<FileContentResult>(result);
+        var headers = page.Response.GetTypedHeaders();
+        Assert.Equal(TimeSpan.FromDays(7), headers.CacheControl?.MaxAge);
+    }
+
+    [Fact]
+    public async Task View_ReturnsNotModified_WhenIfNoneMatchMatches()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 11, leadPoUserId: "viewer");
+        var photo = new ProjectPhoto
+        {
+            Id = 12,
+            ProjectId = 11,
+            StorageKey = "photos/11/12.png",
+            OriginalFileName = "cover.png",
+            ContentType = "image/png",
+            Width = 800,
+            Height = 600,
+            Ordinal = 1,
+            Version = 3,
+            UpdatedUtc = new DateTime(2024, 10, 9, 15, 30, 0, DateTimeKind.Utc)
+        };
+        db.ProjectPhotos.Add(photo);
+        await db.SaveChangesAsync();
+
+        var userContext = new FakeUserContext("viewer", isProjectOfficer: true);
+        var photoService = new StubPhotoService();
+        var page = new PhotoViewModel(db, userContext, photoService);
+        ConfigurePageContext(page, userContext.User);
+
+        var etag = $"\"pp-{photo.ProjectId}-{photo.Id}-v{photo.Version}-sm\"";
+        page.Request.Headers["If-None-Match"] = etag;
+
+        var result = await page.OnGetAsync(11, 12, "sm", CancellationToken.None);
+
+        var status = Assert.IsType<StatusCodeResult>(result);
+        Assert.Equal(StatusCodes.Status304NotModified, status.StatusCode);
+        Assert.False(photoService.OpenDerivativeCalled);
     }
 
     private static PhotosIndexModel CreateIndexPage(ApplicationDbContext db, FakeUserContext userContext)
@@ -292,6 +382,46 @@ public sealed class ProjectPhotoPageTests
 
         public Task<(Stream Stream, string ContentType)?> OpenDerivativeAsync(int projectId, int photoId, string sizeKey, CancellationToken cancellationToken)
             => throw new NotImplementedException();
+
+        public string GetDerivativePath(ProjectPhoto photo, string sizeKey)
+            => throw new NotImplementedException();
+    }
+
+    private sealed class StubPhotoService : IProjectPhotoService
+    {
+        public (Stream Stream, string ContentType)? DerivativeToReturn { get; set; }
+
+        public bool OpenDerivativeCalled { get; private set; }
+
+        public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, ProjectPhotoCrop crop, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public Task<ProjectPhoto?> ReplaceAsync(int projectId, int photoId, Stream content, string originalFileName, string? contentType, string userId, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public Task<ProjectPhoto?> ReplaceAsync(int projectId, int photoId, Stream content, string originalFileName, string? contentType, string userId, ProjectPhotoCrop crop, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public Task<ProjectPhoto?> UpdateCaptionAsync(int projectId, int photoId, string? caption, string userId, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public Task<ProjectPhoto?> UpdateCropAsync(int projectId, int photoId, ProjectPhotoCrop crop, string userId, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public Task<bool> RemoveAsync(int projectId, int photoId, string userId, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public Task ReorderAsync(int projectId, IReadOnlyList<int> orderedPhotoIds, string userId, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public Task<(Stream Stream, string ContentType)?> OpenDerivativeAsync(int projectId, int photoId, string sizeKey, CancellationToken cancellationToken)
+        {
+            OpenDerivativeCalled = true;
+            return Task.FromResult(DerivativeToReturn);
+        }
 
         public string GetDerivativePath(ProjectPhoto photo, string sizeKey)
             => throw new NotImplementedException();
