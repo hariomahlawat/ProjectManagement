@@ -303,6 +303,8 @@ namespace ProjectManagement.Services.Projects
                 .Select(p => (int?)p.Ordinal)
                 .MaxAsync(cancellationToken) ?? 0;
 
+            var shouldSetCover = setAsCover || project.CoverPhotoId == null;
+
             var photo = new ProjectPhoto
             {
                 ProjectId = projectId,
@@ -313,7 +315,7 @@ namespace ProjectManagement.Services.Projects
                 Height = validation.CroppedHeight,
                 Ordinal = ordinal + 1,
                 Caption = captionValue,
-                IsCover = setAsCover || project.CoverPhotoId == null,
+                IsCover = false,
                 CreatedUtc = now,
                 UpdatedUtc = now,
                 Version = 1
@@ -326,17 +328,23 @@ namespace ProjectManagement.Services.Projects
             _db.ProjectPhotos.Add(photo);
             await _db.SaveChangesAsync(cancellationToken);
 
-            if (photo.IsCover)
+            if (shouldSetCover)
             {
                 await _db.ProjectPhotos
                     .Where(p => p.ProjectId == projectId && p.Id != photo.Id && p.IsCover)
                     .ExecuteUpdateAsync(setters => setters.SetProperty(p => p.IsCover, false), cancellationToken);
 
+                var coverUpdatedAt = _clock.UtcNow.UtcDateTime;
+
+                photo.IsCover = true;
+                photo.Version += 1;
+                photo.UpdatedUtc = coverUpdatedAt;
+
                 project.CoverPhotoId = photo.Id;
                 project.CoverPhotoVersion = photo.Version;
-            }
 
-            await _db.SaveChangesAsync(cancellationToken);
+                await _db.SaveChangesAsync(cancellationToken);
+            }
             await tx.CommitAsync(cancellationToken);
 
             await Audit.Events.ProjectPhotoAdded(projectId, photo.Id, userId, photo.IsCover).WriteAsync(_audit);
