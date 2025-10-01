@@ -158,6 +158,34 @@ public sealed class ProjectPhotoServiceTests
     }
 
     [Fact]
+    public async Task AddAsync_AcceptsCropWithinAspectTolerance()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 13);
+
+        await using var stream = await CreateImageStreamAsync(1600, 1200);
+
+        var root = CreateTempRoot();
+        SetUploadRoot(root);
+        try
+        {
+            var options = CreateOptions();
+            var service = CreateService(db, options);
+
+            var crop = new ProjectPhotoCrop(0, 0, 867, 650);
+            var photo = await service.AddAsync(13, stream, "tolerant.png", "image/png", "user", false, null, crop, CancellationToken.None);
+
+            Assert.Equal(867, photo.Width);
+            Assert.Equal(650, photo.Height);
+        }
+        finally
+        {
+            ResetUploadRoot();
+            CleanupTempRoot(root);
+        }
+    }
+
+    [Fact]
     public async Task UpdateCropAsync_ReusesOriginalAndBumpsVersion()
     {
         await using var db = CreateContext();
