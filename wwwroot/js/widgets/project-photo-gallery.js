@@ -365,7 +365,9 @@
         viewMode: 1,
         background: false,
         autoCropArea: 1,
-        responsive: true
+        responsive: true,
+        aspectRatio: ASPECT_RATIO,
+        initialAspectRatio: ASPECT_RATIO
       });
 
       isModernCropper = cropper && typeof cropper.getCropperSelection === 'function' && typeof cropper.getCropperCanvas === 'function' && typeof cropper.getCropperImage === 'function';
@@ -388,6 +390,9 @@
         }
       } else {
         selection = null;
+        if (cropper && typeof cropper.setAspectRatio === 'function') {
+          cropper.setAspectRatio(ASPECT_RATIO);
+        }
         if (legacyListenerCleanup) {
           legacyListenerCleanup();
         }
