@@ -38,6 +38,7 @@ using Microsoft.Net.Http.Headers;
 using System.Threading;
 using ProjectManagement.Features.Remarks;
 using ProjectManagement.Services.Notifications;
+using Microsoft.Extensions.DependencyInjection;
 
 var runForecastBackfill = args.Any(a => string.Equals(a, "--backfill-forecast", StringComparison.OrdinalIgnoreCase));
 
@@ -60,6 +61,8 @@ if (string.IsNullOrWhiteSpace(keysDir))
 builder.Services.AddDataProtection()
     .PersistKeysToFileSystem(new DirectoryInfo(keysDir))
     .SetApplicationName("ProjectManagement_SDD");
+
+builder.Services.AddMetrics();
 
 // ---------- Database (PostgreSQL) ----------
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -173,6 +176,7 @@ builder.Services.AddScoped<ProjectTimelineReadService>();
 builder.Services.AddScoped<ProjectCommentService>();
 builder.Services.AddScoped<IRemarkService, RemarkService>();
 builder.Services.AddScoped<IRemarkNotificationService, RemarkNotificationService>();
+builder.Services.AddSingleton<IRemarkMetrics, RemarkMetrics>();
 builder.Services.AddScoped<INotificationPublisher, NotificationPublisher>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddSingleton<IDocumentPreviewTokenService, DocumentPreviewTokenService>();

@@ -18,6 +18,7 @@ public sealed class RemarkService : IRemarkService
     private readonly IClock _clock;
     private readonly ILogger<RemarkService> _logger;
     private readonly IRemarkNotificationService _notification;
+    private readonly IRemarkMetrics _metrics;
 
     public const string ConcurrencyConflictMessage = "This remark was changed by someone else. Reload to continue.";
     public const string RowVersionRequiredMessage = "Row version is required for this operation.";
@@ -30,12 +31,14 @@ public sealed class RemarkService : IRemarkService
         ApplicationDbContext db,
         IClock clock,
         ILogger<RemarkService> logger,
-        IRemarkNotificationService notification)
+        IRemarkNotificationService notification,
+        IRemarkMetrics metrics)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _notification = notification ?? throw new ArgumentNullException(nameof(notification));
+        _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
     }
 
     public async Task<Remark> CreateRemarkAsync(CreateRemarkRequest request, CancellationToken cancellationToken = default)
@@ -53,7 +56,7 @@ public sealed class RemarkService : IRemarkService
             throw new InvalidOperationException("Project not found.");
         }
 
-        ValidateRoleForType(request.Actor.ActorRole, request.Actor.Roles, request.Type);
+        ValidateRoleForType(request.Actor, request.Type, request.ProjectId);
 
         var now = _clock.UtcNow.UtcDateTime;
         var today = DateOnly.FromDateTime(now);
@@ -92,6 +95,7 @@ public sealed class RemarkService : IRemarkService
         await transaction.CommitAsync(cancellationToken);
 
         LogDecision("Create", true, null, request.Actor, remark.Id, remark.ProjectId);
+        _metrics.RecordCreated();
 
         try
         {
@@ -188,6 +192,10 @@ public sealed class RemarkService : IRemarkService
         var editPermission = EvaluateRemarkPermission(remark, request.Actor, now, isDelete: false);
         if (!editPermission.Allowed)
         {
+            if (string.Equals(editPermission.ReasonCode, "AuthorWindowExpired", StringComparison.Ordinal))
+            {
+                _metrics.RecordEditDeniedWindowExpired("Edit");
+            }
             LogDecision("Edit", false, editPermission.ReasonCode, request.Actor, remark.Id, remark.ProjectId);
             throw new InvalidOperationException(editPermission.Message ?? PermissionDeniedMessage);
         }
@@ -277,6 +285,7 @@ public sealed class RemarkService : IRemarkService
         await transaction.CommitAsync(cancellationToken);
 
         LogDecision("SoftDelete", true, null, request.Actor, remark.Id, remark.ProjectId);
+        _metrics.RecordDeleted();
 
         return true;
     }
@@ -488,29 +497,50 @@ public sealed class RemarkService : IRemarkService
             Meta = meta
         };
 
-    private static void ValidateRoleForType(RemarkActorRole actorRole, IReadOnlyCollection<RemarkActorRole> grantedRoles, RemarkType type)
+    private void ValidateRoleForType(RemarkActorContext actor, RemarkType type, int projectId)
     {
-        if (actorRole == RemarkActorRole.Unknown || !grantedRoles.Contains(actorRole))
+        if (actor.ActorRole == RemarkActorRole.Unknown || !actor.Roles.Contains(actor.ActorRole))
         {
+            LogDecision("Create", false, "ActorRoleInvalid", actor, null, projectId);
             throw new InvalidOperationException("Actor role is not recognised or not assigned.");
         }
 
-        if (type == RemarkType.External && !grantedRoles.Any(r => r is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant or RemarkActorRole.Administrator))
+        if (type == RemarkType.External && !actor.Roles.Any(r => r is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant or RemarkActorRole.Administrator))
         {
+            LogDecision("Create", false, "ExternalRequiresOverride", actor, null, projectId);
             throw new InvalidOperationException("External remarks require HoD, Comdt or Admin role.");
         }
     }
 
     private void LogDecision(string action, bool allowed, string? reason, RemarkActorContext actor, int? remarkId, int? projectId)
     {
-        _logger.LogInformation(
-            "RemarkDecision {Action} Allowed={Allowed} User={UserId} Role={Role} Remark={RemarkId} Project={ProjectId} Reason={Reason}",
-            action,
-            allowed,
-            actor.UserId,
-            actor.ActorRole,
-            remarkId,
-            projectId,
-            reason);
+        var normalizedReason = string.IsNullOrWhiteSpace(reason)
+            ? (allowed ? "Success" : "Unknown")
+            : reason;
+
+        if (!allowed)
+        {
+            _metrics.RecordPermissionDenied(action, normalizedReason);
+        }
+
+        var entry = new RemarkDecisionLog(
+            Action: action,
+            Allowed: allowed,
+            Reason: normalizedReason,
+            UserId: actor.UserId,
+            Role: actor.ActorRole,
+            RemarkId: remarkId,
+            ProjectId: projectId);
+
+        _logger.LogInformation("RemarkDecision {@Decision}", entry);
     }
+
+    private sealed record RemarkDecisionLog(
+        string Action,
+        bool Allowed,
+        string Reason,
+        string UserId,
+        RemarkActorRole Role,
+        int? RemarkId,
+        int? ProjectId);
 }
