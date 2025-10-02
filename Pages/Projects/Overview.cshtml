@@ -266,30 +266,43 @@
                     </div>
                     @if (canManagePhotos || isThisProjectsPo || isAdmin || isHoD)
                     {
-                        <div class="pm-card-actions">
-                            <div class="d-flex flex-wrap gap-2">
+                        <div class="pm-card-menu dropdown">
+                            <button class="btn pm-card-menu-toggle"
+                                    type="button"
+                                    data-bs-toggle="dropdown"
+                                    aria-expanded="false"
+                                    aria-label="Project overview actions">
+                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
                                 @if (canManagePhotos)
                                 {
-                                    <a class="btn btn-link card-action-link"
-                                       asp-page="/Projects/Photos/Index"
-                                       asp-route-id="@Model.Project!.Id">
-                                        <i class="bi bi-sliders" aria-hidden="true"></i>
-                                        <span>Manage photos</span>
-                                    </a>
+                                    <li>
+                                        <a class="dropdown-item d-flex align-items-center gap-2"
+                                           asp-page="/Projects/Photos/Index"
+                                           asp-route-id="@Model.Project!.Id">
+                                            <i class="bi bi-sliders" aria-hidden="true"></i>
+                                            <span>Manage photos</span>
+                                        </a>
+                                    </li>
                                 }
                                 @if (isThisProjectsPo)
                                 {
-                                    <a class="btn btn-sm btn-outline-primary"
-                                       asp-page="/Projects/Meta/Request"
-                                       asp-route-id="@Model.Project!.Id">Request change</a>
+                                    <li>
+                                        <a class="dropdown-item"
+                                           asp-page="/Projects/Meta/Request"
+                                           asp-route-id="@Model.Project!.Id">Request change</a>
+                                    </li>
                                 }
                                 @if (isAdmin || isHoD)
                                 {
-                                    <a class="btn btn-sm btn-outline-secondary"
-                                       asp-page="/Projects/Meta/Edit"
-                                       asp-route-id="@Model.Project!.Id">Edit details</a>
+                                    <li>
+                                        <a class="dropdown-item"
+                                           asp-page="/Projects/Meta/Edit"
+                                           asp-route-id="@Model.Project!.Id">Edit details</a>
+                                    </li>
                                 }
-                            </div>
+                            </ul>
                         </div>
                     }
                 </div>
@@ -374,28 +387,49 @@
                             <p class="pm-card-subtitle mb-0">Project files organised by stage.</p>
                         </div>
                     </div>
-                    <div class="pm-card-actions">
-                        <div class="d-flex flex-wrap gap-2 align-items-center">
-                            @if (Model.IsDocumentApprover && Model.DocumentPendingRequestCount > 0)
+                    <div class="pm-card-actions align-items-center gap-2">
+                        @if (Model.IsDocumentApprover && Model.DocumentPendingRequestCount > 0)
+                        {
+                            <span class="badge text-bg-warning">@Model.DocumentPendingRequestCount pending</span>
+                        }
+                        @{
+                            var canUploadDocuments = isAdmin || isThisProjectsPo || isThisProjectsHod;
+                            var canViewRecycleBin = isAdmin;
+
+                            if (canUploadDocuments || canViewRecycleBin)
                             {
-                                <span class="badge text-bg-warning">@Model.DocumentPendingRequestCount pending</span>
+                                <div class="pm-card-menu dropdown ms-1">
+                                    <button class="btn pm-card-menu-toggle"
+                                            type="button"
+                                            data-bs-toggle="dropdown"
+                                            aria-expanded="false"
+                                            aria-label="Document actions">
+                                        <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        @if (canUploadDocuments)
+                                        {
+                                            <li>
+                                                <a class="dropdown-item"
+                                                   asp-page="/Projects/Documents/UploadRequest"
+                                                   asp-route-id="@Model.Project!.Id">Upload</a>
+                                            </li>
+                                        }
+                                        @if (canViewRecycleBin)
+                                        {
+                                            <li>
+                                                <a class="dropdown-item d-flex align-items-center gap-2"
+                                                   asp-area="Admin"
+                                                   asp-page="/Documents/Recycle">
+                                                    <i class="bi bi-trash" aria-hidden="true"></i>
+                                                    <span>Recycle Bin</span>
+                                                </a>
+                                            </li>
+                                        }
+                                    </ul>
+                                </div>
                             }
-                            @if (isAdmin || isThisProjectsPo || isThisProjectsHod)
-                            {
-                                <a class="btn btn-sm btn-outline-primary"
-                                   asp-page="/Projects/Documents/UploadRequest"
-                                   asp-route-id="@Model.Project!.Id">Upload</a>
-                            }
-                            @if (isAdmin)
-                            {
-                                <a class="btn btn-link card-action-link"
-                                   asp-area="Admin"
-                                   asp-page="/Documents/Recycle">
-                                    <i class="bi bi-trash" aria-hidden="true"></i>
-                                    <span>Recycle Bin</span>
-                                </a>
-                            }
-                        </div>
+                        }
                     </div>
                 </div>
                 <div class="card-body pm-card-body">
@@ -1107,25 +1141,48 @@
                                 }
                             </div>
                             <div class="pm-card-actions d-flex flex-wrap align-items-center gap-2 justify-content-lg-end">
-                                @if (planState.HasPendingSubmission && isHoD)
-                                {
-                                    <button class="btn btn-sm btn-outline-primary"
-                                            type="button"
-                                            data-bs-toggle="offcanvas"
-                                            data-bs-target="#offcanvasPlanReview"
-                                            aria-controls="offcanvasPlanReview">
-                                        Review &amp; approve
-                                    </button>
-                                }
-                                @if (canEditTimeline && !(hasMyDraft && !pendingOwnedByCurrentUser))
-                                {
-                                    <button class="btn btn-sm btn-outline-primary"
-                                            type="button"
-                                            data-bs-toggle="offcanvas"
-                                            data-bs-target="#offcanvasPlanEdit"
-                                            aria-controls="offcanvasPlanEdit">
-                                        Edit timeline
-                                    </button>
+                                @{
+                                    var canReviewTimeline = planState.HasPendingSubmission && isHoD;
+                                    var canEditTimelinePlan = canEditTimeline && !(hasMyDraft && !pendingOwnedByCurrentUser);
+
+                                    if (canReviewTimeline || canEditTimelinePlan)
+                                    {
+                                        <div class="pm-card-menu dropdown">
+                                            <button class="btn pm-card-menu-toggle"
+                                                    type="button"
+                                                    data-bs-toggle="dropdown"
+                                                    aria-expanded="false"
+                                                    aria-label="Timeline actions">
+                                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                            </button>
+                                            <ul class="dropdown-menu dropdown-menu-end">
+                                                @if (canReviewTimeline)
+                                                {
+                                                    <li>
+                                                        <button class="dropdown-item"
+                                                                type="button"
+                                                                data-bs-toggle="offcanvas"
+                                                                data-bs-target="#offcanvasPlanReview"
+                                                                aria-controls="offcanvasPlanReview">
+                                                            Review &amp; approve
+                                                        </button>
+                                                    </li>
+                                                }
+                                                @if (canEditTimelinePlan)
+                                                {
+                                                    <li>
+                                                        <button class="dropdown-item"
+                                                                type="button"
+                                                                data-bs-toggle="offcanvas"
+                                                                data-bs-target="#offcanvasPlanEdit"
+                                                                aria-controls="offcanvasPlanEdit">
+                                                            Edit timeline
+                                                        </button>
+                                                    </li>
+                                                }
+                                            </ul>
+                                        </div>
+                                    }
                                 }
                             </div>
                         </div>
