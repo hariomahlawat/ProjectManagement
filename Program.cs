@@ -259,10 +259,14 @@ app.Use(async (ctx, next) =>
     h["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), browsing-topics=()";
     h["Cross-Origin-Opener-Policy"] = "same-origin";
     h["Cross-Origin-Resource-Policy"] = "same-origin";
+    var frameAncestors = ctx.Request.Path.StartsWithSegments("/Projects/Documents/View", StringComparison.OrdinalIgnoreCase)
+        ? "'self'"
+        : "'none'";
+
     h["Content-Security-Policy"] =
         "default-src 'self'; " +
         "base-uri 'self'; " +
-        "frame-ancestors 'none'; " +
+        $"frame-ancestors {frameAncestors}; " +
         "frame-src 'self'; " +
         "img-src 'self' data: blob:; " +
         "script-src 'self'; " +
