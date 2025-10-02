@@ -554,7 +554,20 @@
                     });
                 }
 
+                if (this.bodyField) {
+                    this.bodyField.addEventListener('input', () => {
+                        this.validateComposer();
+                    });
+                }
+
+                if (this.eventDateInput) {
+                    this.eventDateInput.addEventListener('input', () => {
+                        this.validateComposer();
+                    });
+                }
+
                 this.setComposerType('Internal');
+                this.validateComposer();
             }
         }
 
@@ -900,7 +913,7 @@
                 } else if (remark.authorUserId === this.currentUserId) {
                     const notice = document.createElement('div');
                     notice.className = 'text-muted small';
-                    notice.textContent = 'Edit window expired (3 hours).';
+                    notice.textContent = 'You can edit your remark within 3 hours of posting.';
                     actions.appendChild(notice);
                 }
             }
@@ -990,6 +1003,28 @@
             return text.replace(/\u00a0/g, ' ').trim();
         }
 
+        getActionRestrictionMessage(remark, action) {
+            if (!remark || remark.isDeleted) {
+                return 'You do not have permission for this action.';
+            }
+
+            if (this.actorHasOverride) {
+                return '';
+            }
+
+            if (!this.currentUserId || remark.authorUserId !== this.currentUserId) {
+                return 'You do not have permission for this action.';
+            }
+
+            if (!this.isWithinEditWindow(remark.createdAtUtc)) {
+                return action === 'delete'
+                    ? 'You can delete your remark within 3 hours of posting.'
+                    : 'You can edit your remark within 3 hours of posting.';
+            }
+
+            return '';
+        }
+
         canEditRemark(remark) {
             if (remark.isDeleted) {
                 return false;
@@ -1026,8 +1061,9 @@
                 return;
             }
 
-            if (!this.canEditRemark(remark)) {
-                this.toastHandler('You can only edit or delete your remark within 3 hours of posting.', 'warning');
+            const restriction = this.getActionRestrictionMessage(remark, 'edit');
+            if (restriction) {
+                this.toastHandler(restriction, 'warning');
                 return;
             }
 
@@ -1048,8 +1084,9 @@
                 return;
             }
 
-            if (!this.canEditRemark(remark)) {
-                this.toastHandler('You can only edit or delete your remark within 3 hours of posting.', 'warning');
+            const restriction = this.getActionRestrictionMessage(remark, 'edit');
+            if (restriction) {
+                this.toastHandler(restriction, 'warning');
                 return;
             }
 
@@ -1085,7 +1122,8 @@
                 }
 
                 if (response.status === 403) {
-                    this.toastHandler('You can only edit or delete your remark within 3 hours of posting.', 'warning');
+                    const problem = await this.readProblemDetails(response);
+                    this.toastHandler(problem || 'You do not have permission for this action.', 'warning');
                     return;
                 }
 
@@ -1116,8 +1154,9 @@
                 return;
             }
 
-            if (!this.canEditRemark(remark)) {
-                this.toastHandler('You can only edit or delete your remark within 3 hours of posting.', 'warning');
+            const restriction = this.getActionRestrictionMessage(remark, 'delete');
+            if (restriction) {
+                this.toastHandler(restriction, 'warning');
                 return;
             }
 
@@ -1144,7 +1183,8 @@
                 }
 
                 if (response.status === 403) {
-                    this.toastHandler('You can only edit or delete your remark within 3 hours of posting.', 'warning');
+                    const problem = await this.readProblemDetails(response);
+                    this.toastHandler(problem || 'You do not have permission for this action.', 'warning');
                     return;
                 }
 
@@ -1270,6 +1310,8 @@
                     this.externalFields.classList.add('d-none');
                 }
             }
+
+            this.validateComposer();
         }
 
         resetComposer() {
@@ -1287,6 +1329,36 @@
 
             this.setComposerType('Internal');
             this.clearFeedback();
+            this.validateComposer();
+        }
+
+        isComposerValid() {
+            if (!this.bodyField) {
+                return false;
+            }
+
+            const body = this.bodyField.value ? this.bodyField.value.trim() : '';
+            if (!body) {
+                return false;
+            }
+
+            if (this.composerType === 'External') {
+                if (!this.eventDateInput || !this.eventDateInput.value) {
+                    return false;
+                }
+
+                if (this.eventDateInput.value > this.today) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        validateComposer() {
+            if (this.submitButton) {
+                this.submitButton.disabled = !this.isComposerValid();
+            }
         }
 
         setFeedback(message, variant) {
@@ -1368,7 +1440,8 @@
                 });
 
                 if (response.status === 403) {
-                    this.setFeedback('You do not have permission to post this remark.', 'danger');
+                    const problem = await this.readProblemDetails(response);
+                    this.setFeedback(problem || 'You do not have permission for this action.', 'danger');
                     return;
                 }
 

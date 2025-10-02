@@ -19,8 +19,12 @@ public sealed class RemarkService : IRemarkService
     private readonly ILogger<RemarkService> _logger;
     private readonly IRemarkNotificationService _notification;
 
-    public const string ConcurrencyConflictMessage = "Remark was modified by another user.";
+    public const string ConcurrencyConflictMessage = "This remark was changed by someone else. Reload to continue.";
     public const string RowVersionRequiredMessage = "Row version is required for this operation.";
+    public const string PermissionDeniedMessage = "You do not have permission for this action.";
+    public const string EditWindowMessage = "You can edit your remark within 3 hours of posting.";
+    public const string DeleteWindowMessage = "You can delete your remark within 3 hours of posting.";
+    public const string StageNotInProjectMessage = "Selected stage does not belong to this project.";
 
     public RemarkService(
         ApplicationDbContext db,
@@ -181,10 +185,11 @@ public sealed class RemarkService : IRemarkService
         var today = DateOnly.FromDateTime(now);
         EnsureValidEventDate(request.EventDate, today);
 
-        if (!IsEditAllowed(remark, request.Actor, now))
+        var editPermission = EvaluateRemarkPermission(remark, request.Actor, now, isDelete: false);
+        if (!editPermission.Allowed)
         {
-            LogDecision("Edit", false, "AuthorWindowExpired", request.Actor, remark.Id, remark.ProjectId);
-            throw new InvalidOperationException("Not authorised to edit this remark.");
+            LogDecision("Edit", false, editPermission.ReasonCode, request.Actor, remark.Id, remark.ProjectId);
+            throw new InvalidOperationException(editPermission.Message ?? PermissionDeniedMessage);
         }
 
         var sanitizedBody = SanitizeBody(request.Body);
@@ -239,10 +244,11 @@ public sealed class RemarkService : IRemarkService
         }
 
         var now = _clock.UtcNow.UtcDateTime;
-        if (!IsEditAllowed(remark, request.Actor, now))
+        var deletePermission = EvaluateRemarkPermission(remark, request.Actor, now, isDelete: true);
+        if (!deletePermission.Allowed)
         {
-            LogDecision("SoftDelete", false, "AuthorWindowExpired", request.Actor, remark.Id, remark.ProjectId);
-            throw new InvalidOperationException("Not authorised to delete this remark.");
+            LogDecision("SoftDelete", false, deletePermission.ReasonCode, request.Actor, remark.Id, remark.ProjectId);
+            throw new InvalidOperationException(deletePermission.Message ?? PermissionDeniedMessage);
         }
 
         remark.IsDeleted = true;
@@ -361,7 +367,7 @@ public sealed class RemarkService : IRemarkService
 
         if (!stageExists)
         {
-            throw new InvalidOperationException("Stage reference is not part of this project.");
+            throw new InvalidOperationException(StageNotInProjectMessage);
         }
 
         return (normalizedRef, name);
@@ -377,20 +383,29 @@ public sealed class RemarkService : IRemarkService
         return stageRef.Trim().ToUpperInvariant();
     }
 
-    private static bool IsEditAllowed(Remark remark, RemarkActorContext actor, DateTime nowUtc)
+    private static (bool Allowed, string? Message, string? ReasonCode) EvaluateRemarkPermission(
+        Remark remark,
+        RemarkActorContext actor,
+        DateTime nowUtc,
+        bool isDelete)
     {
-        var hasOverride = HasOverride(actor.Roles);
-        if (string.Equals(remark.AuthorUserId, actor.UserId, StringComparison.Ordinal))
+        if (HasOverride(actor.Roles))
         {
-            if (nowUtc <= remark.CreatedAtUtc.AddHours(3))
-            {
-                return true;
-            }
-
-            return hasOverride;
+            return (true, null, null);
         }
 
-        return hasOverride;
+        var isAuthor = string.Equals(remark.AuthorUserId, actor.UserId, StringComparison.Ordinal);
+        if (!isAuthor)
+        {
+            return (false, PermissionDeniedMessage, "NotAuthor");
+        }
+
+        if (nowUtc <= remark.CreatedAtUtc.AddHours(3))
+        {
+            return (true, null, null);
+        }
+
+        return (false, isDelete ? DeleteWindowMessage : EditWindowMessage, "AuthorWindowExpired");
     }
 
     private static bool HasOverride(IReadOnlyCollection<RemarkActorRole> roles)

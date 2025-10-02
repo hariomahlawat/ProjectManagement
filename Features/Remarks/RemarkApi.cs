@@ -295,7 +295,7 @@ internal static class RemarkApi
 
         if (!actor!.Roles.Contains(RemarkActorRole.Administrator))
         {
-            return Results.Forbid();
+            return ForbiddenProblem(RemarkService.PermissionDeniedMessage);
         }
 
         try
@@ -375,7 +375,7 @@ internal static class RemarkApi
 
         if (remarkRoles.Length == 0)
         {
-            return (null, Results.Forbid());
+            return (null, ForbiddenProblem(RemarkService.PermissionDeniedMessage));
         }
 
         RemarkActorRole? desiredRole = null;
@@ -392,7 +392,7 @@ internal static class RemarkApi
 
             if (!remarkRoles.Contains(parsed))
             {
-                return (null, Results.Forbid());
+                return (null, ForbiddenProblem(RemarkService.PermissionDeniedMessage));
             }
 
             desiredRole = parsed;
@@ -401,7 +401,7 @@ internal static class RemarkApi
         var selected = desiredRole ?? SelectDefaultRole(remarkRoles);
         if (selected == RemarkActorRole.Unknown)
         {
-            return (null, Results.Forbid());
+            return (null, ForbiddenProblem(RemarkService.PermissionDeniedMessage));
         }
 
         return (new RemarkActorContext(user.Id, selected, remarkRoles), null);
@@ -521,15 +521,21 @@ internal static class RemarkApi
         => ex.Message switch
         {
             "Project not found." => Results.NotFound(new ProblemDetails { Title = "Project not found.", Detail = ex.Message }),
-            RemarkService.ConcurrencyConflictMessage => Results.Conflict(new ProblemDetails { Title = "Concurrency conflict.", Detail = ex.Message }),
+            RemarkService.ConcurrencyConflictMessage => Results.Conflict(new ProblemDetails { Title = ex.Message, Detail = ex.Message }),
             RemarkService.RowVersionRequiredMessage => Results.BadRequest(new ProblemDetails { Title = "Row version required.", Detail = ex.Message }),
-            "Not authorised to edit this remark." => Results.Forbid(),
-            "Not authorised to delete this remark." => Results.Forbid(),
-            "Only administrators may view remark audits." => Results.Forbid(),
-            "Actor role is not recognised or not assigned." => Results.Forbid(),
-            "External remarks require HoD, Comdt or Admin role." => Results.Forbid(),
+            RemarkService.PermissionDeniedMessage => ForbiddenProblem(ex.Message),
+            RemarkService.EditWindowMessage => ForbiddenProblem(ex.Message),
+            RemarkService.DeleteWindowMessage => ForbiddenProblem(ex.Message),
+            RemarkService.StageNotInProjectMessage => Results.BadRequest(new ProblemDetails { Title = ex.Message, Detail = ex.Message }),
+            "Only administrators may view remark audits." => ForbiddenProblem(RemarkService.PermissionDeniedMessage),
+            "Actor role is not recognised or not assigned." => ForbiddenProblem(RemarkService.PermissionDeniedMessage),
+            "Actor role is not recognised or not granted to the user." => ForbiddenProblem(RemarkService.PermissionDeniedMessage),
+            "External remarks require HoD, Comdt or Admin role." => ForbiddenProblem(RemarkService.PermissionDeniedMessage),
             _ => Results.BadRequest(new ProblemDetails { Title = "Remark request failed.", Detail = ex.Message })
         };
+
+    private static IResult ForbiddenProblem(string message)
+        => Results.Problem(message, statusCode: StatusCodes.Status403Forbidden, title: message);
 
     private static async Task<Dictionary<string, RemarkUserInfo>> LoadUserInfoAsync(
         IEnumerable<string> userIds,

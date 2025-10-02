@@ -86,7 +86,8 @@ public sealed class RemarkServiceTests
         var actor = new RemarkActorContext("user-3", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
         var request = new CreateRemarkRequest(12, actor, RemarkType.Internal, "Hello", new DateOnly(2024, 9, 9), StageCodes.IPA, null, null);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateRemarkAsync(request, CancellationToken.None));
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateRemarkAsync(request, CancellationToken.None));
+        Assert.Equal(RemarkService.StageNotInProjectMessage, ex.Message);
     }
 
     [Fact]
@@ -103,8 +104,9 @@ public sealed class RemarkServiceTests
 
         clock.Set(clock.UtcNow.AddHours(4));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.EditRemarkAsync(remark.Id, new EditRemarkRequest(actor, "Updated", new DateOnly(2024, 8, 30), StageCodes.FS, null, null, remark.RowVersion), CancellationToken.None));
+        Assert.Equal(RemarkService.EditWindowMessage, ex.Message);
     }
 
     [Fact]
@@ -197,8 +199,29 @@ public sealed class RemarkServiceTests
 
         var otherActor = new RemarkActorContext("other", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.SoftDeleteRemarkAsync(remark.Id, new SoftDeleteRemarkRequest(otherActor, null, remark.RowVersion), CancellationToken.None));
+        Assert.Equal(RemarkService.PermissionDeniedMessage, ex.Message);
+    }
+
+    [Fact]
+    public async Task SoftDeleteRemarkAsync_ThrowsWhenAuthorAfterWindow()
+    {
+        await using var scope = await CreateContextAsync();
+        var db = scope.Db;
+        await SeedProjectAsync(db, 33);
+        await SeedStageAsync(db, 33, StageCodes.FS);
+        var clock = FakeClock.ForIstDate(2024, 9, 1, 8, 0, 0);
+        var service = CreateService(db, clock, out _);
+        var actor = new RemarkActorContext("author", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
+        var remark = await service.CreateRemarkAsync(new CreateRemarkRequest(33, actor, RemarkType.Internal, "Body", new DateOnly(2024, 8, 31), StageCodes.FS, null, null), CancellationToken.None);
+
+        clock.Set(clock.UtcNow.AddHours(4));
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.SoftDeleteRemarkAsync(remark.Id, new SoftDeleteRemarkRequest(actor, null, remark.RowVersion), CancellationToken.None));
+
+        Assert.Equal(RemarkService.DeleteWindowMessage, ex.Message);
     }
 
     [Fact]
