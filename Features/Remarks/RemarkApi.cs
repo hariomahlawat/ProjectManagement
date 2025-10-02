@@ -43,9 +43,9 @@ internal static class RemarkApi
         request ??= new CreateRemarkRequestDto();
 
         var (actor, error) = await BuildActorContextAsync(userManager, httpContext, request.ActorRole);
-        if (error is not null)
+        if (error is IResult errorResult)
         {
-            return error;
+            return errorResult;
         }
 
         try
@@ -89,9 +89,9 @@ internal static class RemarkApi
         CancellationToken cancellationToken)
     {
         var (actor, error) = await BuildActorContextAsync(userManager, httpContext, actorRole);
-        if (error is not null)
+        if (error is IResult errorResult)
         {
-            return error;
+            return errorResult;
         }
 
         if (!TryParseRemarkType(type, out var remarkType, out var typeError))
@@ -158,9 +158,9 @@ internal static class RemarkApi
         }
 
         var (actor, error) = await BuildActorContextAsync(userManager, httpContext, request.ActorRole);
-        if (error is not null)
+        if (error is IResult errorResult)
         {
-            return error;
+            return errorResult;
         }
 
         try
@@ -213,9 +213,9 @@ internal static class RemarkApi
         }
 
         var (actor, error) = await BuildActorContextAsync(userManager, httpContext, request.ActorRole);
-        if (error is not null)
+        if (error is IResult errorResult)
         {
-            return error;
+            return errorResult;
         }
 
         try
@@ -264,9 +264,9 @@ internal static class RemarkApi
         }
 
         var (actor, error) = await BuildActorContextAsync(userManager, httpContext, actorRole);
-        if (error is not null)
+        if (error is IResult errorResult)
         {
-            return error;
+            return errorResult;
         }
 
         if (!actor!.Roles.Contains(RemarkActorRole.Administrator))
