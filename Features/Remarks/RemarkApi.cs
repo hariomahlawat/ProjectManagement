@@ -96,12 +96,12 @@ internal static class RemarkApi
 
         if (!TryParseRemarkType(type, out var remarkType, out var typeError))
         {
-            return typeError;
+            return typeError!;
         }
 
         if (!TryParseRemarkRole(role, out var authorRole, out var roleError))
         {
-            return roleError;
+            return roleError!;
         }
 
         try
@@ -154,7 +154,7 @@ internal static class RemarkApi
 
         if (!TryParseRowVersion(request.RowVersion, out var rowVersion, out var rowError))
         {
-            return rowError;
+            return rowError!;
         }
 
         var (actor, error) = await BuildActorContextAsync(userManager, httpContext, request.ActorRole);
@@ -209,7 +209,7 @@ internal static class RemarkApi
 
         if (!TryParseRowVersion(request.RowVersion, out var rowVersion, out var rowError))
         {
-            return rowError;
+            return rowError!;
         }
 
         var (actor, error) = await BuildActorContextAsync(userManager, httpContext, request.ActorRole);
