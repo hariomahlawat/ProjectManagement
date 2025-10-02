@@ -37,7 +37,7 @@ public sealed class ProjectRemarksPanelViewModel
 
     public IReadOnlyList<RemarkStageOption> StageOptions { get; init; } = Array.Empty<RemarkStageOption>();
 
-    public sealed record RemarkRoleOption(string Value, string Label);
+    public sealed record RemarkRoleOption(string Value, string Label, string Canonical);
 
     public sealed record RemarkStageOption(string Value, string Label);
 }

@@ -224,17 +224,23 @@ namespace ProjectManagement.Pages.Projects
                 .OrderBy(option => option.Label, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
-            var roleOptions = new List<ProjectRemarksPanelViewModel.RemarkRoleOption>
-            {
-                new(RemarkActorRole.ProjectOfficer.ToString(), "Project Officer"),
-                new(RemarkActorRole.HeadOfDepartment.ToString(), "HoD"),
-                new(RemarkActorRole.Commandant.ToString(), "Comdt"),
-                new(RemarkActorRole.Administrator.ToString(), "Admin"),
-                new(RemarkActorRole.Mco.ToString(), "MCO"),
-                new(RemarkActorRole.ProjectOffice.ToString(), "Project Office"),
-                new(RemarkActorRole.MainOffice.ToString(), "Main Office"),
-                new(RemarkActorRole.Ta.ToString(), "TA")
-            };
+            var roleOptions = new[]
+                {
+                    RemarkActorRole.ProjectOfficer,
+                    RemarkActorRole.HeadOfDepartment,
+                    RemarkActorRole.Commandant,
+                    RemarkActorRole.Administrator,
+                    RemarkActorRole.Mco,
+                    RemarkActorRole.ProjectOffice,
+                    RemarkActorRole.MainOffice,
+                    RemarkActorRole.Ta
+                }
+                .Select(role =>
+                {
+                    var label = BuildRoleDisplayName(role);
+                    return new ProjectRemarksPanelViewModel.RemarkRoleOption(label, label, role.ToString());
+                })
+                .ToList();
 
             var today = DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
@@ -258,7 +264,7 @@ namespace ProjectManagement.Pages.Projects
                 .ToList();
 
             var actorRole = SelectDefaultRemarkRole(remarkRoles);
-            var actorRoleName = actorRole == RemarkActorRole.Unknown ? null : actorRole.ToString();
+            var actorRoleName = actorRole == RemarkActorRole.Unknown ? null : BuildRoleDisplayName(actorRole);
 
             var canOverride = remarkRoles.Any(role => role is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant or RemarkActorRole.Administrator);
             var canPostAsHoDOrAbove = remarkRoles.Any(role => role is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant or RemarkActorRole.Administrator);
@@ -274,7 +280,7 @@ namespace ProjectManagement.Pages.Projects
                 CurrentUserId = user.Id,
                 ActorDisplayName = DisplayName(user),
                 ActorRole = actorRoleName,
-                ActorRoles = remarkRoles.Select(r => r.ToString()).ToArray(),
+                ActorRoles = remarkRoles.Select(BuildRoleDisplayName).ToArray(),
                 ShowComposer = showComposer,
                 AllowInternal = showComposer,
                 AllowExternal = allowExternal,
@@ -308,6 +314,20 @@ namespace ProjectManagement.Pages.Projects
 
             return RemarkActorRole.Unknown;
         }
+
+        private static string BuildRoleDisplayName(RemarkActorRole role)
+            => role switch
+            {
+                RemarkActorRole.ProjectOfficer => "Project Officer",
+                RemarkActorRole.HeadOfDepartment => "HoD",
+                RemarkActorRole.Commandant => "Comdt",
+                RemarkActorRole.Administrator => "Admin",
+                RemarkActorRole.Mco => "MCO",
+                RemarkActorRole.ProjectOffice => "Project Office",
+                RemarkActorRole.MainOffice => "Main Office",
+                RemarkActorRole.Ta => "TA",
+                _ => role.ToString()
+            };
 
         private static string DisplayName(ApplicationUser user)
         {

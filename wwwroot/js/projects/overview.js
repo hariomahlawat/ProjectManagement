@@ -373,9 +373,22 @@
             this.roleLabels = new Map();
             this.stageLabels = new Map();
             (this.config.roleOptions || []).forEach((option) => {
-                if (option && option.value) {
-                    this.roleLabels.set(option.value, option.label || option.value);
+                if (!option) {
+                    return;
                 }
+
+                const label = option.label || option.value || option.canonical || '';
+                const candidates = [
+                    option.value,
+                    option.label,
+                    option.canonical,
+                    this.toCamelCase(option?.value),
+                    this.toCamelCase(option?.canonical)
+                ];
+
+                candidates.forEach((candidate) => {
+                    this.registerRoleLabel(candidate, label);
+                });
             });
             (this.config.stageOptions || []).forEach((option) => {
                 if (option && option.value) {
@@ -969,16 +982,72 @@
             }
         }
 
+        registerRoleLabel(value, label) {
+            if (value === null || value === undefined) {
+                return;
+            }
+
+            const raw = value.toString().trim();
+            if (raw.length === 0) {
+                return;
+            }
+
+            const resolvedLabel = label && label.toString().trim().length > 0 ? label.toString().trim() : raw;
+            this.roleLabels.set(raw, resolvedLabel);
+
+            const normalized = this.normalizeRoleKey(raw);
+            if (normalized.length > 0) {
+                this.roleLabels.set(normalized, resolvedLabel);
+            }
+        }
+
+        normalizeRoleKey(value) {
+            if (value === null || value === undefined) {
+                return '';
+            }
+
+            return value.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
+        }
+
+        toCamelCase(value) {
+            if (value === null || value === undefined) {
+                return '';
+            }
+
+            const input = value.toString().trim();
+            if (input.length === 0) {
+                return '';
+            }
+
+            const spaced = input.replace(/([a-z])([A-Z])/g, '$1 $2');
+            const parts = spaced.split(/[\s_\-]+/).filter((part) => part.length > 0);
+            if (parts.length === 0) {
+                return '';
+            }
+
+            const [first, ...rest] = parts;
+            return first.toLowerCase() + rest.map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join('');
+        }
+
         getRoleLabel(role) {
             if (!role) {
                 return '';
             }
 
-            if (this.roleLabels.has(role)) {
-                return this.roleLabels.get(role);
+            const raw = role.toString();
+            if (this.roleLabels.has(raw)) {
+                return this.roleLabels.get(raw);
             }
 
-            return role.replace(/([a-z])([A-Z])/g, '$1 $2');
+            const normalized = this.normalizeRoleKey(raw);
+            if (normalized && this.roleLabels.has(normalized)) {
+                return this.roleLabels.get(normalized);
+            }
+
+            return raw
+                .replace(/[_\-]+/g, ' ')
+                .replace(/([a-z])([A-Z])/g, '$1 $2')
+                .trim();
         }
 
         getStageLabel(code) {
