@@ -149,18 +149,63 @@ namespace ProjectManagement.Models.Remarks
                 return false;
             }
 
-            return roleName.Trim() switch
+            var candidate = roleName.Trim();
+
+            if (Matches(candidate, "Project Officer", "ProjectOfficer"))
             {
-                "Project Officer" => Set(RemarkActorRole.ProjectOfficer, out role),
-                "HoD" => Set(RemarkActorRole.HeadOfDepartment, out role),
-                "Comdt" => Set(RemarkActorRole.Commandant, out role),
-                "Admin" => Set(RemarkActorRole.Administrator, out role),
-                "TA" => Set(RemarkActorRole.Ta, out role),
-                "MCO" => Set(RemarkActorRole.Mco, out role),
-                "Project Office" => Set(RemarkActorRole.ProjectOffice, out role),
-                "Main Office" => Set(RemarkActorRole.MainOffice, out role),
-                _ => Set(RemarkActorRole.Unknown, out role, false)
-            };
+                return Set(RemarkActorRole.ProjectOfficer, out role);
+            }
+
+            if (Matches(candidate, "HoD", "Head Of Department", "HeadOfDepartment"))
+            {
+                return Set(RemarkActorRole.HeadOfDepartment, out role);
+            }
+
+            if (Matches(candidate, "Comdt", "Commandant"))
+            {
+                return Set(RemarkActorRole.Commandant, out role);
+            }
+
+            if (Matches(candidate, "Admin", "Administrator"))
+            {
+                return Set(RemarkActorRole.Administrator, out role);
+            }
+
+            if (Matches(candidate, "TA", "Ta"))
+            {
+                return Set(RemarkActorRole.Ta, out role);
+            }
+
+            if (Matches(candidate, "MCO", "Mco"))
+            {
+                return Set(RemarkActorRole.Mco, out role);
+            }
+
+            if (Matches(candidate, "Project Office", "ProjectOffice"))
+            {
+                return Set(RemarkActorRole.ProjectOffice, out role);
+            }
+
+            if (Matches(candidate, "Main Office", "MainOffice"))
+            {
+                return Set(RemarkActorRole.MainOffice, out role);
+            }
+
+            role = RemarkActorRole.Unknown;
+            return false;
+        }
+
+        private static bool Matches(string value, params string[] options)
+        {
+            foreach (var option in options)
+            {
+                if (string.Equals(value, option, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool Set(RemarkActorRole value, out RemarkActorRole role, bool success = true)

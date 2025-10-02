@@ -134,6 +134,58 @@ public class RemarkApiTests
         Assert.Equal(RemarkService.PermissionDeniedMessage, problem!.Title);
     }
 
+    [Fact]
+    public async Task ListRemarksAsync_FiltersByCanonicalRoleValues()
+    {
+        using var factory = new RemarkApiFactory();
+        var projectId = 604;
+
+        var poClient = await CreateClientForUserAsync(factory, "user-po", "Project Officer", "Project Officer");
+        var adminClient = await CreateClientForUserAsync(factory, "user-admin", "Admin", "Admin");
+
+        await SeedProjectAsync(factory, projectId, leadPoUserId: "user-po");
+
+        var createPo = await poClient.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
+        {
+            type = RemarkType.Internal,
+            body = "PO remark",
+            eventDate = new DateOnly(2024, 9, 1),
+            stageRef = StageCodes.FS
+        });
+
+        Assert.Equal(HttpStatusCode.Created, createPo.StatusCode);
+        var poRemark = await createPo.Content.ReadFromJsonAsync<RemarkResponseDto>(SerializerOptions);
+        Assert.NotNull(poRemark);
+
+        var createAdmin = await adminClient.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
+        {
+            type = RemarkType.Internal,
+            body = "Admin remark",
+            eventDate = new DateOnly(2024, 9, 2),
+            stageRef = StageCodes.FS
+        });
+
+        Assert.Equal(HttpStatusCode.Created, createAdmin.StatusCode);
+        var adminRemark = await createAdmin.Content.ReadFromJsonAsync<RemarkResponseDto>(SerializerOptions);
+        Assert.NotNull(adminRemark);
+
+        var poFilterResponse = await adminClient.GetAsync($"/api/projects/{projectId}/remarks?role=ProjectOfficer");
+        Assert.Equal(HttpStatusCode.OK, poFilterResponse.StatusCode);
+        var poList = await poFilterResponse.Content.ReadFromJsonAsync<RemarkListResponseDto>(SerializerOptions);
+        Assert.NotNull(poList);
+        Assert.All(poList!.Items, item => Assert.Equal(RemarkActorRole.ProjectOfficer, item.AuthorRole));
+        Assert.Contains(poList.Items, item => item.Id == poRemark!.Id);
+        Assert.DoesNotContain(poList.Items, item => item.Id == adminRemark!.Id);
+
+        var adminFilterResponse = await adminClient.GetAsync($"/api/projects/{projectId}/remarks?role=Admin");
+        Assert.Equal(HttpStatusCode.OK, adminFilterResponse.StatusCode);
+        var adminList = await adminFilterResponse.Content.ReadFromJsonAsync<RemarkListResponseDto>(SerializerOptions);
+        Assert.NotNull(adminList);
+        Assert.All(adminList!.Items, item => Assert.Equal(RemarkActorRole.Administrator, item.AuthorRole));
+        Assert.Contains(adminList.Items, item => item.Id == adminRemark!.Id);
+        Assert.DoesNotContain(adminList.Items, item => item.Id == poRemark!.Id);
+    }
+
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
     {
         PropertyNameCaseInsensitive = true
