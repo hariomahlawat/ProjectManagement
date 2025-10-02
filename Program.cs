@@ -193,6 +193,8 @@ builder.Services.AddOptions<ProjectPhotoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectPhotos"));
 builder.Services.AddOptions<ProjectDocumentOptions>()
     .Bind(builder.Configuration.GetSection("ProjectDocuments"));
+builder.Services.AddOptions<RemarksOptions>()
+    .Bind(builder.Configuration.GetSection("Remarks"));
 builder.Services.AddSingleton<IConfigureOptions<ProjectPhotoOptions>, ProjectPhotoOptionsSetup>();
 builder.Services.AddSingleton<IUploadRootProvider, UploadRootProvider>();
 builder.Services.AddScoped<IProjectPhotoService, ProjectPhotoService>();
@@ -644,7 +646,11 @@ app.MapGet("/Projects/Documents/View", async (
     return Results.File(streamResult.Stream, contentType: "application/pdf", enableRangeProcessing: true);
 }).AllowAnonymous();
 
-app.MapRemarkApi();
+var remarksOptions = app.Services.GetRequiredService<IOptions<RemarksOptions>>().Value;
+if (remarksOptions.Enabled)
+{
+    app.MapRemarkApi();
+}
 app.MapRazorPages();
 
 // Celebrations endpoints

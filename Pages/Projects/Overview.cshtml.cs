@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System.Text.Json;
 using ProjectManagement.Data;
 using ProjectManagement.Features.Backfill;
@@ -18,6 +19,7 @@ using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Configuration;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Stages;
@@ -36,10 +38,11 @@ namespace ProjectManagement.Pages.Projects
         private readonly PlanReadService _planRead;
         private readonly ILogger<OverviewModel> _logger;
         private readonly IClock _clock;
+        private readonly RemarksOptions _remarksOptions;
 
         public PlanCompareService PlanCompare { get; }
 
-        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock)
+        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock, IOptions<RemarksOptions> remarksOptions)
         {
             _db = db;
             _procureRead = procureRead;
@@ -49,6 +52,7 @@ namespace ProjectManagement.Pages.Projects
             PlanCompare = planCompare;
             _logger = logger;
             _clock = clock;
+            _remarksOptions = remarksOptions.Value;
         }
 
         public Project Project { get; private set; } = default!;
@@ -61,6 +65,7 @@ namespace ProjectManagement.Pages.Projects
         public PlanEditorVm PlanEdit { get; private set; } = default!;
         public BackfillViewModel Backfill { get; private set; } = BackfillViewModel.Empty;
         public ProjectRemarksPanelViewModel RemarksPanel { get; private set; } = ProjectRemarksPanelViewModel.Empty;
+        public bool RemarksPanelEnabled { get; private set; }
         public bool HasBackfill { get; private set; }
         public bool RequiresPlanApproval { get; private set; }
         public string? CurrentUserId { get; private set; }
@@ -209,7 +214,11 @@ namespace ProjectManagement.Pages.Projects
 
             await LoadDocumentOverviewAsync(project, isAdmin, isHoD, ct);
 
-            RemarksPanel = await BuildRemarksPanelAsync(project, isThisProjectsPo, ct);
+            RemarksPanelEnabled = _remarksOptions.Enabled;
+            if (RemarksPanelEnabled)
+            {
+                RemarksPanel = await BuildRemarksPanelAsync(project, isThisProjectsPo, ct);
+            }
 
             return Page();
         }

@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -130,6 +131,17 @@ public class RemarkApiTests
         var problem = await delete.Content.ReadFromJsonAsync<ProblemDetailsDto>(SerializerOptions);
         Assert.NotNull(problem);
         Assert.Equal(RemarkService.PermissionDeniedMessage, problem!.Title);
+    }
+
+    [Fact]
+    public async Task RemarksEndpoints_ReturnNotFound_WhenFeatureDisabled()
+    {
+        using var factory = new RemarkApiFactory(remarksEnabled: false);
+        var client = await CreateClientForUserAsync(factory, "user-disabled", "Disabled User", "Project Officer");
+
+        var response = await client.GetAsync("/api/projects/999/remarks");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
@@ -279,8 +291,23 @@ public class RemarkApiTests
 
     private sealed class RemarkApiFactory : WebApplicationFactory<Program>
     {
+        private readonly bool _remarksEnabled;
+
+        public RemarkApiFactory(bool remarksEnabled = true)
+        {
+            _remarksEnabled = remarksEnabled;
+        }
+
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
+            builder.ConfigureAppConfiguration((context, configuration) =>
+            {
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Remarks:Enabled"] = _remarksEnabled ? "true" : "false"
+                });
+            });
+
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll(typeof(DbContextOptions<ApplicationDbContext>));

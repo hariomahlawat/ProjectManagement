@@ -62,7 +62,10 @@
             galleryModalId);
     }
     ViewData["Title"] = pageTitle;
-    var remarksConfigJson = JsonSerializer.Serialize(Model.RemarksPanel, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    var remarksEnabled = Model.RemarksPanelEnabled;
+    var remarksConfigJson = remarksEnabled
+        ? JsonSerializer.Serialize(Model.RemarksPanel, new JsonSerializerOptions(JsonSerializerDefaults.Web))
+        : "{}";
 }
 
 @functions
@@ -1094,67 +1097,77 @@
                                         </div>
                                     }
                                 </div>
-                                <div class="d-flex flex-column gap-3 d-none" data-panel-section="remarks" id="project-panel-section-remarks" role="region" aria-labelledby="project-panel-toggle-remarks" aria-hidden="true">
-                                    <div class="d-flex flex-wrap align-items-center gap-3">
-                                        <div class="pm-card-heading">
-                                            <span class="pm-card-icon" aria-hidden="true">
-                                                <i class="bi bi-chat-dots"></i>
-                                            </span>
+                                @if (remarksEnabled)
+                                {
+                                    <div class="d-flex flex-column gap-3 d-none" data-panel-section="remarks" id="project-panel-section-remarks" role="region" aria-labelledby="project-panel-toggle-remarks" aria-hidden="true">
+                                        <div class="d-flex flex-wrap align-items-center gap-3">
+                                            <div class="pm-card-heading">
+                                                <span class="pm-card-icon" aria-hidden="true">
+                                                    <i class="bi bi-chat-dots"></i>
+                                                </span>
+                                                <div>
+                                                    <h5 class="pm-card-title mb-0">Remarks</h5>
+                                                    <p class="pm-card-subtitle mb-0">Collaborate with stakeholders and capture project context.</p>
+                                                </div>
+                                            </div>
+                                            <div class="btn-group btn-group-sm mt-2 mt-lg-0" role="group" aria-label="Filter remarks by type" data-remarks-type-group>
+                                                <button type="button" class="btn btn-outline-primary active" data-remarks-type="all" aria-pressed="true">All</button>
+                                                <button type="button" class="btn btn-outline-primary" data-remarks-type="Internal" aria-pressed="false">Internal</button>
+                                                <button type="button" class="btn btn-outline-primary" data-remarks-type="External" aria-pressed="false">External</button>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex flex-wrap align-items-center gap-2" data-remarks-filter-bar>
                                             <div>
-                                                <h5 class="pm-card-title mb-0">Remarks</h5>
-                                                <p class="pm-card-subtitle mb-0">Collaborate with stakeholders and capture project context.</p>
+                                                <label class="form-label visually-hidden" for="remarks-role-filter">Author role</label>
+                                                <select id="remarks-role-filter" class="form-select form-select-sm" data-remarks-role-filter>
+                                                    <option value="">All roles</option>
+                                                    @foreach (var option in Model.RemarksPanel.RoleOptions)
+                                                    {
+                                                        <option value="@option.Value">@option.Label</option>
+                                                    }
+                                                </select>
                                             </div>
-                                        </div>
-                                        <div class="btn-group btn-group-sm mt-2 mt-lg-0" role="group" aria-label="Filter remarks by type" data-remarks-type-group>
-                                            <button type="button" class="btn btn-outline-primary active" data-remarks-type="all" aria-pressed="true">All</button>
-                                            <button type="button" class="btn btn-outline-primary" data-remarks-type="Internal" aria-pressed="false">Internal</button>
-                                            <button type="button" class="btn btn-outline-primary" data-remarks-type="External" aria-pressed="false">External</button>
+                                            <div>
+                                                <label class="form-label visually-hidden" for="remarks-stage-filter">Stage</label>
+                                                <select id="remarks-stage-filter" class="form-select form-select-sm" data-remarks-stage-filter>
+                                                    <option value="">All stages</option>
+                                                    @foreach (var stage in Model.RemarksPanel.StageOptions)
+                                                    {
+                                                        <option value="@stage.Value">@stage.Label</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label class="form-label visually-hidden" for="remarks-date-from">From date</label>
+                                                <input type="date" id="remarks-date-from" class="form-control form-control-sm" data-remarks-date-from max="@Model.RemarksPanel.Today" aria-label="Show remarks from date" />
+                                            </div>
+                                            <div>
+                                                <label class="form-label visually-hidden" for="remarks-date-to">To date</label>
+                                                <input type="date" id="remarks-date-to" class="form-control form-control-sm" data-remarks-date-to max="@Model.RemarksPanel.Today" aria-label="Show remarks to date" />
+                                            </div>
+                                            @if (Model.RemarksPanel.ShowDeletedToggle)
+                                            {
+                                                <div class="form-check form-switch ms-lg-auto">
+                                                    <input class="form-check-input" type="checkbox" role="switch" id="remarks-include-deleted" data-remarks-include-deleted>
+                                                    <label class="form-check-label" for="remarks-include-deleted">Show deleted</label>
+                                                </div>
+                                            }
                                         </div>
                                     </div>
-                                    <div class="d-flex flex-wrap align-items-center gap-2" data-remarks-filter-bar>
-                                        <div>
-                                            <label class="form-label visually-hidden" for="remarks-role-filter">Author role</label>
-                                            <select id="remarks-role-filter" class="form-select form-select-sm" data-remarks-role-filter>
-                                                <option value="">All roles</option>
-                                                @foreach (var option in Model.RemarksPanel.RoleOptions)
-                                                {
-                                                    <option value="@option.Value">@option.Label</option>
-                                                }
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label class="form-label visually-hidden" for="remarks-stage-filter">Stage</label>
-                                            <select id="remarks-stage-filter" class="form-select form-select-sm" data-remarks-stage-filter>
-                                                <option value="">All stages</option>
-                                                @foreach (var stage in Model.RemarksPanel.StageOptions)
-                                                {
-                                                    <option value="@stage.Value">@stage.Label</option>
-                                                }
-                                            </select>
-                                        </div>
-                                        <div>
-                                            <label class="form-label visually-hidden" for="remarks-date-from">From date</label>
-                                            <input type="date" id="remarks-date-from" class="form-control form-control-sm" data-remarks-date-from max="@Model.RemarksPanel.Today" aria-label="Show remarks from date" />
-                                        </div>
-                                        <div>
-                                            <label class="form-label visually-hidden" for="remarks-date-to">To date</label>
-                                            <input type="date" id="remarks-date-to" class="form-control form-control-sm" data-remarks-date-to max="@Model.RemarksPanel.Today" aria-label="Show remarks to date" />
-                                        </div>
-                                        @if (Model.RemarksPanel.ShowDeletedToggle)
-                                        {
-                                            <div class="form-check form-switch ms-lg-auto">
-                                                <input class="form-check-input" type="checkbox" role="switch" id="remarks-include-deleted" data-remarks-include-deleted>
-                                                <label class="form-check-label" for="remarks-include-deleted">Show deleted</label>
-                                            </div>
-                                        }
-                                    </div>
-                                </div>
+                                }
                             </div>
                             <div class="d-flex flex-column align-items-stretch gap-2">
-                                <div class="btn-group btn-group-sm align-self-lg-end" role="group" aria-label="Toggle timeline or remarks" data-panel-switch>
-                                    <button type="button" class="btn btn-outline-primary active" id="project-panel-toggle-timeline" data-panel-target="timeline" aria-pressed="true" aria-expanded="true" aria-controls="project-panel-body-timeline">Timeline</button>
-                                    <button type="button" class="btn btn-outline-primary" id="project-panel-toggle-remarks" data-panel-target="remarks" aria-pressed="false" aria-expanded="false" aria-controls="project-panel-body-remarks">Remarks</button>
-                                </div>
+                                @if (remarksEnabled)
+                                {
+                                    <div class="btn-group btn-group-sm align-self-lg-end" role="group" aria-label="Toggle timeline or remarks" data-panel-switch>
+                                        <button type="button" class="btn btn-outline-primary active" id="project-panel-toggle-timeline" data-panel-target="timeline" aria-pressed="true" aria-expanded="true" aria-controls="project-panel-body-timeline">Timeline</button>
+                                        <button type="button" class="btn btn-outline-primary" id="project-panel-toggle-remarks" data-panel-target="remarks" aria-pressed="false" aria-expanded="false" aria-controls="project-panel-body-remarks">Remarks</button>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <span id="project-panel-toggle-timeline" class="visually-hidden">Timeline</span>
+                                }
                                 <div class="pm-card-actions d-flex flex-wrap align-items-center gap-2 justify-content-lg-end" data-panel-section="timeline" id="project-panel-section-timeline" role="region" aria-labelledby="project-panel-toggle-timeline" aria-hidden="false">
                                     @{
                                         var canReviewTimeline = planState.HasPendingSubmission && isHoD;
@@ -1223,70 +1236,73 @@
                         @{ ViewBag.IsProjectOfficerForProject = isThisProjectsPo; }
                         <partial name="_ProjectTimeline" model="Model.Timeline" />
                     </div>
-                    <div class="d-none" data-panel="remarks" id="project-panel-body-remarks" role="region" aria-labelledby="project-panel-toggle-remarks" aria-hidden="true">
-                        <div class="remarks-panel" data-remarks-panel data-config='@remarksConfigJson'>
-                            @if (Model.RemarksPanel.ShowComposer)
-                            {
-                                <form class="remarks-composer" data-remarks-composer>
-                                    @Html.AntiForgeryToken()
-                                    <div class="d-flex flex-column gap-3">
-                                        <div>
-                                            <label for="remark-body" class="form-label fw-semibold mb-1">Add a remark</label>
-                                            <textarea id="remark-body" class="form-control" rows="3" maxlength="4000" data-remarks-body required></textarea>
-                                            <div class="form-text">Maximum 4000 characters.</div>
-                                            @if (!string.IsNullOrWhiteSpace(Model.RemarksPanel.ActorDisplayName))
-                                            {
-                                                <div class="small text-muted mt-1">Posting as @Model.RemarksPanel.ActorDisplayName</div>
-                                            }
-                                        </div>
-                                        <div class="remarks-composer-options d-flex flex-wrap align-items-center gap-2">
-                                            <div class="btn-group btn-group-sm" role="group" aria-label="Remark audience" data-remarks-composer-type>
-                                                <button type="button" class="btn btn-outline-secondary active" data-remarks-composer-option="Internal" aria-pressed="true">Internal</button>
-                                                @if (Model.RemarksPanel.AllowExternal)
+                    @if (remarksEnabled)
+                    {
+                        <div class="d-none" data-panel="remarks" id="project-panel-body-remarks" role="region" aria-labelledby="project-panel-toggle-remarks" aria-hidden="true">
+                            <div class="remarks-panel" data-remarks-panel data-config='@remarksConfigJson'>
+                                @if (Model.RemarksPanel.ShowComposer)
+                                {
+                                    <form class="remarks-composer" data-remarks-composer>
+                                        @Html.AntiForgeryToken()
+                                        <div class="d-flex flex-column gap-3">
+                                            <div>
+                                                <label for="remark-body" class="form-label fw-semibold mb-1">Add a remark</label>
+                                                <textarea id="remark-body" class="form-control" rows="3" maxlength="4000" data-remarks-body required></textarea>
+                                                <div class="form-text">Maximum 4000 characters.</div>
+                                                @if (!string.IsNullOrWhiteSpace(Model.RemarksPanel.ActorDisplayName))
                                                 {
-                                                    <button type="button" class="btn btn-outline-secondary" data-remarks-composer-option="External" aria-pressed="false">External</button>
+                                                    <div class="small text-muted mt-1">Posting as @Model.RemarksPanel.ActorDisplayName</div>
                                                 }
                                             </div>
-                                            <div class="remarks-composer-external d-flex flex-wrap align-items-end gap-2 d-none" data-remarks-external-fields>
-                                                <div>
-                                                    <label for="remark-event-date" class="form-label mb-1 small">Event date</label>
-                                                    <input type="date" id="remark-event-date" class="form-control form-control-sm" data-remarks-event-date value="@Model.RemarksPanel.Today" max="@Model.RemarksPanel.Today" />
+                                            <div class="remarks-composer-options d-flex flex-wrap align-items-center gap-2">
+                                                <div class="btn-group btn-group-sm" role="group" aria-label="Remark audience" data-remarks-composer-type>
+                                                    <button type="button" class="btn btn-outline-secondary active" data-remarks-composer-option="Internal" aria-pressed="true">Internal</button>
+                                                    @if (Model.RemarksPanel.AllowExternal)
+                                                    {
+                                                        <button type="button" class="btn btn-outline-secondary" data-remarks-composer-option="External" aria-pressed="false">External</button>
+                                                    }
                                                 </div>
-                                                <div>
-                                                    <label for="remark-stage" class="form-label mb-1 small">Stage <span class="text-muted">(optional)</span></label>
-                                                    <select id="remark-stage" class="form-select form-select-sm" data-remarks-stage>
-                                                        <option value="">Not linked</option>
-                                                        @foreach (var stage in Model.RemarksPanel.StageOptions)
-                                                        {
-                                                            <option value="@stage.Value">@stage.Label</option>
-                                                        }
-                                                    </select>
+                                                <div class="remarks-composer-external d-flex flex-wrap align-items-end gap-2 d-none" data-remarks-external-fields>
+                                                    <div>
+                                                        <label for="remark-event-date" class="form-label mb-1 small">Event date</label>
+                                                        <input type="date" id="remark-event-date" class="form-control form-control-sm" data-remarks-event-date value="@Model.RemarksPanel.Today" max="@Model.RemarksPanel.Today" />
+                                                    </div>
+                                                    <div>
+                                                        <label for="remark-stage" class="form-label mb-1 small">Stage <span class="text-muted">(optional)</span></label>
+                                                        <select id="remark-stage" class="form-select form-select-sm" data-remarks-stage>
+                                                            <option value="">Not linked</option>
+                                                            @foreach (var stage in Model.RemarksPanel.StageOptions)
+                                                            {
+                                                                <option value="@stage.Value">@stage.Label</option>
+                                                            }
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="d-flex flex-column flex-sm-row gap-2 align-items-sm-center justify-content-between">
+                                                <div class="small" data-remarks-feedback></div>
+                                                <div class="d-flex gap-2 ms-sm-auto">
+                                                    <button type="reset" class="btn btn-sm btn-outline-secondary" data-remarks-reset>Clear</button>
+                                                    <button type="submit" class="btn btn-primary btn-sm" data-remarks-submit>Post remark</button>
                                                 </div>
                                             </div>
                                         </div>
-                                        <div class="d-flex flex-column flex-sm-row gap-2 align-items-sm-center justify-content-between">
-                                            <div class="small" data-remarks-feedback></div>
-                                            <div class="d-flex gap-2 ms-sm-auto">
-                                                <button type="reset" class="btn btn-sm btn-outline-secondary" data-remarks-reset>Clear</button>
-                                                <button type="submit" class="btn btn-primary btn-sm" data-remarks-submit>Post remark</button>
-                                            </div>
-                                        </div>
+                                    </form>
+                                }
+                                else
+                                {
+                                    <div class="alert alert-info border-info-subtle bg-info-subtle text-dark" role="status">
+                                        Remarks can only be posted by the assigned project team and leadership.
                                     </div>
-                                </form>
-                            }
-                            else
-                            {
-                                <div class="alert alert-info border-info-subtle bg-info-subtle text-dark" role="status">
-                                    Remarks can only be posted by the assigned project team and leadership.
+                                }
+                                <div class="remarks-list" data-remarks-list>
+                                    <div class="text-muted" data-remarks-empty>Loading remarks…</div>
+                                    <div class="vstack gap-3" data-remarks-items></div>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm align-self-start d-none" data-remarks-load-more>Load more</button>
                                 </div>
-                            }
-                            <div class="remarks-list" data-remarks-list>
-                                <div class="text-muted" data-remarks-empty>Loading remarks…</div>
-                                <div class="vstack gap-3" data-remarks-items></div>
-                                <button type="button" class="btn btn-outline-secondary btn-sm align-self-start d-none" data-remarks-load-more>Load more</button>
                             </div>
                         </div>
-                    </div>
+                    }
                 </div>
             </div>
         </div>
