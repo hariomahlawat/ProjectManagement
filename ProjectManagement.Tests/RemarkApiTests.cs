@@ -30,6 +30,22 @@ namespace ProjectManagement.Tests;
 
 public class RemarkApiTests
 {
+    public static IEnumerable<object[]> CanonicalActorRoles
+    {
+        get
+        {
+            foreach (var role in Enum.GetValues<RemarkActorRole>())
+            {
+                if (role == RemarkActorRole.Unknown)
+                {
+                    continue;
+                }
+
+                yield return new object[] { role.ToString() };
+            }
+        }
+    }
+
     [Fact]
     public async Task CreateAndListRemarksAsync_Succeeds()
     {
@@ -132,6 +148,73 @@ public class RemarkApiTests
         var problem = await delete.Content.ReadFromJsonAsync<ProblemDetailsDto>(SerializerOptions);
         Assert.NotNull(problem);
         Assert.Equal(RemarkService.PermissionDeniedMessage, problem!.Title);
+    }
+
+    [Theory]
+    [MemberData(nameof(CanonicalActorRoles))]
+    public async Task RemarkLifecycle_Succeeds_WithCanonicalActorRoleIdentifiers(string canonicalRole)
+    {
+        using var factory = new RemarkApiFactory();
+        var roleEnum = Enum.Parse<RemarkActorRole>(canonicalRole);
+        var projectId = 700 + (int)roleEnum;
+        var userId = $"user-{canonicalRole.ToLowerInvariant()}";
+        var client = await CreateClientForUserAsync(factory, userId, $"User {canonicalRole}", canonicalRole);
+        await SeedProjectAsync(factory, projectId, leadPoUserId: userId);
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+        var remarkBody = $"Initial remark for {canonicalRole}";
+
+        var createResponse = await client.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
+        {
+            type = RemarkType.Internal,
+            body = remarkBody,
+            eventDate = today,
+            stageRef = StageCodes.FS,
+            actorRole = canonicalRole
+        });
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var created = await createResponse.Content.ReadFromJsonAsync<RemarkResponseDto>(SerializerOptions);
+        Assert.NotNull(created);
+        Assert.Equal(userId, created!.AuthorUserId);
+        Assert.Equal(remarkBody, created.Body);
+
+        var list = await client.GetFromJsonAsync<RemarkListResponseDto>($"/api/projects/{projectId}/remarks?actorRole={Uri.EscapeDataString(canonicalRole)}", SerializerOptions);
+        Assert.NotNull(list);
+        Assert.Equal(1, list!.Total);
+        Assert.Single(list.Items);
+        Assert.Equal(created.Id, list.Items[0].Id);
+
+        var updateResponse = await client.PutAsJsonAsync($"/api/projects/{projectId}/remarks/{created.Id}", new
+        {
+            body = $"Updated remark for {canonicalRole}",
+            eventDate = today,
+            stageRef = StageCodes.FS,
+            rowVersion = created.RowVersion,
+            actorRole = canonicalRole
+        });
+
+        Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+        var updated = await updateResponse.Content.ReadFromJsonAsync<RemarkResponseDto>(SerializerOptions);
+        Assert.NotNull(updated);
+        Assert.Equal($"Updated remark for {canonicalRole}", updated!.Body);
+
+        var deleteRequest = new
+        {
+            rowVersion = updated.RowVersion,
+            actorRole = canonicalRole
+        };
+
+        var deleteResponse = await client.SendAsync(new HttpRequestMessage(HttpMethod.Delete, $"/api/projects/{projectId}/remarks/{created.Id}")
+        {
+            Content = JsonContent.Create(deleteRequest, options: SerializerOptions)
+        });
+
+        Assert.Equal(HttpStatusCode.OK, deleteResponse.StatusCode);
+        var deleted = await deleteResponse.Content.ReadFromJsonAsync<DeleteRemarkResponseDto>(SerializerOptions);
+        Assert.NotNull(deleted);
+        Assert.True(deleted!.Success);
+        Assert.False(string.IsNullOrWhiteSpace(deleted.RowVersion));
     }
 
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
@@ -277,6 +360,12 @@ public class RemarkApiTests
         public string? Title { get; init; }
         public string? Detail { get; init; }
         public int? Status { get; init; }
+    }
+
+    private sealed record DeleteRemarkResponseDto
+    {
+        public bool Success { get; init; }
+        public string? RowVersion { get; init; }
     }
 
     private sealed class RemarkApiFactory : WebApplicationFactory<Program>

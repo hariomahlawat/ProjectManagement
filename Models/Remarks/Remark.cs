@@ -141,6 +141,26 @@ namespace ProjectManagement.Models.Remarks
 
     public static class RemarkActorRoleExtensions
     {
+        private static readonly IReadOnlyDictionary<string, RemarkActorRole> RoleAliases = new Dictionary<string, RemarkActorRole>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Project Officer"] = RemarkActorRole.ProjectOfficer,
+            ["ProjectOfficer"] = RemarkActorRole.ProjectOfficer,
+            ["HoD"] = RemarkActorRole.HeadOfDepartment,
+            ["HeadOfDepartment"] = RemarkActorRole.HeadOfDepartment,
+            ["Comdt"] = RemarkActorRole.Commandant,
+            ["Commandant"] = RemarkActorRole.Commandant,
+            ["Admin"] = RemarkActorRole.Administrator,
+            ["Administrator"] = RemarkActorRole.Administrator,
+            ["TA"] = RemarkActorRole.Ta,
+            ["Ta"] = RemarkActorRole.Ta,
+            ["MCO"] = RemarkActorRole.Mco,
+            ["Mco"] = RemarkActorRole.Mco,
+            ["Project Office"] = RemarkActorRole.ProjectOffice,
+            ["ProjectOffice"] = RemarkActorRole.ProjectOffice,
+            ["Main Office"] = RemarkActorRole.MainOffice,
+            ["MainOffice"] = RemarkActorRole.MainOffice
+        };
+
         public static bool TryParse(string roleName, out RemarkActorRole role)
         {
             if (string.IsNullOrWhiteSpace(roleName))
@@ -149,24 +169,15 @@ namespace ProjectManagement.Models.Remarks
                 return false;
             }
 
-            return roleName.Trim() switch
+            var normalized = roleName.Trim();
+            if (RoleAliases.TryGetValue(normalized, out var mapped))
             {
-                "Project Officer" => Set(RemarkActorRole.ProjectOfficer, out role),
-                "HoD" => Set(RemarkActorRole.HeadOfDepartment, out role),
-                "Comdt" => Set(RemarkActorRole.Commandant, out role),
-                "Admin" => Set(RemarkActorRole.Administrator, out role),
-                "TA" => Set(RemarkActorRole.Ta, out role),
-                "MCO" => Set(RemarkActorRole.Mco, out role),
-                "Project Office" => Set(RemarkActorRole.ProjectOffice, out role),
-                "Main Office" => Set(RemarkActorRole.MainOffice, out role),
-                _ => Set(RemarkActorRole.Unknown, out role, false)
-            };
-        }
+                role = mapped;
+                return true;
+            }
 
-        private static bool Set(RemarkActorRole value, out RemarkActorRole role, bool success = true)
-        {
-            role = value;
-            return success;
+            role = RemarkActorRole.Unknown;
+            return false;
         }
     }
 }
