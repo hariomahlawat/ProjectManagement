@@ -1296,6 +1296,7 @@ body.has-project-photo-preview-dialog {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
+  flex-direction: column;
 }
 
 .doc-preview-frame iframe {
