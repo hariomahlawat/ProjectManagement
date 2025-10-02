@@ -1,0 +1,426 @@
+openapi: 3.0.3
+info:
+  title: Project Management Remarks API
+  version: "1.0.0"
+  description: |
+    REST endpoints for creating, listing, updating, deleting and auditing project remarks.
+servers:
+  - url: https://example.local
+paths:
+  /api/projects/{projectId}/remarks:
+    post:
+      summary: Create a remark
+      operationId: createRemark
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRemarkRequest'
+      responses:
+        '201':
+          description: Remark created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Remark'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+      security:
+        - cookieAuth: []
+    get:
+      summary: List remarks for a project
+      operationId: listRemarks
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/RemarkType'
+          description: Filter by remark type.
+        - name: role
+          in: query
+          schema:
+            $ref: '#/components/schemas/RemarkActorRole'
+          description: Filter by author role.
+        - name: stageRef
+          in: query
+          schema:
+            type: string
+          description: Filter by stage reference code.
+        - name: mine
+          in: query
+          schema:
+            type: boolean
+          description: When true, only remarks authored by the caller are returned.
+        - name: dateFrom
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Include remarks on or after this event date.
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Include remarks on or before this event date.
+        - name: includeDeleted
+          in: query
+          schema:
+            type: boolean
+          description: Include soft-deleted remarks (Admin only).
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+          description: Page number (defaults to 1).
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+          description: Number of items per page (defaults to 50).
+        - name: actorRole
+          in: query
+          schema:
+            $ref: '#/components/schemas/RemarkActorRole'
+          description: Explicit acting role for the caller.
+      responses:
+        '200':
+          description: Paged remarks
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RemarkList'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+      security:
+        - cookieAuth: []
+  /api/projects/{projectId}/remarks/{remarkId}:
+    put:
+      summary: Update a remark
+      operationId: updateRemark
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/RemarkId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRemarkRequest'
+      responses:
+        '200':
+          description: Updated remark
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Remark'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+      security:
+        - cookieAuth: []
+    delete:
+      summary: Soft delete a remark
+      operationId: deleteRemark
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/RemarkId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteRemarkRequest'
+      responses:
+        '200':
+          description: Deletion acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteRemarkResponse'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+      security:
+        - cookieAuth: []
+  /api/projects/{projectId}/remarks/{remarkId}/audit:
+    get:
+      summary: Retrieve remark audit history
+      operationId: getRemarkAudit
+      parameters:
+        - $ref: '#/components/parameters/ProjectId'
+        - $ref: '#/components/parameters/RemarkId'
+        - name: actorRole
+          in: query
+          schema:
+            $ref: '#/components/schemas/RemarkActorRole'
+          description: Acting role for the caller (must include Admin).
+      responses:
+        '200':
+          description: Audit trail
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RemarkAudit'
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+      security:
+        - cookieAuth: []
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: __Host-PMAuth
+  parameters:
+    ProjectId:
+      name: projectId
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: Numeric project identifier.
+    RemarkId:
+      name: remarkId
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: Numeric remark identifier.
+  responses:
+    BadRequest:
+      description: Invalid request
+    Unauthorized:
+      description: Authentication required
+    Forbidden:
+      description: Caller is not authorised
+    NotFound:
+      description: Resource not found
+    Conflict:
+      description: Request could not be completed due to a conflict (e.g. stale row version)
+  schemas:
+    RemarkType:
+      type: string
+      enum: [Internal, External]
+    RemarkActorRole:
+      type: string
+      enum:
+        - ProjectOfficer
+        - HeadOfDepartment
+        - Commandant
+        - Administrator
+        - Ta
+        - Mco
+        - ProjectOffice
+        - MainOffice
+    Remark:
+      type: object
+      required: [id, projectId, type, authorRole, authorUserId, body, eventDate, createdAtUtc, isDeleted, rowVersion]
+      properties:
+        id:
+          type: integer
+        projectId:
+          type: integer
+        type:
+          $ref: '#/components/schemas/RemarkType'
+        authorRole:
+          $ref: '#/components/schemas/RemarkActorRole'
+        authorUserId:
+          type: string
+        body:
+          type: string
+        eventDate:
+          type: string
+          format: date
+        stageRef:
+          type: string
+          nullable: true
+        stageName:
+          type: string
+          nullable: true
+        createdAtUtc:
+          type: string
+          format: date-time
+        lastEditedAtUtc:
+          type: string
+          format: date-time
+          nullable: true
+        isDeleted:
+          type: boolean
+        deletedAtUtc:
+          type: string
+          format: date-time
+          nullable: true
+        deletedByUserId:
+          type: string
+          nullable: true
+        deletedByRole:
+          $ref: '#/components/schemas/RemarkActorRole'
+          nullable: true
+        rowVersion:
+          type: string
+          description: Base64 encoded concurrency token.
+    RemarkList:
+      type: object
+      required: [total, page, pageSize, items]
+      properties:
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Remark'
+    RemarkAudit:
+      type: object
+      required: [id, action, actorRole, actorUserId, actionAtUtc, snapshot]
+      properties:
+        id:
+          type: integer
+        action:
+          type: string
+          enum: [Created, Edited, Deleted]
+        actorRole:
+          $ref: '#/components/schemas/RemarkActorRole'
+        actorUserId:
+          type: string
+        actionAtUtc:
+          type: string
+          format: date-time
+        meta:
+          type: string
+          nullable: true
+        snapshot:
+          $ref: '#/components/schemas/RemarkAuditSnapshot'
+    RemarkAuditSnapshot:
+      type: object
+      required: [type, authorRole, authorUserId, body, eventDate, createdAtUtc, isDeleted]
+      properties:
+        type:
+          $ref: '#/components/schemas/RemarkType'
+        authorRole:
+          $ref: '#/components/schemas/RemarkActorRole'
+        authorUserId:
+          type: string
+        body:
+          type: string
+        eventDate:
+          type: string
+          format: date
+        stageRef:
+          type: string
+          nullable: true
+        stageName:
+          type: string
+          nullable: true
+        createdAtUtc:
+          type: string
+          format: date-time
+        lastEditedAtUtc:
+          type: string
+          format: date-time
+          nullable: true
+        isDeleted:
+          type: boolean
+        deletedAtUtc:
+          type: string
+          format: date-time
+          nullable: true
+        deletedByUserId:
+          type: string
+          nullable: true
+        deletedByRole:
+          $ref: '#/components/schemas/RemarkActorRole'
+          nullable: true
+    CreateRemarkRequest:
+      type: object
+      required: [type, body, eventDate]
+      properties:
+        type:
+          $ref: '#/components/schemas/RemarkType'
+        body:
+          type: string
+        eventDate:
+          type: string
+          format: date
+        stageRef:
+          type: string
+          nullable: true
+        stageName:
+          type: string
+          nullable: true
+        meta:
+          type: string
+          nullable: true
+        actorRole:
+          $ref: '#/components/schemas/RemarkActorRole'
+          nullable: true
+    UpdateRemarkRequest:
+      type: object
+      required: [body, eventDate, rowVersion]
+      properties:
+        body:
+          type: string
+        eventDate:
+          type: string
+          format: date
+        stageRef:
+          type: string
+          nullable: true
+        stageName:
+          type: string
+          nullable: true
+        meta:
+          type: string
+          nullable: true
+        rowVersion:
+          type: string
+          description: Base64 encoded concurrency token.
+        actorRole:
+          $ref: '#/components/schemas/RemarkActorRole'
+          nullable: true
+    DeleteRemarkRequest:
+      type: object
+      required: [rowVersion]
+      properties:
+        rowVersion:
+          type: string
+          description: Base64 encoded concurrency token.
+        meta:
+          type: string
+          nullable: true
+        actorRole:
+          $ref: '#/components/schemas/RemarkActorRole'
+          nullable: true
+    DeleteRemarkResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+        rowVersion:
+          type: string
+          nullable: true
+          description: Latest row version for the tombstone.

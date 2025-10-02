@@ -39,6 +39,7 @@ public sealed record ListRemarksRequest(
     string? StageRef = null,
     DateOnly? FromDate = null,
     DateOnly? ToDate = null,
+    bool Mine = false,
     bool IncludeDeleted = false,
     int Page = 1,
     int PageSize = 50);
@@ -51,8 +52,10 @@ public sealed record EditRemarkRequest(
     DateOnly EventDate,
     string? StageRef,
     string? StageNameSnapshot,
-    string? Meta);
+    string? Meta,
+    byte[] RowVersion);
 
 public sealed record SoftDeleteRemarkRequest(
     RemarkActorContext Actor,
-    string? Meta);
+    string? Meta,
+    byte[] RowVersion);

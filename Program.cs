@@ -36,6 +36,7 @@ using ProjectManagement.Utilities;
 using ProjectManagement.Services.Stages;
 using Microsoft.Net.Http.Headers;
 using System.Threading;
+using ProjectManagement.Features.Remarks;
 
 var runForecastBackfill = args.Any(a => string.Equals(a, "--backfill-forecast", StringComparison.OrdinalIgnoreCase));
 
@@ -170,6 +171,7 @@ builder.Services.AddScoped<ProjectProcurementReadService>();
 builder.Services.AddScoped<ProjectTimelineReadService>();
 builder.Services.AddScoped<ProjectCommentService>();
 builder.Services.AddScoped<IRemarkService, RemarkService>();
+builder.Services.AddScoped<IRemarkNotificationService, RemarkNotificationService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddSingleton<IDocumentPreviewTokenService, DocumentPreviewTokenService>();
 builder.Services.AddScoped<IDocumentRequestService, DocumentRequestService>();
@@ -636,6 +638,7 @@ app.MapGet("/Projects/Documents/View", async (
     return Results.File(streamResult.Stream, contentType: "application/pdf", enableRangeProcessing: true);
 }).AllowAnonymous();
 
+app.MapRemarkApi();
 app.MapRazorPages();
 
 // Celebrations endpoints
