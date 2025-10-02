@@ -1,7 +1,7 @@
 .pm-timeline-grid {
   display: grid;
   grid-template-columns: 24px 1fr;
-  gap: 12px;
+  gap: 10px;
   position: relative;
 }
 
@@ -21,7 +21,7 @@
 .pm-items {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .pm-item {
@@ -53,14 +53,14 @@
 }
 
 .pm-item-card {
-  padding: 10px 14px;
+  padding: 8px 12px;
   border: 1px solid var(--bs-border-color);
   border-radius: 16px;
   background-color: var(--bs-body-bg);
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   border-left: 3px solid var(--bs-gray-300);
 }
 
@@ -75,7 +75,7 @@
 .pm-item-header {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
 }
 
@@ -83,8 +83,8 @@
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
-  row-gap: 4px;
+  gap: 5px;
+  row-gap: 3px;
   min-width: 0;
 }
 
@@ -110,7 +110,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
   min-width: 3rem;
   flex-wrap: nowrap;
 }
@@ -159,7 +159,7 @@
 .pm-item-flags {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 3px;
   font-size: 0.8125rem;
   color: var(--bs-gray-600);
 }
@@ -167,7 +167,7 @@
 .pm-flag {
   background-color: var(--bs-gray-100);
   border-radius: 999px;
-  padding: 2px 8px;
+  padding: 2px 7px;
 }
 
 .pm-flag-danger {
@@ -182,7 +182,7 @@
 
 .pm-item-dates {
   display: grid;
-  gap: 4px;
+  gap: 3px;
   color: var(--bs-gray-800);
   font-size: 0.95rem;
 }
@@ -197,10 +197,10 @@
   background-color: var(--bs-gray-100);
   border: 1px solid var(--bs-gray-200);
   border-radius: 12px;
-  padding: 12px 14px;
+  padding: 9px 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
   min-height: 100%;
   position: relative;
 }
@@ -218,7 +218,7 @@
 .pm-date-block-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -236,7 +236,7 @@
 .pm-date-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .pm-date-badge::before {
@@ -251,14 +251,14 @@
 .pm-date-range {
   display: flex;
   align-items: flex-end;
-  gap: 3px;
+  gap: 2px;
   flex-wrap: wrap;
 }
 
 .pm-date {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
   flex: 1 1 140px;
   min-width: 120px;
 }
@@ -303,12 +303,12 @@
 .pm-variance-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 3px;
 }
 
 .pm-chip {
   border-radius: 999px;
-  padding: 2px 8px;
+  padding: 2px 7px;
   font-size: 0.75rem;
   font-weight: 500;
   border: 1px solid transparent;
