@@ -115,7 +115,7 @@ public class RemarkNotificationServiceTests
 
         string preview = payload.Preview;
         Assert.Equal(121, preview.Length);
-        Assert.True(preview.EndsWith("…", StringComparison.Ordinal));
+        Assert.EndsWith("…", preview, StringComparison.Ordinal);
         Assert.Equal(new string('A', 120), preview[..120]);
     }
 
@@ -205,7 +205,7 @@ public class RemarkNotificationServiceTests
             Array.Empty<IPasswordValidator<ApplicationUser>>(),
             new UpperInvariantLookupNormalizer(),
             new IdentityErrorDescriber(),
-            null,
+            null!,
             NullLogger<UserManager<ApplicationUser>>.Instance);
     }
 
