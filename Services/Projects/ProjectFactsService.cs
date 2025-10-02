@@ -6,8 +6,10 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Stages;
 
 namespace ProjectManagement.Services.Projects
 {
@@ -243,6 +245,11 @@ namespace ProjectManagement.Services.Projects
                 ct);
 
             if (stage is null || !stage.RequiresBackfill)
+            {
+                return;
+            }
+
+            if (stage.Status == StageStatus.Completed && StageBackfillRules.IsMissingRequiredDates(stage))
             {
                 return;
             }
