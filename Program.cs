@@ -259,8 +259,11 @@ app.Use(async (ctx, next) =>
     h["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), browsing-topics=()";
 
     var isDocumentViewer = ctx.Request.Path.StartsWithSegments("/Projects/Documents/View", StringComparison.OrdinalIgnoreCase);
+    var isDocumentPreview = ctx.Request.Path.StartsWithSegments("/Projects/Documents/Preview", StringComparison.OrdinalIgnoreCase);
 
-    if (isDocumentViewer)
+    var isDocumentPreviewContext = isDocumentViewer || isDocumentPreview;
+
+    if (isDocumentPreviewContext)
     {
         // Chrome's PDF viewer ignores content when the response is isolated with
         // COOP. Allow the inline preview to render by opting out for this route.
