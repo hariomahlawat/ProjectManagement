@@ -1287,6 +1287,16 @@ body.has-project-photo-preview-dialog {
   position: absolute;
 }
 
+.doc-preview-layout {
+  gap: 0.5rem;
+}
+
 .doc-preview-frame {
-  min-height: 70vh;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+
+.doc-preview-frame iframe {
+  flex: 1 1 auto;
 }
