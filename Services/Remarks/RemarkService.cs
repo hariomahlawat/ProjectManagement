@@ -17,12 +17,21 @@ public sealed class RemarkService : IRemarkService
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly ILogger<RemarkService> _logger;
+    private readonly IRemarkNotificationService _notification;
 
-    public RemarkService(ApplicationDbContext db, IClock clock, ILogger<RemarkService> logger)
+    internal const string ConcurrencyConflictMessage = "Remark was modified by another user.";
+    internal const string RowVersionRequiredMessage = "Row version is required for this operation.";
+
+    public RemarkService(
+        ApplicationDbContext db,
+        IClock clock,
+        ILogger<RemarkService> logger,
+        IRemarkNotificationService notification)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _notification = notification ?? throw new ArgumentNullException(nameof(notification));
     }
 
     public async Task<Remark> CreateRemarkAsync(CreateRemarkRequest request, CancellationToken cancellationToken = default)
@@ -30,7 +39,12 @@ public sealed class RemarkService : IRemarkService
         ArgumentNullException.ThrowIfNull(request);
         EnsureActorContext(request.Actor);
 
-        if (!await _db.Projects.AnyAsync(p => p.Id == request.ProjectId, cancellationToken))
+        var project = await _db.Projects
+            .AsNoTracking()
+            .Select(p => new RemarkProjectInfo(p.Id, p.Name, p.LeadPoUserId, p.HodUserId))
+            .FirstOrDefaultAsync(p => p.ProjectId == request.ProjectId, cancellationToken);
+
+        if (project is null)
         {
             throw new InvalidOperationException("Project not found.");
         }
@@ -74,6 +88,15 @@ public sealed class RemarkService : IRemarkService
         await transaction.CommitAsync(cancellationToken);
 
         LogDecision("Create", true, null, request.Actor, remark.Id, remark.ProjectId);
+
+        try
+        {
+            await _notification.NotifyRemarkCreatedAsync(remark, request.Actor, project, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to dispatch remark notifications for remark {RemarkId}.", remark.Id);
+        }
 
         return remark;
     }
@@ -121,6 +144,11 @@ public sealed class RemarkService : IRemarkService
         if (request.ToDate.HasValue)
         {
             query = query.Where(r => r.EventDate <= request.ToDate.Value);
+        }
+
+        if (request.Mine)
+        {
+            query = query.Where(r => r.AuthorUserId == request.Actor.UserId);
         }
 
         var page = Math.Max(1, request.Page);
@@ -174,7 +202,19 @@ public sealed class RemarkService : IRemarkService
         remark.LastEditedAtUtc = now;
 
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
-        await _db.SaveChangesAsync(cancellationToken);
+
+        ApplyRowVersion(remark, request.RowVersion);
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            LogDecision("Edit", false, "ConcurrencyConflict", request.Actor, remark.Id, remark.ProjectId);
+            throw new InvalidOperationException(ConcurrencyConflictMessage, ex);
+        }
 
         var actorRole = ResolveActorRoleForAction(request.Actor);
         var audit = CreateAudit(remark, RemarkAuditAction.Edited, actorRole, request.Actor.UserId, now, request.Meta);
@@ -211,7 +251,19 @@ public sealed class RemarkService : IRemarkService
         remark.DeletedByRole = ResolveActorRoleForAction(request.Actor);
 
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
-        await _db.SaveChangesAsync(cancellationToken);
+
+        ApplyRowVersion(remark, request.RowVersion);
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            LogDecision("SoftDelete", false, "ConcurrencyConflict", request.Actor, remark.Id, remark.ProjectId);
+            throw new InvalidOperationException(ConcurrencyConflictMessage, ex);
+        }
 
         var audit = CreateAudit(remark, RemarkAuditAction.Deleted, remark.DeletedByRole ?? request.Actor.ActorRole, request.Actor.UserId, now, request.Meta);
         _db.RemarkAudits.Add(audit);
@@ -348,6 +400,22 @@ public sealed class RemarkService : IRemarkService
 
     private static bool ActorHasAdmin(IReadOnlyCollection<RemarkActorRole> roles)
         => roles.Contains(RemarkActorRole.Administrator);
+
+    private void ApplyRowVersion(Remark remark, byte[]? rowVersion)
+    {
+        if (remark is null)
+        {
+            throw new ArgumentNullException(nameof(remark));
+        }
+
+        if (rowVersion is not { Length: > 0 })
+        {
+            throw new InvalidOperationException(RowVersionRequiredMessage);
+        }
+
+        var entry = _db.Entry(remark);
+        entry.Property(r => r.RowVersion).OriginalValue = rowVersion;
+    }
 
     private static RemarkActorRole ResolveActorRoleForAction(RemarkActorContext actor)
     {

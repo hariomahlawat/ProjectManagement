@@ -1,0 +1,102 @@
+{
+  "info": {
+    "name": "Project Remarks API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Sample requests for the project remarks REST endpoints."
+  },
+  "item": [
+    {
+      "name": "Create remark",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/projects/{{projectId}}/remarks",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "projects", "{{projectId}}", "remarks"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"Internal\",\n  \"body\": \"Reviewed vendor proposal\",\n  \"eventDate\": \"2024-10-01\",\n  \"stageRef\": \"FS\",\n  \"actorRole\": \"ProjectOfficer\"\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "List remarks",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/projects/{{projectId}}/remarks?type=Internal&mine=true&page=1&pageSize=20",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "projects", "{{projectId}}", "remarks"],
+          "query": [
+            { "key": "type", "value": "Internal" },
+            { "key": "mine", "value": "true" },
+            { "key": "page", "value": "1" },
+            { "key": "pageSize", "value": "20" }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Update remark",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/projects/{{projectId}}/remarks/{{remarkId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "projects", "{{projectId}}", "remarks", "{{remarkId}}"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"body\": \"Updated vendor assessment\",\n  \"eventDate\": \"2024-10-02\",\n  \"stageRef\": \"FS\",\n  \"rowVersion\": \"{{rowVersion}}\",\n  \"actorRole\": \"ProjectOfficer\"\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Delete remark",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/projects/{{projectId}}/remarks/{{remarkId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "projects", "{{projectId}}", "remarks", "{{remarkId}}"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"rowVersion\": \"{{rowVersion}}\",\n  \"actorRole\": \"ProjectOfficer\"\n}"
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Audit trail",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/projects/{{projectId}}/remarks/{{remarkId}}/audit",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "projects", "{{projectId}}", "remarks", "{{remarkId}}", "audit"]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "https://example.local" },
+    { "key": "projectId", "value": "1" },
+    { "key": "remarkId", "value": "1" },
+    { "key": "rowVersion", "value": "BASE64_ROW_VERSION" }
+  ]
+}
