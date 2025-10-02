@@ -19,8 +19,8 @@ public sealed class RemarkService : IRemarkService
     private readonly ILogger<RemarkService> _logger;
     private readonly IRemarkNotificationService _notification;
 
-    internal const string ConcurrencyConflictMessage = "Remark was modified by another user.";
-    internal const string RowVersionRequiredMessage = "Row version is required for this operation.";
+    public const string ConcurrencyConflictMessage = "Remark was modified by another user.";
+    public const string RowVersionRequiredMessage = "Row version is required for this operation.";
 
     public RemarkService(
         ApplicationDbContext db,
