@@ -48,8 +48,9 @@ public sealed class RemarkService : IRemarkService
 
         var project = await _db.Projects
             .AsNoTracking()
+            .Where(p => p.Id == request.ProjectId)
             .Select(p => new RemarkProjectInfo(p.Id, p.Name, p.LeadPoUserId, p.HodUserId))
-            .FirstOrDefaultAsync(p => p.ProjectId == request.ProjectId, cancellationToken);
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (project is null)
         {
