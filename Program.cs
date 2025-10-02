@@ -169,6 +169,7 @@ builder.Services.AddScoped<ProjectProcurementReadService>();
 builder.Services.AddScoped<ProjectTimelineReadService>();
 builder.Services.AddScoped<ProjectCommentService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
+builder.Services.AddSingleton<IDocumentPreviewTokenService, DocumentPreviewTokenService>();
 builder.Services.AddScoped<IDocumentRequestService, DocumentRequestService>();
 builder.Services.AddScoped<IDocumentDecisionService, DocumentDecisionService>();
 builder.Services.AddScoped<PlanReadService>();
@@ -544,10 +545,30 @@ app.MapGet("/Projects/Documents/View", async (
     ApplicationDbContext db,
     IUserContext userContext,
     IDocumentService documentService,
+    IDocumentPreviewTokenService previewTokenService,
+    [FromQuery(Name = "token")] string? previewToken,
     CancellationToken cancellationToken) =>
 {
+    var principal = userContext.User;
     var userId = userContext.UserId;
+    DocumentPreviewTokenPayload? tokenPayload = null;
+
     if (string.IsNullOrEmpty(userId))
+    {
+        if (string.IsNullOrWhiteSpace(previewToken) ||
+            !previewTokenService.TryValidate(previewToken, out var payload) ||
+            payload.DocumentId != documentId ||
+            payload.ExpiresAtUtc < DateTimeOffset.UtcNow)
+        {
+            return Results.Challenge();
+        }
+
+        userId = payload.UserId;
+        principal = previewTokenService.CreatePrincipal(payload);
+        tokenPayload = payload;
+    }
+
+    if (string.IsNullOrEmpty(userId) || principal is null)
     {
         return Results.Challenge();
     }
@@ -567,9 +588,14 @@ app.MapGet("/Projects/Documents/View", async (
         return Results.NotFound();
     }
 
-    if (!ProjectAccessGuard.CanViewProject(document.Project, userContext.User, userId))
+    if (!ProjectAccessGuard.CanViewProject(document.Project, principal, userId))
     {
         return Results.Forbid();
+    }
+
+    if (tokenPayload is not null && tokenPayload.FileStamp != document.FileStamp)
+    {
+        return Results.StatusCode(StatusCodes.Status409Conflict);
     }
 
     var etag = new EntityTagHeaderValue($"\"doc-{document.Id}-v{document.FileStamp}\"");
@@ -606,7 +632,7 @@ app.MapGet("/Projects/Documents/View", async (
     httpContext.Response.ContentLength = streamResult.Length;
 
     return Results.File(streamResult.Stream, contentType: "application/pdf", enableRangeProcessing: true);
-}).RequireAuthorization();
+}).AllowAnonymous();
 
 app.MapRazorPages();
 
