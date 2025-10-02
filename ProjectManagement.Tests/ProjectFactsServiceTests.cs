@@ -4,6 +4,8 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services;
 using Xunit;
@@ -95,6 +97,33 @@ public class ProjectFactsServiceTests
         var updated = await db.ProjectSupplyOrderFacts.SingleAsync();
         Assert.Equal(new DateOnly(2024, 4, 2), updated.SupplyOrderDate);
         Assert.Equal("user-a", updated.CreatedByUserId);
+    }
+
+    [Fact]
+    public async Task UpsertPncCostAsync_WhenStageMissingDates_KeepsBackfillFlag()
+    {
+        var clock = new TestClock(new DateTimeOffset(2024, 8, 1, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedProjectAsync(db);
+
+        db.ProjectStages.Add(new ProjectStage
+        {
+            ProjectId = 1,
+            StageCode = StageCodes.PNC,
+            SortOrder = 8,
+            Status = StageStatus.Completed,
+            RequiresBackfill = true
+        });
+        await db.SaveChangesAsync();
+
+        var service = new ProjectFactsService(db, clock, new FakeAudit());
+
+        await service.UpsertPncCostAsync(1, 999.99m, "user-c");
+
+        var stage = await db.ProjectStages.SingleAsync();
+        Assert.True(stage.RequiresBackfill);
+        Assert.Null(stage.ActualStart);
+        Assert.Null(stage.CompletedOn);
     }
 
     private static ApplicationDbContext CreateContext()

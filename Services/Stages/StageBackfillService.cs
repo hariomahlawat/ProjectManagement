@@ -96,7 +96,7 @@ public sealed class StageBackfillService
                 continue;
             }
 
-            if (!RequiresBackfill(stage))
+            if (!StageBackfillRules.RequiresBackfill(stage))
             {
                 conflicts.Add(update.StageCode);
                 continue;
@@ -181,9 +181,6 @@ public sealed class StageBackfillService
 
         return new StageBackfillResult(updatedCodes.Count, updatedCodes.ToArray());
     }
-
-    private static bool RequiresBackfill(ProjectStage stage)
-        => stage.RequiresBackfill || !stage.ActualStart.HasValue || !stage.CompletedOn.HasValue;
 
     private const string StageBackfillLogAction = "Backfill";
 }
