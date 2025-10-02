@@ -605,13 +605,15 @@
             }
         }
 
-        ensureLoaded() {
+        async ensureLoaded() {
             if (this.state.initialised) {
                 return;
             }
 
-            this.state.initialised = true;
-            this.fetchPage(1, false);
+            const loaded = await this.fetchPage(1, false);
+            if (loaded) {
+                this.state.initialised = true;
+            }
         }
 
         setTypeFilter(type) {
@@ -689,7 +691,7 @@
 
         async fetchPage(page, append) {
             if (this.state.loading) {
-                return;
+                return false;
             }
 
             if (!append) {
@@ -707,7 +709,8 @@
                 if (!response.ok) {
                     const problem = await this.readProblemDetails(response);
                     this.toastHandler(problem || 'Unable to load remarks.', 'danger');
-                    return;
+                    this.state.initialised = false;
+                    return false;
                 }
 
                 const payload = await response.json();
@@ -738,8 +741,11 @@
                 this.state.hasMore = this.state.items.length < this.state.total;
                 this.state.initialised = true;
                 this.renderList();
+                return true;
             } catch (error) {
                 this.toastHandler('Unable to load remarks.', 'danger');
+                this.state.initialised = false;
+                return false;
             } finally {
                 this.state.loading = false;
                 this.setLoading(false);
