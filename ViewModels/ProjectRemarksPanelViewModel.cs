@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ProjectManagement.Infrastructure;
 
 namespace ProjectManagement.ViewModels;
 
@@ -29,7 +30,7 @@ public sealed class ProjectRemarksPanelViewModel
 
     public bool ActorHasOverride { get; init; }
 
-    public string Today { get; init; } = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+    public string Today { get; init; } = DateOnly.FromDateTime(IstClock.ToIst(DateTime.UtcNow)).ToString("yyyy-MM-dd");
 
     public int PageSize { get; init; } = 20;
 

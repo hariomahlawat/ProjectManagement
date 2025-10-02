@@ -16,6 +16,7 @@ using ProjectManagement.Features.Backfill;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
@@ -243,7 +244,8 @@ namespace ProjectManagement.Pages.Projects
                 })
                 .ToList();
 
-            var today = DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            var today = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow.UtcDateTime))
+                .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
             var user = await _users.GetUserAsync(User);
             if (user is null)
