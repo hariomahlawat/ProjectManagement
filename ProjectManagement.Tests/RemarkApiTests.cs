@@ -30,6 +30,18 @@ namespace ProjectManagement.Tests;
 
 public class RemarkApiTests
 {
+    private static readonly IReadOnlyDictionary<RemarkActorRole, string> FriendlyRoleNames = new Dictionary<RemarkActorRole, string>
+    {
+        [RemarkActorRole.ProjectOfficer] = "Project Officer",
+        [RemarkActorRole.HeadOfDepartment] = "HoD",
+        [RemarkActorRole.Commandant] = "Comdt",
+        [RemarkActorRole.Administrator] = "Admin",
+        [RemarkActorRole.Mco] = "MCO",
+        [RemarkActorRole.ProjectOffice] = "Project Office",
+        [RemarkActorRole.MainOffice] = "Main Office",
+        [RemarkActorRole.Ta] = "TA"
+    };
+
     public static IEnumerable<object[]> CanonicalActorRoles
     {
         get
@@ -42,6 +54,17 @@ public class RemarkApiTests
                 }
 
                 yield return new object[] { role.ToString() };
+            }
+        }
+    }
+
+    public static IEnumerable<object[]> FriendlyRoleFilters
+    {
+        get
+        {
+            foreach (var pair in FriendlyRoleNames)
+            {
+                yield return new object[] { pair.Key, pair.Value };
             }
         }
     }
@@ -215,6 +238,54 @@ public class RemarkApiTests
         Assert.NotNull(deleted);
         Assert.True(deleted!.Success);
         Assert.False(string.IsNullOrWhiteSpace(deleted.RowVersion));
+    }
+
+    [Theory]
+    [MemberData(nameof(FriendlyRoleFilters))]
+    public async Task ListRemarks_FilterByFriendlyRole_Succeeds(RemarkActorRole expectedRole, string friendlyRole)
+    {
+        using var factory = new RemarkApiFactory();
+        var projectId = 900 + (int)expectedRole;
+        var userId = $"friendly-{expectedRole.ToString().ToLowerInvariant()}";
+        var otherRole = string.Equals(friendlyRole, "Admin", StringComparison.OrdinalIgnoreCase) ? "Project Officer" : "Admin";
+        var client = await CreateClientForUserAsync(factory, userId, $"User {friendlyRole}", friendlyRole, otherRole);
+        await SeedProjectAsync(factory, projectId, leadPoUserId: userId);
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+        var targetBody = $"Remark from {friendlyRole}";
+        var otherBody = $"Remark from {otherRole}";
+
+        var createResponse = await client.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
+        {
+            type = RemarkType.Internal,
+            body = targetBody,
+            eventDate = today,
+            stageRef = StageCodes.FS,
+            actorRole = friendlyRole
+        });
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+
+        var otherResponse = await client.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
+        {
+            type = RemarkType.Internal,
+            body = otherBody,
+            eventDate = today,
+            stageRef = StageCodes.FS,
+            actorRole = otherRole
+        });
+
+        Assert.Equal(HttpStatusCode.Created, otherResponse.StatusCode);
+
+        var listResponse = await client.GetAsync($"/api/projects/{projectId}/remarks?role={Uri.EscapeDataString(friendlyRole)}");
+        Assert.Equal(HttpStatusCode.OK, listResponse.StatusCode);
+
+        var list = await listResponse.Content.ReadFromJsonAsync<RemarkListResponseDto>(SerializerOptions);
+        Assert.NotNull(list);
+        Assert.Equal(1, list!.Total);
+        Assert.Single(list.Items);
+        Assert.Equal(targetBody, list.Items[0].Body);
+        Assert.Equal(expectedRole, list.Items[0].AuthorRole);
     }
 
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
