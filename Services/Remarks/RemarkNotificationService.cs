@@ -174,15 +174,13 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
 
         var plainBody = ToPlainText(remark.Body);
 
-        return $"""A new {remark.Type} remark was created on project '{projectName}'.
-
-Author: {actor.ActorRole} ({actor.UserId})
-Event date: {remark.EventDate:yyyy-MM-dd}
-Stage: {stage}
-Created at (UTC): {remark.CreatedAtUtc:u}
-
-{plainBody}
-""";
+        return
+            $"A new {remark.Type} remark was created on project '{projectName}'.\n\n" +
+            $"Author: {actor.ActorRole} ({actor.UserId})\n" +
+            $"Event date: {remark.EventDate:yyyy-MM-dd}\n" +
+            $"Stage: {stage}\n" +
+            $"Created at (UTC): {remark.CreatedAtUtc:u}\n\n" +
+            plainBody;
     }
 
     private static string ToPlainText(string html)
