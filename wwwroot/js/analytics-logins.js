@@ -1,12 +1,3 @@
-// Chart is provided globally by Logins.cshtml
-const Chart = window.Chart;
-const elCanvas = document.getElementById('loginsScatter');
-const elLookback = document.getElementById('lookback');
-const elWeekend = document.getElementById('weekendOdd');
-const elUser = document.getElementById('user');
-const elExport = document.getElementById('export');
-let chart;
-
 const monthFormatter = new Intl.DateTimeFormat('en-GB', { month: 'short' });
 const formatDisplayDate = (date) => {
   const d = date instanceof Date ? date : new Date(date);
@@ -53,95 +44,135 @@ const BandAndLines = {
   }
 };
 
-async function load() {
-  const days = parseInt(elLookback.value, 10) || 30;
-  const weekendOdd = elWeekend.checked;
-  const user = elUser.value;
-  const res = await fetch(`?handler=Data&days=${days}&weekendOdd=${weekendOdd}&user=${encodeURIComponent(user)}`, { headers: { 'Accept':'application/json' } });
-  const data = await res.json();
+function init() {
+  const ChartCtor = window.Chart;
+  const elCanvas = document.getElementById('loginsScatter');
+  const elLookback = document.getElementById('lookback');
+  const elWeekend = document.getElementById('weekendOdd');
+  const elUser = document.getElementById('user');
+  const elExport = document.getElementById('export');
+  const elRefresh = document.getElementById('refresh');
 
-  const normal = [];
-  const odd = [];
-  for (const p of data.points) {
-    const d = new Date(p.t);
-    const point = { x: d.getTime(), y: p.m, reason: p.reason, userId: p.user, userName: p.userName, iso: p.t };
-    (p.odd ? odd : normal).push(point);
+  if (!ChartCtor || !elCanvas || !elLookback || !elWeekend || !elUser || !elExport) {
+    return;
   }
 
-  const n = data.points.length;
-  const p50 = n ? data.p50Min : null;
-  const p90 = n ? data.p90Min : null;
+  let chart;
 
-  const cfg = {
-    type: 'scatter',
-    data: {
-      datasets: [
-        { label: 'Normal', data: normal, pointRadius: 3 },
-        { label: 'Odd', data: odd, pointRadius: 4, pointBackgroundColor: '#d9534f' }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      parsing: false,
-      scales: {
-        x: {
-          type: 'linear',
-          ticks: {
-            callback: (v) => formatDisplayDate(new Date(v))
-          },
-          title: { display: true, text: 'Date' }
-        },
-        y: {
-          min: 0, max: 1440,
-          ticks: {
-            stepSize: 60,
-            callback: v => `${String(Math.floor(v/60)).padStart(2,'0')}:00`
-          },
-          title: { display: true, text: 'Time of day' }
-        }
+  async function load() {
+    if (!ChartCtor || !elCanvas) {
+      return;
+    }
+    const days = parseInt(elLookback.value, 10) || 30;
+    const weekendOdd = elWeekend.checked;
+    const user = elUser.value;
+    const res = await fetch(`?handler=Data&days=${days}&weekendOdd=${weekendOdd}&user=${encodeURIComponent(user)}`, { headers: { Accept: 'application/json' } });
+    const data = await res.json();
+
+    const normal = [];
+    const odd = [];
+    for (const p of data.points) {
+      const d = new Date(p.t);
+      const point = { x: d.getTime(), y: p.m, reason: p.reason, userId: p.user, userName: p.userName, iso: p.t };
+      (p.odd ? odd : normal).push(point);
+    }
+
+    const n = data.points.length;
+    const p50 = n ? data.p50Min : null;
+    const p90 = n ? data.p90Min : null;
+
+    const cfg = {
+      type: 'scatter',
+      data: {
+        datasets: [
+          { label: 'Normal', data: normal, pointRadius: 3 },
+          { label: 'Odd', data: odd, pointRadius: 4, pointBackgroundColor: '#d9534f' }
+        ]
       },
-      plugins: {
-        decimation: { enabled: true, algorithm: 'min-max' },
-        legend: { position: 'bottom' },
-        tooltip: {
-          callbacks: {
-            label: ctx => {
-              const hh = String(Math.floor(ctx.raw.y/60)).padStart(2,'0');
-              const mm = String(ctx.raw.y%60).padStart(2,'0');
-              const date = formatDisplayDate(new Date(ctx.raw.x));
-              return `${date} ${hh}:${mm} — ${ctx.raw.userName}${ctx.raw.reason ? ' · '+ctx.raw.reason : ''}`;
-            }
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        parsing: false,
+        scales: {
+          x: {
+            type: 'linear',
+            ticks: {
+              callback: (v) => formatDisplayDate(new Date(v))
+            },
+            title: { display: true, text: 'Date' }
+          },
+          y: {
+            min: 0,
+            max: 1440,
+            ticks: {
+              stepSize: 60,
+              callback: v => `${String(Math.floor(v/60)).padStart(2,'0')}:00`
+            },
+            title: { display: true, text: 'Time of day' }
           }
         },
-        bandAndLines: {
-          workStartMin: data.workStartMin,
-          workEndMin: data.workEndMin,
-          p50Min: p50,
-          p90Min: p90
+        plugins: {
+          decimation: { enabled: true, algorithm: 'min-max' },
+          legend: { position: 'bottom' },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const hh = String(Math.floor(ctx.raw.y/60)).padStart(2,'0');
+                const mm = String(ctx.raw.y%60).padStart(2,'0');
+                const date = formatDisplayDate(new Date(ctx.raw.x));
+                return `${date} ${hh}:${mm} — ${ctx.raw.userName}${ctx.raw.reason ? ' · '+ctx.raw.reason : ''}`;
+              }
+            }
+          },
+          bandAndLines: {
+            workStartMin: data.workStartMin,
+            workEndMin: data.workEndMin,
+            p50Min: p50,
+            p90Min: p90
+          }
         }
+      },
+      plugins: [BandAndLines]
+    };
+
+    if (chart) chart.destroy();
+    chart = new ChartCtor(elCanvas, cfg);
+
+    chart.canvas.onclick = (evt) => {
+      const points = chart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+      if (points.length) {
+        const p = chart.data.datasets[points[0].datasetIndex].data[points[0].index];
+        const from = new Date(p.iso).toISOString();
+        window.location.href = `/Admin/Logs?User=${encodeURIComponent(p.userId)}&From=${from}&To=${from}`;
       }
-    },
-    plugins: [BandAndLines]
-  };
+    };
 
-  if (chart) chart.destroy();
-  chart = new Chart(elCanvas, cfg);
+    renderOddTable(data.points.filter(p => p.odd));
+  }
 
-  chart.canvas.onclick = (evt) => {
-    const points = chart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
-    if (points.length) {
-      const p = chart.data.datasets[points[0].datasetIndex].data[points[0].index];
-      const from = new Date(p.iso).toISOString();
-      window.location.href = `/Admin/Logs?User=${encodeURIComponent(p.userId)}&From=${from}&To=${from}`;
-    }
-  };
+  function exportCsv() {
+    const days = parseInt(elLookback.value, 10) || 30;
+    const weekendOdd = elWeekend.checked;
+    const user = elUser.value;
+    elExport.href = `?handler=ExportCsv&days=${days}&weekendOdd=${weekendOdd}&user=${encodeURIComponent(user)}`;
+  }
 
-  renderOddTable(data.points.filter(p => p.odd));
+  elRefresh?.addEventListener('click', () => {
+    load();
+    exportCsv();
+  });
+  [elLookback, elWeekend, elUser].forEach(el => el?.addEventListener('change', () => {
+    load();
+    exportCsv();
+  }));
+
+  exportCsv();
+  load();
 }
 
 function renderOddTable(rows) {
   const host = document.getElementById('oddRows');
+  if (!host) return;
   host.innerHTML = '';
   for (const r of rows) {
     const d = new Date(r.t);
@@ -159,14 +190,4 @@ function renderOddTable(rows) {
   }
 }
 
-function exportCsv() {
-  const days = parseInt(elLookback.value, 10) || 30;
-  const weekendOdd = elWeekend.checked;
-  const user = elUser.value;
-  elExport.href = `?handler=ExportCsv&days=${days}&weekendOdd=${weekendOdd}&user=${encodeURIComponent(user)}`;
-}
-
-document.getElementById('refresh')?.addEventListener('click', () => { load(); exportCsv(); });
-[elLookback, elWeekend, elUser].forEach(el => el?.addEventListener('change', () => { load(); exportCsv(); }));
-exportCsv();
-load();
+init();
