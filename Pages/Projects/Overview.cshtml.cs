@@ -238,7 +238,8 @@ namespace ProjectManagement.Pages.Projects
                 .Select(role =>
                 {
                     var label = BuildRoleDisplayName(role);
-                    return new ProjectRemarksPanelViewModel.RemarkRoleOption(label, label, role.ToString());
+                    var canonical = role.ToString();
+                    return new ProjectRemarksPanelViewModel.RemarkRoleOption(canonical, label, canonical);
                 })
                 .ToList();
 
@@ -264,7 +265,8 @@ namespace ProjectManagement.Pages.Projects
                 .ToList();
 
             var actorRole = SelectDefaultRemarkRole(remarkRoles);
-            var actorRoleName = actorRole == RemarkActorRole.Unknown ? null : BuildRoleDisplayName(actorRole);
+            var actorRoleCanonical = actorRole == RemarkActorRole.Unknown ? null : actorRole.ToString();
+            var actorRoleLabel = actorRole == RemarkActorRole.Unknown ? null : BuildRoleDisplayName(actorRole);
 
             var canOverride = remarkRoles.Any(role => role is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant or RemarkActorRole.Administrator);
             var canPostAsHoDOrAbove = remarkRoles.Any(role => role is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant or RemarkActorRole.Administrator);
@@ -279,8 +281,9 @@ namespace ProjectManagement.Pages.Projects
                 ProjectId = project.Id,
                 CurrentUserId = user.Id,
                 ActorDisplayName = DisplayName(user),
-                ActorRole = actorRoleName,
-                ActorRoles = remarkRoles.Select(BuildRoleDisplayName).ToArray(),
+                ActorRole = actorRoleCanonical,
+                ActorRoleLabel = actorRoleLabel,
+                ActorRoles = remarkRoles.Select(role => role.ToString()).ToArray(),
                 ShowComposer = showComposer,
                 AllowInternal = showComposer,
                 AllowExternal = allowExternal,

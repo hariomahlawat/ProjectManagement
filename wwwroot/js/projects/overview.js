@@ -347,8 +347,6 @@
             this.config = this.parseConfig(root.dataset.config);
             this.apiBase = this.buildApiBase();
             this.currentUserId = this.config.currentUserId || null;
-            this.actorRole = this.config.actorRole || (Array.isArray(this.config.actorRoles) && this.config.actorRoles.length > 0 ? this.config.actorRoles[0] : null);
-            this.actorRoles = Array.isArray(this.config.actorRoles) ? new Set(this.config.actorRoles) : new Set();
             this.actorHasOverride = !!this.config.actorHasOverride;
             this.allowExternal = !!this.config.allowExternal;
             this.pageSize = this.config.pageSize || 20;
@@ -371,6 +369,7 @@
             this.editingId = null;
             this.editDraft = '';
             this.roleLabels = new Map();
+            this.roleCanonicalMap = new Map();
             this.stageLabels = new Map();
             (this.config.roleOptions || []).forEach((option) => {
                 if (!option) {
@@ -378,6 +377,7 @@
                 }
 
                 const label = option.label || option.value || option.canonical || '';
+                const canonical = option.canonical || option.value || '';
                 const candidates = [
                     option.value,
                     option.label,
@@ -388,8 +388,29 @@
 
                 candidates.forEach((candidate) => {
                     this.registerRoleLabel(candidate, label);
+                    this.registerRoleCanonical(candidate, canonical);
                 });
             });
+            if (this.config.actorRole && this.config.actorRoleLabel) {
+                this.registerRoleLabel(this.config.actorRole, this.config.actorRoleLabel);
+                this.registerRoleCanonical(this.config.actorRole, this.config.actorRole);
+                this.registerRoleLabel(this.config.actorRoleLabel, this.config.actorRoleLabel);
+                this.registerRoleCanonical(this.config.actorRoleLabel, this.config.actorRole);
+            }
+            const resolvedActorRoles = Array.isArray(this.config.actorRoles)
+                ? this.config.actorRoles
+                    .map((role) => this.resolveCanonicalRole(role))
+                    .filter((role) => typeof role === 'string' && role.length > 0)
+                : [];
+            this.actorRoles = new Set(resolvedActorRoles);
+            this.actorRole = this.resolveCanonicalRole(this.config.actorRole)
+                || (this.config.actorRoleLabel ? this.resolveCanonicalRole(this.config.actorRoleLabel) : null)
+                || (resolvedActorRoles.length > 0 ? resolvedActorRoles[0] : null);
+            if (this.actorRole) {
+                this.registerRoleCanonical(this.actorRole, this.actorRole);
+                this.actorRoles.add(this.actorRole);
+            }
+            this.actorRoleLabel = this.config.actorRoleLabel || (this.actorRole ? this.getRoleLabel(this.actorRole) : '');
             (this.config.stageOptions || []).forEach((option) => {
                 if (option && option.value) {
                     this.stageLabels.set(option.value, option.label || option.value);
@@ -1001,12 +1022,58 @@
             }
         }
 
+        registerRoleCanonical(value, canonical) {
+            if (value === null || value === undefined || canonical === null || canonical === undefined) {
+                return;
+            }
+
+            const rawValue = value.toString().trim();
+            const resolvedCanonical = canonical.toString().trim();
+            if (rawValue.length === 0 || resolvedCanonical.length === 0) {
+                return;
+            }
+
+            this.roleCanonicalMap.set(rawValue, resolvedCanonical);
+
+            const normalizedValue = this.normalizeRoleKey(rawValue);
+            if (normalizedValue.length > 0) {
+                this.roleCanonicalMap.set(normalizedValue, resolvedCanonical);
+            }
+
+            const normalizedCanonical = this.normalizeRoleKey(resolvedCanonical);
+            if (normalizedCanonical.length > 0) {
+                this.roleCanonicalMap.set(normalizedCanonical, resolvedCanonical);
+            }
+        }
+
         normalizeRoleKey(value) {
             if (value === null || value === undefined) {
                 return '';
             }
 
             return value.toString().toLowerCase().replace(/[^a-z0-9]/g, '');
+        }
+
+        resolveCanonicalRole(value) {
+            if (value === null || value === undefined) {
+                return null;
+            }
+
+            const raw = value.toString().trim();
+            if (raw.length === 0) {
+                return null;
+            }
+
+            if (this.roleCanonicalMap.has(raw)) {
+                return this.roleCanonicalMap.get(raw);
+            }
+
+            const normalized = this.normalizeRoleKey(raw);
+            if (normalized.length > 0 && this.roleCanonicalMap.has(normalized)) {
+                return this.roleCanonicalMap.get(normalized);
+            }
+
+            return raw;
         }
 
         toCamelCase(value) {
