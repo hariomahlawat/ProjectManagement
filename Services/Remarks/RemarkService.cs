@@ -7,6 +7,7 @@ using Ganss.Xss;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
 
@@ -60,8 +61,8 @@ public sealed class RemarkService : IRemarkService
         ValidateRoleForType(request.Actor, request.Type, request.ProjectId);
 
         var now = _clock.UtcNow.UtcDateTime;
-        var today = DateOnly.FromDateTime(now);
-        EnsureValidEventDate(request.EventDate, today);
+        var todayIst = DateOnly.FromDateTime(IstClock.ToIst(now));
+        EnsureValidEventDate(request.EventDate, todayIst);
 
         var sanitizedBody = SanitizeBody(request.Body);
         if (string.IsNullOrWhiteSpace(sanitizedBody))
@@ -187,8 +188,8 @@ public sealed class RemarkService : IRemarkService
         }
 
         var now = _clock.UtcNow.UtcDateTime;
-        var today = DateOnly.FromDateTime(now);
-        EnsureValidEventDate(request.EventDate, today);
+        var todayIst = DateOnly.FromDateTime(IstClock.ToIst(now));
+        EnsureValidEventDate(request.EventDate, todayIst);
 
         var editPermission = EvaluateRemarkPermission(remark, request.Actor, now, isDelete: false);
         if (!editPermission.Allowed)
