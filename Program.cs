@@ -37,6 +37,7 @@ using ProjectManagement.Services.Stages;
 using Microsoft.Net.Http.Headers;
 using System.Threading;
 using ProjectManagement.Features.Remarks;
+using ProjectManagement.Services.Notifications;
 
 var runForecastBackfill = args.Any(a => string.Equals(a, "--backfill-forecast", StringComparison.OrdinalIgnoreCase));
 
@@ -172,6 +173,7 @@ builder.Services.AddScoped<ProjectTimelineReadService>();
 builder.Services.AddScoped<ProjectCommentService>();
 builder.Services.AddScoped<IRemarkService, RemarkService>();
 builder.Services.AddScoped<IRemarkNotificationService, RemarkNotificationService>();
+builder.Services.AddScoped<INotificationPublisher, NotificationPublisher>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddSingleton<IDocumentPreviewTokenService, DocumentPreviewTokenService>();
 builder.Services.AddScoped<IDocumentRequestService, DocumentRequestService>();

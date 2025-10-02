@@ -13,6 +13,7 @@ using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Models.Remarks;
+using ProjectManagement.Models.Notifications;
 using ProjectManagement.Helpers;
 
 namespace ProjectManagement.Data
@@ -53,6 +54,7 @@ namespace ProjectManagement.Data
         public DbSet<ProjectCommentMention> ProjectCommentMentions => Set<ProjectCommentMention>();
         public DbSet<Remark> Remarks => Set<Remark>();
         public DbSet<RemarkAudit> RemarkAudits => Set<RemarkAudit>();
+        public DbSet<NotificationDispatch> NotificationDispatches => Set<NotificationDispatch>();
         public DbSet<ProjectDocument> ProjectDocuments => Set<ProjectDocument>();
         public DbSet<ProjectDocumentRequest> ProjectDocumentRequests => Set<ProjectDocumentRequest>();
         public DbSet<ProjectScheduleSettings> ProjectScheduleSettings => Set<ProjectScheduleSettings>();
@@ -205,6 +207,20 @@ namespace ProjectManagement.Data
                 {
                     tb.HasCheckConstraint("ck_projectdocuments_filesize", "\"FileSize\" >= 0");
                 });
+            });
+
+            builder.Entity<NotificationDispatch>(e =>
+            {
+                e.Property(x => x.RecipientUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.Kind)
+                    .HasConversion<string>()
+                    .HasMaxLength(64)
+                    .IsRequired();
+                e.Property(x => x.PayloadJson).HasMaxLength(4000).IsRequired();
+                e.Property(x => x.Error).HasMaxLength(2000);
+                e.Property(x => x.AttemptCount).HasDefaultValue(0);
+                e.HasIndex(x => x.DispatchedUtc);
+                e.HasIndex(x => new { x.RecipientUserId, x.Kind, x.DispatchedUtc });
             });
 
             builder.Entity<ProjectDocumentRequest>(e =>

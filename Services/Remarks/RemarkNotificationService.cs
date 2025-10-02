@@ -5,12 +5,13 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Notifications;
 using ProjectManagement.Models.Remarks;
+using ProjectManagement.Services.Notifications;
 
 namespace ProjectManagement.Services.Remarks;
 
@@ -18,18 +19,18 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
 {
     private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly IEmailSender _emailSender;
+    private readonly INotificationPublisher _publisher;
     private readonly ILogger<RemarkNotificationService> _logger;
 
     public RemarkNotificationService(
         ApplicationDbContext db,
         UserManager<ApplicationUser> userManager,
-        IEmailSender emailSender,
+        INotificationPublisher publisher,
         ILogger<RemarkNotificationService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
-        _emailSender = emailSender ?? throw new ArgumentNullException(nameof(emailSender));
+        _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -51,9 +52,7 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
 
         try
         {
-            var projectDetails = await LoadProjectDetailsAsync(project.ProjectId, cancellationToken);
-            var recipients = await ResolveRecipientsAsync(projectDetails, remark.Type, cancellationToken);
-
+            var recipients = await ResolveRecipientsAsync(project, remark.Type, cancellationToken);
             if (recipients.Count == 0)
             {
                 _logger.LogInformation(
@@ -62,28 +61,22 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
                 return;
             }
 
-            var subject = $"[{projectDetails.Name}] New {remark.Type} remark";
-            var body = BuildBody(remark, actor, projectDetails.Name);
-
-            foreach (var recipient in recipients)
+            var optedInRecipients = await FilterOptOutAsync(recipients, cancellationToken);
+            if (optedInRecipients.Count == 0)
             {
-                try
-                {
-                    await _emailSender.SendEmailAsync(recipient.Email, subject, body);
-                    _logger.LogInformation(
-                        "Sent remark notification for remark {RemarkId} to {Recipient}.",
-                        remark.Id,
-                        recipient.Email);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(
-                        ex,
-                        "Failed sending remark notification for remark {RemarkId} to {Recipient}.",
-                        remark.Id,
-                        recipient.Email);
-                }
+                _logger.LogInformation(
+                    "All potential recipients for remark {RemarkId} have opted out of notifications.",
+                    remark.Id);
+                return;
             }
+
+            var payload = BuildPayload(remark, actor, project);
+
+            await _publisher.PublishAsync(
+                NotificationKind.RemarkCreated,
+                optedInRecipients,
+                payload,
+                cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -95,37 +88,15 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
         }
     }
 
-    private async Task<ProjectNotificationDetails> LoadProjectDetailsAsync(int projectId, CancellationToken cancellationToken)
-    {
-        var details = await _db.Projects
-            .AsNoTracking()
-            .Where(p => p.Id == projectId)
-            .Select(p => new ProjectNotificationDetails(
-                p.Id,
-                p.Name,
-                p.LeadPoUser != null ? p.LeadPoUser.Email : null,
-                p.HodUser != null ? p.HodUser.Email : null,
-                p.LeadPoUser != null ? p.LeadPoUser.FullName : null,
-                p.HodUser != null ? p.HodUser.FullName : null))
-            .FirstOrDefaultAsync(cancellationToken);
-
-        if (details is null)
-        {
-            throw new InvalidOperationException($"Project {projectId} not found when sending remark notification.");
-        }
-
-        return details;
-    }
-
-    private async Task<IReadOnlyCollection<NotificationRecipient>> ResolveRecipientsAsync(
-        ProjectNotificationDetails project,
+    private async Task<HashSet<string>> ResolveRecipientsAsync(
+        RemarkProjectInfo project,
         RemarkType remarkType,
         CancellationToken cancellationToken)
     {
-        var recipients = new Dictionary<string, NotificationRecipient>(StringComparer.OrdinalIgnoreCase);
+        var recipients = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        AddRecipient(recipients, project.LeadPoEmail, project.LeadPoName);
-        AddRecipient(recipients, project.HodEmail, project.HodName);
+        AddRecipient(recipients, project.LeadPoUserId);
+        AddRecipient(recipients, project.HodUserId);
 
         await AddRoleRecipientsAsync(recipients, "Comdt", cancellationToken);
 
@@ -134,11 +105,11 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
             await AddRoleRecipientsAsync(recipients, "MCO", cancellationToken);
         }
 
-        return recipients.Values.ToArray();
+        return recipients;
     }
 
     private async Task AddRoleRecipientsAsync(
-        IDictionary<string, NotificationRecipient> recipients,
+        ISet<string> recipients,
         string role,
         CancellationToken cancellationToken)
     {
@@ -146,53 +117,96 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
         foreach (var user in users)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            AddRecipient(recipients, user.Email, user.FullName);
+            AddRecipient(recipients, user.Id);
         }
     }
 
-    private static void AddRecipient(
-        IDictionary<string, NotificationRecipient> recipients,
-        string? email,
-        string? name)
+    private static void AddRecipient(ISet<string> recipients, string? userId)
     {
-        if (string.IsNullOrWhiteSpace(email))
+        if (!string.IsNullOrWhiteSpace(userId))
         {
-            return;
-        }
-
-        if (!recipients.ContainsKey(email))
-        {
-            recipients[email] = new NotificationRecipient(email, name);
+            recipients.Add(userId);
         }
     }
 
-    private static string BuildBody(Remark remark, RemarkActorContext actor, string projectName)
+    private async Task<IReadOnlyCollection<string>> FilterOptOutAsync(
+        HashSet<string> recipients,
+        CancellationToken cancellationToken)
+    {
+        if (recipients.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        var recipientIds = recipients.ToArray();
+
+        var optedOut = await _db.Set<IdentityUserClaim<string>>()
+            .AsNoTracking()
+            .Where(c =>
+                recipientIds.Contains(c.UserId) &&
+                c.ClaimType == NotificationClaimTypes.RemarkCreatedOptOut &&
+                c.ClaimValue == NotificationClaimTypes.OptOutValue)
+            .Select(c => c.UserId)
+            .ToListAsync(cancellationToken);
+
+        if (optedOut.Count == 0)
+        {
+            return recipientIds;
+        }
+
+        foreach (var userId in optedOut)
+        {
+            recipients.Remove(userId);
+        }
+
+        return recipients.ToArray();
+    }
+
+    private static RemarkCreatedNotificationPayload BuildPayload(
+        Remark remark,
+        RemarkActorContext actor,
+        RemarkProjectInfo project)
     {
         var stage = string.IsNullOrWhiteSpace(remark.StageNameSnapshot)
-            ? remark.StageRef ?? "N/A"
+            ? string.IsNullOrWhiteSpace(remark.StageRef) ? "N/A" : remark.StageRef!
             : remark.StageNameSnapshot;
 
-        var plainBody = ToPlainText(remark.Body);
+        return new RemarkCreatedNotificationPayload(
+            remark.Id,
+            project.ProjectId,
+            project.ProjectName,
+            actor.UserId,
+            actor.ActorRole.ToString(),
+            remark.Type.ToString(),
+            BuildPreview(remark.Body),
+            remark.EventDate,
+            stage,
+            remark.CreatedAtUtc);
+    }
 
-        return
-            $"A new {remark.Type} remark was created on project '{projectName}'.\n\n" +
-            $"Author: {actor.ActorRole} ({actor.UserId})\n" +
-            $"Event date: {remark.EventDate:yyyy-MM-dd}\n" +
-            $"Stage: {stage}\n" +
-            $"Created at (UTC): {remark.CreatedAtUtc:u}\n\n" +
-            plainBody;
+    private static string BuildPreview(string htmlBody)
+    {
+        var plain = ToPlainText(htmlBody);
+        if (plain.Length <= 120)
+        {
+            return plain;
+        }
+
+        return string.Concat(plain.AsSpan(0, 120).TrimEnd(), "…");
     }
 
     private static string ToPlainText(string html)
         => Regex.Replace(html ?? string.Empty, "<.*?>", string.Empty).Trim();
 
-    private sealed record ProjectNotificationDetails(
-        int Id,
-        string Name,
-        string? LeadPoEmail,
-        string? HodEmail,
-        string? LeadPoName,
-        string? HodName);
-
-    private sealed record NotificationRecipient(string Email, string? Name);
+    private sealed record RemarkCreatedNotificationPayload(
+        int RemarkId,
+        int ProjectId,
+        string ProjectName,
+        string AuthorUserId,
+        string AuthorRole,
+        string RemarkType,
+        string Preview,
+        DateOnly EventDate,
+        string Stage,
+        DateTime CreatedAtUtc);
 }
