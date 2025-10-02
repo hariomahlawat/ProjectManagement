@@ -16,6 +16,7 @@ using ProjectManagement.Features.Backfill;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
+using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
@@ -59,6 +60,7 @@ namespace ProjectManagement.Pages.Projects
         public TimelineVm Timeline { get; private set; } = default!;
         public PlanEditorVm PlanEdit { get; private set; } = default!;
         public BackfillViewModel Backfill { get; private set; } = BackfillViewModel.Empty;
+        public ProjectRemarksPanelViewModel RemarksPanel { get; private set; } = ProjectRemarksPanelViewModel.Empty;
         public bool HasBackfill { get; private set; }
         public bool RequiresPlanApproval { get; private set; }
         public string? CurrentUserId { get; private set; }
@@ -202,10 +204,124 @@ namespace ProjectManagement.Pages.Projects
 
             var isAdmin = User.IsInRole("Admin");
             var isHoD = User.IsInRole("HoD");
+            var isProjectOfficer = User.IsInRole("Project Officer");
+            var isThisProjectsPo = isProjectOfficer && string.Equals(project.LeadPoUserId, CurrentUserId, StringComparison.Ordinal);
 
             await LoadDocumentOverviewAsync(project, isAdmin, isHoD, ct);
 
+            RemarksPanel = await BuildRemarksPanelAsync(project, isThisProjectsPo, ct);
+
             return Page();
+        }
+
+        private async Task<ProjectRemarksPanelViewModel> BuildRemarksPanelAsync(Project project, bool isThisProjectsPo, CancellationToken ct)
+        {
+            var stageOptions = Stages
+                .Where(s => !string.IsNullOrWhiteSpace(s.StageCode))
+                .Select(s => s.StageCode!)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(code => new ProjectRemarksPanelViewModel.RemarkStageOption(code, BuildStageDisplayName(code)))
+                .OrderBy(option => option.Label, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var roleOptions = new List<ProjectRemarksPanelViewModel.RemarkRoleOption>
+            {
+                new(RemarkActorRole.ProjectOfficer.ToString(), "Project Officer"),
+                new(RemarkActorRole.HeadOfDepartment.ToString(), "HoD"),
+                new(RemarkActorRole.Commandant.ToString(), "Comdt"),
+                new(RemarkActorRole.Administrator.ToString(), "Admin"),
+                new(RemarkActorRole.Mco.ToString(), "MCO"),
+                new(RemarkActorRole.ProjectOffice.ToString(), "Project Office"),
+                new(RemarkActorRole.MainOffice.ToString(), "Main Office"),
+                new(RemarkActorRole.Ta.ToString(), "TA")
+            };
+
+            var today = DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+            var user = await _users.GetUserAsync(User);
+            if (user is null)
+            {
+                return new ProjectRemarksPanelViewModel
+                {
+                    ProjectId = project.Id,
+                    StageOptions = stageOptions,
+                    RoleOptions = roleOptions,
+                    Today = today
+                };
+            }
+
+            var userRoles = await _users.GetRolesAsync(user);
+            var remarkRoles = userRoles
+                .Select(role => RemarkActorRoleExtensions.TryParse(role, out var parsed) ? parsed : RemarkActorRole.Unknown)
+                .Where(role => role != RemarkActorRole.Unknown)
+                .Distinct()
+                .ToList();
+
+            var actorRole = SelectDefaultRemarkRole(remarkRoles);
+            var actorRoleName = actorRole == RemarkActorRole.Unknown ? null : actorRole.ToString();
+
+            var canOverride = remarkRoles.Any(role => role is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant or RemarkActorRole.Administrator);
+            var canPostAsHoDOrAbove = remarkRoles.Any(role => role is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant or RemarkActorRole.Administrator);
+            var canPostAsMco = remarkRoles.Contains(RemarkActorRole.Mco);
+            var canPostAsPo = remarkRoles.Contains(RemarkActorRole.ProjectOfficer) && isThisProjectsPo;
+
+            var showComposer = canPostAsHoDOrAbove || canPostAsMco || canPostAsPo;
+            var allowExternal = canPostAsHoDOrAbove;
+
+            return new ProjectRemarksPanelViewModel
+            {
+                ProjectId = project.Id,
+                CurrentUserId = user.Id,
+                ActorDisplayName = DisplayName(user),
+                ActorRole = actorRoleName,
+                ActorRoles = remarkRoles.Select(r => r.ToString()).ToArray(),
+                ShowComposer = showComposer,
+                AllowInternal = showComposer,
+                AllowExternal = allowExternal,
+                ShowDeletedToggle = remarkRoles.Contains(RemarkActorRole.Administrator),
+                ActorHasOverride = canOverride,
+                StageOptions = stageOptions,
+                RoleOptions = roleOptions,
+                Today = today
+            };
+        }
+
+        private static RemarkActorRole SelectDefaultRemarkRole(IReadOnlyCollection<RemarkActorRole> roles)
+        {
+            foreach (var candidate in new[]
+                     {
+                         RemarkActorRole.ProjectOfficer,
+                         RemarkActorRole.HeadOfDepartment,
+                         RemarkActorRole.Commandant,
+                         RemarkActorRole.Administrator,
+                         RemarkActorRole.ProjectOffice,
+                         RemarkActorRole.MainOffice,
+                         RemarkActorRole.Mco,
+                         RemarkActorRole.Ta
+                     })
+            {
+                if (roles.Contains(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            return RemarkActorRole.Unknown;
+        }
+
+        private static string DisplayName(ApplicationUser user)
+        {
+            if (!string.IsNullOrWhiteSpace(user.FullName))
+            {
+                return user.FullName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(user.UserName))
+            {
+                return user.UserName!;
+            }
+
+            return user.Email ?? user.Id;
         }
 
         private async Task LoadDocumentOverviewAsync(Project project, bool isAdmin, bool isHoD, CancellationToken ct)

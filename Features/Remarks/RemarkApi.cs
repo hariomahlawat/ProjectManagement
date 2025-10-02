@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -62,7 +63,8 @@ internal static class RemarkApi
                     Meta: request.Meta),
                 cancellationToken);
 
-            var response = ToDto(remark);
+            var authorUser = await userManager.FindByIdAsync(remark.AuthorUserId);
+            var response = ToDto(remark, BuildUserInfo(authorUser, remark.AuthorUserId));
             return Results.Created($"/api/projects/{projectId}/remarks/{remark.Id}", response);
         }
         catch (InvalidOperationException ex)
@@ -83,6 +85,7 @@ internal static class RemarkApi
         [FromQuery] int page,
         [FromQuery] int pageSize,
         [FromQuery(Name = "actorRole")] string? actorRole,
+        ApplicationDbContext db,
         IRemarkService remarkService,
         UserManager<ApplicationUser> userManager,
         HttpContext httpContext,
@@ -121,11 +124,31 @@ internal static class RemarkApi
                     PageSize: pageSize),
                 cancellationToken);
 
+            var userIds = result.Items
+                .Select(r => r.AuthorUserId)
+                .Concat(result.Items
+                    .Where(r => !string.IsNullOrWhiteSpace(r.DeletedByUserId))
+                    .Select(r => r.DeletedByUserId!));
+
+            var userMap = await LoadUserInfoAsync(userIds, db, cancellationToken);
+
+            var items = result.Items.Select(remark =>
+            {
+                userMap.TryGetValue(remark.AuthorUserId, out var authorInfo);
+                RemarkUserInfo? deleterInfo = null;
+                if (!string.IsNullOrWhiteSpace(remark.DeletedByUserId) && userMap.TryGetValue(remark.DeletedByUserId!, out var info))
+                {
+                    deleterInfo = info;
+                }
+
+                return ToDto(remark, authorInfo, deleterInfo);
+            }).ToArray();
+
             var response = new RemarkListResponse(
                 result.TotalCount,
                 result.Page,
                 result.PageSize,
-                result.Items.Select(ToDto).ToArray());
+                items);
 
             return Results.Ok(response);
         }
@@ -182,7 +205,8 @@ internal static class RemarkApi
                 return Results.NotFound();
             }
 
-            return Results.Ok(ToDto(remark));
+            var authorUser = await userManager.FindByIdAsync(remark.AuthorUserId);
+            return Results.Ok(ToDto(remark, BuildUserInfo(authorUser, remark.AuthorUserId)));
         }
         catch (InvalidOperationException ex)
         {
@@ -309,13 +333,15 @@ internal static class RemarkApi
         }
     }
 
-    private static RemarkResponseDto ToDto(Remark remark)
+    private static RemarkResponseDto ToDto(Remark remark, RemarkUserInfo? author = null, RemarkUserInfo? deleter = null)
         => new(
             remark.Id,
             remark.ProjectId,
             remark.Type,
             remark.AuthorRole,
             remark.AuthorUserId,
+            author?.DisplayName ?? remark.AuthorUserId,
+            author?.Initials ?? BuildInitials(remark.AuthorUserId),
             remark.Body,
             remark.EventDate,
             remark.StageRef,
@@ -326,6 +352,7 @@ internal static class RemarkApi
             remark.DeletedAtUtc,
             remark.DeletedByUserId,
             remark.DeletedByRole,
+            deleter?.DisplayName,
             remark.RowVersion is { Length: > 0 } rowVersion ? Convert.ToBase64String(rowVersion) : string.Empty);
 
     private static async Task<(RemarkActorContext? Actor, IResult? Error)> BuildActorContextAsync(
@@ -504,6 +531,93 @@ internal static class RemarkApi
             _ => Results.BadRequest(new ProblemDetails { Title = "Remark request failed.", Detail = ex.Message })
         };
 
+    private static async Task<Dictionary<string, RemarkUserInfo>> LoadUserInfoAsync(
+        IEnumerable<string> userIds,
+        ApplicationDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var ids = userIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (ids.Length == 0)
+        {
+            return new Dictionary<string, RemarkUserInfo>(StringComparer.Ordinal);
+        }
+
+        var users = await db.Users
+            .Where(u => ids.Contains(u.Id))
+            .Select(u => new { u.Id, u.FullName, u.UserName, u.Email })
+            .ToListAsync(cancellationToken);
+
+        var result = new Dictionary<string, RemarkUserInfo>(StringComparer.Ordinal);
+        foreach (var user in users)
+        {
+            var displayName = ResolveDisplayName(user.FullName, user.UserName, user.Email, user.Id);
+            result[user.Id] = new RemarkUserInfo(user.Id, displayName, BuildInitials(displayName));
+        }
+
+        return result;
+    }
+
+    private static RemarkUserInfo BuildUserInfo(ApplicationUser? user, string fallbackUserId)
+    {
+        var displayName = ResolveDisplayName(user?.FullName, user?.UserName, user?.Email, fallbackUserId);
+        return new RemarkUserInfo(user?.Id ?? fallbackUserId, displayName, BuildInitials(displayName));
+    }
+
+    private static string ResolveDisplayName(string? fullName, string? userName, string? email, string fallback)
+    {
+        if (!string.IsNullOrWhiteSpace(fullName))
+        {
+            return fullName!;
+        }
+
+        if (!string.IsNullOrWhiteSpace(userName))
+        {
+            return userName!;
+        }
+
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            return email!;
+        }
+
+        return fallback;
+    }
+
+    private static string BuildInitials(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return "?";
+        }
+
+        var parts = name
+            .Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+        if (parts.Length == 0)
+        {
+            return "?";
+        }
+
+        if (parts.Length == 1)
+        {
+            var word = parts[0];
+            if (word.Length >= 2)
+            {
+                return string.Concat(char.ToUpperInvariant(word[0]), char.ToUpperInvariant(word[1]));
+            }
+
+            return word.ToUpperInvariant();
+        }
+
+        var first = char.ToUpperInvariant(parts[0][0]);
+        var last = char.ToUpperInvariant(parts[^1][0]);
+        return string.Concat(first, last);
+    }
+
     private sealed record CreateRemarkRequestDto
     {
         public RemarkType Type { get; init; }
@@ -539,6 +653,8 @@ internal static class RemarkApi
         RemarkType Type,
         RemarkActorRole AuthorRole,
         string AuthorUserId,
+        string AuthorDisplayName,
+        string AuthorInitials,
         string Body,
         DateOnly EventDate,
         string? StageRef,
@@ -549,6 +665,7 @@ internal static class RemarkApi
         DateTime? DeletedAtUtc,
         string? DeletedByUserId,
         RemarkActorRole? DeletedByRole,
+        string? DeletedByDisplayName,
         string RowVersion);
 
     private sealed record RemarkListResponse(
@@ -582,4 +699,6 @@ internal static class RemarkApi
         DateTime? DeletedAtUtc,
         string? DeletedByUserId,
         RemarkActorRole? DeletedByRole);
+
+    private sealed record RemarkUserInfo(string UserId, string DisplayName, string Initials);
 }
