@@ -170,8 +170,8 @@ body {
 .procurement-metrics > div {
     display: flex;
     align-items: baseline;
-    justify-content: space-between;
-    gap: .5rem;
+    justify-content: flex-start;
+    gap: .75rem;
     padding-block: .125rem;
 }
 
@@ -180,7 +180,6 @@ body {
 }
 
 .procurement-metrics .procurement-value {
-    margin-left: auto;
     text-align: right;
     font-variant-numeric: tabular-nums;
 }
