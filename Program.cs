@@ -265,7 +265,8 @@ app.Use(async (ctx, next) =>
         // Chrome's PDF viewer ignores content when the response is isolated with
         // COOP. Allow the inline preview to render by opting out for this route.
         h["Cross-Origin-Opener-Policy"] = "unsafe-none";
-        h["Cross-Origin-Resource-Policy"] = "same-origin";
+        // Remove CORP entirely so the browser's extension-based PDF viewers can access the stream.
+        h.Remove("Cross-Origin-Resource-Policy");
         h["Content-Security-Policy"] = "frame-ancestors 'self'";
     }
     else
