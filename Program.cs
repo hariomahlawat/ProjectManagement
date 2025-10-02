@@ -257,17 +257,21 @@ app.Use(async (ctx, next) =>
     h["X-Content-Type-Options"] = "nosniff";
     h["Referrer-Policy"] = "no-referrer";
     h["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), browsing-topics=()";
-    h["Cross-Origin-Opener-Policy"] = "same-origin";
-    h["Cross-Origin-Resource-Policy"] = "same-origin";
 
     var isDocumentViewer = ctx.Request.Path.StartsWithSegments("/Projects/Documents/View", StringComparison.OrdinalIgnoreCase);
 
     if (isDocumentViewer)
     {
+        // Chrome's PDF viewer ignores content when the response is isolated with
+        // COOP. Allow the inline preview to render by opting out for this route.
+        h["Cross-Origin-Opener-Policy"] = "unsafe-none";
+        h["Cross-Origin-Resource-Policy"] = "same-origin";
         h["Content-Security-Policy"] = "frame-ancestors 'self'";
     }
     else
     {
+        h["Cross-Origin-Opener-Policy"] = "same-origin";
+        h["Cross-Origin-Resource-Policy"] = "same-origin";
         h["Content-Security-Policy"] =
             "default-src 'self'; " +
             "base-uri 'self'; " +
