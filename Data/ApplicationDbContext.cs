@@ -12,6 +12,7 @@ using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Scheduling;
 using ProjectManagement.Models.Stages;
+using ProjectManagement.Models.Remarks;
 using ProjectManagement.Helpers;
 
 namespace ProjectManagement.Data
@@ -50,6 +51,8 @@ namespace ProjectManagement.Data
         public DbSet<ProjectComment> ProjectComments => Set<ProjectComment>();
         public DbSet<ProjectCommentAttachment> ProjectCommentAttachments => Set<ProjectCommentAttachment>();
         public DbSet<ProjectCommentMention> ProjectCommentMentions => Set<ProjectCommentMention>();
+        public DbSet<Remark> Remarks => Set<Remark>();
+        public DbSet<RemarkAudit> RemarkAudits => Set<RemarkAudit>();
         public DbSet<ProjectDocument> ProjectDocuments => Set<ProjectDocument>();
         public DbSet<ProjectDocumentRequest> ProjectDocumentRequests => Set<ProjectDocumentRequest>();
         public DbSet<ProjectScheduleSettings> ProjectScheduleSettings => Set<ProjectScheduleSettings>();
@@ -809,6 +812,54 @@ namespace ProjectManagement.Data
                 e.HasOne(x => x.Comment)
                     .WithMany(c => c.Mentions)
                     .HasForeignKey(x => x.CommentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<Remark>(e =>
+            {
+                ConfigureRowVersion(e);
+                e.Property(x => x.AuthorUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.AuthorRole).HasConversion<string>().HasMaxLength(64).IsRequired();
+                e.Property(x => x.Type).HasConversion<string>().HasMaxLength(32).IsRequired();
+                e.Property(x => x.Body).HasMaxLength(4000).IsRequired();
+                e.Property(x => x.StageRef).HasMaxLength(64);
+                e.Property(x => x.StageNameSnapshot).HasMaxLength(256);
+                e.Property(x => x.DeletedByUserId).HasMaxLength(450);
+                e.Property(x => x.DeletedByRole).HasConversion<string>().HasMaxLength(64);
+                e.Property(x => x.EventDate).HasColumnType("date").IsRequired();
+                e.Property(x => x.CreatedAtUtc).IsRequired();
+                e.Property(x => x.LastEditedAtUtc);
+                e.Property(x => x.DeletedAtUtc);
+                e.HasIndex(x => new { x.ProjectId, x.IsDeleted, x.CreatedAtUtc })
+                    .HasDatabaseName("IX_Remarks_ProjectId_IsDeleted_CreatedAtUtc")
+                    .IsDescending(false, false, true);
+                e.HasIndex(x => new { x.ProjectId, x.IsDeleted, x.Type, x.EventDate })
+                    .HasDatabaseName("IX_Remarks_ProjectId_IsDeleted_Type_EventDate");
+                e.HasOne(x => x.Project)
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<RemarkAudit>(e =>
+            {
+                e.HasIndex(x => x.RemarkId);
+                e.Property(x => x.Action).HasConversion<string>().HasMaxLength(32).IsRequired();
+                e.Property(x => x.SnapshotType).HasConversion<string>().HasMaxLength(32).IsRequired();
+                e.Property(x => x.SnapshotAuthorRole).HasConversion<string>().HasMaxLength(64).IsRequired();
+                e.Property(x => x.SnapshotDeletedByRole).HasConversion<string>().HasMaxLength(64);
+                e.Property(x => x.ActorRole).HasConversion<string>().HasMaxLength(64).IsRequired();
+                e.Property(x => x.ActorUserId).HasMaxLength(450);
+                e.Property(x => x.SnapshotAuthorUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.SnapshotDeletedByUserId).HasMaxLength(450);
+                e.Property(x => x.SnapshotStageRef).HasMaxLength(64);
+                e.Property(x => x.SnapshotStageName).HasMaxLength(256);
+                e.Property(x => x.SnapshotBody).HasMaxLength(4000).IsRequired();
+                e.Property(x => x.Meta).HasColumnType("jsonb").IsRequired(false);
+                e.Property(x => x.SnapshotEventDate).HasColumnType("date");
+                e.HasOne(x => x.Remark)
+                    .WithMany(x => x.AuditEntries)
+                    .HasForeignKey(x => x.RemarkId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
         }
