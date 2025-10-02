@@ -848,6 +848,15 @@ h1, .h1 { font-size: 1.25rem; }
 
 /* Tables & forms: compact */
 .table-sm td, .table-sm th { padding: .45rem .5rem; vertical-align: middle; }
+
+.documents-table th,
+.documents-table td {
+    padding: .5rem .75rem;
+}
+
+.documents-table .btn-icon {
+    padding: 0;
+}
 .form-control-sm, .form-select-sm { padding-top: .25rem; padding-bottom: .25rem; }
 .badge { letter-spacing: .2px; }
 
