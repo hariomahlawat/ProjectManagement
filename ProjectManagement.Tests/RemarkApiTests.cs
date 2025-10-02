@@ -30,16 +30,16 @@ namespace ProjectManagement.Tests;
 
 public class RemarkApiTests
 {
-    private static readonly IReadOnlyDictionary<RemarkActorRole, string> FriendlyRoleNames = new Dictionary<RemarkActorRole, string>
+    private static readonly IReadOnlyDictionary<RemarkActorRole, IReadOnlyList<string>> FriendlyRoleNames = new Dictionary<RemarkActorRole, IReadOnlyList<string>>
     {
-        [RemarkActorRole.ProjectOfficer] = "Project Officer",
-        [RemarkActorRole.HeadOfDepartment] = "HoD",
-        [RemarkActorRole.Commandant] = "Comdt",
-        [RemarkActorRole.Administrator] = "Admin",
-        [RemarkActorRole.Mco] = "MCO",
-        [RemarkActorRole.ProjectOffice] = "Project Office",
-        [RemarkActorRole.MainOffice] = "Main Office",
-        [RemarkActorRole.Ta] = "TA"
+        [RemarkActorRole.ProjectOfficer] = new[] { "Project Officer" },
+        [RemarkActorRole.HeadOfDepartment] = new[] { "HoD", "Head of Department" },
+        [RemarkActorRole.Commandant] = new[] { "Comdt" },
+        [RemarkActorRole.Administrator] = new[] { "Admin" },
+        [RemarkActorRole.Mco] = new[] { "MCO" },
+        [RemarkActorRole.ProjectOffice] = new[] { "Project Office" },
+        [RemarkActorRole.MainOffice] = new[] { "Main Office" },
+        [RemarkActorRole.Ta] = new[] { "TA" }
     };
 
     public static IEnumerable<object[]> CanonicalActorRoles
@@ -64,7 +64,10 @@ public class RemarkApiTests
         {
             foreach (var pair in FriendlyRoleNames)
             {
-                yield return new object[] { pair.Key, pair.Value };
+                foreach (var alias in pair.Value)
+                {
+                    yield return new object[] { pair.Key, alias };
+                }
             }
         }
     }
