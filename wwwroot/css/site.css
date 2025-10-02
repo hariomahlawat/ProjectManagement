@@ -9,9 +9,17 @@
     --pm-surface: #f5f7fb;
     --pm-card: #ffffff;
     --pm-shadow: 0 8px 20px rgba(0,0,0,.06);
+    --pm-font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    --bs-font-sans-serif: var(--pm-font-stack);
+    --bs-body-font-family: var(--pm-font-stack);
+    --bs-body-font-size: 0.875rem;
+    --bs-body-line-height: 1.5;
 }
 
 body {
+    font-family: var(--bs-body-font-family);
+    font-size: var(--bs-body-font-size);
+    line-height: var(--bs-body-line-height);
     color: var(--pm-text);
     background-color: var(--pm-surface);
 }
