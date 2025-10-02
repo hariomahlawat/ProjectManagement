@@ -1,3 +1,4 @@
+using System;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Http;
@@ -39,6 +40,7 @@ using System.Threading;
 using ProjectManagement.Features.Remarks;
 using ProjectManagement.Services.Notifications;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Configuration;
 
 var runForecastBackfill = args.Any(a => string.Equals(a, "--backfill-forecast", StringComparison.OrdinalIgnoreCase));
 
@@ -227,6 +229,8 @@ builder.Services.AddRazorPages(options =>
     })
     .AddMvcOptions(o => o.Filters.Add<EnforcePasswordChangeFilter>());
 
+var connectSrcDirective = BuildConnectSrcDirective(builder.Configuration);
+
 var app = builder.Build();
 
 // Ensure the database schema is up to date before handling requests
@@ -296,7 +300,7 @@ app.Use(async (ctx, next) =>
             "script-src 'self'; " +
             "style-src 'self'; " +
             "font-src 'self' data:; " +
-            "connect-src 'self';";
+            $"connect-src {connectSrcDirective};";
     }
     await next();
 });
@@ -777,6 +781,23 @@ using (var scope = app.Services.CreateScope())
 
     await ProjectManagement.Data.StageFlowSeeder.SeedAsync(services);
     await ProjectManagement.Data.IdentitySeeder.SeedAsync(services);
+}
+
+static string BuildConnectSrcDirective(IConfiguration configuration)
+{
+    var sources = configuration
+        .GetSection("SecurityHeaders:ContentSecurityPolicy:ConnectSources")
+        .Get<string[]>() ?? Array.Empty<string>();
+
+    var normalizedSources = sources
+        .Select(source => source?.Trim())
+        .Where(source => !string.IsNullOrWhiteSpace(source))
+        .Distinct(StringComparer.Ordinal)
+        .ToArray();
+
+    return normalizedSources.Length == 0
+        ? "'self'"
+        : $"'self' {string.Join(" ", normalizedSources)}";
 }
 
 app.Run();
