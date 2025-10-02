@@ -813,6 +813,34 @@ body {
   --pm-btn-icon: 28px;
 }
 
+.btn-icon {
+  width: var(--pm-btn-icon);
+  height: var(--pm-btn-icon);
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--bs-border-radius-sm);
+}
+
+.btn-icon.btn-link {
+  color: var(--bs-body-color);
+}
+
+.btn-icon.btn-link:hover,
+.btn-icon.btn-link:focus-visible {
+  background-color: rgba(0, 0, 0, .05);
+  text-decoration: none;
+}
+
+.btn-icon.btn-link:focus-visible {
+  box-shadow: 0 0 0 .2rem rgba(13, 110, 253, .25);
+}
+
+.btn-icon.dropdown-toggle::after {
+  display: none;
+}
+
 /* Headings: calmer */
 h1, .h1 { font-size: 1.25rem; }
 .card-header { padding: .45rem .6rem; }
