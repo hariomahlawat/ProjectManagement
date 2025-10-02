@@ -27,7 +27,7 @@ public sealed class RemarkServiceTests
         await SeedProjectAsync(db, 10);
         await SeedStageAsync(db, 10, StageCodes.FS);
         var clock = FakeClock.ForIstDate(2024, 10, 1, 10, 0, 0);
-        var service = CreateService(db, clock, out var notifier);
+        var service = CreateService(db, clock, out var notifier, out var metrics);
 
         var actor = new RemarkActorContext("user-1", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
         var request = new CreateRemarkRequest(
@@ -59,6 +59,7 @@ public sealed class RemarkServiceTests
 
         Assert.Single(notifier.Notifications);
         Assert.Equal(remark.Id, notifier.Notifications[0].remark.Id);
+        Assert.Equal(1, metrics.CreatedCount);
     }
 
     [Fact]
@@ -68,12 +69,13 @@ public sealed class RemarkServiceTests
         var db = scope.Db;
         await SeedProjectAsync(db, 11);
         await SeedStageAsync(db, 11, StageCodes.FS);
-        var service = CreateService(db, FakeClock.ForIstDate(2024, 9, 15, 12, 0, 0), out _);
+        var service = CreateService(db, FakeClock.ForIstDate(2024, 9, 15, 12, 0, 0), out _, out var metrics);
         var actor = new RemarkActorContext("user-2", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
 
         var request = new CreateRemarkRequest(11, actor, RemarkType.External, "Hello", new DateOnly(2024, 9, 14), StageCodes.FS, null, null);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateRemarkAsync(request, CancellationToken.None));
+        AssertPermissionDenied(metrics, "Create", "ExternalRequiresOverride");
     }
 
     [Fact]
@@ -82,12 +84,13 @@ public sealed class RemarkServiceTests
         await using var scope = await CreateContextAsync();
         var db = scope.Db;
         await SeedProjectAsync(db, 12);
-        var service = CreateService(db, FakeClock.ForIstDate(2024, 9, 10, 9, 0, 0), out _);
+        var service = CreateService(db, FakeClock.ForIstDate(2024, 9, 10, 9, 0, 0), out _, out var metrics);
         var actor = new RemarkActorContext("user-3", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
         var request = new CreateRemarkRequest(12, actor, RemarkType.Internal, "Hello", new DateOnly(2024, 9, 9), StageCodes.IPA, null, null);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateRemarkAsync(request, CancellationToken.None));
         Assert.Equal(RemarkService.StageNotInProjectMessage, ex.Message);
+        Assert.Empty(metrics.PermissionDenied);
     }
 
     [Fact]
@@ -98,7 +101,7 @@ public sealed class RemarkServiceTests
         await SeedProjectAsync(db, 20);
         await SeedStageAsync(db, 20, StageCodes.FS);
         var clock = FakeClock.ForIstDate(2024, 9, 1, 9, 0, 0);
-        var service = CreateService(db, clock, out _);
+        var service = CreateService(db, clock, out _, out var metrics);
         var actor = new RemarkActorContext("author", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
         var remark = await service.CreateRemarkAsync(new CreateRemarkRequest(20, actor, RemarkType.Internal, "Body", new DateOnly(2024, 8, 31), StageCodes.FS, null, null), CancellationToken.None);
 
@@ -107,6 +110,8 @@ public sealed class RemarkServiceTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.EditRemarkAsync(remark.Id, new EditRemarkRequest(actor, "Updated", new DateOnly(2024, 8, 30), StageCodes.FS, null, null, remark.RowVersion), CancellationToken.None));
         Assert.Equal(RemarkService.EditWindowMessage, ex.Message);
+        Assert.Equal(1, metrics.EditWindowExpiredCount);
+        AssertPermissionDenied(metrics, "Edit", "AuthorWindowExpired");
     }
 
     [Fact]
@@ -117,7 +122,7 @@ public sealed class RemarkServiceTests
         await SeedProjectAsync(db, 21);
         await SeedStageAsync(db, 21, StageCodes.FS);
         var clock = FakeClock.ForIstDate(2024, 9, 1, 9, 0, 0);
-        var service = CreateService(db, clock, out _);
+        var service = CreateService(db, clock, out _, out var metrics);
         var author = new RemarkActorContext("author", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
         var remark = await service.CreateRemarkAsync(new CreateRemarkRequest(21, author, RemarkType.Internal, "Body", new DateOnly(2024, 8, 30), StageCodes.FS, null, null), CancellationToken.None);
 
@@ -145,7 +150,7 @@ public sealed class RemarkServiceTests
         await SeedProjectAsync(db, 22);
         await SeedStageAsync(db, 22, StageCodes.FS);
         var clock = FakeClock.ForIstDate(2024, 9, 1, 9, 0, 0);
-        var service = CreateService(db, clock, out _);
+        var service = CreateService(db, clock, out _, out var metrics);
         var actor = new RemarkActorContext("author", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
         var remark = await service.CreateRemarkAsync(new CreateRemarkRequest(22, actor, RemarkType.Internal, "Body", new DateOnly(2024, 8, 30), StageCodes.FS, null, null), CancellationToken.None);
 
@@ -168,7 +173,7 @@ public sealed class RemarkServiceTests
         await SeedProjectAsync(db, 30);
         await SeedStageAsync(db, 30, StageCodes.FS);
         var clock = FakeClock.ForIstDate(2024, 9, 1, 8, 0, 0);
-        var service = CreateService(db, clock, out _);
+        var service = CreateService(db, clock, out _, out var metrics);
         var actor = new RemarkActorContext("author", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
         var remark = await service.CreateRemarkAsync(new CreateRemarkRequest(30, actor, RemarkType.Internal, "Body", new DateOnly(2024, 8, 31), StageCodes.FS, null, null), CancellationToken.None);
 
@@ -183,6 +188,7 @@ public sealed class RemarkServiceTests
         var audit = await db.RemarkAudits.OrderByDescending(a => a.Id).FirstAsync();
         Assert.Equal(RemarkAuditAction.Deleted, audit.Action);
         Assert.Equal("{\"reason\":\"cleanup\"}", audit.Meta);
+        Assert.Equal(1, metrics.DeletedCount);
     }
 
     [Fact]
@@ -193,7 +199,7 @@ public sealed class RemarkServiceTests
         await SeedProjectAsync(db, 31);
         await SeedStageAsync(db, 31, StageCodes.FS);
         var clock = FakeClock.ForIstDate(2024, 9, 1, 8, 0, 0);
-        var service = CreateService(db, clock, out _);
+        var service = CreateService(db, clock, out _, out var metrics);
         var author = new RemarkActorContext("author", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
         var remark = await service.CreateRemarkAsync(new CreateRemarkRequest(31, author, RemarkType.Internal, "Body", new DateOnly(2024, 8, 31), StageCodes.FS, null, null), CancellationToken.None);
 
@@ -202,6 +208,7 @@ public sealed class RemarkServiceTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.SoftDeleteRemarkAsync(remark.Id, new SoftDeleteRemarkRequest(otherActor, null, remark.RowVersion), CancellationToken.None));
         Assert.Equal(RemarkService.PermissionDeniedMessage, ex.Message);
+        AssertPermissionDenied(metrics, "SoftDelete", "NotAuthor");
     }
 
     [Fact]
@@ -212,7 +219,7 @@ public sealed class RemarkServiceTests
         await SeedProjectAsync(db, 33);
         await SeedStageAsync(db, 33, StageCodes.FS);
         var clock = FakeClock.ForIstDate(2024, 9, 1, 8, 0, 0);
-        var service = CreateService(db, clock, out _);
+        var service = CreateService(db, clock, out _, out var metrics);
         var actor = new RemarkActorContext("author", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
         var remark = await service.CreateRemarkAsync(new CreateRemarkRequest(33, actor, RemarkType.Internal, "Body", new DateOnly(2024, 8, 31), StageCodes.FS, null, null), CancellationToken.None);
 
@@ -222,6 +229,7 @@ public sealed class RemarkServiceTests
             service.SoftDeleteRemarkAsync(remark.Id, new SoftDeleteRemarkRequest(actor, null, remark.RowVersion), CancellationToken.None));
 
         Assert.Equal(RemarkService.DeleteWindowMessage, ex.Message);
+        AssertPermissionDenied(metrics, "SoftDelete", "AuthorWindowExpired");
     }
 
     [Fact]
@@ -232,7 +240,7 @@ public sealed class RemarkServiceTests
         await SeedProjectAsync(db, 32);
         await SeedStageAsync(db, 32, StageCodes.FS);
         var clock = FakeClock.ForIstDate(2024, 9, 1, 8, 0, 0);
-        var service = CreateService(db, clock, out _);
+        var service = CreateService(db, clock, out _, out var metrics);
         var actor = new RemarkActorContext("author", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
         var remark = await service.CreateRemarkAsync(new CreateRemarkRequest(32, actor, RemarkType.Internal, "Body", new DateOnly(2024, 8, 31), StageCodes.FS, null, null), CancellationToken.None);
 
@@ -255,7 +263,7 @@ public sealed class RemarkServiceTests
         await SeedStageAsync(db, 40, StageCodes.FS);
         await SeedStageAsync(db, 40, StageCodes.IPA);
         var clock = FakeClock.ForIstDate(2024, 9, 1, 8, 0, 0);
-        var service = CreateService(db, clock, out _);
+        var service = CreateService(db, clock, out _, out var metrics);
         var author = new RemarkActorContext("author", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
         var admin = new RemarkActorContext("admin", RemarkActorRole.Administrator, new[] { RemarkActorRole.Administrator, RemarkActorRole.ProjectOfficer });
 
@@ -278,7 +286,7 @@ public sealed class RemarkServiceTests
         await SeedProjectAsync(db, 41);
         await SeedStageAsync(db, 41, StageCodes.FS);
         var clock = FakeClock.ForIstDate(2024, 9, 1, 8, 0, 0);
-        var service = CreateService(db, clock, out _);
+        var service = CreateService(db, clock, out _, out _);
         var author = new RemarkActorContext("author", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
         var other = new RemarkActorContext("other", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
 
@@ -299,12 +307,13 @@ public sealed class RemarkServiceTests
         await SeedProjectAsync(db, 50);
         await SeedStageAsync(db, 50, StageCodes.FS);
         var clock = FakeClock.ForIstDate(2024, 9, 1, 9, 0, 0);
-        var service = CreateService(db, clock, out _);
+        var service = CreateService(db, clock, out _, out var metrics);
         var actor = new RemarkActorContext("author", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
         var remark = await service.CreateRemarkAsync(new CreateRemarkRequest(50, actor, RemarkType.Internal, "Body", new DateOnly(2024, 8, 31), StageCodes.FS, null, null), CancellationToken.None);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             service.GetRemarkAuditAsync(remark.Id, actor, CancellationToken.None));
+        AssertPermissionDenied(metrics, "GetAudit", "AdminOnly");
     }
 
     [Fact]
@@ -315,7 +324,7 @@ public sealed class RemarkServiceTests
         await SeedProjectAsync(db, 51);
         await SeedStageAsync(db, 51, StageCodes.FS);
         var clock = FakeClock.ForIstDate(2024, 9, 1, 9, 0, 0);
-        var service = CreateService(db, clock, out _);
+        var service = CreateService(db, clock, out _, out _);
         var author = new RemarkActorContext("author", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
         var remark = await service.CreateRemarkAsync(new CreateRemarkRequest(51, author, RemarkType.Internal, "Body", new DateOnly(2024, 8, 31), StageCodes.FS, null, null), CancellationToken.None);
 
@@ -326,10 +335,11 @@ public sealed class RemarkServiceTests
         Assert.Equal(RemarkAuditAction.Created, audits[0].Action);
     }
 
-    private static RemarkService CreateService(ApplicationDbContext db, IClock clock, out TestRemarkNotificationService notifier)
+    private static RemarkService CreateService(ApplicationDbContext db, IClock clock, out TestRemarkNotificationService notifier, out TestRemarkMetrics metrics)
     {
         notifier = new TestRemarkNotificationService();
-        return new RemarkService(db, clock, NullLogger<RemarkService>.Instance, notifier);
+        metrics = new TestRemarkMetrics();
+        return new RemarkService(db, clock, NullLogger<RemarkService>.Instance, notifier, metrics);
     }
 
     private static async Task<SqliteContextScope> CreateContextAsync()
@@ -371,6 +381,32 @@ public sealed class RemarkServiceTests
             Notifications.Add((remark, actor, project));
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class TestRemarkMetrics : IRemarkMetrics
+    {
+        private readonly List<(string Action, string Reason)> _permissionDenied = new();
+
+        public int CreatedCount { get; private set; }
+
+        public int DeletedCount { get; private set; }
+
+        public int EditWindowExpiredCount { get; private set; }
+
+        public IReadOnlyList<(string Action, string Reason)> PermissionDenied => _permissionDenied;
+
+        public void RecordCreated() => CreatedCount++;
+
+        public void RecordDeleted() => DeletedCount++;
+
+        public void RecordEditDeniedWindowExpired(string action) => EditWindowExpiredCount++;
+
+        public void RecordPermissionDenied(string action, string reason) => _permissionDenied.Add((action, reason));
+    }
+
+    private static void AssertPermissionDenied(TestRemarkMetrics metrics, string action, string reason)
+    {
+        Assert.Contains(metrics.PermissionDenied, entry => entry.Action == action && entry.Reason == reason);
     }
 
     private static async Task SeedStageAsync(ApplicationDbContext db, int projectId, string stageCode)
