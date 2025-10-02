@@ -151,8 +151,20 @@ body {
 
 .procurement-metrics {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: 1fr;
     gap: .5rem 1rem;
+}
+
+@media (min-width: 576px) {
+    .procurement-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 992px) {
+    .procurement-metrics {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
 }
 
 .procurement-metrics > div {
