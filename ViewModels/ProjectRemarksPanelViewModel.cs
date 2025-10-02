@@ -15,6 +15,8 @@ public sealed class ProjectRemarksPanelViewModel
 
     public string? ActorRole { get; init; }
 
+    public string? ActorRoleLabel { get; init; }
+
     public IReadOnlyList<string> ActorRoles { get; init; } = Array.Empty<string>();
 
     public bool ShowComposer { get; init; }
