@@ -491,105 +491,118 @@
                     }
                     else
                     {
-                        <div class="d-flex flex-column gap-3">
-                            @foreach (var group in Model.DocumentList.Groups)
-                            {
-                                <section>
-                                    <h4 class="h6 text-uppercase text-muted mb-2">@group.StageDisplayName</h4>
-                                    <div class="d-flex flex-column gap-2">
-                                        @foreach (var item in group.Items)
-                                        {
-                                            var canReplaceDocument = item.DocumentId.HasValue && (isAdmin || isThisProjectsPo || isThisProjectsHod) && !item.IsRemoved && !item.IsPending;
-                                            var canRequestDelete = item.DocumentId.HasValue && isThisProjectsPo && !item.IsRemoved && !item.IsPending;
-                                            var canDirectDelete = item.DocumentId.HasValue && (isAdmin || isThisProjectsHod) && !item.IsRemoved && !item.IsPending;
-                                            var canReviewRequest = Model.IsDocumentApprover && item.RequestId.HasValue;
-                                            var hasActions = canReplaceDocument || canRequestDelete || canDirectDelete || canReviewRequest;
-                                            <div class="border rounded p-3 d-flex flex-column flex-md-row gap-3 justify-content-between">
-                                                <div class="flex-grow-1">
-                                                    <div class="fw-semibold">
-                                                        @if (!string.IsNullOrEmpty(item.PreviewUrl))
-                                                        {
-                                                            <a href="@item.PreviewUrl">@item.Title</a>
-                                                        }
-                                                        else
-                                                        {
-                                                            @item.Title
-                                                        }
-                                                    </div>
-                                                    <div class="text-muted small mt-1">
-                                                        <span>@item.FileSizeDisplay</span>
-                                                        @if (!string.IsNullOrWhiteSpace(item.MetadataSummary))
-                                                        {
-                                                            <span class="ms-2">@item.MetadataSummary</span>
-                                                        }
-                                                    </div>
-                                                    @if (!string.IsNullOrWhiteSpace(item.SecondarySummary))
+                        var documentRows = Model.DocumentList.Groups
+                            .SelectMany(group => group.Items.Select(item => new { group.StageDisplayName, Item = item }))
+                            .ToList();
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle documents-table">
+                                <thead>
+                                    <tr>
+                                        <th scope="col" class="text-muted text-uppercase small">Stage</th>
+                                        <th scope="col" class="text-muted text-uppercase small">Document</th>
+                                        <th scope="col" class="text-muted text-uppercase small">Status</th>
+                                        <th scope="col" class="text-end text-muted text-uppercase small">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var row in documentRows)
+                                    {
+                                        var item = row.Item;
+                                        var canReplaceDocument = item.DocumentId.HasValue && (isAdmin || isThisProjectsPo || isThisProjectsHod) && !item.IsRemoved && !item.IsPending;
+                                        var canRequestDelete = item.DocumentId.HasValue && isThisProjectsPo && !item.IsRemoved && !item.IsPending;
+                                        var canDirectDelete = item.DocumentId.HasValue && (isAdmin || isThisProjectsHod) && !item.IsRemoved && !item.IsPending;
+                                        var canReviewRequest = Model.IsDocumentApprover && item.RequestId.HasValue;
+                                        var hasActions = canReplaceDocument || canRequestDelete || canDirectDelete || canReviewRequest;
+                                        <tr>
+                                            <td class="text-nowrap align-top">
+                                                <span class="text-muted">@row.StageDisplayName</span>
+                                            </td>
+                                            <td>
+                                                <div class="fw-semibold">
+                                                    @if (!string.IsNullOrEmpty(item.PreviewUrl))
                                                     {
-                                                        <div class="text-muted small mt-1">@item.SecondarySummary</div>
+                                                        <a href="@item.PreviewUrl">@item.Title</a>
                                                     }
-                                                    @if (!string.IsNullOrWhiteSpace(item.FileName) && !string.Equals(item.FileName, item.Title, StringComparison.OrdinalIgnoreCase))
+                                                    else
                                                     {
-                                                        <div class="text-muted small mt-1">File: @item.FileName</div>
+                                                        @item.Title
                                                     }
                                                 </div>
-                                                <div class="d-flex flex-column align-items-md-end gap-2">
-                                                    <span class="badge text-bg-@item.StatusVariant">@item.StatusLabel</span>
-                                                    @if (hasActions)
+                                                <div class="text-muted small mt-1">
+                                                    <span>@item.FileSizeDisplay</span>
+                                                    @if (!string.IsNullOrWhiteSpace(item.MetadataSummary))
                                                     {
-                                                        <div class="dropdown">
-                                                            <button class="btn btn-link btn-icon dropdown-toggle"
-                                                                    type="button"
-                                                                    data-bs-toggle="dropdown"
-                                                                    aria-expanded="false"
-                                                                    aria-label="Document actions">
-                                                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-                                                            </button>
-                                                            <ul class="dropdown-menu dropdown-menu-end">
-                                                                @if (canReplaceDocument)
-                                                                {
-                                                                    <li>
-                                                                        <a class="dropdown-item"
-                                                                           asp-page="/Projects/Documents/ReplaceRequest"
-                                                                           asp-route-id="@Model.Project!.Id"
-                                                                           asp-route-documentId="@item.DocumentId">Replace</a>
-                                                                    </li>
-                                                                }
-                                                                @if (canRequestDelete)
-                                                                {
-                                                                    <li>
-                                                                        <a class="dropdown-item"
-                                                                           asp-page="/Projects/Documents/DeleteRequest"
-                                                                           asp-route-id="@Model.Project!.Id"
-                                                                           asp-route-documentId="@item.DocumentId">Request delete</a>
-                                                                    </li>
-                                                                }
-                                                                @if (canDirectDelete)
-                                                                {
-                                                                    <li>
-                                                                        <a class="dropdown-item"
-                                                                           asp-page="/Projects/Documents/DeleteRequest"
-                                                                           asp-route-id="@Model.Project!.Id"
-                                                                           asp-route-documentId="@item.DocumentId">Delete document</a>
-                                                                    </li>
-                                                                }
-                                                                @if (canReviewRequest)
-                                                                {
-                                                                    <li>
-                                                                        <a class="dropdown-item"
-                                                                           asp-page="/Projects/Documents/Approvals/Review"
-                                                                           asp-route-id="@Model.Project!.Id"
-                                                                           asp-route-requestId="@item.RequestId">Review request</a>
-                                                                    </li>
-                                                                }
-                                                            </ul>
-                                                        </div>
+                                                        <span class="ms-2">@item.MetadataSummary</span>
                                                     }
                                                 </div>
-                                            </div>
-                                        }
-                                    </div>
-                                </section>
-                            }
+                                                @if (!string.IsNullOrWhiteSpace(item.SecondarySummary))
+                                                {
+                                                    <div class="text-muted small mt-1">@item.SecondarySummary</div>
+                                                }
+                                                @if (!string.IsNullOrWhiteSpace(item.FileName) && !string.Equals(item.FileName, item.Title, StringComparison.OrdinalIgnoreCase))
+                                                {
+                                                    <div class="text-muted small mt-1">File: @item.FileName</div>
+                                                }
+                                            </td>
+                                            <td class="align-top">
+                                                <span class="badge text-bg-@item.StatusVariant">@item.StatusLabel</span>
+                                            </td>
+                                            <td class="text-end align-top">
+                                                @if (hasActions)
+                                                {
+                                                    <div class="dropdown">
+                                                        <button class="btn btn-link btn-icon dropdown-toggle"
+                                                                type="button"
+                                                                data-bs-toggle="dropdown"
+                                                                aria-expanded="false"
+                                                                aria-label="Document actions">
+                                                            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                                        </button>
+                                                        <ul class="dropdown-menu dropdown-menu-end">
+                                                            @if (canReplaceDocument)
+                                                            {
+                                                                <li>
+                                                                    <a class="dropdown-item"
+                                                                       asp-page="/Projects/Documents/ReplaceRequest"
+                                                                       asp-route-id="@Model.Project!.Id"
+                                                                       asp-route-documentId="@item.DocumentId">Replace</a>
+                                                                </li>
+                                                            }
+                                                            @if (canRequestDelete)
+                                                            {
+                                                                <li>
+                                                                    <a class="dropdown-item"
+                                                                       asp-page="/Projects/Documents/DeleteRequest"
+                                                                       asp-route-id="@Model.Project!.Id"
+                                                                       asp-route-documentId="@item.DocumentId">Request delete</a>
+                                                                </li>
+                                                            }
+                                                            @if (canDirectDelete)
+                                                            {
+                                                                <li>
+                                                                    <a class="dropdown-item"
+                                                                       asp-page="/Projects/Documents/DeleteRequest"
+                                                                       asp-route-id="@Model.Project!.Id"
+                                                                       asp-route-documentId="@item.DocumentId">Delete document</a>
+                                                                </li>
+                                                            }
+                                                            @if (canReviewRequest)
+                                                            {
+                                                                <li>
+                                                                    <a class="dropdown-item"
+                                                                       asp-page="/Projects/Documents/Approvals/Review"
+                                                                       asp-route-id="@Model.Project!.Id"
+                                                                       asp-route-requestId="@item.RequestId">Review request</a>
+                                                                </li>
+                                                            }
+                                                        </ul>
+                                                    </div>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
                         </div>
                     }
                     @if (Model.DocumentList.ShowPagination)
