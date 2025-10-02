@@ -147,6 +147,7 @@ namespace ProjectManagement.Models.Remarks
             ["ProjectOfficer"] = RemarkActorRole.ProjectOfficer,
             ["HoD"] = RemarkActorRole.HeadOfDepartment,
             ["HeadOfDepartment"] = RemarkActorRole.HeadOfDepartment,
+            ["Head of Department"] = RemarkActorRole.HeadOfDepartment,
             ["Comdt"] = RemarkActorRole.Commandant,
             ["Commandant"] = RemarkActorRole.Commandant,
             ["Admin"] = RemarkActorRole.Administrator,
