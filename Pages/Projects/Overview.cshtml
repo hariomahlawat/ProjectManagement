@@ -1,7 +1,6 @@
 @page "{id:int}"
 @using System
 @using System.Linq
-@using Microsoft.AspNetCore.Routing
 @using ProjectManagement.Models
 @using ProjectManagement.Models.Execution
 @using ProjectManagement.Models.Plans
@@ -80,53 +79,6 @@
 
     private static string StageStatusLabel(StageStatus status) => StageStatusLabel(status.ToString());
 
-    private string BuildDocumentFilterUrl(string? stageValue, string? statusValue, int page = 1)
-    {
-        var values = new RouteValueDictionary(ViewContext.RouteData.Values);
-        values["id"] = Model.Project?.Id ?? 0;
-
-        foreach (var key in Request.Query.Keys)
-        {
-            if (string.Equals(key, "docStage", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(key, "docStatus", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(key, "docPage", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            values[key] = Request.Query[key].ToString();
-        }
-
-        if (string.IsNullOrEmpty(stageValue))
-        {
-            values.Remove("docStage");
-        }
-        else
-        {
-            values["docStage"] = stageValue;
-        }
-
-        if (string.IsNullOrEmpty(statusValue) ||
-            string.Equals(statusValue, ProjectDocumentListViewModel.PublishedStatusValue, StringComparison.OrdinalIgnoreCase))
-        {
-            values.Remove("docStatus");
-        }
-        else
-        {
-            values["docStatus"] = statusValue;
-        }
-
-        if (page <= 1)
-        {
-            values.Remove("docPage");
-        }
-        else
-        {
-            values["docPage"] = page;
-        }
-
-        return Url.Page(null, values)!;
-    }
 }
 
 <div class="container-xxl">
@@ -437,36 +389,6 @@
                         var documentList = Model.DocumentList;
                         var displayedCount = documentList.Groups.Sum(g => g.Items.Count);
                     }
-                    <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-                        <div class="dropdown">
-                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
-                                    type="button"
-                                    data-bs-toggle="dropdown"
-                                    aria-expanded="false">
-                                Stage: @Model.DocumentList.SelectedStageLabel
-                            </button>
-                            <ul class="dropdown-menu">
-                                @foreach (var option in Model.DocumentList.StageFilters)
-                                {
-                                    var stageUrl = BuildDocumentFilterUrl(option.Value, Model.DocumentList.SelectedStatusValue, 1);
-                                    <li>
-                                        <a class="dropdown-item@(option.Selected ? " active" : string.Empty)" href="@stageUrl">@option.Label</a>
-                                    </li>
-                                }
-                            </ul>
-                        </div>
-                        @if (Model.DocumentList.ShowStatusFilter)
-                        {
-                            <div class="d-flex flex-wrap gap-2">
-                                @foreach (var status in Model.DocumentList.StatusFilters)
-                                {
-                                    var statusUrl = BuildDocumentFilterUrl(Model.DocumentList.SelectedStageValue, status.Value, 1);
-                                    var statusClass = status.Selected ? "btn btn-sm btn-primary" : "btn btn-sm btn-outline-secondary";
-                                    <a class="@statusClass" href="@statusUrl">@status.Label</a>
-                                }
-                            </div>
-                        }
-                    </div>
                     <div class="mb-3 text-muted small">
                         @if (Model.DocumentList.TotalItems > 0)
                         {
@@ -474,7 +396,7 @@
                         }
                         else
                         {
-                            <span>No @Model.DocumentList.StatusHeading found for the selected filters.</span>
+                            <span>No @Model.DocumentList.StatusHeading found for this project.</span>
                         }
                     </div>
                     @if (!Model.DocumentList.HasItems)
@@ -611,7 +533,21 @@
                             <ul class="pagination pagination-sm mb-0">
                                 @for (var pageNumber = 1; pageNumber <= Model.DocumentList.TotalPages; pageNumber++)
                                 {
-                                    var pageUrl = BuildDocumentFilterUrl(Model.DocumentList.SelectedStageValue, Model.DocumentList.SelectedStatusValue, pageNumber);
+                                    var stageValue = Model.DocumentList.SelectedStageValue;
+                                    var statusValue = Model.DocumentList.SelectedStatusValue;
+                                    var isDefaultStatus = string.Equals(
+                                        statusValue,
+                                        ProjectDocumentListViewModel.PublishedStatusValue,
+                                        StringComparison.OrdinalIgnoreCase);
+                                    var pageUrl = Url.Page(
+                                        null,
+                                        new
+                                        {
+                                            id = Model.Project!.Id,
+                                            docStage = string.IsNullOrEmpty(stageValue) ? null : stageValue,
+                                            docStatus = isDefaultStatus ? null : statusValue,
+                                            docPage = pageNumber
+                                        });
                                     <li class="page-item @(pageNumber == Model.DocumentList.Page ? "active" : string.Empty)">
                                         <a class="page-link" href="@pageUrl">@pageNumber</a>
                                     </li>
