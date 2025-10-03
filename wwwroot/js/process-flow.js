@@ -2,7 +2,7 @@ const root = document.querySelector('[data-process-flow-root]');
 const OPTIONAL_STAGE_CODE = 'PNC';
 
 if (root) {
-  const version = (root.dataset.processVersion || '').trim();
+  const initialVersion = (root.dataset.processVersion || '').trim();
   const canEdit = root.dataset.canEdit === 'true';
   const flowCanvas = root.querySelector('[data-flow-canvas]');
   const stageTitleEls = Array.from(document.querySelectorAll('[data-stage-title]'));
@@ -20,9 +20,17 @@ if (root) {
   const deleteForm = deleteModalEl ? deleteModalEl.querySelector('[data-checklist-delete-form]') : null;
   const itemModal = itemModalEl ? new bootstrap.Modal(itemModalEl) : null;
   const deleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl) : null;
+  const flowPlaceholderTemplate = (() => {
+    if (!flowCanvas) {
+      return null;
+    }
+
+    const placeholder = flowCanvas.querySelector('[data-flow-placeholder]');
+    return placeholder ? placeholder.outerHTML : null;
+  })();
 
   const state = {
-    version,
+    version: initialVersion,
     canEdit,
     diagram: null,
     stageByCode: new Map(),
@@ -143,10 +151,123 @@ if (root) {
     return data;
   }
 
+  function readVersionFromRoot() {
+    return (root.dataset.processVersion || '').trim();
+  }
+
+  function buildFlowUrl(versionOverride) {
+    const normalizedVersion = typeof versionOverride === 'string' && versionOverride.trim().length > 0
+      ? versionOverride.trim()
+      : state.version;
+
+    if (!normalizedVersion) {
+      return null;
+    }
+
+    const encodedVersion = encodeURIComponent(normalizedVersion);
+    return `/api/processes/${encodedVersion}/flow`;
+  }
+
   function buildChecklistUrl(stageCode, suffix = '') {
     const encodedVersion = encodeURIComponent(state.version);
     const encodedStage = encodeURIComponent(stageCode);
     return `/api/processes/${encodedVersion}/stages/${encodedStage}/checklist${suffix}`;
+  }
+
+  function createFlowPlaceholderElement() {
+    const placeholder = document.createElement('div');
+    placeholder.className = 'text-center text-muted py-5';
+    placeholder.setAttribute('data-flow-placeholder', '');
+
+    const spinner = document.createElement('div');
+    spinner.className = 'spinner-border text-primary mb-3';
+    spinner.setAttribute('role', 'status');
+    spinner.setAttribute('aria-hidden', 'true');
+    placeholder.appendChild(spinner);
+
+    const message = document.createElement('p');
+    message.className = 'mb-0';
+    message.textContent = 'Loading flow…';
+    placeholder.appendChild(message);
+
+    return placeholder;
+  }
+
+  function showFlowLoading() {
+    if (!flowCanvas) {
+      return;
+    }
+
+    flowCanvas.setAttribute('aria-busy', 'true');
+    flowCanvas.dataset.ready = 'false';
+
+    if (flowCanvas.firstElementChild && flowCanvas.firstElementChild.hasAttribute('data-flow-placeholder')) {
+      return;
+    }
+
+    if (flowPlaceholderTemplate) {
+      flowCanvas.innerHTML = flowPlaceholderTemplate;
+      return;
+    }
+
+    flowCanvas.innerHTML = '';
+    flowCanvas.appendChild(createFlowPlaceholderElement());
+  }
+
+  function clearFlowCanvas() {
+    if (!flowCanvas) {
+      return;
+    }
+
+    flowCanvas.innerHTML = '';
+    flowCanvas.setAttribute('aria-busy', 'false');
+    flowCanvas.dataset.ready = 'false';
+  }
+
+  function resetStateForVersionChange() {
+    state.stageByCode.clear();
+    state.diagram = null;
+    state.selectedStage = null;
+    state.currentChecklist = null;
+    state.checklistCache.clear();
+    state.checklistPromise = null;
+
+    if (state.sortable && typeof state.sortable.destroy === 'function') {
+      state.sortable.destroy();
+    }
+
+    state.sortable = null;
+  }
+
+  const versionObserver = new MutationObserver((mutations) => {
+    for (const mutation of mutations) {
+      if (mutation.type === 'attributes' && mutation.attributeName === 'data-process-version') {
+        const updatedVersion = readVersionFromRoot();
+        handleVersionChange(updatedVersion);
+      }
+    }
+  });
+
+  function handleVersionChange(newVersion) {
+    const normalized = (newVersion || '').trim();
+    if (normalized === state.version) {
+      return;
+    }
+
+    state.version = normalized;
+    resetStateForVersionChange();
+    toggleActionGroups(false);
+    setStageDetails(null);
+
+    if (!normalized) {
+      clearFlowCanvas();
+      renderChecklist(null, { errorMessage: 'Select a process version to load.' });
+      return;
+    }
+
+    renderChecklist(null, { loading: true });
+    showFlowLoading();
+    loadFlow();
   }
 
   function normaliseFlow(dto) {
@@ -893,12 +1014,30 @@ if (root) {
   }
 
   async function loadFlow() {
-    if (!version || !flowCanvas) {
+    if (!flowCanvas) {
       return;
     }
 
+    const requestedVersion = state.version;
+    if (!requestedVersion) {
+      clearFlowCanvas();
+      return;
+    }
+
+    showFlowLoading();
+
     try {
-      const data = await sendJson(`/api/processes/${encodeURIComponent(version)}/flow`);
+      const flowUrl = buildFlowUrl(requestedVersion);
+      if (!flowUrl) {
+        clearFlowCanvas();
+        return;
+      }
+
+      const data = await sendJson(flowUrl);
+      if (state.version !== requestedVersion) {
+        return;
+      }
+
       const flow = normaliseFlow(data);
       state.stageByCode.clear();
       flow.nodes.forEach((node) => {
@@ -918,13 +1057,20 @@ if (root) {
       }
     } catch (error) {
       console.error(error);
-      const placeholder = flowCanvas.querySelector('[data-flow-placeholder]');
-      if (placeholder) {
-        placeholder.innerHTML = '<p class="text-danger mb-0">Unable to load process flow.</p>';
+      if (flowCanvas) {
+        const placeholder = flowCanvas.querySelector('[data-flow-placeholder]');
+        if (placeholder) {
+          placeholder.innerHTML = '<p class="text-danger mb-0">Unable to load process flow.</p>';
+        }
+        flowCanvas.setAttribute('aria-busy', 'false');
+        flowCanvas.dataset.ready = 'false';
       }
-      setStageDetails(null);
-      renderChecklist(null, { errorMessage: 'Unable to load checklist until the flow is available.' });
-      showToast('Unable to load process flow.', 'danger');
+
+      if (state.version === requestedVersion) {
+        setStageDetails(null);
+        renderChecklist(null, { errorMessage: 'Unable to load checklist until the flow is available.' });
+        showToast('Unable to load process flow.', 'danger');
+      }
     }
   }
 
@@ -1379,6 +1525,7 @@ if (root) {
   function boot() {
     setStageDetails(null);
     renderChecklist(null);
+    showFlowLoading();
     root.addEventListener('click', handleActionClick);
     if (itemForm) {
       itemForm.addEventListener('submit', handleItemFormSubmit);
@@ -1386,7 +1533,14 @@ if (root) {
     if (deleteForm) {
       deleteForm.addEventListener('submit', handleDeleteFormSubmit);
     }
-    loadFlow();
+    versionObserver.observe(root, { attributes: true, attributeFilter: ['data-process-version'] });
+
+    const currentDatasetVersion = readVersionFromRoot();
+    if (currentDatasetVersion !== state.version) {
+      handleVersionChange(currentDatasetVersion);
+    } else {
+      loadFlow();
+    }
   }
 
   if (document.readyState === 'loading') {
