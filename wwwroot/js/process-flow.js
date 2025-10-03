@@ -23,8 +23,7 @@ if (root) {
   const state = {
     version,
     canEdit,
-    flow: null,
-    cytoscape: null,
+    diagram: null,
     stageByCode: new Map(),
     selectedStage: null,
     checklistCache: new Map(),
@@ -41,27 +40,6 @@ if (root) {
       this.status = response.status;
       this.data = data || null;
     }
-  }
-
-  let cytoscapeLoader;
-  async function ensureCytoscape() {
-    if (!cytoscapeLoader) {
-      cytoscapeLoader = Promise.resolve().then(() => {
-        const cytoscape = window.cytoscape;
-        if (!cytoscape) {
-          throw new Error('Cytoscape dependencies failed to load.');
-        }
-
-        if (window.cytoscapeDagre && !cytoscape.__pmDagreRegistered) {
-          cytoscape.use(window.cytoscapeDagre);
-          cytoscape.__pmDagreRegistered = true;
-        }
-
-        return cytoscape;
-      });
-    }
-
-    return cytoscapeLoader;
   }
 
   let sortableLoader;
@@ -206,6 +184,335 @@ if (root) {
       version: dto?.version || state.version,
       nodes,
       edges
+    };
+  }
+
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const NODE_SIZES = {
+    terminator: { width: 220, height: 88 },
+    process: { width: 240, height: 112 },
+    decision: { width: 188, height: 188 }
+  };
+  const DIAGRAM_MARGIN_X = 160;
+  const DIAGRAM_MARGIN_Y = 140;
+  const COLUMN_SPACING = 260;
+  const ROW_SPACING = 200;
+
+  function createSvgElement(name, attributes = {}) {
+    const el = document.createElementNS(SVG_NS, name);
+    Object.entries(attributes).forEach(([key, value]) => {
+      if (value === null || value === undefined) {
+        return;
+      }
+      el.setAttribute(key, String(value));
+    });
+    return el;
+  }
+
+  function ensureDefs(svg) {
+    let defs = svg.querySelector('defs#pm-flow-defs');
+    if (defs) {
+      defs.innerHTML = '';
+    } else {
+      defs = createSvgElement('defs', { id: 'pm-flow-defs' });
+      svg.prepend(defs);
+    }
+
+    const marker = createSvgElement('marker', {
+      id: 'pm-flow-arrow',
+      orient: 'auto',
+      markerWidth: 12,
+      markerHeight: 12,
+      refX: 11,
+      refY: 6
+    });
+    const markerPath = createSvgElement('path', {
+      d: 'M 0 0 L 11 6 L 0 12 Z',
+      fill: 'currentColor'
+    });
+    marker.appendChild(markerPath);
+    defs.appendChild(marker);
+
+    const shadow = createSvgElement('filter', {
+      id: 'pm-flow-shadow',
+      x: '-40%',
+      y: '-40%',
+      width: '180%',
+      height: '180%',
+      'color-interpolation-filters': 'sRGB'
+    });
+    shadow.appendChild(createSvgElement('feDropShadow', {
+      dx: 0,
+      dy: 8,
+      'flood-color': 'rgba(15, 23, 42, 0.35)',
+      'flood-opacity': 0.45,
+      'std-deviation': 8
+    }));
+    defs.appendChild(shadow);
+
+    const glow = createSvgElement('filter', {
+      id: 'pm-flow-glow',
+      x: '-60%',
+      y: '-60%',
+      width: '220%',
+      height: '220%',
+      'color-interpolation-filters': 'sRGB'
+    });
+    glow.appendChild(createSvgElement('feDropShadow', {
+      dx: 0,
+      dy: 0,
+      'flood-color': 'rgba(13, 110, 253, 0.55)',
+      'flood-opacity': 0.9,
+      'std-deviation': 12
+    }));
+    defs.appendChild(glow);
+  }
+
+  function wrapLabelLines(text, maxChars = 26) {
+    if (!text) {
+      return [''];
+    }
+
+    const words = String(text).trim().split(/\s+/);
+    const lines = [];
+    let current = '';
+
+    words.forEach((word) => {
+      const candidate = current ? `${current} ${word}` : word;
+      if (candidate.length <= maxChars || !current) {
+        current = candidate;
+      } else {
+        lines.push(current);
+        current = word;
+      }
+    });
+
+    if (current) {
+      lines.push(current);
+    }
+
+    return lines;
+  }
+
+  function createLabelElement(text, layout, options = {}) {
+    const lines = wrapLabelLines(text, options.maxChars || 26);
+    const lineHeight = options.lineHeight || 18;
+    const textEl = createSvgElement('text', {
+      class: 'flow-node__label',
+      x: layout.width / 2,
+      y: layout.height / 2 - ((lines.length - 1) * lineHeight) / 2,
+      'text-anchor': 'middle',
+      'dominant-baseline': 'middle'
+    });
+
+    lines.forEach((line, index) => {
+      const tspan = createSvgElement('tspan', {
+        x: layout.width / 2,
+        dy: index === 0 ? 0 : lineHeight
+      });
+      tspan.textContent = line;
+      textEl.appendChild(tspan);
+    });
+
+    return textEl;
+  }
+
+  function createNodeGroup(node, layout, modifier) {
+    const group = createSvgElement('g', {
+      class: `flow-node flow-node--${modifier}${node.optional ? ' is-optional' : ''}`,
+      transform: `translate(${layout.x - layout.width / 2} ${layout.y - layout.height / 2})`
+    });
+    group.dataset.stageCode = node.code;
+    group.dataset.stageLabel = node.label;
+    group.setAttribute('tabindex', '0');
+    group.setAttribute('role', 'button');
+    group.setAttribute('aria-label', node.label);
+    return group;
+  }
+
+  function drawTerminator(node, layout) {
+    const group = createNodeGroup(node, layout, 'terminator');
+    const rect = createSvgElement('rect', {
+      x: 0,
+      y: 0,
+      width: layout.width,
+      height: layout.height,
+      rx: layout.height / 2,
+      class: 'flow-node__body'
+    });
+    group.appendChild(rect);
+    group.appendChild(createLabelElement(node.label, layout));
+    return group;
+  }
+
+  function drawProcess(node, layout) {
+    const group = createNodeGroup(node, layout, 'process');
+    const rect = createSvgElement('rect', {
+      x: 0,
+      y: 0,
+      width: layout.width,
+      height: layout.height,
+      rx: 28,
+      class: 'flow-node__body'
+    });
+    group.appendChild(rect);
+    group.appendChild(createLabelElement(node.label, layout));
+    return group;
+  }
+
+  function drawDecision(node, layout) {
+    const group = createNodeGroup(node, layout, 'decision');
+    const polygon = createSvgElement('polygon', {
+      points: `${layout.width / 2},0 ${layout.width},${layout.height / 2} ${layout.width / 2},${layout.height} 0,${layout.height / 2}`,
+      class: 'flow-node__body'
+    });
+    group.appendChild(polygon);
+    group.appendChild(createLabelElement(node.label, layout));
+    return group;
+  }
+
+  function pointTowards(start, end, distance) {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const magnitude = Math.hypot(dx, dy) || 1;
+    const ratio = distance / magnitude;
+    return {
+      x: start.x + dx * ratio,
+      y: start.y + dy * ratio
+    };
+  }
+
+  function connectorPath(start, end) {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    if (Math.abs(dx) < 4 && Math.abs(dy) < 4) {
+      return `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
+    }
+
+    if (Math.abs(dx) < 4) {
+      const midY = start.y + dy / 2;
+      return `M ${start.x} ${start.y} C ${start.x} ${midY}, ${end.x} ${midY}, ${end.x} ${end.y}`;
+    }
+
+    const curvature = Math.max(Math.min(Math.abs(dx) * 0.4, 240), 120);
+    const control1X = start.x + Math.sign(dx) * curvature;
+    const control2X = end.x - Math.sign(dx) * curvature;
+    return `M ${start.x} ${start.y} C ${control1X} ${start.y}, ${control2X} ${end.y}, ${end.x} ${end.y}`;
+  }
+
+  function drawConnector(sourceLayout, targetLayout, options = {}) {
+    const startPoint = pointTowards(
+      { x: sourceLayout.x, y: sourceLayout.y },
+      { x: targetLayout.x, y: targetLayout.y },
+      Math.min(sourceLayout.radius, Math.hypot(targetLayout.x - sourceLayout.x, targetLayout.y - sourceLayout.y) / 2)
+    );
+    const endPoint = pointTowards(
+      { x: targetLayout.x, y: targetLayout.y },
+      { x: sourceLayout.x, y: sourceLayout.y },
+      Math.min(targetLayout.radius, Math.hypot(targetLayout.x - sourceLayout.x, targetLayout.y - sourceLayout.y) / 2)
+    );
+
+    const path = createSvgElement('path', {
+      class: `flow-connector${options.dashed ? ' flow-connector--dashed' : ''}`,
+      d: connectorPath(startPoint, endPoint),
+      'marker-end': 'url(#pm-flow-arrow)'
+    });
+
+    return path;
+  }
+
+  function buildGraph(flow) {
+    const incoming = new Map();
+    const outgoing = new Map();
+
+    flow.nodes.forEach((node) => {
+      incoming.set(node.code, []);
+      outgoing.set(node.code, []);
+    });
+
+    flow.edges.forEach((edge) => {
+      const fromList = outgoing.get(edge.source);
+      const toList = incoming.get(edge.target);
+      if (fromList && !fromList.includes(edge.target)) {
+        fromList.push(edge.target);
+      }
+      if (toList && !toList.includes(edge.source)) {
+        toList.push(edge.source);
+      }
+    });
+
+    flow.nodes.forEach((node) => {
+      const incomingList = incoming.get(node.code);
+      const outgoingList = outgoing.get(node.code);
+      if (incomingList) {
+        incoming.set(node.code, incomingList.sort((a, b) => a.localeCompare(b)));
+      }
+      if (outgoingList) {
+        outgoing.set(node.code, outgoingList.sort((a, b) => a.localeCompare(b)));
+      }
+    });
+
+    return { incoming, outgoing };
+  }
+
+  function computeDiagramLayout(flow) {
+    const graph = buildGraph(flow);
+    const rowByGroup = new Map();
+    let nextRowIndex = 1;
+
+    const nodeLayouts = new Map();
+    let maxX = 0;
+    let maxY = 0;
+
+    flow.nodes.forEach((node) => {
+      const incomingCount = graph.incoming.get(node.code)?.length || 0;
+      const outgoingCount = graph.outgoing.get(node.code)?.length || 0;
+      let shape = 'process';
+      if (incomingCount === 0 || outgoingCount === 0) {
+        shape = 'terminator';
+      } else if (outgoingCount > 1) {
+        shape = 'decision';
+      }
+
+      let rowIndex = 0;
+      if (node.parallelGroup) {
+        const key = String(node.parallelGroup);
+        if (!rowByGroup.has(key)) {
+          rowByGroup.set(key, nextRowIndex++);
+        }
+        rowIndex = rowByGroup.get(key) || 0;
+      }
+
+      const columnIndex = Math.max(0, node.displayIndex - 1);
+      const size = NODE_SIZES[shape] || NODE_SIZES.process;
+      const centerX = DIAGRAM_MARGIN_X + columnIndex * COLUMN_SPACING;
+      const centerY = DIAGRAM_MARGIN_Y + rowIndex * ROW_SPACING;
+      const layout = {
+        x: centerX,
+        y: centerY,
+        width: size.width,
+        height: size.height,
+        radius: Math.min(size.width, size.height) / 2,
+        shape,
+        label: `${node.displayIndex}. ${node.name}`,
+        code: node.code,
+        optional: node.optional
+      };
+
+      maxX = Math.max(maxX, centerX + size.width / 2);
+      maxY = Math.max(maxY, centerY + size.height / 2);
+      nodeLayouts.set(node.code, layout);
+    });
+
+    const width = Math.max(maxX + DIAGRAM_MARGIN_X, DIAGRAM_MARGIN_X * 2 + NODE_SIZES.process.width);
+    const height = Math.max(maxY + DIAGRAM_MARGIN_Y, DIAGRAM_MARGIN_Y * 2 + NODE_SIZES.process.height);
+
+    return {
+      nodes: nodeLayouts,
+      width,
+      height,
+      incoming: graph.incoming,
+      outgoing: graph.outgoing
     };
   }
 
@@ -508,7 +815,7 @@ if (root) {
     try {
       const data = await sendJson(`/api/processes/${encodeURIComponent(version)}/flow`);
       const flow = normaliseFlow(data);
-      state.flow = flow;
+      state.stageByCode.clear();
       flow.nodes.forEach((node) => {
         const stage = { ...node };
         state.stageByCode.set(stage.code, stage);
@@ -533,160 +840,86 @@ if (root) {
   }
 
   async function renderFlow(flow) {
-    const cytoscape = await ensureCytoscape();
-    const elements = [];
+    if (!flowCanvas) {
+      return;
+    }
+
+    const layout = computeDiagramLayout(flow);
+    const svg = createSvgElement('svg', {
+      class: 'process-flow-diagram',
+      viewBox: `0 0 ${layout.width} ${layout.height}`,
+      width: '100%',
+      height: '100%',
+      focusable: 'false',
+      'aria-label': 'Process flow diagram'
+    });
+    ensureDefs(svg);
+
+    const connectorsLayer = createSvgElement('g', { class: 'flow-connectors' });
+    const nodesLayer = createSvgElement('g', { class: 'flow-nodes' });
+    svg.appendChild(connectorsLayer);
+    svg.appendChild(nodesLayer);
+
+    flowCanvas.innerHTML = '';
+    flowCanvas.appendChild(svg);
+
+    const nodeElements = new Map();
+    const edgeElements = new Map();
+    const edgeByKey = new Map();
 
     flow.nodes.forEach((node) => {
-      elements.push({
-        data: {
-          id: node.code,
-          label: `${node.displayIndex}. ${node.name}`,
-          code: node.code,
-          sequence: node.sequence,
-          displayIndex: node.displayIndex,
-          optional: node.optional,
-          parallelGroup: node.parallelGroup || ''
-        },
-        classes: node.optional ? 'is-optional' : ''
+      const layoutInfo = layout.nodes.get(node.code);
+      if (!layoutInfo) {
+        return;
+      }
+
+      const descriptor = {
+        ...node,
+        label: layoutInfo.label
+      };
+
+      let group;
+      if (layoutInfo.shape === 'terminator') {
+        group = drawTerminator(descriptor, layoutInfo);
+      } else if (layoutInfo.shape === 'decision') {
+        group = drawDecision(descriptor, layoutInfo);
+      } else {
+        group = drawProcess(descriptor, layoutInfo);
+      }
+
+      group.addEventListener('click', () => {
+        selectStage(node.code);
       });
+
+      group.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          selectStage(node.code);
+        }
+      });
+
+      nodesLayer.appendChild(group);
+      nodeElements.set(node.code, { element: group, layout: layoutInfo });
     });
 
     flow.edges.forEach((edge) => {
-      elements.push({
-        data: {
-          id: edge.id,
-          source: edge.source,
-          target: edge.target
-        }
-      });
-    });
-
-    if (state.cytoscape) {
-      state.cytoscape.destroy();
-    }
-
-    const cy = cytoscape({
-      container: flowCanvas,
-      elements,
-      style: [
-        {
-          selector: 'node',
-          style: {
-            'background-color': '#0d6efd',
-            'border-color': '#0b5ed7',
-            'border-width': 2,
-            'color': '#0b162b',
-            'font-size': 12,
-            'font-weight': '600',
-            'text-valign': 'center',
-            'text-halign': 'center',
-            'text-wrap': 'wrap',
-            'text-max-width': 120,
-            'padding': '12px',
-            'shape': 'round-rectangle',
-            'background-opacity': 0.08,
-            'border-opacity': 0.8
-          }
-        },
-        {
-          selector: 'node.is-optional',
-          style: {
-            'border-style': 'dashed',
-            'border-color': '#f59f00'
-          }
-        },
-        {
-          selector: 'node.predecessor',
-          style: {
-            'background-color': '#198754',
-            'background-opacity': 0.15,
-            'border-color': '#198754',
-            'border-opacity': 0.7
-          }
-        },
-        {
-          selector: 'node.successor',
-          style: {
-            'background-color': '#6f42c1',
-            'background-opacity': 0.15,
-            'border-color': '#6f42c1',
-            'border-opacity': 0.7
-          }
-        },
-        {
-          selector: 'node.is-selected',
-          style: {
-            'background-color': '#0d6efd',
-            'background-opacity': 0.25,
-            'border-color': '#0d6efd',
-            'border-width': 3,
-            'color': '#052c65'
-          }
-        },
-        {
-          selector: 'edge',
-          style: {
-            'curve-style': 'bezier',
-            'target-arrow-shape': 'triangle',
-            'target-arrow-color': '#6c757d',
-            'line-color': '#adb5bd',
-            'width': 2,
-            'arrow-scale': 1
-          }
-        },
-        {
-          selector: 'edge.successor-edge',
-          style: {
-            'line-color': '#0d6efd',
-            'target-arrow-color': '#0d6efd',
-            'width': 3
-          }
-        },
-        {
-          selector: 'edge.predecessor-edge',
-          style: {
-            'line-color': '#198754',
-            'target-arrow-color': '#198754',
-            'width': 3
-          }
-        },
-        {
-          selector: 'edge.is-selected-edge',
-          style: {
-            'line-color': '#0d6efd',
-            'target-arrow-color': '#0d6efd',
-            'width': 3
-          }
-        }
-      ],
-      layout: {
-        name: 'dagre',
-        rankDir: 'LR',
-        nodeSep: 50,
-        rankSep: 100,
-        edgeSep: 20
+      const source = nodeElements.get(edge.source);
+      const target = nodeElements.get(edge.target);
+      if (!source || !target) {
+        return;
       }
-    });
 
-    state.cytoscape = cy;
+      const dashed = Boolean(state.stageByCode.get(edge.target)?.optional);
+      const connector = drawConnector(source.layout, target.layout, { dashed });
+      connector.dataset.edgeId = edge.id;
+      connector.dataset.source = edge.source;
+      connector.dataset.target = edge.target;
 
-    cy.once('layoutstop', () => {
-      cy.fit(undefined, 40);
-      cy.resize();
-    });
+      connectorsLayer.appendChild(connector);
 
-    cy.on('tap', 'node', (evt) => {
-      const node = evt.target;
-      if (node && node.id()) {
-        selectStage(node.id());
-      }
-    });
-
-    cy.panzoom({
-      zoomFactor: 0.05,
-      minZoom: 0.3,
-      maxZoom: 2,
-      fitPadding: 40
+      const edgeEntry = { element: connector, source: edge.source, target: edge.target };
+      edgeElements.set(edge.id, edgeEntry);
+      edgeByKey.set(`${edge.source}|${edge.target}`, edgeEntry);
     });
 
     const placeholder = flowCanvas.querySelector('[data-flow-placeholder]');
@@ -696,40 +929,73 @@ if (root) {
     flowCanvas.setAttribute('aria-busy', 'false');
     flowCanvas.dataset.ready = 'true';
 
-    window.addEventListener('resize', () => {
-      if (!state.cytoscape) {
-        return;
-      }
-      state.cytoscape.resize();
-    });
+    state.diagram = {
+      svg,
+      nodes: nodeElements,
+      edges: edgeElements,
+      edgeByKey,
+      incoming: layout.incoming,
+      outgoing: layout.outgoing
+    };
+
+    if (state.selectedStage) {
+      highlightStageOnGraph(state.selectedStage);
+    }
   }
 
   function highlightStageOnGraph(stageCode) {
-    if (!state.cytoscape) {
+    if (!state.diagram) {
       return;
     }
 
-    const cy = state.cytoscape;
-    cy.nodes().removeClass('is-selected predecessor successor');
-    cy.edges().removeClass('is-selected-edge predecessor-edge successor-edge');
+    const diagram = state.diagram;
 
-    const node = cy.getElementById(stageCode);
-    if (!node || node.empty()) {
+    diagram.nodes.forEach(({ element }) => {
+      element.classList.remove('is-selected', 'is-predecessor', 'is-successor');
+    });
+    diagram.edges.forEach(({ element }) => {
+      element.classList.remove('is-selected-edge', 'is-predecessor-edge', 'is-successor-edge');
+    });
+
+    const current = diagram.nodes.get(stageCode);
+    if (!current) {
       return;
     }
 
-    node.addClass('is-selected');
-    node.incomers('node').addClass('predecessor');
-    node.incomers('edge').addClass('predecessor-edge');
-    node.outgoers('node').addClass('successor');
-    node.outgoers('edge').addClass('successor-edge');
-    node.connectedEdges().addClass('is-selected-edge');
-
-    try {
-      cy.animate({ center: { eles: node }, duration: 250 });
-    } catch (error) {
-      cy.center(node);
+    current.element.classList.add('is-selected');
+    if (current.element.parentNode) {
+      current.element.parentNode.appendChild(current.element);
     }
+
+    const incomingCodes = diagram.incoming.get(stageCode) || [];
+    incomingCodes.forEach((code) => {
+      const nodeEntry = diagram.nodes.get(code);
+      if (nodeEntry) {
+        nodeEntry.element.classList.add('is-predecessor');
+      }
+      const edgeEntry = diagram.edgeByKey?.get(`${code}|${stageCode}`);
+      if (edgeEntry) {
+        edgeEntry.element.classList.add('is-predecessor-edge', 'is-selected-edge');
+      }
+    });
+
+    const outgoingCodes = diagram.outgoing.get(stageCode) || [];
+    outgoingCodes.forEach((code) => {
+      const nodeEntry = diagram.nodes.get(code);
+      if (nodeEntry) {
+        nodeEntry.element.classList.add('is-successor');
+      }
+      const edgeEntry = diagram.edgeByKey?.get(`${stageCode}|${code}`);
+      if (edgeEntry) {
+        edgeEntry.element.classList.add('is-successor-edge', 'is-selected-edge');
+      }
+    });
+
+    diagram.edges.forEach((edge) => {
+      if (edge.source === stageCode || edge.target === stageCode) {
+        edge.element.classList.add('is-selected-edge');
+      }
+    });
   }
 
   async function selectStage(stageCode) {
