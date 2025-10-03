@@ -1128,12 +1128,14 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="d-flex flex-column align-items-stretch gap-2">
-                                <div class="btn-group btn-group-sm align-self-lg-end" role="group" aria-label="Toggle timeline or remarks" data-panel-switch>
-                                    <button type="button" class="btn btn-outline-primary active" id="project-panel-toggle-timeline" data-panel-target="timeline" aria-pressed="true" aria-expanded="true" aria-controls="project-panel-body-timeline">Timeline</button>
-                                    <button type="button" class="btn btn-outline-primary" id="project-panel-toggle-remarks" data-panel-target="remarks" aria-pressed="false" aria-expanded="false" aria-controls="project-panel-body-remarks">Remarks</button>
+                            <div class="d-flex flex-column flex-lg-row align-items-stretch align-items-lg-center gap-2 w-100">
+                                <div class="d-flex justify-content-lg-end w-100">
+                                    <div class="btn-group btn-group-sm" role="group" aria-label="Toggle timeline or remarks" data-panel-switch>
+                                        <button type="button" class="btn btn-outline-primary active" id="project-panel-toggle-timeline" data-panel-target="timeline" aria-pressed="true" aria-expanded="true" aria-controls="project-panel-body-timeline">Timeline</button>
+                                        <button type="button" class="btn btn-outline-primary" id="project-panel-toggle-remarks" data-panel-target="remarks" aria-pressed="false" aria-expanded="false" aria-controls="project-panel-body-remarks">Remarks</button>
+                                    </div>
                                 </div>
-                                <div class="pm-card-actions d-flex flex-wrap align-items-center gap-2 justify-content-lg-end" data-panel-section="timeline" id="project-panel-section-timeline" role="region" aria-labelledby="project-panel-toggle-timeline" aria-hidden="false">
+                                <div class="pm-card-actions d-flex flex-wrap align-items-center gap-2 justify-content-lg-end ms-lg-auto" data-panel-section="timeline" id="project-panel-section-timeline" role="region" aria-labelledby="project-panel-toggle-timeline" aria-hidden="false">
                                     @{
                                         var canReviewTimeline = planState.HasPendingSubmission && isHoD;
                                         var canEditTimelinePlan = canEditTimeline && !(hasMyDraft && !pendingOwnedByCurrentUser);
