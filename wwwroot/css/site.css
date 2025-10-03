@@ -865,6 +865,17 @@ body {
     padding: .25rem .5rem;
 }
 
+.pm-remarks-toolbar .pm-remarks-filter + .pm-remarks-filter {
+    margin-left: 1rem;
+}
+
+@media (max-width: 576px) {
+    .pm-remarks-toolbar .pm-remarks-filter + .pm-remarks-filter {
+        margin-left: 0;
+        margin-top: .75rem;
+    }
+}
+
 /* ---------- Remarks panel ---------- */
 .remarks-panel {
     display: flex;
