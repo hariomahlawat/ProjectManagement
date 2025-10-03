@@ -58,7 +58,15 @@ public class StageProgressService
 
         if (newStatus == StageStatus.Completed)
         {
-            await CompleteWithCascadeAsync(projectId, stage, resolvedDate, effectiveDate, userId, cancellationToken);
+            var pncApplicable = await ResolvePncApplicabilityAsync(projectId, cancellationToken);
+            await CompleteWithCascadeAsync(
+                projectId,
+                stage,
+                resolvedDate,
+                effectiveDate,
+                userId,
+                pncApplicable,
+                cancellationToken);
             return;
         }
 
@@ -108,6 +116,7 @@ public class StageProgressService
         DateOnly resolvedDate,
         DateOnly? explicitDate,
         string userId,
+        bool pncApplicable,
         CancellationToken ct)
     {
         if (!await _factsRead.HasRequiredFactsAsync(projectId, stage.StageCode, ct))
@@ -126,7 +135,7 @@ public class StageProgressService
         var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var cascadeDate = stage.CompletedOn ?? resolvedDate;
 
-        foreach (var predecessorCode in StageDependencies.RequiredPredecessors(stage.StageCode))
+        foreach (var predecessorCode in StageDependencies.RequiredPredecessors(stage.StageCode, pncApplicable))
         {
             await AutoCompleteStageAndDependenciesAsync(
                 projectId,
@@ -135,11 +144,12 @@ public class StageProgressService
                 stage.StageCode,
                 visited,
                 autoCompleted,
+                pncApplicable,
                 ct);
         }
 
         var completedOnDate = stage.CompletedOn ?? resolvedDate;
-        var autoStart = await AutoStartNextStageAsync(projectId, stage, completedOnDate, ct);
+        var autoStart = await AutoStartNextStageAsync(projectId, stage, completedOnDate, pncApplicable, ct);
 
         await _db.SaveChangesAsync(ct);
 
@@ -191,6 +201,7 @@ public class StageProgressService
         string triggeredBy,
         ISet<string> visited,
         ICollection<ProjectStage> autoCompleted,
+        bool pncApplicable,
         CancellationToken ct)
     {
         if (!visited.Add(stageCode))
@@ -223,7 +234,7 @@ public class StageProgressService
             stage.CompletedOn = resolvedDate;
         }
 
-        foreach (var predecessorCode in StageDependencies.RequiredPredecessors(stage.StageCode))
+        foreach (var predecessorCode in StageDependencies.RequiredPredecessors(stage.StageCode, pncApplicable))
         {
             await AutoCompleteStageAndDependenciesAsync(
                 projectId,
@@ -232,6 +243,7 @@ public class StageProgressService
                 triggeredBy,
                 visited,
                 autoCompleted,
+                pncApplicable,
                 ct);
         }
     }
@@ -240,6 +252,7 @@ public class StageProgressService
         int projectId,
         ProjectStage completedStage,
         DateOnly completedOn,
+        bool pncApplicable,
         CancellationToken ct)
     {
         var settings = await _db.ProjectScheduleSettings.SingleOrDefaultAsync(s => s.ProjectId == projectId, ct);
@@ -273,10 +286,10 @@ public class StageProgressService
             return null;
         }
 
-        foreach (var dependency in StageDependencies.RequiredPredecessors(nextStage.StageCode))
+        foreach (var dependency in StageDependencies.RequiredPredecessors(nextStage.StageCode, pncApplicable))
         {
             var depStage = stages.FirstOrDefault(s => string.Equals(s.StageCode, dependency, StringComparison.OrdinalIgnoreCase));
-            if (depStage?.Status != StageStatus.Completed)
+            if (depStage is null || depStage.Status is not StageStatus.Completed and not StageStatus.Skipped)
             {
                 return null;
             }
@@ -309,6 +322,28 @@ public class StageProgressService
 
         var calendar = new WorkingCalendar(holidays, settings.IncludeWeekends, settings.SkipHolidays);
         return calendar.NextWorkingDay(completedOn);
+    }
+
+    private async Task<bool> ResolvePncApplicabilityAsync(int projectId, CancellationToken ct)
+    {
+        var project = await _db.Projects
+            .AsNoTracking()
+            .Where(p => p.Id == projectId)
+            .Select(p => new { p.ActivePlanVersionNo })
+            .SingleOrDefaultAsync(ct);
+
+        if (project is null || !project.ActivePlanVersionNo.HasValue)
+        {
+            return true;
+        }
+
+        var plan = await _db.PlanVersions
+            .AsNoTracking()
+            .Where(p => p.ProjectId == projectId && p.VersionNo == project.ActivePlanVersionNo.Value)
+            .Select(p => new { p.PncApplicable })
+            .SingleOrDefaultAsync(ct);
+
+        return plan?.PncApplicable ?? true;
     }
 
     private static int StageOrderValue(string? stageCode)
