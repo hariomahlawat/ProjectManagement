@@ -1,8 +1,9 @@
+using System.Threading;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
-using ProjectManagement.Features.Process;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 
 namespace ProjectManagement.Pages.Process;
@@ -17,52 +18,23 @@ public class IndexModel : PageModel
         _db = db;
     }
 
-    public List<StageTemplate> Stages { get; private set; } = new();
-    public List<StageDependencyTemplate> Deps { get; private set; } = new();
-    public IReadOnlyList<ProcessStageVm> FlowStages { get; private set; } = Array.Empty<ProcessStageVm>();
+    public string ProcessVersion { get; private set; } = PlanConstants.StageTemplateVersion;
+    public bool CanEditChecklist { get; private set; }
+        = false;
 
-    public async Task OnGetAsync()
+    public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        const string version = "SDD-1.0";
-        Stages = await _db.StageTemplates
-            .Where(x => x.Version == version)
-            .OrderBy(x => x.Sequence)
-            .ToListAsync();
-        Deps = await _db.StageDependencyTemplates
-            .Where(x => x.Version == version)
-            .ToListAsync();
+        var latestVersion = await _db.StageTemplates
+            .AsNoTracking()
+            .OrderByDescending(t => t.Version)
+            .Select(t => t.Version)
+            .FirstOrDefaultAsync(cancellationToken);
 
-        var dependencyLookup = Deps
-            .GroupBy(d => d.FromStageCode)
-            .ToDictionary(g => g.Key, g => g.Select(d => d.DependsOnStageCode).ToList());
+        if (!string.IsNullOrWhiteSpace(latestVersion))
+        {
+            ProcessVersion = latestVersion;
+        }
 
-        FlowStages = Stages
-            .Select(stage =>
-            {
-                var dependsOn = dependencyLookup.TryGetValue(stage.Code, out var dep)
-                    ? dep
-                    : new List<string>();
-
-                var checklist = StageChecklistCatalog.GetChecklist(stage.Code);
-
-                return new ProcessStageVm(
-                    stage.Code,
-                    stage.Name,
-                    stage.Sequence,
-                    stage.Optional,
-                    stage.ParallelGroup,
-                    dependsOn,
-                    checklist);
-            })
-            .ToList();
+        CanEditChecklist = User.IsInRole("MCO") || User.IsInRole("HoD");
     }
-
-    public record ProcessStageVm(
-        string Code,
-        string Name,
-        int Sequence,
-        bool Optional,
-        string? ParallelGroup,
-        IReadOnlyList<string> DependsOn,
-        IReadOnlyList<string> ChecklistItems);
 }

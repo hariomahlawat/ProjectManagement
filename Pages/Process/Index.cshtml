@@ -1,643 +1,283 @@
 @page
 @model ProjectManagement.Pages.Process.IndexModel
-@using System.Text.Json
 @{
     ViewData["Title"] = "SDD Procurement Flow";
-    var serializedStages = JsonSerializer.Serialize(
-        Model.FlowStages,
-        new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 }
 
 <section class="process-hero mb-5">
     <div class="d-flex flex-column flex-lg-row align-items-lg-center gap-4">
         <div class="flex-grow-1">
-            <h1 class="display-6 fw-semibold text-primary mb-3">Procurement Process & Checklist</h1>
+            <h1 class="display-6 fw-semibold text-primary mb-3">Procurement Process &amp; Checklist</h1>
             <p class="lead text-muted mb-0">
-                Each procurement stage has its own checklist. Click to view and ensure nothing is missed in your file.
+                Explore each procurement stage, visualise dependencies, and review the recommended actions before moving ahead.
             </p>
         </div>
         <div class="hero-badge text-center p-4 rounded-4 shadow-sm">
             <span class="badge bg-primary-subtle text-primary-emphasis text-uppercase mb-2">Version</span>
-            <p class="h2 mb-0 fw-semibold">SDD-1.0</p>
+            <p class="h2 mb-0 fw-semibold">@Model.ProcessVersion</p>
         </div>
     </div>
 </section>
 
-<div class="process-layout">
-    <section class="process-flow card shadow-sm border-0">
-        <div class="card-body">
-            <h2 class="h5 mb-3 text-uppercase text-muted">Stage Flow</h2>
-            <div class="flow-track flow-track--stackable" role="list">
-                @for (var i = 0; i < Model.FlowStages.Count; i++)
-                {
-                    var stage = Model.FlowStages[i];
-                    var parallelGroup = stage.ParallelGroup ?? "SEQUENTIAL";
-                    var parallelGroupClass = parallelGroup.ToLowerInvariant().Replace(" ", "-");
-                    var sequenceRange = stage.Sequence switch
-                    {
-                        <= 50 => "foundational",
-                        <= 90 => "collaborative",
-                        _ => "execution"
-                    };
-                    var iconClass = stage.Optional
-                        ? "bi-stars"
-                        : parallelGroup switch
-                        {
-                            "PRE_COB" => "bi-diagram-3",
-                            _ => "bi-arrow-right-circle"
-                        };
-                    <div class="flow-node" role="listitem">
-                        <button type="button"
-                                class="stage-node btn btn-outline-primary group-@parallelGroupClass range-@sequenceRange @(stage.Optional ? "is-optional" : string.Empty)"
-                                data-parallel-group="@parallelGroup"
-                                data-sequence-range="@sequenceRange"
-                                data-optional="@stage.Optional.ToString().ToLowerInvariant()"
-                                data-stage-code="@stage.Code"
-                                aria-label="View @stage.Name checklist">
-                            <span class="stage-corner-icon" aria-hidden="true">
-                                <i class="bi @iconClass"></i>
-                            </span>
-                            <span class="stage-sequence">@stage.Sequence</span>
-                            <span class="stage-name">@stage.Name</span>
-                            <span class="stage-code">@stage.Code</span>
-                            @if (stage.Optional)
-                            {
-                                <span class="stage-chip">Optional</span>
-                            }
-                        </button>
-                        @if (i < Model.FlowStages.Count - 1)
-                        {
-                            <div class="flow-connector" aria-hidden="true"></div>
-                        }
+<div class="process-flow-shell" data-process-flow-root data-process-version="@Model.ProcessVersion" data-can-edit="@(Model.CanEditChecklist ? "true" : "false")">
+    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
+        <div>
+            <h2 class="h5 mb-1 text-uppercase text-muted">Stage flow</h2>
+            <p class="mb-0 text-muted small">Click a node in the diagram to review its checklist.</p>
+        </div>
+        <button type="button"
+                class="btn btn-primary d-lg-none"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#checklistOffcanvas"
+                aria-controls="checklistOffcanvas">
+            View checklist
+        </button>
+    </div>
+
+    <div class="row g-4 align-items-stretch">
+        <div class="col-12 col-lg-7 col-xl-8">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="process-flow-canvas" data-flow-canvas role="region" aria-live="polite" aria-busy="true" aria-label="Procurement stage flow">
+                        <div class="text-center text-muted py-5" data-flow-placeholder>
+                            <div class="spinner-border text-primary mb-3" role="status" aria-hidden="true"></div>
+                            <p class="mb-0">Loading flow…</p>
+                        </div>
                     </div>
-                }
+                </div>
             </div>
         </div>
-    </section>
+        <div class="col-12 col-lg-5 col-xl-4 d-none d-lg-block">
+            <div class="card h-100 shadow-sm" data-checklist-panel>
+                <div class="card-body">
+                    <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-start gap-3 mb-4">
+                        <div>
+                            <h2 class="h4 mb-1" data-stage-title aria-live="polite">Select a stage</h2>
+                            <p class="text-muted mb-0" data-stage-subtitle>Choose a stage on the diagram to see its checklist.</p>
+                        </div>
+                        <span class="badge rounded-pill bg-info-subtle text-info-emphasis d-inline-flex align-items-center gap-2" data-stage-optional hidden>
+                            <i class="bi bi-stars"></i>
+                            Optional stage
+                        </span>
+                    </div>
 
-    <section class="stage-details card shadow-sm border-0">
-        <div class="card-body">
-            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
-                <div>
-                    <h2 class="h4 mb-1" id="stageTitle">Select a stage</h2>
-                    <p class="text-muted mb-0" id="stageSubtitle">Choose a stage on the left to see its checklist.</p>
-                </div>
-                <div class="text-lg-end">
-                    <span class="badge rounded-pill bg-info-subtle text-info-emphasis d-inline-flex align-items-center gap-2"
-                          id="stageOptional" hidden>
-                        <i class="bi bi-stars"></i>
-                        Optional Stage
-                    </span>
+                    <dl class="row g-3 process-stage-meta mb-0">
+                        <div class="col-12 col-sm-4">
+                            <dt class="text-uppercase text-muted small">Code</dt>
+                            <dd class="h6 mb-0" data-stage-code>—</dd>
+                        </div>
+                        <div class="col-12 col-sm-4">
+                            <dt class="text-uppercase text-muted small">Parallel group</dt>
+                            <dd class="h6 mb-0" data-stage-parallel>—</dd>
+                        </div>
+                        <div class="col-12 col-sm-4">
+                            <dt class="text-uppercase text-muted small">Depends on</dt>
+                            <dd class="mb-0" data-stage-dependencies>
+                                <span class="text-muted">—</span>
+                            </dd>
+                        </div>
+                    </dl>
+
+                    <hr class="my-4" />
+
+                    <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+                        <h3 class="h5 mb-0">Stage checklist</h3>
+                        <div class="btn-group" data-checklist-actions hidden>
+                            <button type="button" class="btn btn-outline-primary btn-sm" data-action="add-item">
+                                <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>
+                                Add item
+                            </button>
+                        </div>
+                    </div>
+
+                    <ol class="stage-checklist" data-checklist-list data-checklist-primary aria-live="polite" aria-busy="false"></ol>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
 
-            <dl class="row stage-meta">
-                <div class="col-12 col-md-4 mb-3">
+<div class="offcanvas offcanvas-end" tabindex="-1" id="checklistOffcanvas" aria-labelledby="checklistOffcanvasLabel">
+    <div class="offcanvas-header border-bottom">
+        <h2 class="h5 mb-0" id="checklistOffcanvasLabel" data-stage-title>Stage checklist</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close checklist panel"></button>
+    </div>
+    <div class="offcanvas-body d-flex flex-column gap-4" data-checklist-panel>
+        <div>
+            <p class="text-muted mb-2" data-stage-subtitle>Choose a stage on the diagram to see its checklist.</p>
+            <dl class="row g-3 process-stage-meta small mb-0">
+                <div class="col-12 col-sm-4">
                     <dt class="text-uppercase text-muted small">Code</dt>
-                    <dd class="h5 mb-0" id="stageCode">—</dd>
+                    <dd class="fw-semibold mb-0" data-stage-code>—</dd>
                 </div>
-                <div class="col-12 col-md-4 mb-3">
-                    <dt class="text-uppercase text-muted small">Parallel Group</dt>
-                    <dd class="h5 mb-0" id="stageParallel">—</dd>
+                <div class="col-12 col-sm-4">
+                    <dt class="text-uppercase text-muted small">Parallel group</dt>
+                    <dd class="fw-semibold mb-0" data-stage-parallel>—</dd>
                 </div>
-                <div class="col-12 col-md-4 mb-3">
-                    <dt class="text-uppercase text-muted small">Depends On</dt>
-                    <dd class="mb-0" id="stageDependencies">
+                <div class="col-12 col-sm-4">
+                    <dt class="text-uppercase text-muted small">Depends on</dt>
+                    <dd class="mb-0" data-stage-dependencies>
                         <span class="text-muted">—</span>
                     </dd>
                 </div>
             </dl>
-
-            <div>
-                <h3 class="h5 mb-3">Stage Checklist</h3>
-                <ol class="stage-checklist" id="stageChecklist">
-                    <li class="text-muted">Select a stage to see the recommended actions.</li>
-                </ol>
-            </div>
+            <span class="badge rounded-pill bg-info-subtle text-info-emphasis mt-3 d-inline-flex align-items-center gap-2" data-stage-optional hidden>
+                <i class="bi bi-stars"></i>
+                Optional stage
+            </span>
         </div>
-    </section>
 
-    <section class="flow-legend card border-0 shadow-sm mt-4">
-        <div class="card-body">
-            <h3 class="h6 text-uppercase text-muted mb-3">Legend</h3>
-            <div class="row g-3">
-                <div class="col-12 col-md-4">
-                    <div class="legend-item">
-                        <span class="legend-swatch legend-swatch--foundational">
-                            <i class="bi bi-arrow-right-circle"></i>
-                        </span>
-                        <div>
-                            <p class="legend-title mb-1">Foundational Sequence</p>
-                            <p class="legend-text mb-0">Early-stage activities with a cool blue gradient and arrow icon for sequential progression.</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12 col-md-4">
-                    <div class="legend-item">
-                        <span class="legend-swatch legend-swatch--parallel">
-                            <i class="bi bi-diagram-3"></i>
-                        </span>
-                        <div>
-                            <p class="legend-title mb-1">Parallel Group (e.g., PRE_COB)</p>
-                            <p class="legend-text mb-0">Shared teal and violet hues signal collaborative paths executed alongside other stages.</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-12 col-md-4">
-                    <div class="legend-item">
-                        <span class="legend-swatch legend-swatch--optional">
-                            <i class="bi bi-stars"></i>
-                        </span>
-                        <div>
-                            <p class="legend-title mb-1">Optional Stage</p>
-                            <p class="legend-text mb-0">Gold accents and star icon highlight stages that may be skipped depending on procurement needs.</p>
-                        </div>
-                    </div>
+        <div class="flex-grow-1 d-flex flex-column">
+            <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+                <h3 class="h5 mb-0">Stage checklist</h3>
+                <div class="btn-group" data-checklist-actions hidden>
+                    <button type="button" class="btn btn-outline-primary btn-sm" data-action="add-item">
+                        <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>
+                        Add item
+                    </button>
                 </div>
             </div>
+            <ol class="stage-checklist flex-grow-1" data-checklist-list aria-live="polite" aria-busy="false"></ol>
         </div>
-    </section>
+    </div>
+</div>
+
+<div class="modal fade" id="checklistItemModal" tabindex="-1" aria-labelledby="checklistItemModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <form class="modal-content" data-checklist-form>
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="checklistItemModalLabel">Checklist item</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="checklistItemText" class="form-label">Description</label>
+                    <textarea class="form-control" id="checklistItemText" name="text" rows="4" maxlength="512" required></textarea>
+                    <div class="form-text">Describe the action required for this stage (max 512 characters).</div>
+                </div>
+                <input type="hidden" name="itemId" />
+                <input type="hidden" name="itemRowVersion" />
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">
+                    <span data-submit-label>Add item</span>
+                    <span class="spinner-border spinner-border-sm align-middle ms-2" role="status" aria-hidden="true" hidden></span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="checklistDeleteModal" tabindex="-1" aria-labelledby="checklistDeleteModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" data-checklist-delete-form>
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="checklistDeleteModalLabel">Remove checklist item?</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0">This action cannot be undone. The item will be removed from the stage checklist.</p>
+                <input type="hidden" name="itemId" />
+                <input type="hidden" name="itemRowVersion" />
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-danger">
+                    <span data-submit-label>Delete item</span>
+                    <span class="spinner-border spinner-border-sm align-middle ms-2" role="status" aria-hidden="true" hidden></span>
+                </button>
+            </div>
+        </form>
+    </div>
 </div>
 
 @section Styles {
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cytoscape-panzoom@2.5.3/cytoscape-panzoom.css" />
     <style>
         .process-hero .hero-badge {
             background: linear-gradient(135deg, rgba(13, 110, 253, 0.08), rgba(32, 201, 151, 0.08));
             border: 1px solid rgba(13, 110, 253, 0.15);
         }
 
-        .process-layout {
-            display: grid;
-            grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-            gap: 2.5rem;
-        }
-
-        .flow-track {
-            --flow-gap: 1.75rem;
-            position: relative;
-            display: grid;
-            grid-auto-flow: column;
-            grid-auto-columns: minmax(240px, 1fr);
-            column-gap: var(--flow-gap);
-            row-gap: 1.75rem;
-            overflow-x: auto;
-            padding: 1rem 0.5rem 1.5rem;
-            scrollbar-color: rgba(13, 110, 253, 0.4) transparent;
-            scroll-snap-type: x mandatory;
-            scroll-padding: 0.5rem;
-        }
-
-        .flow-track::-webkit-scrollbar {
-            height: 8px;
-        }
-
-        .flow-track::-webkit-scrollbar-thumb {
-            background: rgba(13, 110, 253, 0.35);
-            border-radius: 999px;
-        }
-
-        .flow-track::before,
-        .flow-track::after {
-            content: "";
-            position: sticky;
-            top: 0;
-            bottom: 0;
-            width: 3rem;
-            pointer-events: none;
-            z-index: 2;
-        }
-
-        .flow-track::before {
-            left: 0;
-            background: linear-gradient(90deg, #fff, rgba(255, 255, 255, 0));
-        }
-
-        .flow-track::after {
-            right: 0;
-            background: linear-gradient(270deg, #fff, rgba(255, 255, 255, 0));
-        }
-
-        .flow-node {
-            position: relative;
-            display: flex;
-            align-items: center;
-            gap: 1.5rem;
-            min-width: 200px;
-            scroll-snap-align: center;
-        }
-
-        .stage-node {
-            --stage-bg: #ffffff;
-            --stage-border: rgba(13, 110, 253, 0.45);
-            --stage-border-strong: rgba(13, 110, 253, 0.65);
-            --stage-shadow: 0 0.75rem 1.75rem rgba(15, 23, 42, 0.08);
-            --stage-inner-glow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
-            --stage-sequence-color: #0d6efd;
-            --stage-name-color: #212529;
-            --stage-code-color: #495057;
-            --stage-text-shadow: 0 1px 1px rgba(255, 255, 255, 0.6);
+        .process-flow-shell {
             display: flex;
             flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            gap: 0.5rem;
-            min-width: 200px;
-            min-height: 190px;
-            border-width: 2px;
-            border-radius: 1.5rem;
-            padding: 1.75rem 1.5rem;
-            background: var(--stage-bg);
-            border-color: var(--stage-border);
+        }
+
+        .process-flow-canvas {
+            min-height: 460px;
             position: relative;
-            transition: all 0.25s ease;
-            box-shadow: var(--stage-shadow), var(--stage-inner-glow);
-            color: var(--stage-name-color);
         }
 
-        .stage-node .stage-corner-icon {
-            position: absolute;
-            top: 0.75rem;
-            left: 0.75rem;
-            width: 2.25rem;
-            height: 2.25rem;
-            border-radius: 0.75rem;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.1rem;
-            background: rgba(255, 255, 255, 0.75);
-            color: var(--stage-border-strong);
-            box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12);
+        .process-flow-canvas canvas,
+        .process-flow-canvas svg {
+            border-radius: 1rem;
         }
 
-        .stage-node .stage-sequence {
-            font-size: 0.95rem;
-            font-weight: 700;
-            letter-spacing: 0.18em;
-            text-transform: uppercase;
-            color: var(--stage-sequence-color);
-            text-shadow: var(--stage-text-shadow);
-        }
-
-        .stage-node .stage-name {
-            font-size: 1.1rem;
-            font-weight: 700;
-            text-align: center;
-            color: var(--stage-name-color);
-            text-shadow: var(--stage-text-shadow);
-        }
-
-        .stage-node .stage-code {
-            font-size: 0.8rem;
-            letter-spacing: 0.2em;
-            text-transform: uppercase;
-            color: var(--stage-code-color);
-            font-weight: 600;
-            text-shadow: var(--stage-text-shadow);
-        }
-
-        .stage-node .stage-chip {
-            position: absolute;
-            top: 0.75rem;
-            right: 0.75rem;
-            font-size: 0.75rem;
-            text-transform: uppercase;
+        .process-stage-meta dt {
             letter-spacing: 0.08em;
-            background-color: rgba(250, 208, 78, 0.2);
-            color: #b8860b;
-            border-radius: 999px;
-            padding: 0.25rem 0.75rem;
-            border: 1px solid rgba(250, 208, 78, 0.4);
-        }
-
-        .stage-node:is(:hover, :focus-visible) {
-            transform: translateY(-4px);
-            box-shadow: 0 1rem 2rem rgba(15, 23, 42, 0.16), inset 0 0 0 1px rgba(255, 255, 255, 0.4);
-        }
-
-        .stage-node.is-active {
-            box-shadow: 0 1.25rem 2.25rem rgba(13, 110, 253, 0.25), inset 0 0 0 2px rgba(255, 255, 255, 0.45);
-            border-color: var(--stage-border-strong);
-        }
-
-        .stage-node.is-optional {
-            border-style: dashed;
-            --stage-border: rgba(250, 176, 5, 0.6);
-            --stage-border-strong: rgba(250, 176, 5, 0.85);
-            --stage-bg: linear-gradient(145deg, rgba(250, 209, 83, 0.18), rgba(250, 176, 5, 0.12));
-        }
-
-        .stage-node[data-parallel-group="SEQUENTIAL"] {
-            --stage-bg: linear-gradient(135deg, rgba(13, 110, 253, 0.08), rgba(108, 117, 125, 0.05));
-            --stage-border: rgba(13, 110, 253, 0.55);
-            --stage-border-strong: rgba(13, 110, 253, 0.8);
-            --stage-sequence-color: #0d6efd;
-            --stage-code-color: #1f3f74;
-        }
-
-        .stage-node[data-parallel-group="PRE_COB"] {
-            --stage-bg: linear-gradient(140deg, rgba(32, 201, 151, 0.18), rgba(131, 56, 236, 0.18));
-            --stage-border: rgba(32, 201, 151, 0.65);
-            --stage-border-strong: rgba(131, 56, 236, 0.75);
-            --stage-sequence-color: #0f5132;
-            --stage-name-color: #1f2a44;
-            --stage-code-color: #2f5a78;
-        }
-
-        .stage-node[data-sequence-range="foundational"] {
-            --stage-bg: linear-gradient(145deg, rgba(13, 110, 253, 0.14), rgba(32, 201, 151, 0.12));
-        }
-
-        .stage-node[data-sequence-range="collaborative"] {
-            --stage-bg: linear-gradient(145deg, rgba(32, 201, 151, 0.14), rgba(255, 193, 7, 0.12));
-        }
-
-        .stage-node[data-sequence-range="execution"] {
-            --stage-bg: linear-gradient(145deg, rgba(131, 56, 236, 0.16), rgba(13, 110, 253, 0.12));
-            --stage-sequence-color: #4c1d95;
-        }
-
-        .flow-node:last-child .flow-connector {
-            display: none;
-        }
-
-        .flow-connector {
-            position: relative;
-            flex: 1 1 auto;
-            min-width: 48px;
-            height: 0;
-            pointer-events: none;
-        }
-
-        .flow-connector::after {
-            content: "";
-            position: absolute;
-            top: 50%;
-            right: -12px;
-            width: 14px;
-            height: 14px;
-            background: linear-gradient(135deg, rgba(32, 201, 151, 0.95), rgba(13, 110, 253, 0.95));
-            border-radius: 999px 999px 999px 0;
-            transform: translateY(-50%) rotate(45deg);
-            box-shadow: 0 0 0 2px #fff;
-        }
-
-        .flow-connector::before {
-            content: "";
-            position: absolute;
-            top: 50%;
-            left: 0;
-            right: 0;
-            height: 8px;
-            border-radius: 999px;
-            background: linear-gradient(90deg, rgba(13, 110, 253, 0.85), rgba(32, 201, 151, 0.85));
-            transform: translateY(-50%);
-        }
-
-        .stage-details {
-            background: linear-gradient(135deg, rgba(248, 249, 250, 0.8), rgba(255, 255, 255, 0.9));
         }
 
         .stage-checklist {
+            list-style: decimal inside;
+            padding-left: 1.25rem;
             display: grid;
             gap: 0.75rem;
-            padding-left: 1.5rem;
         }
 
-        .stage-checklist li {
-            font-size: 1rem;
-            line-height: 1.5;
+        .stage-checklist[aria-busy="true"]::after {
+            content: "";
+            display: none;
         }
 
-        .stage-checklist li::marker {
-            font-weight: 600;
-            color: var(--bs-primary);
-        }
-
-        .stage-meta dt {
-            letter-spacing: 0.1em;
-        }
-
-        .stage-meta dd {
-            font-weight: 600;
-        }
-
-        .stage-meta .badge {
-            font-size: 0.85rem;
-        }
-
-        .flow-legend .legend-item {
-            display: flex;
+        .stage-checklist .checklist-item {
+            background: rgba(248, 249, 250, 0.7);
+            border-radius: 0.75rem;
+            padding: 0.75rem 0.75rem 0.75rem 1rem;
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 0.75rem;
             align-items: flex-start;
-            gap: 1rem;
-            padding: 1rem 1.25rem;
-            border-radius: 1rem;
-            background: linear-gradient(135deg, rgba(248, 249, 250, 0.9), rgba(255, 255, 255, 0.95));
-            box-shadow: inset 0 0 0 1px rgba(222, 226, 230, 0.6);
         }
 
-        .flow-legend .legend-swatch {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 2.75rem;
-            height: 2.75rem;
-            border-radius: 0.9rem;
-            font-size: 1.25rem;
-            color: #fff;
-            box-shadow: 0 12px 20px rgba(15, 23, 42, 0.18);
+        .stage-checklist .checklist-item.read-only {
+            grid-template-columns: 1fr;
         }
 
-        .legend-swatch--foundational {
-            background: linear-gradient(135deg, rgba(13, 110, 253, 0.75), rgba(32, 201, 151, 0.85));
+        .stage-checklist .checklist-item .checklist-handle {
+            cursor: grab;
+            color: var(--bs-secondary-color);
         }
 
-        .legend-swatch--parallel {
-            background: linear-gradient(135deg, rgba(32, 201, 151, 0.85), rgba(131, 56, 236, 0.85));
+        .stage-checklist .checklist-item .checklist-handle:active {
+            cursor: grabbing;
         }
 
-        .legend-swatch--optional {
-            background: linear-gradient(135deg, rgba(255, 193, 7, 0.85), rgba(250, 176, 5, 0.85));
+        .stage-checklist .checklist-item .item-actions .btn {
+            padding: 0.25rem 0.5rem;
         }
 
-        .flow-legend .legend-title {
-            font-weight: 600;
-            color: #212529;
+        .stage-checklist .checklist-empty {
+            list-style: none;
+            padding-left: 0;
+            color: var(--bs-secondary-color);
         }
 
-        .flow-legend .legend-text {
-            font-size: 0.9rem;
-            color: #6c757d;
-        }
-
-        @@media (max-width: 1200px) {
-            .process-layout {
-                grid-template-columns: 1fr;
-            }
-
-            .stage-node {
-                min-width: 180px;
-                min-height: 160px;
+        @media (max-width: 991.98px) {
+            .process-flow-canvas {
+                min-height: 380px;
             }
         }
 
-        @@media (max-width: 992px) {
-            .flow-track--stackable {
-                grid-auto-flow: row;
-                grid-auto-columns: unset;
-                grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-                overflow-x: visible;
-                padding: 1rem 0 0;
-                scroll-snap-type: none;
-            }
-
-            .flow-track--stackable::before,
-            .flow-track--stackable::after {
-                display: none;
-            }
-
-            .flow-node {
-                flex-direction: column;
-                align-items: center;
-                min-width: 0;
-                gap: 1rem;
-            }
-
-            .flow-connector {
-                width: 4px;
-                min-height: 64px;
-            }
-
-            .flow-connector::before {
-                top: 0;
-                bottom: 0;
-                left: 50%;
-                right: auto;
-                width: 8px;
-                height: 100%;
-                transform: translateX(-50%);
-                background: linear-gradient(180deg, rgba(13, 110, 253, 0.85), rgba(32, 201, 151, 0.85));
-            }
-
-            .flow-connector::after {
-                top: auto;
-                bottom: -12px;
-                right: 50%;
-                width: 14px;
-                height: 14px;
-                transform: translate(50%, 0) rotate(135deg);
-                border-radius: 999px 999px 0 999px;
-                box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95);
-            }
-
-            .flow-track--stackable .flow-node:last-child .flow-connector {
-                display: none;
-            }
-        }
-
-        @@media (max-width: 576px) {
-            .stage-node {
-                min-width: 160px;
+        @media (max-width: 575.98px) {
+            .process-flow-canvas {
+                min-height: 320px;
             }
         }
     </style>
 }
 
 @section Scripts {
-    <script id="procurementStagesData" type="application/json">@Html.Raw(serializedStages)</script>
-    <script>
-        (() => {
-            const stagesDataEl = document.getElementById('procurementStagesData');
-            if (!stagesDataEl) {
-                return;
-            }
-
-            let stages = [];
-            try {
-                stages = JSON.parse(stagesDataEl.textContent ?? '[]');
-            } catch (error) {
-                console.error('Failed to parse procurement stages data.', error);
-                return;
-            }
-            const stageButtons = Array.from(document.querySelectorAll('.stage-node'));
-            const titleEl = document.getElementById('stageTitle');
-            const subtitleEl = document.getElementById('stageSubtitle');
-            const codeEl = document.getElementById('stageCode');
-            const parallelEl = document.getElementById('stageParallel');
-            const dependencyEl = document.getElementById('stageDependencies');
-            const optionalBadge = document.getElementById('stageOptional');
-            const checklistEl = document.getElementById('stageChecklist');
-
-            if (!Array.isArray(stages) || stages.length === 0) {
-                subtitleEl.textContent = 'No stages found for the current procurement flow.';
-                return;
-            }
-
-            const renderDependencies = (dependsOn) => {
-                dependencyEl.innerHTML = '';
-                if (!dependsOn || dependsOn.length === 0) {
-                    dependencyEl.innerHTML = '<span class="text-muted">None</span>';
-                    return;
-                }
-
-                dependsOn.forEach(code => {
-                    const badge = document.createElement('span');
-                    badge.className = 'badge rounded-pill bg-light border text-secondary me-2 mb-2';
-                    badge.textContent = code;
-                    dependencyEl.appendChild(badge);
-                });
-            };
-
-            const renderChecklist = (items) => {
-                checklistEl.innerHTML = '';
-                if (!items || items.length === 0) {
-                    const empty = document.createElement('li');
-                    empty.textContent = 'Checklist to be defined for this stage.';
-                    empty.className = 'text-muted';
-                    checklistEl.appendChild(empty);
-                    return;
-                }
-
-                items.forEach(item => {
-                    const li = document.createElement('li');
-                    li.textContent = item;
-                    checklistEl.appendChild(li);
-                });
-            };
-
-            const setActiveStage = (stageCode) => {
-                const stage = stages.find(s => s.code === stageCode);
-                if (!stage) {
-                    return;
-                }
-
-                stageButtons.forEach(btn => {
-                    const isActive = btn.dataset.stageCode === stageCode;
-                    btn.classList.toggle('is-active', isActive);
-                });
-
-                titleEl.textContent = `${stage.sequence}. ${stage.name}`;
-                subtitleEl.textContent = 'Review the required activities before progressing to the next milestone.';
-                codeEl.textContent = stage.code;
-                parallelEl.textContent = stage.parallelGroup ?? '—';
-                renderDependencies(stage.dependsOn);
-                renderChecklist(stage.checklistItems);
-
-                if (stage.optional) {
-                    optionalBadge.hidden = false;
-                } else {
-                    optionalBadge.hidden = true;
-                }
-            };
-
-            stageButtons.forEach(btn => {
-                btn.addEventListener('click', () => setActiveStage(btn.dataset.stageCode));
-            });
-
-            const defaultStage = stageButtons[0]?.dataset.stageCode;
-            if (defaultStage) {
-                setActiveStage(defaultStage);
-            }
-        })();
-    </script>
+    <script type="module" src="~/js/process-flow.js" asp-append-version="true"></script>
 }

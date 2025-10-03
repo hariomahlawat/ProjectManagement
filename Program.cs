@@ -463,6 +463,68 @@ eventsApi.MapDelete("/{id:guid}", async (Guid id, ApplicationDbContext db, ICloc
     return Results.Ok();
 }).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HoD" });
 
+var processFlowApi = app.MapGroup("/api/processes/{version}/flow")
+    .RequireAuthorization("Checklist.View");
+
+processFlowApi.MapGet("", async (
+    string version,
+    ApplicationDbContext db,
+    CancellationToken cancellationToken) =>
+{
+    var normalizedVersion = version?.Trim() ?? string.Empty;
+    if (string.IsNullOrWhiteSpace(normalizedVersion))
+    {
+        return Results.BadRequest("Process version is required.");
+    }
+
+    var stages = await db.StageTemplates
+        .AsNoTracking()
+        .Where(s => s.Version == normalizedVersion)
+        .OrderBy(s => s.Sequence)
+        .ThenBy(s => s.Code)
+        .ToListAsync(cancellationToken);
+
+    if (stages.Count == 0)
+    {
+        return Results.NotFound();
+    }
+
+    var dependencies = await db.StageDependencyTemplates
+        .AsNoTracking()
+        .Where(d => d.Version == normalizedVersion)
+        .ToListAsync(cancellationToken);
+
+    var dependencyLookup = dependencies
+        .GroupBy(d => d.FromStageCode, StringComparer.OrdinalIgnoreCase)
+        .ToDictionary(
+            g => g.Key,
+            g => g.Select(d => d.DependsOnStageCode)
+                .Where(code => !string.IsNullOrWhiteSpace(code))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+            StringComparer.OrdinalIgnoreCase);
+
+    var nodes = stages
+        .Select(stage => new ProcessFlowNodeDto(
+            stage.Code,
+            stage.Name,
+            stage.Sequence,
+            stage.Optional,
+            stage.ParallelGroup,
+            dependencyLookup.TryGetValue(stage.Code, out var depends)
+                ? depends
+                : Array.Empty<string>()))
+        .ToList();
+
+    var edges = dependencies
+        .Where(dep => !string.IsNullOrWhiteSpace(dep.DependsOnStageCode) && !string.IsNullOrWhiteSpace(dep.FromStageCode))
+        .Select(dep => new ProcessFlowEdgeDto(dep.DependsOnStageCode, dep.FromStageCode))
+        .Distinct()
+        .ToList();
+
+    return Results.Ok(new ProcessFlowDto(normalizedVersion, nodes, edges));
+});
+
 var stageChecklistApi = app.MapGroup("/api/processes/{version}/stages/{stageCode}/checklist")
     .RequireAuthorization("Checklist.View");
 
