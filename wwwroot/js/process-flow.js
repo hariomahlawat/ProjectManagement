@@ -458,8 +458,129 @@ if (root) {
 
   function computeDiagramLayout(flow) {
     const graph = buildGraph(flow);
-    const columnByGroup = new Map();
-    let nextColumnIndex = 1;
+    const nodeByCode = new Map();
+    const groupMembers = new Map();
+    const groupOrder = [];
+
+    flow.nodes.forEach((node) => {
+      nodeByCode.set(node.code, node);
+      if (node.parallelGroup) {
+        const key = String(node.parallelGroup).toUpperCase();
+        if (!groupMembers.has(key)) {
+          groupMembers.set(key, []);
+          groupOrder.push(key);
+        }
+        groupMembers.get(key).push(node.code);
+      }
+    });
+
+    const indegree = new Map();
+    flow.nodes.forEach((node) => {
+      indegree.set(node.code, graph.incoming.get(node.code)?.length || 0);
+    });
+
+    const queue = [];
+    indegree.forEach((count, code) => {
+      if (count === 0) {
+        queue.push(code);
+      }
+    });
+
+    const topoOrder = [];
+    while (queue.length > 0) {
+      const code = queue.shift();
+      topoOrder.push(code);
+      const successors = graph.outgoing.get(code) || [];
+      successors.forEach((target) => {
+        if (!indegree.has(target)) {
+          return;
+        }
+        const remaining = (indegree.get(target) || 0) - 1;
+        indegree.set(target, remaining);
+        if (remaining === 0) {
+          queue.push(target);
+        }
+      });
+    }
+
+    if (topoOrder.length !== flow.nodes.length) {
+      const seen = new Set(topoOrder);
+      flow.nodes.forEach((node) => {
+        if (!seen.has(node.code)) {
+          topoOrder.push(node.code);
+        }
+      });
+    }
+
+    const columnByNode = new Map();
+    topoOrder.forEach((code) => {
+      const predecessors = graph.incoming.get(code) || [];
+      let column = 0;
+      if (predecessors.length > 0) {
+        column = Math.max(...predecessors.map((predecessor) => columnByNode.get(predecessor) || 0)) + 1;
+      }
+      columnByNode.set(code, column);
+    });
+
+    let maxBaseColumn = 0;
+    columnByNode.forEach((value) => {
+      if (value > maxBaseColumn) {
+        maxBaseColumn = value;
+      }
+    });
+
+    let nextGroupColumn = maxBaseColumn + 1;
+    groupOrder.forEach((key) => {
+      const members = groupMembers.get(key) || [];
+      if (members.length === 0) {
+        return;
+      }
+      const baseColumn = members.reduce((acc, code) => Math.max(acc, columnByNode.get(code) || 0), 0);
+      const assigned = Math.max(baseColumn, nextGroupColumn);
+      members.forEach((code) => {
+        columnByNode.set(code, assigned);
+      });
+      if (assigned >= nextGroupColumn) {
+        nextGroupColumn = assigned + 1;
+      }
+    });
+
+    let updated = true;
+    while (updated) {
+      updated = false;
+      topoOrder.forEach((code) => {
+        const node = nodeByCode.get(code);
+        const predecessors = graph.incoming.get(code) || [];
+        let requiredColumn = 0;
+        if (predecessors.length > 0) {
+          requiredColumn = Math.max(...predecessors.map((predecessor) => columnByNode.get(predecessor) || 0)) + 1;
+        }
+
+        const current = columnByNode.get(code) || 0;
+        let nextColumn = Math.max(current, requiredColumn);
+
+        if (node?.parallelGroup) {
+          const key = String(node.parallelGroup).toUpperCase();
+          const members = groupMembers.get(key) || [];
+          const groupColumn = members.reduce((acc, member) => Math.max(acc, columnByNode.get(member) || nextColumn), nextColumn);
+          if (groupColumn !== nextColumn) {
+            nextColumn = groupColumn;
+          }
+          members.forEach((member) => {
+            const memberColumn = columnByNode.get(member) || 0;
+            if (memberColumn !== nextColumn) {
+              columnByNode.set(member, nextColumn);
+              updated = true;
+            }
+          });
+        }
+
+        if (nextColumn !== current) {
+          columnByNode.set(code, nextColumn);
+          updated = true;
+        }
+      });
+    }
 
     const nodeLayouts = new Map();
     let maxX = 0;
@@ -475,15 +596,7 @@ if (root) {
         shape = 'decision';
       }
 
-      let columnIndex = 0;
-      if (node.parallelGroup) {
-        const key = String(node.parallelGroup).toUpperCase();
-        if (!columnByGroup.has(key)) {
-          columnByGroup.set(key, nextColumnIndex++);
-        }
-        columnIndex = columnByGroup.get(key) || 0;
-      }
-
+      const columnIndex = columnByNode.get(node.code) || 0;
       const rowIndex = Math.max(0, node.displayIndex - 1);
       const size = NODE_SIZES[shape] || NODE_SIZES.process;
       const centerX = DIAGRAM_MARGIN_X + columnIndex * COLUMN_SPACING;

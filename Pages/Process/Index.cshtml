@@ -214,14 +214,39 @@
             flex-direction: column;
         }
 
+        /*
+            Process flow visual tokens — adjust the custom properties below to retheme the pastel
+            canvas without touching the JavaScript layout math. Designers can override these at the
+            page or theme level as needed.
+        */
         .process-flow-canvas {
+            --process-flow-bg: linear-gradient(145deg, rgba(13, 110, 253, 0.07), rgba(32, 201, 151, 0.05));
+            --process-flow-border: rgba(13, 110, 253, 0.06);
+            --process-flow-connector: rgba(73, 80, 87, 0.45);
+            --process-flow-connector-selected: rgba(13, 110, 253, 0.6);
+            --process-flow-connector-predecessor: rgba(25, 135, 84, 0.6);
+            --process-flow-connector-successor: rgba(13, 110, 253, 0.75);
+            --process-flow-node-terminator-fill: rgba(226, 239, 255, 0.85);
+            --process-flow-node-terminator-stroke: rgba(64, 122, 214, 0.9);
+            --process-flow-node-process-fill: rgba(227, 245, 239, 0.9);
+            --process-flow-node-process-stroke: rgba(38, 180, 144, 0.85);
+            --process-flow-node-decision-fill: rgba(239, 231, 252, 0.9);
+            --process-flow-node-decision-stroke: rgba(132, 94, 194, 0.8);
+            --process-flow-node-optional-dash: 8 6;
+            --process-flow-node-predecessor-fill: rgba(25, 135, 84, 0.16);
+            --process-flow-node-predecessor-stroke: rgba(25, 135, 84, 0.7);
+            --process-flow-node-successor-fill: rgba(13, 110, 253, 0.18);
+            --process-flow-node-successor-stroke: rgba(13, 110, 253, 0.75);
+            --process-flow-node-selected-fill: rgba(13, 110, 253, 0.22);
+            --process-flow-node-selected-stroke: rgba(13, 110, 253, 0.9);
+
             min-height: 600px;
             height: clamp(560px, 70vh, 900px);
             position: relative;
             padding: 2rem;
             border-radius: 1.5rem;
-            background: linear-gradient(145deg, rgba(13, 110, 253, 0.07), rgba(32, 201, 151, 0.05));
-            box-shadow: inset 0 0 0 1px rgba(13, 110, 253, 0.06);
+            background: var(--process-flow-bg);
+            box-shadow: inset 0 0 0 1px var(--process-flow-border);
         }
 
         .process-flow-canvas svg {
@@ -236,7 +261,7 @@
 
         .process-flow-canvas .flow-connector {
             fill: none;
-            color: rgba(73, 80, 87, 0.45);
+            color: var(--process-flow-connector);
             stroke: currentColor;
             stroke-width: 2.75;
             marker-end: url(#pm-flow-arrow);
@@ -248,16 +273,16 @@
         }
 
         .process-flow-canvas .flow-connector.is-selected-edge {
-            color: rgba(13, 110, 253, 0.6);
+            color: var(--process-flow-connector-selected);
             stroke-width: 3.25;
         }
 
         .process-flow-canvas .flow-connector.is-predecessor-edge {
-            color: rgba(25, 135, 84, 0.6);
+            color: var(--process-flow-connector-predecessor);
         }
 
         .process-flow-canvas .flow-connector.is-successor-edge {
-            color: rgba(13, 110, 253, 0.75);
+            color: var(--process-flow-connector-successor);
         }
 
         .process-flow-canvas .flow-node {
@@ -276,22 +301,22 @@
         }
 
         .process-flow-canvas .flow-node--terminator .flow-node__body {
-            fill: rgba(226, 239, 255, 0.85);
-            stroke: rgba(64, 122, 214, 0.9);
+            fill: var(--process-flow-node-terminator-fill);
+            stroke: var(--process-flow-node-terminator-stroke);
         }
 
         .process-flow-canvas .flow-node--process .flow-node__body {
-            fill: rgba(227, 245, 239, 0.9);
-            stroke: rgba(38, 180, 144, 0.85);
+            fill: var(--process-flow-node-process-fill);
+            stroke: var(--process-flow-node-process-stroke);
         }
 
         .process-flow-canvas .flow-node--decision .flow-node__body {
-            fill: rgba(239, 231, 252, 0.9);
-            stroke: rgba(132, 94, 194, 0.8);
+            fill: var(--process-flow-node-decision-fill);
+            stroke: var(--process-flow-node-decision-stroke);
         }
 
         .process-flow-canvas .flow-node.is-optional .flow-node__body {
-            stroke-dasharray: 8 6;
+            stroke-dasharray: var(--process-flow-node-optional-dash);
         }
 
         .process-flow-canvas .flow-node__label {
@@ -309,18 +334,18 @@
         }
 
         .process-flow-canvas .flow-node.is-predecessor .flow-node__body {
-            fill: rgba(25, 135, 84, 0.16);
-            stroke: rgba(25, 135, 84, 0.7);
+            fill: var(--process-flow-node-predecessor-fill);
+            stroke: var(--process-flow-node-predecessor-stroke);
         }
 
         .process-flow-canvas .flow-node.is-successor .flow-node__body {
-            fill: rgba(13, 110, 253, 0.18);
-            stroke: rgba(13, 110, 253, 0.75);
+            fill: var(--process-flow-node-successor-fill);
+            stroke: var(--process-flow-node-successor-stroke);
         }
 
         .process-flow-canvas .flow-node.is-selected .flow-node__body {
-            fill: rgba(13, 110, 253, 0.22);
-            stroke: rgba(13, 110, 253, 0.9);
+            fill: var(--process-flow-node-selected-fill);
+            stroke: var(--process-flow-node-selected-stroke);
         }
 
         .process-stage-info {
