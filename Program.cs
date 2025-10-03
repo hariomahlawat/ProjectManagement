@@ -13,6 +13,7 @@ using System.Linq;
 using Npgsql;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Scheduling;
@@ -30,6 +31,8 @@ using Microsoft.Extensions.Options;
 using ProjectManagement.Helpers;
 using ProjectManagement.Configuration;
 using ProjectManagement.Contracts;
+using ProjectManagement.Contracts.Stages;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
@@ -105,6 +108,10 @@ builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy("Project.Create", policy =>
         policy.RequireRole("Admin", "HoD"));
+    options.AddPolicy("Checklist.View", policy =>
+        policy.RequireAuthenticatedUser());
+    options.AddPolicy("Checklist.Edit", policy =>
+        policy.RequireRole("MCO", "HoD"));
 });
 
 builder.Services.ConfigureApplicationCookie(opt =>
@@ -456,6 +463,377 @@ eventsApi.MapDelete("/{id:guid}", async (Guid id, ApplicationDbContext db, ICloc
     return Results.Ok();
 }).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HoD" });
 
+var stageChecklistApi = app.MapGroup("/api/processes/{version}/stages/{stageCode}/checklist")
+    .RequireAuthorization("Checklist.View");
+
+stageChecklistApi.MapGet("", async (
+    string version,
+    string stageCode,
+    ApplicationDbContext db,
+    UserManager<ApplicationUser> users,
+    HttpContext httpContext,
+    IClock clock,
+    CancellationToken cancellationToken) =>
+{
+    if (!TryNormalizeStageRoute(version, stageCode, out var normalizedVersion, out var normalizedStageCode, out var error))
+    {
+        return Results.BadRequest(error);
+    }
+
+    var template = await EnsureChecklistTemplateAsync(db, normalizedVersion, normalizedStageCode,
+        users.GetUserId(httpContext.User), clock.UtcNow, true, cancellationToken);
+
+    if (template is not StageChecklistTemplate checklist)
+    {
+        return Results.NotFound();
+    }
+
+    return Results.Ok(ToDto(checklist));
+});
+
+stageChecklistApi.MapPost("", async (
+    string version,
+    string stageCode,
+    [FromBody] StageChecklistItemCreateRequest request,
+    ApplicationDbContext db,
+    UserManager<ApplicationUser> users,
+    HttpContext httpContext,
+    IClock clock,
+    CancellationToken cancellationToken) =>
+{
+    if (!TryNormalizeStageRoute(version, stageCode, out var normalizedVersion, out var normalizedStageCode, out var error))
+    {
+        return Results.BadRequest(error);
+    }
+
+    var template = await EnsureChecklistTemplateAsync(db, normalizedVersion, normalizedStageCode,
+        users.GetUserId(httpContext.User), clock.UtcNow, false, cancellationToken);
+
+    if (template is not StageChecklistTemplate checklist)
+    {
+        return Results.NotFound();
+    }
+
+    if (request.TemplateRowVersion is null || request.TemplateRowVersion.Length == 0)
+    {
+        return Results.BadRequest("Template row version is required.");
+    }
+
+    if (!MatchesRowVersion(request.TemplateRowVersion, checklist.RowVersion))
+    {
+        return Results.Conflict(new { message = "The checklist template has been modified by another user." });
+    }
+
+    var text = request.Text?.Trim();
+    if (string.IsNullOrWhiteSpace(text))
+    {
+        return Results.BadRequest("Checklist item text is required.");
+    }
+
+    if (text.Length > 512)
+    {
+        return Results.BadRequest("Checklist item text cannot exceed 512 characters.");
+    }
+
+    var userId = users.GetUserId(httpContext.User);
+    var now = clock.UtcNow;
+
+    var sequence = request.Sequence ?? (checklist.Items.Count == 0 ? 1 : checklist.Items.Max(i => i.Sequence) + 1);
+    sequence = Math.Max(1, sequence);
+
+    if (checklist.Items.Any(i => i.Sequence == sequence))
+    {
+        foreach (var existing in checklist.Items
+                     .Where(i => i.Sequence >= sequence)
+                     .OrderByDescending(i => i.Sequence))
+        {
+            existing.Sequence += 1;
+            existing.UpdatedByUserId = userId;
+            existing.UpdatedOn = now;
+        }
+    }
+
+    var item = new StageChecklistItemTemplate
+    {
+        Template = checklist,
+        Text = text,
+        Sequence = sequence,
+        UpdatedByUserId = userId,
+        UpdatedOn = now
+    };
+
+    checklist.Items.Add(item);
+    checklist.UpdatedByUserId = userId;
+    checklist.UpdatedOn = now;
+
+    db.StageChecklistAudits.Add(new StageChecklistAudit
+    {
+        Template = checklist,
+        Item = item,
+        Action = "ItemCreated",
+        PayloadJson = JsonSerializer.Serialize(new { item.Text, item.Sequence }),
+        PerformedByUserId = userId,
+        PerformedOn = now
+    });
+
+    await db.SaveChangesAsync(cancellationToken);
+
+    return Results.Ok(ToDto(checklist));
+}).RequireAuthorization("Checklist.Edit");
+
+stageChecklistApi.MapPut("/{itemId:int}", async (
+    string version,
+    string stageCode,
+    int itemId,
+    [FromBody] StageChecklistItemUpdateRequest request,
+    ApplicationDbContext db,
+    UserManager<ApplicationUser> users,
+    HttpContext httpContext,
+    IClock clock,
+    CancellationToken cancellationToken) =>
+{
+    if (!TryNormalizeStageRoute(version, stageCode, out var normalizedVersion, out var normalizedStageCode, out var error))
+    {
+        return Results.BadRequest(error);
+    }
+
+    var template = await EnsureChecklistTemplateAsync(db, normalizedVersion, normalizedStageCode,
+        users.GetUserId(httpContext.User), clock.UtcNow, false, cancellationToken);
+
+    if (template is not StageChecklistTemplate checklist)
+    {
+        return Results.NotFound();
+    }
+
+    if (request.TemplateRowVersion is null || request.TemplateRowVersion.Length == 0)
+    {
+        return Results.BadRequest("Template row version is required.");
+    }
+
+    if (!MatchesRowVersion(request.TemplateRowVersion, checklist.RowVersion))
+    {
+        return Results.Conflict(new { message = "The checklist template has been modified by another user." });
+    }
+
+    var item = checklist.Items.FirstOrDefault(i => i.Id == itemId);
+    if (item is null)
+    {
+        return Results.NotFound();
+    }
+
+    if (request.ItemRowVersion is null || request.ItemRowVersion.Length == 0)
+    {
+        return Results.BadRequest("Checklist item row version is required.");
+    }
+
+    if (!MatchesRowVersion(request.ItemRowVersion, item.RowVersion))
+    {
+        return Results.Conflict(new { message = "The checklist item has been modified by another user." });
+    }
+
+    var text = request.Text?.Trim();
+    if (string.IsNullOrWhiteSpace(text))
+    {
+        return Results.BadRequest("Checklist item text is required.");
+    }
+
+    if (text.Length > 512)
+    {
+        return Results.BadRequest("Checklist item text cannot exceed 512 characters.");
+    }
+
+    var userId = users.GetUserId(httpContext.User);
+    var now = clock.UtcNow;
+    var previousText = item.Text;
+
+    item.Text = text;
+    item.UpdatedByUserId = userId;
+    item.UpdatedOn = now;
+
+    checklist.UpdatedByUserId = userId;
+    checklist.UpdatedOn = now;
+
+    db.StageChecklistAudits.Add(new StageChecklistAudit
+    {
+        Template = checklist,
+        Item = item,
+        Action = "ItemUpdated",
+        PayloadJson = JsonSerializer.Serialize(new { item.Id, before = previousText, after = text }),
+        PerformedByUserId = userId,
+        PerformedOn = now
+    });
+
+    await db.SaveChangesAsync(cancellationToken);
+
+    return Results.Ok(ToDto(checklist));
+}).RequireAuthorization("Checklist.Edit");
+
+stageChecklistApi.MapDelete("/{itemId:int}", async (
+    string version,
+    string stageCode,
+    int itemId,
+    [FromBody] StageChecklistItemDeleteRequest request,
+    ApplicationDbContext db,
+    UserManager<ApplicationUser> users,
+    HttpContext httpContext,
+    IClock clock,
+    CancellationToken cancellationToken) =>
+{
+    if (!TryNormalizeStageRoute(version, stageCode, out var normalizedVersion, out var normalizedStageCode, out var error))
+    {
+        return Results.BadRequest(error);
+    }
+
+    var template = await EnsureChecklistTemplateAsync(db, normalizedVersion, normalizedStageCode,
+        users.GetUserId(httpContext.User), clock.UtcNow, false, cancellationToken);
+
+    if (template is not StageChecklistTemplate checklist)
+    {
+        return Results.NotFound();
+    }
+
+    if (request.TemplateRowVersion is null || request.TemplateRowVersion.Length == 0)
+    {
+        return Results.BadRequest("Template row version is required.");
+    }
+
+    if (!MatchesRowVersion(request.TemplateRowVersion, checklist.RowVersion))
+    {
+        return Results.Conflict(new { message = "The checklist template has been modified by another user." });
+    }
+
+    var item = checklist.Items.FirstOrDefault(i => i.Id == itemId);
+    if (item is null)
+    {
+        return Results.NotFound();
+    }
+
+    if (request.ItemRowVersion is null || request.ItemRowVersion.Length == 0)
+    {
+        return Results.BadRequest("Checklist item row version is required.");
+    }
+
+    if (!MatchesRowVersion(request.ItemRowVersion, item.RowVersion))
+    {
+        return Results.Conflict(new { message = "The checklist item has been modified by another user." });
+    }
+
+    var userId = users.GetUserId(httpContext.User);
+    var now = clock.UtcNow;
+
+    checklist.Items.Remove(item);
+    db.StageChecklistItemTemplates.Remove(item);
+
+    checklist.UpdatedByUserId = userId;
+    checklist.UpdatedOn = now;
+
+    db.StageChecklistAudits.Add(new StageChecklistAudit
+    {
+        Template = checklist,
+        Item = item,
+        Action = "ItemDeleted",
+        PayloadJson = JsonSerializer.Serialize(new { item.Id, item.Text, item.Sequence }),
+        PerformedByUserId = userId,
+        PerformedOn = now
+    });
+
+    await db.SaveChangesAsync(cancellationToken);
+
+    return Results.Ok(ToDto(checklist));
+}).RequireAuthorization("Checklist.Edit");
+
+stageChecklistApi.MapPost("/reorder", async (
+    string version,
+    string stageCode,
+    [FromBody] StageChecklistReorderRequest request,
+    ApplicationDbContext db,
+    UserManager<ApplicationUser> users,
+    HttpContext httpContext,
+    IClock clock,
+    CancellationToken cancellationToken) =>
+{
+    if (!TryNormalizeStageRoute(version, stageCode, out var normalizedVersion, out var normalizedStageCode, out var error))
+    {
+        return Results.BadRequest(error);
+    }
+
+    if (request.Items is null || request.Items.Count == 0)
+    {
+        return Results.BadRequest("At least one checklist item is required for reordering.");
+    }
+
+    var template = await EnsureChecklistTemplateAsync(db, normalizedVersion, normalizedStageCode,
+        users.GetUserId(httpContext.User), clock.UtcNow, false, cancellationToken);
+
+    if (template is not StageChecklistTemplate checklist)
+    {
+        return Results.NotFound();
+    }
+
+    if (request.TemplateRowVersion is null || request.TemplateRowVersion.Length == 0)
+    {
+        return Results.BadRequest("Template row version is required.");
+    }
+
+    if (!MatchesRowVersion(request.TemplateRowVersion, checklist.RowVersion))
+    {
+        return Results.Conflict(new { message = "The checklist template has been modified by another user." });
+    }
+
+    if (request.Items.Count != checklist.Items.Count)
+    {
+        return Results.BadRequest("All checklist items must be included in the reorder request.");
+    }
+
+    if (request.Items.Select(i => i.ItemId).Distinct().Count() != request.Items.Count)
+    {
+        return Results.BadRequest("Duplicate checklist item identifiers detected in reorder request.");
+    }
+
+    var itemsById = checklist.Items.ToDictionary(i => i.Id);
+
+    var userId = users.GetUserId(httpContext.User);
+    var now = clock.UtcNow;
+
+    foreach (var dto in request.Items)
+    {
+        if (!itemsById.TryGetValue(dto.ItemId, out var item))
+        {
+            return Results.BadRequest($"Checklist item {dto.ItemId} was not found in the template.");
+        }
+
+        if (dto.RowVersion is null || dto.RowVersion.Length == 0)
+        {
+            return Results.BadRequest($"Checklist item row version is required for item {dto.ItemId}.");
+        }
+
+        if (!MatchesRowVersion(dto.RowVersion, item.RowVersion))
+        {
+            return Results.Conflict(new { message = $"Checklist item {dto.ItemId} has been modified by another user." });
+        }
+
+        item.Sequence = Math.Max(1, dto.Sequence);
+        item.UpdatedByUserId = userId;
+        item.UpdatedOn = now;
+    }
+
+    checklist.UpdatedByUserId = userId;
+    checklist.UpdatedOn = now;
+
+    db.StageChecklistAudits.Add(new StageChecklistAudit
+    {
+        Template = checklist,
+        Action = "ItemsReordered",
+        PayloadJson = JsonSerializer.Serialize(request.Items.Select(i => new { i.ItemId, i.Sequence })),
+        PerformedByUserId = userId,
+        PerformedOn = now
+    });
+
+    await db.SaveChangesAsync(cancellationToken);
+
+    return Results.Ok(ToDto(checklist));
+}).RequireAuthorization("Checklist.Edit");
+
 var lookupApi = app.MapGroup("/api/lookups")
     .RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,HoD,Project Officer" });
 
@@ -782,6 +1160,117 @@ using (var scope = app.Services.CreateScope())
 
     await ProjectManagement.Data.StageFlowSeeder.SeedAsync(services);
     await ProjectManagement.Data.IdentitySeeder.SeedAsync(services);
+}
+
+static bool TryNormalizeStageRoute(string? version, string? stageCode,
+    out string normalizedVersion,
+    out string normalizedStageCode,
+    out string? error)
+{
+    normalizedVersion = version?.Trim() ?? string.Empty;
+    normalizedStageCode = stageCode?.Trim().ToUpperInvariant() ?? string.Empty;
+
+    if (string.IsNullOrWhiteSpace(normalizedVersion))
+    {
+        error = "Process version is required.";
+        return false;
+    }
+
+    if (string.IsNullOrWhiteSpace(normalizedStageCode))
+    {
+        error = "Stage code is required.";
+        return false;
+    }
+
+    error = null;
+    return true;
+}
+
+static bool MatchesRowVersion(byte[]? requestVersion, byte[] entityVersion)
+    => requestVersion is { Length: > 0 } candidate &&
+       entityVersion is { Length: > 0 } current &&
+       candidate.AsSpan().SequenceEqual(current);
+
+static StageChecklistTemplateDto ToDto(StageChecklistTemplate template)
+{
+    var items = template.Items
+        .OrderBy(i => i.Sequence)
+        .ThenBy(i => i.Id)
+        .Select(i => new StageChecklistItemDto(
+            i.Id,
+            i.Text,
+            i.Sequence,
+            i.RowVersion,
+            i.UpdatedByUserId,
+            i.UpdatedOn))
+        .ToList();
+
+    return new StageChecklistTemplateDto(
+        template.Id,
+        template.Version,
+        template.StageCode,
+        template.UpdatedByUserId,
+        template.UpdatedOn,
+        template.RowVersion,
+        items);
+}
+
+static async Task<StageChecklistTemplate?> EnsureChecklistTemplateAsync(
+    ApplicationDbContext db,
+    string version,
+    string stageCode,
+    string? userId,
+    DateTimeOffset now,
+    bool createIfMissing,
+    CancellationToken cancellationToken)
+{
+    var template = await db.StageChecklistTemplates
+        .Include(t => t.Items)
+        .FirstOrDefaultAsync(t => t.Version == version && t.StageCode == stageCode, cancellationToken);
+
+    if (template is not null)
+    {
+        return template;
+    }
+
+    if (!createIfMissing)
+    {
+        return null;
+    }
+
+    var stageExists = await db.StageTemplates
+        .AsNoTracking()
+        .AnyAsync(t => t.Version == version && t.Code == stageCode, cancellationToken);
+
+    if (!stageExists)
+    {
+        return null;
+    }
+
+    template = new StageChecklistTemplate
+    {
+        Version = version,
+        StageCode = stageCode,
+        UpdatedByUserId = userId,
+        UpdatedOn = now
+    };
+
+    db.StageChecklistTemplates.Add(template);
+
+    db.StageChecklistAudits.Add(new StageChecklistAudit
+    {
+        Template = template,
+        Action = "TemplateCreated",
+        PayloadJson = JsonSerializer.Serialize(new { template.StageCode, template.Version }),
+        PerformedByUserId = userId,
+        PerformedOn = now
+    });
+
+    await db.SaveChangesAsync(cancellationToken);
+
+    await db.Entry(template).Collection(t => t.Items).LoadAsync(cancellationToken);
+
+    return template;
 }
 
 static string BuildConnectSrcDirective(IConfiguration configuration)

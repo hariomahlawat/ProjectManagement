@@ -41,6 +41,9 @@ namespace ProjectManagement.Data
         public DbSet<StageDependencyTemplate> StageDependencyTemplates => Set<StageDependencyTemplate>();
         public DbSet<StageChangeRequest> StageChangeRequests => Set<StageChangeRequest>();
         public DbSet<StageChangeLog> StageChangeLogs => Set<StageChangeLog>();
+        public DbSet<StageChecklistTemplate> StageChecklistTemplates => Set<StageChecklistTemplate>();
+        public DbSet<StageChecklistItemTemplate> StageChecklistItemTemplates => Set<StageChecklistItemTemplate>();
+        public DbSet<StageChecklistAudit> StageChecklistAudits => Set<StageChecklistAudit>();
         public DbSet<PlanVersion> PlanVersions => Set<PlanVersion>();
         public DbSet<StagePlan> StagePlans => Set<StagePlan>();
         public DbSet<PlanApprovalLog> PlanApprovalLogs => Set<PlanApprovalLog>();
@@ -582,6 +585,54 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => new { x.Version, x.FromStageCode, x.DependsOnStageCode }).IsUnique();
                 e.Property(x => x.FromStageCode).HasMaxLength(16);
                 e.Property(x => x.DependsOnStageCode).HasMaxLength(16);
+            });
+
+            builder.Entity<StageChecklistTemplate>(e =>
+            {
+                ConfigureRowVersion(e);
+                e.HasIndex(x => new { x.Version, x.StageCode }).IsUnique();
+                e.Property(x => x.Version).HasMaxLength(32);
+                e.Property(x => x.StageCode).HasMaxLength(16).IsRequired();
+                e.Property(x => x.UpdatedByUserId).HasMaxLength(450);
+                e.Property(x => x.UpdatedOn).IsRequired(false);
+                e.HasMany(x => x.Items)
+                    .WithOne(x => x.Template)
+                    .HasForeignKey(x => x.TemplateId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.HasMany(x => x.AuditEntries)
+                    .WithOne(x => x.Template)
+                    .HasForeignKey(x => x.TemplateId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.UpdatedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.UpdatedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            builder.Entity<StageChecklistItemTemplate>(e =>
+            {
+                ConfigureRowVersion(e);
+                e.HasIndex(x => new { x.TemplateId, x.Sequence }).IsUnique();
+                e.Property(x => x.Text).HasMaxLength(512).IsRequired();
+                e.Property(x => x.UpdatedByUserId).HasMaxLength(450);
+                e.Property(x => x.UpdatedOn).IsRequired(false);
+                e.HasOne(x => x.UpdatedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.UpdatedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            builder.Entity<StageChecklistAudit>(e =>
+            {
+                e.HasIndex(x => x.TemplateId);
+                e.Property(x => x.Action).HasMaxLength(32).IsRequired();
+                e.Property(x => x.PayloadJson).HasColumnType("jsonb");
+                e.Property(x => x.PerformedByUserId).HasMaxLength(450);
+                e.Property(x => x.PerformedOn).IsRequired();
+                e.HasOne(x => x.Item)
+                    .WithMany()
+                    .HasForeignKey(x => x.ItemId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             builder.Entity<StageChangeRequest>(e =>
