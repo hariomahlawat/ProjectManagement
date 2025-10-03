@@ -1,4 +1,5 @@
 const root = document.querySelector('[data-process-flow-root]');
+const OPTIONAL_STAGE_CODE = 'PNC';
 
 if (root) {
   const version = (root.dataset.processVersion || '').trim();
@@ -189,14 +190,14 @@ if (root) {
 
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const NODE_SIZES = {
-    terminator: { width: 220, height: 88 },
-    process: { width: 240, height: 112 },
-    decision: { width: 188, height: 188 }
+    terminator: { width: 320, height: 110 },
+    process: { width: 320, height: 130 },
+    decision: { width: 220, height: 220 }
   };
-  const DIAGRAM_MARGIN_X = 160;
-  const DIAGRAM_MARGIN_Y = 140;
-  const COLUMN_SPACING = 260;
-  const ROW_SPACING = 200;
+  const DIAGRAM_MARGIN_X = 200;
+  const DIAGRAM_MARGIN_Y = 160;
+  const COLUMN_SPACING = 300;
+  const ROW_SPACING = 210;
 
   function createSvgElement(name, attributes = {}) {
     const el = document.createElementNS(SVG_NS, name);
@@ -268,7 +269,7 @@ if (root) {
     defs.appendChild(glow);
   }
 
-  function wrapLabelLines(text, maxChars = 26) {
+  function wrapLabelLines(text, maxChars = 24) {
     if (!text) {
       return [''];
     }
@@ -457,8 +458,8 @@ if (root) {
 
   function computeDiagramLayout(flow) {
     const graph = buildGraph(flow);
-    const rowByGroup = new Map();
-    let nextRowIndex = 1;
+    const columnByGroup = new Map();
+    let nextColumnIndex = 1;
 
     const nodeLayouts = new Map();
     let maxX = 0;
@@ -474,16 +475,16 @@ if (root) {
         shape = 'decision';
       }
 
-      let rowIndex = 0;
+      let columnIndex = 0;
       if (node.parallelGroup) {
-        const key = String(node.parallelGroup);
-        if (!rowByGroup.has(key)) {
-          rowByGroup.set(key, nextRowIndex++);
+        const key = String(node.parallelGroup).toUpperCase();
+        if (!columnByGroup.has(key)) {
+          columnByGroup.set(key, nextColumnIndex++);
         }
-        rowIndex = rowByGroup.get(key) || 0;
+        columnIndex = columnByGroup.get(key) || 0;
       }
 
-      const columnIndex = Math.max(0, node.displayIndex - 1);
+      const rowIndex = Math.max(0, node.displayIndex - 1);
       const size = NODE_SIZES[shape] || NODE_SIZES.process;
       const centerX = DIAGRAM_MARGIN_X + columnIndex * COLUMN_SPACING;
       const centerY = DIAGRAM_MARGIN_Y + rowIndex * ROW_SPACING;
@@ -608,27 +609,6 @@ if (root) {
     });
   }
 
-  function formatUpdated(item) {
-    if (!item.updatedOn) {
-      return null;
-    }
-
-    const formatter = new Intl.DateTimeFormat(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-
-    const dateText = formatter.format(item.updatedOn);
-    if (item.updatedBy) {
-      return `Updated ${dateText} · ${item.updatedBy}`;
-    }
-
-    return `Updated ${dateText}`;
-  }
-
   function renderChecklist(checklist, options = {}) {
     const isLoading = options.loading === true;
     const errorMessage = options.errorMessage || null;
@@ -686,14 +666,6 @@ if (root) {
         paragraph.className = 'mb-1';
         paragraph.textContent = item.text;
         body.appendChild(paragraph);
-
-        const metaText = formatUpdated(item);
-        if (metaText) {
-          const meta = document.createElement('div');
-          meta.className = 'small text-muted';
-          meta.textContent = metaText;
-          body.appendChild(meta);
-        }
 
         li.appendChild(body);
 
@@ -818,6 +790,10 @@ if (root) {
       state.stageByCode.clear();
       flow.nodes.forEach((node) => {
         const stage = { ...node };
+        const isOptionalStage =
+          typeof stage.code === 'string' && stage.code.toUpperCase() === OPTIONAL_STAGE_CODE;
+        stage.optional = Boolean(stage.optional && isOptionalStage);
+        node.optional = stage.optional;
         state.stageByCode.set(stage.code, stage);
       });
       await renderFlow(flow);
