@@ -27,11 +27,11 @@
     <section class="process-flow card shadow-sm border-0">
         <div class="card-body">
             <h2 class="h5 mb-3 text-uppercase text-muted">Stage Flow</h2>
-            <div class="flow-track" role="list">
+            <div class="flow-track flow-track--stackable" role="list">
                 @for (var i = 0; i < Model.FlowStages.Count; i++)
                 {
                     var stage = Model.FlowStages[i];
-                    <div class="flow-node-group" role="listitem">
+                    <div class="flow-node" role="listitem">
                         <button type="button"
                                 class="stage-node btn btn-outline-primary @(stage.Optional ? "is-optional" : string.Empty)"
                                 data-stage-code="@stage.Code"
@@ -111,12 +111,18 @@
         }
 
         .flow-track {
-            display: flex;
-            align-items: center;
-            gap: 1.5rem;
+            --flow-gap: 1.75rem;
+            position: relative;
+            display: grid;
+            grid-auto-flow: column;
+            grid-auto-columns: minmax(240px, 1fr);
+            column-gap: var(--flow-gap);
+            row-gap: 1.75rem;
             overflow-x: auto;
-            padding: 1rem 0.5rem 0.5rem;
+            padding: 1rem 0.5rem 1.5rem;
             scrollbar-color: rgba(13, 110, 253, 0.4) transparent;
+            scroll-snap-type: x mandatory;
+            scroll-padding: 0.5rem;
         }
 
         .flow-track::-webkit-scrollbar {
@@ -128,11 +134,34 @@
             border-radius: 999px;
         }
 
-        .flow-node-group {
+        .flow-track::before,
+        .flow-track::after {
+            content: "";
+            position: sticky;
+            top: 0;
+            bottom: 0;
+            width: 3rem;
+            pointer-events: none;
+            z-index: 2;
+        }
+
+        .flow-track::before {
+            left: 0;
+            background: linear-gradient(90deg, #fff, rgba(255, 255, 255, 0));
+        }
+
+        .flow-track::after {
+            right: 0;
+            background: linear-gradient(270deg, #fff, rgba(255, 255, 255, 0));
+        }
+
+        .flow-node {
+            position: relative;
             display: flex;
             align-items: center;
             gap: 1.5rem;
             min-width: 200px;
+            scroll-snap-align: center;
         }
 
         .stage-node {
@@ -198,14 +227,16 @@
             border-style: dashed;
         }
 
+        .flow-node:last-child .flow-connector {
+            display: none;
+        }
+
         .flow-connector {
             position: relative;
             flex: 1 1 auto;
-            height: 4px;
-            border-radius: 999px;
-            background: linear-gradient(90deg, rgba(13, 110, 253, 0.75), rgba(32, 201, 151, 0.75));
-            min-width: 40px;
-            overflow: visible;
+            min-width: 48px;
+            height: 0;
+            pointer-events: none;
         }
 
         .flow-connector::after {
@@ -213,12 +244,24 @@
             position: absolute;
             top: 50%;
             right: -12px;
+            width: 14px;
+            height: 14px;
+            background: linear-gradient(135deg, rgba(32, 201, 151, 0.95), rgba(13, 110, 253, 0.95));
+            border-radius: 999px 999px 999px 0;
+            transform: translateY(-50%) rotate(45deg);
+            box-shadow: 0 0 0 2px #fff;
+        }
+
+        .flow-connector::before {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 8px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(13, 110, 253, 0.85), rgba(32, 201, 151, 0.85));
             transform: translateY(-50%);
-            width: 0;
-            height: 0;
-            border-top: 7px solid transparent;
-            border-bottom: 7px solid transparent;
-            border-left: 12px solid rgba(32, 201, 151, 0.9);
         }
 
         .stage-details {
@@ -258,22 +301,68 @@
                 grid-template-columns: 1fr;
             }
 
-            .flow-node-group {
-                min-width: 180px;
-            }
-
             .stage-node {
                 min-width: 180px;
                 min-height: 160px;
             }
         }
 
-        @@media (max-width: 576px) {
-            .flow-track {
+        @@media (max-width: 992px) {
+            .flow-track--stackable {
+                grid-auto-flow: row;
+                grid-auto-columns: unset;
+                grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+                overflow-x: visible;
+                padding: 1rem 0 0;
+                scroll-snap-type: none;
+            }
+
+            .flow-track--stackable::before,
+            .flow-track--stackable::after {
+                display: none;
+            }
+
+            .flow-node {
+                flex-direction: column;
+                align-items: center;
+                min-width: 0;
                 gap: 1rem;
             }
 
-            .flow-node-group {
+            .flow-connector {
+                width: 4px;
+                min-height: 64px;
+            }
+
+            .flow-connector::before {
+                top: 0;
+                bottom: 0;
+                left: 50%;
+                right: auto;
+                width: 8px;
+                height: 100%;
+                transform: translateX(-50%);
+                background: linear-gradient(180deg, rgba(13, 110, 253, 0.85), rgba(32, 201, 151, 0.85));
+            }
+
+            .flow-connector::after {
+                top: auto;
+                bottom: -12px;
+                right: 50%;
+                width: 14px;
+                height: 14px;
+                transform: translate(50%, 0) rotate(135deg);
+                border-radius: 999px 999px 0 999px;
+                box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95);
+            }
+
+            .flow-track--stackable .flow-node:last-child .flow-connector {
+                display: none;
+            }
+        }
+
+        @@media (max-width: 576px) {
+            .stage-node {
                 min-width: 160px;
             }
         }
