@@ -31,11 +31,32 @@
                 @for (var i = 0; i < Model.FlowStages.Count; i++)
                 {
                     var stage = Model.FlowStages[i];
+                    var parallelGroup = stage.ParallelGroup ?? "SEQUENTIAL";
+                    var parallelGroupClass = parallelGroup.ToLowerInvariant().Replace(" ", "-");
+                    var sequenceRange = stage.Sequence switch
+                    {
+                        <= 50 => "foundational",
+                        <= 90 => "collaborative",
+                        _ => "execution"
+                    };
+                    var iconClass = stage.Optional
+                        ? "bi-stars"
+                        : parallelGroup switch
+                        {
+                            "PRE_COB" => "bi-diagram-3",
+                            _ => "bi-arrow-right-circle"
+                        };
                     <div class="flow-node" role="listitem">
                         <button type="button"
-                                class="stage-node btn btn-outline-primary @(stage.Optional ? "is-optional" : string.Empty)"
+                                class="stage-node btn btn-outline-primary group-@parallelGroupClass range-@sequenceRange @(stage.Optional ? "is-optional" : string.Empty)"
+                                data-parallel-group="@parallelGroup"
+                                data-sequence-range="@sequenceRange"
+                                data-optional="@stage.Optional.ToString().ToLowerInvariant()"
                                 data-stage-code="@stage.Code"
                                 aria-label="View @stage.Name checklist">
+                            <span class="stage-corner-icon" aria-hidden="true">
+                                <i class="bi @iconClass"></i>
+                            </span>
                             <span class="stage-sequence">@stage.Sequence</span>
                             <span class="stage-name">@stage.Name</span>
                             <span class="stage-code">@stage.Code</span>
@@ -92,6 +113,47 @@
                 <ol class="stage-checklist" id="stageChecklist">
                     <li class="text-muted">Select a stage to see the recommended actions.</li>
                 </ol>
+            </div>
+        </div>
+    </section>
+
+    <section class="flow-legend card border-0 shadow-sm mt-4">
+        <div class="card-body">
+            <h3 class="h6 text-uppercase text-muted mb-3">Legend</h3>
+            <div class="row g-3">
+                <div class="col-12 col-md-4">
+                    <div class="legend-item">
+                        <span class="legend-swatch legend-swatch--foundational">
+                            <i class="bi bi-arrow-right-circle"></i>
+                        </span>
+                        <div>
+                            <p class="legend-title mb-1">Foundational Sequence</p>
+                            <p class="legend-text mb-0">Early-stage activities with a cool blue gradient and arrow icon for sequential progression.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="legend-item">
+                        <span class="legend-swatch legend-swatch--parallel">
+                            <i class="bi bi-diagram-3"></i>
+                        </span>
+                        <div>
+                            <p class="legend-title mb-1">Parallel Group (e.g., PRE_COB)</p>
+                            <p class="legend-text mb-0">Shared teal and violet hues signal collaborative paths executed alongside other stages.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-12 col-md-4">
+                    <div class="legend-item">
+                        <span class="legend-swatch legend-swatch--optional">
+                            <i class="bi bi-stars"></i>
+                        </span>
+                        <div>
+                            <p class="legend-title mb-1">Optional Stage</p>
+                            <p class="legend-text mb-0">Gold accents and star icon highlight stages that may be skipped depending on procurement needs.</p>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </section>
@@ -165,38 +227,73 @@
         }
 
         .stage-node {
+            --stage-bg: #ffffff;
+            --stage-border: rgba(13, 110, 253, 0.45);
+            --stage-border-strong: rgba(13, 110, 253, 0.65);
+            --stage-shadow: 0 0.75rem 1.75rem rgba(15, 23, 42, 0.08);
+            --stage-inner-glow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+            --stage-sequence-color: #0d6efd;
+            --stage-name-color: #212529;
+            --stage-code-color: #495057;
+            --stage-text-shadow: 0 1px 1px rgba(255, 255, 255, 0.6);
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            gap: 0.25rem;
+            gap: 0.5rem;
             min-width: 200px;
-            min-height: 180px;
+            min-height: 190px;
             border-width: 2px;
-            border-radius: 1.25rem;
-            padding: 1.5rem 1.25rem;
-            background: #fff;
+            border-radius: 1.5rem;
+            padding: 1.75rem 1.5rem;
+            background: var(--stage-bg);
+            border-color: var(--stage-border);
             position: relative;
-            transition: all 0.2s ease;
+            transition: all 0.25s ease;
+            box-shadow: var(--stage-shadow), var(--stage-inner-glow);
+            color: var(--stage-name-color);
+        }
+
+        .stage-node .stage-corner-icon {
+            position: absolute;
+            top: 0.75rem;
+            left: 0.75rem;
+            width: 2.25rem;
+            height: 2.25rem;
+            border-radius: 0.75rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            background: rgba(255, 255, 255, 0.75);
+            color: var(--stage-border-strong);
+            box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12);
         }
 
         .stage-node .stage-sequence {
-            font-size: 1rem;
-            font-weight: 600;
-            color: var(--bs-primary);
+            font-size: 0.95rem;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--stage-sequence-color);
+            text-shadow: var(--stage-text-shadow);
         }
 
         .stage-node .stage-name {
-            font-size: 1.05rem;
-            font-weight: 600;
+            font-size: 1.1rem;
+            font-weight: 700;
             text-align: center;
+            color: var(--stage-name-color);
+            text-shadow: var(--stage-text-shadow);
         }
 
         .stage-node .stage-code {
-            font-size: 0.85rem;
-            letter-spacing: 0.08em;
+            font-size: 0.8rem;
+            letter-spacing: 0.2em;
             text-transform: uppercase;
-            color: var(--bs-secondary);
+            color: var(--stage-code-color);
+            font-weight: 600;
+            text-shadow: var(--stage-text-shadow);
         }
 
         .stage-node .stage-chip {
@@ -206,25 +303,58 @@
             font-size: 0.75rem;
             text-transform: uppercase;
             letter-spacing: 0.08em;
-            background-color: var(--bs-warning-bg-subtle);
-            color: var(--bs-warning-text);
+            background-color: rgba(250, 208, 78, 0.2);
+            color: #b8860b;
             border-radius: 999px;
             padding: 0.25rem 0.75rem;
+            border: 1px solid rgba(250, 208, 78, 0.4);
         }
 
         .stage-node:is(:hover, :focus-visible) {
             transform: translateY(-4px);
-            box-shadow: 0 0.75rem 1.5rem rgba(15, 23, 42, 0.12);
+            box-shadow: 0 1rem 2rem rgba(15, 23, 42, 0.16), inset 0 0 0 1px rgba(255, 255, 255, 0.4);
         }
 
         .stage-node.is-active {
-            background: linear-gradient(135deg, rgba(13, 110, 253, 0.1), rgba(32, 201, 151, 0.1));
-            border-color: var(--bs-primary);
-            box-shadow: 0 1rem 2rem rgba(13, 110, 253, 0.15);
+            box-shadow: 0 1.25rem 2.25rem rgba(13, 110, 253, 0.25), inset 0 0 0 2px rgba(255, 255, 255, 0.45);
+            border-color: var(--stage-border-strong);
         }
 
         .stage-node.is-optional {
             border-style: dashed;
+            --stage-border: rgba(250, 176, 5, 0.6);
+            --stage-border-strong: rgba(250, 176, 5, 0.85);
+            --stage-bg: linear-gradient(145deg, rgba(250, 209, 83, 0.18), rgba(250, 176, 5, 0.12));
+        }
+
+        .stage-node[data-parallel-group="SEQUENTIAL"] {
+            --stage-bg: linear-gradient(135deg, rgba(13, 110, 253, 0.08), rgba(108, 117, 125, 0.05));
+            --stage-border: rgba(13, 110, 253, 0.55);
+            --stage-border-strong: rgba(13, 110, 253, 0.8);
+            --stage-sequence-color: #0d6efd;
+            --stage-code-color: #1f3f74;
+        }
+
+        .stage-node[data-parallel-group="PRE_COB"] {
+            --stage-bg: linear-gradient(140deg, rgba(32, 201, 151, 0.18), rgba(131, 56, 236, 0.18));
+            --stage-border: rgba(32, 201, 151, 0.65);
+            --stage-border-strong: rgba(131, 56, 236, 0.75);
+            --stage-sequence-color: #0f5132;
+            --stage-name-color: #1f2a44;
+            --stage-code-color: #2f5a78;
+        }
+
+        .stage-node[data-sequence-range="foundational"] {
+            --stage-bg: linear-gradient(145deg, rgba(13, 110, 253, 0.14), rgba(32, 201, 151, 0.12));
+        }
+
+        .stage-node[data-sequence-range="collaborative"] {
+            --stage-bg: linear-gradient(145deg, rgba(32, 201, 151, 0.14), rgba(255, 193, 7, 0.12));
+        }
+
+        .stage-node[data-sequence-range="execution"] {
+            --stage-bg: linear-gradient(145deg, rgba(131, 56, 236, 0.16), rgba(13, 110, 253, 0.12));
+            --stage-sequence-color: #4c1d95;
         }
 
         .flow-node:last-child .flow-connector {
@@ -294,6 +424,50 @@
 
         .stage-meta .badge {
             font-size: 0.85rem;
+        }
+
+        .flow-legend .legend-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 1rem 1.25rem;
+            border-radius: 1rem;
+            background: linear-gradient(135deg, rgba(248, 249, 250, 0.9), rgba(255, 255, 255, 0.95));
+            box-shadow: inset 0 0 0 1px rgba(222, 226, 230, 0.6);
+        }
+
+        .flow-legend .legend-swatch {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 2.75rem;
+            height: 2.75rem;
+            border-radius: 0.9rem;
+            font-size: 1.25rem;
+            color: #fff;
+            box-shadow: 0 12px 20px rgba(15, 23, 42, 0.18);
+        }
+
+        .legend-swatch--foundational {
+            background: linear-gradient(135deg, rgba(13, 110, 253, 0.75), rgba(32, 201, 151, 0.85));
+        }
+
+        .legend-swatch--parallel {
+            background: linear-gradient(135deg, rgba(32, 201, 151, 0.85), rgba(131, 56, 236, 0.85));
+        }
+
+        .legend-swatch--optional {
+            background: linear-gradient(135deg, rgba(255, 193, 7, 0.85), rgba(250, 176, 5, 0.85));
+        }
+
+        .flow-legend .legend-title {
+            font-weight: 600;
+            color: #212529;
+        }
+
+        .flow-legend .legend-text {
+            font-size: 0.9rem;
+            color: #6c757d;
         }
 
         @@media (max-width: 1200px) {
