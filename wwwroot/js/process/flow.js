@@ -146,18 +146,6 @@ const ready = () => {
     }[char] ?? char));
   }
 
-  function formatWhen(value) {
-    if (!value) {
-      return '';
-    }
-
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-      return '';
-    }
-    return date.toLocaleString();
-  }
-
   async function fetchChecklist(stageId) {
     const response = await fetch(`/process/stages/${stageId}/checklist`, {
       credentials: 'same-origin',
@@ -187,25 +175,13 @@ const ready = () => {
 
       const textWrapper = document.createElement('div');
       textWrapper.innerHTML = `<div class="fw-semibold">${index + 1}. ${escapeHtml(item.text)}</div>`;
-      const meta = document.createElement('div');
-      meta.className = 'small text-muted';
-      const updated = formatWhen(item.updatedOnUtc);
-      const who = item.updatedBy ? escapeHtml(item.updatedBy) : '';
-      if (updated && who) {
-        meta.textContent = `Updated ${updated} — ${who}`;
-      } else if (updated) {
-        meta.textContent = `Updated ${updated}`;
-      } else if (who) {
-        meta.textContent = who;
-      }
-      textWrapper.appendChild(meta);
       row.appendChild(textWrapper);
 
       if (canEdit) {
         const actions = document.createElement('div');
         actions.className = 'pci-actions';
-        actions.appendChild(makeButton('Edit', 'btn btn-outline-secondary btn-sm', () => editItem(item)));
-        actions.appendChild(makeButton('Delete', 'btn btn-outline-danger btn-sm', () => deleteItem(item)));
+        actions.appendChild(makeButton('Edit checklist item', 'bi-pencil', 'btn btn-outline-secondary btn-sm', () => editItem(item)));
+        actions.appendChild(makeButton('Delete checklist item', 'bi-trash', 'btn btn-outline-danger btn-sm', () => deleteItem(item)));
         row.appendChild(actions);
       }
 
@@ -238,11 +214,13 @@ const ready = () => {
     offcanvas.show();
   }
 
-  function makeButton(label, className, action) {
+  function makeButton(label, iconClass, className, action) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = className;
-    button.textContent = label;
+    button.className = `${className} pci-action-btn`;
+    button.setAttribute('aria-label', label);
+    button.setAttribute('title', label);
+    button.innerHTML = `<i class="bi ${iconClass}" aria-hidden="true"></i><span class="visually-hidden">${label}</span>`;
     button.addEventListener('click', action);
     return button;
   }
