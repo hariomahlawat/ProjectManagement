@@ -1,38 +1,355 @@
 @page
 @model ProjectManagement.Pages.Process.IndexModel
+@using System.Text.Json
 @{
     ViewData["Title"] = "SDD Procurement Flow";
+    var serializedStages = JsonSerializer.Serialize(
+        Model.FlowStages,
+        new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 }
-<h2>SDD Procurement Flow (Version SDD-1.0)</h2>
 
-<div class="table-responsive">
-  <table class="table table-sm align-middle">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Code</th>
-        <th>Name</th>
-        <th>Optional</th>
-        <th>Parallel Group</th>
-        <th>Depends On</th>
-      </tr>
-    </thead>
-    <tbody>
-    @foreach (var s in Model.Stages)
-    {
-        var depends = Model.Deps
-            .Where(d => d.FromStageCode == s.Code)
-            .Select(d => d.DependsOnStageCode)
-            .ToList();
-        <tr>
-          <td>@s.Sequence</td>
-          <td><span class="badge bg-secondary">@s.Code</span></td>
-          <td>@s.Name</td>
-          <td>@(s.Optional ? "Yes" : "No")</td>
-          <td>@s.ParallelGroup</td>
-          <td>@string.Join(", ", depends)</td>
-        </tr>
-    }
-    </tbody>
-  </table>
+<section class="process-hero mb-5">
+    <div class="d-flex flex-column flex-lg-row align-items-lg-center gap-4">
+        <div class="flex-grow-1">
+            <h1 class="display-6 fw-semibold text-primary mb-3">SDD Procurement Journey</h1>
+            <p class="lead text-muted mb-0">
+                Visualise every milestone of the SDD-1.0 procurement process and keep teams aligned with
+                curated checklists for each stage. Select a stage below to review its key activities, optionality,
+                dependencies and supporting guidance.
+            </p>
+        </div>
+        <div class="hero-badge text-center p-4 rounded-4 shadow-sm">
+            <span class="badge bg-primary-subtle text-primary-emphasis text-uppercase mb-2">Version</span>
+            <p class="h2 mb-0 fw-semibold">SDD-1.0</p>
+        </div>
+    </div>
+</section>
+
+<div class="process-layout">
+    <section class="process-flow card shadow-sm border-0">
+        <div class="card-body">
+            <h2 class="h5 mb-3 text-uppercase text-muted">Stage Flow</h2>
+            <div class="flow-track" role="list">
+                @for (var i = 0; i < Model.FlowStages.Count; i++)
+                {
+                    var stage = Model.FlowStages[i];
+                    <div class="flow-node-group" role="listitem">
+                        <button type="button"
+                                class="stage-node btn btn-outline-primary @(stage.Optional ? "is-optional" : string.Empty)"
+                                data-stage-code="@stage.Code"
+                                aria-label="View @stage.Name checklist">
+                            <span class="stage-sequence">@stage.Sequence</span>
+                            <span class="stage-name">@stage.Name</span>
+                            <span class="stage-code">@stage.Code</span>
+                            @if (stage.Optional)
+                            {
+                                <span class="stage-chip">Optional</span>
+                            }
+                        </button>
+                        @if (i < Model.FlowStages.Count - 1)
+                        {
+                            <div class="flow-connector" aria-hidden="true"></div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+
+    <section class="stage-details card shadow-sm border-0">
+        <div class="card-body">
+            <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+                <div>
+                    <h2 class="h4 mb-1" id="stageTitle">Select a stage</h2>
+                    <p class="text-muted mb-0" id="stageSubtitle">Choose a stage on the left to see its checklist.</p>
+                </div>
+                <div class="text-lg-end">
+                    <span class="badge rounded-pill bg-info-subtle text-info-emphasis d-inline-flex align-items-center gap-2"
+                          id="stageOptional" hidden>
+                        <i class="bi bi-stars"></i>
+                        Optional Stage
+                    </span>
+                </div>
+            </div>
+
+            <dl class="row stage-meta">
+                <div class="col-12 col-md-4 mb-3">
+                    <dt class="text-uppercase text-muted small">Code</dt>
+                    <dd class="h5 mb-0" id="stageCode">—</dd>
+                </div>
+                <div class="col-12 col-md-4 mb-3">
+                    <dt class="text-uppercase text-muted small">Parallel Group</dt>
+                    <dd class="h5 mb-0" id="stageParallel">—</dd>
+                </div>
+                <div class="col-12 col-md-4 mb-3">
+                    <dt class="text-uppercase text-muted small">Depends On</dt>
+                    <dd class="mb-0" id="stageDependencies">
+                        <span class="text-muted">—</span>
+                    </dd>
+                </div>
+            </dl>
+
+            <div>
+                <h3 class="h5 mb-3">Stage Checklist</h3>
+                <ol class="stage-checklist" id="stageChecklist">
+                    <li class="text-muted">Select a stage to see the recommended actions.</li>
+                </ol>
+            </div>
+        </div>
+    </section>
 </div>
+
+@section Styles {
+    <style>
+        .process-hero .hero-badge {
+            background: linear-gradient(135deg, rgba(13, 110, 253, 0.08), rgba(32, 201, 151, 0.08));
+            border: 1px solid rgba(13, 110, 253, 0.15);
+        }
+
+        .process-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+            gap: 2.5rem;
+        }
+
+        .flow-track {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            overflow-x: auto;
+            padding: 1rem 0.5rem 0.5rem;
+            scrollbar-color: rgba(13, 110, 253, 0.4) transparent;
+        }
+
+        .flow-track::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .flow-track::-webkit-scrollbar-thumb {
+            background: rgba(13, 110, 253, 0.35);
+            border-radius: 999px;
+        }
+
+        .flow-node-group {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            min-width: 200px;
+        }
+
+        .stage-node {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            gap: 0.25rem;
+            min-width: 200px;
+            min-height: 180px;
+            border-width: 2px;
+            border-radius: 1.25rem;
+            padding: 1.5rem 1.25rem;
+            background: #fff;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+
+        .stage-node .stage-sequence {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--bs-primary);
+        }
+
+        .stage-node .stage-name {
+            font-size: 1.05rem;
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .stage-node .stage-code {
+            font-size: 0.85rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--bs-secondary);
+        }
+
+        .stage-node .stage-chip {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            background-color: var(--bs-warning-bg-subtle);
+            color: var(--bs-warning-text);
+            border-radius: 999px;
+            padding: 0.25rem 0.75rem;
+        }
+
+        .stage-node:is(:hover, :focus-visible) {
+            transform: translateY(-4px);
+            box-shadow: 0 0.75rem 1.5rem rgba(15, 23, 42, 0.12);
+        }
+
+        .stage-node.is-active {
+            background: linear-gradient(135deg, rgba(13, 110, 253, 0.1), rgba(32, 201, 151, 0.1));
+            border-color: var(--bs-primary);
+            box-shadow: 0 1rem 2rem rgba(13, 110, 253, 0.15);
+        }
+
+        .stage-node.is-optional {
+            border-style: dashed;
+        }
+
+        .flow-connector {
+            flex: 1 1 auto;
+            height: 4px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, rgba(13, 110, 253, 0.75), rgba(32, 201, 151, 0.75));
+            min-width: 40px;
+        }
+
+        .stage-details {
+            background: linear-gradient(135deg, rgba(248, 249, 250, 0.8), rgba(255, 255, 255, 0.9));
+        }
+
+        .stage-checklist {
+            display: grid;
+            gap: 0.75rem;
+            padding-left: 1.5rem;
+        }
+
+        .stage-checklist li {
+            font-size: 1rem;
+            line-height: 1.5;
+        }
+
+        .stage-checklist li::marker {
+            font-weight: 600;
+            color: var(--bs-primary);
+        }
+
+        .stage-meta dt {
+            letter-spacing: 0.1em;
+        }
+
+        .stage-meta dd {
+            font-weight: 600;
+        }
+
+        .stage-meta .badge {
+            font-size: 0.85rem;
+        }
+
+        @media (max-width: 1200px) {
+            .process-layout {
+                grid-template-columns: 1fr;
+            }
+
+            .flow-node-group {
+                min-width: 180px;
+            }
+
+            .stage-node {
+                min-width: 180px;
+                min-height: 160px;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .flow-track {
+                gap: 1rem;
+            }
+
+            .flow-node-group {
+                min-width: 160px;
+            }
+        }
+    </style>
+}
+
+@section Scripts {
+    <script>
+        (() => {
+            const stages = @Html.Raw(serializedStages);
+            const stageButtons = Array.from(document.querySelectorAll('.stage-node'));
+            const titleEl = document.getElementById('stageTitle');
+            const subtitleEl = document.getElementById('stageSubtitle');
+            const codeEl = document.getElementById('stageCode');
+            const parallelEl = document.getElementById('stageParallel');
+            const dependencyEl = document.getElementById('stageDependencies');
+            const optionalBadge = document.getElementById('stageOptional');
+            const checklistEl = document.getElementById('stageChecklist');
+
+            if (!Array.isArray(stages) || stages.length === 0) {
+                subtitleEl.textContent = 'No stages found for the current procurement flow.';
+                return;
+            }
+
+            const renderDependencies = (dependsOn) => {
+                dependencyEl.innerHTML = '';
+                if (!dependsOn || dependsOn.length === 0) {
+                    dependencyEl.innerHTML = '<span class="text-muted">None</span>';
+                    return;
+                }
+
+                dependsOn.forEach(code => {
+                    const badge = document.createElement('span');
+                    badge.className = 'badge rounded-pill bg-light border text-secondary me-2 mb-2';
+                    badge.textContent = code;
+                    dependencyEl.appendChild(badge);
+                });
+            };
+
+            const renderChecklist = (items) => {
+                checklistEl.innerHTML = '';
+                if (!items || items.length === 0) {
+                    const empty = document.createElement('li');
+                    empty.textContent = 'Checklist to be defined for this stage.';
+                    empty.className = 'text-muted';
+                    checklistEl.appendChild(empty);
+                    return;
+                }
+
+                items.forEach(item => {
+                    const li = document.createElement('li');
+                    li.textContent = item;
+                    checklistEl.appendChild(li);
+                });
+            };
+
+            const setActiveStage = (stageCode) => {
+                const stage = stages.find(s => s.code === stageCode);
+                if (!stage) {
+                    return;
+                }
+
+                stageButtons.forEach(btn => {
+                    const isActive = btn.dataset.stageCode === stageCode;
+                    btn.classList.toggle('is-active', isActive);
+                });
+
+                titleEl.textContent = `${stage.sequence}. ${stage.name}`;
+                subtitleEl.textContent = 'Review the required activities before progressing to the next milestone.';
+                codeEl.textContent = stage.code;
+                parallelEl.textContent = stage.parallelGroup ?? '—';
+                renderDependencies(stage.dependsOn);
+                renderChecklist(stage.checklistItems);
+
+                if (stage.optional) {
+                    optionalBadge.hidden = false;
+                } else {
+                    optionalBadge.hidden = true;
+                }
+            };
+
+            stageButtons.forEach(btn => {
+                btn.addEventListener('click', () => setActiveStage(btn.dataset.stageCode));
+            });
+
+            const defaultStage = stageButtons[0]?.dataset.stageCode;
+            if (defaultStage) {
+                setActiveStage(defaultStage);
+            }
+        })();
+    </script>
+}
