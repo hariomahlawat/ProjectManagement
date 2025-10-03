@@ -176,6 +176,7 @@ if (root) {
         code: node.code || node.id,
         name: node.name || node.label || node.code,
         sequence: Number.parseInt(node.sequence, 10) || 0,
+        displayIndex: 0,
         optional: Boolean(node.optional),
         parallelGroup: node.parallelGroup || null,
         dependsOn: Array.isArray(node.dependsOn) ? node.dependsOn.map((d) => String(d)) : []
@@ -187,6 +188,10 @@ if (root) {
         return a.code.localeCompare(b.code);
       }
       return a.sequence - b.sequence;
+    });
+
+    nodes.forEach((node, index) => {
+      node.displayIndex = index + 1;
     });
 
     const edges = Array.isArray(dto?.edges)
@@ -246,7 +251,7 @@ if (root) {
       return;
     }
 
-    const title = `${stage.sequence}. ${stage.name}`;
+    const title = `${stage.displayIndex}. ${stage.name}`;
     updateElements(stageTitleEls, title);
     updateElements(stageSubtitleEls, 'Review the required activities before progressing to the next milestone.');
     updateElements(stageCodeEls, stage.code);
@@ -505,7 +510,8 @@ if (root) {
       const flow = normaliseFlow(data);
       state.flow = flow;
       flow.nodes.forEach((node) => {
-        state.stageByCode.set(node.code, node);
+        const stage = { ...node };
+        state.stageByCode.set(stage.code, stage);
       });
       await renderFlow(flow);
       if (flow.nodes.length > 0) {
@@ -534,9 +540,10 @@ if (root) {
       elements.push({
         data: {
           id: node.code,
-          label: `${node.sequence}. ${node.name}`,
+          label: `${node.displayIndex}. ${node.name}`,
           code: node.code,
           sequence: node.sequence,
+          displayIndex: node.displayIndex,
           optional: node.optional,
           parallelGroup: node.parallelGroup || ''
         },
