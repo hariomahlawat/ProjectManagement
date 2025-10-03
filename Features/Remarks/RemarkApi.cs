@@ -91,7 +91,7 @@ internal static class RemarkApi
         [FromQuery(Name = "includeDeleted")] bool includeDeleted,
         [FromQuery] int page,
         [FromQuery] int pageSize,
-        [FromQuery(Name = "actorRole")] string? actorRole = null,
+        [FromQuery(Name = "actorRole")] string? actorRole,
         ApplicationDbContext db,
         IRemarkService remarkService,
         UserManager<ApplicationUser> userManager,
@@ -300,7 +300,7 @@ internal static class RemarkApi
     private static async Task<IResult> GetRemarkAuditAsync(
         int projectId,
         int remarkId,
-        [FromQuery(Name = "actorRole")] string? actorRole = null,
+        [FromQuery(Name = "actorRole")] string? actorRole,
         ApplicationDbContext db,
         IRemarkService remarkService,
         UserManager<ApplicationUser> userManager,
