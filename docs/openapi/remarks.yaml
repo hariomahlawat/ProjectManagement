@@ -57,7 +57,7 @@ paths:
           in: query
           schema:
             type: boolean
-          description: When true, only remarks authored by the caller are returned.
+          description: When true, only remarks authored by the caller are returned. Defaults to false.
         - name: dateFrom
           in: query
           schema:
@@ -74,12 +74,13 @@ paths:
           in: query
           schema:
             type: boolean
-          description: Include soft-deleted remarks (Admin only).
+          description: Include soft-deleted remarks (Admin only). Defaults to false.
         - name: page
           in: query
           schema:
             type: integer
             minimum: 1
+            default: 1
           description: Page number (defaults to 1).
         - name: pageSize
           in: query
@@ -87,7 +88,8 @@ paths:
             type: integer
             minimum: 1
             maximum: 200
-          description: Number of items per page (defaults to 50).
+            default: 20
+          description: Number of items per page (defaults to 20).
         - name: actorRole
           in: query
           schema:
