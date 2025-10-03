@@ -195,8 +195,6 @@
 </div>
 
 @section Styles {
-    <link rel="stylesheet" href="~/lib/cytoscape-panzoom/2.5.3/cytoscape-panzoom.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/lib/tippy/6.3.7/tippy.css" asp-append-version="true" />
     <style>
         .process-hero .hero-badge {
             background: linear-gradient(135deg, rgba(13, 110, 253, 0.08), rgba(32, 201, 151, 0.08));
@@ -211,11 +209,115 @@
         .process-flow-canvas {
             height: 520px;
             position: relative;
+            padding: 1.5rem;
+            border-radius: 1.25rem;
+            background: radial-gradient(circle at top left, rgba(13, 110, 253, 0.08), transparent 55%),
+                radial-gradient(circle at bottom right, rgba(32, 201, 151, 0.08), transparent 60%),
+                var(--bs-body-bg);
         }
 
-        .process-flow-canvas canvas,
         .process-flow-canvas svg {
+            width: 100%;
+            height: 100%;
             border-radius: 1rem;
+        }
+
+        .process-flow-canvas .flow-connectors {
+            pointer-events: none;
+        }
+
+        .process-flow-canvas .flow-connector {
+            fill: none;
+            color: rgba(108, 117, 125, 0.7);
+            stroke: currentColor;
+            stroke-width: 2.5;
+            marker-end: url(#pm-flow-arrow);
+            transition: color 0.25s ease, stroke-width 0.25s ease, opacity 0.25s ease;
+        }
+
+        .process-flow-canvas .flow-connector--dashed {
+            stroke-dasharray: 8 6;
+        }
+
+        .process-flow-canvas .flow-connector.is-selected-edge {
+            color: rgba(13, 110, 253, 0.85);
+            stroke-width: 3;
+        }
+
+        .process-flow-canvas .flow-connector.is-predecessor-edge {
+            color: rgba(25, 135, 84, 0.85);
+        }
+
+        .process-flow-canvas .flow-connector.is-successor-edge {
+            color: rgba(13, 110, 253, 0.9);
+        }
+
+        .process-flow-canvas .flow-node {
+            cursor: pointer;
+            transition: transform 0.25s ease;
+        }
+
+        .process-flow-canvas .flow-node:focus-visible {
+            outline: none;
+        }
+
+        .process-flow-canvas .flow-node__body {
+            filter: url(#pm-flow-shadow);
+            stroke-width: 2.5;
+            transition: filter 0.25s ease, stroke 0.25s ease, fill 0.25s ease;
+        }
+
+        .process-flow-canvas .flow-node--terminator .flow-node__body {
+            fill: rgba(13, 110, 253, 0.12);
+            stroke: rgba(13, 110, 253, 0.6);
+        }
+
+        .process-flow-canvas .flow-node--process .flow-node__body {
+            fill: rgba(32, 201, 151, 0.12);
+            stroke: rgba(32, 201, 151, 0.55);
+        }
+
+        .process-flow-canvas .flow-node--decision .flow-node__body {
+            fill: rgba(111, 66, 193, 0.12);
+            stroke: rgba(111, 66, 193, 0.55);
+        }
+
+        .process-flow-canvas .flow-node.is-optional .flow-node__body {
+            stroke-dasharray: 8 6;
+        }
+
+        .process-flow-canvas .flow-node__label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            fill: #0b162b;
+            letter-spacing: 0.01em;
+            pointer-events: none;
+        }
+
+        .process-flow-canvas .flow-node:hover,
+        .process-flow-canvas .flow-node.is-selected {
+            transform: translateY(-6px);
+        }
+
+        .process-flow-canvas .flow-node:hover .flow-node__body,
+        .process-flow-canvas .flow-node:focus-visible .flow-node__body,
+        .process-flow-canvas .flow-node.is-selected .flow-node__body {
+            filter: url(#pm-flow-glow);
+        }
+
+        .process-flow-canvas .flow-node.is-predecessor .flow-node__body {
+            fill: rgba(25, 135, 84, 0.16);
+            stroke: rgba(25, 135, 84, 0.7);
+        }
+
+        .process-flow-canvas .flow-node.is-successor .flow-node__body {
+            fill: rgba(13, 110, 253, 0.18);
+            stroke: rgba(13, 110, 253, 0.75);
+        }
+
+        .process-flow-canvas .flow-node.is-selected .flow-node__body {
+            fill: rgba(13, 110, 253, 0.22);
+            stroke: rgba(13, 110, 253, 0.9);
         }
 
         .process-stage-info {
@@ -281,6 +383,7 @@
         @@media (max-width: 991.98px) {
             .process-flow-canvas {
                 height: 420px;
+                padding: 1.25rem;
             }
 
             .process-stage-info__body {
@@ -292,17 +395,13 @@
         @@media (max-width: 575.98px) {
             .process-flow-canvas {
                 height: 320px;
+                padding: 1rem;
             }
         }
     </style>
 }
 
 @section Scripts {
-    <script src="~/lib/dagre/0.8.5/dagre.min.js" asp-append-version="true"></script>
-    <script src="~/lib/cytoscape/3.30.1/cytoscape.min.js" asp-append-version="true"></script>
-    <script src="~/lib/cytoscape-dagre/2.5.0/cytoscape-dagre.min.js" asp-append-version="true"></script>
-    <script src="~/lib/cytoscape-panzoom/2.5.3/cytoscape-panzoom.min.js" asp-append-version="true"></script>
     <script src="~/lib/sortable/1.15.2/Sortable.min.js" asp-append-version="true"></script>
-    <script src="~/lib/tippy/6.3.7/tippy-bundle.umd.min.js" asp-append-version="true"></script>
     <script type="module" src="~/js/process-flow.js" asp-append-version="true"></script>
 }
