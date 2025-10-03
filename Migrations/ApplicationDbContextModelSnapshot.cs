@@ -2252,6 +2252,83 @@ namespace ProjectManagement.Migrations
                     b.ToTable("StageTemplates");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Process.ProcessChecklistItem", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("SortOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("StageId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("UpdatedOnUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("UpdatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StageId");
+
+                    b.ToTable("ProcessChecklistItems");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Process.ProcessStage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("Col")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsOptional")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int?>("Row")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ProcessStages");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Process.ProcessStageEdge", b =>
+                {
+                    b.Property<int>("FromStageId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ToStageId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("FromStageId", "ToStageId");
+
+                    b.HasIndex("ToStageId");
+
+                    b.ToTable("ProcessStageEdges");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Status", b =>
                 {
                     b.Property<int>("Id")
@@ -2988,6 +3065,45 @@ namespace ProjectManagement.Migrations
                     b.Navigation("ApprovalLogs");
 
                     b.Navigation("StagePlans");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Process.ProcessChecklistItem", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Process.ProcessStage", "Stage")
+                        .WithMany("ChecklistItems")
+                        .HasForeignKey("StageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Stage");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Process.ProcessStageEdge", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Process.ProcessStage", "FromStage")
+                        .WithMany("OutgoingEdges")
+                        .HasForeignKey("FromStageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Models.Process.ProcessStage", "ToStage")
+                        .WithMany("IncomingEdges")
+                        .HasForeignKey("ToStageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("FromStage");
+
+                    b.Navigation("ToStage");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Process.ProcessStage", b =>
+                {
+                    b.Navigation("ChecklistItems");
+
+                    b.Navigation("IncomingEdges");
+
+                    b.Navigation("OutgoingEdges");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Plans.ProjectPlanSnapshot", b =>

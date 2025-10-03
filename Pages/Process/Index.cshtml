@@ -1,38 +1,51 @@
 @page
 @model ProjectManagement.Pages.Process.IndexModel
+@using System.Text.Json
 @{
-    ViewData["Title"] = "SDD Procurement Flow";
-}
-<h2>SDD Procurement Flow (Version SDD-1.0)</h2>
-
-<div class="table-responsive">
-  <table class="table table-sm align-middle">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Code</th>
-        <th>Name</th>
-        <th>Optional</th>
-        <th>Parallel Group</th>
-        <th>Depends On</th>
-      </tr>
-    </thead>
-    <tbody>
-    @foreach (var s in Model.Stages)
+    ViewData["Title"] = "Procurement Process";
+    var payload = JsonSerializer.Serialize(new
     {
-        var depends = Model.Deps
-            .Where(d => d.FromStageCode == s.Code)
-            .Select(d => d.DependsOnStageCode)
-            .ToList();
-        <tr>
-          <td>@s.Sequence</td>
-          <td><span class="badge bg-secondary">@s.Code</span></td>
-          <td>@s.Name</td>
-          <td>@(s.Optional ? "Yes" : "No")</td>
-          <td>@s.ParallelGroup</td>
-          <td>@string.Join(", ", depends)</td>
-        </tr>
-    }
-    </tbody>
-  </table>
+        stages = Model.Stages.Select(s => new { s.Id, s.Name, s.Row, s.Col, s.IsOptional }),
+        edges = Model.Edges.Select(e => new { e.FromId, e.ToId }),
+        canEdit = Model.CanEditChecklist
+    }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/process/flow.css" asp-append-version="true" />
+}
+
+<div class="proc-page">
+    <div id="proc-flow" class="proc-wrapper" aria-describedby="proc-flow-help">
+        <div class="proc-canvas">
+            <svg class="proc-connectors" aria-hidden="true">
+                <defs>
+                    <marker id="pf-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 z"></path>
+                    </marker>
+                </defs>
+            </svg>
+            <ul id="proc-nodes" class="proc-nodes" role="list"></ul>
+        </div>
+    </div>
+    <p id="proc-flow-help" class="visually-hidden">Select a stage to view the checklist. Checklist actions are limited to MCO, HoD, and Admin users.</p>
 </div>
+
+<aside class="offcanvas offcanvas-end" tabindex="-1" id="stageChecklistCanvas" aria-labelledby="stageChecklistLabel">
+    <div class="offcanvas-header">
+        <h5 class="offcanvas-title" id="stageChecklistLabel">Stage</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body d-flex flex-column">
+        <div id="checklistMeta" class="small text-muted mb-2"></div>
+        <div id="checklistArea" class="proc-checklist-list flex-grow-1 overflow-auto" role="list"></div>
+        <div id="checklistActions" class="pt-2 border-top d-none">
+            <button class="btn btn-sm btn-primary" type="button" data-action="add">+ Add item</button>
+        </div>
+    </div>
+</aside>
+
+@section Scripts {
+    <script type="application/json" id="proc-flow-data">@Html.Raw(payload)</script>
+    <script type="module" src="~/js/process/flow.js" asp-append-version="true"></script>
+}

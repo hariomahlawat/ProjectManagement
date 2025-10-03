@@ -1,5 +1,9 @@
+using System;
+using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using ProjectManagement.Models.Process;
 using ProjectManagement.Models.Stages;
 
 namespace ProjectManagement.Data;
@@ -14,8 +18,10 @@ public static class StageFlowSeeder
 
         var templatesExist = await db.StageTemplates.AnyAsync(t => t.Version == version);
         var depsExist = await db.StageDependencyTemplates.AnyAsync(t => t.Version == version);
+        var processStagesExist = await db.ProcessStages.AnyAsync();
+        var processEdgesExist = await db.ProcessStageEdges.AnyAsync();
 
-        if (templatesExist && depsExist)
+        if (templatesExist && depsExist && processStagesExist && processEdgesExist)
         {
             return;
         }
@@ -59,6 +65,64 @@ public static class StageFlowSeeder
         if (!depsExist)
         {
             await db.StageDependencyTemplates.AddRangeAsync(deps);
+            changesMade = true;
+        }
+
+        if (!processStagesExist)
+        {
+            var procStages = new[]
+            {
+                new ProcessStage { Name = "Feasibility Study", Row = 0, Col = 0 },
+                new ProcessStage { Name = "In-Principle Approval", Row = 0, Col = 1 },
+                new ProcessStage { Name = "Scope of Work Vetting", Row = 0, Col = 2 },
+                new ProcessStage { Name = "Acceptance of Necessity", Row = 0, Col = 3 },
+                new ProcessStage { Name = "Bid Upload", Row = 1, Col = 0 },
+                new ProcessStage { Name = "Technical Evaluation Committee", Row = 1, Col = 1 },
+                new ProcessStage { Name = "Benchmarking", Row = 1, Col = 2 },
+                new ProcessStage { Name = "Commercial Opening Board", Row = 1, Col = 3 },
+                new ProcessStage { Name = "Price Negotiation Committee", Row = 2, Col = 1, IsOptional = true },
+                new ProcessStage { Name = "Expenditure Angle Sanction", Row = 2, Col = 2 },
+                new ProcessStage { Name = "Supply Order", Row = 3, Col = 1 },
+                new ProcessStage { Name = "Development", Row = 3, Col = 2 },
+                new ProcessStage { Name = "Acceptance Testing", Row = 4, Col = 1 },
+                new ProcessStage { Name = "Payment", Row = 4, Col = 2 }
+            };
+
+            await db.ProcessStages.AddRangeAsync(procStages);
+            changesMade = true;
+            await db.SaveChangesAsync();
+        }
+
+        if (!processEdgesExist)
+        {
+            var stageLookup = await db.ProcessStages.AsNoTracking().ToDictionaryAsync(x => x.Name, x => x.Id);
+
+            ProcessStageEdge Edge(string from, string to) => new()
+            {
+                FromStageId = stageLookup[from],
+                ToStageId = stageLookup[to]
+            };
+
+            var procEdges = new[]
+            {
+                Edge("Feasibility Study", "In-Principle Approval"),
+                Edge("In-Principle Approval", "Scope of Work Vetting"),
+                Edge("Scope of Work Vetting", "Acceptance of Necessity"),
+                Edge("Acceptance of Necessity", "Bid Upload"),
+                Edge("Bid Upload", "Technical Evaluation Committee"),
+                Edge("Bid Upload", "Benchmarking"),
+                Edge("Technical Evaluation Committee", "Commercial Opening Board"),
+                Edge("Benchmarking", "Commercial Opening Board"),
+                Edge("Commercial Opening Board", "Price Negotiation Committee"),
+                Edge("Commercial Opening Board", "Expenditure Angle Sanction"),
+                Edge("Price Negotiation Committee", "Expenditure Angle Sanction"),
+                Edge("Expenditure Angle Sanction", "Supply Order"),
+                Edge("Supply Order", "Development"),
+                Edge("Development", "Acceptance Testing"),
+                Edge("Acceptance Testing", "Payment")
+            };
+
+            await db.ProcessStageEdges.AddRangeAsync(procEdges);
             changesMade = true;
         }
 

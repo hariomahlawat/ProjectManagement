@@ -41,6 +41,7 @@ using ProjectManagement.Features.Remarks;
 using ProjectManagement.Services.Notifications;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using ProjectManagement.Models.Process;
 
 var runForecastBackfill = args.Any(a => string.Equals(a, "--backfill-forecast", StringComparison.OrdinalIgnoreCase));
 
@@ -652,6 +653,126 @@ app.MapGet("/Projects/Documents/View", async (
 app.MapRemarkApi();
 app.MapRazorPages();
 
+var processApi = app.MapGroup("/process");
+processApi.RequireAuthorization();
+
+processApi.MapGet("/stages/{id:int}/checklist", async (int id, ApplicationDbContext db) =>
+{
+    var items = await db.ProcessChecklistItems
+        .AsNoTracking()
+        .Where(x => x.StageId == id)
+        .OrderBy(x => x.SortOrder)
+        .ThenBy(x => x.Id)
+        .Select(x => new
+        {
+            id = x.Id,
+            text = x.Text,
+            sortOrder = x.SortOrder,
+            updatedOnUtc = x.UpdatedOnUtc,
+            updatedBy = x.UpdatedByUserId
+        })
+        .ToListAsync();
+
+    return Results.Json(items);
+});
+
+var processWriteApi = processApi.MapGroup(string.Empty)
+    .RequireAuthorization(new AuthorizeAttribute { Roles = "MCO,HoD,Admin" });
+
+processWriteApi.MapPost("/stages/{id:int}/checklist", async (int id, HttpContext ctx, ApplicationDbContext db, UserManager<ApplicationUser> users, IAntiforgery anti, [FromBody] ProcessChecklistRequest? request) =>
+{
+    await anti.ValidateRequestAsync(ctx);
+
+    if (request is null)
+    {
+        return Results.BadRequest(new { error = "Request body is required." });
+    }
+
+    var trimmed = request.Text?.Trim();
+    if (string.IsNullOrWhiteSpace(trimmed))
+    {
+        return Results.BadRequest(new { error = "Text is required." });
+    }
+
+    var stageExists = await db.ProcessStages.AnyAsync(x => x.Id == id);
+    if (!stageExists)
+    {
+        return Results.NotFound();
+    }
+
+    var maxSortOrder = await db.ProcessChecklistItems
+        .Where(x => x.StageId == id)
+        .Select(x => (int?)x.SortOrder)
+        .MaxAsync() ?? 0;
+    var sortOrder = request.SortOrder ?? maxSortOrder + 10;
+
+    var userId = users.GetUserId(ctx.User);
+
+    var item = new ProcessChecklistItem
+    {
+        StageId = id,
+        Text = trimmed,
+        SortOrder = sortOrder,
+        UpdatedOnUtc = DateTime.UtcNow,
+        UpdatedByUserId = userId
+    };
+
+    db.ProcessChecklistItems.Add(item);
+    await db.SaveChangesAsync();
+
+    return Results.NoContent();
+});
+
+processWriteApi.MapPut("/checklist/{itemId:int}", async (int itemId, HttpContext ctx, ApplicationDbContext db, UserManager<ApplicationUser> users, IAntiforgery anti, [FromBody] ProcessChecklistRequest? request) =>
+{
+    await anti.ValidateRequestAsync(ctx);
+
+    if (request is null)
+    {
+        return Results.BadRequest(new { error = "Request body is required." });
+    }
+
+    var item = await db.ProcessChecklistItems.FirstOrDefaultAsync(x => x.Id == itemId);
+    if (item == null)
+    {
+        return Results.NotFound();
+    }
+
+    var trimmed = request.Text?.Trim();
+    if (!string.IsNullOrWhiteSpace(trimmed))
+    {
+        item.Text = trimmed;
+    }
+
+    if (request.SortOrder.HasValue)
+    {
+        item.SortOrder = request.SortOrder.Value;
+    }
+
+    item.UpdatedOnUtc = DateTime.UtcNow;
+    item.UpdatedByUserId = users.GetUserId(ctx.User);
+
+    await db.SaveChangesAsync();
+
+    return Results.NoContent();
+});
+
+processWriteApi.MapDelete("/checklist/{itemId:int}", async (int itemId, HttpContext ctx, ApplicationDbContext db, IAntiforgery anti) =>
+{
+    await anti.ValidateRequestAsync(ctx);
+
+    var item = await db.ProcessChecklistItems.FirstOrDefaultAsync(x => x.Id == itemId);
+    if (item == null)
+    {
+        return Results.NotFound();
+    }
+
+    db.ProcessChecklistItems.Remove(item);
+    await db.SaveChangesAsync();
+
+    return Results.NoContent();
+});
+
 // Celebrations endpoints
 app.MapGet("/celebrations/upcoming", async (HttpContext ctx, int? window, ApplicationDbContext db) =>
 {
@@ -783,6 +904,8 @@ using (var scope = app.Services.CreateScope())
     await ProjectManagement.Data.StageFlowSeeder.SeedAsync(services);
     await ProjectManagement.Data.IdentitySeeder.SeedAsync(services);
 }
+
+public record ProcessChecklistRequest(string Text, int? SortOrder);
 
 static string BuildConnectSrcDirective(IConfiguration configuration)
 {

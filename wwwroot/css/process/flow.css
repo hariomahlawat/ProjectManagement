@@ -1,0 +1,109 @@
+.proc-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.proc-wrapper {
+  inline-size: 100%;
+  block-size: clamp(400px, 70vh, 760px);
+}
+
+.proc-canvas {
+  position: relative;
+  inline-size: 100%;
+  block-size: 100%;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: auto;
+}
+
+.proc-nodes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  inset: 0;
+}
+
+.proc-nodes > li {
+  position: absolute;
+  min-inline-size: 200px;
+  max-inline-size: 260px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: #f6f9ff;
+  border: 1px solid #cfe1ff;
+  color: #153e75;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .02), 0 8px 22px rgba(16, 24, 40, .08);
+  cursor: pointer;
+  user-select: none;
+  transition: transform .08s ease, box-shadow .12s ease;
+}
+
+.proc-nodes > li:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .02), 0 12px 28px rgba(16, 24, 40, .12);
+}
+
+.proc-nodes > li:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.proc-nodes > li.is-selected {
+  background: #eaf2ff;
+  border-color: #9cc2ff;
+}
+
+.proc-nodes > li[data-optional="true"] {
+  background: #fff7ed;
+  border-color: #f6c68a;
+  color: #663c00;
+}
+
+.proc-node-title {
+  display: block;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.proc-connectors {
+  position: absolute;
+  inset: 0;
+}
+
+.proc-connectors path {
+  stroke: #cdd6e4;
+  stroke-width: 2;
+  fill: none;
+  marker-end: url(#pf-arrow);
+}
+
+.proc-connectors defs marker#pf-arrow path {
+  fill: #cdd6e4;
+}
+
+.proc-checklist-list .pci {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: .5rem .75rem;
+  margin-block: .35rem;
+  background: #fff;
+}
+
+.proc-checklist-list .pci-actions {
+  display: flex;
+  gap: .5rem;
+}
+
+@media (max-width: 767px) {
+  .proc-wrapper {
+    block-size: clamp(360px, 60vh, 640px);
+  }
+
+  .proc-nodes > li {
+    min-inline-size: 180px;
+  }
+}
