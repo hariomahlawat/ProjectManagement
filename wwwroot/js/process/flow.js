@@ -34,22 +34,36 @@ const ready = () => {
   const antiToken = document.querySelector('meta[name="request-verification-token"]')?.content ?? '';
 
   const nodeElById = new Map();
-  const CELL_W = 280;
-  const CELL_H = 140;
-  const OFFSET_X = 40;
-  const OFFSET_Y = 30;
+  const CELL_W = 320;
+  const CELL_H = 190;
+  const OFFSET_X = 70;
+  const OFFSET_Y = 60;
 
-  stages.forEach((stage) => {
+  stages.forEach((stage, index) => {
     const li = document.createElement('li');
     li.dataset.id = String(stage.id);
     li.dataset.optional = String(Boolean(stage.isOptional));
+    li.dataset.step = String(index + 1).padStart(2, '0');
     li.className = 'proc-node';
     li.tabIndex = 0;
+    li.setAttribute('aria-label', stage.isOptional ? `${stage.name} (optional stage)` : stage.name);
+
+    const content = document.createElement('div');
+    content.className = 'proc-node-content';
 
     const title = document.createElement('span');
     title.className = 'proc-node-title';
     title.textContent = stage.name;
-    li.appendChild(title);
+    content.appendChild(title);
+
+    if (stage.isOptional) {
+      const optionalLabel = document.createElement('span');
+      optionalLabel.className = 'proc-node-optional';
+      optionalLabel.textContent = 'Optional stage';
+      content.appendChild(optionalLabel);
+    }
+
+    li.appendChild(content);
 
     const x = (Number(stage.col) || 0) * CELL_W + OFFSET_X;
     const y = (Number(stage.row) || 0) * CELL_H + OFFSET_Y;
