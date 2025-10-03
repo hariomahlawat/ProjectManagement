@@ -268,9 +268,21 @@
 }
 
 @section Scripts {
+    <script id="procurementStagesData" type="application/json">@Html.Raw(serializedStages)</script>
     <script>
         (() => {
-            const stages = @Html.Raw(serializedStages);
+            const stagesDataEl = document.getElementById('procurementStagesData');
+            if (!stagesDataEl) {
+                return;
+            }
+
+            let stages = [];
+            try {
+                stages = JSON.parse(stagesDataEl.textContent ?? '[]');
+            } catch (error) {
+                console.error('Failed to parse procurement stages data.', error);
+                return;
+            }
             const stageButtons = Array.from(document.querySelectorAll('.stage-node'));
             const titleEl = document.getElementById('stageTitle');
             const subtitleEl = document.getElementById('stageSubtitle');
