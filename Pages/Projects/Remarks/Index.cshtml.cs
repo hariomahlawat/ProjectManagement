@@ -35,8 +35,8 @@ namespace ProjectManagement.Pages.Projects.Remarks
 
         public int InitialPage { get; private set; } = 1;
 
-        [BindProperty(SupportsGet = true)]
-        public int Page { get; set; } = 1;
+        [BindProperty(Name = "page", SupportsGet = true)]
+        public int PageNumber { get; set; } = 1;
 
         public async Task<IActionResult> OnGetAsync(int projectId, CancellationToken ct)
         {
@@ -64,7 +64,7 @@ namespace ProjectManagement.Pages.Projects.Remarks
 
             RemarksPanel = await _remarksPanelService.BuildAsync(project, Stages, User, ct);
 
-            InitialPage = Page > 0 ? Page : 1;
+            InitialPage = PageNumber > 0 ? PageNumber : 1;
 
             return Page();
         }
