@@ -82,21 +82,21 @@ internal static class RemarkApi
 
     private static async Task<IResult> ListRemarksAsync(
         int projectId,
-        [FromQuery] string? type,
-        [FromQuery] string? role,
-        [FromQuery] string? stageRef,
-        [FromQuery(Name = "mine")] bool? mine = null,
-        [FromQuery(Name = "dateFrom")] DateOnly? from,
-        [FromQuery(Name = "dateTo")] DateOnly? to,
-        [FromQuery(Name = "includeDeleted")] bool? includeDeleted = null,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20,
-        [FromQuery(Name = "actorRole")] string? actorRole,
         ApplicationDbContext db,
         IRemarkService remarkService,
         UserManager<ApplicationUser> userManager,
         HttpContext httpContext,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        [FromQuery] string? type,
+        [FromQuery] string? role,
+        [FromQuery] string? stageRef,
+        [FromQuery(Name = "mine")] bool? mine,
+        [FromQuery(Name = "dateFrom")] DateOnly? from,
+        [FromQuery(Name = "dateTo")] DateOnly? to,
+        [FromQuery(Name = "includeDeleted")] bool? includeDeleted,
+        [FromQuery] int? page,
+        [FromQuery] int? pageSize,
+        [FromQuery(Name = "actorRole")] string? actorRole)
     {
         var (actor, error) = await BuildActorContextAsync(
             userManager,
@@ -122,6 +122,9 @@ internal static class RemarkApi
 
         try
         {
+            var pageValue = page.GetValueOrDefault();
+            var pageSizeValue = pageSize.GetValueOrDefault();
+
             var result = await remarkService.ListRemarksAsync(
                 new ListRemarksRequest(
                     ProjectId: projectId,
@@ -133,8 +136,8 @@ internal static class RemarkApi
                     ToDate: to,
                     Mine: mine ?? false,
                     IncludeDeleted: includeDeleted ?? false,
-                    Page: page <= 0 ? 1 : page,
-                    PageSize: pageSize <= 0 ? 20 : pageSize),
+                    Page: pageValue <= 0 ? 1 : pageValue,
+                    PageSize: pageSizeValue <= 0 ? 20 : pageSizeValue),
                 cancellationToken);
 
             var userIds = result.Items
@@ -300,12 +303,12 @@ internal static class RemarkApi
     private static async Task<IResult> GetRemarkAuditAsync(
         int projectId,
         int remarkId,
-        [FromQuery(Name = "actorRole")] string? actorRole,
         ApplicationDbContext db,
         IRemarkService remarkService,
         UserManager<ApplicationUser> userManager,
         HttpContext httpContext,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        [FromQuery(Name = "actorRole")] string? actorRole)
     {
         if (!await db.Remarks.AsNoTracking().AnyAsync(r => r.Id == remarkId && r.ProjectId == projectId, cancellationToken))
         {
