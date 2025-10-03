@@ -405,7 +405,8 @@ public sealed class ProjectPhotoPageTests
         var planRead = new PlanReadService(db);
         var planCompare = new PlanCompareService(db);
         var userManager = CreateUserManager(db);
-        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock);
+        var remarksPanel = new ProjectRemarksPanelService(userManager, clock);
+        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel);
     }
 
     private static UserManager<ApplicationUser> CreateUserManager(ApplicationDbContext db)
