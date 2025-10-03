@@ -1261,7 +1261,7 @@
                             <div class="remarks-list" data-remarks-list>
                                 <div class="text-muted" data-remarks-empty>Loading remarks…</div>
                                 <div class="vstack gap-3" data-remarks-items></div>
-                                <button type="button" class="btn btn-outline-secondary btn-sm align-self-start d-none" data-remarks-load-more>Load more</button>
+                                <a class="btn btn-outline-secondary btn-sm align-self-start" asp-page="/Projects/Remarks/Index" asp-route-projectId="@Model.Project!.Id">View all remarks</a>
                             </div>
                         </div>
                     </div>
@@ -1316,6 +1316,7 @@
 
 @section Scripts {
     <script type="module" src="~/js/gallery-lightbox.js" asp-append-version="true"></script>
+    <script src="~/js/projects/remarks-panel.js" asp-append-version="true"></script>
     <script src="~/js/projects/overview.js" asp-append-version="true"></script>
     <script src="~/js/projects/plan-edit.js" asp-append-version="true"></script>
     <script src="~/js/projects/stages.js" asp-append-version="true"></script>
