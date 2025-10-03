@@ -36,6 +36,7 @@ internal static class RemarkApi
     private static async Task<IResult> CreateRemarkAsync(
         int projectId,
         [FromBody] CreateRemarkRequestDto request,
+        ApplicationDbContext db,
         IRemarkService remarkService,
         UserManager<ApplicationUser> userManager,
         HttpContext httpContext,
@@ -43,7 +44,13 @@ internal static class RemarkApi
     {
         request ??= new CreateRemarkRequestDto();
 
-        var (actor, error) = await BuildActorContextAsync(userManager, httpContext, request.ActorRole);
+        var (actor, error) = await BuildActorContextAsync(
+            userManager,
+            httpContext,
+            request.ActorRole,
+            projectId,
+            db,
+            cancellationToken);
         if (error is IResult errorResult)
         {
             return errorResult;
@@ -91,7 +98,13 @@ internal static class RemarkApi
         HttpContext httpContext,
         CancellationToken cancellationToken)
     {
-        var (actor, error) = await BuildActorContextAsync(userManager, httpContext, actorRole);
+        var (actor, error) = await BuildActorContextAsync(
+            userManager,
+            httpContext,
+            actorRole,
+            projectId,
+            db,
+            cancellationToken);
         if (error is IResult errorResult)
         {
             return errorResult;
@@ -180,7 +193,13 @@ internal static class RemarkApi
             return rowError!;
         }
 
-        var (actor, error) = await BuildActorContextAsync(userManager, httpContext, request.ActorRole);
+        var (actor, error) = await BuildActorContextAsync(
+            userManager,
+            httpContext,
+            request.ActorRole,
+            projectId,
+            db,
+            cancellationToken);
         if (error is IResult errorResult)
         {
             return errorResult;
@@ -236,7 +255,13 @@ internal static class RemarkApi
             return rowError!;
         }
 
-        var (actor, error) = await BuildActorContextAsync(userManager, httpContext, request.ActorRole);
+        var (actor, error) = await BuildActorContextAsync(
+            userManager,
+            httpContext,
+            request.ActorRole,
+            projectId,
+            db,
+            cancellationToken);
         if (error is IResult errorResult)
         {
             return errorResult;
@@ -287,7 +312,13 @@ internal static class RemarkApi
             return Results.NotFound();
         }
 
-        var (actor, error) = await BuildActorContextAsync(userManager, httpContext, actorRole);
+        var (actor, error) = await BuildActorContextAsync(
+            userManager,
+            httpContext,
+            actorRole,
+            projectId,
+            db,
+            cancellationToken);
         if (error is IResult errorResult)
         {
             return errorResult;
@@ -358,7 +389,10 @@ internal static class RemarkApi
     private static async Task<(RemarkActorContext? Actor, IResult? Error)> BuildActorContextAsync(
         UserManager<ApplicationUser> userManager,
         HttpContext httpContext,
-        string? requestedRole)
+        string? requestedRole,
+        int projectId,
+        ApplicationDbContext db,
+        CancellationToken cancellationToken)
     {
         var user = await userManager.GetUserAsync(httpContext.User);
         if (user is null)
@@ -367,17 +401,40 @@ internal static class RemarkApi
         }
 
         var assignedRoles = await userManager.GetRolesAsync(user);
-        var remarkRoles = assignedRoles
+        var remarkRoleSet = assignedRoles
             .Select(r => RemarkActorRoleExtensions.TryParse(r, out var parsed) ? parsed : RemarkActorRole.Unknown)
             .Where(r => r != RemarkActorRole.Unknown)
-            .Distinct()
-            .ToArray();
+            .ToHashSet();
 
-        if (remarkRoles.Length == 0)
+        if (remarkRoleSet.Count == 0)
         {
-            return (null, ForbiddenProblem(RemarkService.PermissionDeniedMessage));
+            var project = await db.Projects.AsNoTracking()
+                .Where(p => p.Id == projectId)
+                .Select(p => new { p.LeadPoUserId, p.HodUserId })
+                .SingleOrDefaultAsync(cancellationToken);
+
+            if (project is not null)
+            {
+                if (!string.IsNullOrWhiteSpace(project.LeadPoUserId)
+                    && string.Equals(project.LeadPoUserId, user.Id, StringComparison.Ordinal))
+                {
+                    remarkRoleSet.Add(RemarkActorRole.ProjectOfficer);
+                }
+
+                if (!string.IsNullOrWhiteSpace(project.HodUserId)
+                    && string.Equals(project.HodUserId, user.Id, StringComparison.Ordinal))
+                {
+                    remarkRoleSet.Add(RemarkActorRole.HeadOfDepartment);
+                }
+            }
+
+            if (remarkRoleSet.Count == 0)
+            {
+                return (null, ForbiddenProblem(RemarkService.PermissionDeniedMessage));
+            }
         }
 
+        var remarkRoles = remarkRoleSet.ToArray();
         RemarkActorRole? desiredRole = null;
         if (!string.IsNullOrWhiteSpace(requestedRole))
         {
