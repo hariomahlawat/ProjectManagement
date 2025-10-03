@@ -45,26 +45,20 @@ if (root) {
 
   let cytoscapeLoader;
   async function ensureCytoscape() {
-    if (window.cytoscape) {
-      return window.cytoscape;
-    }
-
     if (!cytoscapeLoader) {
-      cytoscapeLoader = (async () => {
-        const [{ default: cytoscape }, dagreModule, { default: cytoscapeDagre }, { default: cytoscapePanzoom }] = await Promise.all([
-          import('https://cdn.jsdelivr.net/npm/cytoscape@3.30.1/+esm'),
-          import('https://cdn.jsdelivr.net/npm/dagre@0.8.5/+esm'),
-          import('https://cdn.jsdelivr.net/npm/cytoscape-dagre@2.5.0/+esm'),
-          import('https://cdn.jsdelivr.net/npm/cytoscape-panzoom@2.5.3/+esm')
-        ]);
-        const dagre = dagreModule && (dagreModule.default || dagreModule);
-        if (typeof window !== 'undefined') {
-          window.dagre = dagre;
+      cytoscapeLoader = Promise.resolve().then(() => {
+        const cytoscape = window.cytoscape;
+        if (!cytoscape) {
+          throw new Error('Cytoscape dependencies failed to load.');
         }
-        cytoscape.use(cytoscapeDagre);
-        cytoscape.use(cytoscapePanzoom);
+
+        if (window.cytoscapeDagre && !cytoscape.__pmDagreRegistered) {
+          cytoscape.use(window.cytoscapeDagre);
+          cytoscape.__pmDagreRegistered = true;
+        }
+
         return cytoscape;
-      })();
+      });
     }
 
     return cytoscapeLoader;
@@ -72,11 +66,16 @@ if (root) {
 
   let sortableLoader;
   async function ensureSortable() {
-    if (sortableLoader) {
-      return sortableLoader;
+    if (!sortableLoader) {
+      sortableLoader = Promise.resolve().then(() => {
+        if (!window.Sortable) {
+          throw new Error('SortableJS failed to load.');
+        }
+
+        return window.Sortable;
+      });
     }
 
-    sortableLoader = import('https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/modular/sortable.esm.js').then((module) => module.Sortable || module.default);
     return sortableLoader;
   }
 

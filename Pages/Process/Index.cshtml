@@ -193,7 +193,8 @@
 </div>
 
 @section Styles {
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cytoscape-panzoom@2.5.3/cytoscape-panzoom.css" />
+    <link rel="stylesheet" href="~/lib/cytoscape-panzoom/2.5.3/cytoscape-panzoom.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/lib/tippy/6.3.7/tippy.css" asp-append-version="true" />
     <style>
         .process-hero .hero-badge {
             background: linear-gradient(135deg, rgba(13, 110, 253, 0.08), rgba(32, 201, 151, 0.08));
@@ -279,5 +280,11 @@
 }
 
 @section Scripts {
+    <script src="~/lib/dagre/0.8.5/dagre.min.js" asp-append-version="true"></script>
+    <script src="~/lib/cytoscape/3.30.1/cytoscape.min.js" asp-append-version="true"></script>
+    <script src="~/lib/cytoscape-dagre/2.5.0/cytoscape-dagre.min.js" asp-append-version="true"></script>
+    <script src="~/lib/cytoscape-panzoom/2.5.3/cytoscape-panzoom.min.js" asp-append-version="true"></script>
+    <script src="~/lib/sortable/1.15.2/Sortable.min.js" asp-append-version="true"></script>
+    <script src="~/lib/tippy/6.3.7/tippy-bundle.umd.min.js" asp-append-version="true"></script>
     <script type="module" src="~/js/process-flow.js" asp-append-version="true"></script>
 }
