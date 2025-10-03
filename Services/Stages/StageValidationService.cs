@@ -122,9 +122,7 @@ public sealed class StageValidationService : IStageValidationService
         if (desiredStatus is StageStatus.InProgress or StageStatus.Completed)
         {
             var pncApplicable = await ResolvePncApplicabilityAsync(projectId, ct);
-            var predecessors = StageDependencies.RequiredPredecessors(stage.StageCode)
-                .Where(code => pncApplicable || !string.Equals(code, StageCodes.PNC, StringComparison.OrdinalIgnoreCase))
-                .ToList();
+            var predecessors = StageDependencies.RequiredPredecessors(stage.StageCode, pncApplicable);
 
             if (predecessors.Count > 0)
             {

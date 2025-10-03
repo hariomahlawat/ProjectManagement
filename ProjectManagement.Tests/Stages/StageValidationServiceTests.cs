@@ -87,7 +87,32 @@ public class StageValidationServiceTests
         Assert.Equal(new DateOnly(2025, 9, 10), result.SuggestedAutoStart);
     }
 
-    private static async Task SeedAsync(ApplicationDbContext db, params StageSeed[] stages)
+    [Fact]
+    public async Task ValidateAsync_PncNotApplicable_DoesNotRequirePncForEas()
+    {
+        var clock = FakeClock.ForIstDate(new DateOnly(2025, 7, 1));
+        await using var db = CreateContext();
+        await SeedAsync(
+            db,
+            pncApplicable: false,
+            new StageSeed(StageCodes.COB, StageStatus.Completed, new DateOnly(2025, 6, 1), new DateOnly(2025, 6, 10)),
+            new StageSeed(StageCodes.PNC, StageStatus.NotStarted, null, null),
+            new StageSeed(StageCodes.EAS, StageStatus.InProgress, new DateOnly(2025, 6, 15), null));
+
+        var service = new StageValidationService(db, clock);
+
+        var result = await service.ValidateAsync(
+            1,
+            StageCodes.EAS,
+            StageStatus.Completed.ToString(),
+            new DateOnly(2025, 7, 1),
+            isHoD: true);
+
+        Assert.True(result.IsValid);
+        Assert.DoesNotContain(StageCodes.PNC, result.MissingPredecessors);
+    }
+
+    private static async Task SeedAsync(ApplicationDbContext db, bool pncApplicable = true, params StageSeed[] stages)
     {
         var project = new Project
         {
@@ -106,7 +131,7 @@ public class StageValidationServiceTests
             VersionNo = 1,
             Status = PlanVersionStatus.Approved,
             CreatedByUserId = "seed",
-            PncApplicable = true
+            PncApplicable = pncApplicable
         });
 
         var sortOrder = 1;

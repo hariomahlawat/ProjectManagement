@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
@@ -156,6 +157,47 @@ public class StageProgressServiceTests
         Assert.Null(ipa.CompletedOn);
         Assert.False(ipa.IsAutoCompleted);
         Assert.False(ipa.RequiresBackfill);
+    }
+
+    [Fact]
+    public async Task UpdateStageStatusAsync_CompletingEasDoesNotAutoCompletePncWhenOptional()
+    {
+        var clock = new TestClock(new DateTimeOffset(2024, 8, 1, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedStagesAsync(
+            db,
+            (StageCodes.COB, StageStatus.Completed),
+            (StageCodes.PNC, StageStatus.NotStarted),
+            (StageCodes.EAS, StageStatus.InProgress));
+
+        var project = await db.Projects.SingleAsync();
+        project.ActivePlanVersionNo = 1;
+
+        db.PlanVersions.Add(new PlanVersion
+        {
+            Id = 1,
+            ProjectId = project.Id,
+            VersionNo = 1,
+            Status = PlanVersionStatus.Approved,
+            CreatedByUserId = "seed",
+            PncApplicable = false
+        });
+        await db.SaveChangesAsync();
+
+        var service = CreateService(db, clock);
+
+        await service.UpdateStageStatusAsync(
+            1,
+            StageCodes.EAS,
+            StageStatus.Completed,
+            new DateOnly(2024, 8, 2),
+            "tester");
+
+        var eas = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.EAS);
+        Assert.Equal(StageStatus.Completed, eas.Status);
+
+        var pnc = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.PNC);
+        Assert.Equal(StageStatus.NotStarted, pnc.Status);
     }
 
     private static StageProgressService CreateService(ApplicationDbContext db, TestClock clock)

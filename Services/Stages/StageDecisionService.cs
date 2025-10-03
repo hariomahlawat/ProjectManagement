@@ -314,7 +314,8 @@ public sealed class StageDecisionService
         string stageCode,
         CancellationToken cancellationToken)
     {
-        var required = StageDependencies.RequiredPredecessors(stageCode);
+        var pncApplicable = await ResolvePncApplicabilityAsync(projectId, cancellationToken);
+        var required = StageDependencies.RequiredPredecessors(stageCode, pncApplicable);
 
         if (required.Count == 0)
         {
@@ -340,6 +341,28 @@ public sealed class StageDecisionService
         }
 
         return incomplete;
+    }
+
+    private async Task<bool> ResolvePncApplicabilityAsync(int projectId, CancellationToken ct)
+    {
+        var project = await _db.Projects
+            .AsNoTracking()
+            .Where(p => p.Id == projectId)
+            .Select(p => new { p.ActivePlanVersionNo })
+            .SingleOrDefaultAsync(ct);
+
+        if (project is null || !project.ActivePlanVersionNo.HasValue)
+        {
+            return true;
+        }
+
+        var plan = await _db.PlanVersions
+            .AsNoTracking()
+            .Where(p => p.ProjectId == projectId && p.VersionNo == project.ActivePlanVersionNo.Value)
+            .Select(p => new { p.PncApplicable })
+            .SingleOrDefaultAsync(ct);
+
+        return plan?.PncApplicable ?? true;
     }
 
     private static string? CombineNoteAndWarnings(string? note, IReadOnlyList<string> warnings)

@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
@@ -245,6 +246,52 @@ public sealed class StageDecisionServiceTests
         var stage = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.SOW);
         Assert.Equal(StageStatus.InProgress, stage.Status);
         Assert.Equal(new DateOnly(2024, 4, 14), stage.ActualStart);
+    }
+
+    [Fact]
+    public async Task ApproveAsync_DoesNotWarnWhenPncIsNotApplicable()
+    {
+        var clock = new TestClock(new DateTimeOffset(2024, 7, 15, 10, 0, 0, TimeSpan.Zero));
+        await using var db = CreateContext();
+        await SeedProjectAsync(
+            db,
+            "hod-opt",
+            (StageCodes.COB, StageStatus.Completed, new DateOnly(2024, 7, 1), new DateOnly(2024, 7, 5)),
+            (StageCodes.PNC, StageStatus.NotStarted, null, null),
+            (StageCodes.EAS, StageStatus.InProgress, new DateOnly(2024, 7, 6), null));
+
+        var project = await db.Projects.SingleAsync();
+        project.ActivePlanVersionNo = 1;
+
+        db.PlanVersions.Add(new PlanVersion
+        {
+            Id = 1,
+            ProjectId = project.Id,
+            VersionNo = 1,
+            Status = PlanVersionStatus.Approved,
+            CreatedByUserId = "seed",
+            PncApplicable = false
+        });
+        await db.SaveChangesAsync();
+
+        var request = await SeedRequestAsync(
+            db,
+            projectId: 1,
+            StageCodes.EAS,
+            StageStatus.Completed.ToString(),
+            new DateOnly(2024, 7, 8),
+            note: null);
+
+        var service = CreateService(db, clock);
+        var result = await service.DecideAsync(
+            new StageDecisionInput(request.Id, StageDecisionAction.Approve, null),
+            "hod-opt");
+
+        Assert.Equal(StageDecisionOutcome.Success, result.Outcome);
+        Assert.DoesNotContain(result.Warnings, w => w.Contains(StageCodes.PNC, StringComparison.OrdinalIgnoreCase));
+
+        var pncStage = await db.ProjectStages.SingleAsync(s => s.StageCode == StageCodes.PNC);
+        Assert.Equal(StageStatus.NotStarted, pncStage.Status);
     }
 
     private static async Task SeedProjectAsync(
