@@ -813,7 +813,7 @@ if (root) {
     const codes = Array.isArray(dependsOnCodes) ? dependsOnCodes : [];
     const fragmentFactory = (code) => {
       const badge = document.createElement('span');
-      badge.className = 'badge rounded-pill bg-light border text-secondary me-2 mb-2';
+      badge.className = 'badge rounded-pill bg-light border text-secondary stage-meta-badge';
       const stage = state.stageByCode.get(code);
       badge.textContent = stage ? `${code} · ${stage.name}` : code;
       return badge;

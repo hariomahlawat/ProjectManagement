@@ -58,47 +58,46 @@
             <div class="card pm-card h-100 shadow-sm sticky-lg-top process-stage-info" data-checklist-panel>
                 <div class="card-body">
                     <div class="process-stage-info__body">
-                        <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-start gap-3 mb-4">
-                            <div>
-                                <h2 class="h4 mb-1" data-stage-title aria-live="polite">Select a stage</h2>
-                                <p class="text-muted mb-0" data-stage-subtitle>Choose a stage on the diagram to see its checklist.</p>
+                        <header class="stage-panel-header">
+                            <div class="stage-panel-heading">
+                                <h2 class="stage-panel-title h4 mb-1" data-stage-title aria-live="polite">Select a stage</h2>
+                                <p class="stage-panel-subtitle text-muted mb-0" data-stage-subtitle>Choose a stage on the diagram to see its checklist.</p>
                             </div>
-                            <span class="badge rounded-pill bg-info-subtle text-info-emphasis d-inline-flex align-items-center gap-2" data-stage-optional hidden>
+                            <span class="stage-panel-optional badge rounded-pill bg-info-subtle text-info-emphasis d-inline-flex align-items-center gap-2" data-stage-optional hidden>
                                 <i class="bi bi-stars"></i>
                                 Optional stage
                             </span>
-                        </div>
+                        </header>
 
-                        <dl class="row g-3 process-stage-meta mb-0">
-                            <div class="col-12 col-sm-4">
-                                <dt class="text-uppercase text-muted small">Code</dt>
-                                <dd class="h6 mb-0" data-stage-code>—</dd>
+                        <div class="stage-meta-grid" role="list">
+                            <div class="stage-meta-card" role="listitem">
+                                <span class="stage-meta-label text-uppercase text-muted small">Code</span>
+                                <span class="stage-meta-value h6 mb-0" data-stage-code>—</span>
                             </div>
-                            <div class="col-12 col-sm-4">
-                                <dt class="text-uppercase text-muted small">Parallel group</dt>
-                                <dd class="h6 mb-0" data-stage-parallel>—</dd>
+                            <div class="stage-meta-card" role="listitem">
+                                <span class="stage-meta-label text-uppercase text-muted small">Parallel group</span>
+                                <span class="stage-meta-value h6 mb-0" data-stage-parallel>—</span>
                             </div>
-                            <div class="col-12 col-sm-4">
-                                <dt class="text-uppercase text-muted small">Depends on</dt>
-                                <dd class="mb-0" data-stage-dependencies>
+                            <div class="stage-meta-card" role="listitem">
+                                <span class="stage-meta-label text-uppercase text-muted small">Depends on</span>
+                                <div class="stage-meta-value stage-meta-dependencies" data-stage-dependencies>
                                     <span class="text-muted">—</span>
-                                </dd>
-                            </div>
-                        </dl>
-
-                        <hr class="my-4" />
-
-                        <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
-                            <h3 class="h5 mb-0">Stage checklist</h3>
-                            <div class="btn-group" data-checklist-actions hidden>
-                                <button type="button" class="btn btn-outline-primary btn-sm" data-action="add-item">
-                                    <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>
-                                    Add item
-                                </button>
+                                </div>
                             </div>
                         </div>
 
-                        <ol class="stage-checklist" data-checklist-list data-checklist-primary aria-live="polite" aria-busy="false"></ol>
+                        <section class="stage-section" aria-labelledby="stageChecklistHeading">
+                            <div class="stage-section__header">
+                                <h3 class="h5 mb-0" id="stageChecklistHeading">Stage checklist</h3>
+                                <div class="btn-group" data-checklist-actions hidden>
+                                    <button type="button" class="btn btn-outline-primary btn-sm" data-action="add-item">
+                                        <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>
+                                        Add item
+                                    </button>
+                                </div>
+                            </div>
+                            <ol class="stage-checklist" data-checklist-list data-checklist-primary aria-live="polite" aria-busy="false"></ol>
+                        </section>
                     </div>
                 </div>
             </div>
@@ -112,32 +111,32 @@
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close checklist panel"></button>
     </div>
     <div class="offcanvas-body d-flex flex-column gap-4" data-checklist-panel>
-        <div>
-            <p class="text-muted mb-2" data-stage-subtitle>Choose a stage on the diagram to see its checklist.</p>
-            <dl class="row g-3 process-stage-meta small mb-0">
-                <div class="col-12 col-sm-4">
-                    <dt class="text-uppercase text-muted small">Code</dt>
-                    <dd class="fw-semibold mb-0" data-stage-code>—</dd>
+        <div class="stage-panel-heading">
+            <p class="stage-panel-subtitle text-muted mb-2" data-stage-subtitle>Choose a stage on the diagram to see its checklist.</p>
+            <div class="stage-meta-grid stage-meta-grid--compact" role="list">
+                <div class="stage-meta-card" role="listitem">
+                    <span class="stage-meta-label text-uppercase text-muted small">Code</span>
+                    <span class="stage-meta-value fw-semibold" data-stage-code>—</span>
                 </div>
-                <div class="col-12 col-sm-4">
-                    <dt class="text-uppercase text-muted small">Parallel group</dt>
-                    <dd class="fw-semibold mb-0" data-stage-parallel>—</dd>
+                <div class="stage-meta-card" role="listitem">
+                    <span class="stage-meta-label text-uppercase text-muted small">Parallel group</span>
+                    <span class="stage-meta-value fw-semibold" data-stage-parallel>—</span>
                 </div>
-                <div class="col-12 col-sm-4">
-                    <dt class="text-uppercase text-muted small">Depends on</dt>
-                    <dd class="mb-0" data-stage-dependencies>
+                <div class="stage-meta-card" role="listitem">
+                    <span class="stage-meta-label text-uppercase text-muted small">Depends on</span>
+                    <div class="stage-meta-value stage-meta-dependencies" data-stage-dependencies>
                         <span class="text-muted">—</span>
-                    </dd>
+                    </div>
                 </div>
-            </dl>
-            <span class="badge rounded-pill bg-info-subtle text-info-emphasis mt-3 d-inline-flex align-items-center gap-2" data-stage-optional hidden>
+            </div>
+            <span class="stage-panel-optional badge rounded-pill bg-info-subtle text-info-emphasis mt-3 d-inline-flex align-items-center gap-2" data-stage-optional hidden>
                 <i class="bi bi-stars"></i>
                 Optional stage
             </span>
         </div>
 
         <div class="flex-grow-1 d-flex flex-column">
-            <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+            <div class="stage-section__header mb-3">
                 <h3 class="h5 mb-0">Stage checklist</h3>
                 <div class="btn-group" data-checklist-actions hidden>
                     <button type="button" class="btn btn-outline-primary btn-sm" data-action="add-item">
@@ -369,8 +368,81 @@
             padding-right: 0.25rem;
         }
 
-        .process-stage-meta dt {
+        .stage-panel-header {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stage-panel-heading {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .stage-panel-title {
+            font-weight: 600;
+        }
+
+        .stage-panel-optional {
+            align-self: flex-start;
+        }
+
+        .stage-meta-grid {
+            display: grid;
+            gap: 1rem;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            margin-bottom: 2rem;
+        }
+
+        .stage-meta-grid--compact {
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            margin-bottom: 1.5rem;
+        }
+
+        .stage-meta-card {
+            background: rgba(248, 249, 250, 0.65);
+            border-radius: 0.85rem;
+            padding: 0.9rem 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            box-shadow: inset 0 0 0 1px rgba(222, 226, 230, 0.6);
+        }
+
+        .stage-meta-label {
             letter-spacing: 0.08em;
+        }
+
+        .stage-meta-value {
+            display: block;
+            color: var(--bs-body-color);
+            word-break: break-word;
+        }
+
+        .stage-meta-dependencies {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+        }
+
+        .stage-meta-badge {
+            font-size: 0.75rem;
+            padding: 0.35rem 0.65rem;
+        }
+
+        .stage-section {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .stage-section__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.75rem;
         }
 
         .stage-checklist {
@@ -437,6 +509,14 @@
                 max-height: none;
                 overflow: visible;
                 padding-right: 0;
+            }
+
+            .stage-panel-header {
+                margin-bottom: 1.5rem;
+            }
+
+            .stage-meta-grid {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
             }
         }
 
