@@ -524,10 +524,10 @@ public class RemarkApiTests
         public DateOnly EventDate { get; init; }
         public string? StageRef { get; init; }
         public string? StageName { get; init; }
-        public DateTime CreatedAtUtc { get; init; }
-        public DateTime? LastEditedAtUtc { get; init; }
+        public DateTimeOffset CreatedAtUtc { get; init; }
+        public DateTimeOffset? LastEditedAtUtc { get; init; }
         public bool IsDeleted { get; init; }
-        public DateTime? DeletedAtUtc { get; init; }
+        public DateTimeOffset? DeletedAtUtc { get; init; }
         public string? DeletedByUserId { get; init; }
         public RemarkActorRole? DeletedByRole { get; init; }
         public string? DeletedByDisplayName { get; init; }
