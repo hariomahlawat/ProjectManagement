@@ -873,16 +873,33 @@ body {
 }
 
 .remarks-composer {
-    border: 1px solid rgba(15, 23, 42, .08);
-    border-radius: .75rem;
-    background-color: var(--pm-card);
-    padding: 1rem;
-    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, .02);
+    background-color: transparent;
+    border: 0;
+    border-radius: 0;
+    padding: 0;
+    box-shadow: none;
 }
 
-[data-bs-theme="dark"] .remarks-composer {
-    border-color: rgba(255, 255, 255, .1);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .04);
+.remarks-launcher {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.remarks-composer-trigger {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    padding: 0;
+    box-shadow: 0 0.35rem 1rem rgba(15, 23, 42, .15);
+}
+
+[data-bs-theme="dark"] .remarks-composer-trigger {
+    box-shadow: 0 0.35rem 1rem rgba(0, 0, 0, .6);
 }
 
 .remarks-composer-options {
