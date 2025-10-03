@@ -6,15 +6,22 @@
 
 <section class="process-hero mb-5">
     <div class="d-flex flex-column flex-lg-row align-items-lg-center gap-4">
-        <div class="flex-grow-1">
-            <h1 class="display-6 fw-semibold text-primary mb-3">Procurement Process &amp; Checklist</h1>
-            <p class="lead text-muted mb-0">
-                Explore each procurement stage, visualise dependencies, and review the recommended actions before moving ahead.
+        <div class="hero-badge text-center text-lg-start p-4 rounded-4 shadow-sm order-0">
+            <span class="badge bg-primary-subtle text-primary-emphasis text-uppercase mb-2">Updated on</span>
+            <p class="h2 mb-0 fw-semibold">
+                @(Model.ProcessUpdatedOn.HasValue
+                    ? Model.ProcessUpdatedOn.Value.ToLocalTime().ToString("dd MMM yyyy")
+                    : "Not available")
             </p>
         </div>
-        <div class="hero-badge text-center p-4 rounded-4 shadow-sm">
-            <span class="badge bg-primary-subtle text-primary-emphasis text-uppercase mb-2">Version</span>
-            <p class="h2 mb-0 fw-semibold">@Model.ProcessVersion</p>
+        <div class="flex-grow-1 order-1">
+            <h1 class="display-6 fw-semibold text-primary mb-3">Procurement Process &amp; Checklist</h1>
+            <p class="lead text-muted mb-3">
+                Explore each procurement stage, visualise dependencies, and review the recommended actions before moving ahead.
+            </p>
+            <p class="text-muted mb-0 small text-uppercase">
+                Current version: <span class="fw-semibold text-body">@Model.ProcessVersion</span>
+            </p>
         </div>
     </div>
 </section>
@@ -23,7 +30,7 @@
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
         <div>
             <h2 class="h5 mb-1 text-uppercase text-muted">Stage flow</h2>
-            <p class="mb-0 text-muted small">Click a node in the diagram to review its checklist.</p>
+            <p class="mb-0 text-muted small">Select a stage in the diagram to review its checklist.</p>
         </div>
         <button type="button"
                 class="btn btn-primary d-lg-none"
@@ -199,6 +206,7 @@
         .process-hero .hero-badge {
             background: linear-gradient(135deg, rgba(13, 110, 253, 0.08), rgba(32, 201, 151, 0.08));
             border: 1px solid rgba(13, 110, 253, 0.15);
+            min-width: 220px;
         }
 
         .process-flow-shell {
@@ -207,19 +215,19 @@
         }
 
         .process-flow-canvas {
-            height: 520px;
+            min-height: 600px;
+            height: clamp(560px, 70vh, 900px);
             position: relative;
-            padding: 1.5rem;
-            border-radius: 1.25rem;
-            background: radial-gradient(circle at top left, rgba(13, 110, 253, 0.08), transparent 55%),
-                radial-gradient(circle at bottom right, rgba(32, 201, 151, 0.08), transparent 60%),
-                var(--bs-body-bg);
+            padding: 2rem;
+            border-radius: 1.5rem;
+            background: linear-gradient(145deg, rgba(13, 110, 253, 0.07), rgba(32, 201, 151, 0.05));
+            box-shadow: inset 0 0 0 1px rgba(13, 110, 253, 0.06);
         }
 
         .process-flow-canvas svg {
             width: 100%;
             height: 100%;
-            border-radius: 1rem;
+            border-radius: 1.25rem;
         }
 
         .process-flow-canvas .flow-connectors {
@@ -228,9 +236,9 @@
 
         .process-flow-canvas .flow-connector {
             fill: none;
-            color: rgba(108, 117, 125, 0.7);
+            color: rgba(73, 80, 87, 0.45);
             stroke: currentColor;
-            stroke-width: 2.5;
+            stroke-width: 2.75;
             marker-end: url(#pm-flow-arrow);
             transition: color 0.25s ease, stroke-width 0.25s ease, opacity 0.25s ease;
         }
@@ -240,21 +248,21 @@
         }
 
         .process-flow-canvas .flow-connector.is-selected-edge {
-            color: rgba(13, 110, 253, 0.85);
-            stroke-width: 3;
+            color: rgba(13, 110, 253, 0.6);
+            stroke-width: 3.25;
         }
 
         .process-flow-canvas .flow-connector.is-predecessor-edge {
-            color: rgba(25, 135, 84, 0.85);
+            color: rgba(25, 135, 84, 0.6);
         }
 
         .process-flow-canvas .flow-connector.is-successor-edge {
-            color: rgba(13, 110, 253, 0.9);
+            color: rgba(13, 110, 253, 0.75);
         }
 
         .process-flow-canvas .flow-node {
             cursor: pointer;
-            transition: transform 0.25s ease;
+            transition: filter 0.25s ease, stroke 0.25s ease;
         }
 
         .process-flow-canvas .flow-node:focus-visible {
@@ -268,18 +276,18 @@
         }
 
         .process-flow-canvas .flow-node--terminator .flow-node__body {
-            fill: rgba(13, 110, 253, 0.12);
-            stroke: rgba(13, 110, 253, 0.6);
+            fill: rgba(226, 239, 255, 0.85);
+            stroke: rgba(64, 122, 214, 0.9);
         }
 
         .process-flow-canvas .flow-node--process .flow-node__body {
-            fill: rgba(32, 201, 151, 0.12);
-            stroke: rgba(32, 201, 151, 0.55);
+            fill: rgba(227, 245, 239, 0.9);
+            stroke: rgba(38, 180, 144, 0.85);
         }
 
         .process-flow-canvas .flow-node--decision .flow-node__body {
-            fill: rgba(111, 66, 193, 0.12);
-            stroke: rgba(111, 66, 193, 0.55);
+            fill: rgba(239, 231, 252, 0.9);
+            stroke: rgba(132, 94, 194, 0.8);
         }
 
         .process-flow-canvas .flow-node.is-optional .flow-node__body {
@@ -287,16 +295,11 @@
         }
 
         .process-flow-canvas .flow-node__label {
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             font-weight: 600;
-            fill: #0b162b;
-            letter-spacing: 0.01em;
+            fill: var(--bs-body-color);
+            letter-spacing: 0.02em;
             pointer-events: none;
-        }
-
-        .process-flow-canvas .flow-node:hover,
-        .process-flow-canvas .flow-node.is-selected {
-            transform: translateY(-6px);
         }
 
         .process-flow-canvas .flow-node:hover .flow-node__body,
@@ -324,11 +327,21 @@
             --process-stage-sticky-offset: 1.5rem;
             --process-stage-info-chrome: 6rem; /* accounts for header spacing and card padding */
             top: var(--process-stage-sticky-offset);
+            display: flex;
+            flex-direction: column;
+            max-height: calc(100vh - var(--process-stage-sticky-offset));
+        }
+
+        .process-stage-info .card-body {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
         }
 
         .process-stage-info__body {
             max-height: calc(100vh - (var(--process-stage-sticky-offset) + var(--process-stage-info-chrome)));
-            overflow: auto;
+            overflow-y: auto;
+            padding-right: 0.25rem;
         }
 
         .process-stage-meta dt {
@@ -382,18 +395,29 @@
 
         @@media (max-width: 991.98px) {
             .process-flow-canvas {
-                height: 420px;
+                min-height: 440px;
+                height: 440px;
                 padding: 1.25rem;
+            }
+
+            .process-stage-info {
+                max-height: none;
+            }
+
+            .process-stage-info .card-body {
+                height: auto;
             }
 
             .process-stage-info__body {
                 max-height: none;
                 overflow: visible;
+                padding-right: 0;
             }
         }
 
         @@media (max-width: 575.98px) {
             .process-flow-canvas {
+                min-height: 320px;
                 height: 320px;
                 padding: 1rem;
             }
