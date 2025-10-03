@@ -341,7 +341,7 @@ internal static class RemarkApi
                     a.Action,
                     a.ActorRole,
                     a.ActorUserId ?? string.Empty,
-                    a.ActionAtUtc,
+                    ToUtcDateTimeOffset(a.ActionAtUtc),
                     a.Meta,
                     new RemarkSnapshotDto(
                         a.SnapshotType,
@@ -351,10 +351,10 @@ internal static class RemarkApi
                         a.SnapshotEventDate,
                         a.SnapshotStageRef,
                         a.SnapshotStageName,
-                        a.SnapshotCreatedAtUtc,
-                        a.SnapshotLastEditedAtUtc,
+                        ToUtcDateTimeOffset(a.SnapshotCreatedAtUtc),
+                        ToUtcDateTimeOffset(a.SnapshotLastEditedAtUtc),
                         a.SnapshotIsDeleted,
-                        a.SnapshotDeletedAtUtc,
+                        ToUtcDateTimeOffset(a.SnapshotDeletedAtUtc),
                         a.SnapshotDeletedByUserId,
                         a.SnapshotDeletedByRole)))
                 .ToArray();
@@ -368,7 +368,12 @@ internal static class RemarkApi
     }
 
     private static RemarkResponseDto ToDto(Remark remark, RemarkUserInfo? author = null, RemarkUserInfo? deleter = null)
-        => new(
+    {
+        var createdAt = ToUtcDateTimeOffset(remark.CreatedAtUtc);
+        var lastEditedAt = ToUtcDateTimeOffset(remark.LastEditedAtUtc);
+        var deletedAt = ToUtcDateTimeOffset(remark.DeletedAtUtc);
+
+        return new RemarkResponseDto(
             remark.Id,
             remark.ProjectId,
             remark.Type,
@@ -380,14 +385,32 @@ internal static class RemarkApi
             remark.EventDate,
             remark.StageRef,
             remark.StageNameSnapshot,
-            remark.CreatedAtUtc,
-            remark.LastEditedAtUtc,
+            createdAt,
+            lastEditedAt,
             remark.IsDeleted,
-            remark.DeletedAtUtc,
+            deletedAt,
             remark.DeletedByUserId,
             remark.DeletedByRole,
             deleter?.DisplayName,
             remark.RowVersion is { Length: > 0 } rowVersion ? Convert.ToBase64String(rowVersion) : string.Empty);
+    }
+
+    private static DateTimeOffset ToUtcDateTimeOffset(DateTime value)
+    {
+        if (value.Kind == DateTimeKind.Unspecified)
+        {
+            value = DateTime.SpecifyKind(value, DateTimeKind.Utc);
+        }
+        else if (value.Kind == DateTimeKind.Local)
+        {
+            value = value.ToUniversalTime();
+        }
+
+        return new DateTimeOffset(value, TimeSpan.Zero);
+    }
+
+    private static DateTimeOffset? ToUtcDateTimeOffset(DateTime? value)
+        => value.HasValue ? ToUtcDateTimeOffset(value.Value) : null;
 
     private static async Task<(RemarkActorContext? Actor, IResult? Error)> BuildActorContextAsync(
         UserManager<ApplicationUser> userManager,
@@ -725,10 +748,10 @@ internal static class RemarkApi
         DateOnly EventDate,
         string? StageRef,
         string? StageName,
-        DateTime CreatedAtUtc,
-        DateTime? LastEditedAtUtc,
+        DateTimeOffset CreatedAtUtc,
+        DateTimeOffset? LastEditedAtUtc,
         bool IsDeleted,
-        DateTime? DeletedAtUtc,
+        DateTimeOffset? DeletedAtUtc,
         string? DeletedByUserId,
         RemarkActorRole? DeletedByRole,
         string? DeletedByDisplayName,
@@ -747,7 +770,7 @@ internal static class RemarkApi
         RemarkAuditAction Action,
         RemarkActorRole ActorRole,
         string ActorUserId,
-        DateTime ActionAtUtc,
+        DateTimeOffset ActionAtUtc,
         string? Meta,
         RemarkSnapshotDto Snapshot);
 
@@ -759,10 +782,10 @@ internal static class RemarkApi
         DateOnly EventDate,
         string? StageRef,
         string? StageName,
-        DateTime CreatedAtUtc,
-        DateTime? LastEditedAtUtc,
+        DateTimeOffset CreatedAtUtc,
+        DateTimeOffset? LastEditedAtUtc,
         bool IsDeleted,
-        DateTime? DeletedAtUtc,
+        DateTimeOffset? DeletedAtUtc,
         string? DeletedByUserId,
         RemarkActorRole? DeletedByRole);
 
