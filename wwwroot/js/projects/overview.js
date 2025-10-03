@@ -694,6 +694,26 @@
                 return false;
             }
 
+            if (!this.actorRole) {
+                if (!append) {
+                    this.state.items = [];
+                    this.state.page = 1;
+                    this.state.total = 0;
+                    this.state.hasMore = false;
+                    if (this.listContainer) {
+                        this.listContainer.innerHTML = '';
+                    }
+
+                    if (this.emptyState) {
+                        this.emptyState.classList.remove('d-none');
+                        this.emptyState.textContent = 'Remarks are unavailable for your account.';
+                    }
+                }
+
+                this.state.initialised = true;
+                return false;
+            }
+
             if (!append) {
                 this.setLoading(true);
             }

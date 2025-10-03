@@ -171,6 +171,28 @@ public class RemarkApiTests
     }
 
     [Fact]
+    public async Task ListRemarksAsync_ViewerWithoutRemarkRole_ReturnsForbidden()
+    {
+        using var factory = new RemarkApiFactory();
+        var projectId = 9610;
+        await SeedProjectAsync(factory, projectId, leadPoUserId: "lead-owner");
+
+        var viewerClient = await CreateClientForUserAsync(
+            factory,
+            "viewer-no-role",
+            "Viewer No Role",
+            false,
+            "Project Officer");
+
+        var response = await viewerClient.GetAsync($"/api/projects/{projectId}/remarks");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetailsDto>(SerializerOptions);
+        Assert.NotNull(problem);
+        Assert.Equal(RemarkService.PermissionDeniedMessage, problem!.Title);
+    }
+
+    [Fact]
     public async Task EditRemarkAsync_DeniesWhenWindowExpired()
     {
         using var factory = new RemarkApiFactory();
