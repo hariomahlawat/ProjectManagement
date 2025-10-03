@@ -905,8 +905,6 @@ using (var scope = app.Services.CreateScope())
     await ProjectManagement.Data.IdentitySeeder.SeedAsync(services);
 }
 
-public record ProcessChecklistRequest(string Text, int? SortOrder);
-
 static string BuildConnectSrcDirective(IConfiguration configuration)
 {
     var sources = configuration
