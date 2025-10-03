@@ -1692,6 +1692,7 @@
         const buttons = Array.from(switchGroup.querySelectorAll('[data-panel-target]'));
         const sections = Array.from(card.querySelectorAll('[data-panel-section]'));
         const bodies = Array.from(card.querySelectorAll('[data-panel]'));
+        const metas = Array.from(card.querySelectorAll('[data-panel-meta]'));
         const projectId = card.getAttribute('data-panel-project-id') || '';
         const storageKey = projectId ? `pm:project:right-panel:${projectId}` : 'pm:project:right-panel';
 
@@ -1739,12 +1740,12 @@
                 body.setAttribute('aria-hidden', isActive ? 'false' : 'true');
             });
 
-            const meta = card.querySelector('#project-panel-meta-timeline');
-            if (meta) {
-                const isTimeline = target === 'timeline';
-                meta.classList.toggle('invisible', !isTimeline);
-                meta.setAttribute('aria-hidden', isTimeline ? 'false' : 'true');
-            }
+            metas.forEach((meta) => {
+                const value = meta.getAttribute('data-panel-meta');
+                const isActive = value === target;
+                meta.classList.toggle('d-none', !isActive);
+                meta.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+            });
 
             try {
                 sessionStorage.setItem(storageKey, target);
