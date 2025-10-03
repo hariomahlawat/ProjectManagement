@@ -448,12 +448,13 @@
         }
 
         cacheElements() {
-            this.typeButtons = Array.from(this.root.querySelectorAll('[data-remarks-type]'));
-            this.roleFilter = this.root.querySelector('[data-remarks-role-filter]');
-            this.stageFilter = this.root.querySelector('[data-remarks-stage-filter]');
-            this.dateFrom = this.root.querySelector('[data-remarks-date-from]');
-            this.dateTo = this.root.querySelector('[data-remarks-date-to]');
-            this.includeDeletedToggle = this.root.querySelector('[data-remarks-include-deleted]');
+            const remarksContainer = this.root.closest('[data-panel-project-id]') || this.root;
+            this.typeButtons = Array.from(remarksContainer.querySelectorAll('[data-remarks-type]'));
+            this.roleFilter = remarksContainer.querySelector('[data-remarks-role-filter]');
+            this.stageFilter = remarksContainer.querySelector('[data-remarks-stage-filter]');
+            this.dateFrom = remarksContainer.querySelector('[data-remarks-date-from]');
+            this.dateTo = remarksContainer.querySelector('[data-remarks-date-to]');
+            this.includeDeletedToggle = remarksContainer.querySelector('[data-remarks-include-deleted]');
             this.listContainer = this.root.querySelector('[data-remarks-items]');
             this.emptyState = this.root.querySelector('[data-remarks-empty]');
             this.loadMoreButton = this.root.querySelector('[data-remarks-load-more]');
