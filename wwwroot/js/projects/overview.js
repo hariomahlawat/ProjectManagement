@@ -1739,6 +1739,13 @@
                 body.setAttribute('aria-hidden', isActive ? 'false' : 'true');
             });
 
+            const timelineActions = card.querySelector('#project-panel-section-timeline');
+            if (timelineActions) {
+                const isTimeline = target === 'timeline';
+                timelineActions.classList.toggle('invisible', !isTimeline);
+                timelineActions.setAttribute('aria-hidden', isTimeline ? 'false' : 'true');
+            }
+
             const meta = card.querySelector('#project-panel-meta-timeline');
             if (meta) {
                 const isTimeline = target === 'timeline';
