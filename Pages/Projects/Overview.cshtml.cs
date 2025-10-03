@@ -210,12 +210,12 @@ namespace ProjectManagement.Pages.Projects
 
             await LoadDocumentOverviewAsync(project, isAdmin, isHoD, ct);
 
-            RemarksPanel = await BuildRemarksPanelAsync(project, isThisProjectsPo, ct);
+            RemarksPanel = await BuildRemarksPanelAsync(project, ct);
 
             return Page();
         }
 
-        private async Task<ProjectRemarksPanelViewModel> BuildRemarksPanelAsync(Project project, bool isThisProjectsPo, CancellationToken ct)
+        private async Task<ProjectRemarksPanelViewModel> BuildRemarksPanelAsync(Project project, CancellationToken ct)
         {
             var stageOptions = Stages
                 .Where(s => !string.IsNullOrWhiteSpace(s.StageCode))
@@ -260,20 +260,38 @@ namespace ProjectManagement.Pages.Projects
             }
 
             var userRoles = await _users.GetRolesAsync(user);
-            var remarkRoles = userRoles
+            var remarkRoleSet = userRoles
                 .Select(role => RemarkActorRoleExtensions.TryParse(role, out var parsed) ? parsed : RemarkActorRole.Unknown)
                 .Where(role => role != RemarkActorRole.Unknown)
-                .Distinct()
-                .ToList();
+                .ToHashSet();
 
-            var actorRole = SelectDefaultRemarkRole(remarkRoles);
+            if (remarkRoleSet.Count == 0)
+            {
+                if (!string.IsNullOrWhiteSpace(project.LeadPoUserId)
+                    && string.Equals(project.LeadPoUserId, user.Id, StringComparison.Ordinal))
+                {
+                    remarkRoleSet.Add(RemarkActorRole.ProjectOfficer);
+                }
+
+                if (!string.IsNullOrWhiteSpace(project.HodUserId)
+                    && string.Equals(project.HodUserId, user.Id, StringComparison.Ordinal))
+                {
+                    remarkRoleSet.Add(RemarkActorRole.HeadOfDepartment);
+                }
+            }
+
+            var remarkRoles = remarkRoleSet.ToList();
+
+            var actorRole = SelectDefaultRemarkRole(remarkRoleSet);
             var actorRoleCanonical = actorRole == RemarkActorRole.Unknown ? null : actorRole.ToString();
             var actorRoleLabel = actorRole == RemarkActorRole.Unknown ? null : BuildRoleDisplayName(actorRole);
 
-            var canOverride = remarkRoles.Any(role => role is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant or RemarkActorRole.Administrator);
-            var canPostAsHoDOrAbove = remarkRoles.Any(role => role is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant or RemarkActorRole.Administrator);
-            var canPostAsMco = remarkRoles.Contains(RemarkActorRole.Mco);
-            var canPostAsPo = remarkRoles.Contains(RemarkActorRole.ProjectOfficer) && isThisProjectsPo;
+            var canOverride = remarkRoleSet.Any(role => role is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant or RemarkActorRole.Administrator);
+            var canPostAsHoDOrAbove = remarkRoleSet.Any(role => role is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant or RemarkActorRole.Administrator);
+            var canPostAsMco = remarkRoleSet.Contains(RemarkActorRole.Mco);
+            var canPostAsPo = remarkRoleSet.Contains(RemarkActorRole.ProjectOfficer)
+                && !string.IsNullOrWhiteSpace(project.LeadPoUserId)
+                && string.Equals(project.LeadPoUserId, user.Id, StringComparison.Ordinal);
 
             var showComposer = canPostAsHoDOrAbove || canPostAsMco || canPostAsPo;
             var allowExternal = canPostAsHoDOrAbove;
@@ -289,7 +307,7 @@ namespace ProjectManagement.Pages.Projects
                 ShowComposer = showComposer,
                 AllowInternal = showComposer,
                 AllowExternal = allowExternal,
-                ShowDeletedToggle = remarkRoles.Contains(RemarkActorRole.Administrator),
+                ShowDeletedToggle = remarkRoleSet.Contains(RemarkActorRole.Administrator),
                 ActorHasOverride = canOverride,
                 StageOptions = stageOptions,
                 RoleOptions = roleOptions,

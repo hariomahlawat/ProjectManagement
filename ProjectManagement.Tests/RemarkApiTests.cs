@@ -104,6 +104,73 @@ public class RemarkApiTests
     }
 
     [Fact]
+    public async Task ProjectOfficerAssignedWithoutIdentityRole_CanCreateAndListRemarks()
+    {
+        using var factory = new RemarkApiFactory();
+        var projectId = 9600;
+        var client = await CreateClientForUserAsync(factory, "po-fallback", "PO Fallback", false, "Project Officer");
+        await SeedProjectAsync(factory, projectId, leadPoUserId: "po-fallback");
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+
+        var createResponse = await client.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
+        {
+            type = RemarkType.Internal,
+            body = "Fallback PO remark",
+            eventDate = today,
+            stageRef = StageCodes.FS
+        });
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var created = await createResponse.Content.ReadFromJsonAsync<RemarkResponseDto>(SerializerOptions);
+        Assert.NotNull(created);
+        Assert.Equal("po-fallback", created!.AuthorUserId);
+        Assert.Equal(RemarkActorRole.ProjectOfficer, created.AuthorRole);
+
+        var list = await client.GetFromJsonAsync<RemarkListResponseDto>($"/api/projects/{projectId}/remarks", SerializerOptions);
+        Assert.NotNull(list);
+        Assert.Equal(1, list!.Total);
+        Assert.Single(list.Items);
+        Assert.Equal("po-fallback", list.Items[0].AuthorUserId);
+        Assert.Equal(RemarkActorRole.ProjectOfficer, list.Items[0].AuthorRole);
+    }
+
+    [Fact]
+    public async Task HeadOfDepartmentAssignedWithoutIdentityRole_CanCreateAndListRemarks()
+    {
+        using var factory = new RemarkApiFactory();
+        var projectId = 9601;
+        var client = await CreateClientForUserAsync(factory, "hod-fallback", "HoD Fallback", false, "HoD");
+        await SeedProjectAsync(factory, projectId, leadPoUserId: "po-owner", hodUserId: "hod-fallback");
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+
+        var createResponse = await client.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
+        {
+            type = RemarkType.Internal,
+            body = "Fallback HoD remark",
+            eventDate = today,
+            stageRef = StageCodes.FS,
+            actorRole = RemarkActorRole.HeadOfDepartment.ToString()
+        });
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var created = await createResponse.Content.ReadFromJsonAsync<RemarkResponseDto>(SerializerOptions);
+        Assert.NotNull(created);
+        Assert.Equal("hod-fallback", created!.AuthorUserId);
+        Assert.Equal(RemarkActorRole.HeadOfDepartment, created.AuthorRole);
+
+        var list = await client.GetFromJsonAsync<RemarkListResponseDto>(
+            $"/api/projects/{projectId}/remarks?actorRole={Uri.EscapeDataString(RemarkActorRole.HeadOfDepartment.ToString())}",
+            SerializerOptions);
+        Assert.NotNull(list);
+        Assert.Equal(1, list!.Total);
+        Assert.Single(list.Items);
+        Assert.Equal(RemarkActorRole.HeadOfDepartment, list.Items[0].AuthorRole);
+        Assert.Equal("hod-fallback", list.Items[0].AuthorUserId);
+    }
+
+    [Fact]
     public async Task EditRemarkAsync_DeniesWhenWindowExpired()
     {
         using var factory = new RemarkApiFactory();
@@ -296,7 +363,15 @@ public class RemarkApiTests
         PropertyNameCaseInsensitive = true
     };
 
-    private static async Task<HttpClient> CreateClientForUserAsync(RemarkApiFactory factory, string userId, string fullName, params string[] roles)
+    private static Task<HttpClient> CreateClientForUserAsync(RemarkApiFactory factory, string userId, string fullName, params string[] roles)
+        => CreateClientForUserAsync(factory, userId, fullName, true, roles);
+
+    private static async Task<HttpClient> CreateClientForUserAsync(
+        RemarkApiFactory factory,
+        string userId,
+        string fullName,
+        bool persistIdentityRoles,
+        params string[] roles)
     {
         var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Test");
@@ -306,23 +381,31 @@ public class RemarkApiTests
             client.DefaultRequestHeaders.Add("X-Test-Roles", string.Join(',', roles));
         }
 
-        await SeedUserAsync(factory, userId, fullName, roles);
+        await SeedUserAsync(factory, userId, fullName, persistIdentityRoles, roles);
         return client;
     }
 
-    private static async Task SeedUserAsync(RemarkApiFactory factory, string userId, string fullName, IReadOnlyCollection<string> roles)
+    private static async Task SeedUserAsync(
+        RemarkApiFactory factory,
+        string userId,
+        string fullName,
+        bool persistIdentityRoles,
+        IReadOnlyCollection<string> roles)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await db.Database.EnsureCreatedAsync();
 
-        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-        foreach (var role in roles.Distinct(StringComparer.Ordinal))
+        if (persistIdentityRoles)
         {
-            if (!await roleManager.RoleExistsAsync(role))
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+            foreach (var role in roles.Distinct(StringComparer.Ordinal))
             {
-                var result = await roleManager.CreateAsync(new IdentityRole(role));
-                Assert.True(result.Succeeded, string.Join(",", result.Errors.Select(e => e.Description)));
+                if (!await roleManager.RoleExistsAsync(role))
+                {
+                    var result = await roleManager.CreateAsync(new IdentityRole(role));
+                    Assert.True(result.Succeeded, string.Join(",", result.Errors.Select(e => e.Description)));
+                }
             }
         }
 
@@ -341,17 +424,24 @@ public class RemarkApiTests
             Assert.True(createResult.Succeeded, string.Join(",", createResult.Errors.Select(e => e.Description)));
         }
 
-        foreach (var role in roles.Distinct(StringComparer.Ordinal))
+        if (persistIdentityRoles)
         {
-            if (!await userManager.IsInRoleAsync(user, role))
+            foreach (var role in roles.Distinct(StringComparer.Ordinal))
             {
-                var addResult = await userManager.AddToRoleAsync(user, role);
-                Assert.True(addResult.Succeeded, string.Join(",", addResult.Errors.Select(e => e.Description)));
+                if (!await userManager.IsInRoleAsync(user, role))
+                {
+                    var addResult = await userManager.AddToRoleAsync(user, role);
+                    Assert.True(addResult.Succeeded, string.Join(",", addResult.Errors.Select(e => e.Description)));
+                }
             }
         }
     }
 
-    private static async Task SeedProjectAsync(RemarkApiFactory factory, int projectId, string leadPoUserId)
+    private static async Task SeedProjectAsync(
+        RemarkApiFactory factory,
+        int projectId,
+        string leadPoUserId,
+        string? hodUserId = null)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -367,7 +457,8 @@ public class RemarkApiTests
             Id = projectId,
             Name = $"Project {projectId}",
             CreatedByUserId = "seed",
-            LeadPoUserId = leadPoUserId
+            LeadPoUserId = leadPoUserId,
+            HodUserId = hodUserId
         });
 
         db.ProjectStages.Add(new ProjectStage
