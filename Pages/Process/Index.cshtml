@@ -199,11 +199,26 @@
         }
 
         .flow-connector {
+            position: relative;
             flex: 1 1 auto;
             height: 4px;
             border-radius: 999px;
             background: linear-gradient(90deg, rgba(13, 110, 253, 0.75), rgba(32, 201, 151, 0.75));
             min-width: 40px;
+            overflow: visible;
+        }
+
+        .flow-connector::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            right: -12px;
+            transform: translateY(-50%);
+            width: 0;
+            height: 0;
+            border-top: 7px solid transparent;
+            border-bottom: 7px solid transparent;
+            border-left: 12px solid rgba(32, 201, 151, 0.9);
         }
 
         .stage-details {
