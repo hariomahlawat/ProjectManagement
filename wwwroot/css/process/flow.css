@@ -9,13 +9,14 @@
   block-size: clamp(400px, 70vh, 760px);
 }
 
+
 .proc-canvas {
   position: relative;
   inline-size: 100%;
   block-size: 100%;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   overflow: auto;
 }
 
@@ -31,20 +32,18 @@
   position: absolute;
   min-inline-size: 200px;
   max-inline-size: 260px;
-  padding: 12px 16px;
-  border-radius: 14px;
-  background: #f6f9ff;
-  border: 1px solid #cfe1ff;
-  color: #153e75;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, .02), 0 8px 22px rgba(16, 24, 40, .08);
+  padding: 8px 12px;
+  border-radius: 0;
+  background: transparent;
+  border: none;
+  color: #0f172a;
   cursor: pointer;
   user-select: none;
-  transition: transform .08s ease, box-shadow .12s ease;
+  transition: color .08s ease;
 }
 
 .proc-nodes > li:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, .02), 0 12px 28px rgba(16, 24, 40, .12);
+  color: #1d4ed8;
 }
 
 .proc-nodes > li:focus-visible {
@@ -53,14 +52,12 @@
 }
 
 .proc-nodes > li.is-selected {
-  background: #eaf2ff;
-  border-color: #9cc2ff;
+  color: #1d4ed8;
+  font-weight: 600;
 }
 
 .proc-nodes > li[data-optional="true"] {
-  background: #fff7ed;
-  border-color: #f6c68a;
-  color: #663c00;
+  color: #92400e;
 }
 
 .proc-node-title {
@@ -86,11 +83,10 @@
 }
 
 .proc-checklist-list .pci {
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: .5rem .75rem;
+  padding: .35rem 0;
   margin-block: .35rem;
-  background: #fff;
+  border: none;
+  background: transparent;
 }
 
 .proc-checklist-list .pci-actions {
