@@ -354,10 +354,7 @@
             this.today = this.config.today || new Date().toISOString().slice(0, 10);
             this.state = {
                 type: 'all',
-                role: '',
-                stage: '',
-                dateFrom: '',
-                dateTo: '',
+                timeRange: 'all',
                 includeDeleted: false,
                 page: 1,
                 total: 0,
@@ -419,6 +416,7 @@
             this.cacheElements();
             this.bindEvents();
             this.updateTypeButtons();
+            this.updateTimeButtons();
         }
 
         parseConfig(raw) {
@@ -450,10 +448,7 @@
         cacheElements() {
             const remarksContainer = this.root.closest('[data-panel-project-id]') || this.root;
             this.typeButtons = Array.from(remarksContainer.querySelectorAll('[data-remarks-type]'));
-            this.roleFilter = remarksContainer.querySelector('[data-remarks-role-filter]');
-            this.stageFilter = remarksContainer.querySelector('[data-remarks-stage-filter]');
-            this.dateFrom = remarksContainer.querySelector('[data-remarks-date-from]');
-            this.dateTo = remarksContainer.querySelector('[data-remarks-date-to]');
+            this.timeButtons = Array.from(remarksContainer.querySelectorAll('[data-remarks-time]'));
             this.includeDeletedToggle = remarksContainer.querySelector('[data-remarks-include-deleted]');
             this.listContainer = this.root.querySelector('[data-remarks-items]');
             this.emptyState = this.root.querySelector('[data-remarks-empty]');
@@ -479,41 +474,11 @@
                 });
             }
 
-            if (this.roleFilter) {
-                this.roleFilter.addEventListener('change', () => {
-                    this.state.role = this.roleFilter.value || '';
-                    this.reload();
-                });
-            }
-
-            if (this.stageFilter) {
-                this.stageFilter.addEventListener('change', () => {
-                    this.state.stage = this.stageFilter.value || '';
-                    this.reload();
-                });
-            }
-
-            if (this.dateFrom) {
-                this.dateFrom.addEventListener('change', () => {
-                    const value = this.dateFrom.value || '';
-                    this.state.dateFrom = value;
-                    if (this.dateTo && this.dateTo.value && value && value > this.dateTo.value) {
-                        this.dateTo.value = value;
-                        this.state.dateTo = value;
-                    }
-                    this.reload();
-                });
-            }
-
-            if (this.dateTo) {
-                this.dateTo.addEventListener('change', () => {
-                    const value = this.dateTo.value || '';
-                    this.state.dateTo = value;
-                    if (this.dateFrom && this.dateFrom.value && value && value < this.dateFrom.value) {
-                        this.dateFrom.value = value;
-                        this.state.dateFrom = value;
-                    }
-                    this.reload();
+            if (this.timeButtons.length > 0) {
+                this.timeButtons.forEach((button) => {
+                    button.addEventListener('click', () => {
+                        this.setTimeFilter(button.getAttribute('data-remarks-time') || 'all');
+                    });
                 });
             }
 
@@ -640,6 +605,39 @@
             });
         }
 
+        setTimeFilter(range) {
+            const value = this.normalizeTimeRange(range);
+            if (this.state.timeRange === value) {
+                this.updateTimeButtons();
+                return;
+            }
+
+            this.state.timeRange = value;
+            this.updateTimeButtons();
+            this.reload();
+        }
+
+        updateTimeButtons() {
+            if (!Array.isArray(this.timeButtons)) {
+                return;
+            }
+
+            this.timeButtons.forEach((button) => {
+                const value = this.normalizeTimeRange(button.getAttribute('data-remarks-time') || '');
+                const isActive = value === this.state.timeRange;
+                button.classList.toggle('active', isActive);
+                button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            });
+        }
+
+        normalizeTimeRange(range) {
+            if (typeof range !== 'string') {
+                return 'all';
+            }
+
+            return range.toLowerCase() === 'last-month' ? 'last-month' : 'all';
+        }
+
         reload() {
             this.state.page = 1;
             this.fetchPage(1, false);
@@ -652,6 +650,47 @@
 
             const nextPage = this.state.page + 1;
             this.fetchPage(nextPage, true);
+        }
+
+        resolveDateFrom() {
+            if (this.state.timeRange !== 'last-month') {
+                return '';
+            }
+
+            const reference = this.parseDateOnly(this.today);
+            if (!reference) {
+                return '';
+            }
+
+            const start = new Date(reference.getTime());
+            start.setUTCMonth(start.getUTCMonth() - 1);
+            return this.formatDateOnly(start);
+        }
+
+        parseDateOnly(value) {
+            if (typeof value !== 'string' || value.trim().length === 0) {
+                return null;
+            }
+
+            const parts = value.split('-').map((part) => Number.parseInt(part, 10));
+            if (parts.length !== 3 || parts.some((part) => !Number.isFinite(part))) {
+                return null;
+            }
+
+            const [year, month, day] = parts;
+            const date = new Date(Date.UTC(year, month - 1, day));
+            return Number.isNaN(date.getTime()) ? null : date;
+        }
+
+        formatDateOnly(date) {
+            if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+                return '';
+            }
+
+            const year = date.getUTCFullYear();
+            const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(date.getUTCDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
         }
 
         buildQueryParams(page) {
@@ -667,20 +706,9 @@
                 params.set('type', this.state.type);
             }
 
-            if (this.state.role) {
-                params.set('role', this.state.role);
-            }
-
-            if (this.state.stage) {
-                params.set('stageRef', this.state.stage);
-            }
-
-            if (this.state.dateFrom) {
-                params.set('dateFrom', this.state.dateFrom);
-            }
-
-            if (this.state.dateTo) {
-                params.set('dateTo', this.state.dateTo);
+            const dateFrom = this.resolveDateFrom();
+            if (dateFrom) {
+                params.set('dateFrom', dateFrom);
             }
 
             if (this.state.includeDeleted) {
