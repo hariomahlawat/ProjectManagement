@@ -15,6 +15,7 @@ using ProjectManagement.Models.Stages;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Notifications;
 using ProjectManagement.Helpers;
+using ProjectManagement.Models.Process;
 
 namespace ProjectManagement.Data
 {
@@ -66,6 +67,9 @@ namespace ProjectManagement.Data
         public DbSet<WorkflowStatus> WorkflowStatuses => Set<WorkflowStatus>();
         public DbSet<SponsoringUnit> SponsoringUnits => Set<SponsoringUnit>();
         public DbSet<LineDirectorate> LineDirectorates => Set<LineDirectorate>();
+        public DbSet<ProcessStage> ProcessStages => Set<ProcessStage>();
+        public DbSet<ProcessStageEdge> ProcessStageEdges => Set<ProcessStageEdge>();
+        public DbSet<ProcessChecklistItem> ProcessChecklistItems => Set<ProcessChecklistItem>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -207,6 +211,38 @@ namespace ProjectManagement.Data
                 {
                     tb.HasCheckConstraint("ck_projectdocuments_filesize", "\"FileSize\" >= 0");
                 });
+            });
+
+            builder.Entity<ProcessStage>(e =>
+            {
+                e.Property(x => x.Name).HasMaxLength(128).IsRequired();
+                e.Property(x => x.Row).IsRequired(false);
+                e.Property(x => x.Col).IsRequired(false);
+            });
+
+            builder.Entity<ProcessStageEdge>(e =>
+            {
+                e.HasKey(x => new { x.FromStageId, x.ToStageId });
+                e.HasOne(x => x.FromStage)
+                    .WithMany(x => x.OutgoingEdges)
+                    .HasForeignKey(x => x.FromStageId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.ToStage)
+                    .WithMany(x => x.IncomingEdges)
+                    .HasForeignKey(x => x.ToStageId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ProcessChecklistItem>(e =>
+            {
+                e.Property(x => x.Text).HasMaxLength(1000).IsRequired();
+                e.Property(x => x.SortOrder).HasDefaultValue(0);
+                e.Property(x => x.UpdatedByUserId).HasMaxLength(450);
+                e.Property(x => x.UpdatedOnUtc).IsRequired(false);
+                e.HasOne(x => x.Stage)
+                    .WithMany(x => x.ChecklistItems)
+                    .HasForeignKey(x => x.StageId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<NotificationDispatch>(e =>
