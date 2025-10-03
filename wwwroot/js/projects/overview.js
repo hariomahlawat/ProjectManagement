@@ -453,6 +453,9 @@
             this.listContainer = this.root.querySelector('[data-remarks-items]');
             this.emptyState = this.root.querySelector('[data-remarks-empty]');
             this.loadMoreButton = this.root.querySelector('[data-remarks-load-more]');
+            this.modalElement = this.root.querySelector('[data-remarks-modal]');
+            this.modalTriggers = Array.from(this.root.querySelectorAll('[data-remarks-open-modal]'));
+            this.modalInstance = this.modalElement ? bootstrap.Modal.getOrCreateInstance(this.modalElement) : null;
             this.composerForm = this.root.querySelector('[data-remarks-composer]');
             this.feedback = this.root.querySelector('[data-remarks-feedback]');
             this.externalFields = this.root.querySelector('[data-remarks-external-fields]');
@@ -466,6 +469,28 @@
         }
 
         bindEvents() {
+            if (this.modalTriggers && this.modalTriggers.length > 0 && this.modalInstance) {
+                this.modalTriggers.forEach((button) => {
+                    button.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        this.resetComposer();
+                        this.modalInstance?.show();
+                    });
+                });
+            }
+
+            if (this.modalElement) {
+                this.modalElement.addEventListener('shown.bs.modal', () => {
+                    if (this.bodyField instanceof HTMLElement) {
+                        this.bodyField.focus();
+                    }
+                });
+
+                this.modalElement.addEventListener('hidden.bs.modal', () => {
+                    this.resetComposer();
+                });
+            }
+
             if (this.typeButtons.length > 0) {
                 this.typeButtons.forEach((button) => {
                     button.addEventListener('click', () => {
@@ -1644,6 +1669,9 @@
 
                 this.setFeedback('Remark added.', 'success');
                 this.resetComposer();
+                if (this.modalInstance) {
+                    this.modalInstance.hide();
+                }
                 this.state.page = 1;
                 await this.fetchPage(1, false);
             } catch (error) {

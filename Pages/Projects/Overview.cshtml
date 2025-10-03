@@ -1205,52 +1205,79 @@
                         <div class="remarks-panel" data-remarks-panel data-config='@remarksConfigJson'>
                             @if (Model.RemarksPanel.ShowComposer)
                             {
-                                <form class="remarks-composer" data-remarks-composer>
-                                    @Html.AntiForgeryToken()
-                                    <div class="d-flex flex-column gap-3">
-                                        <div>
-                                            <label for="remark-body" class="form-label fw-semibold mb-1">Add a remark</label>
-                                            <textarea id="remark-body" class="form-control" rows="3" maxlength="4000" data-remarks-body required></textarea>
-                                            <div class="form-text">Maximum 4000 characters.</div>
-                                            @if (!string.IsNullOrWhiteSpace(Model.RemarksPanel.ActorDisplayName))
-                                            {
-                                                <div class="small text-muted mt-1">Posting as @Model.RemarksPanel.ActorDisplayName</div>
-                                            }
-                                        </div>
-                                        <div class="remarks-composer-options d-flex flex-wrap align-items-center gap-2">
-                                            <div class="btn-group btn-group-sm" role="group" aria-label="Remark audience" data-remarks-composer-type>
-                                                <button type="button" class="btn btn-outline-secondary active" data-remarks-composer-option="Internal" aria-pressed="true">Internal</button>
-                                                @if (Model.RemarksPanel.AllowExternal)
-                                                {
-                                                    <button type="button" class="btn btn-outline-secondary" data-remarks-composer-option="External" aria-pressed="false">External</button>
-                                                }
+                                var composerModalId = $"remarks-composer-modal-{Model.Project?.Id ?? 0}";
+                                <div class="remarks-launcher d-flex justify-content-end">
+                                    <button type="button"
+                                            class="btn btn-primary remarks-composer-trigger"
+                                            data-remarks-open-modal
+                                            aria-haspopup="dialog"
+                                            aria-controls="@composerModalId"
+                                            aria-label="Add a remark"
+                                            title="Add a remark">
+                                        <span aria-hidden="true">+</span>
+                                    </button>
+                                </div>
+                                <div class="modal fade"
+                                     id="@composerModalId"
+                                     tabindex="-1"
+                                     aria-hidden="true"
+                                     aria-labelledby="@($"{composerModalId}-label")"
+                                     data-remarks-modal>
+                                    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h2 class="modal-title h5" id="@($"{composerModalId}-label")">Add a remark</h2>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                                             </div>
-                                            <div class="remarks-composer-external d-flex flex-wrap align-items-end gap-2 d-none" data-remarks-external-fields>
-                                                <div>
-                                                    <label for="remark-event-date" class="form-label mb-1 small">Event date</label>
-                                                    <input type="date" id="remark-event-date" class="form-control form-control-sm" data-remarks-event-date value="@Model.RemarksPanel.Today" max="@Model.RemarksPanel.Today" />
-                                                </div>
-                                                <div>
-                                                    <label for="remark-stage" class="form-label mb-1 small">Stage <span class="text-muted">(optional)</span></label>
-                                                    <select id="remark-stage" class="form-select form-select-sm" data-remarks-stage>
-                                                        <option value="">Not linked</option>
-                                                        @foreach (var stage in Model.RemarksPanel.StageOptions)
+                                            <form class="remarks-composer" data-remarks-composer>
+                                                @Html.AntiForgeryToken()
+                                                <div class="modal-body d-flex flex-column gap-3">
+                                                    <div>
+                                                        <label for="remark-body" class="form-label fw-semibold mb-1">Remark</label>
+                                                        <textarea id="remark-body" class="form-control" rows="4" maxlength="4000" data-remarks-body required></textarea>
+                                                        <div class="form-text">Maximum 4000 characters.</div>
+                                                        @if (!string.IsNullOrWhiteSpace(Model.RemarksPanel.ActorDisplayName))
                                                         {
-                                                            <option value="@stage.Value">@stage.Label</option>
+                                                            <div class="small text-muted mt-1">Posting as @Model.RemarksPanel.ActorDisplayName</div>
                                                         }
-                                                    </select>
+                                                    </div>
+                                                    <div class="remarks-composer-options d-flex flex-wrap align-items-center gap-2">
+                                                        <div class="btn-group btn-group-sm" role="group" aria-label="Remark audience" data-remarks-composer-type>
+                                                            <button type="button" class="btn btn-outline-secondary active" data-remarks-composer-option="Internal" aria-pressed="true">Internal</button>
+                                                            @if (Model.RemarksPanel.AllowExternal)
+                                                            {
+                                                                <button type="button" class="btn btn-outline-secondary" data-remarks-composer-option="External" aria-pressed="false">External</button>
+                                                            }
+                                                        </div>
+                                                        <div class="remarks-composer-external d-flex flex-wrap align-items-end gap-2 d-none" data-remarks-external-fields>
+                                                            <div>
+                                                                <label for="remark-event-date" class="form-label mb-1 small">Event date</label>
+                                                                <input type="date" id="remark-event-date" class="form-control form-control-sm" data-remarks-event-date value="@Model.RemarksPanel.Today" max="@Model.RemarksPanel.Today" />
+                                                            </div>
+                                                            <div>
+                                                                <label for="remark-stage" class="form-label mb-1 small">Stage <span class="text-muted">(optional)</span></label>
+                                                                <select id="remark-stage" class="form-select form-select-sm" data-remarks-stage>
+                                                                    <option value="">Not linked</option>
+                                                                    @foreach (var stage in Model.RemarksPanel.StageOptions)
+                                                                    {
+                                                                        <option value="@stage.Value">@stage.Label</option>
+                                                                    }
+                                                                </select>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </div>
-                                        <div class="d-flex flex-column flex-sm-row gap-2 align-items-sm-center justify-content-between">
-                                            <div class="small" data-remarks-feedback></div>
-                                            <div class="d-flex gap-2 ms-sm-auto">
-                                                <button type="reset" class="btn btn-sm btn-outline-secondary" data-remarks-reset>Clear</button>
-                                                <button type="submit" class="btn btn-primary btn-sm" data-remarks-submit>Post remark</button>
-                                            </div>
+                                                <div class="modal-footer flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-center">
+                                                    <div class="small text-start" data-remarks-feedback></div>
+                                                    <div class="d-flex gap-2 ms-sm-auto">
+                                                        <button type="reset" class="btn btn-sm btn-outline-secondary" data-remarks-reset>Clear</button>
+                                                        <button type="submit" class="btn btn-primary btn-sm" data-remarks-submit>Post remark</button>
+                                                    </div>
+                                                </div>
+                                            </form>
                                         </div>
                                     </div>
-                                </form>
+                                </div>
                             }
                             else
                             {
