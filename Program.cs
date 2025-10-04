@@ -42,6 +42,7 @@ using Microsoft.Net.Http.Headers;
 using System.Threading;
 using ProjectManagement.Features.Remarks;
 using ProjectManagement.Services.Notifications;
+using ProjectManagement.Services.Navigation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 
@@ -169,6 +170,7 @@ builder.Services.AddHostedService<LoginAggregationWorker>();
 builder.Services.AddHostedService<TodoPurgeWorker>();
 builder.Services.AddScoped<PlanDraftService>();
 builder.Services.AddScoped<PlanApprovalService>();
+builder.Services.AddScoped<INavigationProvider, RoleBasedNavigationProvider>();
 builder.Services.AddScoped<StageRulesService>();
 builder.Services.AddScoped<StageProgressService>();
 builder.Services.AddScoped<IStageValidationService, StageValidationService>();
