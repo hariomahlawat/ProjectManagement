@@ -15,7 +15,7 @@ if (root) {
   const stageDependenciesEls = Array.from(document.querySelectorAll('[data-stage-dependencies]'));
   const optionalBadgeEls = Array.from(document.querySelectorAll('[data-stage-optional]'));
   const checklistLists = Array.from(document.querySelectorAll('[data-checklist-list]'));
-  const primaryChecklist = root.querySelector('[data-checklist-primary]');
+  const primaryChecklist = document.querySelector('[data-checklist-primary]');
   const actionGroups = Array.from(document.querySelectorAll('[data-checklist-actions]'));
   const itemModalEl = document.getElementById('checklistItemModal');
   const deleteModalEl = document.getElementById('checklistDeleteModal');
@@ -23,6 +23,8 @@ if (root) {
   const deleteForm = deleteModalEl ? deleteModalEl.querySelector('[data-checklist-delete-form]') : null;
   const itemModal = itemModalEl ? new bootstrap.Modal(itemModalEl) : null;
   const deleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl) : null;
+  const checklistOffcanvasEl = document.getElementById('checklistOffcanvas');
+  const checklistOffcanvas = checklistOffcanvasEl ? bootstrap.Offcanvas.getOrCreateInstance(checklistOffcanvasEl) : null;
   const flowPlaceholderTemplate = (() => {
     if (!flowCanvas) {
       return null;
@@ -1105,6 +1107,9 @@ if (root) {
     }
 
     highlightStageOnGraph(stage.code);
+    if (checklistOffcanvas && checklistOffcanvasEl && !checklistOffcanvasEl.classList.contains('show')) {
+      checklistOffcanvas.show();
+    }
     loadChecklist(stage.code);
   }
 

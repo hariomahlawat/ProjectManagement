@@ -5,16 +5,9 @@
 }
 
 .process-layout {
-  display: grid;
-  grid-template-columns: minmax(520px, 1fr) 360px;
+  display: flex;
+  flex-direction: column;
   gap: 1.5rem;
-  align-items: start;
-}
-
-.proc-diagram {
-  --process-bg: var(--bs-body-bg);
-  --process-border: var(--bs-border-color);
-  border-radius: 1rem;
 }
 
 .proc-diagram .card-body {
@@ -27,9 +20,9 @@
   position: relative;
   min-height: 520px;
   height: clamp(520px, 70vh, 820px);
-  border: 1px solid var(--process-border);
+  border: 1px solid var(--bs-border-color);
   border-radius: 0.75rem;
-  background: var(--process-bg);
+  background: var(--bs-body-bg);
   overflow: auto;
   padding: 1.5rem;
 }
@@ -129,26 +122,6 @@
   fill: var(--bs-body-color);
   letter-spacing: 0.01em;
   pointer-events: none;
-}
-
-.proc-panel .process-stage-info {
-  --process-stage-sticky-offset: 1.5rem;
-  top: var(--process-stage-sticky-offset);
-  max-height: calc(100vh - var(--process-stage-sticky-offset));
-  display: flex;
-  flex-direction: column;
-}
-
-.process-stage-info .card-body {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.process-stage-info__body {
-  overflow-y: auto;
-  max-height: calc(100vh - 6rem);
-  padding-right: 0.25rem;
 }
 
 .process-stage-meta dt {
