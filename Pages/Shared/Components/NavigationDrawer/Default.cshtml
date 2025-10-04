@@ -2,40 +2,39 @@
 @using System.Collections.Generic
 @using ProjectManagement.ViewComponents
 @{
-    const string offcanvasId = "pmNavigationDrawer";
-    const string offcanvasLabelId = "pmNavigationDrawerLabel";
+    const string drawerId = "pmNavigationDrawer";
+    const string drawerLabelId = "pmNavigationDrawerLabel";
 }
 
 <div class="d-flex align-items-center gap-2">
     <button class="navbar-toggler d-lg-none" type="button"
-            data-bs-toggle="offcanvas"
-            data-bs-target="#@offcanvasId"
-            aria-controls="@offcanvasId"
+            data-drawer-toggle
+            data-drawer-target="@drawerId"
+            aria-controls="@drawerId"
             aria-label="Toggle navigation menu">
         <span class="navbar-toggler-icon"></span>
     </button>
 
-    <div class="offcanvas offcanvas-start" tabindex="-1" id="@offcanvasId" aria-labelledby="@offcanvasLabelId">
-        <div class="offcanvas-header">
-            <div>
-                <h5 class="offcanvas-title mb-0" id="@offcanvasLabelId">@Model.Brand</h5>
-                @if (!string.IsNullOrEmpty(Model.UserName))
-                {
-                    <span class="text-muted small">Signed in as @Model.UserName</span>
-                }
+    <div class="pm-drawer" data-drawer="@drawerId" id="@drawerId" aria-labelledby="@drawerLabelId">
+        <div class="pm-drawer__overlay" data-drawer-overlay></div>
+        <div class="pm-drawer__panel" data-drawer-panel>
+            <div class="pm-drawer__header">
+                <div>
+                    <h2 class="pm-drawer__title" id="@drawerLabelId">@Model.Brand</h2>
+                    @if (!string.IsNullOrEmpty(Model.UserName))
+                    {
+                        <span class="text-muted small">Signed in as @Model.UserName</span>
+                    }
+                </div>
+                <button type="button" class="btn-close d-lg-none" data-drawer-close aria-label="Close navigation menu"></button>
             </div>
-            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close navigation menu"></button>
-        </div>
-        <div class="offcanvas-body">
-            @await Html.PartialAsync(
-                "~/Pages/Shared/Components/NavigationDrawer/_NavigationDrawerItems.cshtml",
-                new NavigationDrawerItemsViewModel(Model.Items, true, 0))
+            <div class="pm-drawer__body">
+                <nav aria-label="Primary navigation">
+                    @await Html.PartialAsync(
+                        "~/Pages/Shared/Components/NavigationDrawer/_NavigationDrawerItems.cshtml",
+                        new NavigationDrawerItemsViewModel(Model.Items, true, 0))
+                </nav>
+            </div>
         </div>
     </div>
-
-    <nav class="d-none d-lg-block" aria-label="Primary navigation">
-        @await Html.PartialAsync(
-            "~/Pages/Shared/Components/NavigationDrawer/_NavigationDrawerItems.cshtml",
-            new NavigationDrawerItemsViewModel(Model.Items, false, 0))
-    </nav>
 </div>
