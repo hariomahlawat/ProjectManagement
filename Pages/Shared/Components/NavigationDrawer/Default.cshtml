@@ -27,51 +27,11 @@
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close navigation menu"></button>
         </div>
         <div class="offcanvas-body">
-            @RenderNavigationItems(Model.Items, isOffcanvas: true, depth: 0)
+            @await Html.PartialAsync("_NavigationDrawerItems", new NavigationDrawerItemsViewModel(Model.Items, true, 0))
         </div>
     </div>
 
     <nav class="d-none d-lg-block" aria-label="Primary navigation">
-        @RenderNavigationItems(Model.Items, isOffcanvas: false, depth: 0)
+        @await Html.PartialAsync("_NavigationDrawerItems", new NavigationDrawerItemsViewModel(Model.Items, false, 0))
     </nav>
 </div>
-
-@helper RenderNavigationItems(IReadOnlyList<NavigationDrawerNode> nodes, bool isOffcanvas, int depth)
-{
-    var listClasses = isOffcanvas
-        ? $"nav flex-column gap-1{(depth > 0 ? " ms-3" : string.Empty)}"
-        : depth == 0
-            ? "navbar-nav flex-row align-items-center gap-2"
-            : "nav flex-column ms-lg-3 gap-1";
-
-    <ul class="@listClasses">
-        @foreach (var node in nodes)
-        {
-            var linkClasses = "nav-link";
-            if (node.IsActive)
-            {
-                linkClasses += " active fw-semibold";
-            }
-            else if (node.HasActiveDescendant)
-            {
-                linkClasses += " fw-semibold";
-            }
-
-            <li class="nav-item">
-                @if (!string.IsNullOrEmpty(node.Url))
-                {
-                    <a class="@linkClasses" href="@node.Url" @(node.IsActive ? "aria-current=\"page\"" : string.Empty)>@node.Text</a>
-                }
-                else
-                {
-                    <span class="@($"{linkClasses} disabled")">@node.Text</span>
-                }
-
-                @if (node.Children.Count > 0)
-                {
-                    @RenderNavigationItems(node.Children, isOffcanvas, depth + 1)
-                }
-            </li>
-        }
-    </ul>
-}

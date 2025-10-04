@@ -1,0 +1,45 @@
+@model ProjectManagement.ViewComponents.NavigationDrawerItemsViewModel
+@using ProjectManagement.ViewComponents
+
+@{
+    var listClasses = Model.IsOffcanvas
+        ? $"nav flex-column gap-1{(Model.Depth > 0 ? " ms-3" : string.Empty)}"
+        : Model.Depth == 0
+            ? "navbar-nav flex-row align-items-center gap-2"
+            : "nav flex-column ms-lg-3 gap-1";
+}
+
+<ul class="@listClasses">
+@foreach (var node in Model.Nodes)
+{
+    var linkClasses = "nav-link";
+    if (node.IsActive)
+    {
+        linkClasses += " active fw-semibold";
+    }
+    else if (node.HasActiveDescendant)
+    {
+        linkClasses += " fw-semibold";
+    }
+
+    <li class="nav-item">
+        @if (!string.IsNullOrEmpty(node.Url))
+        {
+            <a class="@linkClasses" href="@node.Url" @(node.IsActive ? "aria-current=\"page\"" : null)>@node.Text</a>
+        }
+        else
+        {
+            <span class="@($"{linkClasses} disabled")">@node.Text</span>
+        }
+
+        @if (node.Children.Count > 0)
+        {
+            @await Html.PartialAsync("_NavigationDrawerItems", Model with
+            {
+                Nodes = node.Children,
+                Depth = Model.Depth + 1
+            })
+        }
+    </li>
+}
+</ul>
