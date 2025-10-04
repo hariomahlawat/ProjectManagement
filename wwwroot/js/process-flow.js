@@ -9,11 +9,6 @@ if (root) {
   const canEdit = root.dataset.canEdit === 'true';
   const flowCanvas = root.querySelector('[data-flow-canvas]');
   const stageTitleEls = Array.from(document.querySelectorAll('[data-stage-title]'));
-  const stageSubtitleEls = Array.from(document.querySelectorAll('[data-stage-subtitle]'));
-  const stageCodeEls = Array.from(document.querySelectorAll('[data-stage-code]'));
-  const stageParallelEls = Array.from(document.querySelectorAll('[data-stage-parallel]'));
-  const stageDependenciesEls = Array.from(document.querySelectorAll('[data-stage-dependencies]'));
-  const optionalBadgeEls = Array.from(document.querySelectorAll('[data-stage-optional]'));
   const checklistLists = Array.from(document.querySelectorAll('[data-checklist-list]'));
   const primaryChecklist = document.querySelector('[data-checklist-primary]');
   const actionGroups = Array.from(document.querySelectorAll('[data-checklist-actions]'));
@@ -639,52 +634,18 @@ if (root) {
   function setStageDetails(stage) {
     if (!stage) {
       updateElements(stageTitleEls, 'Select a stage');
-      updateElements(stageSubtitleEls, 'Choose a stage on the diagram to see its checklist.');
-      updateElements(stageCodeEls, '—');
-      updateElements(stageParallelEls, '—');
-      updateDependencies([]);
-      optionalBadgeEls.forEach((el) => { el.hidden = true; });
       toggleActionGroups(false);
       return;
     }
 
     const title = `${stage.displayIndex}. ${stage.name}`;
     updateElements(stageTitleEls, title);
-    updateElements(stageSubtitleEls, 'Review the required activities before progressing to the next milestone.');
-    updateElements(stageCodeEls, stage.code);
-    updateElements(stageParallelEls, stage.parallelGroup || '—');
-    updateDependencies(stage.dependsOn || []);
-    optionalBadgeEls.forEach((el) => { el.hidden = !stage.optional; });
     toggleActionGroups(canEdit);
   }
 
   function updateElements(elements, text) {
     elements.forEach((el) => {
       el.textContent = text;
-    });
-  }
-
-  function updateDependencies(dependsOnCodes) {
-    const codes = Array.isArray(dependsOnCodes) ? dependsOnCodes : [];
-    const fragmentFactory = (code) => {
-      const badge = document.createElement('span');
-      badge.className = 'badge rounded-pill bg-light border text-secondary me-2 mb-2';
-      const stage = state.stageByCode.get(code);
-      badge.textContent = stage ? `${code} · ${stage.name}` : code;
-      return badge;
-    };
-
-    stageDependenciesEls.forEach((container) => {
-      container.innerHTML = '';
-      if (codes.length === 0) {
-        const empty = document.createElement('span');
-        empty.className = 'text-muted';
-        empty.textContent = 'None';
-        container.appendChild(empty);
-        return;
-      }
-
-      codes.forEach((code) => container.appendChild(fragmentFactory(code)));
     });
   }
 
