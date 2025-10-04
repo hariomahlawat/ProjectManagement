@@ -454,7 +454,7 @@ if (root) {
     defs.appendChild(marker);
   }
 
-  function wrapLabelLines(text, maxChars = 20) {
+  function wrapLabelLines(text, maxChars = 18) {
     if (!text) {
       return [''];
     }
@@ -481,8 +481,8 @@ if (root) {
   }
 
   function createLabelElement(text, layout, options = {}) {
-    const lines = wrapLabelLines(text, options.maxChars || 20);
-    const lineHeight = options.lineHeight || 20;
+    const lines = wrapLabelLines(text, options.maxChars ?? 18);
+    const lineHeight = options.lineHeight ?? 22;
     const textEl = createSvgElement('text', {
       class: 'flow-node__label',
       x: layout.width / 2,
