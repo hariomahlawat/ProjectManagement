@@ -1136,6 +1136,13 @@ if (root) {
       return;
     }
 
+    const withinRoot = root.contains(button);
+    const withinOffcanvas = checklistOffcanvasEl ? checklistOffcanvasEl.contains(button) : false;
+
+    if (!withinRoot && !withinOffcanvas) {
+      return;
+    }
+
     const action = button.dataset.action;
     if (!action) {
       return;
@@ -1365,7 +1372,7 @@ if (root) {
     setStageDetails(null);
     renderChecklist(null);
     showFlowLoading();
-    root.addEventListener('click', handleActionClick);
+    document.addEventListener('click', handleActionClick);
     if (itemForm) {
       itemForm.addEventListener('submit', handleItemFormSubmit);
     }
