@@ -180,8 +180,18 @@
   cursor: grabbing;
 }
 
+.stage-checklist .checklist-item .item-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 .stage-checklist .checklist-item .item-actions .btn {
   padding: 0.25rem 0.5rem;
+}
+
+.stage-checklist .checklist-item .item-actions .btn-icon {
+  padding: 0;
 }
 
 .stage-checklist .checklist-empty {
