@@ -1,21 +1,12 @@
 .process-hero {
-  padding-block: 0.75rem;
+  padding-block: 0.25rem;
 }
 
 .process-hero .hero-badge {
   background: linear-gradient(135deg, rgba(13, 110, 253, 0.08), rgba(32, 201, 151, 0.08));
   border: 1px solid rgba(13, 110, 253, 0.15);
-  min-width: 200px;
-  padding: 0.75rem 0.875rem;
-}
-
-.process-hero .display-6 {
-  font-size: clamp(1.7rem, 2.2vw, 2.1rem);
-  margin-bottom: 0.5rem !important;
-}
-
-.process-hero .lead {
-  margin-bottom: 0 !important;
+  min-width: 150px;
+  padding: 0.5rem 0.75rem;
 }
 
 .process-layout {
