@@ -138,6 +138,197 @@
   margin-left: .35rem;
 }
 
+/* Event form offcanvas */
+#eventFormCanvas .offcanvas-header {
+  padding: 1rem 1.5rem .5rem;
+}
+
+#eventFormCanvas .offcanvas-body {
+  padding: 1.25rem 1.5rem 1.75rem;
+  background: linear-gradient(180deg, rgba(241,245,249,.75) 0%, rgba(248,250,252,.85) 60%, #fff 100%);
+}
+
+#eventFormCanvas .event-form-section {
+  background-color: rgba(255,255,255,.9);
+  border: 1px solid rgba(15,23,42,.08);
+  border-radius: .85rem;
+  box-shadow: 0 1px 2px rgba(15,23,42,.06), 0 10px 30px -20px rgba(15,23,42,.35);
+  padding: 1.1rem 1.35rem 1.25rem;
+  margin-bottom: 1.25rem;
+}
+
+#eventFormCanvas .event-form-section:last-child {
+  margin-bottom: 0;
+}
+
+#eventFormCanvas .event-form-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #0f172a;
+  letter-spacing: .01em;
+  margin-bottom: .75rem;
+}
+
+#eventFormCanvas .event-form-body {
+  display: grid;
+  gap: .85rem;
+}
+
+#eventFormCanvas label,
+#eventFormCanvas .form-label {
+  font-weight: 600;
+  color: #1e293b;
+  letter-spacing: .01em;
+}
+
+#eventFormCanvas .form-text,
+#eventFormCanvas .event-form-help {
+  font-size: .85rem;
+  color: rgba(15,23,42,.75);
+}
+
+#eventFormCanvas input[type="text"],
+#eventFormCanvas input[type="datetime-local"],
+#eventFormCanvas select,
+#eventFormCanvas textarea {
+  border-radius: .65rem;
+}
+
+#eventFormCanvas .event-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .75rem;
+  justify-content: flex-end;
+  padding-top: 1rem;
+  margin-top: .5rem;
+  border-top: 1px solid rgba(15,23,42,.06);
+}
+
+#eventFormCanvas .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  padding: .65rem 1.35rem;
+  min-height: 2.5rem;
+  border-radius: .65rem;
+  font-weight: 600;
+  letter-spacing: .01em;
+  box-shadow: 0 1px 2px rgba(15,23,42,.1);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+
+#eventFormCanvas .btn:focus-visible {
+  outline: 3px solid rgba(59,130,246,.45);
+  outline-offset: 2px;
+}
+
+#eventFormCanvas .btn-primary {
+  background-color: #2563eb;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+#eventFormCanvas .btn-primary:hover,
+#eventFormCanvas .btn-primary:focus {
+  background-color: #1d4ed8;
+  border-color: #1e40af;
+}
+
+#eventFormCanvas .btn-secondary,
+#eventFormCanvas .btn-outline-secondary {
+  background-color: rgba(226,232,240,.9);
+  border-color: rgba(148,163,184,.9);
+  color: #0f172a;
+}
+
+#eventFormCanvas .btn-secondary:hover,
+#eventFormCanvas .btn-secondary:focus,
+#eventFormCanvas .btn-outline-secondary:hover,
+#eventFormCanvas .btn-outline-secondary:focus {
+  background-color: rgba(203,213,225,.95);
+  border-color: rgba(100,116,139,.9);
+  color: #0f172a;
+}
+
+#eventFormCanvas .btn-danger,
+#eventFormCanvas .btn-outline-danger {
+  background-color: rgba(248,113,113,.92);
+  border-color: rgba(220,38,38,.95);
+  color: #fff;
+}
+
+#eventFormCanvas .btn-danger:hover,
+#eventFormCanvas .btn-danger:focus,
+#eventFormCanvas .btn-outline-danger:hover,
+#eventFormCanvas .btn-outline-danger:focus {
+  background-color: rgba(220,38,38,.98);
+  border-color: #991b1b;
+}
+
+#eventFormCanvas .btn-outline-secondary,
+#eventFormCanvas .btn-outline-danger {
+  box-shadow: none;
+}
+
+#eventFormCanvas .btn-outline-secondary {
+  color: #1f2937;
+}
+
+#eventFormCanvas .btn-outline-danger {
+  color: #fff;
+}
+
+#eventFormCanvas .btn:disabled,
+#eventFormCanvas .btn.disabled,
+#eventFormCanvas fieldset:disabled .btn {
+  opacity: .65;
+  box-shadow: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  #eventFormCanvas .offcanvas-body {
+    background: linear-gradient(180deg, rgba(30,41,59,.8) 0%, rgba(15,23,42,.92) 60%, #0f172a 100%);
+  }
+
+  #eventFormCanvas .event-form-section {
+    background-color: rgba(30,41,59,.95);
+    border-color: rgba(148,163,184,.2);
+    box-shadow: 0 1px 2px rgba(15,23,42,.35), 0 18px 40px -30px rgba(15,23,42,.8);
+  }
+
+  #eventFormCanvas .event-form-title,
+  #eventFormCanvas label,
+  #eventFormCanvas .form-label {
+    color: #e2e8f0;
+  }
+
+  #eventFormCanvas .form-text,
+  #eventFormCanvas .event-form-help {
+    color: rgba(226,232,240,.75);
+  }
+
+  #eventFormCanvas .btn-secondary,
+  #eventFormCanvas .btn-outline-secondary {
+    background-color: rgba(71,85,105,.85);
+    border-color: rgba(148,163,184,.5);
+    color: #f8fafc;
+  }
+
+  #eventFormCanvas .btn-secondary:hover,
+  #eventFormCanvas .btn-secondary:focus,
+  #eventFormCanvas .btn-outline-secondary:hover,
+  #eventFormCanvas .btn-outline-secondary:focus {
+    background-color: rgba(100,116,139,.85);
+    border-color: rgba(148,163,184,.75);
+  }
+
+  #eventFormCanvas .btn-outline-danger {
+    background-color: transparent;
+    color: #fecaca;
+  }
+}
+
 /* Print: clean A4 month view */
 @media print {
   nav, header, footer, #categoryFilters, #btnNewEvent, #btnPrev, #btnNext, [data-view], #btnToday { display: none !important; }
