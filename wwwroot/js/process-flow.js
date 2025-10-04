@@ -1,5 +1,8 @@
 const root = document.querySelector('[data-process-flow-root]');
 const OPTIONAL_STAGE_CODE = 'PNC';
+const elk = typeof globalThis !== 'undefined' && typeof globalThis.ELK === 'function'
+  ? new globalThis.ELK()
+  : null;
 
 if (root) {
   const initialVersion = (root.dataset.processVersion || '').trim();
@@ -311,14 +314,10 @@ if (root) {
 
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const NODE_SIZES = {
-    terminator: { width: 320, height: 110 },
-    process: { width: 320, height: 130 },
-    decision: { width: 220, height: 220 }
+    terminator: { width: 190, height: 56 },
+    process: { width: 210, height: 70 },
+    decision: { width: 110, height: 110 }
   };
-  const DIAGRAM_MARGIN_X = 200;
-  const DIAGRAM_MARGIN_Y = 160;
-  const COLUMN_SPACING = 300;
-  const ROW_SPACING = 210;
 
   function createSvgElement(name, attributes = {}) {
     const el = document.createElementNS(SVG_NS, name);
@@ -343,54 +342,20 @@ if (root) {
     const marker = createSvgElement('marker', {
       id: 'pm-flow-arrow',
       orient: 'auto',
-      markerWidth: 12,
-      markerHeight: 12,
-      refX: 11,
-      refY: 6
+      markerWidth: 10,
+      markerHeight: 10,
+      refX: 8,
+      refY: 3
     });
     const markerPath = createSvgElement('path', {
-      d: 'M 0 0 L 11 6 L 0 12 Z',
+      d: 'M0,0 L8,3 L0,6 Z',
       fill: 'currentColor'
     });
     marker.appendChild(markerPath);
     defs.appendChild(marker);
-
-    const shadow = createSvgElement('filter', {
-      id: 'pm-flow-shadow',
-      x: '-40%',
-      y: '-40%',
-      width: '180%',
-      height: '180%',
-      'color-interpolation-filters': 'sRGB'
-    });
-    shadow.appendChild(createSvgElement('feDropShadow', {
-      dx: 0,
-      dy: 8,
-      'flood-color': 'rgba(15, 23, 42, 0.35)',
-      'flood-opacity': 0.45,
-      'std-deviation': 8
-    }));
-    defs.appendChild(shadow);
-
-    const glow = createSvgElement('filter', {
-      id: 'pm-flow-glow',
-      x: '-60%',
-      y: '-60%',
-      width: '220%',
-      height: '220%',
-      'color-interpolation-filters': 'sRGB'
-    });
-    glow.appendChild(createSvgElement('feDropShadow', {
-      dx: 0,
-      dy: 0,
-      'flood-color': 'rgba(13, 110, 253, 0.55)',
-      'flood-opacity': 0.9,
-      'std-deviation': 12
-    }));
-    defs.appendChild(glow);
   }
 
-  function wrapLabelLines(text, maxChars = 24) {
+  function wrapLabelLines(text, maxChars = 20) {
     if (!text) {
       return [''];
     }
@@ -417,8 +382,8 @@ if (root) {
   }
 
   function createLabelElement(text, layout, options = {}) {
-    const lines = wrapLabelLines(text, options.maxChars || 26);
-    const lineHeight = options.lineHeight || 18;
+    const lines = wrapLabelLines(text, options.maxChars || 22);
+    const lineHeight = options.lineHeight || 16;
     const textEl = createSvgElement('text', {
       class: 'flow-node__label',
       x: layout.width / 2,
@@ -474,7 +439,7 @@ if (root) {
       y: 0,
       width: layout.width,
       height: layout.height,
-      rx: 28,
+      rx: 18,
       class: 'flow-node__body'
     });
     group.appendChild(rect);
@@ -493,54 +458,12 @@ if (root) {
     return group;
   }
 
-  function pointTowards(start, end, distance) {
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
-    const magnitude = Math.hypot(dx, dy) || 1;
-    const ratio = distance / magnitude;
-    return {
-      x: start.x + dx * ratio,
-      y: start.y + dy * ratio
-    };
-  }
-
-  function connectorPath(start, end) {
-    const dx = end.x - start.x;
-    const dy = end.y - start.y;
-    if (Math.abs(dx) < 4 && Math.abs(dy) < 4) {
-      return `M ${start.x} ${start.y} L ${end.x} ${end.y}`;
-    }
-
-    if (Math.abs(dx) < 4) {
-      const midY = start.y + dy / 2;
-      return `M ${start.x} ${start.y} C ${start.x} ${midY}, ${end.x} ${midY}, ${end.x} ${end.y}`;
-    }
-
-    const curvature = Math.max(Math.min(Math.abs(dx) * 0.4, 240), 120);
-    const control1X = start.x + Math.sign(dx) * curvature;
-    const control2X = end.x - Math.sign(dx) * curvature;
-    return `M ${start.x} ${start.y} C ${control1X} ${start.y}, ${control2X} ${end.y}, ${end.x} ${end.y}`;
-  }
-
-  function drawConnector(sourceLayout, targetLayout, options = {}) {
-    const startPoint = pointTowards(
-      { x: sourceLayout.x, y: sourceLayout.y },
-      { x: targetLayout.x, y: targetLayout.y },
-      Math.min(sourceLayout.radius, Math.hypot(targetLayout.x - sourceLayout.x, targetLayout.y - sourceLayout.y) / 2)
-    );
-    const endPoint = pointTowards(
-      { x: targetLayout.x, y: targetLayout.y },
-      { x: sourceLayout.x, y: sourceLayout.y },
-      Math.min(targetLayout.radius, Math.hypot(targetLayout.x - sourceLayout.x, targetLayout.y - sourceLayout.y) / 2)
-    );
-
-    const path = createSvgElement('path', {
+  function drawConnector(pathData, options = {}) {
+    return createSvgElement('path', {
       class: `flow-connector${options.dashed ? ' flow-connector--dashed' : ''}`,
-      d: connectorPath(startPoint, endPoint),
+      d: pathData,
       'marker-end': 'url(#pm-flow-arrow)'
     });
-
-    return path;
   }
 
   function buildGraph(flow) {
@@ -577,137 +500,14 @@ if (root) {
     return { incoming, outgoing };
   }
 
-  function computeDiagramLayout(flow) {
+  async function computeDiagramLayout(flow) {
     const graph = buildGraph(flow);
-    const nodeByCode = new Map();
-    const groupMembers = new Map();
-    const groupOrder = [];
-
-    flow.nodes.forEach((node) => {
-      nodeByCode.set(node.code, node);
-      if (node.parallelGroup) {
-        const key = String(node.parallelGroup).toUpperCase();
-        if (!groupMembers.has(key)) {
-          groupMembers.set(key, []);
-          groupOrder.push(key);
-        }
-        groupMembers.get(key).push(node.code);
-      }
-    });
-
-    const indegree = new Map();
-    flow.nodes.forEach((node) => {
-      indegree.set(node.code, graph.incoming.get(node.code)?.length || 0);
-    });
-
-    const queue = [];
-    indegree.forEach((count, code) => {
-      if (count === 0) {
-        queue.push(code);
-      }
-    });
-
-    const topoOrder = [];
-    while (queue.length > 0) {
-      const code = queue.shift();
-      topoOrder.push(code);
-      const successors = graph.outgoing.get(code) || [];
-      successors.forEach((target) => {
-        if (!indegree.has(target)) {
-          return;
-        }
-        const remaining = (indegree.get(target) || 0) - 1;
-        indegree.set(target, remaining);
-        if (remaining === 0) {
-          queue.push(target);
-        }
-      });
+    if (!elk) {
+      throw new Error('Process layout engine unavailable.');
     }
 
-    if (topoOrder.length !== flow.nodes.length) {
-      const seen = new Set(topoOrder);
-      flow.nodes.forEach((node) => {
-        if (!seen.has(node.code)) {
-          topoOrder.push(node.code);
-        }
-      });
-    }
-
-    const columnByNode = new Map();
-    topoOrder.forEach((code) => {
-      const predecessors = graph.incoming.get(code) || [];
-      let column = 0;
-      if (predecessors.length > 0) {
-        column = Math.max(...predecessors.map((predecessor) => columnByNode.get(predecessor) || 0)) + 1;
-      }
-      columnByNode.set(code, column);
-    });
-
-    let maxBaseColumn = 0;
-    columnByNode.forEach((value) => {
-      if (value > maxBaseColumn) {
-        maxBaseColumn = value;
-      }
-    });
-
-    let nextGroupColumn = maxBaseColumn + 1;
-    groupOrder.forEach((key) => {
-      const members = groupMembers.get(key) || [];
-      if (members.length === 0) {
-        return;
-      }
-      const baseColumn = members.reduce((acc, code) => Math.max(acc, columnByNode.get(code) || 0), 0);
-      const assigned = Math.max(baseColumn, nextGroupColumn);
-      members.forEach((code) => {
-        columnByNode.set(code, assigned);
-      });
-      if (assigned >= nextGroupColumn) {
-        nextGroupColumn = assigned + 1;
-      }
-    });
-
-    let updated = true;
-    while (updated) {
-      updated = false;
-      topoOrder.forEach((code) => {
-        const node = nodeByCode.get(code);
-        const predecessors = graph.incoming.get(code) || [];
-        let requiredColumn = 0;
-        if (predecessors.length > 0) {
-          requiredColumn = Math.max(...predecessors.map((predecessor) => columnByNode.get(predecessor) || 0)) + 1;
-        }
-
-        const current = columnByNode.get(code) || 0;
-        let nextColumn = Math.max(current, requiredColumn);
-
-        if (node?.parallelGroup) {
-          const key = String(node.parallelGroup).toUpperCase();
-          const members = groupMembers.get(key) || [];
-          const groupColumn = members.reduce((acc, member) => Math.max(acc, columnByNode.get(member) || nextColumn), nextColumn);
-          if (groupColumn !== nextColumn) {
-            nextColumn = groupColumn;
-          }
-          members.forEach((member) => {
-            const memberColumn = columnByNode.get(member) || 0;
-            if (memberColumn !== nextColumn) {
-              columnByNode.set(member, nextColumn);
-              updated = true;
-            }
-          });
-        }
-
-        if (nextColumn !== current) {
-          columnByNode.set(code, nextColumn);
-          updated = true;
-        }
-      });
-    }
-
-    const nodeLayouts = new Map();
-    let maxX = 0;
-    let maxY = 0;
-
-    flow.nodes.forEach((node) => {
+    const nodeMeta = new Map();
+    const children = flow.nodes.map((node) => {
       const incomingCount = graph.incoming.get(node.code)?.length || 0;
       const outgoingCount = graph.outgoing.get(node.code)?.length || 0;
       let shape = 'process';
@@ -717,35 +517,88 @@ if (root) {
         shape = 'decision';
       }
 
-      const columnIndex = columnByNode.get(node.code) || 0;
-      const rowIndex = Math.max(0, node.displayIndex - 1);
       const size = NODE_SIZES[shape] || NODE_SIZES.process;
-      const centerX = DIAGRAM_MARGIN_X + columnIndex * COLUMN_SPACING;
-      const centerY = DIAGRAM_MARGIN_Y + rowIndex * ROW_SPACING;
-      const layout = {
-        x: centerX,
-        y: centerY,
+      nodeMeta.set(node.code, { node, shape, size });
+      return {
+        id: node.code,
         width: size.width,
-        height: size.height,
-        radius: Math.min(size.width, size.height) / 2,
-        shape,
-        label: `${node.displayIndex}. ${node.name}`,
-        code: node.code,
-        optional: node.optional
+        height: size.height
       };
-
-      maxX = Math.max(maxX, centerX + size.width / 2);
-      maxY = Math.max(maxY, centerY + size.height / 2);
-      nodeLayouts.set(node.code, layout);
     });
 
-    const width = Math.max(maxX + DIAGRAM_MARGIN_X, DIAGRAM_MARGIN_X * 2 + NODE_SIZES.process.width);
-    const height = Math.max(maxY + DIAGRAM_MARGIN_Y, DIAGRAM_MARGIN_Y * 2 + NODE_SIZES.process.height);
+    const edges = flow.edges.map((edge, index) => ({
+      id: edge.id || `edge-${index}`,
+      sources: [edge.source],
+      targets: [edge.target]
+    }));
+
+    const layout = await elk.layout({
+      id: 'root',
+      layoutOptions: {
+        'elk.algorithm': 'layered',
+        'elk.direction': 'RIGHT',
+        'elk.layered.spacing.nodeNodeBetweenLayers': '48',
+        'elk.spacing.nodeNode': '32',
+        'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
+        'elk.edgeRouting': 'ORTHOGONAL',
+        'elk.layered.feedbackEdges': 'true',
+        'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+        'elk.padding': '[32,32,32,32]'
+      },
+      children,
+      edges
+    });
+
+    const nodeLayouts = new Map();
+    let maxX = 0;
+    let maxY = 0;
+    (layout.children || []).forEach((child) => {
+      const meta = nodeMeta.get(child.id);
+      if (!meta) {
+        return;
+      }
+      const centerX = child.x + child.width / 2;
+      const centerY = child.y + child.height / 2;
+      maxX = Math.max(maxX, child.x + child.width);
+      maxY = Math.max(maxY, child.y + child.height);
+      nodeLayouts.set(child.id, {
+        x: centerX,
+        y: centerY,
+        width: child.width,
+        height: child.height,
+        shape: meta.shape,
+        label: `${meta.node.displayIndex}. ${meta.node.name}`,
+        code: meta.node.code,
+        optional: meta.node.optional
+      });
+    });
+
+    const edgePaths = new Map();
+    (layout.edges || []).forEach((edge) => {
+      if (!edge.sections || edge.sections.length === 0) {
+        return;
+      }
+      const d = edge.sections
+        .map((section) => {
+          const commands = [`M ${section.startPoint.x} ${section.startPoint.y}`];
+          (section.bendPoints || []).forEach((bend) => {
+            commands.push(`L ${bend.x} ${bend.y}`);
+          });
+          commands.push(`L ${section.endPoint.x} ${section.endPoint.y}`);
+          return commands.join(' ');
+        })
+        .join(' ');
+      edgePaths.set(edge.id, d);
+    });
+
+    const width = Math.max(layout.width || 0, maxX + 32);
+    const height = Math.max(layout.height || 0, maxY + 32);
 
     return {
       nodes: nodeLayouts,
       width,
       height,
+      edgePaths,
       incoming: graph.incoming,
       outgoing: graph.outgoing
     };
@@ -1079,7 +932,10 @@ if (root) {
       return;
     }
 
-    const layout = computeDiagramLayout(flow);
+    const layout = await computeDiagramLayout(flow);
+    if (!layout) {
+      return;
+    }
     const svg = createSvgElement('svg', {
       class: 'process-flow-diagram',
       viewBox: `0 0 ${layout.width} ${layout.height}`,
@@ -1144,8 +1000,13 @@ if (root) {
         return;
       }
 
+      const pathData = layout.edgePaths?.get(edge.id);
+      if (!pathData) {
+        return;
+      }
+
       const dashed = Boolean(state.stageByCode.get(edge.target)?.optional);
-      const connector = drawConnector(source.layout, target.layout, { dashed });
+      const connector = drawConnector(pathData, { dashed });
       connector.dataset.edgeId = edge.id;
       connector.dataset.source = edge.source;
       connector.dataset.target = edge.target;
