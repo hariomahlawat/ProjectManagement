@@ -40,7 +40,7 @@
 }
 
 .todo-chip {
-  font-size: .75rem;
+  font-size: var(--pm-font-size-xs);
   padding: .2rem .5rem;
 }
 
@@ -51,7 +51,7 @@
 }
 
 .row-actions .btn {
-  font-size: .85rem;
+  font-size: var(--pm-font-size-compact);
 }
 
 
