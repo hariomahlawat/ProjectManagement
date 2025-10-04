@@ -19,39 +19,8 @@
         <nav class="navbar navbar-expand-lg navbar-light bg-light shadow-sm">
             <div class="container">
                 <a class="navbar-brand fw-semibold" asp-area="" asp-page="/Index">ProjectManagement</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#pmNavbar">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div id="pmNavbar" class="collapse navbar-collapse">
-                    <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                        @if (SignInManager.IsSignedIn(User))
-                        {
-                            <li class="nav-item">
-                                <a class="nav-link" asp-page="/Projects/Index">Projects</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" asp-page="/Process/Index">Process</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link" asp-page="/Dashboard/Index">Dashboard</a>
-                            </li>
-                            if (User.IsInRole("Admin"))
-                            {
-                                <li class="nav-item">
-                                    <a class="nav-link" asp-area="Admin" asp-page="/Index">Admin Panel</a>
-                                </li>
-                                if ((ViewContext.RouteData.Values["area"]?.ToString() ?? "") == "Admin")
-                                {
-                                    <li class="nav-item">
-                                        <a class="nav-link" asp-area="Admin" asp-page="/Analytics/Logins">Login scatter</a>
-                                    </li>
-                                    <li class="nav-item">
-                                        <a class="nav-link" asp-area="Admin" asp-page="/Help/Index">Help</a>
-                                    </li>
-                                }
-                            }
-                        }
-                    </ul>
+                <div class="d-flex align-items-center ms-auto gap-3">
+                    @await Component.InvokeAsync("NavigationDrawer")
                     <partial name="_LoginPartial" />
                 </div>
             </div>
