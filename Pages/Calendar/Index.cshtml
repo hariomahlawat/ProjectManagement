@@ -65,104 +65,151 @@
       <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
     <div class="offcanvas-body">
-      <form id="eventForm" class="vstack gap-3">
+      <form id="eventForm" class="d-flex flex-column gap-3">
         <input type="hidden" name="id" />
-        <div>
-          <label class="form-label">Title</label>
-          <input class="form-control" name="title" maxlength="160" required />
-        </div>
-        <div class="row g-2">
-          <div class="col-6">
-            <label class="form-label">Category</label>
-            <select class="form-select" name="category">
-              <option>Visit</option>
-              <option>Insp</option>
-              <option>Conference</option>
-              <option selected>Other</option>
-            </select>
-          </div>
-          <div class="col-6">
-            <label class="form-label">Location</label>
-            <input class="form-control" name="location" maxlength="160" />
-          </div>
-        </div>
 
-        <div class="form-check form-switch">
-          <input class="form-check-input" type="checkbox" role="switch" id="toggleAllDay" name="isAllDay">
-          <label class="form-check-label" for="toggleAllDay">All-day</label>
-        </div>
-
-        <div class="row g-2" id="timePickers">
-          <div class="col-6">
-            <label class="form-label">Start</label>
-            <input type="datetime-local" class="form-control" name="start" />
+        <section class="event-form-section border rounded-3 p-3">
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <div class="d-flex align-items-center gap-2">
+              <span class="text-secondary" aria-hidden="true">📄</span>
+              <h6 class="mb-0 text-uppercase small text-muted">Event details</h6>
+            </div>
+            <span class="text-muted small">Required information</span>
           </div>
-          <div class="col-6">
-            <label class="form-label">End</label>
-            <input type="datetime-local" class="form-control" name="end" />
+          <div class="row gy-2 gx-3">
+            <div class="col-12 col-lg-7">
+              <label class="form-label">Title</label>
+              <input class="form-control" name="title" maxlength="160" required aria-describedby="eventTitleHelp" />
+              <div id="eventTitleHelp" class="form-text">Displayed to everyone invited to the event.</div>
+            </div>
+            <div class="col-12 col-lg-5">
+              <label class="form-label">Location</label>
+              <input class="form-control" name="location" maxlength="160" placeholder="Optional" />
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+              <label class="form-label">Category</label>
+              <select class="form-select" name="category">
+                <option>Visit</option>
+                <option>Insp</option>
+                <option>Conference</option>
+                <option selected>Other</option>
+              </select>
+              <div class="form-text">Used for calendar color coding.</div>
+            </div>
           </div>
-        </div>
+        </section>
 
-        <div class="row g-2 d-none" id="datePickers">
-          <div class="col-6">
-            <label class="form-label">Start date</label>
-            <input type="date" class="form-control" name="startDate" />
+        <section class="event-form-section border rounded-3 p-3">
+          <div class="d-flex align-items-center gap-2 mb-3">
+            <span class="text-secondary" aria-hidden="true">🕒</span>
+            <h6 class="mb-0 text-uppercase small text-muted">Scheduling</h6>
           </div>
-          <div class="col-6">
-            <label class="form-label">End date</label>
-            <input type="date" class="form-control" name="endDate" />
+          <div class="row gy-3 gx-3 align-items-end">
+            <div class="col-12 col-md-8">
+              <div class="row gy-2 gx-3" id="timePickers">
+                <div class="col-12 col-md-6">
+                  <label class="form-label">Start</label>
+                  <input type="datetime-local" class="form-control" name="start" />
+                </div>
+                <div class="col-12 col-md-6">
+                  <label class="form-label">End</label>
+                  <input type="datetime-local" class="form-control" name="end" />
+                </div>
+              </div>
+              <div class="row gy-2 gx-3 d-none" id="datePickers">
+                <div class="col-12 col-md-6">
+                  <label class="form-label">Start date</label>
+                  <input type="date" class="form-control" name="startDate" />
+                </div>
+                <div class="col-12 col-md-6">
+                  <label class="form-label">End date</label>
+                  <input type="date" class="form-control" name="endDate" />
+                </div>
+              </div>
+            </div>
+            <div class="col-12 col-md-4">
+              <div class="form-check form-switch mt-1">
+                <input class="form-check-input" type="checkbox" role="switch" id="toggleAllDay" name="isAllDay">
+                <label class="form-check-label" for="toggleAllDay">All-day event</label>
+              </div>
+              <div class="form-text">Switch to hide time pickers.</div>
+            </div>
           </div>
-        </div>
+        </section>
 
-        <hr class="my-2" />
-        <label class="form-label">Repeats</label>
-        <select class="form-select form-select-sm" id="repeatFreq">
-          <option value="">Does not repeat</option>
-          <option value="WEEKLY">Weekly</option>
-          <option value="MONTHLY">Monthly</option>
-        </select>
-
-        <div id="repeatWeekly" class="mt-2 d-none">
-          <div class="form-text mb-1">On</div>
-          <div class="d-flex gap-2 flex-wrap">
-            <label class="form-check"><input class="form-check-input" type="checkbox" value="MO"> Mon</label>
-            <label class="form-check"><input class="form-check-input" type="checkbox" value="TU"> Tue</label>
-            <label class="form-check"><input class="form-check-input" type="checkbox" value="WE"> Wed</label>
-            <label class="form-check"><input class="form-check-input" type="checkbox" value="TH"> Thu</label>
-            <label class="form-check"><input class="form-check-input" type="checkbox" value="FR"> Fri</label>
-            <label class="form-check"><input class="form-check-input" type="checkbox" value="SA"> Sat</label>
-            <label class="form-check"><input class="form-check-input" type="checkbox" value="SU"> Sun</label>
+        <section class="event-form-section border rounded-3 p-3">
+          <div class="d-flex align-items-center gap-2 mb-3">
+            <span class="text-secondary" aria-hidden="true">🔁</span>
+            <h6 class="mb-0 text-uppercase small text-muted">Recurrence</h6>
           </div>
-        </div>
-
-        <div id="repeatMonthly" class="mt-2 d-none">
-          <div class="input-group input-group-sm">
-            <span class="input-group-text">Day</span>
-            <input type="number" min="1" max="31" class="form-control" id="repeatMonthDay" />
+          <div class="row gy-2 gx-3 align-items-center">
+            <div class="col-12 col-lg-5">
+              <label class="form-label mb-1">Repeats</label>
+              <select class="form-select form-select-sm" id="repeatFreq">
+                <option value="">Does not repeat</option>
+                <option value="WEEKLY">Weekly</option>
+                <option value="MONTHLY">Monthly</option>
+              </select>
+            </div>
+            <div class="col-12 col-lg-7">
+              <div class="form-text">Choose how often this event occurs.</div>
+            </div>
           </div>
-        </div>
-
-        <div class="mt-2">
-          <div class="form-text mb-1">Ends</div>
-          <div class="d-flex gap-3 align-items-center flex-wrap">
-            <label class="form-check"><input class="form-check-input" type="radio" name="repeatEnd" value="never" checked> Never</label>
-            <label class="form-check d-flex align-items-center gap-2">
-              <input class="form-check-input" type="radio" name="repeatEnd" value="on"> On
-              <input type="date" class="form-control form-control-sm" id="repeatUntil">
-            </label>
+          <div id="repeatWeekly" class="mt-3 d-none">
+            <div class="small text-muted mb-1">On these days</div>
+            <div class="row gx-3 gy-2">
+              <div class="col-auto"><label class="form-check"><input class="form-check-input" type="checkbox" value="MO"> Mon</label></div>
+              <div class="col-auto"><label class="form-check"><input class="form-check-input" type="checkbox" value="TU"> Tue</label></div>
+              <div class="col-auto"><label class="form-check"><input class="form-check-input" type="checkbox" value="WE"> Wed</label></div>
+              <div class="col-auto"><label class="form-check"><input class="form-check-input" type="checkbox" value="TH"> Thu</label></div>
+              <div class="col-auto"><label class="form-check"><input class="form-check-input" type="checkbox" value="FR"> Fri</label></div>
+              <div class="col-auto"><label class="form-check"><input class="form-check-input" type="checkbox" value="SA"> Sat</label></div>
+              <div class="col-auto"><label class="form-check"><input class="form-check-input" type="checkbox" value="SU"> Sun</label></div>
+            </div>
           </div>
-        </div>
 
-        <div>
-          <label class="form-label">Description (Markdown)</label>
-          <textarea class="form-control" rows="4" name="description"></textarea>
-        </div>
+          <div id="repeatMonthly" class="mt-3 d-none">
+            <label class="form-label small text-muted">Repeat on day</label>
+            <div class="input-group input-group-sm">
+              <span class="input-group-text">Day</span>
+              <input type="number" min="1" max="31" class="form-control" id="repeatMonthDay" />
+            </div>
+          </div>
 
-        <div class="d-flex gap-2">
-          <button class="btn btn-primary" id="btnSaveEvent" type="submit">Save</button>
-          <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="offcanvas">Cancel</button>
-          <button class="btn btn-outline-danger ms-auto d-none" id="btnDeleteEvent" type="button">Delete</button>
-        </div>
+          <div class="mt-3">
+            <div class="small text-muted mb-2">Ends</div>
+            <div class="row gx-3 gy-2 align-items-center">
+              <div class="col-auto">
+                <label class="form-check"><input class="form-check-input" type="radio" name="repeatEnd" value="never" checked> Never</label>
+              </div>
+              <div class="col-12 col-sm">
+                <label class="form-check d-flex align-items-center gap-2 mb-0">
+                  <input class="form-check-input" type="radio" name="repeatEnd" value="on"> On
+                  <input type="date" class="form-control form-control-sm" id="repeatUntil">
+                </label>
+                <div class="form-text">Select a final occurrence date.</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="event-form-section border rounded-3 p-3">
+          <div class="d-flex align-items-center gap-2 mb-3">
+            <span class="text-secondary" aria-hidden="true">📝</span>
+            <h6 class="mb-0 text-uppercase small text-muted">Notes &amp; actions</h6>
+          </div>
+          <label class="form-label">Description <span class="text-muted">(Markdown)</span></label>
+          <textarea class="form-control mb-3" rows="4" name="description" placeholder="Add context or agenda..."></textarea>
+          <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-primary" id="btnSaveEvent" type="submit">
+              <span aria-hidden="true" class="me-1">💾</span>Save event
+            </button>
+            <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="offcanvas">Cancel</button>
+            <button class="btn btn-outline-danger ms-auto d-none" id="btnDeleteEvent" type="button">
+              <span aria-hidden="true" class="me-1">🗑️</span>Delete
+            </button>
+          </div>
+        </section>
       </form>
     </div>
   </div>
