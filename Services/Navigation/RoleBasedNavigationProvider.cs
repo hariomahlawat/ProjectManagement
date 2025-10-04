@@ -53,6 +53,11 @@ public class RoleBasedNavigationProvider : INavigationProvider
             },
             new()
             {
+                Text = "Calendar",
+                Page = "/Calendar/Index"
+            },
+            new()
+            {
                 Text = "Dashboard",
                 Page = "/Dashboard/Index"
             }
@@ -70,9 +75,50 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 {
                     new NavigationItem
                     {
+                        Text = "Manage users",
+                        Area = "Admin",
+                        Page = "/Users/Index",
+                        RequiredRoles = new[] { "Admin" }
+                    },
+                    new NavigationItem
+                    {
                         Text = "Login scatter",
                         Area = "Admin",
                         Page = "/Analytics/Logins",
+                        RequiredRoles = new[] { "Admin" }
+                    },
+                    new NavigationItem
+                    {
+                        Text = "Logs",
+                        Area = "Admin",
+                        Page = "/Logs/Index",
+                        RequiredRoles = new[] { "Admin" }
+                    },
+                    new NavigationItem
+                    {
+                        Text = "Sponsoring units",
+                        Area = "Admin",
+                        Page = "/Lookups/SponsoringUnits/Index",
+                        RequiredRoles = new[] { "Admin" }
+                    },
+                    new NavigationItem
+                    {
+                        Text = "Line directorates",
+                        Area = "Admin",
+                        Page = "/Lookups/LineDirectorates/Index",
+                        RequiredRoles = new[] { "Admin" }
+                    },
+                    new NavigationItem
+                    {
+                        Text = "Project categories",
+                        Area = "Admin",
+                        Page = "/Categories/Index",
+                        RequiredRoles = new[] { "Admin" }
+                    },
+                    new NavigationItem
+                    {
+                        Text = "Manage holidays",
+                        Page = "/Settings/Holidays/Index",
                         RequiredRoles = new[] { "Admin" }
                     },
                     new NavigationItem
