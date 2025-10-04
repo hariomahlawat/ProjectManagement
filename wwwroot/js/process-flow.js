@@ -713,7 +713,7 @@ if (root) {
         const body = document.createElement('div');
         body.className = 'item-body';
         const paragraph = document.createElement('p');
-        paragraph.className = 'mb-1';
+        paragraph.className = 'mb-0';
         paragraph.textContent = item.text;
         body.appendChild(paragraph);
 
