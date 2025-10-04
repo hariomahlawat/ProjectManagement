@@ -150,3 +150,8 @@ public sealed record class NavigationDrawerNode
 
     public IReadOnlyList<NavigationDrawerNode> Children { get; init; } = Array.Empty<NavigationDrawerNode>();
 }
+
+public sealed record class NavigationDrawerItemsViewModel(
+    IReadOnlyList<NavigationDrawerNode> Nodes,
+    bool IsOffcanvas,
+    int Depth);
