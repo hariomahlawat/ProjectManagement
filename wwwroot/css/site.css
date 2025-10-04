@@ -770,28 +770,6 @@ body {
     color: var(--pm-muted);
 }
 
-@media (min-width: 992px) {
-    .pm-drawer {
-        position: static;
-        inset: auto;
-        height: auto;
-        pointer-events: auto;
-        visibility: visible;
-    }
-
-    .pm-drawer__overlay {
-        display: none;
-    }
-
-    .pm-drawer__panel {
-        transform: none;
-        width: auto;
-        height: auto;
-        box-shadow: none;
-        padding: 0;
-        transition: none;
-    }
-}
 
 .project-gallery-modal__thumb {
     border: 2px solid transparent;
