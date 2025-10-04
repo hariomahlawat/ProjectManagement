@@ -866,7 +866,7 @@ if (root) {
       });
       await renderFlow(flow);
       if (flow.nodes.length > 0) {
-        selectStage(flow.nodes[0].code);
+        selectStage(flow.nodes[0].code, { automatic: true });
       } else {
         setStageDetails(null);
         renderChecklist(null);
@@ -1057,7 +1057,8 @@ if (root) {
     });
   }
 
-  async function selectStage(stageCode) {
+  async function selectStage(stageCode, options = {}) {
+    const { automatic = false, openPanel = !automatic } = options;
     const stage = state.stageByCode.get(stageCode);
     state.selectedStage = stage ? stage.code : null;
     setStageDetails(stage || null);
@@ -1068,7 +1069,12 @@ if (root) {
     }
 
     highlightStageOnGraph(stage.code);
-    if (checklistOffcanvas && checklistOffcanvasEl && !checklistOffcanvasEl.classList.contains('show')) {
+    if (
+      checklistOffcanvas &&
+      openPanel &&
+      checklistOffcanvasEl &&
+      !checklistOffcanvasEl.classList.contains('show')
+    ) {
       checklistOffcanvas.show();
     }
     loadChecklist(stage.code);
