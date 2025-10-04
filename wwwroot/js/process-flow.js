@@ -316,9 +316,9 @@ if (root) {
 
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const NODE_SIZES = {
-    terminator: { width: 190, height: 56 },
-    process: { width: 210, height: 70 },
-    decision: { width: 110, height: 110 }
+    terminator: { width: 220, height: 72 },
+    process: { width: 240, height: 88 },
+    decision: { width: 132, height: 132 }
   };
 
   function createSvgElement(name, attributes = {}) {
@@ -384,8 +384,8 @@ if (root) {
   }
 
   function createLabelElement(text, layout, options = {}) {
-    const lines = wrapLabelLines(text, options.maxChars || 22);
-    const lineHeight = options.lineHeight || 16;
+    const lines = wrapLabelLines(text, options.maxChars || 20);
+    const lineHeight = options.lineHeight || 20;
     const textEl = createSvgElement('text', {
       class: 'flow-node__label',
       x: layout.width / 2,
@@ -538,14 +538,14 @@ if (root) {
       id: 'root',
       layoutOptions: {
         'elk.algorithm': 'layered',
-        'elk.direction': 'RIGHT',
-        'elk.layered.spacing.nodeNodeBetweenLayers': '48',
-        'elk.spacing.nodeNode': '32',
+        'elk.direction': 'DOWN',
+        'elk.layered.spacing.nodeNodeBetweenLayers': '80',
+        'elk.spacing.nodeNode': '36',
         'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED',
         'elk.edgeRouting': 'ORTHOGONAL',
         'elk.layered.feedbackEdges': 'true',
         'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
-        'elk.padding': '[32,32,32,32]'
+        'elk.padding': '[48,32,48,32]'
       },
       children,
       edges
