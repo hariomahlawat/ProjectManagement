@@ -282,7 +282,7 @@ if (root) {
         name: node.name || node.label || node.code,
         sequence: Number.parseInt(node.sequence, 10) || 0,
         displayIndex: 0,
-        optional: Boolean(node.optional),
+        optional: node.optional === true || node.optional === 'true',
         parallelGroup: node.parallelGroup || null,
         dependsOn: Array.isArray(node.dependsOn) ? node.dependsOn.map((d) => String(d)) : []
       }))
@@ -897,9 +897,9 @@ if (root) {
       state.stageByCode.clear();
       flow.nodes.forEach((node) => {
         const stage = { ...node };
-        const isOptionalStage =
-          typeof stage.code === 'string' && stage.code.toUpperCase() === OPTIONAL_STAGE_CODE;
-        stage.optional = Boolean(stage.optional && isOptionalStage);
+        const normalizedCode =
+          typeof stage.code === 'string' ? stage.code.toUpperCase() : '';
+        stage.optional = normalizedCode === OPTIONAL_STAGE_CODE;
         node.optional = stage.optional;
         state.stageByCode.set(stage.code, stage);
       });
