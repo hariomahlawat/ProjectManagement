@@ -24,26 +24,24 @@
 </section>
 
 <div class="process-layout" data-process-flow-root data-process-version="@Model.ProcessVersion" data-can-edit="@(Model.CanEditChecklist ? "true" : "false")">
-    <div class="proc-diagram card shadow-sm">
-        <div class="card-body">
-            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
-                <div>
-                    <h2 class="h5 mb-1 text-uppercase text-muted">Stage flow</h2>
-                    <p class="mb-0 text-muted small">Select a stage in the diagram to review its checklist.</p>
-                </div>
-                <button type="button"
-                        class="btn btn-primary d-lg-none"
-                        data-bs-toggle="offcanvas"
-                        data-bs-target="#checklistOffcanvas"
-                        aria-controls="checklistOffcanvas">
-                    View checklist
-                </button>
+    <div class="proc-diagram">
+        <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
+            <div>
+                <h2 class="h5 mb-1 text-uppercase text-muted">Stage flow</h2>
+                <p class="mb-0 text-muted small">Select a stage in the diagram to review its checklist.</p>
             </div>
-            <div class="proc-diagram__canvas" data-flow-canvas role="region" aria-live="polite" aria-busy="true" aria-label="Procurement stage flow">
-                <div class="text-center text-muted py-5" data-flow-placeholder>
-                    <div class="spinner-border text-primary mb-3" role="status" aria-hidden="true"></div>
-                    <p class="mb-0">Loading flow…</p>
-                </div>
+            <button type="button"
+                    class="btn btn-primary d-lg-none"
+                    data-bs-toggle="offcanvas"
+                    data-bs-target="#checklistOffcanvas"
+                    aria-controls="checklistOffcanvas">
+                View checklist
+            </button>
+        </div>
+        <div class="proc-diagram__canvas" data-flow-canvas role="region" aria-live="polite" aria-busy="true" aria-label="Procurement stage flow">
+            <div class="text-center text-muted py-5" data-flow-placeholder>
+                <div class="spinner-border text-primary mb-3" role="status" aria-hidden="true"></div>
+                <p class="mb-0">Loading flow…</p>
             </div>
         </div>
     </div>
