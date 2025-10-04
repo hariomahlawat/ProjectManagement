@@ -1,3 +1,5 @@
+const DESKTOP_MEDIA_QUERY = '(min-width: 992px)';
+
 const FOCUSABLE_SELECTORS = [
   'a[href]',
   'area[href]',
@@ -80,10 +82,6 @@ function setupDrawer(drawer) {
   const closeButtons = Array.from(drawer.querySelectorAll('[data-drawer-close]'));
   const toggles = findTogglesForDrawer(resolvedId);
 
-  if (!drawer.hasAttribute('aria-hidden')) {
-    drawer.setAttribute('aria-hidden', 'true');
-  }
-
   if (panel instanceof HTMLElement && !panel.hasAttribute('tabindex')) {
     panel.setAttribute('tabindex', '-1');
   }
@@ -99,11 +97,52 @@ function setupDrawer(drawer) {
   let restoreFocusTo = null;
   let isOpen = drawer.classList.contains('is-open');
 
-  if (isOpen) {
-    drawer.setAttribute('aria-hidden', 'false');
-  } else {
+  if (!drawer.hasAttribute('aria-hidden')) {
+    drawer.setAttribute('aria-hidden', 'true');
+  }
+
+  if (!isOpen) {
     drawer.classList.remove('is-open');
   }
+
+  const isToggleVisible = (toggle) => {
+    if (!(toggle instanceof HTMLElement)) {
+      return false;
+    }
+
+    if (typeof window !== 'undefined') {
+      const style = window.getComputedStyle(toggle);
+
+      if (style.display === 'none' || style.visibility === 'hidden') {
+        return false;
+      }
+    }
+
+    if (toggle.offsetParent !== null) {
+      return true;
+    }
+
+    const rect = toggle.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0;
+  };
+
+  const desktopMediaQuery =
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia(DESKTOP_MEDIA_QUERY)
+      : null;
+
+  const hasVisibleToggle = () => toggles.some((toggle) => isToggleVisible(toggle));
+
+  const shouldForceVisible = () =>
+    (desktopMediaQuery && desktopMediaQuery.matches) || !hasVisibleToggle();
+
+  const syncAriaHidden = () => {
+    if (shouldForceVisible()) {
+      drawer.setAttribute('aria-hidden', 'false');
+    } else {
+      drawer.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+    }
+  };
 
   const handleKeydown = (event) => {
     if (!isOpen) {
@@ -163,9 +202,9 @@ function setupDrawer(drawer) {
 
     restoreFocusTo = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     drawer.classList.add('is-open');
-    drawer.setAttribute('aria-hidden', 'false');
     toggles.forEach((toggle) => toggle.setAttribute('aria-expanded', 'true'));
     isOpen = true;
+    syncAriaHidden();
     document.addEventListener('keydown', handleKeydown);
     window.requestAnimationFrame(focusFirstElement);
   };
@@ -176,9 +215,9 @@ function setupDrawer(drawer) {
     }
 
     drawer.classList.remove('is-open');
-    drawer.setAttribute('aria-hidden', 'true');
     toggles.forEach((toggle) => toggle.setAttribute('aria-expanded', 'false'));
     isOpen = false;
+    syncAriaHidden();
     document.removeEventListener('keydown', handleKeydown);
 
     if (restoreFocusTo && typeof restoreFocusTo.focus === 'function') {
@@ -200,6 +239,20 @@ function setupDrawer(drawer) {
   toggles.forEach((toggle) => {
     toggle.addEventListener('click', toggleDrawer);
   });
+
+  syncAriaHidden();
+
+  if (desktopMediaQuery) {
+    const handleMediaChange = () => {
+      syncAriaHidden();
+    };
+
+    if (typeof desktopMediaQuery.addEventListener === 'function') {
+      desktopMediaQuery.addEventListener('change', handleMediaChange);
+    } else if (typeof desktopMediaQuery.addListener === 'function') {
+      desktopMediaQuery.addListener(handleMediaChange);
+    }
+  }
 
   closeButtons.forEach((closeButton) => {
     closeButton.addEventListener('click', (event) => {
