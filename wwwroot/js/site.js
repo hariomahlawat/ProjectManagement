@@ -1,6 +1,8 @@
 import { initSparklines } from './charts/sparkline.js';
+import { initDrawer } from './navigation/drawer.js';
 
 function boot() {
+  initDrawer();
   initSparklines();
 }
 
