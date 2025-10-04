@@ -823,19 +823,23 @@ if (root) {
 
         if (state.canEdit) {
           const actions = document.createElement('div');
-          actions.className = 'item-actions btn-group btn-group-sm';
+          actions.className = 'item-actions d-inline-flex align-items-center gap-1';
 
           const editBtn = document.createElement('button');
           editBtn.type = 'button';
-          editBtn.className = 'btn btn-outline-secondary';
+          editBtn.className = 'btn btn-outline-secondary btn-icon';
           editBtn.dataset.action = 'edit-item';
-          editBtn.textContent = 'Edit';
+          editBtn.setAttribute('title', 'Edit checklist item');
+          editBtn.setAttribute('aria-label', 'Edit checklist item');
+          editBtn.innerHTML = '<i class="bi bi-pencil" aria-hidden="true"></i><span class="visually-hidden">Edit</span>';
 
           const deleteBtn = document.createElement('button');
           deleteBtn.type = 'button';
-          deleteBtn.className = 'btn btn-outline-danger';
+          deleteBtn.className = 'btn btn-outline-danger btn-icon';
           deleteBtn.dataset.action = 'delete-item';
-          deleteBtn.textContent = 'Delete';
+          deleteBtn.setAttribute('title', 'Delete checklist item');
+          deleteBtn.setAttribute('aria-label', 'Delete checklist item');
+          deleteBtn.innerHTML = '<i class="bi bi-trash" aria-hidden="true"></i><span class="visually-hidden">Delete</span>';
 
           actions.appendChild(editBtn);
           actions.appendChild(deleteBtn);
