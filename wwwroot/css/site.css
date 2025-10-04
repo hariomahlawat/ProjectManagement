@@ -24,6 +24,12 @@ body {
     background-color: var(--pm-surface);
 }
 
+/* Keep the navigation drawer toggle visible when the navbar is expanded */
+.navbar-expand-lg .navbar-toggler {
+    display: inline-flex;
+    align-items: center;
+}
+
 /* ---------- Cards ---------- */
 .pm-card {
     border: 1px solid rgba(15, 23, 42, .08);
