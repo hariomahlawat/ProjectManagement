@@ -1,40 +1,44 @@
 @model ProjectManagement.ViewComponents.NavigationDrawerViewModel
 @using System.Collections.Generic
+@using System.Linq
 @using ProjectManagement.ViewComponents
 @{
     const string drawerId = "pmNavigationDrawer";
     const string drawerLabelId = "pmNavigationDrawerLabel";
 }
 
-<div class="d-flex align-items-center gap-2">
-    <button class="navbar-toggler d-lg-none" type="button"
-            data-drawer-toggle
-            data-drawer-target="@drawerId"
-            aria-controls="@drawerId"
-            aria-label="Toggle navigation menu">
-        <span class="navbar-toggler-icon"></span>
-    </button>
+@if (Model.Items?.Any() ?? false)
+{
+    <div class="d-flex align-items-center gap-2">
+        <button class="navbar-toggler d-lg-none" type="button"
+                data-drawer-toggle
+                data-drawer-target="@drawerId"
+                aria-controls="@drawerId"
+                aria-label="Toggle navigation menu">
+            <span class="navbar-toggler-icon"></span>
+        </button>
 
-    <div class="pm-drawer" data-drawer="@drawerId" id="@drawerId" aria-labelledby="@drawerLabelId">
-        <div class="pm-drawer__overlay" data-drawer-overlay></div>
-        <div class="pm-drawer__panel" data-drawer-panel>
-            <div class="pm-drawer__header">
-                <div>
-                    <h2 class="pm-drawer__title" id="@drawerLabelId">@Model.Brand</h2>
-                    @if (!string.IsNullOrEmpty(Model.UserName))
-                    {
-                        <span class="text-muted small">Signed in as @Model.UserName</span>
-                    }
+        <div class="pm-drawer" data-drawer="@drawerId" id="@drawerId" aria-labelledby="@drawerLabelId">
+            <div class="pm-drawer__overlay" data-drawer-overlay></div>
+            <div class="pm-drawer__panel" data-drawer-panel>
+                <div class="pm-drawer__header">
+                    <div>
+                        <h2 class="pm-drawer__title" id="@drawerLabelId">@Model.Brand</h2>
+                        @if (!string.IsNullOrEmpty(Model.UserName))
+                        {
+                            <span class="text-muted small">Signed in as @Model.UserName</span>
+                        }
+                    </div>
+                    <button type="button" class="btn-close d-lg-none" data-drawer-close aria-label="Close navigation menu"></button>
                 </div>
-                <button type="button" class="btn-close d-lg-none" data-drawer-close aria-label="Close navigation menu"></button>
-            </div>
-            <div class="pm-drawer__body">
-                <nav aria-label="Primary navigation">
-                    @await Html.PartialAsync(
-                        "~/Pages/Shared/Components/NavigationDrawer/_NavigationDrawerItems.cshtml",
-                        new NavigationDrawerItemsViewModel(Model.Items, true, 0))
-                </nav>
+                <div class="pm-drawer__body">
+                    <nav aria-label="Primary navigation">
+                        @await Html.PartialAsync(
+                            "~/Pages/Shared/Components/NavigationDrawer/_NavigationDrawerItems.cshtml",
+                            new NavigationDrawerItemsViewModel(Model.Items, true, 0))
+                    </nav>
+                </div>
             </div>
         </div>
     </div>
-</div>
+}
