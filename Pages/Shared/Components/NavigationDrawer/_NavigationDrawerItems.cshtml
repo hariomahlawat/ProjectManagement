@@ -34,7 +34,9 @@
 
         @if (node.Children.Count > 0)
         {
-            @await Html.PartialAsync("_NavigationDrawerItems", Model with
+            @await Html.PartialAsync(
+                "~/Pages/Shared/Components/NavigationDrawer/_NavigationDrawerItems.cshtml",
+                Model with
             {
                 Nodes = node.Children,
                 Depth = Model.Depth + 1

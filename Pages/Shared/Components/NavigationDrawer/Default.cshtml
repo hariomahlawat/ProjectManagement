@@ -27,11 +27,15 @@
             <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close navigation menu"></button>
         </div>
         <div class="offcanvas-body">
-            @await Html.PartialAsync("_NavigationDrawerItems", new NavigationDrawerItemsViewModel(Model.Items, true, 0))
+            @await Html.PartialAsync(
+                "~/Pages/Shared/Components/NavigationDrawer/_NavigationDrawerItems.cshtml",
+                new NavigationDrawerItemsViewModel(Model.Items, true, 0))
         </div>
     </div>
 
     <nav class="d-none d-lg-block" aria-label="Primary navigation">
-        @await Html.PartialAsync("_NavigationDrawerItems", new NavigationDrawerItemsViewModel(Model.Items, false, 0))
+        @await Html.PartialAsync(
+            "~/Pages/Shared/Components/NavigationDrawer/_NavigationDrawerItems.cshtml",
+            new NavigationDrawerItemsViewModel(Model.Items, false, 0))
     </nav>
 </div>
