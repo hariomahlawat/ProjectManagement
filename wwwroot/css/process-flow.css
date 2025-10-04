@@ -1,0 +1,235 @@
+.process-hero .hero-badge {
+  background: linear-gradient(135deg, rgba(13, 110, 253, 0.08), rgba(32, 201, 151, 0.08));
+  border: 1px solid rgba(13, 110, 253, 0.15);
+  min-width: 220px;
+}
+
+.process-layout {
+  display: grid;
+  grid-template-columns: minmax(520px, 1fr) 360px;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.proc-diagram {
+  --process-bg: var(--bs-body-bg);
+  --process-border: var(--bs-border-color);
+  border-radius: 1rem;
+}
+
+.proc-diagram .card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.proc-diagram__canvas {
+  position: relative;
+  min-height: 520px;
+  height: clamp(520px, 70vh, 820px);
+  border: 1px solid var(--process-border);
+  border-radius: 0.75rem;
+  background: var(--process-bg);
+  overflow: auto;
+  padding: 1.5rem;
+}
+
+.proc-diagram__canvas svg {
+  width: 100%;
+  height: 100%;
+  min-width: 520px;
+  min-height: 420px;
+}
+
+.proc-diagram__canvas [data-flow-placeholder] {
+  min-height: 320px;
+}
+
+.proc-diagram__canvas .flow-connectors {
+  pointer-events: none;
+}
+
+.proc-diagram__canvas .flow-connector {
+  fill: none;
+  stroke: var(--bs-border-color);
+  stroke-width: 1.5;
+  marker-end: url(#pm-flow-arrow);
+  transition: stroke 0.2s ease, opacity 0.2s ease;
+}
+
+.proc-diagram__canvas .flow-connector--dashed {
+  stroke-dasharray: 6 6;
+}
+
+.proc-diagram__canvas .flow-connector.is-selected-edge {
+  stroke: #4c7dff;
+  stroke-width: 1.9;
+}
+
+.proc-diagram__canvas .flow-connector.is-predecessor-edge {
+  stroke: rgba(25, 135, 84, 0.7);
+}
+
+.proc-diagram__canvas .flow-connector.is-successor-edge {
+  stroke: rgba(13, 110, 253, 0.75);
+}
+
+.proc-diagram__canvas .flow-node {
+  cursor: pointer;
+  transition: filter 0.2s ease, transform 0.2s ease;
+}
+
+.proc-diagram__canvas .flow-node:focus-visible {
+  outline: none;
+  filter: drop-shadow(0 0 0.35rem rgba(76, 125, 255, 0.4));
+}
+
+.proc-diagram__canvas .flow-node__body {
+  stroke-width: 1.6;
+  transition: stroke 0.2s ease, fill 0.2s ease;
+}
+
+.proc-diagram__canvas .flow-node--terminator .flow-node__body {
+  fill: #eef4ff;
+  stroke: #94b6ff;
+}
+
+.proc-diagram__canvas .flow-node--process .flow-node__body {
+  fill: #f0f7f3;
+  stroke: #7cc4a5;
+}
+
+.proc-diagram__canvas .flow-node--decision .flow-node__body {
+  fill: #f7f1ff;
+  stroke: #b89ce5;
+}
+
+.proc-diagram__canvas .flow-node.is-optional .flow-node__body {
+  stroke-dasharray: 6 4;
+}
+
+.proc-diagram__canvas .flow-node.is-selected .flow-node__body {
+  stroke: #4c7dff;
+  fill: rgba(76, 125, 255, 0.12);
+}
+
+.proc-diagram__canvas .flow-node.is-predecessor .flow-node__body {
+  stroke: rgba(25, 135, 84, 0.75);
+  fill: rgba(25, 135, 84, 0.12);
+}
+
+.proc-diagram__canvas .flow-node.is-successor .flow-node__body {
+  stroke: rgba(13, 110, 253, 0.8);
+  fill: rgba(13, 110, 253, 0.12);
+}
+
+.proc-diagram__canvas .flow-node__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  fill: var(--bs-body-color);
+  letter-spacing: 0.01em;
+  pointer-events: none;
+}
+
+.proc-panel .process-stage-info {
+  --process-stage-sticky-offset: 1.5rem;
+  top: var(--process-stage-sticky-offset);
+  max-height: calc(100vh - var(--process-stage-sticky-offset));
+  display: flex;
+  flex-direction: column;
+}
+
+.process-stage-info .card-body {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.process-stage-info__body {
+  overflow-y: auto;
+  max-height: calc(100vh - 6rem);
+  padding-right: 0.25rem;
+}
+
+.process-stage-meta dt {
+  letter-spacing: 0.08em;
+}
+
+.stage-checklist {
+  list-style: decimal inside;
+  padding-left: 1.25rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.stage-checklist[aria-busy="true"]::after {
+  content: "";
+  display: none;
+}
+
+.stage-checklist .checklist-item {
+  background: rgba(248, 249, 250, 0.7);
+  border-radius: 0.75rem;
+  padding: 0.75rem 0.75rem 0.75rem 1rem;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.stage-checklist .checklist-item.read-only {
+  grid-template-columns: 1fr;
+}
+
+.stage-checklist .checklist-item .checklist-handle {
+  cursor: grab;
+  color: var(--bs-secondary-color);
+}
+
+.stage-checklist .checklist-item .checklist-handle:active {
+  cursor: grabbing;
+}
+
+.stage-checklist .checklist-item .item-actions .btn {
+  padding: 0.25rem 0.5rem;
+}
+
+.stage-checklist .checklist-empty {
+  list-style: none;
+  padding-left: 0;
+  color: var(--bs-secondary-color);
+}
+
+@media (max-width: 1199.98px) {
+  .process-layout {
+    grid-template-columns: minmax(480px, 1fr) 320px;
+  }
+}
+
+@media (max-width: 991.98px) {
+  .process-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .proc-panel {
+    order: -1;
+  }
+
+  .process-stage-info__body {
+    max-height: none;
+    overflow: visible;
+    padding-right: 0;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .proc-diagram__canvas {
+    padding: 1rem;
+    min-height: 360px;
+    height: 360px;
+  }
+
+  .proc-diagram__canvas svg {
+    min-width: 420px;
+  }
+}

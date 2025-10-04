@@ -26,84 +26,80 @@
     </div>
 </section>
 
-<div class="process-flow-shell" data-process-flow-root data-process-version="@Model.ProcessVersion" data-can-edit="@(Model.CanEditChecklist ? "true" : "false")">
-    <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4">
-        <div>
-            <h2 class="h5 mb-1 text-uppercase text-muted">Stage flow</h2>
-            <p class="mb-0 text-muted small">Select a stage in the diagram to review its checklist.</p>
-        </div>
-        <button type="button"
-                class="btn btn-primary d-lg-none"
-                data-bs-toggle="offcanvas"
-                data-bs-target="#checklistOffcanvas"
-                aria-controls="checklistOffcanvas">
-            View checklist
-        </button>
-    </div>
-
-    <div class="row g-4 align-items-stretch">
-        <div class="col-12 col-lg-7 col-xl-8">
-            <div class="card h-100 shadow-sm">
-                <div class="card-body">
-                    <div class="process-flow-canvas" data-flow-canvas role="region" aria-live="polite" aria-busy="true" aria-label="Procurement stage flow">
-                        <div class="text-center text-muted py-5" data-flow-placeholder>
-                            <div class="spinner-border text-primary mb-3" role="status" aria-hidden="true"></div>
-                            <p class="mb-0">Loading flow…</p>
-                        </div>
-                    </div>
+<div class="process-layout" data-process-flow-root data-process-version="@Model.ProcessVersion" data-can-edit="@(Model.CanEditChecklist ? "true" : "false")">
+    <div class="proc-diagram card shadow-sm">
+        <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-3">
+                <div>
+                    <h2 class="h5 mb-1 text-uppercase text-muted">Stage flow</h2>
+                    <p class="mb-0 text-muted small">Select a stage in the diagram to review its checklist.</p>
                 </div>
+                <button type="button"
+                        class="btn btn-primary d-lg-none"
+                        data-bs-toggle="offcanvas"
+                        data-bs-target="#checklistOffcanvas"
+                        aria-controls="checklistOffcanvas">
+                    View checklist
+                </button>
             </div>
-        </div>
-        <div class="col-12 col-lg-5 col-xl-4 d-none d-lg-block">
-            <div class="card pm-card h-100 shadow-sm sticky-lg-top process-stage-info" data-checklist-panel>
-                <div class="card-body">
-                    <div class="process-stage-info__body">
-                        <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-start gap-3 mb-4">
-                            <div>
-                                <h2 class="h4 mb-1" data-stage-title aria-live="polite">Select a stage</h2>
-                                <p class="text-muted mb-0" data-stage-subtitle>Choose a stage on the diagram to see its checklist.</p>
-                            </div>
-                            <span class="badge rounded-pill bg-info-subtle text-info-emphasis d-inline-flex align-items-center gap-2" data-stage-optional hidden>
-                                <i class="bi bi-stars"></i>
-                                Optional stage
-                            </span>
-                        </div>
-
-                        <dl class="row g-3 process-stage-meta mb-0">
-                            <div class="col-12 col-sm-4">
-                                <dt class="text-uppercase text-muted small">Code</dt>
-                                <dd class="h6 mb-0" data-stage-code>—</dd>
-                            </div>
-                            <div class="col-12 col-sm-4">
-                                <dt class="text-uppercase text-muted small">Parallel group</dt>
-                                <dd class="h6 mb-0" data-stage-parallel>—</dd>
-                            </div>
-                            <div class="col-12 col-sm-4">
-                                <dt class="text-uppercase text-muted small">Depends on</dt>
-                                <dd class="mb-0" data-stage-dependencies>
-                                    <span class="text-muted">—</span>
-                                </dd>
-                            </div>
-                        </dl>
-
-                        <hr class="my-4" />
-
-                        <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
-                            <h3 class="h5 mb-0">Stage checklist</h3>
-                            <div class="btn-group" data-checklist-actions hidden>
-                                <button type="button" class="btn btn-outline-primary btn-sm" data-action="add-item">
-                                    <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>
-                                    Add item
-                                </button>
-                            </div>
-                        </div>
-
-                        <ol class="stage-checklist" data-checklist-list data-checklist-primary aria-live="polite" aria-busy="false"></ol>
-                    </div>
+            <div class="proc-diagram__canvas" data-flow-canvas role="region" aria-live="polite" aria-busy="true" aria-label="Procurement stage flow">
+                <div class="text-center text-muted py-5" data-flow-placeholder>
+                    <div class="spinner-border text-primary mb-3" role="status" aria-hidden="true"></div>
+                    <p class="mb-0">Loading flow…</p>
                 </div>
             </div>
         </div>
     </div>
+
+    <aside class="proc-panel">
+        <div class="card pm-card shadow-sm sticky-lg-top process-stage-info" data-checklist-panel>
+            <div class="card-body">
+                <div class="process-stage-info__body">
+                    <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-start gap-3 mb-4">
+                        <div>
+                            <h2 class="h4 mb-1" data-stage-title aria-live="polite">Select a stage</h2>
+                            <p class="text-muted mb-0" data-stage-subtitle>Choose a stage on the diagram to see its checklist.</p>
+                        </div>
+                        <span class="badge rounded-pill bg-info-subtle text-info-emphasis d-inline-flex align-items-center gap-2" data-stage-optional hidden>
+                            <i class="bi bi-stars"></i>
+                            Optional stage
+                        </span>
+                    </div>
+
+                    <dl class="row g-3 process-stage-meta mb-0">
+                        <div class="col-12 col-sm-4">
+                            <dt class="text-uppercase text-muted small">Code</dt>
+                            <dd class="h6 mb-0" data-stage-code>—</dd>
+                        </div>
+                        <div class="col-12 col-sm-4">
+                            <dt class="text-uppercase text-muted small">Parallel group</dt>
+                            <dd class="h6 mb-0" data-stage-parallel>—</dd>
+                        </div>
+                        <div class="col-12 col-sm-4">
+                            <dt class="text-uppercase text-muted small">Depends on</dt>
+                            <dd class="mb-0" data-stage-dependencies>
+                                <span class="text-muted">—</span>
+                            </dd>
+                        </div>
+                    </dl>
+
+                    <hr class="my-4" />
+
+                    <div class="d-flex align-items-center justify-content-between gap-2 mb-3">
+                        <h3 class="h5 mb-0">Stage checklist</h3>
+                        <div class="btn-group" data-checklist-actions hidden>
+                            <button type="button" class="btn btn-outline-primary btn-sm" data-action="add-item">
+                                <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>
+                                Add item
+                            </button>
+                        </div>
+                    </div>
+
+                    <ol class="stage-checklist" data-checklist-list data-checklist-primary aria-live="polite" aria-busy="false"></ol>
+                </div>
+            </div>
+        </div>
+    </aside>
 </div>
 
 <div class="offcanvas offcanvas-end" tabindex="-1" id="checklistOffcanvas" aria-labelledby="checklistOffcanvasLabel">
@@ -202,255 +198,11 @@
 </div>
 
 @section Styles {
-    <style>
-        .process-hero .hero-badge {
-            background: linear-gradient(135deg, rgba(13, 110, 253, 0.08), rgba(32, 201, 151, 0.08));
-            border: 1px solid rgba(13, 110, 253, 0.15);
-            min-width: 220px;
-        }
-
-        .process-flow-shell {
-            display: flex;
-            flex-direction: column;
-        }
-
-        /*
-            Process flow visual tokens — adjust the custom properties below to retheme the pastel
-            canvas without touching the JavaScript layout math. Designers can override these at the
-            page or theme level as needed.
-        */
-        .process-flow-canvas {
-            --process-flow-bg: linear-gradient(145deg, rgba(13, 110, 253, 0.07), rgba(32, 201, 151, 0.05));
-            --process-flow-border: rgba(13, 110, 253, 0.06);
-            --process-flow-connector: rgba(73, 80, 87, 0.45);
-            --process-flow-connector-selected: rgba(13, 110, 253, 0.6);
-            --process-flow-connector-predecessor: rgba(25, 135, 84, 0.6);
-            --process-flow-connector-successor: rgba(13, 110, 253, 0.75);
-            --process-flow-node-terminator-fill: rgba(226, 239, 255, 0.85);
-            --process-flow-node-terminator-stroke: rgba(64, 122, 214, 0.9);
-            --process-flow-node-process-fill: rgba(227, 245, 239, 0.9);
-            --process-flow-node-process-stroke: rgba(38, 180, 144, 0.85);
-            --process-flow-node-decision-fill: rgba(239, 231, 252, 0.9);
-            --process-flow-node-decision-stroke: rgba(132, 94, 194, 0.8);
-            --process-flow-node-optional-dash: 8 6;
-            --process-flow-node-predecessor-fill: rgba(25, 135, 84, 0.16);
-            --process-flow-node-predecessor-stroke: rgba(25, 135, 84, 0.7);
-            --process-flow-node-successor-fill: rgba(13, 110, 253, 0.18);
-            --process-flow-node-successor-stroke: rgba(13, 110, 253, 0.75);
-            --process-flow-node-selected-fill: rgba(13, 110, 253, 0.22);
-            --process-flow-node-selected-stroke: rgba(13, 110, 253, 0.9);
-
-            min-height: 600px;
-            height: clamp(560px, 70vh, 900px);
-            position: relative;
-            padding: 2rem;
-            border-radius: 1.5rem;
-            background: var(--process-flow-bg);
-            box-shadow: inset 0 0 0 1px var(--process-flow-border);
-        }
-
-        .process-flow-canvas svg {
-            width: 100%;
-            height: 100%;
-            border-radius: 1.25rem;
-        }
-
-        .process-flow-canvas .flow-connectors {
-            pointer-events: none;
-        }
-
-        .process-flow-canvas .flow-connector {
-            fill: none;
-            color: var(--process-flow-connector);
-            stroke: currentColor;
-            stroke-width: 2.75;
-            marker-end: url(#pm-flow-arrow);
-            transition: color 0.25s ease, stroke-width 0.25s ease, opacity 0.25s ease;
-        }
-
-        .process-flow-canvas .flow-connector--dashed {
-            stroke-dasharray: 8 6;
-        }
-
-        .process-flow-canvas .flow-connector.is-selected-edge {
-            color: var(--process-flow-connector-selected);
-            stroke-width: 3.25;
-        }
-
-        .process-flow-canvas .flow-connector.is-predecessor-edge {
-            color: var(--process-flow-connector-predecessor);
-        }
-
-        .process-flow-canvas .flow-connector.is-successor-edge {
-            color: var(--process-flow-connector-successor);
-        }
-
-        .process-flow-canvas .flow-node {
-            cursor: pointer;
-            transition: filter 0.25s ease, stroke 0.25s ease;
-        }
-
-        .process-flow-canvas .flow-node:focus-visible {
-            outline: none;
-        }
-
-        .process-flow-canvas .flow-node__body {
-            filter: url(#pm-flow-shadow);
-            stroke-width: 2.5;
-            transition: filter 0.25s ease, stroke 0.25s ease, fill 0.25s ease;
-        }
-
-        .process-flow-canvas .flow-node--terminator .flow-node__body {
-            fill: var(--process-flow-node-terminator-fill);
-            stroke: var(--process-flow-node-terminator-stroke);
-        }
-
-        .process-flow-canvas .flow-node--process .flow-node__body {
-            fill: var(--process-flow-node-process-fill);
-            stroke: var(--process-flow-node-process-stroke);
-        }
-
-        .process-flow-canvas .flow-node--decision .flow-node__body {
-            fill: var(--process-flow-node-decision-fill);
-            stroke: var(--process-flow-node-decision-stroke);
-        }
-
-        .process-flow-canvas .flow-node.is-optional .flow-node__body {
-            stroke-dasharray: var(--process-flow-node-optional-dash);
-        }
-
-        .process-flow-canvas .flow-node__label {
-            font-size: 0.95rem;
-            font-weight: 600;
-            fill: var(--bs-body-color);
-            letter-spacing: 0.02em;
-            pointer-events: none;
-        }
-
-        .process-flow-canvas .flow-node:hover .flow-node__body,
-        .process-flow-canvas .flow-node:focus-visible .flow-node__body,
-        .process-flow-canvas .flow-node.is-selected .flow-node__body {
-            filter: url(#pm-flow-glow);
-        }
-
-        .process-flow-canvas .flow-node.is-predecessor .flow-node__body {
-            fill: var(--process-flow-node-predecessor-fill);
-            stroke: var(--process-flow-node-predecessor-stroke);
-        }
-
-        .process-flow-canvas .flow-node.is-successor .flow-node__body {
-            fill: var(--process-flow-node-successor-fill);
-            stroke: var(--process-flow-node-successor-stroke);
-        }
-
-        .process-flow-canvas .flow-node.is-selected .flow-node__body {
-            fill: var(--process-flow-node-selected-fill);
-            stroke: var(--process-flow-node-selected-stroke);
-        }
-
-        .process-stage-info {
-            --process-stage-sticky-offset: 1.5rem;
-            --process-stage-info-chrome: 6rem; /* accounts for header spacing and card padding */
-            top: var(--process-stage-sticky-offset);
-            display: flex;
-            flex-direction: column;
-            max-height: calc(100vh - var(--process-stage-sticky-offset));
-        }
-
-        .process-stage-info .card-body {
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-        }
-
-        .process-stage-info__body {
-            max-height: calc(100vh - (var(--process-stage-sticky-offset) + var(--process-stage-info-chrome)));
-            overflow-y: auto;
-            padding-right: 0.25rem;
-        }
-
-        .process-stage-meta dt {
-            letter-spacing: 0.08em;
-        }
-
-        .stage-checklist {
-            list-style: decimal inside;
-            padding-left: 1.25rem;
-            display: grid;
-            gap: 0.75rem;
-        }
-
-        .stage-checklist[aria-busy="true"]::after {
-            content: "";
-            display: none;
-        }
-
-        .stage-checklist .checklist-item {
-            background: rgba(248, 249, 250, 0.7);
-            border-radius: 0.75rem;
-            padding: 0.75rem 0.75rem 0.75rem 1rem;
-            display: grid;
-            grid-template-columns: auto 1fr auto;
-            gap: 0.75rem;
-            align-items: flex-start;
-        }
-
-        .stage-checklist .checklist-item.read-only {
-            grid-template-columns: 1fr;
-        }
-
-        .stage-checklist .checklist-item .checklist-handle {
-            cursor: grab;
-            color: var(--bs-secondary-color);
-        }
-
-        .stage-checklist .checklist-item .checklist-handle:active {
-            cursor: grabbing;
-        }
-
-        .stage-checklist .checklist-item .item-actions .btn {
-            padding: 0.25rem 0.5rem;
-        }
-
-        .stage-checklist .checklist-empty {
-            list-style: none;
-            padding-left: 0;
-            color: var(--bs-secondary-color);
-        }
-
-        @@media (max-width: 991.98px) {
-            .process-flow-canvas {
-                min-height: 440px;
-                height: 440px;
-                padding: 1.25rem;
-            }
-
-            .process-stage-info {
-                max-height: none;
-            }
-
-            .process-stage-info .card-body {
-                height: auto;
-            }
-
-            .process-stage-info__body {
-                max-height: none;
-                overflow: visible;
-                padding-right: 0;
-            }
-        }
-
-        @@media (max-width: 575.98px) {
-            .process-flow-canvas {
-                min-height: 320px;
-                height: 320px;
-                padding: 1rem;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="~/css/process-flow.css" asp-append-version="true" />
 }
 
 @section Scripts {
+    <script src="~/lib/elkjs/elk.bundled.js"></script>
     <script src="~/lib/sortable/1.15.2/Sortable.min.js" asp-append-version="true"></script>
     <script type="module" src="~/js/process-flow.js" asp-append-version="true"></script>
 }
