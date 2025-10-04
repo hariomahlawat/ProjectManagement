@@ -1194,10 +1194,16 @@ if (root) {
       spinner.hidden = true;
     }
 
+    if (itemModalEl) {
+      itemModalEl.addEventListener('shown.bs.modal', () => {
+        const focusTarget = itemForm.querySelector('textarea[name="text"]');
+        if (focusTarget) {
+          focusTarget.focus();
+        }
+      }, { once: true });
+    }
+
     itemModal.show();
-    setTimeout(() => {
-      textArea.focus();
-    }, 150);
   }
 
   function openDeleteModal(item) {
