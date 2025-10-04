@@ -21,6 +21,10 @@
   gap: 1rem;
 }
 
+.proc-diagram .btn-group-sm .btn {
+  padding-block: 0.125rem;
+}
+
 .proc-diagram__canvas {
   position: relative;
   min-height: 600px;
