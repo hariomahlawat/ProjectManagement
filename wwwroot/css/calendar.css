@@ -140,7 +140,7 @@
 
 /* Event form offcanvas */
 #eventFormCanvas {
-  font-size: .9rem;
+  font-size: 1rem;
 }
 
 #eventFormCanvas .offcanvas-header {
@@ -148,34 +148,27 @@
 }
 
 #eventFormCanvas .offcanvas-body {
-  padding: .85rem 1rem 1.25rem;
-  background: linear-gradient(180deg, rgba(241,245,249,.75) 0%, rgba(248,250,252,.85) 60%, #fff 100%);
+  padding: 1rem 1.15rem 1.5rem;
+  background: #fff;
 }
 
 #eventFormCanvas .event-form-section {
-  background-color: rgba(255,255,255,.9);
-  border: 1px solid rgba(15,23,42,.08);
-  border-radius: .85rem;
-  box-shadow: 0 1px 2px rgba(15,23,42,.06), 0 10px 30px -20px rgba(15,23,42,.35);
-  padding: .85rem 1rem 1rem;
-  margin-bottom: .85rem;
+  padding-bottom: 1.5rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(148,163,184,.35);
 }
 
 #eventFormCanvas .event-form-section:last-child {
   margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
-#eventFormCanvas .event-form-title {
-  font-size: 1rem;
-  font-weight: 600;
-  color: #0f172a;
-  letter-spacing: .01em;
-  margin-bottom: .75rem;
-}
-
-#eventFormCanvas .event-form-body {
-  display: grid;
-  gap: .85rem;
+#eventFormCanvas .event-form-heading {
+  font-weight: 700;
+  color: #475569;
+  letter-spacing: .08em;
+  font-size: .85rem;
 }
 
 #eventFormCanvas label,
@@ -183,7 +176,7 @@
   font-weight: 600;
   color: #1e293b;
   letter-spacing: .01em;
-  font-size: .85rem;
+  font-size: .92rem;
 }
 
 #eventFormCanvas .form-text,

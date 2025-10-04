@@ -67,12 +67,9 @@
       <form id="eventForm" class="d-flex flex-column gap-3">
         <input type="hidden" name="id" />
 
-        <section class="event-form-section border rounded-3 p-3">
+        <section class="event-form-section">
           <div class="d-flex align-items-center justify-content-between mb-3">
-            <div class="d-flex align-items-center gap-2">
-              <span class="text-secondary" aria-hidden="true">📄</span>
-              <h6 class="mb-0 text-uppercase small text-muted">Event details</h6>
-            </div>
+            <h6 class="event-form-heading mb-0 text-uppercase text-muted">Event details</h6>
             <span class="text-muted small">Required information</span>
           </div>
           <div class="row gy-2 gx-3">
@@ -96,11 +93,8 @@
           </div>
         </section>
 
-        <section class="event-form-section border rounded-3 p-3">
-          <div class="d-flex align-items-center gap-2 mb-3">
-            <span class="text-secondary" aria-hidden="true">🕒</span>
-            <h6 class="mb-0 text-uppercase small text-muted">Scheduling</h6>
-          </div>
+        <section class="event-form-section">
+          <h6 class="event-form-heading mb-3 text-uppercase text-muted">Scheduling</h6>
           <div class="row gy-3 gx-3 align-items-end">
             <div class="col-12 col-md-8">
               <div class="row gy-2 gx-3" id="timePickers">
@@ -133,15 +127,12 @@
           </div>
         </section>
 
-        <section class="event-form-section border rounded-3 p-3">
-          <div class="d-flex align-items-center gap-2 mb-3">
-            <span class="text-secondary" aria-hidden="true">🔁</span>
-            <h6 class="mb-0 text-uppercase small text-muted">Recurrence</h6>
-          </div>
+        <section class="event-form-section">
+          <h6 class="event-form-heading mb-3 text-uppercase text-muted">Recurrence</h6>
           <div class="row gy-2 gx-3 align-items-center">
-            <div class="col-12 col-lg-5">
+            <div class="col-12 col-lg-6">
               <label class="form-label mb-1">Repeats</label>
-              <select class="form-select form-select-sm" id="repeatFreq">
+              <select class="form-select" id="repeatFreq">
                 <option value="">Does not repeat</option>
                 <option value="WEEKLY">Weekly</option>
                 <option value="MONTHLY">Monthly</option>
@@ -163,7 +154,7 @@
 
           <div id="repeatMonthly" class="mt-3 d-none">
             <label class="form-label small text-muted">Repeat on day</label>
-            <div class="input-group input-group-sm">
+            <div class="input-group">
               <span class="input-group-text">Day</span>
               <input type="number" min="1" max="31" class="form-control" id="repeatMonthDay" />
             </div>
@@ -178,28 +169,21 @@
               <div class="col-12 col-sm">
                 <label class="form-check d-flex align-items-center gap-2 mb-0">
                   <input class="form-check-input" type="radio" name="repeatEnd" value="on"> On
-                  <input type="date" class="form-control form-control-sm" id="repeatUntil">
+                  <input type="date" class="form-control" id="repeatUntil">
                 </label>
               </div>
             </div>
           </div>
         </section>
 
-        <section class="event-form-section border rounded-3 p-3">
-          <div class="d-flex align-items-center gap-2 mb-3">
-            <span class="text-secondary" aria-hidden="true">📝</span>
-            <h6 class="mb-0 text-uppercase small text-muted">Notes &amp; actions</h6>
-          </div>
+        <section class="event-form-section">
+          <h6 class="event-form-heading mb-3 text-uppercase text-muted">Notes &amp; actions</h6>
           <label class="form-label">Description <span class="text-muted">(Markdown)</span></label>
           <textarea class="form-control mb-3" rows="4" name="description" placeholder="Add context or agenda..."></textarea>
           <div class="d-flex flex-wrap gap-2">
-            <button class="btn btn-primary" id="btnSaveEvent" type="submit">
-              <span aria-hidden="true" class="me-1">💾</span>Save event
-            </button>
+            <button class="btn btn-primary" id="btnSaveEvent" type="submit">Save event</button>
             <button class="btn btn-outline-secondary" type="button" data-bs-dismiss="offcanvas">Cancel</button>
-            <button class="btn btn-outline-danger ms-auto d-none" id="btnDeleteEvent" type="button">
-              <span aria-hidden="true" class="me-1">🗑️</span>Delete
-            </button>
+            <button class="btn btn-outline-danger ms-auto d-none" id="btnDeleteEvent" type="button">Delete</button>
           </div>
         </section>
       </form>
