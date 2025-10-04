@@ -852,12 +852,23 @@ stageChecklistApi.MapPost("/reorder", async (
         return Results.BadRequest("Duplicate checklist item identifiers detected in reorder request.");
     }
 
+    if (request.Items.Select(i => i.Sequence).Distinct().Count() != request.Items.Count)
+    {
+        return Results.BadRequest("Duplicate checklist sequence positions detected in reorder request.");
+    }
+
     var itemsById = checklist.Items.ToDictionary(i => i.Id);
+    var orderedDtos = request.Items
+        .OrderBy(i => i.Sequence)
+        .ThenBy(i => i.ItemId)
+        .ToList();
 
     var userId = users.GetUserId(httpContext.User);
     var now = clock.UtcNow;
 
-    foreach (var dto in request.Items)
+    var orderedItems = new List<StageChecklistItemTemplate>(orderedDtos.Count);
+
+    foreach (var dto in orderedDtos)
     {
         if (!itemsById.TryGetValue(dto.ItemId, out var item))
         {
@@ -874,24 +885,56 @@ stageChecklistApi.MapPost("/reorder", async (
             return Results.Conflict(new { message = $"Checklist item {dto.ItemId} has been modified by another user." });
         }
 
-        item.Sequence = Math.Max(1, dto.Sequence);
         item.UpdatedByUserId = userId;
         item.UpdatedOn = now;
+        orderedItems.Add(item);
     }
 
-    checklist.UpdatedByUserId = userId;
-    checklist.UpdatedOn = now;
+    var auditPayload = orderedDtos
+        .Select((dto, index) => new { dto.ItemId, Sequence = index + 1 })
+        .ToList();
 
-    db.StageChecklistAudits.Add(new StageChecklistAudit
+    var maxExistingSequence = checklist.Items.Count == 0
+        ? 0
+        : checklist.Items.Max(i => i.Sequence);
+
+    await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+
+    try
     {
-        Template = checklist,
-        Action = "ItemsReordered",
-        PayloadJson = JsonSerializer.Serialize(request.Items.Select(i => new { i.ItemId, i.Sequence })),
-        PerformedByUserId = userId,
-        PerformedOn = now
-    });
+        for (var index = 0; index < orderedItems.Count; index++)
+        {
+            orderedItems[index].Sequence = maxExistingSequence + 1 + index;
+        }
 
-    await db.SaveChangesAsync(cancellationToken);
+        checklist.UpdatedByUserId = userId;
+        checklist.UpdatedOn = now;
+
+        db.StageChecklistAudits.Add(new StageChecklistAudit
+        {
+            Template = checklist,
+            Action = "ItemsReordered",
+            PayloadJson = JsonSerializer.Serialize(auditPayload),
+            PerformedByUserId = userId,
+            PerformedOn = now
+        });
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        for (var index = 0; index < orderedItems.Count; index++)
+        {
+            orderedItems[index].Sequence = index + 1;
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+    catch
+    {
+        await transaction.RollbackAsync(cancellationToken);
+        throw;
+    }
 
     return Results.Ok(ToDto(checklist));
 }).RequireAuthorization("Checklist.Edit");
