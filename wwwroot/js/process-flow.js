@@ -902,11 +902,14 @@ if (root) {
     const svg = createSvgElement('svg', {
       class: 'process-flow-diagram',
       viewBox: `0 0 ${layout.width} ${layout.height}`,
-      width: '100%',
-      height: '100%',
+      width: layout.width,
+      height: layout.height,
       focusable: 'false',
       'aria-label': 'Process flow diagram'
     });
+    svg.style.maxWidth = '100%';
+    svg.style.height = 'auto';
+    svg.setAttribute('preserveAspectRatio', 'xMidYMin meet');
     ensureDefs(svg);
 
     const connectorsLayer = createSvgElement('g', { class: 'flow-connectors' });
@@ -916,6 +919,7 @@ if (root) {
 
     flowCanvas.innerHTML = '';
     flowCanvas.appendChild(svg);
+    flowCanvas.scrollTop = 0;
 
     const nodeElements = new Map();
     const edgeElements = new Map();
