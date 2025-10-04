@@ -35,6 +35,28 @@
                     aria-controls="checklistOffcanvas">
                 View checklist
             </button>
+            <div class="btn-group btn-group-sm d-none d-sm-inline-flex ms-auto"
+                 role="group"
+                 aria-label="Diagram zoom controls">
+                <button type="button"
+                        class="btn btn-outline-secondary"
+                        data-zoom-out
+                        title="Zoom out">
+                    Zoom out
+                </button>
+                <button type="button"
+                        class="btn btn-outline-secondary"
+                        data-zoom-reset
+                        title="Reset zoom">
+                    Reset
+                </button>
+                <button type="button"
+                        class="btn btn-outline-secondary"
+                        data-zoom-in
+                        title="Zoom in">
+                    Zoom in
+                </button>
+            </div>
         </div>
         <div class="proc-diagram__canvas" data-flow-canvas role="region" aria-live="polite" aria-busy="true" aria-label="Procurement stage flow">
             <div class="text-center text-muted py-5" data-flow-placeholder>

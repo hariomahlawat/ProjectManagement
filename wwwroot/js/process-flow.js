@@ -12,6 +12,11 @@ if (root) {
   const checklistLists = Array.from(document.querySelectorAll('[data-checklist-list]'));
   const primaryChecklist = document.querySelector('[data-checklist-primary]');
   const actionGroups = Array.from(document.querySelectorAll('[data-checklist-actions]'));
+  const zoomControls = {
+    in: root.querySelector('[data-zoom-in]'),
+    out: root.querySelector('[data-zoom-out]'),
+    reset: root.querySelector('[data-zoom-reset]')
+  };
   const itemModalEl = document.getElementById('checklistItemModal');
   const deleteModalEl = document.getElementById('checklistDeleteModal');
   const itemForm = itemModalEl ? itemModalEl.querySelector('[data-checklist-form]') : null;
@@ -29,6 +34,11 @@ if (root) {
     return placeholder ? placeholder.outerHTML : null;
   })();
 
+  const ZOOM_DEFAULT = 1;
+  const ZOOM_STEP = 0.2;
+  const ZOOM_MIN = 0.5;
+  const ZOOM_MAX = 2;
+
   const state = {
     version: initialVersion,
     canEdit,
@@ -38,8 +48,97 @@ if (root) {
     checklistCache: new Map(),
     currentChecklist: null,
     checklistPromise: null,
-    sortable: null
+    sortable: null,
+    zoom: ZOOM_DEFAULT
   };
+
+  function roundZoom(value) {
+    return Math.round(value * 100) / 100;
+  }
+
+  function clampZoom(value) {
+    return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, value));
+  }
+
+  function applyZoomToDiagram() {
+    if (!state.diagram || !state.diagram.svg) {
+      return;
+    }
+
+    state.diagram.svg.style.transform = `scale(${state.zoom})`;
+    state.diagram.svg.style.transformOrigin = 'top center';
+  }
+
+  function updateZoomControls() {
+    const hasDiagram = Boolean(state.diagram?.svg);
+    const atMin = state.zoom <= ZOOM_MIN + 0.001;
+    const atMax = state.zoom >= ZOOM_MAX - 0.001;
+    const atDefault = Math.abs(state.zoom - ZOOM_DEFAULT) <= 0.001;
+
+    if (zoomControls.out) {
+      zoomControls.out.disabled = !hasDiagram || atMin;
+    }
+
+    if (zoomControls.in) {
+      zoomControls.in.disabled = !hasDiagram || atMax;
+    }
+
+    if (zoomControls.reset) {
+      zoomControls.reset.disabled = !hasDiagram || atDefault;
+    }
+  }
+
+  function setZoom(value) {
+    const numericValue = Number.isFinite(value) ? value : state.zoom;
+    const clamped = clampZoom(roundZoom(numericValue));
+    state.zoom = clamped;
+    applyZoomToDiagram();
+    updateZoomControls();
+  }
+
+  function adjustZoom(delta) {
+    setZoom(state.zoom + delta);
+  }
+
+  function handleZoomShortcut(event) {
+    if (!(event.ctrlKey || event.metaKey)) {
+      return;
+    }
+
+    const target = event.target;
+    if (target) {
+      const isEditableElement =
+        (typeof target.closest === 'function' && target.closest('input, textarea, select')) ||
+        (target instanceof HTMLElement && target.isContentEditable);
+      if (isEditableElement) {
+        return;
+      }
+    }
+
+    switch (event.key) {
+      case '+':
+      case '=':
+        if (state.diagram?.svg) {
+          event.preventDefault();
+          adjustZoom(ZOOM_STEP);
+        }
+        break;
+      case '-':
+        if (state.diagram?.svg) {
+          event.preventDefault();
+          adjustZoom(-ZOOM_STEP);
+        }
+        break;
+      case '0':
+        if (state.diagram?.svg) {
+          event.preventDefault();
+          setZoom(ZOOM_DEFAULT);
+        }
+        break;
+      default:
+        break;
+    }
+  }
 
   class HttpError extends Error {
     constructor(response, data) {
@@ -222,6 +321,8 @@ if (root) {
     flowCanvas.innerHTML = '';
     flowCanvas.setAttribute('aria-busy', 'false');
     flowCanvas.dataset.ready = 'false';
+    state.diagram = null;
+    updateZoomControls();
   }
 
   function resetStateForVersionChange() {
@@ -237,6 +338,7 @@ if (root) {
     }
 
     state.sortable = null;
+    updateZoomControls();
   }
 
   const versionObserver = new MutationObserver((mutations) => {
@@ -883,6 +985,8 @@ if (root) {
       }
 
       if (state.version === requestedVersion) {
+        state.diagram = null;
+        updateZoomControls();
         setStageDetails(null);
         renderChecklist(null, { errorMessage: 'Unable to load checklist until the flow is available.' });
         showToast('Unable to load process flow.', 'danger');
@@ -1000,6 +1104,9 @@ if (root) {
       incoming: layout.incoming,
       outgoing: layout.outgoing
     };
+
+    applyZoomToDiagram();
+    updateZoomControls();
 
     if (state.selectedStage) {
       highlightStageOnGraph(state.selectedStage);
@@ -1377,12 +1484,23 @@ if (root) {
     renderChecklist(null);
     showFlowLoading();
     document.addEventListener('click', handleActionClick);
+    document.addEventListener('keydown', handleZoomShortcut);
     if (itemForm) {
       itemForm.addEventListener('submit', handleItemFormSubmit);
     }
     if (deleteForm) {
       deleteForm.addEventListener('submit', handleDeleteFormSubmit);
     }
+    if (zoomControls.in) {
+      zoomControls.in.addEventListener('click', () => adjustZoom(ZOOM_STEP));
+    }
+    if (zoomControls.out) {
+      zoomControls.out.addEventListener('click', () => adjustZoom(-ZOOM_STEP));
+    }
+    if (zoomControls.reset) {
+      zoomControls.reset.addEventListener('click', () => setZoom(ZOOM_DEFAULT));
+    }
+    updateZoomControls();
     versionObserver.observe(root, { attributes: true, attributeFilter: ['data-process-version'] });
 
     const currentDatasetVersion = readVersionFromRoot();
