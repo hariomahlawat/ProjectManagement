@@ -139,12 +139,16 @@
 }
 
 /* Event form offcanvas */
+#eventFormCanvas {
+  font-size: .9rem;
+}
+
 #eventFormCanvas .offcanvas-header {
-  padding: 1rem 1.5rem .5rem;
+  padding: .75rem 1rem .4rem;
 }
 
 #eventFormCanvas .offcanvas-body {
-  padding: 1.25rem 1.5rem 1.75rem;
+  padding: .85rem 1rem 1.25rem;
   background: linear-gradient(180deg, rgba(241,245,249,.75) 0%, rgba(248,250,252,.85) 60%, #fff 100%);
 }
 
@@ -153,8 +157,8 @@
   border: 1px solid rgba(15,23,42,.08);
   border-radius: .85rem;
   box-shadow: 0 1px 2px rgba(15,23,42,.06), 0 10px 30px -20px rgba(15,23,42,.35);
-  padding: 1.1rem 1.35rem 1.25rem;
-  margin-bottom: 1.25rem;
+  padding: .85rem 1rem 1rem;
+  margin-bottom: .85rem;
 }
 
 #eventFormCanvas .event-form-section:last-child {
@@ -179,6 +183,7 @@
   font-weight: 600;
   color: #1e293b;
   letter-spacing: .01em;
+  font-size: .85rem;
 }
 
 #eventFormCanvas .form-text,
@@ -197,10 +202,10 @@
 #eventFormCanvas .event-form-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: .75rem;
+  gap: .6rem;
   justify-content: flex-end;
-  padding-top: 1rem;
-  margin-top: .5rem;
+  padding-top: .75rem;
+  margin-top: .35rem;
   border-top: 1px solid rgba(15,23,42,.06);
 }
 
@@ -208,10 +213,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: .35rem;
-  padding: .65rem 1.35rem;
-  min-height: 2.5rem;
-  border-radius: .65rem;
+  gap: .3rem;
+  padding: .45rem 1rem;
+  min-height: 2.25rem;
+  border-radius: .55rem;
   font-weight: 600;
   letter-spacing: .01em;
   box-shadow: 0 1px 2px rgba(15,23,42,.1);
@@ -334,4 +339,46 @@
   nav, header, footer, #categoryFilters, #btnNewEvent, #btnPrev, #btnNext, [data-view], #btnToday { display: none !important; }
   #calendar { box-shadow: none; border: none; }
   .fc .fc-toolbar { display: none; }
+}
+#eventFormCanvas .offcanvas-title {
+  font-size: 1.05rem;
+}
+
+#eventFormCanvas h6,
+#eventFormCanvas .small,
+#eventFormCanvas .form-check-label,
+#eventFormCanvas .form-check-input,
+#eventFormCanvas .btn,
+#eventFormCanvas select,
+#eventFormCanvas input,
+#eventFormCanvas textarea {
+  font-size: inherit;
+}
+
+#eventFormCanvas .event-form-section h6 {
+  font-size: .8rem;
+  letter-spacing: .08em;
+}
+
+#eventFormCanvas .event-form-section .small,
+#eventFormCanvas .form-text,
+#eventFormCanvas .event-form-help {
+  font-size: .75rem;
+}
+
+#eventFormCanvas .event-form-section .row {
+  --bs-gutter-x: .75rem;
+  --bs-gutter-y: .5rem;
+}
+
+#eventFormCanvas input[type="text"],
+#eventFormCanvas input[type="datetime-local"],
+#eventFormCanvas input[type="date"],
+#eventFormCanvas select,
+#eventFormCanvas textarea {
+  padding: .35rem .75rem;
+}
+
+#eventFormCanvas textarea {
+  min-height: 6.5rem;
 }
