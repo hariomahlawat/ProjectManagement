@@ -1,10 +1,10 @@
-using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using System.Linq;
 using ProjectManagement.Data;
-using ProjectManagement.Models.Process;
 
 namespace ProjectManagement.Pages.Process;
 
@@ -18,9 +18,7 @@ public class IndexModel : PageModel
         _db = db;
     }
 
-    public IReadOnlyList<StageVm> Stages { get; private set; } = Array.Empty<StageVm>();
-    public IReadOnlyList<EdgeVm> Edges { get; private set; } = Array.Empty<EdgeVm>();
-    public bool CanEditChecklist { get; private set; }
+    public ProcessFlowVm Flow { get; private set; } = new();
 
     public async Task OnGetAsync()
     {
@@ -34,16 +32,43 @@ public class IndexModel : PageModel
             .AsNoTracking()
             .ToListAsync();
 
-        Stages = stages
-            .Select(s => new StageVm(s.Id, s.Name, s.Row ?? 0, s.Col ?? 0, s.IsOptional))
-            .ToArray();
-        Edges = edges
-            .Select(e => new EdgeVm(e.FromStageId, e.ToStageId))
-            .ToArray();
-
-        CanEditChecklist = User.IsInRole("MCO") || User.IsInRole("HoD") || User.IsInRole("Admin");
+        Flow = new ProcessFlowVm
+        {
+            CanEdit = User.IsInRole("MCO") || User.IsInRole("HoD") || User.IsInRole("Admin"),
+            Nodes = stages.Select(stage => new FlowNode
+            {
+                Id = stage.Id.ToString(CultureInfo.InvariantCulture),
+                Label = stage.Name,
+                IsOptional = stage.IsOptional
+            }).ToList(),
+            Edges = edges.Select((edge, index) => new FlowEdge
+            {
+                Id = $"e{index}",
+                Source = edge.FromStageId.ToString(CultureInfo.InvariantCulture),
+                Target = edge.ToStageId.ToString(CultureInfo.InvariantCulture)
+            }).ToList()
+        };
     }
 
-    public sealed record StageVm(int Id, string Name, int Row, int Col, bool IsOptional);
-    public sealed record EdgeVm(int FromId, int ToId);
+    public sealed class ProcessFlowVm
+    {
+        public IList<FlowNode> Nodes { get; set; } = new List<FlowNode>();
+        public IList<FlowEdge> Edges { get; set; } = new List<FlowEdge>();
+        public bool CanEdit { get; set; }
+    }
+
+    public sealed class FlowNode
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+        public string Type { get; set; } = "process";
+        public bool IsOptional { get; set; }
+    }
+
+    public sealed class FlowEdge
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Source { get; set; } = string.Empty;
+        public string Target { get; set; } = string.Empty;
+    }
 }

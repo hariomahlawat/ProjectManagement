@@ -1,0 +1,105 @@
+.process-layout {
+  display: grid;
+  grid-template-columns: minmax(520px, 1fr) 360px;
+  gap: 1rem;
+  align-items: start;
+}
+
+.proc-diagram {
+  position: relative;
+  height: 70vh;
+  min-height: 520px;
+  padding: 1rem;
+  background: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.75rem;
+  overflow: auto;
+}
+
+.proc-diagram svg {
+  display: block;
+}
+
+.proc-panel {
+  min-height: 200px;
+}
+
+.proc-node rect {
+  fill: #eef4ff;
+  stroke: #9bb8ff;
+  stroke-width: 1.25;
+  rx: 10;
+  ry: 10;
+}
+
+.proc-node.optional rect {
+  fill: #fff4e5;
+  stroke: #ffc78a;
+}
+
+.proc-node.decision rect {
+  rx: 4;
+  ry: 4;
+}
+
+.proc-node text {
+  font-size: 12px;
+  fill: #0b2347;
+  user-select: none;
+}
+
+.proc-node.is-selected rect {
+  stroke: #4c7dff;
+  stroke-width: 1.8;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.08));
+}
+
+.proc-node.is-selected text {
+  fill: #1b3d8f;
+}
+
+.proc-edge {
+  stroke: #c6d2e6;
+  stroke-width: 1.25;
+  fill: none;
+}
+
+.proc-edge.active,
+.proc-edge.is-selected {
+  stroke: #6b8af5;
+}
+
+.proc-arrow {
+  fill: #c6d2e6;
+}
+
+.proc-arrow.active {
+  fill: #6b8af5;
+}
+
+.proc-node .hit {
+  pointer-events: all;
+  cursor: pointer;
+}
+
+#proc-checklist ol {
+  padding-left: 1.1rem;
+}
+
+#proc-checklist li + li {
+  margin-top: 0.35rem;
+}
+
+#proc-checklist button {
+  margin-top: 0.25rem;
+}
+
+@media (max-width: 992px) {
+  .process-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .proc-panel {
+    order: -1;
+  }
+}
