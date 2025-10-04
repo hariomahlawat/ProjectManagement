@@ -415,7 +415,7 @@ if (root) {
   const NODE_SIZES = {
     terminator: { width: 220, height: 72 },
     process: { width: 240, height: 88 },
-    decision: { width: 132, height: 132 }
+    decision: { width: 240, height: 88 }
   };
 
   function createSvgElement(name, attributes = {}) {
@@ -548,11 +548,15 @@ if (root) {
 
   function drawDecision(node, layout) {
     const group = createNodeGroup(node, layout, 'decision');
-    const polygon = createSvgElement('polygon', {
-      points: `${layout.width / 2},0 ${layout.width},${layout.height / 2} ${layout.width / 2},${layout.height} 0,${layout.height / 2}`,
+    const rect = createSvgElement('rect', {
+      x: 0,
+      y: 0,
+      width: layout.width,
+      height: layout.height,
+      rx: 18,
       class: 'flow-node__body'
     });
-    group.appendChild(polygon);
+    group.appendChild(rect);
     group.appendChild(createLabelElement(node.label, layout));
     return group;
   }
