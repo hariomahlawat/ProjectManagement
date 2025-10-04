@@ -125,10 +125,6 @@
   pointer-events: none;
 }
 
-.process-stage-meta dt {
-  letter-spacing: 0.08em;
-}
-
 .stage-checklist {
   list-style: decimal inside;
   padding-left: 1.25rem;
