@@ -2,34 +2,30 @@
 @using ProjectManagement.ViewComponents
 
 @{
-    var listClasses = Model.IsOffcanvas
-        ? $"nav flex-column gap-1{(Model.Depth > 0 ? " ms-3" : string.Empty)}"
-        : Model.Depth == 0
-            ? "navbar-nav flex-row align-items-center gap-2"
-            : "nav flex-column ms-lg-3 gap-1";
+    var listClasses = "pm-drawer__list";
 }
 
 <ul class="@listClasses">
 @foreach (var node in Model.Nodes)
 {
-    var linkClasses = "nav-link";
-    if (node.IsActive)
+    var itemClasses = "pm-drawer__item";
+    var displayClasses = string.IsNullOrEmpty(node.Url)
+        ? "pm-drawer__label"
+        : "pm-drawer__link";
+
+    if (node.IsActive || node.HasActiveDescendant)
     {
-        linkClasses += " active fw-semibold";
-    }
-    else if (node.HasActiveDescendant)
-    {
-        linkClasses += " fw-semibold";
+        displayClasses += " is-active";
     }
 
-    <li class="nav-item">
+    <li class="@itemClasses">
         @if (!string.IsNullOrEmpty(node.Url))
         {
-            <a class="@linkClasses" href="@node.Url" @(node.IsActive ? "aria-current=\"page\"" : null)>@node.Text</a>
+            <a class="@displayClasses" href="@node.Url" @(node.IsActive ? "aria-current=\"page\"" : null)>@node.Text</a>
         }
         else
         {
-            <span class="@($"{linkClasses} disabled")">@node.Text</span>
+            <span class="@displayClasses" @(node.IsActive ? "aria-current=\"page\"" : null)>@node.Text</span>
         }
 
         @if (node.Children.Count > 0)
