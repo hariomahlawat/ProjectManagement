@@ -10,7 +10,7 @@
 @if (Model.Items?.Any() ?? false)
 {
     <div class="d-flex align-items-center gap-2">
-        <button class="navbar-toggler d-lg-none" type="button"
+        <button class="navbar-toggler" type="button"
                 data-drawer-toggle
                 data-drawer-target="@drawerId"
                 aria-controls="@drawerId"
@@ -29,7 +29,7 @@
                             <span class="text-muted small">Signed in as @Model.UserName</span>
                         }
                     </div>
-                    <button type="button" class="btn-close d-lg-none" data-drawer-close aria-label="Close navigation menu"></button>
+                    <button type="button" class="btn-close" data-drawer-close aria-label="Close navigation menu"></button>
                 </div>
                 <div class="pm-drawer__body">
                     <nav aria-label="Primary navigation">
