@@ -241,6 +241,10 @@ builder.Services.AddRazorPages(options =>
 
 var connectSrcDirective = BuildConnectSrcDirective(builder.Configuration);
 
+var developmentLoopbackOrigins = builder.Environment.IsDevelopment()
+    ? ResolveDevelopmentLoopbackOrigins(builder.Configuration)
+    : Array.Empty<string>();
+
 var app = builder.Build();
 
 // Ensure the database schema is up to date before handling requests
@@ -301,15 +305,20 @@ app.Use(async (ctx, next) =>
     {
         h["Cross-Origin-Opener-Policy"] = "same-origin";
         h["Cross-Origin-Resource-Policy"] = "same-origin";
+        var devSourcesSuffix = app.Environment.IsDevelopment() && developmentLoopbackOrigins.Length > 0
+            ? " " + string.Join(' ', developmentLoopbackOrigins)
+            : string.Empty;
+        var styleUnsafeInline = app.Environment.IsDevelopment() ? " 'unsafe-inline'" : string.Empty;
+
         h["Content-Security-Policy"] =
             "default-src 'self'; " +
             "base-uri 'self'; " +
             "frame-ancestors 'none'; " +
             "frame-src 'self'; " +
-            "img-src 'self' data: blob:; " +
-            "script-src 'self'; " +
-            "style-src 'self'; " +
-            "font-src 'self' data:; " +
+            $"img-src 'self' data: blob:{devSourcesSuffix}; " +
+            $"script-src 'self'{devSourcesSuffix}; " +
+            $"style-src 'self'{styleUnsafeInline}{devSourcesSuffix}; " +
+            $"font-src 'self' data:{devSourcesSuffix}; " +
             $"connect-src {connectSrcDirective};";
     }
     await next();
@@ -1378,6 +1387,48 @@ static async Task<StageChecklistTemplate?> EnsureChecklistTemplateAsync(
     await db.Entry(template).Collection(t => t.Items).LoadAsync(cancellationToken);
 
     return template;
+}
+
+static string[] ResolveDevelopmentLoopbackOrigins(IConfiguration configuration)
+{
+    static void AddOrigin(HashSet<string> set, string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        if (Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+            string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+        {
+            set.Add($"{uri.Scheme}://{uri.Authority}");
+        }
+    }
+
+    var origins = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "https://localhost:7183"
+    };
+
+    var urls = configuration["ASPNETCORE_URLS"];
+    if (!string.IsNullOrWhiteSpace(urls))
+    {
+        foreach (var url in urls.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            AddOrigin(origins, url);
+        }
+    }
+
+    var httpsPort = configuration["ASPNETCORE_HTTPS_PORT"];
+    if (!string.IsNullOrWhiteSpace(httpsPort) && int.TryParse(httpsPort, out var port) && port > 0)
+    {
+        AddOrigin(origins, $"https://localhost:{port}");
+        AddOrigin(origins, $"https://127.0.0.1:{port}");
+    }
+
+    AddOrigin(origins, configuration["Kestrel:Endpoints:Https:Url"]);
+
+    return origins.ToArray();
 }
 
 static string BuildConnectSrcDirective(IConfiguration configuration)
