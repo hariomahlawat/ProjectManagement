@@ -535,11 +535,12 @@
         return;
       }
 
-      const items = notifications.slice(0, this.limit);
+      const unreadNotifications = notifications.filter(notification => !notification.isRead);
+      const items = unreadNotifications.slice(0, this.limit);
       this.listElement.innerHTML = '';
 
       if (this.emptyElement) {
-        this.emptyElement.hidden = items.length !== 0;
+        this.emptyElement.hidden = unreadNotifications.length !== 0;
       }
 
       items.forEach(item => {
