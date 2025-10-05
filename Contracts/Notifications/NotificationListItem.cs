@@ -9,6 +9,7 @@ public sealed record NotificationListItem(
     string? ScopeType,
     string? ScopeId,
     int? ProjectId,
+    string? ProjectName,
     string? ActorUserId,
     string? Route,
     string? Title,

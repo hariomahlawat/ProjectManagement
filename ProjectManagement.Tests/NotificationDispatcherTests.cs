@@ -56,6 +56,14 @@ public sealed class NotificationDispatcherTests
 
             await userManager.CreateAsync(new ApplicationUser { Id = "recipient-1", UserName = "recipient@example.com" });
 
+            db.Projects.Add(new Project
+            {
+                Id = 1,
+                Name = "Project Orion",
+                CreatedByUserId = "creator-1",
+                LeadPoUserId = "recipient-1",
+            });
+
             db.NotificationDispatches.Add(new NotificationDispatch
             {
                 RecipientUserId = "recipient-1",
@@ -65,6 +73,7 @@ public sealed class NotificationDispatcherTests
                 Title = "New Remark",
                 Summary = "A remark was created.",
                 Route = "/remarks/1",
+                ProjectId = 1,
             });
 
             await db.SaveChangesAsync();
@@ -86,6 +95,8 @@ public sealed class NotificationDispatcherTests
         var notification = Assert.Single(client.Notifications);
         Assert.Equal("New Remark", notification.Title);
         Assert.Equal("/remarks/1", notification.Route);
+        Assert.Equal(1, notification.ProjectId);
+        Assert.Equal("Project Orion", notification.ProjectName);
 
         var unreadCount = Assert.Single(client.UnreadCounts);
         Assert.Equal(1, unreadCount);

@@ -8,8 +8,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Routing;
-using Microsoft.EntityFrameworkCore;
-using ProjectManagement.Data;
 using ProjectManagement.Services.Notifications;
 using ProjectManagement.ViewModels.Notifications;
 
@@ -19,15 +17,13 @@ namespace ProjectManagement.Pages.Notifications;
 public sealed class IndexModel : PageModel
 {
     private readonly UserNotificationService _notifications;
-    private readonly ApplicationDbContext _db;
     private readonly LinkGenerator _linkGenerator;
 
     public NotificationIndexViewModel ViewModel { get; private set; } = new();
 
-    public IndexModel(UserNotificationService notifications, ApplicationDbContext db, LinkGenerator linkGenerator)
+    public IndexModel(UserNotificationService notifications, LinkGenerator linkGenerator)
     {
         _notifications = notifications ?? throw new ArgumentNullException(nameof(notifications));
-        _db = db ?? throw new ArgumentNullException(nameof(db));
         _linkGenerator = linkGenerator ?? throw new ArgumentNullException(nameof(linkGenerator));
     }
 
@@ -52,37 +48,16 @@ public sealed class IndexModel : PageModel
             .Select(NotificationDisplayModel.FromContract)
             .ToList();
 
-        var projectIds = displayItems
+        var projectOptions = displayItems
             .Where(n => n.ProjectId.HasValue)
-            .Select(n => n.ProjectId!.Value)
-            .Distinct()
-            .ToList();
-
-        Dictionary<int, string>? projectNames = null;
-        if (projectIds.Count > 0)
-        {
-            projectNames = await _db.Projects
-                .AsNoTracking()
-                .Where(p => projectIds.Contains(p.Id))
-                .ToDictionaryAsync(p => p.Id, p => p.Name, cancellationToken);
-        }
-
-        if (projectNames is { Count: > 0 })
-        {
-            displayItems = displayItems
-                .Select(item => item.ProjectId is int pid && projectNames.TryGetValue(pid, out var name)
-                    ? item with { ProjectName = name }
-                    : item)
-                .ToList();
-        }
-
-        var projectOptions = projectIds
-            .Select(id =>
+            .GroupBy(n => n.ProjectId!.Value)
+            .Select(group =>
             {
-                var label = projectNames != null && projectNames.TryGetValue(id, out var name) && !string.IsNullOrWhiteSpace(name)
-                    ? name
-                    : $"Project #{id}";
-                return new ProjectFilterOption(id, label);
+                var label = group
+                    .Select(item => item.ProjectName)
+                    .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name))
+                    ?? $"Project #{group.Key}";
+                return new ProjectFilterOption(group.Key, label);
             })
             .OrderBy(option => option.Label, StringComparer.OrdinalIgnoreCase)
             .ToList();
