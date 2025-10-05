@@ -427,6 +427,7 @@
       this.notificationCenterUrl = element.getAttribute('data-notification-center-url') || '/Notifications';
       this.isAuthenticated = element.getAttribute('data-is-authenticated') === 'true';
       this.badge = element.querySelector('[data-notification-unread]');
+      this.badgeCount = this.badge ? this.badge.querySelector('[data-notification-unread-count]') : null;
       this.listElement = element.querySelector('[data-notification-list]');
       this.template = element.querySelector('[data-notification-item-template]');
       this.emptyElement = element.querySelector('[data-notification-empty]');
@@ -520,11 +521,14 @@
       if (this.badge) {
         if (unreadCount > 0) {
           this.badge.classList.remove('d-none');
-          this.badge.textContent = String(unreadCount);
         } else {
           this.badge.classList.add('d-none');
-          this.badge.textContent = '0';
         }
+      }
+
+      const badgeTarget = this.badgeCount ?? this.badge;
+      if (badgeTarget) {
+        badgeTarget.textContent = String(unreadCount > 0 ? unreadCount : 0);
       }
 
       if (!this.listElement || !this.template) {
