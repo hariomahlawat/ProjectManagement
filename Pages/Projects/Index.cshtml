@@ -34,25 +34,25 @@
         }
     </div>
 
-    <form method="get" class="row g-3 align-items-end mb-4">
-        <div class="col-md-5 col-lg-4">
+    <form method="get" class="row row-cols-1 row-cols-md-3 row-cols-lg-5 g-3 align-items-end mb-4">
+        <div class="col">
             <label asp-for="Query" class="form-label">Search projects</label>
             <input asp-for="Query" class="form-control" placeholder="Search by name, description, case file, category, or people" />
         </div>
-        <div class="col-sm-6 col-md-4 col-lg-3">
+        <div class="col">
             <label asp-for="CategoryId" class="form-label">Category</label>
             <select asp-for="CategoryId" class="form-select" asp-items="Model.CategoryOptions"></select>
         </div>
-        <div class="col-sm-6 col-md-4 col-lg-3">
+        <div class="col">
             <label asp-for="HodUserId" class="form-label">Head of Department</label>
             <select asp-for="HodUserId" class="form-select" asp-items="Model.HodOptions"></select>
         </div>
-        <div class="col-sm-6 col-md-4 col-lg-3">
+        <div class="col">
             <label asp-for="LeadPoUserId" class="form-label">Project Officer</label>
             <select asp-for="LeadPoUserId" class="form-select" asp-items="Model.LeadPoOptions"></select>
         </div>
-        <div class="col-auto">
-            <button type="submit" class="btn btn-outline-primary">Apply filters</button>
+        <div class="col">
+            <button type="submit" class="btn btn-outline-primary w-100">Apply filters</button>
         </div>
     </form>
 
