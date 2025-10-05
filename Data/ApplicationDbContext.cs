@@ -273,7 +273,17 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Route).HasMaxLength(2048);
                 e.Property(x => x.Title).HasMaxLength(200);
                 e.Property(x => x.Summary).HasMaxLength(2000);
-                e.Property(x => x.PayloadJson).HasMaxLength(4000).IsRequired();
+
+                var payloadProperty = e.Property(x => x.PayloadJson).IsRequired();
+
+                if (Database.IsSqlServer())
+                {
+                    payloadProperty.HasColumnType("nvarchar(max)");
+                }
+                else if (Database.IsNpgsql())
+                {
+                    payloadProperty.HasColumnType("text");
+                }
                 e.Property(x => x.Error).HasMaxLength(2000);
                 e.Property(x => x.AttemptCount).HasDefaultValue(0);
                 e.HasIndex(x => x.DispatchedUtc);
