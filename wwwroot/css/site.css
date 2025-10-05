@@ -1882,3 +1882,9 @@ body.has-project-photo-preview-dialog {
   height: 100%;
   min-height: 0;
 }
+
+/* Notification dropdown */
+.notification-bell .dropdown-menu {
+  min-width: 20rem;
+  max-width: 24rem;
+}
