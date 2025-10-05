@@ -1251,7 +1251,7 @@
             }
 
             const header = document.createElement('div');
-            header.className = 'd-flex gap-3 align-items-start';
+            header.className = 'd-flex flex-wrap gap-3 align-items-start';
 
             const avatar = document.createElement('div');
             avatar.className = 'remarks-avatar avatar';
@@ -1342,41 +1342,9 @@
             header.appendChild(actions);
             article.appendChild(header);
 
-            const body = document.createElement('div');
-            body.className = 'remarks-body';
-            body.setAttribute('data-remark-body', '');
-
-            if (this.editingId === remark.id) {
-                const textarea = document.createElement('textarea');
-                textarea.className = 'form-control';
-                textarea.rows = 4;
-                textarea.maxLength = 4000;
-                const existingMap = this.editingId === remark.id ? this.editMentionMap : null;
-                const mentionMap = this.ensureMentionMap(textarea, existingMap || null);
-                const initialValue = this.editDraft || this.decodeBody(remark.body, mentionMap);
-                textarea.value = initialValue;
-                textarea.setAttribute('data-remark-edit', 'body');
-                textarea.addEventListener('input', () => {
-                    this.editDraft = textarea.value;
-                });
-                body.appendChild(textarea);
-                this.attachMentionAutocomplete(textarea);
-            } else {
-                body.innerHTML = remark.body || '';
-                this.decorateMentions(body);
-            }
-
-            article.appendChild(body);
-
-            if (remark.isDeleted) {
-                const tombstone = document.createElement('div');
-                tombstone.className = 'text-muted small';
-                tombstone.textContent = this.formatDeletionLabel(remark);
-                article.appendChild(tombstone);
-            }
-
             const withinWindow = this.isWithinEditWindow(remark.createdAtUtc);
             const hasOverride = this.actorHasOverride;
+            let editWindowNotice = null;
 
             if (this.editingId === remark.id) {
                 const saveButton = document.createElement('button');
@@ -1489,12 +1457,48 @@
                     }
 
                     if (!hasOverride && remark.authorUserId === this.currentUserId && withinWindow) {
-                        const notice = document.createElement('div');
-                        notice.className = 'text-muted small text-wrap w-100';
-                        notice.textContent = 'You can edit your remark within 3 hours of posting.';
-                        actions.appendChild(notice);
+                        editWindowNotice = document.createElement('div');
+                        editWindowNotice.className = 'remark-edit-window-notice text-muted small text-wrap';
+                        editWindowNotice.textContent = 'You can edit your remark within 3 hours of posting.';
                     }
                 }
+            }
+
+            if (editWindowNotice) {
+                article.appendChild(editWindowNotice);
+            }
+
+            const body = document.createElement('div');
+            body.className = 'remarks-body';
+            body.setAttribute('data-remark-body', '');
+
+            if (this.editingId === remark.id) {
+                const textarea = document.createElement('textarea');
+                textarea.className = 'form-control';
+                textarea.rows = 4;
+                textarea.maxLength = 4000;
+                const existingMap = this.editingId === remark.id ? this.editMentionMap : null;
+                const mentionMap = this.ensureMentionMap(textarea, existingMap || null);
+                const initialValue = this.editDraft || this.decodeBody(remark.body, mentionMap);
+                textarea.value = initialValue;
+                textarea.setAttribute('data-remark-edit', 'body');
+                textarea.addEventListener('input', () => {
+                    this.editDraft = textarea.value;
+                });
+                body.appendChild(textarea);
+                this.attachMentionAutocomplete(textarea);
+            } else {
+                body.innerHTML = remark.body || '';
+                this.decorateMentions(body);
+            }
+
+            article.appendChild(body);
+
+            if (remark.isDeleted) {
+                const tombstone = document.createElement('div');
+                tombstone.className = 'text-muted small';
+                tombstone.textContent = this.formatDeletionLabel(remark);
+                article.appendChild(tombstone);
             }
 
             return article;
