@@ -14,6 +14,16 @@ namespace ProjectManagement.Services.Notifications;
 
 public sealed class NotificationPublisher : INotificationPublisher
 {
+    private const int ModuleMaxLength = 64;
+    private const int EventTypeMaxLength = 128;
+    private const int ScopeTypeMaxLength = 64;
+    private const int ScopeIdMaxLength = 128;
+    private const int RouteMaxLength = 2048;
+    private const int TitleMaxLength = 200;
+    private const int SummaryMaxLength = 2000;
+    private const int FingerprintMaxLength = 128;
+    private const int ActorUserIdMaxLength = 450;
+
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
 
     private readonly ApplicationDbContext _db;
@@ -30,10 +40,41 @@ public sealed class NotificationPublisher : INotificationPublisher
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+    public Task PublishAsync(
+        NotificationKind kind,
+        IReadOnlyCollection<string> recipientUserIds,
+        object payload,
+        CancellationToken cancellationToken = default)
+        => PublishAsync(
+            kind,
+            recipientUserIds,
+            payload,
+            module: null,
+            eventType: null,
+            scopeType: null,
+            scopeId: null,
+            projectId: null,
+            actorUserId: null,
+            route: null,
+            title: null,
+            summary: null,
+            fingerprint: null,
+            cancellationToken);
+
     public async Task PublishAsync(
         NotificationKind kind,
         IReadOnlyCollection<string> recipientUserIds,
         object payload,
+        string? module,
+        string? eventType,
+        string? scopeType,
+        string? scopeId,
+        int? projectId,
+        string? actorUserId,
+        string? route,
+        string? title,
+        string? summary,
+        string? fingerprint,
         CancellationToken cancellationToken = default)
     {
         if (recipientUserIds is null)
@@ -59,13 +100,54 @@ public sealed class NotificationPublisher : INotificationPublisher
             return;
         }
 
+        var normalizedModule = NormalizeMetadata(module, ModuleMaxLength, nameof(module));
+        var normalizedEventType = NormalizeMetadata(eventType, EventTypeMaxLength, nameof(eventType));
+        var normalizedScopeType = NormalizeMetadata(scopeType, ScopeTypeMaxLength, nameof(scopeType));
+        var normalizedScopeId = NormalizeMetadata(scopeId, ScopeIdMaxLength, nameof(scopeId));
+        var normalizedActorUserId = NormalizeMetadata(actorUserId, ActorUserIdMaxLength, nameof(actorUserId));
+        var normalizedRoute = NormalizeMetadata(route, RouteMaxLength, nameof(route));
+        var normalizedTitle = NormalizeMetadata(title, TitleMaxLength, nameof(title));
+        var normalizedSummary = NormalizeMetadata(summary, SummaryMaxLength, nameof(summary));
+        var normalizedFingerprint = NormalizeMetadata(fingerprint, FingerprintMaxLength, nameof(fingerprint));
+
+        int? validatedProjectId = projectId;
+        if (validatedProjectId.HasValue && validatedProjectId.Value <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(projectId), "Project identifier must be a positive number.");
+        }
+
         var timestamp = _clock.UtcNow.UtcDateTime;
-        var payloadJson = JsonSerializer.Serialize(payload, SerializerOptions);
+
+        var envelope = new NotificationEnvelopeV1(
+            Version: "v1",
+            Module: normalizedModule,
+            EventType: normalizedEventType,
+            ScopeType: normalizedScopeType,
+            ScopeId: normalizedScopeId,
+            ProjectId: validatedProjectId,
+            ActorUserId: normalizedActorUserId,
+            Route: normalizedRoute,
+            Title: normalizedTitle,
+            Summary: normalizedSummary,
+            Fingerprint: normalizedFingerprint,
+            Payload: payload);
+
+        var payloadJson = JsonSerializer.Serialize(envelope, SerializerOptions);
 
         var dispatches = recipients.Select(userId => new NotificationDispatch
         {
             RecipientUserId = userId,
             Kind = kind,
+            Module = normalizedModule,
+            EventType = normalizedEventType,
+            ScopeType = normalizedScopeType,
+            ScopeId = normalizedScopeId,
+            ProjectId = validatedProjectId,
+            ActorUserId = normalizedActorUserId,
+            Route = normalizedRoute,
+            Title = normalizedTitle,
+            Summary = normalizedSummary,
+            Fingerprint = normalizedFingerprint,
             PayloadJson = payloadJson,
             CreatedUtc = timestamp,
             AttemptCount = 0
@@ -79,4 +161,42 @@ public sealed class NotificationPublisher : INotificationPublisher
             kind,
             dispatches.Length);
     }
+
+    private static string? NormalizeMetadata(string? value, int maxLength, string parameterName)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+
+        if (trimmed.Length == 0)
+        {
+            return null;
+        }
+
+        if (trimmed.Length > maxLength)
+        {
+            throw new ArgumentException(
+                $"The value for {parameterName} exceeds the maximum length of {maxLength}.",
+                parameterName);
+        }
+
+        return trimmed;
+    }
+
+    private sealed record NotificationEnvelopeV1(
+        string Version,
+        string? Module,
+        string? EventType,
+        string? ScopeType,
+        string? ScopeId,
+        int? ProjectId,
+        string? ActorUserId,
+        string? Route,
+        string? Title,
+        string? Summary,
+        string? Fingerprint,
+        object Payload);
 }

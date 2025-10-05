@@ -251,7 +251,17 @@ public class RemarkNotificationServiceTests
     private sealed record TestNotification(
         NotificationKind Kind,
         IReadOnlyCollection<string> Recipients,
-        object Payload);
+        object Payload,
+        string? Module,
+        string? EventType,
+        string? ScopeType,
+        string? ScopeId,
+        int? ProjectId,
+        string? ActorUserId,
+        string? Route,
+        string? Title,
+        string? Summary,
+        string? Fingerprint);
 
     private sealed class TestNotificationPublisher : INotificationPublisher
     {
@@ -262,8 +272,52 @@ public class RemarkNotificationServiceTests
             IReadOnlyCollection<string> recipientUserIds,
             object payload,
             CancellationToken cancellationToken = default)
+            => PublishAsync(
+                kind,
+                recipientUserIds,
+                payload,
+                module: null,
+                eventType: null,
+                scopeType: null,
+                scopeId: null,
+                projectId: null,
+                actorUserId: null,
+                route: null,
+                title: null,
+                summary: null,
+                fingerprint: null,
+                cancellationToken);
+
+        public Task PublishAsync(
+            NotificationKind kind,
+            IReadOnlyCollection<string> recipientUserIds,
+            object payload,
+            string? module,
+            string? eventType,
+            string? scopeType,
+            string? scopeId,
+            int? projectId,
+            string? actorUserId,
+            string? route,
+            string? title,
+            string? summary,
+            string? fingerprint,
+            CancellationToken cancellationToken = default)
         {
-            Events.Add(new TestNotification(kind, recipientUserIds.ToArray(), payload));
+            Events.Add(new TestNotification(
+                kind,
+                recipientUserIds.ToArray(),
+                payload,
+                module,
+                eventType,
+                scopeType,
+                scopeId,
+                projectId,
+                actorUserId,
+                route,
+                title,
+                summary,
+                fingerprint));
             return Task.CompletedTask;
         }
     }
