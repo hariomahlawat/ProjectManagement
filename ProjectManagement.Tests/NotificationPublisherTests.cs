@@ -76,6 +76,48 @@ public sealed class NotificationPublisherTests
     }
 
     [Fact]
+    public async Task PublishAsync_WithLargeMetadata_PersistsLongPayload()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"notification-tests-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var clock = new TestClock(new DateTimeOffset(2024, 10, 6, 9, 30, 0, TimeSpan.Zero));
+        var publisher = new NotificationPublisher(context, clock, NullLogger<NotificationPublisher>.Instance);
+
+        var longRoute = "/" + new string('r', 2047);
+        var longSummary = new string('s', 2000);
+
+        await publisher.PublishAsync(
+            NotificationKind.RemarkCreated,
+            new[] { "user-1" },
+            new { info = "payload" },
+            module: "Remarks",
+            eventType: "Created",
+            scopeType: "Remark",
+            scopeId: "123",
+            projectId: 42,
+            actorUserId: "actor-1",
+            route: longRoute,
+            title: "Remark created",
+            summary: longSummary,
+            fingerprint: "remark-123");
+
+        var dispatch = Assert.Single(context.NotificationDispatches.AsNoTracking());
+
+        Assert.Equal(longRoute, dispatch.Route);
+        Assert.Equal(longSummary, dispatch.Summary);
+        Assert.True(dispatch.PayloadJson.Length > 4000);
+
+        using var document = JsonDocument.Parse(dispatch.PayloadJson);
+        var root = document.RootElement;
+
+        Assert.Equal(longRoute, root.GetProperty("route").GetString());
+        Assert.Equal(longSummary, root.GetProperty("summary").GetString());
+    }
+
+    [Fact]
     public async Task PublishAsync_LegacyOverload_DelegatesToEnrichedVersion()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
