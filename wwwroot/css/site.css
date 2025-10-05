@@ -246,6 +246,10 @@ body {
 }
 
 /* ---------- Header & footer ---------- */
+.pm-header .navbar {
+    padding-inline: 0;
+}
+
 .pm-header .navbar-brand {
     letter-spacing: .2px;
 }
