@@ -175,10 +175,6 @@ public sealed class NotificationDispatcher : BackgroundService
             {
                 throw;
             }
-            catch (TaskCanceledException)
-            {
-                throw;
-            }
             catch (Exception ex)
             {
                 var retryDelay = GetRetryDelay(dispatch.AttemptCount);
