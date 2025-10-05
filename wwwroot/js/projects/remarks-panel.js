@@ -1127,7 +1127,14 @@
             nameRow.appendChild(name);
 
             const roleBadge = document.createElement('span');
-            roleBadge.className = 'badge bg-light text-dark border';
+            roleBadge.className = 'badge border remarks-role-badge';
+            const roleAccentClass = this.getRoleAccentClass(remark.authorRole);
+            if (roleAccentClass) {
+                roleBadge.classList.add(roleAccentClass);
+                article.classList.add(roleAccentClass);
+            } else {
+                roleBadge.classList.add('bg-light', 'text-dark');
+            }
             roleBadge.textContent = this.getRoleLabel(remark.authorRole);
             nameRow.appendChild(roleBadge);
 
@@ -1400,6 +1407,28 @@
 
             const [first, ...rest] = parts;
             return first.toLowerCase() + rest.map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()).join('');
+        }
+
+        getRoleAccentClass(role) {
+            if (!role) {
+                return '';
+            }
+
+            const canonical = this.resolveCanonicalRole(role);
+            const normalized = this.normalizeRoleKey(canonical || role);
+            if (normalized === 'comdt') {
+                return 'remarks-role-comdt';
+            }
+
+            if (normalized === 'hod') {
+                return 'remarks-role-hod';
+            }
+
+            if (normalized === 'mco') {
+                return 'remarks-role-mco';
+            }
+
+            return '';
         }
 
         getRoleLabel(role) {
