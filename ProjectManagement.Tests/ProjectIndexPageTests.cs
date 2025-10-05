@@ -31,14 +31,14 @@ namespace ProjectManagement.Tests
 
             var firstPage = new IndexModel(context)
             {
-                Page = 1,
+                CurrentPage = 1,
                 PageSize = 10
             };
             await firstPage.OnGetAsync();
 
             var secondPage = new IndexModel(context)
             {
-                Page = 2,
+                CurrentPage = 2,
                 PageSize = 10
             };
             await secondPage.OnGetAsync();
@@ -49,7 +49,7 @@ namespace ProjectManagement.Tests
 
             var thirdPage = new IndexModel(context)
             {
-                Page = 3,
+                CurrentPage = 3,
                 PageSize = 10
             };
             await thirdPage.OnGetAsync();
