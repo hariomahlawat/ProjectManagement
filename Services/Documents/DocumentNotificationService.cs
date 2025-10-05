@@ -243,9 +243,12 @@ public sealed class DocumentNotificationService : IDocumentNotificationService
     private static string BuildRoute(int projectId)
         => string.Format(CultureInfo.InvariantCulture, "/projects/{0}/documents", projectId);
 
+    private static string FormatTimestamp(DateTimeOffset value)
+        => value.ToString("o", CultureInfo.InvariantCulture);
+
     private static string? FormatTimestamp(DateTimeOffset? value)
         => value.HasValue
-            ? value.Value.ToString("o", CultureInfo.InvariantCulture)
+            ? FormatTimestamp(value.Value)
             : null;
 
     private sealed record DocumentNotificationPayload(
