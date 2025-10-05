@@ -22,13 +22,20 @@ public class PlanApprovalService
     private readonly IClock _clock;
     private readonly ILogger<PlanApprovalService> _logger;
     private readonly PlanSnapshotService _snapshots;
+    private readonly IPlanNotificationService _notifications;
 
-    public PlanApprovalService(ApplicationDbContext db, IClock clock, ILogger<PlanApprovalService> logger, PlanSnapshotService snapshots)
+    public PlanApprovalService(
+        ApplicationDbContext db,
+        IClock clock,
+        ILogger<PlanApprovalService> logger,
+        PlanSnapshotService snapshots,
+        IPlanNotificationService notifications)
     {
         _db = db;
         _clock = clock;
         _logger = logger;
         _snapshots = snapshots;
+        _notifications = notifications ?? throw new ArgumentNullException(nameof(notifications));
     }
 
     public async Task SubmitAsync(int projectId, string userId, CancellationToken cancellationToken = default)
@@ -40,6 +47,7 @@ public class PlanApprovalService
 
         var plan = await _db.PlanVersions
             .Include(p => p.StagePlans)
+            .Include(p => p.Project)
             .FirstOrDefaultAsync(p => p.ProjectId == projectId &&
                                       p.Status == PlanVersionStatus.Draft &&
                                       p.OwnerUserId == userId,
@@ -76,6 +84,11 @@ public class PlanApprovalService
 
         await _db.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} submitted for approval by {UserId}.", plan.Id, projectId, userId);
+
+        if (plan.Project is not null)
+        {
+            await _notifications.NotifyPlanSubmittedAsync(plan, plan.Project, userId, cancellationToken);
+        }
     }
 
     public Task SubmitForApprovalAsync(int projectId, string userId, CancellationToken cancellationToken = default)
@@ -90,6 +103,7 @@ public class PlanApprovalService
 
         var plan = await _db.PlanVersions
             .Include(p => p.StagePlans)
+            .Include(p => p.Project)
             .Where(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.PendingApproval)
             .OrderByDescending(p => p.SubmittedOn)
             .ThenByDescending(p => p.VersionNo)
@@ -161,6 +175,16 @@ public class PlanApprovalService
         await transaction.CommitAsync(cancellationToken);
 
         _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} approved by {UserId}.", plan.Id, projectId, hodUserId);
+
+        if (plan.Project is null)
+        {
+            plan.Project = project;
+        }
+
+        if (plan.Project is not null)
+        {
+            await _notifications.NotifyPlanApprovedAsync(plan, plan.Project, hodUserId, cancellationToken);
+        }
         return true;
     }
 
@@ -202,6 +226,7 @@ public class PlanApprovalService
 
         var plan = await _db.PlanVersions
             .Include(p => p.ApprovalLogs)
+            .Include(p => p.Project)
             .Where(p => p.ProjectId == projectId && p.Status == PlanVersionStatus.PendingApproval)
             .OrderByDescending(p => p.SubmittedOn)
             .ThenByDescending(p => p.VersionNo)
@@ -235,6 +260,11 @@ public class PlanApprovalService
 
         await _db.SaveChangesAsync(cancellationToken);
         _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} was rejected by {UserId}.", plan.Id, projectId, hodUserId);
+
+        if (plan.Project is not null)
+        {
+            await _notifications.NotifyPlanRejectedAsync(plan, plan.Project, hodUserId, cancellationToken);
+        }
 
         return true;
     }

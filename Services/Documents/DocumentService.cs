@@ -23,6 +23,7 @@ public sealed class DocumentService : IDocumentService
     private readonly IUploadRootProvider _uploadRootProvider;
     private readonly IClock _clock;
     private readonly IAuditService _audit;
+    private readonly IDocumentNotificationService _notifications;
     private readonly IVirusScanner? _virusScanner;
     private readonly ILogger<DocumentService>? _logger;
 
@@ -35,6 +36,7 @@ public sealed class DocumentService : IDocumentService
         IUploadRootProvider uploadRootProvider,
         IClock clock,
         IAuditService audit,
+        IDocumentNotificationService notifications,
         IVirusScanner? virusScanner = null,
         ILogger<DocumentService>? logger = null)
     {
@@ -43,6 +45,7 @@ public sealed class DocumentService : IDocumentService
         _uploadRootProvider = uploadRootProvider ?? throw new ArgumentNullException(nameof(uploadRootProvider));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
+        _notifications = notifications ?? throw new ArgumentNullException(nameof(notifications));
         _virusScanner = virusScanner;
         _logger = logger;
     }
@@ -190,6 +193,10 @@ public sealed class DocumentService : IDocumentService
             throw new FileNotFoundException("Temporary file not found.", tempPath);
         }
 
+        var project = await _db.Projects
+            .SingleOrDefaultAsync(p => p.Id == projectId, cancellationToken)
+            ?? throw new InvalidOperationException($"Project {projectId} was not found.");
+
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
         var now = _clock.UtcNow;
@@ -236,6 +243,9 @@ public sealed class DocumentService : IDocumentService
         await Audit.Events.ProjectDocumentPublished(projectId, document.Id, performedByUserId, document.FileStamp)
             .WriteAsync(_audit);
 
+        document.Project = project;
+        await _notifications.NotifyDocumentPublishedAsync(document, project, performedByUserId, cancellationToken);
+
         return document;
     }
 
@@ -264,6 +274,11 @@ public sealed class DocumentService : IDocumentService
         {
             throw new InvalidOperationException($"Document {documentId} was not found.");
         }
+
+        await _db.Entry(document).Reference(d => d.Project).LoadAsync(cancellationToken);
+        var project = document.Project
+            ?? await _db.Projects.SingleOrDefaultAsync(p => p.Id == document.ProjectId, cancellationToken)
+            ?? throw new InvalidOperationException($"Project {document.ProjectId} was not found.");
 
         var tempPath = ResolveAbsolutePath(tempStorageKey);
         if (!File.Exists(tempPath))
@@ -312,6 +327,9 @@ public sealed class DocumentService : IDocumentService
         await Audit.Events.ProjectDocumentReplaced(document.ProjectId, document.Id, performedByUserId, document.FileStamp)
             .WriteAsync(_audit);
 
+        document.Project = project;
+        await _notifications.NotifyDocumentReplacedAsync(document, project, performedByUserId, cancellationToken);
+
         return document;
     }
 
@@ -325,6 +343,11 @@ public sealed class DocumentService : IDocumentService
         {
             throw new InvalidOperationException($"Document {documentId} was not found.");
         }
+
+        await _db.Entry(document).Reference(d => d.Project).LoadAsync(cancellationToken);
+        var project = document.Project
+            ?? await _db.Projects.SingleOrDefaultAsync(p => p.Id == document.ProjectId, cancellationToken)
+            ?? throw new InvalidOperationException($"Project {document.ProjectId} was not found.");
 
         if (document.Status == ProjectDocumentStatus.SoftDeleted)
         {
@@ -341,6 +364,9 @@ public sealed class DocumentService : IDocumentService
         await Audit.Events.ProjectDocumentRemoved(document.ProjectId, document.Id, performedByUserId)
             .WriteAsync(_audit);
 
+        document.Project = project;
+        await _notifications.NotifyDocumentArchivedAsync(document, project, performedByUserId, cancellationToken);
+
         return document;
     }
 
@@ -354,6 +380,11 @@ public sealed class DocumentService : IDocumentService
         {
             throw new InvalidOperationException($"Document {documentId} was not found.");
         }
+
+        await _db.Entry(document).Reference(d => d.Project).LoadAsync(cancellationToken);
+        var project = document.Project
+            ?? await _db.Projects.SingleOrDefaultAsync(p => p.Id == document.ProjectId, cancellationToken)
+            ?? throw new InvalidOperationException($"Project {document.ProjectId} was not found.");
 
         if (document.Status == ProjectDocumentStatus.Published)
         {
@@ -370,6 +401,9 @@ public sealed class DocumentService : IDocumentService
         await Audit.Events.ProjectDocumentRestored(document.ProjectId, document.Id, performedByUserId)
             .WriteAsync(_audit);
 
+        document.Project = project;
+        await _notifications.NotifyDocumentRestoredAsync(document, project, performedByUserId, cancellationToken);
+
         return document;
     }
 
@@ -383,6 +417,10 @@ public sealed class DocumentService : IDocumentService
         {
             return;
         }
+
+        await _db.Entry(document).Reference(d => d.Project).LoadAsync(cancellationToken);
+        var project = document.Project
+            ?? await _db.Projects.SingleOrDefaultAsync(p => p.Id == document.ProjectId, cancellationToken);
 
         var storageKey = document.StorageKey;
         var projectId = document.ProjectId;
@@ -402,6 +440,12 @@ public sealed class DocumentService : IDocumentService
 
         await Audit.Events.ProjectDocumentHardDeleted(projectId, documentId, performedByUserId)
             .WriteAsync(_audit);
+
+        if (project is not null)
+        {
+            document.Project = project;
+            await _notifications.NotifyDocumentDeletedAsync(document, project, performedByUserId, cancellationToken);
+        }
     }
 
     public async Task<DocumentStreamResult?> OpenStreamAsync(

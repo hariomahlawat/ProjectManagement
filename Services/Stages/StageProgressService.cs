@@ -20,13 +20,20 @@ public class StageProgressService
     private readonly IClock _clock;
     private readonly IAuditService _audit;
     private readonly ProjectFactsReadService _factsRead;
+    private readonly IStageNotificationService _stageNotifications;
 
-    public StageProgressService(ApplicationDbContext db, IClock clock, IAuditService audit, ProjectFactsReadService factsRead)
+    public StageProgressService(
+        ApplicationDbContext db,
+        IClock clock,
+        IAuditService audit,
+        ProjectFactsReadService factsRead,
+        IStageNotificationService stageNotifications)
     {
         _db = db;
         _clock = clock;
         _audit = audit;
         _factsRead = factsRead;
+        _stageNotifications = stageNotifications ?? throw new ArgumentNullException(nameof(stageNotifications));
     }
 
     public async Task UpdateStageStatusAsync(
@@ -48,17 +55,20 @@ public class StageProgressService
         }
 
         var stage = await _db.ProjectStages
+            .Include(s => s.Project)
             .SingleOrDefaultAsync(
                 s => s.ProjectId == projectId && s.StageCode == stageCode,
                 cancellationToken)
             ?? throw new InvalidOperationException($"Stage {stageCode} was not found for project {projectId}.");
+
+        var previousStatus = stage.Status;
 
         var today = DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime);
         var resolvedDate = effectiveDate ?? today;
 
         if (newStatus == StageStatus.Completed)
         {
-            await CompleteWithCascadeAsync(projectId, stage, resolvedDate, effectiveDate, userId, cancellationToken);
+            await CompleteWithCascadeAsync(projectId, stage, resolvedDate, effectiveDate, previousStatus, userId, cancellationToken);
             return;
         }
 
@@ -100,6 +110,11 @@ public class StageProgressService
                 ["NewStatus"] = newStatus.ToString(),
                 ["EffectiveDate"] = resolvedDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
             });
+
+        if (stage.Project is not null)
+        {
+            await _stageNotifications.NotifyStageStatusChangedAsync(stage, stage.Project, previousStatus, userId, cancellationToken);
+        }
     }
 
     private async Task CompleteWithCascadeAsync(
@@ -107,6 +122,7 @@ public class StageProgressService
         ProjectStage stage,
         DateOnly resolvedDate,
         DateOnly? explicitDate,
+        StageStatus previousStatus,
         string userId,
         CancellationToken ct)
     {
@@ -153,6 +169,16 @@ public class StageProgressService
         };
 
         await _audit.LogAsync("Stages.StageStatusChanged", userId: userId, data: data);
+
+        if (stage.Project is null)
+        {
+            stage.Project = await _db.Projects.SingleOrDefaultAsync(p => p.Id == projectId, ct);
+        }
+
+        if (stage.Project is not null)
+        {
+            await _stageNotifications.NotifyStageStatusChangedAsync(stage, stage.Project, previousStatus, userId, ct);
+        }
 
         if (autoStart.HasValue && autoStart.Value.Stage is { } nextStage)
         {

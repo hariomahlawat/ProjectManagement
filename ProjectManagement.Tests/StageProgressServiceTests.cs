@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
@@ -159,7 +160,7 @@ public class StageProgressServiceTests
     }
 
     private static StageProgressService CreateService(ApplicationDbContext db, TestClock clock)
-        => new StageProgressService(db, clock, new FakeAudit(), new ProjectFactsReadService(db));
+        => new StageProgressService(db, clock, new FakeAudit(), new ProjectFactsReadService(db), new NullStageNotificationService());
 
     private static ApplicationDbContext CreateContext()
     {
@@ -210,6 +211,12 @@ public class StageProgressServiceTests
             string? userName = null,
             IDictionary<string, string?>? data = null,
             Microsoft.AspNetCore.Http.HttpContext? http = null)
+            => Task.CompletedTask;
+    }
+
+    private sealed class NullStageNotificationService : IStageNotificationService
+    {
+        public Task NotifyStageStatusChangedAsync(ProjectStage stage, Project project, StageStatus previousStatus, string actorUserId, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
     }
 }

@@ -146,6 +146,13 @@ public class RemarkNotificationServiceTests
         Assert.Equal("Project Four", (string)payload.ProjectName);
         Assert.Equal("Field Stage", (string)payload.Stage);
 
+        var metadata = publisher.Events[0];
+        Assert.Equal("Remarks", metadata.Module);
+        Assert.Equal("RemarkCreated", metadata.EventType);
+        Assert.Equal("Remark", metadata.ScopeType);
+        Assert.Equal(remark.Id.ToString(), metadata.ScopeId);
+        Assert.Equal($"/projects/{project.ProjectId}/remarks/{remark.Id}", metadata.Route);
+
         string preview = payload.Preview;
         Assert.Equal(121, preview.Length);
         Assert.EndsWith("…", preview, StringComparison.Ordinal);
@@ -171,8 +178,14 @@ public class RemarkNotificationServiceTests
 
         await service.NotifyRemarkCreatedAsync(remark, actor, project, CancellationToken.None);
 
-        Assert.Single(publisher.Events);
+        Assert.Equal(2, publisher.Events.Count);
         Assert.Contains(mentionUser.Id, publisher.Events[0].Recipients);
+
+        var mentionEvent = publisher.Events[1];
+        Assert.Equal(NotificationKind.MentionedInRemark, mentionEvent.Kind);
+        Assert.Single(mentionEvent.Recipients);
+        Assert.Equal(mentionUser.Id, mentionEvent.Recipients.First());
+        Assert.Equal("RemarkMentioned", mentionEvent.EventType);
     }
 
     private static Remark CreateRemark(RemarkType type)

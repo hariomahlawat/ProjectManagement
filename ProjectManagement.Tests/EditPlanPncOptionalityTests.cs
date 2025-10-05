@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -51,7 +52,7 @@ public class EditPlanPncOptionalityTests
         var audit = new RecordingAudit();
         var userContext = new PrincipalUserContext(CreatePrincipal("po-user", "Project Officer"));
         var planDraft = new PlanDraftService(db, clock, NullLogger<PlanDraftService>.Instance, audit, userContext);
-        var planApproval = new PlanApprovalService(db, clock, NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db));
+        var planApproval = new PlanApprovalService(db, clock, NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db), new NullPlanNotificationService());
         var planGeneration = new PlanGenerationService(db);
 
         var page = new EditPlanModel(db, audit, planGeneration, planDraft, planApproval, NullLogger<EditPlanModel>.Instance, userContext)
@@ -107,7 +108,7 @@ public class EditPlanPncOptionalityTests
         var audit = new RecordingAudit();
         var userContext = new PrincipalUserContext(CreatePrincipal("po-user", "Project Officer"));
         var planDraft = new PlanDraftService(db, clock, NullLogger<PlanDraftService>.Instance, audit, userContext);
-        var planApproval = new PlanApprovalService(db, clock, NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db));
+        var planApproval = new PlanApprovalService(db, clock, NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db), new NullPlanNotificationService());
         var planGeneration = new PlanGenerationService(db);
 
         var page = new EditPlanModel(db, audit, planGeneration, planDraft, planApproval, NullLogger<EditPlanModel>.Instance, userContext)
@@ -217,5 +218,16 @@ public class EditPlanPncOptionalityTests
         }
 
         public DateTimeOffset UtcNow { get; }
+    }
+    private sealed class NullPlanNotificationService : IPlanNotificationService
+    {
+        public Task NotifyPlanSubmittedAsync(PlanVersion plan, Project project, string actorUserId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task NotifyPlanApprovedAsync(PlanVersion plan, Project project, string actorUserId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task NotifyPlanRejectedAsync(PlanVersion plan, Project project, string actorUserId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
     }
 }

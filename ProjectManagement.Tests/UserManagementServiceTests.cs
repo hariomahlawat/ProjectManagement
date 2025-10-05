@@ -1,5 +1,6 @@
 using System;
 using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -54,7 +55,7 @@ namespace ProjectManagement.Tests
             var accessor = new HttpContextAccessor { HttpContext = httpContext };
             var audit = new AuditService(context, accessor);
 
-            return new UserManagementService(userManager, roleManager, accessor, audit);
+            return new UserManagementService(userManager, roleManager, accessor, audit, new NullRoleNotificationService());
         }
 
         [Fact]
@@ -83,6 +84,11 @@ namespace ProjectManagement.Tests
             var result = await service.DeleteUserAsync(admin.Id);
 
             Assert.False(result.Succeeded);
+        }
+        private sealed class NullRoleNotificationService : IRoleNotificationService
+        {
+            public Task NotifyRolesUpdatedAsync(ApplicationUser user, IReadOnlyCollection<string> addedRoles, IReadOnlyCollection<string> removedRoles, string actorUserId, CancellationToken cancellationToken = default)
+                => Task.CompletedTask;
         }
     }
 }

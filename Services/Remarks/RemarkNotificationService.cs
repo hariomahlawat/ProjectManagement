@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -60,6 +61,7 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
             }
 
             var optedInRecipients = await FilterOptOutAsync(
+                NotificationKind.RemarkCreated,
                 recipients,
                 project.ProjectId,
                 cancellationToken);
@@ -73,11 +75,64 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
 
             var payload = BuildPayload(remark, actor, project);
 
+            var metadata = BuildMetadata(
+                remark,
+                project,
+                actor,
+                eventType: "RemarkCreated",
+                titlePrefix: "New remark posted");
+
             await _publisher.PublishAsync(
                 NotificationKind.RemarkCreated,
                 optedInRecipients,
                 payload,
+                metadata.Module,
+                metadata.EventType,
+                metadata.ScopeType,
+                metadata.ScopeId,
+                project.ProjectId,
+                actor.UserId,
+                metadata.Route,
+                metadata.Title,
+                metadata.Summary,
+                metadata.Fingerprint,
                 cancellationToken);
+
+            var mentionRecipients = ResolveMentionRecipients(remark);
+            if (mentionRecipients.Count > 0)
+            {
+                var mentionOptedIn = await FilterOptOutAsync(
+                    NotificationKind.MentionedInRemark,
+                    mentionRecipients,
+                    project.ProjectId,
+                    cancellationToken);
+
+                if (mentionOptedIn.Count > 0)
+                {
+                    var mentionMetadata = BuildMetadata(
+                        remark,
+                        project,
+                        actor,
+                        eventType: "RemarkMentioned",
+                        titlePrefix: "You were mentioned");
+
+                    await _publisher.PublishAsync(
+                        NotificationKind.MentionedInRemark,
+                        mentionOptedIn,
+                        payload,
+                        mentionMetadata.Module,
+                        mentionMetadata.EventType,
+                        mentionMetadata.ScopeType,
+                        mentionMetadata.ScopeId,
+                        project.ProjectId,
+                        actor.UserId,
+                        mentionMetadata.Route,
+                        mentionMetadata.Title,
+                        mentionMetadata.Summary,
+                        mentionMetadata.Fingerprint,
+                        cancellationToken);
+                }
+            }
         }
         catch (OperationCanceledException)
         {
@@ -139,6 +194,7 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
     }
 
     private async Task<IReadOnlyCollection<string>> FilterOptOutAsync(
+        NotificationKind kind,
         HashSet<string> recipients,
         int projectId,
         CancellationToken cancellationToken)
@@ -153,7 +209,7 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
         foreach (var userId in recipients)
         {
             if (await _preferences.AllowsAsync(
-                    NotificationKind.RemarkCreated,
+                    kind,
                     userId,
                     projectId,
                     cancellationToken))
@@ -163,6 +219,25 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
         }
 
         return allowed;
+    }
+
+    private static HashSet<string> ResolveMentionRecipients(Remark remark)
+    {
+        if (remark.Mentions is null || remark.Mentions.Count == 0)
+        {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var mention in remark.Mentions)
+        {
+            if (!string.IsNullOrWhiteSpace(mention.UserId))
+            {
+                set.Add(mention.UserId);
+            }
+        }
+
+        return set;
     }
 
     private static RemarkCreatedNotificationPayload BuildPayload(
@@ -186,6 +261,51 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
             stage,
             remark.CreatedAtUtc);
     }
+
+    private static RemarkNotificationMetadata BuildMetadata(
+        Remark remark,
+        RemarkProjectInfo project,
+        RemarkActorContext actor,
+        string eventType,
+        string titlePrefix)
+    {
+        var projectName = string.IsNullOrWhiteSpace(project.ProjectName)
+            ? string.Format(CultureInfo.InvariantCulture, "Project {0}", project.ProjectId)
+            : project.ProjectName;
+
+        var route = string.Format(
+            CultureInfo.InvariantCulture,
+            "/projects/{0}/remarks/{1}",
+            project.ProjectId,
+            remark.Id);
+
+        var actorRole = actor.ActorRole.ToString();
+        var summary = string.Format(
+            CultureInfo.InvariantCulture,
+            "{0} added a {1} remark.",
+            actorRole,
+            remark.Type);
+
+        return new RemarkNotificationMetadata(
+            Module: "Remarks",
+            EventType: eventType,
+            ScopeType: "Remark",
+            ScopeId: remark.Id.ToString(CultureInfo.InvariantCulture),
+            Route: route,
+            Title: string.Format(CultureInfo.InvariantCulture, "{0} on {1}", titlePrefix, projectName),
+            Summary: summary,
+            Fingerprint: string.Format(CultureInfo.InvariantCulture, "remark:{0}:{1}", remark.Id, eventType));
+    }
+
+    private sealed record RemarkNotificationMetadata(
+        string Module,
+        string EventType,
+        string ScopeType,
+        string ScopeId,
+        string Route,
+        string Title,
+        string Summary,
+        string Fingerprint);
 
     private static string BuildPreview(string htmlBody)
     {

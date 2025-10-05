@@ -72,7 +72,7 @@ public class PlanDraftDeletionIntegrationTests
             audit,
             new PlanGenerationService(db),
             planDraft,
-            new PlanApprovalService(db, clock, NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db)),
+            new PlanApprovalService(db, clock, NullLogger<PlanApprovalService>.Instance, new PlanSnapshotService(db), new NullPlanNotificationService()),
             NullLogger<EditPlanModel>.Instance,
             userContext);
 
@@ -150,5 +150,16 @@ public class PlanDraftDeletionIntegrationTests
         }
 
         public DateTimeOffset UtcNow { get; }
+    }
+    private sealed class NullPlanNotificationService : IPlanNotificationService
+    {
+        public Task NotifyPlanSubmittedAsync(PlanVersion plan, Project project, string actorUserId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task NotifyPlanApprovedAsync(PlanVersion plan, Project project, string actorUserId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task NotifyPlanRejectedAsync(PlanVersion plan, Project project, string actorUserId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
     }
 }

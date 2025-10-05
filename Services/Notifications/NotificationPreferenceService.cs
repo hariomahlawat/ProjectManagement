@@ -78,6 +78,17 @@ public sealed class NotificationPreferenceService : INotificationPreferenceServi
         => kind switch
         {
             NotificationKind.RemarkCreated => NotificationClaimTypes.RemarkCreatedOptOut,
+            NotificationKind.MentionedInRemark => NotificationClaimTypes.MentionOptOut,
+            NotificationKind.PlanSubmitted => NotificationClaimTypes.PlanEventsOptOut,
+            NotificationKind.PlanApproved => NotificationClaimTypes.PlanEventsOptOut,
+            NotificationKind.PlanRejected => NotificationClaimTypes.PlanEventsOptOut,
+            NotificationKind.StageStatusChanged => NotificationClaimTypes.StageEventsOptOut,
+            NotificationKind.DocumentPublished => NotificationClaimTypes.DocumentEventsOptOut,
+            NotificationKind.DocumentReplaced => NotificationClaimTypes.DocumentEventsOptOut,
+            NotificationKind.DocumentArchived => NotificationClaimTypes.DocumentEventsOptOut,
+            NotificationKind.DocumentRestored => NotificationClaimTypes.DocumentEventsOptOut,
+            NotificationKind.DocumentDeleted => NotificationClaimTypes.DocumentEventsOptOut,
+            NotificationKind.RoleAssignmentsChanged => NotificationClaimTypes.RoleChangesOptOut,
             _ => null
         };
 }
