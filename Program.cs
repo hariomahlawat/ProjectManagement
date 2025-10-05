@@ -1611,11 +1611,6 @@ static async Task<IResult> SendUnreadCountAsync(
     return Results.NoContent();
 }
 
-public sealed record NotificationListRequest(
-    [property: FromQuery(Name = "limit")] int? Limit,
-    [property: FromQuery(Name = "unreadOnly")] bool? UnreadOnly,
-    [property: FromQuery(Name = "projectId")] int? ProjectId);
-
 app.Run();
 
 public partial class Program { }
