@@ -1174,6 +1174,24 @@ body {
     font-size: var(--pm-font-size-tight);
 }
 
+.remarks-avatar.remarks-role-comdt {
+    background-color: var(--remarks-role-comdt-bg);
+    border-color: var(--remarks-role-comdt-border);
+    color: var(--remarks-role-comdt-text);
+}
+
+.remarks-avatar.remarks-role-hod {
+    background-color: var(--remarks-role-hod-bg);
+    border-color: var(--remarks-role-hod-border);
+    color: var(--remarks-role-hod-text);
+}
+
+.remarks-avatar.remarks-role-mco {
+    background-color: var(--remarks-role-mco-bg);
+    border-color: var(--remarks-role-mco-border);
+    color: var(--remarks-role-mco-text);
+}
+
 .remarks-meta {
     font-size: var(--pm-font-size-xs);
     color: var(--pm-muted);

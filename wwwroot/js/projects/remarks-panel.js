@@ -1273,6 +1273,7 @@
             const roleAccentClass = this.getRoleAccentClass(remark.authorRole);
             if (roleAccentClass) {
                 roleBadge.classList.add(roleAccentClass);
+                avatar.classList.add(roleAccentClass);
                 article.classList.add(roleAccentClass);
             } else {
                 roleBadge.classList.add('bg-light', 'text-dark');
