@@ -275,7 +275,7 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
 
         var route = string.Format(
             CultureInfo.InvariantCulture,
-            "/projects/{0}/remarks/{1}",
+            "/projects/remarks/{0}?remarkId={1}",
             project.ProjectId,
             remark.Id);
 

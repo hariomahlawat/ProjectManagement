@@ -151,7 +151,7 @@ public class RemarkNotificationServiceTests
         Assert.Equal("RemarkCreated", metadata.EventType);
         Assert.Equal("Remark", metadata.ScopeType);
         Assert.Equal(remark.Id.ToString(), metadata.ScopeId);
-        Assert.Equal($"/projects/{project.ProjectId}/remarks/{remark.Id}", metadata.Route);
+        Assert.Equal($"/projects/remarks/{project.ProjectId}?remarkId={remark.Id}", metadata.Route);
 
         string preview = payload.Preview;
         Assert.Equal(121, preview.Length);
