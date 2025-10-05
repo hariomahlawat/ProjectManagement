@@ -1888,3 +1888,20 @@ body.has-project-photo-preview-dialog {
   min-width: 20rem;
   max-width: 24rem;
 }
+
+.notification-menu {
+  display: flex;
+  flex-direction: column;
+  max-height: min(80vh, 32rem);
+}
+
+.notification-menu__body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.notification-menu > .border-bottom,
+.notification-menu > .border-top {
+  flex: 0 0 auto;
+}
