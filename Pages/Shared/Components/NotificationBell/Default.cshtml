@@ -24,9 +24,9 @@
             aria-expanded="false" aria-label="Open notifications">
         <i class="bi bi-bell fs-5" aria-hidden="true"></i>
         <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger @unreadClass"
-              data-notification-unread>
+              data-notification-unread aria-live="polite">
             <span class="visually-hidden">Unread notifications</span>
-            @Model.UnreadCount
+            <span data-notification-unread-count>@Model.UnreadCount</span>
         </span>
     </button>
     <div class="dropdown-menu dropdown-menu-end shadow-sm p-0" aria-labelledby="notificationDropdown">
