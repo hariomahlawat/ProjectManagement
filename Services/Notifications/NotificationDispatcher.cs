@@ -3,11 +3,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
+using ProjectManagement.Hubs;
+using ProjectManagement.Models;
 using ProjectManagement.Models.Notifications;
 using ProjectManagement.Services;
 
@@ -74,6 +78,10 @@ public sealed class NotificationDispatcher : BackgroundService
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var preferenceService = scope.ServiceProvider.GetRequiredService<INotificationPreferenceService>();
         var deliveryService = scope.ServiceProvider.GetRequiredService<INotificationDeliveryService>();
+        var hubContext = scope.ServiceProvider.GetRequiredService<IHubContext<NotificationsHub, INotificationsClient>>();
+        var notificationService = scope.ServiceProvider.GetRequiredService<UserNotificationService>();
+        var principalFactory = scope.ServiceProvider.GetRequiredService<IUserClaimsPrincipalFactory<ApplicationUser>>();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
         var now = _clock.UtcNow.UtcDateTime;
 
@@ -197,6 +205,43 @@ public sealed class NotificationDispatcher : BackgroundService
         if (notificationsToDeliver.Count > 0)
         {
             await deliveryService.DeliverAsync(notificationsToDeliver, stoppingToken);
+
+            var notificationsByUser = notificationsToDeliver
+                .GroupBy(n => n.RecipientUserId, StringComparer.Ordinal)
+                .ToList();
+
+            foreach (var userGroup in notificationsByUser)
+            {
+                stoppingToken.ThrowIfCancellationRequested();
+
+                var userId = userGroup.Key;
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    continue;
+                }
+
+                var user = await userManager.FindByIdAsync(userId);
+                if (user is null)
+                {
+                    continue;
+                }
+
+                var principal = await principalFactory.CreateAsync(user);
+
+                var items = await notificationService.ProjectAsync(
+                    principal,
+                    userId,
+                    userGroup.ToList(),
+                    stoppingToken);
+
+                foreach (var item in items)
+                {
+                    await hubContext.Clients.User(userId).ReceiveNotification(item);
+                }
+
+                var unreadCount = await notificationService.CountUnreadAsync(principal, userId, stoppingToken);
+                await hubContext.Clients.User(userId).ReceiveUnreadCount(unreadCount);
+            }
         }
 
         return true;
