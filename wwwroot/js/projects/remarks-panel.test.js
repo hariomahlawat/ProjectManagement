@@ -207,6 +207,11 @@ test('non-override author sees inline action buttons within edit window', () => 
     const actions = article.querySelector('.remarks-actions');
     assert.ok(actions);
 
+    const header = actions.parentElement;
+    assert.ok(header);
+    assert.ok(header.classList.contains('d-flex'));
+    assert.ok(actions.classList.contains('ms-auto'));
+
     const editButton = actions.querySelector('button[data-remark-action="edit"]');
     const deleteButton = actions.querySelector('button[data-remark-action="delete"]');
     assert.ok(editButton);
@@ -261,6 +266,7 @@ test('override actor outside edit window gets dropdown actions', () => {
 
     const menu = dropdown.querySelector('.dropdown-menu');
     assert.ok(menu);
+    assert.ok(menu.classList.contains('dropdown-menu-end'));
     assert.ok(menu.id);
     assert.strictEqual(toggle.getAttribute('aria-controls'), menu.id);
 

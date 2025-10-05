@@ -1335,6 +1335,10 @@
             }
 
             header.appendChild(identity);
+
+            const actions = document.createElement('div');
+            actions.className = 'remarks-actions ms-auto d-flex flex-wrap align-items-center gap-2';
+            header.appendChild(actions);
             article.appendChild(header);
 
             const body = document.createElement('div');
@@ -1369,9 +1373,6 @@
                 tombstone.textContent = this.formatDeletionLabel(remark);
                 article.appendChild(tombstone);
             }
-
-            const actions = document.createElement('div');
-            actions.className = 'remarks-actions d-flex flex-wrap align-items-center gap-2';
 
             const withinWindow = this.isWithinEditWindow(remark.createdAtUtc);
             const hasOverride = this.actorHasOverride;
@@ -1413,7 +1414,7 @@
                         toggle.appendChild(toggleSr);
 
                         const menu = document.createElement('ul');
-                        menu.className = 'dropdown-menu';
+                        menu.className = 'dropdown-menu dropdown-menu-end';
                         menu.id = dropdownId;
 
                         const makeMenuItem = (action, text) => {
@@ -1492,8 +1493,6 @@
                     actions.appendChild(notice);
                 }
             }
-
-            article.appendChild(actions);
 
             return article;
         }

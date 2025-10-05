@@ -1214,7 +1214,8 @@ body {
 }
 
 .remarks-actions {
-    margin-top: .25rem;
+    margin-top: 0;
+    flex-shrink: 0;
 }
 
 .remarks-actions .btn {
