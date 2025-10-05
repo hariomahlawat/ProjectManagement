@@ -44,7 +44,6 @@ using Microsoft.Net.Http.Headers;
 using System.Threading;
 using ProjectManagement.Features.Remarks;
 using ProjectManagement.Features.Users;
-using ProjectManagement.Services.Notifications;
 using ProjectManagement.Hubs;
 using ProjectManagement.Contracts.Notifications;
 using ProjectManagement.Services.Navigation;
