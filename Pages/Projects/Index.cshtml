@@ -5,28 +5,9 @@
 }
 
 <div class="container-xxl">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
             <h1 class="h3 mb-0">Projects</h1>
-            <p class="text-muted mb-1">Search across case files, descriptions, categories, and assigned staff.</p>
-            <p class="text-muted mb-0">
-                @if (Model.TotalCount > 0)
-                {
-                    <text>Showing @Model.ResultsStart-@Model.ResultsEnd of @Model.TotalCount project@(Model.TotalCount == 1 ? string.Empty : "s").</text>
-                    if (!Model.HasActiveFilters)
-                    {
-                        <text> Sorted by the most recent additions.</text>
-                    }
-                }
-                else if (!Model.HasActiveFilters)
-                {
-                    <text>Browse the most recent projects or apply filters to narrow your search.</text>
-                }
-                else
-                {
-                    <text>No projects matched the current filters.</text>
-                }
-            </p>
         </div>
         @if (User.IsInRole("Admin") || User.IsInRole("HoD"))
         {
