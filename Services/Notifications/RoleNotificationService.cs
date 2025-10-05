@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Notifications;
+using ProjectManagement.Services;
 
 namespace ProjectManagement.Services.Notifications;
 
@@ -14,15 +15,18 @@ public sealed class RoleNotificationService : ProjectManagement.Services.IRoleNo
 {
     private readonly INotificationPublisher _publisher;
     private readonly INotificationPreferenceService _preferences;
+    private readonly IClock _clock;
     private readonly ILogger<RoleNotificationService> _logger;
 
     public RoleNotificationService(
         INotificationPublisher publisher,
         INotificationPreferenceService preferences,
+        IClock clock,
         ILogger<RoleNotificationService> logger)
     {
         _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
         _preferences = preferences ?? throw new ArgumentNullException(nameof(preferences));
+        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -116,7 +120,7 @@ public sealed class RoleNotificationService : ProjectManagement.Services.IRoleNo
                     CultureInfo.InvariantCulture,
                     "role:{0}:{1}",
                     user.Id,
-                    DateTimeOffset.UtcNow.ToUnixTimeSeconds()),
+                    _clock.UtcNow.UtcTicks),
                 cancellationToken: cancellationToken);
         }
         catch (OperationCanceledException)
