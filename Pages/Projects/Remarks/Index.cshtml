@@ -42,8 +42,8 @@
                                 <p class="pm-card-subtitle mb-0">Review the full remark history for this project.</p>
                             </div>
                         </div>
-                        <div class="d-flex flex-column flex-lg-row align-items-lg-center gap-2">
-                            <div class="d-flex gap-2 flex-wrap flex-sm-nowrap justify-content-between" role="toolbar" aria-label="Filter remarks">
+                        <div class="d-flex flex-column gap-2 align-items-lg-end w-100 w-lg-auto">
+                            <div class="d-flex flex-wrap gap-2 justify-content-between justify-content-lg-end" role="toolbar" aria-label="Filter remarks">
                                 <div class="btn-group btn-group-sm pm-remarks-filter" role="group" aria-label="Filter remarks by type" data-remarks-type-group>
                                     <button type="button" class="btn btn-outline-primary active" data-remarks-type="all" aria-pressed="true">All</button>
                                     <button type="button" class="btn btn-outline-primary" data-remarks-type="Internal" aria-pressed="false">Internal</button>
@@ -56,7 +56,7 @@
                             </div>
                             @if (Model.RemarksPanel.ShowDeletedToggle)
                             {
-                                <div class="form-check form-switch ms-lg-3">
+                                <div class="form-check form-switch mt-1 mt-lg-0 align-self-start align-self-lg-end">
                                     <input class="form-check-input" type="checkbox" role="switch" id="remarks-include-deleted" data-remarks-include-deleted>
                                     <label class="form-check-label" for="remarks-include-deleted">Show deleted</label>
                                 </div>
