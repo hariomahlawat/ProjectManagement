@@ -30,6 +30,25 @@ function createPanelDom() {
     return { dom, window, document: window.document, root, panel };
 }
 
+function makeRemark(overrides = {}) {
+    return {
+        id: 1,
+        rowVersion: 'rv',
+        isDeleted: false,
+        authorInitials: 'AB',
+        authorDisplayName: 'Alice Bob',
+        authorUserId: 'user-123',
+        type: 'Internal',
+        body: '<p>Test remark</p>',
+        eventDate: null,
+        stageRef: null,
+        stageName: null,
+        createdAtUtc: new Date().toISOString(),
+        lastEditedAtUtc: null,
+        ...overrides
+    };
+}
+
 test('inserting a mention hides the user id but serializes placeholders', () => {
     const { panel } = createPanelDom();
     const textarea = panel.bodyField;
@@ -156,21 +175,7 @@ test('saveEdit serializes mentions using the stored mapping', async () => {
 test('buildRemarkElement applies role accent classes for canonical roles', () => {
     const { panel } = createPanelDom();
 
-    const baseRemark = {
-        id: 1,
-        rowVersion: 'rv',
-        isDeleted: false,
-        authorInitials: 'AB',
-        authorDisplayName: 'Alice Bob',
-        authorUserId: 'user-123',
-        type: 'Internal',
-        body: '<p>Test remark</p>',
-        eventDate: null,
-        stageRef: null,
-        stageName: null,
-        createdAtUtc: new Date().toISOString(),
-        lastEditedAtUtc: null
-    };
+    const baseRemark = makeRemark();
 
     const commandantArticle = panel.buildRemarkElement({
         ...baseRemark,
@@ -191,4 +196,78 @@ test('buildRemarkElement applies role accent classes for canonical roles', () =>
     assert.ok(hodBadge);
     assert.ok(hodBadge.classList.contains('remarks-role-hod'));
     assert.ok(hodArticle.classList.contains('remarks-role-hod'));
+});
+
+test('non-override author sees inline action buttons within edit window', () => {
+    const { panel } = createPanelDom();
+    panel.actorHasOverride = false;
+    panel.currentUserId = 'user-123';
+
+    const article = panel.buildRemarkElement(makeRemark());
+    const actions = article.querySelector('.remarks-actions');
+    assert.ok(actions);
+
+    const editButton = actions.querySelector('button[data-remark-action="edit"]');
+    const deleteButton = actions.querySelector('button[data-remark-action="delete"]');
+    assert.ok(editButton);
+    assert.ok(deleteButton);
+    assert.strictEqual(editButton.textContent.trim(), 'Edit');
+    assert.strictEqual(deleteButton.textContent.trim(), 'Delete');
+    assert.ok(!editButton.classList.contains('btn-icon'));
+    assert.ok(!deleteButton.classList.contains('btn-icon'));
+});
+
+test('override actor within edit window gets icon action buttons', () => {
+    const { panel } = createPanelDom();
+    panel.actorHasOverride = true;
+    panel.currentUserId = 'other-user';
+
+    const article = panel.buildRemarkElement(makeRemark());
+    const actions = article.querySelector('.remarks-actions');
+    assert.ok(actions);
+
+    const buttons = actions.querySelectorAll('button[data-remark-action]');
+    assert.equal(buttons.length, 2);
+
+    buttons.forEach((button) => {
+        assert.ok(button.classList.contains('btn-icon'));
+        const icon = button.querySelector('i');
+        assert.ok(icon);
+        const srText = button.querySelector('.visually-hidden');
+        assert.ok(srText);
+        assert.ok(srText.textContent.trim().length > 0);
+        assert.ok(button.getAttribute('aria-label'));
+    });
+});
+
+test('override actor outside edit window gets dropdown actions', () => {
+    const { panel } = createPanelDom();
+    panel.actorHasOverride = true;
+    panel.currentUserId = 'other-user';
+
+    const oldTimestamp = new Date(Date.now() - (4 * 60 * 60 * 1000)).toISOString();
+    const article = panel.buildRemarkElement(makeRemark({ createdAtUtc: oldTimestamp }));
+    const actions = article.querySelector('.remarks-actions');
+    assert.ok(actions);
+
+    const dropdown = actions.querySelector('.dropdown');
+    assert.ok(dropdown);
+
+    const toggle = dropdown.querySelector('button.dropdown-toggle');
+    assert.ok(toggle);
+    assert.ok(toggle.classList.contains('btn-icon'));
+    assert.strictEqual(toggle.getAttribute('data-bs-toggle'), 'dropdown');
+    assert.strictEqual(toggle.getAttribute('aria-expanded'), 'false');
+
+    const menu = dropdown.querySelector('.dropdown-menu');
+    assert.ok(menu);
+    assert.ok(menu.id);
+    assert.strictEqual(toggle.getAttribute('aria-controls'), menu.id);
+
+    const items = menu.querySelectorAll('[data-remark-action]');
+    assert.equal(items.length, 2);
+    const editItem = menu.querySelector('[data-remark-action="edit"]');
+    const deleteItem = menu.querySelector('[data-remark-action="delete"]');
+    assert.ok(editItem);
+    assert.ok(deleteItem);
 });
