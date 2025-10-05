@@ -21,6 +21,7 @@
                 @await Component.InvokeAsync("NavigationDrawer")
                 <a class="navbar-brand fw-semibold" asp-area="" asp-page="/Index">ProjectManagement</a>
                 <div class="ms-auto d-flex align-items-center gap-3">
+                    @await Component.InvokeAsync("NotificationBell")
                     <partial name="_LoginPartial" />
                 </div>
             </div>
@@ -55,8 +56,10 @@
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/lib/microsoft/signalr/signalr.min.js" asp-append-version="true"></script>
     <script type="module" src="~/js/site.js" asp-append-version="true"></script>
     <script src="~/js/comments.js" asp-append-version="true" defer></script>
+    <script src="~/js/notifications.js" asp-append-version="true" defer></script>
     @await RenderSectionAsync("Scripts", required: false)
     <script src="~/js/init.js" data-todo-src="@Url.Content("~/js/todo.js")" data-cele-src="@Url.Content("~/js/celebrations.js")" asp-append-version="true" defer></script>
 </body>
