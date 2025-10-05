@@ -192,6 +192,8 @@ builder.Services.AddScoped<INotificationPreferenceService, NotificationPreferenc
 builder.Services.AddScoped<IRemarkNotificationService, RemarkNotificationService>();
 builder.Services.AddSingleton<IRemarkMetrics, RemarkMetrics>();
 builder.Services.AddScoped<INotificationPublisher, NotificationPublisher>();
+builder.Services.AddScoped<INotificationDeliveryService, NotificationDeliveryService>();
+builder.Services.AddHostedService<NotificationDispatcher>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddSingleton<IDocumentPreviewTokenService, DocumentPreviewTokenService>();
 builder.Services.AddScoped<IDocumentRequestService, DocumentRequestService>();
