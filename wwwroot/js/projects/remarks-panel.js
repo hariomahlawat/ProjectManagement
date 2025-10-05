@@ -1242,7 +1242,7 @@
 
         buildRemarkElement(remark) {
             const article = document.createElement('article');
-            article.className = 'remarks-item d-flex flex-column gap-2';
+            article.className = 'remarks-item remarks-item-compact d-flex flex-column';
             article.setAttribute('data-remark-id', String(remark.id));
             article.setAttribute('data-row-version', remark.rowVersion || '');
 
@@ -1251,7 +1251,7 @@
             }
 
             const header = document.createElement('div');
-            header.className = 'd-flex flex-wrap gap-3 align-items-start';
+            header.className = 'remarks-header d-flex flex-wrap flex-sm-nowrap gap-3 align-items-start';
 
             const avatar = document.createElement('div');
             avatar.className = 'remarks-avatar avatar';
@@ -1259,10 +1259,10 @@
             header.appendChild(avatar);
 
             const identity = document.createElement('div');
-            identity.className = 'flex-grow-1';
+            identity.className = 'remarks-identity flex-grow-1';
 
             const nameRow = document.createElement('div');
-            nameRow.className = 'd-flex flex-wrap align-items-center gap-2';
+            nameRow.className = 'remarks-name d-flex flex-wrap align-items-center gap-2';
             const name = document.createElement('span');
             name.className = 'fw-semibold';
             name.textContent = remark.authorDisplayName || remark.authorUserId;
@@ -1281,19 +1281,19 @@
             roleBadge.textContent = this.getRoleLabel(remark.authorRole);
             nameRow.appendChild(roleBadge);
 
+            identity.appendChild(nameRow);
+
             if (remark.createdAtUtc) {
                 const timestamp = document.createElement('time');
-                timestamp.className = 'text-muted small';
+                timestamp.className = 'remarks-timestamp text-muted small';
                 const formatted = this.formatTimestamp(remark.createdAtUtc);
                 timestamp.textContent = formatted.label;
                 timestamp.dateTime = formatted.iso;
                 if (formatted.tooltip) {
                     timestamp.title = formatted.tooltip;
                 }
-                nameRow.appendChild(timestamp);
+                identity.appendChild(timestamp);
             }
-
-            identity.appendChild(nameRow);
 
             const metaRow = document.createElement('div');
             metaRow.className = 'remarks-meta d-flex flex-wrap align-items-center gap-2';
@@ -1338,7 +1338,7 @@
             header.appendChild(identity);
 
             const actions = document.createElement('div');
-            actions.className = 'remarks-actions ms-auto d-flex flex-wrap align-items-center gap-2';
+            actions.className = 'remarks-actions d-flex flex-wrap align-items-center gap-2';
             header.appendChild(actions);
             article.appendChild(header);
 

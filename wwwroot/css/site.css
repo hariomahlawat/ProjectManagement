@@ -1130,6 +1130,10 @@ body {
     position: relative;
 }
 
+.remarks-item-compact {
+    gap: .75rem;
+}
+
 .remarks-item.remarks-role-comdt::before,
 .remarks-item.remarks-role-hod::before,
 .remarks-item.remarks-role-mco::before {
@@ -1172,6 +1176,34 @@ body {
     width: 40px;
     height: 40px;
     font-size: var(--pm-font-size-tight);
+}
+
+.remarks-header {
+    gap: 1rem;
+}
+
+@media (min-width: 576px) {
+    .remarks-header {
+        flex-wrap: nowrap;
+    }
+}
+
+.remarks-identity {
+    display: flex;
+    flex-direction: column;
+    gap: .375rem;
+    min-width: 0;
+}
+
+.remarks-name {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    min-width: 0;
+}
+
+.remarks-timestamp {
+    display: block;
 }
 
 .remarks-avatar.remarks-role-comdt {
@@ -1240,10 +1272,17 @@ body {
 .remarks-actions {
     margin-top: 0;
     flex-shrink: 0;
+    margin-left: auto;
+    align-self: flex-start;
 }
 
 .remarks-actions .btn {
     min-width: 0;
+}
+
+.remarks-item-compact .remark-edit-window-notice {
+    margin-top: .25rem;
+    margin-bottom: 0;
 }
 
 /* Headings: GitHub-inspired scale */

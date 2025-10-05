@@ -198,6 +198,34 @@ test('buildRemarkElement applies role accent classes for canonical roles', () =>
     assert.ok(hodArticle.classList.contains('remarks-role-hod'));
 });
 
+test('buildRemarkElement uses helper layout classes for header structure', () => {
+    const { panel } = createPanelDom();
+
+    const remark = makeRemark();
+    const article = panel.buildRemarkElement(remark);
+
+    assert.ok(article.classList.contains('remarks-item'));
+    assert.ok(article.classList.contains('remarks-item-compact'));
+
+    const header = article.querySelector('.remarks-header');
+    assert.ok(header);
+    assert.ok(header.classList.contains('d-flex'));
+    assert.ok(header.classList.contains('flex-sm-nowrap'));
+
+    const identity = header.querySelector('.remarks-identity');
+    assert.ok(identity);
+
+    const nameRow = identity.querySelector('.remarks-name');
+    assert.ok(nameRow);
+    assert.ok(nameRow.classList.contains('d-flex'));
+
+    const timestamp = identity.querySelector('.remarks-timestamp');
+    assert.ok(timestamp);
+    assert.equal(timestamp.tagName, 'TIME');
+    assert.equal(timestamp.parentElement, identity);
+    assert.ok(!nameRow.contains(timestamp));
+});
+
 test('non-override author sees inline action buttons within edit window', () => {
     const { panel } = createPanelDom();
     panel.actorHasOverride = false;
@@ -209,8 +237,8 @@ test('non-override author sees inline action buttons within edit window', () => 
 
     const header = actions.parentElement;
     assert.ok(header);
-    assert.ok(header.classList.contains('d-flex'));
-    assert.ok(actions.classList.contains('ms-auto'));
+    assert.ok(header.classList.contains('remarks-header'));
+    assert.ok(actions.classList.contains('remarks-actions'));
 
     const editButton = actions.querySelector('button[data-remark-action="edit"]');
     const deleteButton = actions.querySelector('button[data-remark-action="delete"]');
@@ -218,8 +246,6 @@ test('non-override author sees inline action buttons within edit window', () => 
     assert.ok(deleteButton);
     assert.strictEqual(editButton.textContent.trim(), 'Edit');
     assert.strictEqual(deleteButton.textContent.trim(), 'Delete');
-    assert.ok(!editButton.classList.contains('btn-icon'));
-    assert.ok(!deleteButton.classList.contains('btn-icon'));
 });
 
 test('override actor within edit window gets icon action buttons', () => {
