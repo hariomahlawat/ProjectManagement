@@ -8,7 +8,7 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
             <h1 class="h3 mb-0">Projects</h1>
-            <p class="text-muted mb-0">Showing the 100 most recent projects.</p>
+            <p class="text-muted mb-0">Search across case files, descriptions, categories, and assigned staff. Showing up to 100 results.</p>
         </div>
         @if (User.IsInRole("Admin") || User.IsInRole("HoD"))
         {
@@ -16,19 +16,31 @@
         }
     </div>
 
-    <form method="get" class="row g-2 align-items-end mb-4">
-        <div class="col-sm-4 col-md-3">
-            <label for="CaseFileQuery" class="form-label">Case File Number</label>
-            <input id="CaseFileQuery" name="CaseFileQuery" value="@Model.CaseFileQuery" class="form-control" placeholder="Search Case File #" />
+    <form method="get" class="row g-3 align-items-end mb-4">
+        <div class="col-md-5 col-lg-4">
+            <label asp-for="Query" class="form-label">Search projects</label>
+            <input asp-for="Query" class="form-control" placeholder="Search by name, description, case file, category, or people" />
+        </div>
+        <div class="col-sm-6 col-md-4 col-lg-3">
+            <label asp-for="CategoryId" class="form-label">Category</label>
+            <select asp-for="CategoryId" class="form-select" asp-items="Model.CategoryOptions"></select>
+        </div>
+        <div class="col-sm-6 col-md-4 col-lg-3">
+            <label asp-for="HodUserId" class="form-label">Head of Department</label>
+            <select asp-for="HodUserId" class="form-select" asp-items="Model.HodOptions"></select>
+        </div>
+        <div class="col-sm-6 col-md-4 col-lg-3">
+            <label asp-for="LeadPoUserId" class="form-label">Project Officer</label>
+            <select asp-for="LeadPoUserId" class="form-select" asp-items="Model.LeadPoOptions"></select>
         </div>
         <div class="col-auto">
-            <button type="submit" class="btn btn-outline-primary">Search</button>
+            <button type="submit" class="btn btn-outline-primary">Apply filters</button>
         </div>
     </form>
 
     @if (!Model.Projects.Any())
     {
-        <div class="alert alert-info">No projects found.</div>
+        <div class="alert alert-info">No projects match your search. Adjust the keywords or filters and try again.</div>
     }
     else
     {
