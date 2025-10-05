@@ -171,7 +171,7 @@ public sealed class DocumentNotificationService : IDocumentNotificationService
                 document.Status.ToString(),
                 document.FileStamp,
                 document.UploadedByUserId,
-                document.UploadedAtUtc.ToString("o", CultureInfo.InvariantCulture));
+                FormatTimestamp(document.UploadedAtUtc));
 
             await _publisher.PublishAsync(
                 kind,
@@ -242,6 +242,11 @@ public sealed class DocumentNotificationService : IDocumentNotificationService
 
     private static string BuildRoute(int projectId)
         => string.Format(CultureInfo.InvariantCulture, "/projects/{0}/documents", projectId);
+
+    private static string? FormatTimestamp(DateTimeOffset? value)
+        => value.HasValue
+            ? value.Value.ToString("o", CultureInfo.InvariantCulture)
+            : null;
 
     private sealed record DocumentNotificationPayload(
         int DocumentId,
