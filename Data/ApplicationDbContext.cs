@@ -58,6 +58,7 @@ namespace ProjectManagement.Data
         public DbSet<Remark> Remarks => Set<Remark>();
         public DbSet<RemarkAudit> RemarkAudits => Set<RemarkAudit>();
         public DbSet<RemarkMention> RemarkMentions => Set<RemarkMention>();
+        public DbSet<Notification> Notifications => Set<Notification>();
         public DbSet<NotificationDispatch> NotificationDispatches => Set<NotificationDispatch>();
         public DbSet<UserNotificationPreference> UserNotificationPreferences => Set<UserNotificationPreference>();
         public DbSet<UserProjectMute> UserProjectMutes => Set<UserProjectMute>();
@@ -213,6 +214,46 @@ namespace ProjectManagement.Data
                 {
                     tb.HasCheckConstraint("ck_projectdocuments_filesize", "\"FileSize\" >= 0");
                 });
+            });
+
+            builder.Entity<Notification>(e =>
+            {
+                e.Property(x => x.RecipientUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.Module).HasMaxLength(64);
+                e.Property(x => x.EventType).HasMaxLength(128);
+                e.Property(x => x.ScopeType).HasMaxLength(64);
+                e.Property(x => x.ScopeId).HasMaxLength(128);
+                e.Property(x => x.ProjectId).IsRequired(false);
+                e.Property(x => x.ActorUserId).HasMaxLength(450);
+                e.Property(x => x.Fingerprint).HasMaxLength(128);
+                e.Property(x => x.Route).HasMaxLength(2048);
+                e.Property(x => x.Title).HasMaxLength(200);
+                e.Property(x => x.Summary).HasMaxLength(2000);
+                e.HasIndex(x => new { x.RecipientUserId, x.CreatedUtc });
+                e.HasIndex(x => new { x.RecipientUserId, x.SeenUtc, x.CreatedUtc });
+                e.HasIndex(x => new { x.RecipientUserId, x.ReadUtc, x.CreatedUtc });
+                var fingerprintIndex = e.HasIndex(x => x.Fingerprint);
+
+                if (Database.IsSqlServer())
+                {
+                    fingerprintIndex.HasFilter("[Fingerprint] IS NOT NULL");
+                    e.Property(x => x.CreatedUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else if (Database.IsNpgsql())
+                {
+                    fingerprintIndex.HasFilter("\"Fingerprint\" IS NOT NULL");
+                    e.Property(x => x.CreatedUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                }
+                else
+                {
+                    fingerprintIndex.HasFilter("Fingerprint IS NOT NULL");
+                    e.Property(x => x.CreatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+
+                e.HasOne(x => x.SourceDispatch)
+                    .WithMany()
+                    .HasForeignKey(x => x.SourceDispatchId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             builder.Entity<NotificationDispatch>(e =>
