@@ -203,6 +203,9 @@ builder.Services.AddSingleton<IRemarkMetrics, RemarkMetrics>();
 builder.Services.AddScoped<INotificationPublisher, NotificationPublisher>();
 builder.Services.AddScoped<INotificationDeliveryService, NotificationDeliveryService>();
 builder.Services.AddHostedService<NotificationDispatcher>();
+builder.Services.AddOptions<NotificationRetentionOptions>()
+    .Bind(builder.Configuration.GetSection("Notifications:Retention"));
+builder.Services.AddHostedService<NotificationRetentionService>();
 builder.Services.AddScoped<UserNotificationService>();
 builder.Services.AddScoped<IDocumentService, DocumentService>();
 builder.Services.AddSingleton<IDocumentPreviewTokenService, DocumentPreviewTokenService>();
