@@ -71,7 +71,9 @@ internal static class RemarkApi
                 cancellationToken);
 
             var authorUser = await userManager.FindByIdAsync(remark.AuthorUserId);
-            var response = ToDto(remark, BuildUserInfo(authorUser, remark.AuthorUserId));
+            var mentionMap = await LoadUserInfoAsync(remark.Mentions.Select(m => m.UserId), db, cancellationToken);
+            var mentionDtos = BuildMentionDtos(remark, mentionMap);
+            var response = ToDto(remark, BuildUserInfo(authorUser, remark.AuthorUserId), null, mentionDtos);
             return Results.Created($"/api/projects/{projectId}/remarks/{remark.Id}", response);
         }
         catch (InvalidOperationException ex)
@@ -144,7 +146,10 @@ internal static class RemarkApi
                 .Select(r => r.AuthorUserId)
                 .Concat(result.Items
                     .Where(r => !string.IsNullOrWhiteSpace(r.DeletedByUserId))
-                    .Select(r => r.DeletedByUserId!));
+                    .Select(r => r.DeletedByUserId!))
+                .Concat(result.Items
+                    .SelectMany(r => r.Mentions)
+                    .Select(m => m.UserId));
 
             var userMap = await LoadUserInfoAsync(userIds, db, cancellationToken);
 
@@ -157,7 +162,8 @@ internal static class RemarkApi
                     deleterInfo = info;
                 }
 
-                return ToDto(remark, authorInfo, deleterInfo);
+                var mentionDtos = BuildMentionDtos(remark, userMap);
+                return ToDto(remark, authorInfo, deleterInfo, mentionDtos);
             }).ToArray();
 
             var response = new RemarkListResponse(
@@ -228,7 +234,9 @@ internal static class RemarkApi
             }
 
             var authorUser = await userManager.FindByIdAsync(remark.AuthorUserId);
-            return Results.Ok(ToDto(remark, BuildUserInfo(authorUser, remark.AuthorUserId)));
+            var mentionMap = await LoadUserInfoAsync(remark.Mentions.Select(m => m.UserId), db, cancellationToken);
+            var mentionDtos = BuildMentionDtos(remark, mentionMap);
+            return Results.Ok(ToDto(remark, BuildUserInfo(authorUser, remark.AuthorUserId), null, mentionDtos));
         }
         catch (InvalidOperationException ex)
         {
@@ -367,7 +375,11 @@ internal static class RemarkApi
         }
     }
 
-    private static RemarkResponseDto ToDto(Remark remark, RemarkUserInfo? author = null, RemarkUserInfo? deleter = null)
+    private static RemarkResponseDto ToDto(
+        Remark remark,
+        RemarkUserInfo? author = null,
+        RemarkUserInfo? deleter = null,
+        IReadOnlyList<RemarkMentionDto>? mentions = null)
     {
         var createdAt = ToUtcDateTimeOffset(remark.CreatedAtUtc);
         var lastEditedAt = ToUtcDateTimeOffset(remark.LastEditedAtUtc);
@@ -392,7 +404,8 @@ internal static class RemarkApi
             remark.DeletedByUserId,
             remark.DeletedByRole,
             deleter?.DisplayName,
-            remark.RowVersion is { Length: > 0 } rowVersion ? Convert.ToBase64String(rowVersion) : string.Empty);
+            remark.RowVersion is { Length: > 0 } rowVersion ? Convert.ToBase64String(rowVersion) : string.Empty,
+            mentions ?? Array.Empty<RemarkMentionDto>());
     }
 
     private static DateTimeOffset ToUtcDateTimeOffset(DateTime value)
@@ -650,6 +663,39 @@ internal static class RemarkApi
         return result;
     }
 
+    private static IReadOnlyList<RemarkMentionDto> BuildMentionDtos(
+        Remark remark,
+        IReadOnlyDictionary<string, RemarkUserInfo>? userMap)
+    {
+        if (remark.Mentions is null || remark.Mentions.Count == 0)
+        {
+            return Array.Empty<RemarkMentionDto>();
+        }
+
+        var mentions = new List<RemarkMentionDto>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var mention in remark.Mentions)
+        {
+            if (string.IsNullOrWhiteSpace(mention.UserId) || !seen.Add(mention.UserId))
+            {
+                continue;
+            }
+
+            if (userMap is not null && userMap.TryGetValue(mention.UserId, out var userInfo))
+            {
+                mentions.Add(new RemarkMentionDto(mention.UserId, userInfo.DisplayName, userInfo.Initials));
+            }
+            else
+            {
+                var displayName = mention.UserId;
+                mentions.Add(new RemarkMentionDto(mention.UserId, displayName, BuildInitials(displayName)));
+            }
+        }
+
+        return mentions;
+    }
+
     private static RemarkUserInfo BuildUserInfo(ApplicationUser? user, string fallbackUserId)
     {
         var displayName = ResolveDisplayName(user?.FullName, user?.UserName, user?.Email, fallbackUserId);
@@ -755,7 +801,8 @@ internal static class RemarkApi
         string? DeletedByUserId,
         RemarkActorRole? DeletedByRole,
         string? DeletedByDisplayName,
-        string RowVersion);
+        string RowVersion,
+        IReadOnlyList<RemarkMentionDto> Mentions);
 
     private sealed record RemarkListResponse(
         int Total,
@@ -790,4 +837,6 @@ internal static class RemarkApi
         RemarkActorRole? DeletedByRole);
 
     private sealed record RemarkUserInfo(string UserId, string DisplayName, string Initials);
+
+    private sealed record RemarkMentionDto(string UserId, string DisplayName, string Initials);
 }

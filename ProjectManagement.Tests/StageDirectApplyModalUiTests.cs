@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
@@ -73,6 +74,10 @@ public class StageDirectApplyModalUiTests
         };
 
         var services = new ServiceCollection();
+        var diagnosticListener = new DiagnosticListener("Microsoft.AspNetCore");
+
+        services.AddSingleton<DiagnosticListener>(diagnosticListener);
+        services.AddSingleton<DiagnosticSource>(diagnosticListener);
         services.AddSingleton<IWebHostEnvironment>(environment);
         services.AddSingleton<IHostEnvironment>(environment);
         services.AddLogging();

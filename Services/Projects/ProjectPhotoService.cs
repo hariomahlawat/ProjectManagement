@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Storage;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Utilities;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Advanced;
@@ -150,7 +151,7 @@ namespace ProjectManagement.Services.Projects
                 return false;
             }
 
-            using var tx = await _db.Database.BeginTransactionAsync(cancellationToken);
+            await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
             _db.ProjectPhotos.Remove(photo);
             await _db.SaveChangesAsync(cancellationToken);
@@ -185,7 +186,7 @@ namespace ProjectManagement.Services.Projects
                 await _db.SaveChangesAsync(cancellationToken);
             }
 
-            await tx.CommitAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
             DeleteAllFiles(photo);
 
@@ -210,7 +211,7 @@ namespace ProjectManagement.Services.Projects
                 throw new InvalidOperationException("Order does not include all project photos.");
             }
 
-            using var tx = await _db.Database.BeginTransactionAsync(cancellationToken);
+            await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
             for (var i = 0; i < orderedPhotoIds.Count; i++)
             {
@@ -221,7 +222,7 @@ namespace ProjectManagement.Services.Projects
             }
 
             await _db.SaveChangesAsync(cancellationToken);
-            await tx.CommitAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
             await Audit.Events.ProjectPhotoReordered(projectId, userId, orderedPhotoIds).WriteAsync(_audit);
         }
@@ -377,7 +378,7 @@ namespace ProjectManagement.Services.Projects
                 Version = 1
             };
 
-            using var tx = await _db.Database.BeginTransactionAsync(cancellationToken);
+            await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
             await WriteImageFilesAsync(projectId, storageKey, validation, cancellationToken);
 
@@ -401,7 +402,7 @@ namespace ProjectManagement.Services.Projects
 
                 await _db.SaveChangesAsync(cancellationToken);
             }
-            await tx.CommitAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
             await Audit.Events.ProjectPhotoAdded(projectId, photo.Id, userId, photo.IsCover).WriteAsync(_audit);
 
@@ -440,7 +441,7 @@ namespace ProjectManagement.Services.Projects
 
             var now = _clock.UtcNow.UtcDateTime;
 
-            using var tx = await _db.Database.BeginTransactionAsync(cancellationToken);
+            await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
             DeleteAllFiles(photo);
             await WriteImageFilesAsync(projectId, photo.StorageKey, validation, cancellationToken);
@@ -460,7 +461,7 @@ namespace ProjectManagement.Services.Projects
                 await _db.SaveChangesAsync(cancellationToken);
             }
 
-            await tx.CommitAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
             await Audit.Events.ProjectPhotoUpdated(projectId, photo.Id, userId, reuseOriginal ? "CropUpdated" : "ImageReplaced").WriteAsync(_audit);
 

@@ -41,6 +41,7 @@ using ProjectManagement.Services.Stages;
 using Microsoft.Net.Http.Headers;
 using System.Threading;
 using ProjectManagement.Features.Remarks;
+using ProjectManagement.Features.Users;
 using ProjectManagement.Services.Notifications;
 using ProjectManagement.Services.Navigation;
 using Microsoft.Extensions.DependencyInjection;
@@ -251,7 +252,10 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await db.Database.MigrateAsync();
+    if (db.Database.IsRelational())
+    {
+        await db.Database.MigrateAsync();
+    }
 }
 
 if (runForecastBackfill)
@@ -1144,6 +1148,7 @@ app.MapGet("/Projects/Documents/View", async (
 }).AllowAnonymous();
 
 app.MapRemarkApi();
+app.MapMentionApi();
 app.MapRazorPages();
 
 // Celebrations endpoints

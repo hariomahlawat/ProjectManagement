@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Storage;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Services
@@ -83,7 +84,7 @@ namespace ProjectManagement.Services
 
             var now = _clock.UtcNow.UtcDateTime;
 
-            using var tx = await _db.Database.BeginTransactionAsync(cancellationToken);
+            await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
             var comment = new ProjectComment
             {
@@ -108,7 +109,7 @@ namespace ProjectManagement.Services
                 await _db.SaveChangesAsync(cancellationToken);
             }
 
-            await tx.CommitAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
             comment.Attachments = saved;
 

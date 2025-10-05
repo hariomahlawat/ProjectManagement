@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Security.Claims;
@@ -112,6 +113,10 @@ public class ProjectTimelineUiTests
         };
 
         var services = new ServiceCollection();
+        var diagnosticListener = new DiagnosticListener("Microsoft.AspNetCore");
+
+        services.AddSingleton<DiagnosticListener>(diagnosticListener);
+        services.AddSingleton<DiagnosticSource>(diagnosticListener);
         services.AddSingleton<IWebHostEnvironment>(environment);
         services.AddSingleton<IHostEnvironment>(environment);
         services.AddLogging();

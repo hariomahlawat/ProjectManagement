@@ -71,6 +71,246 @@
         }
     }
 
+    class RemarkMentionAutocomplete {
+        constructor(textarea, options) {
+            this.textarea = textarea;
+            this.doc = textarea?.ownerDocument || global.document;
+            this.search = options?.search || (async () => []);
+            this.onInsert = typeof options?.onInsert === 'function' ? options.onInsert : () => { };
+            this.items = [];
+            this.activeIndex = -1;
+            this.triggerIndex = null;
+            this.currentQuery = '';
+            this.searchTimer = null;
+            this.container = this.createContainer();
+            this.visible = false;
+            this.bindEvents();
+        }
+
+        createContainer() {
+            const container = this.doc.createElement('div');
+            container.className = 'remark-mention-autocomplete dropdown-menu shadow';
+            container.style.position = 'absolute';
+            container.style.display = 'none';
+            container.style.zIndex = '1056';
+            container.setAttribute('role', 'listbox');
+            this.doc.body.appendChild(container);
+            return container;
+        }
+
+        bindEvents() {
+            if (!this.textarea) {
+                return;
+            }
+
+            this.textarea.addEventListener('input', () => {
+                this.handleInput();
+            });
+
+            this.textarea.addEventListener('keydown', (event) => {
+                if (!this.visible) {
+                    return;
+                }
+
+                if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    this.moveSelection(1);
+                } else if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    this.moveSelection(-1);
+                } else if (event.key === 'Enter') {
+                    if (this.activeIndex >= 0 && this.activeIndex < this.items.length) {
+                        event.preventDefault();
+                        this.select(this.activeIndex);
+                    }
+                } else if (event.key === 'Escape') {
+                    event.preventDefault();
+                    this.hide();
+                }
+            });
+
+            this.textarea.addEventListener('blur', () => {
+                global.setTimeout(() => this.hide(), 100);
+            });
+        }
+
+        handleInput() {
+            const context = this.getTriggerContext();
+            if (!context) {
+                this.hide();
+                return;
+            }
+
+            this.triggerIndex = context.index;
+            const query = context.query.trim();
+            if (query.length === 0) {
+                this.hide();
+                return;
+            }
+
+            if (this.currentQuery === query) {
+                return;
+            }
+
+            this.currentQuery = query;
+            if (this.searchTimer) {
+                global.clearTimeout(this.searchTimer);
+            }
+
+            this.searchTimer = global.setTimeout(() => {
+                this.performSearch(query);
+            }, 150);
+        }
+
+        async performSearch(query) {
+            try {
+                const results = await this.search(query);
+                if (!Array.isArray(results) || results.length === 0) {
+                    this.hide();
+                    return;
+                }
+
+                this.items = results;
+                this.renderItems();
+                this.activeIndex = 0;
+                this.updateActiveItem();
+                this.positionMenu();
+                this.visible = true;
+                this.container.style.display = 'block';
+            } catch (error) {
+                this.hide();
+            }
+        }
+
+        renderItems() {
+            if (!this.doc) {
+                return;
+            }
+
+            this.container.innerHTML = '';
+
+            this.items.forEach((item, index) => {
+                const button = this.doc.createElement('button');
+                button.type = 'button';
+                button.className = 'dropdown-item';
+                button.setAttribute('role', 'option');
+                button.dataset.index = index.toString();
+                button.textContent = item.displayName || item.id;
+                button.addEventListener('mousedown', (event) => {
+                    event.preventDefault();
+                    this.select(index);
+                });
+                this.container.appendChild(button);
+            });
+        }
+
+        moveSelection(offset) {
+            if (!this.visible || this.items.length === 0) {
+                return;
+            }
+
+            this.activeIndex = (this.activeIndex + offset + this.items.length) % this.items.length;
+            this.updateActiveItem();
+        }
+
+        updateActiveItem() {
+            const children = Array.from(this.container.querySelectorAll('[role="option"]'));
+            children.forEach((child, index) => {
+                child.classList.toggle('active', index === this.activeIndex);
+            });
+        }
+
+        select(index) {
+            if (index < 0 || index >= this.items.length) {
+                return;
+            }
+
+            const item = this.items[index];
+            this.insertPlaceholder(item);
+            this.hide();
+        }
+
+        insertPlaceholder(item) {
+            if (!this.textarea || this.triggerIndex === null || typeof this.triggerIndex !== 'number') {
+                return;
+            }
+
+            const label = (item.displayName || item.id || '')
+                .replace(/[\r\n\[\]]+/g, ' ')
+                .trim();
+            const safeLabel = label.length > 0 ? label : item.id;
+            const placeholder = `@[${safeLabel}](user:${item.id}) `;
+            const start = this.triggerIndex;
+            const end = this.textarea.selectionEnd ?? this.textarea.value.length;
+            const before = this.textarea.value.slice(0, start);
+            const after = this.textarea.value.slice(end);
+            this.textarea.value = `${before}${placeholder}${after}`;
+            const caret = before.length + placeholder.length;
+            this.textarea.setSelectionRange(caret, caret);
+            this.textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            this.onInsert();
+        }
+
+        hide() {
+            if (this.visible) {
+                this.visible = false;
+                this.container.style.display = 'none';
+            }
+
+            this.items = [];
+            this.activeIndex = -1;
+            this.triggerIndex = null;
+            this.currentQuery = '';
+        }
+
+        positionMenu() {
+            if (!this.textarea) {
+                return;
+            }
+
+            const rect = this.textarea.getBoundingClientRect();
+            this.container.style.minWidth = `${rect.width}px`;
+            this.container.style.left = `${rect.left + global.scrollX}px`;
+            this.container.style.top = `${rect.bottom + global.scrollY}px`;
+        }
+
+        getTriggerContext() {
+            if (!this.textarea) {
+                return null;
+            }
+
+            const caret = this.textarea.selectionStart;
+            if (typeof caret !== 'number') {
+                return null;
+            }
+
+            const value = this.textarea.value;
+            const before = value.slice(0, caret);
+            const atIndex = before.lastIndexOf('@');
+            if (atIndex === -1) {
+                return null;
+            }
+
+            if (atIndex > 0) {
+                const preceding = before[atIndex - 1];
+                if (preceding && !/[\s\n\t\r]/.test(preceding)) {
+                    return null;
+                }
+            }
+
+            const query = before.slice(atIndex + 1);
+            if (/[\s\n\t\r]/.test(query)) {
+                return null;
+            }
+
+            if (query.includes('](user:')) {
+                return null;
+            }
+
+            return { index: atIndex, query };
+        }
+    }
+
     class RemarksPanel {
         constructor(root, toast) {
             this.root = root;
@@ -105,6 +345,8 @@
             this.roleLabels = new Map();
             this.roleCanonicalMap = new Map();
             this.stageLabels = new Map();
+            this.mentionAutocompletes = new WeakMap();
+            this.mentionEndpoint = '/api/users/mentions';
             (this.config.roleOptions || []).forEach((option) => {
                 if (!option) {
                     return;
@@ -323,6 +565,10 @@
 
                 this.setComposerType('Internal');
                 this.validateComposer();
+
+                if (this.bodyField) {
+                    this.attachMentionAutocomplete(this.bodyField, () => this.validateComposer());
+                }
             }
         }
 
@@ -334,6 +580,66 @@
             const initialPage = this.initialPage > 0 ? this.initialPage : 1;
             this.state.page = initialPage;
             await this.fetchPage(initialPage, false);
+        }
+
+        attachMentionAutocomplete(textarea, onInsert) {
+            if (!textarea || this.mentionAutocompletes.has(textarea)) {
+                return;
+            }
+
+            const autocomplete = new RemarkMentionAutocomplete(textarea, {
+                search: (term) => this.searchMentions(term),
+                onInsert: typeof onInsert === 'function' ? onInsert : () => { }
+            });
+
+            this.mentionAutocompletes.set(textarea, autocomplete);
+        }
+
+        async searchMentions(query) {
+            const trimmed = (query || '').trim();
+            if (!trimmed) {
+                return [];
+            }
+
+            const params = new URLSearchParams();
+            params.set('q', trimmed);
+            params.set('limit', '8');
+
+            try {
+                const response = await fetch(`${this.mentionEndpoint}?${params.toString()}`, {
+                    headers: { Accept: 'application/json' }
+                });
+
+                if (!response.ok) {
+                    return [];
+                }
+
+                const data = await response.json();
+                if (!Array.isArray(data)) {
+                    return [];
+                }
+
+                return data
+                    .map((item) => ({
+                        id: item.id || item.userId || '',
+                        displayName: item.displayName || item.name || item.fullName || item.id || '',
+                        initials: item.initials || ''
+                    }))
+                    .filter((item) => item.id);
+            } catch (error) {
+                return [];
+            }
+        }
+
+        decorateMentions(container) {
+            if (!container) {
+                return;
+            }
+
+            const spans = container.querySelectorAll('span.remark-mention[data-user-id]');
+            spans.forEach((span) => {
+                span.classList.add('remark-mention-highlight');
+            });
         }
 
         setTypeFilter(type) {
@@ -897,8 +1203,10 @@
                     this.editDraft = textarea.value;
                 });
                 body.appendChild(textarea);
+                this.attachMentionAutocomplete(textarea);
             } else {
                 body.innerHTML = remark.body || '';
+                this.decorateMentions(body);
             }
 
             article.appendChild(body);
@@ -1128,12 +1436,31 @@
                 return '';
             }
 
-            const normalised = bodyHtml
+            const doc = this.root?.ownerDocument || global.document;
+            const temp = doc.createElement('div');
+            temp.innerHTML = bodyHtml;
+
+            const mentions = temp.querySelectorAll('span.remark-mention[data-user-id]');
+            mentions.forEach((span) => {
+                const userId = span.getAttribute('data-user-id');
+                const label = (span.textContent || '').replace(/[\r\n]+/g, ' ').trim();
+                if (!userId) {
+                    return;
+                }
+
+                const placeholderLabel = label.replace(/[\[\]]+/g, ' ').trim() || userId;
+                const placeholder = `@[${placeholderLabel}](user:${userId})`;
+                const textNode = doc.createTextNode(placeholder);
+                span.replaceWith(textNode);
+            });
+
+            const normalised = temp.innerHTML
                 .replace(/<br\s*\/?>/gi, '\n')
                 .replace(/<\/p>\s*<p>/gi, '\n\n');
-            const temp = document.createElement('div');
-            temp.innerHTML = normalised;
-            const text = temp.textContent || temp.innerText || '';
+
+            const container = doc.createElement('div');
+            container.innerHTML = normalised;
+            const text = container.textContent || container.innerText || '';
             return text.replace(/\u00a0/g, ' ').trim();
         }
 

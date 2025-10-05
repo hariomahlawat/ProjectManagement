@@ -1134,6 +1134,15 @@ body {
     word-break: break-word;
 }
 
+.remarks-body .remark-mention,
+.remarks-body .remark-mention-highlight {
+    background-color: var(--bs-warning-bg-subtle, #fff3cd);
+    color: var(--bs-warning-text-emphasis, #664d03);
+    border-radius: .25rem;
+    padding: 0 .25rem;
+    font-weight: 600;
+}
+
 .remarks-actions {
     margin-top: .25rem;
 }

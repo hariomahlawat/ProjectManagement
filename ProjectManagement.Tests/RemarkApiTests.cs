@@ -104,6 +104,38 @@ public class RemarkApiTests
     }
 
     [Fact]
+    public async Task CreateRemarkAsync_WithMentionsReturnsMetadata()
+    {
+        using var factory = new RemarkApiFactory();
+        var projectId = 777;
+        var client = await CreateClientForUserAsync(factory, "author-mention", "Author Mention", "Project Officer");
+        await SeedProjectAsync(factory, projectId, leadPoUserId: "author-mention");
+        await SeedUserAsync(factory, "mention-user", "Mention Target", false, Array.Empty<string>());
+
+        var createResponse = await client.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
+        {
+            type = RemarkType.Internal,
+            body = "Ping @[Mention Target](user:mention-user)",
+            eventDate = new DateOnly(2024, 9, 15),
+            stageRef = StageCodes.FS
+        });
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var created = await createResponse.Content.ReadFromJsonAsync<RemarkResponseDto>(SerializerOptions);
+        Assert.NotNull(created);
+        Assert.Contains("remark-mention", created!.Body, StringComparison.Ordinal);
+        Assert.Single(created.Mentions);
+        Assert.Equal("mention-user", created.Mentions[0].Id);
+
+        var list = await client.GetFromJsonAsync<RemarkListResponseDto>($"/api/projects/{projectId}/remarks", SerializerOptions);
+        Assert.NotNull(list);
+        Assert.Single(list!.Items);
+        Assert.Single(list.Items[0].Mentions);
+        Assert.Equal("mention-user", list.Items[0].Mentions[0].Id);
+        Assert.Equal("Mention Target", list.Items[0].Mentions[0].DisplayName);
+    }
+
+    [Fact]
     public async Task ProjectOfficerAssignedWithoutIdentityRole_CanCreateAndListRemarks()
     {
         using var factory = new RemarkApiFactory();
@@ -532,6 +564,7 @@ public class RemarkApiTests
         public RemarkActorRole? DeletedByRole { get; init; }
         public string? DeletedByDisplayName { get; init; }
         public string RowVersion { get; init; } = string.Empty;
+        public IReadOnlyList<RemarkMentionDto> Mentions { get; init; } = Array.Empty<RemarkMentionDto>();
     }
 
     private sealed record RemarkListResponseDto
@@ -540,6 +573,13 @@ public class RemarkApiTests
         public int Page { get; init; }
         public int PageSize { get; init; }
         public IReadOnlyList<RemarkResponseDto> Items { get; init; } = Array.Empty<RemarkResponseDto>();
+    }
+
+    private sealed record RemarkMentionDto
+    {
+        public string Id { get; init; } = string.Empty;
+        public string DisplayName { get; init; } = string.Empty;
+        public string Initials { get; init; } = string.Empty;
     }
 
     private sealed record ProblemDetailsDto

@@ -11,6 +11,7 @@ using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Services.Storage;
 
 namespace ProjectManagement.Services.Documents;
@@ -189,7 +190,7 @@ public sealed class DocumentService : IDocumentService
             throw new FileNotFoundException("Temporary file not found.", tempPath);
         }
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
         var now = _clock.UtcNow;
         var document = new ProjectDocument
@@ -277,7 +278,7 @@ public sealed class DocumentService : IDocumentService
         var normalizedContentType = NormalizeContentType(contentType);
         EnsureMimeAllowed(normalizedContentType);
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
         try
         {
