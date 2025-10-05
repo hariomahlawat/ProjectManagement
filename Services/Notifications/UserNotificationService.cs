@@ -99,7 +99,7 @@ public sealed class UserNotificationService
             .Distinct()
             .ToList();
 
-        var accessibleProjects = await GetAccessibleProjectIdsAsync(principal, userId, projectIds, cancellationToken);
+        var accessibleProjects = await GetAccessibleProjectsAsync(principal, userId, projectIds, cancellationToken);
 
         var mutedProjects = await _db.UserProjectMutes
             .AsNoTracking()
@@ -115,10 +115,13 @@ public sealed class UserNotificationService
 
         foreach (var notification in notifications)
         {
-            if (notification.ProjectId is int projectId &&
-                !accessibleProjects.Contains(projectId))
+            string? projectName = null;
+            if (notification.ProjectId is int projectId)
             {
-                continue;
+                if (!accessibleProjects.TryGetValue(projectId, out projectName))
+                {
+                    continue;
+                }
             }
 
             var isMuted = notification.ProjectId is int pid && mutedProjectSet?.Contains(pid) == true;
@@ -131,6 +134,7 @@ public sealed class UserNotificationService
                 notification.ScopeType,
                 notification.ScopeId,
                 notification.ProjectId,
+                projectName,
                 notification.ActorUserId,
                 normalizedRoute,
                 notification.Title,
@@ -176,12 +180,12 @@ public sealed class UserNotificationService
             .Distinct()
             .ToList();
 
-        var accessibleProjects = await GetAccessibleProjectIdsAsync(principal, userId, projectIds, cancellationToken);
+        var accessibleProjects = await GetAccessibleProjectsAsync(principal, userId, projectIds, cancellationToken);
 
         var count = 0;
         foreach (var notification in unreadNotifications)
         {
-            if (notification.ProjectId is int projectId && !accessibleProjects.Contains(projectId))
+            if (notification.ProjectId is int projectId && !accessibleProjects.ContainsKey(projectId))
             {
                 continue;
             }
@@ -323,7 +327,7 @@ public sealed class UserNotificationService
         return NotificationOperationResult.Success;
     }
 
-    private async Task<HashSet<int>> GetAccessibleProjectIdsAsync(
+    private async Task<Dictionary<int, string>> GetAccessibleProjectsAsync(
         ClaimsPrincipal principal,
         string userId,
         IReadOnlyCollection<int> projectIds,
@@ -331,7 +335,7 @@ public sealed class UserNotificationService
     {
         if (projectIds.Count == 0)
         {
-            return new HashSet<int>();
+            return new Dictionary<int, string>();
         }
 
         var projects = await _db.Projects
@@ -339,13 +343,13 @@ public sealed class UserNotificationService
             .Where(p => projectIds.Contains(p.Id))
             .ToListAsync(cancellationToken);
 
-        var accessible = new HashSet<int>();
+        var accessible = new Dictionary<int, string>();
 
         foreach (var project in projects)
         {
             if (ProjectAccessGuard.CanViewProject(project, principal, userId))
             {
-                accessible.Add(project.Id);
+                accessible[project.Id] = project.Name;
             }
         }
 

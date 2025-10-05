@@ -46,6 +46,7 @@ public sealed record NotificationDisplayModel
             ScopeType = notification.ScopeType,
             ScopeId = notification.ScopeId,
             ProjectId = notification.ProjectId,
+            ProjectName = notification.ProjectName,
             ActorUserId = notification.ActorUserId,
             Route = notification.Route,
             Title = notification.Title,
