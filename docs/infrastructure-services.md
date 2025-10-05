@@ -67,5 +67,19 @@ Calculates percentile lines and flags odd login events for the admin scatter cha
 ### `Services/LoginAggregationWorker`
 Nightly background service that aggregates the previous day's successful logins into `DailyLoginStats` to keep reporting queries fast.
 
+### Notification services
+* **`NotificationPublisher`** – normalises metadata, serialises payload envelopes, and writes `NotificationDispatch` rows while trimming overly long inputs and guarding against invalid project identifiers.【F:Services/Notifications/NotificationPublisher.cs†L16-L198】
+* **`NotificationDispatcher`** – hosted worker that batches undispatched rows, honours per-kind preferences, deduplicates via fingerprints, persists `Notification` records, and pushes updates through the SignalR hub with exponential backoff on errors.【F:Services/Notifications/NotificationDispatcher.cs†L20-L200】
+* **`NotificationRetentionService`** – deletes notifications and dispatches beyond the configured age or per-user cap to keep tables manageable.【F:Services/Notifications/NotificationRetentionService.cs†L20-L147】
+* **`NotificationPreferenceService`** – centralises allow/deny checks for notification kinds, project mutes, and role-wide subscriptions so publishers can remain stateless.【F:Services/Notifications/NotificationPreferenceService.cs†L19-L160】
+* **`RoleNotificationService`** – helper that resolves role memberships for broadcast notifications without duplicating Identity queries.【F:Services/Notifications/RoleNotificationService.cs†L14-L116】
+* **`UserNotificationService`** – application-facing API that lists, counts, marks read/unread, and mutes notifications with project access guards to prevent leaking data across teams.【F:Services/Notifications/UserNotificationService.cs†L17-L220】
+
+### Document workflow services
+* **`DocumentService`** – core file pipeline that validates PDF uploads, enforces size/MIME rules, optionally scans for viruses, moves files between temp and permanent storage, records audits, and notifies stakeholders after publication.【F:Services/Documents/DocumentService.cs†L19-L220】
+* **`DocumentRequestService`** – orchestrates request lifecycles (create, edit, submit, cancel) and persists temporary files before review.【F:Services/Documents/DocumentRequestService.cs†L12-L179】
+* **`DocumentDecisionService`** – handles approvals or rejections, including publishing replacements, archiving old versions, emitting audit events, and issuing notifications.【F:Services/Documents/DocumentDecisionService.cs†L11-L189】
+* **`DocumentPreviewTokenService`** – issues short-lived tokens used to authorise inline PDF previews without exposing the underlying storage path.【F:Services/Documents/DocumentPreviewTokenService.cs†L11-L120】
+
 ### Logging
 `appsettings.json` and `Program.cs` configure logging filters to keep output concise: verbose Entity Framework messages and routine To-Do service logs are suppressed, while the `TodoPurgeWorker` logs only warnings or higher. Additionally, `AuditService` skips writing `Todo.*` actions to the `AuditLogs` table.

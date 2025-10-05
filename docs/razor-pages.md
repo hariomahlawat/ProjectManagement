@@ -45,6 +45,10 @@ This module summarises the UI components exposed to end users.
 
 * `Areas/Admin/Pages/Calendar/Deleted.cshtml` – admin-only table listing soft-deleted events with a Restore action.
 
+## Notifications centre
+* `Pages/Notifications/Index.cshtml` – lists the most recent 50 notifications (lazy-loaded via `/api/notifications`). Cards show module, title, summary, timestamps, and a badge when muted. A project filter menu appears when items reference projects, and the header displays the unread count from `/api/notifications/count`.
+* `Pages/Notifications/Index.cshtml.cs` – builds the view model by calling `UserNotificationService` to fetch items, calculate unread counts, and populate project filter options. It also wires in the hub URL for SignalR live updates and exposes API endpoints for mark-read/mark-unread/mute actions.【F:Pages/Notifications/Index.cshtml.cs†L17-L70】【F:Services/Notifications/UserNotificationService.cs†L23-L220】
+
 ## Projects
 * `Pages/Projects/Index.cshtml` – searchable list of projects ordered by creation time. Supports case-file filtering (ILike match) and surfaces category, HoD and PO assignments next to each entry.
 * `Pages/Projects/Create.cshtml` – multi-section form for registering new projects. It lets authors pick a top-level and sub-category, assign HoD/PO roles from pre-filtered lists, capture a unique case file number and optionally seed the last completed stage for in-flight work, with validation against canonical stage codes.
@@ -53,3 +57,10 @@ This module summarises the UI components exposed to end users.
 * `Pages/Projects/AssignRoles.cshtml` – dedicated handler for updating HoD/PO assignments with concurrency checks on the project row version and full audit logging.
 * `Pages/Projects/Timeline/EditPlan.cshtml` – Project Officer/HoD/Admin editor for draft timelines. Supports both exact date entry and auto-generation from durations, prevents edits while a draft is awaiting approval and records audit events describing the chosen action (save vs. submit).
 * `Pages/Projects/Timeline/Review.cshtml` – HoD approval workflow. Blocks approvals while procurement backfill is outstanding, captures rejection notes, raises validation errors from `PlanApprovalService` and redirects back to the overview with flash messaging.
+
+## Process designer
+* `Pages/Process/Index.cshtml` – presents the currently active stage template version, last-updated timestamp, and a call-to-action to open the checklist editor. Only users with the HoD or MCO role see edit affordances; everyone else can view the version and audit timestamp.【F:Pages/Process/Index.cshtml.cs†L15-L64】
+* `/api/processes/{version}/...` endpoints surfaced on the same page power the flow diagrams and checklist management tools described in [docs/timeline.md](timeline.md).
+
+## Settings
+* `Pages/Settings/Holidays/Index.cshtml` – Admin and HoD roles can review the holiday calendar that seeds scheduling calculations. Entries are ordered chronologically and stored in `Models/Scheduling/Holiday` for use by the plan generator and snooze presets.【F:Pages/Settings/Holidays/Index.cshtml.cs†L13-L25】【F:Models/Scheduling/Holiday.cs†L1-L8】
