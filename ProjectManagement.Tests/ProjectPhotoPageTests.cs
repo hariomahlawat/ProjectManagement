@@ -453,8 +453,9 @@ public sealed class ProjectPhotoPageTests
     private static void ConfigurePageContext(PageModel page, ClaimsPrincipal? user = null)
     {
         var httpContext = new DefaultHttpContext();
+        var tempDataProvider = new InMemoryTempDataProvider();
         httpContext.RequestServices = new ServiceCollection()
-            .AddSingleton<ITempDataProvider, SessionStateTempDataProvider>()
+            .AddSingleton<ITempDataProvider>(tempDataProvider)
             .BuildServiceProvider();
         httpContext.User = user ?? new ClaimsPrincipal(new ClaimsIdentity(new[]
         {
@@ -466,7 +467,7 @@ public sealed class ProjectPhotoPageTests
         {
             ViewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
         };
-        page.TempData = new TempDataDictionary(httpContext, httpContext.RequestServices.GetRequiredService<ITempDataProvider>());
+        page.TempData = new TempDataDictionary(httpContext, tempDataProvider);
         page.Url = new SimpleUrlHelper(page.PageContext);
     }
 
@@ -511,6 +512,35 @@ public sealed class ProjectPhotoPageTests
         if (Directory.Exists(root))
         {
             Directory.Delete(root, true);
+        }
+    }
+
+    private sealed class InMemoryTempDataProvider : ITempDataProvider
+    {
+        public IDictionary<string, object?> LoadTempData(HttpContext context)
+        {
+            if (context == null)
+            {
+                throw new ArgumentNullException(nameof(context));
+            }
+
+            if (context.Items.TryGetValue(typeof(InMemoryTempDataProvider), out var value)
+                && value is IDictionary<string, object?> existing)
+            {
+                return new Dictionary<string, object?>(existing, StringComparer.OrdinalIgnoreCase);
+            }
+
+            return new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        public void SaveTempData(HttpContext context, IDictionary<string, object?> values)
+        {
+            if (context == null)
+            {
+                throw new ArgumentNullException(nameof(context));
+            }
+
+            context.Items[typeof(InMemoryTempDataProvider)] = new Dictionary<string, object?>(values, StringComparer.OrdinalIgnoreCase);
         }
     }
 

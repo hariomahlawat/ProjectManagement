@@ -1,13 +1,18 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Encodings.Web;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
+using AngleSharp.Dom;
 using Ganss.Xss;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
+using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
 
@@ -20,6 +25,7 @@ public sealed class RemarkService : IRemarkService
     private readonly ILogger<RemarkService> _logger;
     private readonly IRemarkNotificationService _notification;
     private readonly IRemarkMetrics _metrics;
+    private readonly UserManager<ApplicationUser> _userManager;
 
     public const string ConcurrencyConflictMessage = "This remark was changed by someone else. Reload to continue.";
     public const string RowVersionRequiredMessage = "Row version is required for this operation.";
@@ -28,18 +34,22 @@ public sealed class RemarkService : IRemarkService
     public const string DeleteWindowMessage = "You can delete your remark within 3 hours of posting.";
     public const string StageNotInProjectMessage = "Selected stage does not belong to this project.";
 
+    private static readonly Regex MentionPlaceholderRegex = new("@\\[(?<name>[^\\]]+)\\]\\(user:(?<id>[^)]+)\\)", RegexOptions.Compiled);
+
     public RemarkService(
         ApplicationDbContext db,
         IClock clock,
         ILogger<RemarkService> logger,
         IRemarkNotificationService notification,
-        IRemarkMetrics metrics)
+        IRemarkMetrics metrics,
+        UserManager<ApplicationUser> userManager)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _notification = notification ?? throw new ArgumentNullException(nameof(notification));
         _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
+        _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
     }
 
     public async Task<Remark> CreateRemarkAsync(CreateRemarkRequest request, CancellationToken cancellationToken = default)
@@ -64,15 +74,15 @@ public sealed class RemarkService : IRemarkService
         var todayIst = DateOnly.FromDateTime(IstClock.ToIst(now));
         EnsureValidEventDate(request.EventDate, todayIst);
 
-        var sanitizedBody = SanitizeBody(request.Body);
-        if (string.IsNullOrWhiteSpace(sanitizedBody))
+        var processedBody = await PrepareRemarkBodyAsync(request.Body, cancellationToken);
+        if (string.IsNullOrWhiteSpace(processedBody.Body))
         {
             throw new InvalidOperationException("Remark body cannot be empty after sanitisation.");
         }
 
         var stage = await NormalizeStageAsync(request.ProjectId, request.StageRef, request.StageNameSnapshot, cancellationToken);
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
         var remark = new Remark
         {
@@ -80,12 +90,15 @@ public sealed class RemarkService : IRemarkService
             AuthorUserId = request.Actor.UserId,
             AuthorRole = request.Actor.ActorRole,
             Type = request.Type,
-            Body = sanitizedBody,
+            Body = processedBody.Body,
             EventDate = request.EventDate,
             StageRef = stage.StageRef,
             StageNameSnapshot = stage.StageNameSnapshot,
             CreatedAtUtc = now,
-            IsDeleted = false
+            IsDeleted = false,
+            Mentions = processedBody.MentionUserIds
+                .Select(id => new RemarkMention { UserId = id })
+                .ToList()
         };
 
         _db.Remarks.Add(remark);
@@ -118,6 +131,7 @@ public sealed class RemarkService : IRemarkService
 
         var query = _db.Remarks
             .AsNoTracking()
+            .Include(r => r.Mentions)
             .Where(r => r.ProjectId == request.ProjectId);
 
         var includeDeleted = request.IncludeDeleted && ActorHasAdmin(request.Actor.Roles);
@@ -181,7 +195,9 @@ public sealed class RemarkService : IRemarkService
         ArgumentNullException.ThrowIfNull(request);
         EnsureActorContext(request.Actor);
 
-        var remark = await _db.Remarks.FirstOrDefaultAsync(r => r.Id == remarkId, cancellationToken);
+        var remark = await _db.Remarks
+            .Include(r => r.Mentions)
+            .FirstOrDefaultAsync(r => r.Id == remarkId, cancellationToken);
         if (remark is null || remark.IsDeleted)
         {
             return null;
@@ -202,21 +218,22 @@ public sealed class RemarkService : IRemarkService
             throw new InvalidOperationException(editPermission.Message ?? PermissionDeniedMessage);
         }
 
-        var sanitizedBody = SanitizeBody(request.Body);
-        if (string.IsNullOrWhiteSpace(sanitizedBody))
+        var processedBody = await PrepareRemarkBodyAsync(request.Body, cancellationToken);
+        if (string.IsNullOrWhiteSpace(processedBody.Body))
         {
             throw new InvalidOperationException("Remark body cannot be empty after sanitisation.");
         }
 
         var stage = await NormalizeStageAsync(remark.ProjectId, request.StageRef, request.StageNameSnapshot, cancellationToken);
 
-        remark.Body = sanitizedBody;
+        remark.Body = processedBody.Body;
         remark.EventDate = request.EventDate;
         remark.StageRef = stage.StageRef;
         remark.StageNameSnapshot = stage.StageNameSnapshot;
         remark.LastEditedAtUtc = now;
+        UpdateRemarkMentions(remark, processedBody.MentionUserIds);
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
         ApplyRowVersion(remark, request.RowVersion);
 
@@ -266,7 +283,7 @@ public sealed class RemarkService : IRemarkService
         remark.DeletedByUserId = request.Actor.UserId;
         remark.DeletedByRole = ResolveActorRoleForAction(request.Actor);
 
-        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
         ApplyRowVersion(remark, request.RowVersion);
 
@@ -344,6 +361,77 @@ public sealed class RemarkService : IRemarkService
         }
     }
 
+    private async Task<ProcessedRemarkBody> PrepareRemarkBodyAsync(string? body, CancellationToken cancellationToken)
+    {
+        var trimmed = body?.Trim() ?? string.Empty;
+        if (trimmed.Length == 0)
+        {
+            return new ProcessedRemarkBody(string.Empty, Array.Empty<string>());
+        }
+
+        var matches = MentionPlaceholderRegex.Matches(trimmed);
+        var matchedIds = matches
+            .Select(match => match.Groups["id"].Value.Trim())
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        var activeMentions = new HashSet<string>(StringComparer.Ordinal);
+        if (matchedIds.Length > 0)
+        {
+            var activeIds = await _userManager.Users
+                .AsNoTracking()
+                .Where(u => matchedIds.Contains(u.Id) && !u.IsDisabled && !u.PendingDeletion)
+                .Select(u => u.Id)
+                .ToListAsync(cancellationToken);
+
+            foreach (var id in activeIds)
+            {
+                activeMentions.Add(id);
+            }
+        }
+
+        var orderedMentions = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        var replaced = MentionPlaceholderRegex.Replace(trimmed, match =>
+        {
+            var userId = match.Groups["id"].Value.Trim();
+            if (!activeMentions.Contains(userId))
+            {
+                return HtmlEncoder.Default.Encode(match.Value);
+            }
+
+            if (seen.Add(userId))
+            {
+                orderedMentions.Add(userId);
+            }
+
+            var display = match.Groups["name"].Value.Trim();
+            if (display.Length == 0)
+            {
+                display = $"@{userId}";
+            }
+
+            var encodedId = HtmlEncoder.Default.Encode(userId);
+            var encodedDisplay = HtmlEncoder.Default.Encode(display);
+            return $"<span class=\"remark-mention\" data-user-id=\"{encodedId}\">{encodedDisplay}</span>";
+        });
+
+        var sanitized = SanitizeBody(replaced);
+
+        if (orderedMentions.Count == 0)
+        {
+            return new ProcessedRemarkBody(sanitized, Array.Empty<string>());
+        }
+
+        var sanitizedMentions = orderedMentions
+            .Where(activeMentions.Contains)
+            .ToArray();
+
+        return new ProcessedRemarkBody(sanitized, sanitizedMentions);
+    }
+
     private static string SanitizeBody(string? body)
     {
         var trimmed = body?.Trim() ?? string.Empty;
@@ -352,11 +440,90 @@ public sealed class RemarkService : IRemarkService
             return string.Empty;
         }
 
+        var sanitizer = CreateSanitizer();
+        return sanitizer.Sanitize(trimmed).Trim();
+    }
+
+    private static HtmlSanitizer CreateSanitizer()
+    {
         var sanitizer = new HtmlSanitizer();
         sanitizer.AllowedCssProperties.Clear();
         sanitizer.AllowedSchemes.Add("data");
-        return sanitizer.Sanitize(trimmed).Trim();
+        sanitizer.AllowedTags.Add("span");
+        sanitizer.AllowedAttributes.Add("class");
+        sanitizer.AllowedAttributes.Add("data-user-id");
+        sanitizer.PostProcessNode += (_, args) =>
+        {
+            if (args.Node is not IElement element)
+            {
+                return;
+            }
+
+            if (!element.NodeName.Equals("SPAN", StringComparison.OrdinalIgnoreCase))
+            {
+                if (element.HasAttribute("data-user-id"))
+                {
+                    element.RemoveAttribute("data-user-id");
+                }
+
+                if (element.HasAttribute("class") && !element.ClassList.Contains("remark-mention"))
+                {
+                    element.RemoveAttribute("class");
+                }
+
+                return;
+            }
+
+            if (!element.ClassList.Contains("remark-mention"))
+            {
+                element.RemoveAttribute("class");
+                element.RemoveAttribute("data-user-id");
+                return;
+            }
+
+            var userId = element.GetAttribute("data-user-id");
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                element.RemoveAttribute("data-user-id");
+                element.ClassList.Remove("remark-mention");
+            }
+            else
+            {
+                element.SetAttribute("data-user-id", userId.Trim());
+            }
+        };
+
+        return sanitizer;
     }
+
+    private void UpdateRemarkMentions(Remark remark, IReadOnlyCollection<string> mentionUserIds)
+    {
+        var desired = mentionUserIds?
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToHashSet(StringComparer.Ordinal)
+            ?? new HashSet<string>(StringComparer.Ordinal);
+
+        var current = remark.Mentions.ToList();
+        foreach (var existing in current)
+        {
+            if (!desired.Contains(existing.UserId))
+            {
+                _db.RemarkMentions.Remove(existing);
+                remark.Mentions.Remove(existing);
+            }
+        }
+
+        foreach (var userId in desired)
+        {
+            if (!remark.Mentions.Any(m => string.Equals(m.UserId, userId, StringComparison.Ordinal)))
+            {
+                remark.Mentions.Add(new RemarkMention { UserId = userId });
+            }
+        }
+    }
+
+    private sealed record ProcessedRemarkBody(string Body, IReadOnlyList<string> MentionUserIds);
 
     private async Task<(string? StageRef, string? StageNameSnapshot)> NormalizeStageAsync(
         int projectId,

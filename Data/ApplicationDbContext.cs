@@ -57,6 +57,7 @@ namespace ProjectManagement.Data
         public DbSet<ProjectCommentMention> ProjectCommentMentions => Set<ProjectCommentMention>();
         public DbSet<Remark> Remarks => Set<Remark>();
         public DbSet<RemarkAudit> RemarkAudits => Set<RemarkAudit>();
+        public DbSet<RemarkMention> RemarkMentions => Set<RemarkMention>();
         public DbSet<NotificationDispatch> NotificationDispatches => Set<NotificationDispatch>();
         public DbSet<ProjectDocument> ProjectDocuments => Set<ProjectDocument>();
         public DbSet<ProjectDocumentRequest> ProjectDocumentRequests => Set<ProjectDocumentRequest>();
@@ -905,6 +906,16 @@ namespace ProjectManagement.Data
                 e.HasOne(x => x.Project)
                     .WithMany()
                     .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<RemarkMention>(e =>
+            {
+                e.HasIndex(x => new { x.RemarkId, x.UserId }).IsUnique();
+                e.Property(x => x.UserId).HasMaxLength(450);
+                e.HasOne(x => x.Remark)
+                    .WithMany(r => r.Mentions)
+                    .HasForeignKey(x => x.RemarkId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
 

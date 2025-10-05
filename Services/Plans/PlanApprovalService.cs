@@ -12,6 +12,7 @@ using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Stages;
+using ProjectManagement.Infrastructure;
 
 namespace ProjectManagement.Services.Plans;
 
@@ -111,7 +112,7 @@ public class PlanApprovalService
 
         var now = _clock.UtcNow;
 
-        using var tx = await _db.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
         var currentStages = await _db.ProjectStages
             .Where(ps => ps.ProjectId == projectId)
@@ -157,7 +158,7 @@ public class PlanApprovalService
         plan.RejectionNote = null;
 
         await _db.SaveChangesAsync(cancellationToken);
-        await tx.CommitAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         _logger.LogInformation("Plan version {PlanVersionId} for project {ProjectId} approved by {UserId}.", plan.Id, projectId, hodUserId);
         return true;

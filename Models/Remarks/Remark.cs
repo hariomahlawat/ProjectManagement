@@ -79,6 +79,8 @@ namespace ProjectManagement.Models.Remarks
         public Project? Project { get; set; }
 
         public ICollection<RemarkAudit> AuditEntries { get; set; } = new List<RemarkAudit>();
+
+        public ICollection<RemarkMention> Mentions { get; set; } = new List<RemarkMention>();
     }
 
     public sealed class RemarkAudit
@@ -137,6 +139,22 @@ namespace ProjectManagement.Models.Remarks
         public string? Meta { get; set; }
 
         public Remark Remark { get; set; } = null!;
+    }
+
+    public sealed class RemarkMention
+    {
+        public int Id { get; set; }
+
+        [Required]
+        public int RemarkId { get; set; }
+
+        public Remark Remark { get; set; } = null!;
+
+        [Required]
+        [MaxLength(450)]
+        public string UserId { get; set; } = string.Empty;
+
+        public ApplicationUser? User { get; set; }
     }
 
     public static class RemarkActorRoleExtensions

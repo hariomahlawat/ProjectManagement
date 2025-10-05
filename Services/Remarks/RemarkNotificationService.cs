@@ -52,7 +52,7 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
 
         try
         {
-            var recipients = await ResolveRecipientsAsync(project, remark.Type, cancellationToken);
+            var recipients = await ResolveRecipientsAsync(project, remark, cancellationToken);
             if (recipients.Count == 0)
             {
                 _logger.LogInformation(
@@ -90,7 +90,7 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
 
     private async Task<HashSet<string>> ResolveRecipientsAsync(
         RemarkProjectInfo project,
-        RemarkType remarkType,
+        Remark remark,
         CancellationToken cancellationToken)
     {
         var recipients = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -98,9 +98,17 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
         AddRecipient(recipients, project.LeadPoUserId);
         AddRecipient(recipients, project.HodUserId);
 
+        if (remark.Mentions is { Count: > 0 })
+        {
+            foreach (var mention in remark.Mentions)
+            {
+                AddRecipient(recipients, mention.UserId);
+            }
+        }
+
         await AddRoleRecipientsAsync(recipients, "Comdt", cancellationToken);
 
-        if (remarkType == RemarkType.External)
+        if (remark.Type == RemarkType.External)
         {
             await AddRoleRecipientsAsync(recipients, "MCO", cancellationToken);
         }

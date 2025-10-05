@@ -119,6 +119,29 @@ public class RemarkNotificationServiceTests
         Assert.Equal(new string('A', 120), preview[..120]);
     }
 
+    [Fact]
+    public async Task NotifyRemarkCreatedAsync_IncludesMentionRecipients()
+    {
+        await using var scope = await CreateContextAsync();
+        var (service, publisher) = await CreateServiceAsync(scope.Db);
+
+        var mentionUser = CreateUser("extra-mention", "extra@unit.test");
+        mentionUser.FullName = "Extra Mention";
+        scope.Db.Users.Add(mentionUser);
+        await scope.Db.SaveChangesAsync();
+
+        var remark = CreateRemark(RemarkType.Internal);
+        remark.Mentions.Add(new RemarkMention { RemarkId = remark.Id, UserId = mentionUser.Id });
+
+        var actor = new RemarkActorContext("author", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
+        var project = new RemarkProjectInfo(remark.ProjectId, "Project Five", "po-1", "hod-1");
+
+        await service.NotifyRemarkCreatedAsync(remark, actor, project, CancellationToken.None);
+
+        Assert.Single(publisher.Events);
+        Assert.Contains(mentionUser.Id, publisher.Events[0].Recipients);
+    }
+
     private static Remark CreateRemark(RemarkType type)
         => new()
         {
@@ -131,7 +154,8 @@ public class RemarkNotificationServiceTests
             EventDate = new DateOnly(2024, 9, 1),
             StageRef = "FS",
             StageNameSnapshot = null,
-            CreatedAtUtc = new DateTime(2024, 9, 1, 12, 0, 0, DateTimeKind.Utc)
+            CreatedAtUtc = new DateTime(2024, 9, 1, 12, 0, 0, DateTimeKind.Utc),
+            Mentions = new List<RemarkMention>()
         };
 
     private static async Task<(RemarkNotificationService service, TestNotificationPublisher publisher)> CreateServiceAsync(ApplicationDbContext db)

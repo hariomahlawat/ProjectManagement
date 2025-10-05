@@ -3,9 +3,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
@@ -60,6 +63,50 @@ public sealed class RemarkServiceTests
         Assert.Single(notifier.Notifications);
         Assert.Equal(remark.Id, notifier.Notifications[0].remark.Id);
         Assert.Equal(1, metrics.CreatedCount);
+    }
+
+    [Fact]
+    public async Task CreateRemarkAsync_ResolvesMentions()
+    {
+        await using var scope = await CreateContextAsync();
+        var db = scope.Db;
+        await SeedProjectAsync(db, 101);
+        await SeedStageAsync(db, 101, StageCodes.FS);
+
+        db.Users.Add(new ApplicationUser
+        {
+            Id = "mention-1",
+            UserName = "mention1@test.local",
+            NormalizedUserName = "MENTION1@TEST.LOCAL",
+            Email = "mention1@test.local",
+            NormalizedEmail = "MENTION1@TEST.LOCAL",
+            FullName = "Mention User",
+            SecurityStamp = Guid.NewGuid().ToString()
+        });
+        await db.SaveChangesAsync();
+
+        var clock = FakeClock.ForIstDate(2024, 10, 1, 10, 0, 0);
+        var service = CreateService(db, clock, out var notifier, out _);
+        var actor = new RemarkActorContext("author", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
+
+        var request = new CreateRemarkRequest(
+            ProjectId: 101,
+            Actor: actor,
+            Type: RemarkType.Internal,
+            Body: "Hello @[Mention User](user:mention-1) <script>alert('x')</script>",
+            EventDate: new DateOnly(2024, 9, 30),
+            StageRef: StageCodes.FS,
+            StageNameSnapshot: null,
+            Meta: null);
+
+        var remark = await service.CreateRemarkAsync(request, CancellationToken.None);
+
+        Assert.Contains("remark-mention", remark.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("<script>", remark.Body, StringComparison.OrdinalIgnoreCase);
+        Assert.Single(remark.Mentions);
+        Assert.Equal("mention-1", remark.Mentions.First().UserId);
+        Assert.Single(notifier.Notifications);
+        Assert.Equal("mention-1", notifier.Notifications[0].remark.Mentions.First().UserId);
     }
 
     [Fact]
@@ -140,6 +187,74 @@ public sealed class RemarkServiceTests
         Assert.Equal(RemarkAuditAction.Edited, audits.Last().Action);
         Assert.Equal(RemarkActorRole.HeadOfDepartment, audits.Last().ActorRole);
         Assert.Equal("{\"reason\":\"override\"}", audits.Last().Meta);
+    }
+
+    [Fact]
+    public async Task EditRemarkAsync_SynchronisesMentions()
+    {
+        await using var scope = await CreateContextAsync();
+        var db = scope.Db;
+        await SeedProjectAsync(db, 23);
+        await SeedStageAsync(db, 23, StageCodes.FS);
+
+        db.Users.AddRange(
+            new ApplicationUser
+            {
+                Id = "mention-a",
+                UserName = "mention.a@test.local",
+                NormalizedUserName = "MENTION.A@TEST.LOCAL",
+                Email = "mention.a@test.local",
+                NormalizedEmail = "MENTION.A@TEST.LOCAL",
+                FullName = "Mention Alpha",
+                SecurityStamp = Guid.NewGuid().ToString()
+            },
+            new ApplicationUser
+            {
+                Id = "mention-b",
+                UserName = "mention.b@test.local",
+                NormalizedUserName = "MENTION.B@TEST.LOCAL",
+                Email = "mention.b@test.local",
+                NormalizedEmail = "MENTION.B@TEST.LOCAL",
+                FullName = "Mention Beta",
+                SecurityStamp = Guid.NewGuid().ToString()
+            });
+        await db.SaveChangesAsync();
+
+        var clock = FakeClock.ForIstDate(2024, 9, 1, 9, 0, 0);
+        var service = CreateService(db, clock, out _, out _);
+        var actor = new RemarkActorContext("author", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
+
+        var remark = await service.CreateRemarkAsync(
+            new CreateRemarkRequest(
+                ProjectId: 23,
+                Actor: actor,
+                Type: RemarkType.Internal,
+                Body: "Initial @[Mention Alpha](user:mention-a)",
+                EventDate: new DateOnly(2024, 8, 31),
+                StageRef: StageCodes.FS,
+                StageNameSnapshot: null,
+                Meta: null),
+            CancellationToken.None);
+
+        Assert.Single(remark.Mentions);
+        Assert.Equal("mention-a", remark.Mentions.First().UserId);
+
+        var updated = await service.EditRemarkAsync(
+            remark.Id,
+            new EditRemarkRequest(
+                Actor: actor,
+                Body: "Updated @[Mention Beta](user:mention-b)",
+                EventDate: new DateOnly(2024, 8, 30),
+                StageRef: StageCodes.FS,
+                StageNameSnapshot: null,
+                Meta: null,
+                RowVersion: remark.RowVersion),
+            CancellationToken.None);
+
+        Assert.NotNull(updated);
+        Assert.Equal("mention-b", Assert.Single(updated!.Mentions).UserId);
+        Assert.DoesNotContain("mention-a", updated.Mentions.Select(m => m.UserId));
+        Assert.Contains("remark-mention", updated.Body, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -339,7 +454,23 @@ public sealed class RemarkServiceTests
     {
         notifier = new TestRemarkNotificationService();
         metrics = new TestRemarkMetrics();
-        return new RemarkService(db, clock, NullLogger<RemarkService>.Instance, notifier, metrics);
+        var userManager = CreateUserManager(db);
+        return new RemarkService(db, clock, NullLogger<RemarkService>.Instance, notifier, metrics, userManager);
+    }
+
+    private static UserManager<ApplicationUser> CreateUserManager(ApplicationDbContext db)
+    {
+        var store = new UserStore<ApplicationUser, IdentityRole, ApplicationDbContext>(db);
+        return new UserManager<ApplicationUser>(
+            store,
+            new OptionsWrapper<IdentityOptions>(new IdentityOptions()),
+            new PasswordHasher<ApplicationUser>(),
+            Array.Empty<IUserValidator<ApplicationUser>>(),
+            Array.Empty<IPasswordValidator<ApplicationUser>>(),
+            new UpperInvariantLookupNormalizer(),
+            new IdentityErrorDescriber(),
+            null!,
+            NullLogger<UserManager<ApplicationUser>>.Instance);
     }
 
     private static async Task<SqliteContextScope> CreateContextAsync()
