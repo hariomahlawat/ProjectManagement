@@ -1,0 +1,115 @@
+@using System.Text.Encodings.Web
+@using System.Text.Json
+@model ProjectManagement.ViewModels.Notifications.NotificationBellViewModel
+@{
+    var serializerOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web)
+    {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+    var initialJson = JsonSerializer.Serialize(Model.Notifications, serializerOptions);
+    var isAuthenticated = Model.IsAuthenticated ? "true" : "false";
+    var unreadClass = Model.UnreadCount > 0 ? string.Empty : "d-none";
+}
+<div class="dropdown notification-bell" data-notification-bell
+     data-api-base="@Model.ApiBaseUrl"
+     data-unread-url="@Model.UnreadCountUrl"
+     data-hub-url="@Model.HubUrl"
+     data-notification-limit="@Model.RecentLimit"
+     data-notifications='@Html.Raw(initialJson)'
+     data-unread-count="@Model.UnreadCount"
+     data-is-authenticated="@isAuthenticated"
+     data-notification-center-url="@Model.NotificationCenterUrl">
+    <button class="btn btn-link nav-link position-relative p-0" type="button" id="notificationDropdown"
+            data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-haspopup="true"
+            aria-expanded="false" aria-label="Open notifications">
+        <i class="bi bi-bell fs-5" aria-hidden="true"></i>
+        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger @unreadClass"
+              data-notification-unread>
+            <span class="visually-hidden">Unread notifications</span>
+            @Model.UnreadCount
+        </span>
+    </button>
+    <div class="dropdown-menu dropdown-menu-end shadow-sm p-0" aria-labelledby="notificationDropdown">
+        <div class="notification-menu" data-notification-menu>
+            <div class="border-bottom px-3 py-2 d-flex align-items-center justify-content-between gap-2">
+                <div>
+                    <h2 class="h6 mb-0">Notifications</h2>
+                    <p class="small text-muted mb-0">Stay up to date with recent activity.</p>
+                </div>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Notification quick actions">
+                    <button type="button" class="btn btn-outline-secondary" data-notification-action="refresh">
+                        <span aria-hidden="true" class="bi bi-arrow-clockwise"></span>
+                        <span class="visually-hidden">Refresh notifications</span>
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" data-notification-action="mark-all-read">
+                        <span aria-hidden="true" class="bi bi-check2-all"></span>
+                        <span class="visually-hidden">Mark all as read</span>
+                    </button>
+                </div>
+            </div>
+            <div class="notification-menu__body" data-notification-list-container role="region" aria-live="polite">
+                <div class="p-3 text-center text-muted" data-notification-signin @(Model.IsAuthenticated ? "hidden" : null)>
+                    <p class="mb-0">Sign in to view your notifications.</p>
+                </div>
+                <div class="p-3 text-center text-muted" data-notification-empty @(Model.IsAuthenticated && Model.Notifications.Count == 0 ? null : "hidden")>
+                    <p class="mb-0">You're all caught up!</p>
+                </div>
+                <ul class="list-unstyled mb-0" data-notification-list>
+                    @foreach (var item in Model.Notifications)
+                    {
+                        <li class="notification-menu__item border-bottom" data-notification-item data-notification-id="@item.Id"
+                            data-project-id="@(item.ProjectId?.ToString() ?? string.Empty)" data-read="@(item.IsRead ? "true" : "false")">
+                            <div class="d-flex align-items-start gap-2 px-3 py-3">
+                                <div class="flex-grow-1">
+                                    <a class="stretched-link text-decoration-none" href="@(string.IsNullOrWhiteSpace(item.Route) ? Model.NotificationCenterUrl : item.Route)"
+                                       data-notification-link>
+                                        <span class="d-block fw-semibold" data-notification-title>@(string.IsNullOrWhiteSpace(item.Title) ? "Notification" : item.Title)</span>
+                                        @if (!string.IsNullOrWhiteSpace(item.Summary))
+                                        {
+                                            <span class="d-block small text-muted mt-1" data-notification-summary>@item.Summary</span>
+                                        }
+                                    </a>
+                                </div>
+                                <div class="text-end small text-muted" data-notification-meta>
+                                    <time datetime="@item.CreatedUtc.ToString("O")" data-notification-created>@item.CreatedUtc.ToLocalTime().ToString("g")</time>
+                                </div>
+                                <div class="btn-group btn-group-sm" role="group" aria-label="Manage notification">
+                                    <button type="button" class="btn btn-outline-secondary" data-notification-action="toggle-read"
+                                            data-notification-id="@item.Id">
+                                        <span class="visually-hidden">Toggle read state</span>
+                                        <span aria-hidden="true" class="bi bi-envelope@(item.IsRead ? "-open" : string.Empty)"></span>
+                                    </button>
+                                </div>
+                            </div>
+                        </li>
+                    }
+                </ul>
+            </div>
+            <div class="border-top px-3 py-2 d-flex justify-content-between align-items-center">
+                <a class="small" href="@Model.NotificationCenterUrl">Open Notification Centre</a>
+                <div class="small text-muted" data-notification-status role="status" aria-live="polite"></div>
+            </div>
+        </div>
+        <template data-notification-item-template>
+            <li class="notification-menu__item border-bottom" data-notification-item>
+                <div class="d-flex align-items-start gap-2 px-3 py-3">
+                    <div class="flex-grow-1">
+                        <a class="stretched-link text-decoration-none" href="#" data-notification-link>
+                            <span class="d-block fw-semibold" data-notification-title>Notification title</span>
+                            <span class="d-block small text-muted mt-1" data-notification-summary>Summary</span>
+                        </a>
+                    </div>
+                    <div class="text-end small text-muted">
+                        <time data-notification-created datetime=""></time>
+                    </div>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Manage notification">
+                        <button type="button" class="btn btn-outline-secondary" data-notification-action="toggle-read" data-notification-id="">
+                            <span class="visually-hidden">Toggle read state</span>
+                            <span aria-hidden="true" class="bi bi-envelope"></span>
+                        </button>
+                    </div>
+                </div>
+            </li>
+        </template>
+    </div>
+</div>

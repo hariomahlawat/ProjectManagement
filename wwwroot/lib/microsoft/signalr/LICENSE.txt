@@ -1,0 +1,3 @@
+This build of the Microsoft SignalR JavaScript client is distributed under the MIT License.
+
+For full license information, see https://github.com/dotnet/aspnetcore/blob/v7.0.5/LICENSE.txt.
