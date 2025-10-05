@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
@@ -105,7 +106,8 @@ public sealed class NotificationPublisher : INotificationPublisher
         var normalizedScopeType = NormalizeMetadata(scopeType, ScopeTypeMaxLength, nameof(scopeType));
         var normalizedScopeId = NormalizeMetadata(scopeId, ScopeIdMaxLength, nameof(scopeId));
         var normalizedActorUserId = NormalizeMetadata(actorUserId, ActorUserIdMaxLength, nameof(actorUserId));
-        var normalizedRoute = NormalizeMetadata(route, RouteMaxLength, nameof(route));
+        var normalizedRoute = NormalizeRouteSegments(
+            NormalizeMetadata(route, RouteMaxLength, nameof(route)));
         var normalizedTitle = NormalizeMetadata(title, TitleMaxLength, nameof(title));
         var normalizedSummary = NormalizeMetadata(summary, SummaryMaxLength, nameof(summary));
         var normalizedFingerprint = NormalizeMetadata(fingerprint, FingerprintMaxLength, nameof(fingerprint));
@@ -160,6 +162,16 @@ public sealed class NotificationPublisher : INotificationPublisher
             "Queued notification {Kind} for {RecipientCount} recipients.",
             kind,
             dispatches.Length);
+    }
+
+    internal static string? NormalizeRouteSegments(string? route)
+    {
+        if (route is null)
+        {
+            return null;
+        }
+
+        return Regex.Replace(route, "/projects(?<id>\\d+)(?=/)", "/projects/${id}");
     }
 
     private static string? NormalizeMetadata(string? value, int maxLength, string parameterName)

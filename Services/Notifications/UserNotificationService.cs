@@ -122,6 +122,7 @@ public sealed class UserNotificationService
             }
 
             var isMuted = notification.ProjectId is int pid && mutedProjectSet?.Contains(pid) == true;
+            var normalizedRoute = NotificationPublisher.NormalizeRouteSegments(notification.Route);
 
             results.Add(new NotificationListItem(
                 notification.Id,
@@ -131,7 +132,7 @@ public sealed class UserNotificationService
                 notification.ScopeId,
                 notification.ProjectId,
                 notification.ActorUserId,
-                notification.Route,
+                normalizedRoute,
                 notification.Title,
                 notification.Summary,
                 notification.CreatedUtc,

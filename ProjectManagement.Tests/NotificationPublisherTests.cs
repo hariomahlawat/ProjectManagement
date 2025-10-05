@@ -76,6 +76,36 @@ public sealed class NotificationPublisherTests
     }
 
     [Fact]
+    public async Task PublishAsync_NormalizesProjectRouteSegments()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase($"notification-tests-{Guid.NewGuid()}")
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        var clock = new TestClock(new DateTimeOffset(2024, 10, 6, 9, 15, 0, TimeSpan.Zero));
+        var publisher = new NotificationPublisher(context, clock, NullLogger<NotificationPublisher>.Instance);
+
+        await publisher.PublishAsync(
+            NotificationKind.StageAssigned,
+            new[] { "user-1" },
+            new { },
+            module: "Stages",
+            eventType: "Assigned",
+            scopeType: "Stage",
+            scopeId: "54",
+            projectId: 2,
+            actorUserId: "actor-2",
+            route: "/projects2/kanbans/54",
+            title: "Stage assigned",
+            summary: "A stage was assigned.",
+            fingerprint: "stage-54");
+
+        var dispatch = Assert.Single(context.NotificationDispatches.AsNoTracking());
+        Assert.Equal("/projects/2/kanbans/54", dispatch.Route);
+    }
+
+    [Fact]
     public async Task PublishAsync_WithLargeMetadata_PersistsLongPayload()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
