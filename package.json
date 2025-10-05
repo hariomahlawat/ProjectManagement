@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test wwwroot/js/projects",
     "lint:views": "./tools/check-views.sh"
   },
   "repository": {
@@ -18,5 +18,8 @@
   "bugs": {
     "url": "https://github.com/hariomahlawat/ProjectManagement/issues"
   },
-  "homepage": "https://github.com/hariomahlawat/ProjectManagement#readme"
+  "homepage": "https://github.com/hariomahlawat/ProjectManagement#readme",
+  "devDependencies": {
+    "jsdom": "^27.0.0"
+  }
 }
