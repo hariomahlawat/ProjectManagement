@@ -293,10 +293,28 @@ public sealed class DocumentServicesTests
         var photoOptions = Options.Create(new ProjectPhotoOptions());
         var documentOptions = Options.Create(options);
         var uploadRoot = new UploadRootProvider(photoOptions, documentOptions);
-        var documentService = new DocumentService(db, documentOptions, uploadRoot, clock, audit, null, NullLogger<DocumentService>.Instance);
+        var documentService = new DocumentService(db, documentOptions, uploadRoot, clock, audit, new NullDocumentNotificationService(), null, NullLogger<DocumentService>.Instance);
         var requestService = new DocumentRequestService(db, clock, audit);
         var decisionService = new DocumentDecisionService(db, documentService, clock, audit);
         return (documentService, requestService, decisionService, audit);
+    }
+
+    private sealed class NullDocumentNotificationService : IDocumentNotificationService
+    {
+        public Task NotifyDocumentArchivedAsync(ProjectDocument document, Project project, string actorUserId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task NotifyDocumentDeletedAsync(ProjectDocument document, Project project, string actorUserId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task NotifyDocumentPublishedAsync(ProjectDocument document, Project project, string actorUserId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task NotifyDocumentReplacedAsync(ProjectDocument document, Project project, string actorUserId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task NotifyDocumentRestoredAsync(ProjectDocument document, Project project, string actorUserId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
     }
 
     private static MemoryStream CreatePdfStream(long length, string payload = "Sample")

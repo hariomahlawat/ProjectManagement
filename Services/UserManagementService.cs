@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
+using System.Threading;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -14,17 +16,20 @@ namespace ProjectManagement.Services
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly IHttpContextAccessor _http;
         private readonly IAuditService _audit;
+        private readonly IRoleNotificationService _roleNotifications;
 
         public UserManagementService(
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager,
             IHttpContextAccessor httpContextAccessor,
-            IAuditService audit)
+            IAuditService audit,
+            IRoleNotificationService roleNotifications)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _http = httpContextAccessor;
             _audit = audit;
+            _roleNotifications = roleNotifications;
         }
 
         private static bool IsActive(ApplicationUser user) =>
@@ -140,8 +145,13 @@ namespace ProjectManagement.Services
                     ["Added"] = string.Join(",", toAdd),
                     ["Removed"] = string.Join(",", toRemove)
                 });
+            var actorUserId = GetCurrentActorUserId() ?? user.Id;
+            await _roleNotifications.NotifyRolesUpdatedAsync(user, toAdd, toRemove, actorUserId, CancellationToken.None);
             return IdentityResult.Success;
         }
+
+        private string? GetCurrentActorUserId()
+            => _http.HttpContext?.User?.FindFirstValue(ClaimTypes.NameIdentifier);
 
 
         public async Task<IdentityResult> ResetPasswordAsync(string userId, string newPassword)

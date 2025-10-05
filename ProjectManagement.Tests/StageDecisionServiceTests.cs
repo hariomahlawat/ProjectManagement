@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -315,7 +316,7 @@ public sealed class StageDecisionServiceTests
 
     private static StageDecisionService CreateService(ApplicationDbContext db, TestClock clock)
     {
-        var progress = new StageProgressService(db, clock, new FakeAudit(), new ProjectFactsReadService(db));
+        var progress = new StageProgressService(db, clock, new FakeAudit(), new ProjectFactsReadService(db), new NullStageNotificationService());
         return new StageDecisionService(db, clock, progress, NullLogger<StageDecisionService>.Instance);
     }
 
@@ -345,6 +346,11 @@ public sealed class StageDecisionServiceTests
             string? userName = null,
             IDictionary<string, string?>? data = null,
             Microsoft.AspNetCore.Http.HttpContext? http = null)
+            => Task.CompletedTask;
+    }
+    private sealed class NullStageNotificationService : IStageNotificationService
+    {
+        public Task NotifyStageStatusChangedAsync(ProjectStage stage, Project project, StageStatus previousStatus, string actorUserId, CancellationToken cancellationToken = default)
             => Task.CompletedTask;
     }
 }
