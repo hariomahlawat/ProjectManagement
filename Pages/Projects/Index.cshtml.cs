@@ -36,6 +36,26 @@ namespace ProjectManagement.Pages.Projects
         [BindProperty(SupportsGet = true)]
         public string? HodUserId { get; set; }
 
+        [BindProperty(SupportsGet = true)]
+        public int Page { get; set; } = 1;
+
+        [BindProperty(SupportsGet = true)]
+        public int PageSize { get; set; } = 25;
+
+        public int TotalCount { get; private set; }
+
+        public int TotalPages { get; private set; }
+
+        public int ResultsStart { get; private set; }
+
+        public int ResultsEnd { get; private set; }
+
+        public bool HasActiveFilters =>
+            !string.IsNullOrWhiteSpace(Query) ||
+            CategoryId.HasValue ||
+            !string.IsNullOrWhiteSpace(LeadPoUserId) ||
+            !string.IsNullOrWhiteSpace(HodUserId);
+
         public IEnumerable<SelectListItem> CategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
 
         public IEnumerable<SelectListItem> LeadPoOptions { get; private set; } = Array.Empty<SelectListItem>();
@@ -51,13 +71,47 @@ namespace ProjectManagement.Pages.Projects
                 .Include(p => p.Category)
                 .Include(p => p.HodUser)
                 .Include(p => p.LeadPoUser)
-                .OrderByDescending(p => p.CreatedAt)
                 .AsQueryable();
 
             var filters = new ProjectSearchFilters(Query, CategoryId, LeadPoUserId, HodUserId);
             query = query.ApplyProjectSearch(filters);
+            query = query.ApplyProjectOrdering(filters);
 
-            Projects = await query.Take(100).ToListAsync();
+            PageSize = PageSize switch
+            {
+                <= 0 => 25,
+                > 200 => 200,
+                _ => PageSize
+            };
+
+            TotalCount = await query.CountAsync();
+            TotalPages = TotalCount == 0 ? 0 : (int)Math.Ceiling(TotalCount / (double)PageSize);
+
+            if (Page < 1)
+            {
+                Page = 1;
+            }
+
+            if (TotalPages > 0 && Page > TotalPages)
+            {
+                Page = TotalPages;
+            }
+            else if (TotalPages == 0)
+            {
+                Page = 1;
+            }
+
+            var skip = (Page - 1) * PageSize;
+            if (TotalCount > 0 && skip >= TotalCount)
+            {
+                Page = TotalPages;
+                skip = Math.Max(0, (Page - 1) * PageSize);
+            }
+
+            Projects = await query.Skip(skip).Take(PageSize).ToListAsync();
+
+            ResultsStart = TotalCount == 0 ? 0 : skip + 1;
+            ResultsEnd = TotalCount == 0 ? 0 : Math.Min(skip + Projects.Count, TotalCount);
         }
 
         private async Task LoadFilterOptionsAsync()
