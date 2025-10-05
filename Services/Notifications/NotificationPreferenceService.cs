@@ -83,6 +83,7 @@ public sealed class NotificationPreferenceService : INotificationPreferenceServi
             NotificationKind.PlanApproved => NotificationClaimTypes.PlanEventsOptOut,
             NotificationKind.PlanRejected => NotificationClaimTypes.PlanEventsOptOut,
             NotificationKind.StageStatusChanged => NotificationClaimTypes.StageEventsOptOut,
+            NotificationKind.StageAssigned => NotificationClaimTypes.StageEventsOptOut,
             NotificationKind.DocumentPublished => NotificationClaimTypes.DocumentEventsOptOut,
             NotificationKind.DocumentReplaced => NotificationClaimTypes.DocumentEventsOptOut,
             NotificationKind.DocumentArchived => NotificationClaimTypes.DocumentEventsOptOut,

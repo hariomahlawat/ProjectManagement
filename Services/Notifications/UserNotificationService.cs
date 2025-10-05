@@ -67,7 +67,7 @@ public sealed class UserNotificationService
         return await ProjectAsync(principal, userId, notifications, cancellationToken);
     }
 
-    internal async Task<IReadOnlyList<NotificationListItem>> ProjectAsync(
+    public async Task<IReadOnlyList<NotificationListItem>> ProjectAsync(
         ClaimsPrincipal principal,
         string userId,
         IReadOnlyCollection<Notification> notifications,
