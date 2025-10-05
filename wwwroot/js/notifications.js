@@ -76,7 +76,15 @@
       }
 
       const existing = map.get(normalised.id);
-      if (!existing || existing.createdAt < normalised.createdAt) {
+      if (!existing) {
+        map.set(normalised.id, normalised);
+        return;
+      }
+
+      const existingCreated = existing.createdAt?.getTime?.() ?? 0;
+      const normalisedCreated = normalised.createdAt?.getTime?.() ?? 0;
+
+      if (normalisedCreated >= existingCreated) {
         map.set(normalised.id, normalised);
       }
     });
@@ -204,8 +212,14 @@
         }
 
         const payload = await response.json();
-        if (typeof payload?.count === 'number') {
-          this.unreadCount = payload.count;
+        const count = typeof payload?.count === 'number'
+          ? payload.count
+          : typeof payload?.unreadCount === 'number'
+            ? payload.unreadCount
+            : null;
+
+        if (count != null) {
+          this.unreadCount = count;
           this.notifyListeners();
         }
       } catch (error) {
