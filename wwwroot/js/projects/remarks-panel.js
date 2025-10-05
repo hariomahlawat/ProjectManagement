@@ -1434,24 +1434,20 @@
                         };
 
                         const editButton = createActionButton({
-                            className: hasOverride && withinWindow
-                                ? 'btn btn-sm btn-outline-secondary btn-icon'
-                                : 'btn btn-sm btn-outline-secondary',
+                            className: 'btn btn-sm btn-outline-secondary btn-icon',
                             action: 'edit',
                             label: 'Edit',
-                            ariaLabel: hasOverride && withinWindow ? 'Edit remark' : null,
-                            iconClass: hasOverride && withinWindow ? 'bi bi-pencil' : null
+                            ariaLabel: 'Edit remark',
+                            iconClass: 'bi bi-pencil'
                         });
                         actions.appendChild(editButton);
 
                         const deleteButton = createActionButton({
-                            className: hasOverride && withinWindow
-                                ? 'btn btn-sm btn-outline-danger btn-icon'
-                                : 'btn btn-sm btn-outline-danger',
+                            className: 'btn btn-sm btn-outline-danger btn-icon',
                             action: 'delete',
                             label: 'Delete',
-                            ariaLabel: hasOverride && withinWindow ? 'Delete remark' : null,
-                            iconClass: hasOverride && withinWindow ? 'bi bi-trash' : null
+                            ariaLabel: 'Delete remark',
+                            iconClass: 'bi bi-trash'
                         });
                         actions.appendChild(deleteButton);
                     }
