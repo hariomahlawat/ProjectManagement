@@ -171,7 +171,7 @@ public sealed class DocumentNotificationService : IDocumentNotificationService
                 document.Status.ToString(),
                 document.FileStamp,
                 document.UploadedByUserId,
-                document.UploadedAtUtc?.ToString("o", CultureInfo.InvariantCulture));
+                document.UploadedAtUtc.ToString("o", CultureInfo.InvariantCulture));
 
             await _publisher.PublishAsync(
                 kind,
