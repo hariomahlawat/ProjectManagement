@@ -77,6 +77,7 @@
             this.doc = textarea?.ownerDocument || global.document;
             this.search = options?.search || (async () => []);
             this.onInsert = typeof options?.onInsert === 'function' ? options.onInsert : () => { };
+            this.registerMention = typeof options?.registerMention === 'function' ? options.registerMention : null;
             this.items = [];
             this.activeIndex = -1;
             this.triggerIndex = null;
@@ -239,7 +240,8 @@
                 .replace(/[\r\n\[\]]+/g, ' ')
                 .trim();
             const safeLabel = label.length > 0 ? label : item.id;
-            const placeholder = `@[${safeLabel}](user:${item.id}) `;
+            const insertion = `@${safeLabel}`;
+            const placeholder = `${insertion} `;
             const start = this.triggerIndex;
             const end = this.textarea.selectionEnd ?? this.textarea.value.length;
             const before = this.textarea.value.slice(0, start);
@@ -248,6 +250,9 @@
             const caret = before.length + placeholder.length;
             this.textarea.setSelectionRange(caret, caret);
             this.textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            if (this.registerMention) {
+                this.registerMention({ id: item.id, label: safeLabel });
+            }
             this.onInsert();
         }
 
@@ -346,6 +351,8 @@
             this.roleCanonicalMap = new Map();
             this.stageLabels = new Map();
             this.mentionAutocompletes = new WeakMap();
+            this.mentionMaps = new WeakMap();
+            this.editMentionMap = null;
             this.mentionEndpoint = '/api/users/mentions';
             (this.config.roleOptions || []).forEach((option) => {
                 if (!option) {
@@ -587,12 +594,147 @@
                 return;
             }
 
+            this.ensureMentionMap(textarea);
             const autocomplete = new RemarkMentionAutocomplete(textarea, {
                 search: (term) => this.searchMentions(term),
-                onInsert: typeof onInsert === 'function' ? onInsert : () => { }
+                onInsert: typeof onInsert === 'function' ? onInsert : () => { },
+                registerMention: (mention) => this.registerMention(textarea, mention)
             });
 
             this.mentionAutocompletes.set(textarea, autocomplete);
+        }
+
+        ensureMentionMap(textarea, initialMap = null) {
+            if (!textarea) {
+                return null;
+            }
+
+            if (initialMap && typeof initialMap.set === 'function') {
+                this.mentionMaps.set(textarea, initialMap);
+                return initialMap;
+            }
+
+            if (this.mentionMaps.has(textarea)) {
+                return this.mentionMaps.get(textarea);
+            }
+
+            const map = new Map();
+            this.mentionMaps.set(textarea, map);
+            return map;
+        }
+
+        clearMentionMap(textarea) {
+            if (!textarea) {
+                return;
+            }
+
+            const map = this.mentionMaps.get(textarea);
+            if (map) {
+                map.clear();
+            }
+        }
+
+        registerMention(textarea, mention) {
+            if (!mention) {
+                return;
+            }
+
+            const map = this.ensureMentionMap(textarea);
+            if (!map) {
+                return;
+            }
+
+            this.registerMentionInMap(map, mention);
+        }
+
+        registerMentionInMap(map, mention) {
+            if (!map || typeof map.set !== 'function' || !mention) {
+                return;
+            }
+
+            const id = mention.id ? mention.id.toString().trim() : '';
+            const label = mention.label ? mention.label.toString().trim() : '';
+            if (!id || !label) {
+                return;
+            }
+
+            map.set(label, { id, label });
+        }
+
+        serializeTextWithMentions(textarea, value, fallbackMap = null) {
+            const sourceText = typeof value === 'string'
+                ? value
+                : (textarea && 'value' in textarea ? textarea.value : '');
+            if (!sourceText) {
+                return '';
+            }
+
+            const map = textarea ? this.mentionMaps.get(textarea) : null;
+            const mentionMap = map || (fallbackMap && typeof fallbackMap.get === 'function' ? fallbackMap : null);
+            if (!mentionMap || mentionMap.size === 0) {
+                return sourceText;
+            }
+
+            const entries = Array.from(mentionMap.values())
+                .filter((entry) => entry && entry.id && entry.label)
+                .sort((a, b) => b.label.length - a.label.length);
+
+            let text = sourceText;
+            entries.forEach((entry) => {
+                const result = this.replaceMentionInText(text, entry.label, entry.id);
+                text = result.text;
+            });
+
+            return text;
+        }
+
+        replaceMentionInText(text, label, id) {
+            if (!text || !label || !id) {
+                return { text, count: 0 };
+            }
+
+            const needle = `@${label}`;
+            let index = text.indexOf(needle);
+            if (index === -1) {
+                return { text, count: 0 };
+            }
+
+            let result = '';
+            let lastIndex = 0;
+            let replacements = 0;
+
+            while (index !== -1) {
+                const beforeIndex = index - 1;
+                const beforeChar = beforeIndex >= 0 ? text.charAt(beforeIndex) : '';
+                if (beforeChar && !/[\s([{\"'`]/.test(beforeChar)) {
+                    result += text.slice(lastIndex, index + needle.length);
+                    lastIndex = index + needle.length;
+                    index = text.indexOf(needle, lastIndex);
+                    continue;
+                }
+
+                const afterIndex = index + needle.length;
+                const afterChar = afterIndex < text.length ? text.charAt(afterIndex) : '';
+                if (afterChar && /[A-Za-z0-9_]/.test(afterChar)) {
+                    result += text.slice(lastIndex, index + needle.length);
+                    lastIndex = index + needle.length;
+                    index = text.indexOf(needle, lastIndex);
+                    continue;
+                }
+
+                result += text.slice(lastIndex, index);
+                result += `@[${label}](user:${id})`;
+                lastIndex = afterIndex;
+                replacements += 1;
+                index = text.indexOf(needle, lastIndex);
+            }
+
+            if (replacements === 0) {
+                return { text, count: 0 };
+            }
+
+            result += text.slice(lastIndex);
+            return { text: result, count: replacements };
         }
 
         async searchMentions(query) {
@@ -1204,7 +1346,10 @@
                 textarea.className = 'form-control';
                 textarea.rows = 4;
                 textarea.maxLength = 4000;
-                textarea.value = this.editDraft || this.decodeBody(remark.body);
+                const existingMap = this.editingId === remark.id ? this.editMentionMap : null;
+                const mentionMap = this.ensureMentionMap(textarea, existingMap || null);
+                const initialValue = this.editDraft || this.decodeBody(remark.body, mentionMap);
+                textarea.value = initialValue;
                 textarea.setAttribute('data-remark-edit', 'body');
                 textarea.addEventListener('input', () => {
                     this.editDraft = textarea.value;
@@ -1460,7 +1605,7 @@
             return this.stageLabels.get(code) || '';
         }
 
-        decodeBody(bodyHtml) {
+        decodeBody(bodyHtml, mentionMap = null) {
             if (!bodyHtml) {
                 return '';
             }
@@ -1478,8 +1623,11 @@
                 }
 
                 const placeholderLabel = label.replace(/[\[\]]+/g, ' ').trim() || userId;
-                const placeholder = `@[${placeholderLabel}](user:${userId})`;
-                const textNode = doc.createTextNode(placeholder);
+                const visible = `@${placeholderLabel}`;
+                if (mentionMap && typeof mentionMap.set === 'function') {
+                    this.registerMentionInMap(mentionMap, { id: userId, label: placeholderLabel });
+                }
+                const textNode = doc.createTextNode(visible);
                 span.replaceWith(textNode);
             });
 
@@ -1558,13 +1706,15 @@
             }
 
             this.editingId = remarkId;
-            this.editDraft = this.decodeBody(remark.body);
+            this.editMentionMap = new Map();
+            this.editDraft = this.decodeBody(remark.body, this.editMentionMap);
             this.renderList();
         }
 
         cancelEdit() {
             this.editingId = null;
             this.editDraft = '';
+            this.editMentionMap = null;
             this.renderList();
         }
 
@@ -1582,7 +1732,10 @@
 
             const article = this.listContainer ? this.listContainer.querySelector(`[data-remark-id="${remarkId}"]`) : null;
             const textarea = article ? article.querySelector('[data-remark-edit="body"]') : null;
-            const bodyText = textarea && 'value' in textarea ? textarea.value.trim() : this.editDraft.trim();
+            const rawValue = textarea && 'value' in textarea ? textarea.value : this.editDraft;
+            const mentionMap = textarea ? this.mentionMaps.get(textarea) : (this.editingId === remarkId ? this.editMentionMap : null);
+            const serializedBody = this.serializeTextWithMentions(textarea, rawValue, mentionMap);
+            const bodyText = serializedBody.trim();
 
             if (!bodyText) {
                 this.toastHandler('Remark text cannot be empty.', 'danger');
@@ -1631,6 +1784,10 @@
                 }
                 this.editingId = null;
                 this.editDraft = '';
+                this.editMentionMap = null;
+                if (textarea) {
+                    this.clearMentionMap(textarea);
+                }
                 this.renderList();
                 this.toastHandler('Remark updated.', 'success');
             } catch (error) {
@@ -1807,6 +1964,7 @@
         resetComposer() {
             if (this.bodyField) {
                 this.bodyField.value = '';
+                this.clearMentionMap(this.bodyField);
             }
 
             if (this.eventDateInput) {
@@ -1884,7 +2042,8 @@
                 return;
             }
 
-            const body = this.bodyField.value.trim();
+            const serialized = this.serializeTextWithMentions(this.bodyField);
+            const body = serialized.trim();
             if (!body) {
                 this.setFeedback('Remark cannot be empty.', 'danger');
                 return;
