@@ -64,6 +64,30 @@ public sealed class UserNotificationService
 
         var notifications = await query.ToListAsync(cancellationToken);
 
+        return await ProjectAsync(principal, userId, notifications, cancellationToken);
+    }
+
+    internal async Task<IReadOnlyList<NotificationListItem>> ProjectAsync(
+        ClaimsPrincipal principal,
+        string userId,
+        IReadOnlyCollection<Notification> notifications,
+        CancellationToken cancellationToken = default)
+    {
+        if (principal is null)
+        {
+            throw new ArgumentNullException(nameof(principal));
+        }
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            throw new ArgumentException("User id is required to query notifications.", nameof(userId));
+        }
+
+        if (notifications is null)
+        {
+            throw new ArgumentNullException(nameof(notifications));
+        }
+
         if (notifications.Count == 0)
         {
             return Array.Empty<NotificationListItem>();
