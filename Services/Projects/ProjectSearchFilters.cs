@@ -66,5 +66,47 @@ namespace ProjectManagement.Services.Projects
 
             return source;
         }
+
+        public static IQueryable<Project> ApplyProjectOrdering(this IQueryable<Project> source, ProjectSearchFilters filters)
+        {
+            if (filters is null)
+            {
+                throw new ArgumentNullException(nameof(filters));
+            }
+
+            if (!string.IsNullOrWhiteSpace(filters.Query))
+            {
+                var term = filters.Query.Trim();
+                var like = $"%{term}%";
+                var normalized = term.ToLowerInvariant();
+
+                return source
+                    .OrderByDescending(p => p.CaseFileNumber != null && EF.Functions.ILike(p.CaseFileNumber!, term))
+                    .ThenByDescending(p =>
+                        (p.Name != null &&
+                            (EF.Functions.ILike(p.Name, like) || p.Name.ToLower().Contains(normalized))) ||
+                        (p.Description != null &&
+                            (EF.Functions.ILike(p.Description!, like) || p.Description!.ToLower().Contains(normalized))))
+                    .ThenByDescending(p =>
+                        p.CaseFileNumber != null &&
+                        (EF.Functions.ILike(p.CaseFileNumber!, like) || p.CaseFileNumber!.ToLower().Contains(normalized)))
+                    .ThenByDescending(p =>
+                        (p.Category != null &&
+                            (EF.Functions.ILike(p.Category.Name, like) || p.Category.Name.ToLower().Contains(normalized))) ||
+                        (p.HodUser != null &&
+                            ((p.HodUser.FullName != null &&
+                                (EF.Functions.ILike(p.HodUser.FullName!, like) || p.HodUser.FullName!.ToLower().Contains(normalized))) ||
+                             (p.HodUser.UserName != null &&
+                                (EF.Functions.ILike(p.HodUser.UserName!, like) || p.HodUser.UserName!.ToLower().Contains(normalized))))) ||
+                        (p.LeadPoUser != null &&
+                            ((p.LeadPoUser.FullName != null &&
+                                (EF.Functions.ILike(p.LeadPoUser.FullName!, like) || p.LeadPoUser.FullName!.ToLower().Contains(normalized))) ||
+                             (p.LeadPoUser.UserName != null &&
+                                (EF.Functions.ILike(p.LeadPoUser.UserName!, like) || p.LeadPoUser.UserName!.ToLower().Contains(normalized))))))
+                    .ThenByDescending(p => p.CreatedAt);
+            }
+
+            return source.OrderByDescending(p => p.CreatedAt);
+        }
     }
 }
