@@ -5,9 +5,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Notifications;
 using ProjectManagement.Models.Remarks;
@@ -17,20 +15,20 @@ namespace ProjectManagement.Services.Remarks;
 
 public sealed class RemarkNotificationService : IRemarkNotificationService
 {
-    private readonly ApplicationDbContext _db;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly INotificationPublisher _publisher;
+    private readonly INotificationPreferenceService _preferences;
     private readonly ILogger<RemarkNotificationService> _logger;
 
     public RemarkNotificationService(
-        ApplicationDbContext db,
         UserManager<ApplicationUser> userManager,
         INotificationPublisher publisher,
+        INotificationPreferenceService preferences,
         ILogger<RemarkNotificationService> logger)
     {
-        _db = db ?? throw new ArgumentNullException(nameof(db));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
         _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
+        _preferences = preferences ?? throw new ArgumentNullException(nameof(preferences));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -61,7 +59,10 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
                 return;
             }
 
-            var optedInRecipients = await FilterOptOutAsync(recipients, cancellationToken);
+            var optedInRecipients = await FilterOptOutAsync(
+                recipients,
+                project.ProjectId,
+                cancellationToken);
             if (optedInRecipients.Count == 0)
             {
                 _logger.LogInformation(
@@ -139,6 +140,7 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
 
     private async Task<IReadOnlyCollection<string>> FilterOptOutAsync(
         HashSet<string> recipients,
+        int projectId,
         CancellationToken cancellationToken)
     {
         if (recipients.Count == 0)
@@ -146,28 +148,21 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
             return Array.Empty<string>();
         }
 
-        var recipientIds = recipients.ToArray();
+        var allowed = new List<string>(recipients.Count);
 
-        var optedOut = await _db.Set<IdentityUserClaim<string>>()
-            .AsNoTracking()
-            .Where(c =>
-                recipientIds.Contains(c.UserId) &&
-                c.ClaimType == NotificationClaimTypes.RemarkCreatedOptOut &&
-                c.ClaimValue == NotificationClaimTypes.OptOutValue)
-            .Select(c => c.UserId)
-            .ToListAsync(cancellationToken);
-
-        if (optedOut.Count == 0)
+        foreach (var userId in recipients)
         {
-            return recipientIds;
+            if (await _preferences.AllowsAsync(
+                    NotificationKind.RemarkCreated,
+                    userId,
+                    projectId,
+                    cancellationToken))
+            {
+                allowed.Add(userId);
+            }
         }
 
-        foreach (var userId in optedOut)
-        {
-            recipients.Remove(userId);
-        }
-
-        return recipients.ToArray();
+        return allowed;
     }
 
     private static RemarkCreatedNotificationPayload BuildPayload(
