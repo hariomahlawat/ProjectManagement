@@ -1038,6 +1038,8 @@ body {
   font-weight: 700;
   font-size: var(--pm-font-size-compact);
   border: 1px solid rgba(0,0,0,.06);
+  flex: 0 0 auto;
+  aspect-ratio: 1 / 1;
 }
 
 /* ===== Density & scale (small, professional) ===== */
