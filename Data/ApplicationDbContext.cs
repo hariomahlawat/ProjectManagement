@@ -220,11 +220,26 @@ namespace ProjectManagement.Data
                     .HasConversion<string>()
                     .HasMaxLength(64)
                     .IsRequired();
+                e.Property(x => x.Module).HasMaxLength(64);
+                e.Property(x => x.EventType).HasMaxLength(128);
+                e.Property(x => x.ScopeType).HasMaxLength(64);
+                e.Property(x => x.ScopeId).HasMaxLength(128);
+                e.Property(x => x.ProjectId).IsRequired(false);
+                e.Property(x => x.ActorUserId).HasMaxLength(450);
+                e.Property(x => x.Fingerprint).HasMaxLength(128);
+                e.Property(x => x.Route).HasMaxLength(2048);
+                e.Property(x => x.Title).HasMaxLength(200);
+                e.Property(x => x.Summary).HasMaxLength(2000);
                 e.Property(x => x.PayloadJson).HasMaxLength(4000).IsRequired();
                 e.Property(x => x.Error).HasMaxLength(2000);
                 e.Property(x => x.AttemptCount).HasDefaultValue(0);
                 e.HasIndex(x => x.DispatchedUtc);
                 e.HasIndex(x => new { x.RecipientUserId, x.Kind, x.DispatchedUtc });
+                e.HasIndex(x => new { x.Module, x.EventType, x.DispatchedUtc });
+                e.HasIndex(x => new { x.ScopeType, x.ScopeId, x.DispatchedUtc });
+                e.HasIndex(x => new { x.ProjectId, x.DispatchedUtc });
+                e.HasIndex(x => new { x.ActorUserId, x.DispatchedUtc });
+                e.HasIndex(x => x.Fingerprint);
             });
 
             builder.Entity<ProjectDocumentRequest>(e =>
