@@ -1373,6 +1373,9 @@
             const actions = document.createElement('div');
             actions.className = 'remarks-actions d-flex flex-wrap align-items-center gap-2';
 
+            const withinWindow = this.isWithinEditWindow(remark.createdAtUtc);
+            const hasOverride = this.actorHasOverride;
+
             if (this.editingId === remark.id) {
                 const saveButton = document.createElement('button');
                 saveButton.type = 'button';
@@ -1389,19 +1392,99 @@
                 actions.appendChild(cancelButton);
             } else if (!remark.isDeleted) {
                 if (this.canEditRemark(remark)) {
-                    const editButton = document.createElement('button');
-                    editButton.type = 'button';
-                    editButton.className = 'btn btn-sm btn-outline-secondary';
-                    editButton.setAttribute('data-remark-action', 'edit');
-                    editButton.textContent = 'Edit';
-                    actions.appendChild(editButton);
+                    if (hasOverride && !withinWindow) {
+                        const dropdownId = `remark-${remark.id}-actions`;
+                        const toggle = document.createElement('button');
+                        toggle.type = 'button';
+                        toggle.className = 'btn btn-sm btn-outline-secondary btn-icon dropdown-toggle';
+                        toggle.setAttribute('data-bs-toggle', 'dropdown');
+                        toggle.setAttribute('aria-expanded', 'false');
+                        toggle.setAttribute('aria-controls', dropdownId);
+                        toggle.setAttribute('aria-label', 'Remark actions');
 
-                    const deleteButton = document.createElement('button');
-                    deleteButton.type = 'button';
-                    deleteButton.className = 'btn btn-sm btn-outline-danger';
-                    deleteButton.setAttribute('data-remark-action', 'delete');
-                    deleteButton.textContent = 'Delete';
-                    actions.appendChild(deleteButton);
+                        const toggleIcon = document.createElement('i');
+                        toggleIcon.className = 'bi bi-three-dots-vertical';
+                        toggleIcon.setAttribute('aria-hidden', 'true');
+                        toggle.appendChild(toggleIcon);
+
+                        const toggleSr = document.createElement('span');
+                        toggleSr.className = 'visually-hidden';
+                        toggleSr.textContent = 'Remark actions';
+                        toggle.appendChild(toggleSr);
+
+                        const menu = document.createElement('ul');
+                        menu.className = 'dropdown-menu';
+                        menu.id = dropdownId;
+
+                        const makeMenuItem = (action, text) => {
+                            const item = document.createElement('li');
+                            const button = document.createElement('button');
+                            button.type = 'button';
+                            button.className = 'dropdown-item';
+                            button.setAttribute('data-remark-action', action);
+                            button.textContent = text;
+                            item.appendChild(button);
+                            return item;
+                        };
+
+                        menu.appendChild(makeMenuItem('edit', 'Edit'));
+                        menu.appendChild(makeMenuItem('delete', 'Delete'));
+
+                        const dropdown = document.createElement('div');
+                        dropdown.className = 'dropdown';
+                        dropdown.appendChild(toggle);
+                        dropdown.appendChild(menu);
+
+                        actions.appendChild(dropdown);
+                    } else {
+                        const createActionButton = (options) => {
+                            const button = document.createElement('button');
+                            button.type = 'button';
+                            button.className = options.className;
+                            button.setAttribute('data-remark-action', options.action);
+                            if (options.ariaLabel) {
+                                button.setAttribute('aria-label', options.ariaLabel);
+                            }
+
+                            if (options.iconClass) {
+                                const icon = document.createElement('i');
+                                icon.className = options.iconClass;
+                                icon.setAttribute('aria-hidden', 'true');
+                                button.appendChild(icon);
+
+                                const srText = document.createElement('span');
+                                srText.className = 'visually-hidden';
+                                srText.textContent = options.label;
+                                button.appendChild(srText);
+                            } else {
+                                button.textContent = options.label;
+                            }
+
+                            return button;
+                        };
+
+                        const editButton = createActionButton({
+                            className: hasOverride && withinWindow
+                                ? 'btn btn-sm btn-outline-secondary btn-icon'
+                                : 'btn btn-sm btn-outline-secondary',
+                            action: 'edit',
+                            label: 'Edit',
+                            ariaLabel: hasOverride && withinWindow ? 'Edit remark' : null,
+                            iconClass: hasOverride && withinWindow ? 'bi bi-pencil' : null
+                        });
+                        actions.appendChild(editButton);
+
+                        const deleteButton = createActionButton({
+                            className: hasOverride && withinWindow
+                                ? 'btn btn-sm btn-outline-danger btn-icon'
+                                : 'btn btn-sm btn-outline-danger',
+                            action: 'delete',
+                            label: 'Delete',
+                            ariaLabel: hasOverride && withinWindow ? 'Delete remark' : null,
+                            iconClass: hasOverride && withinWindow ? 'bi bi-trash' : null
+                        });
+                        actions.appendChild(deleteButton);
+                    }
                 } else if (remark.authorUserId === this.currentUserId) {
                     const notice = document.createElement('div');
                     notice.className = 'text-muted small';
