@@ -152,3 +152,43 @@ test('saveEdit serializes mentions using the stored mapping', async () => {
     assert.ok(requestBody);
     assert.equal(requestBody.body, '@[John Doe](user:user-1)');
 });
+
+test('buildRemarkElement applies role accent classes for canonical roles', () => {
+    const { panel } = createPanelDom();
+
+    const baseRemark = {
+        id: 1,
+        rowVersion: 'rv',
+        isDeleted: false,
+        authorInitials: 'AB',
+        authorDisplayName: 'Alice Bob',
+        authorUserId: 'user-123',
+        type: 'Internal',
+        body: '<p>Test remark</p>',
+        eventDate: null,
+        stageRef: null,
+        stageName: null,
+        createdAtUtc: new Date().toISOString(),
+        lastEditedAtUtc: null
+    };
+
+    const commandantArticle = panel.buildRemarkElement({
+        ...baseRemark,
+        id: 101,
+        authorRole: 'Commandant'
+    });
+    const commandantBadge = commandantArticle.querySelector('.remarks-role-badge');
+    assert.ok(commandantBadge);
+    assert.ok(commandantBadge.classList.contains('remarks-role-comdt'));
+    assert.ok(commandantArticle.classList.contains('remarks-role-comdt'));
+
+    const hodArticle = panel.buildRemarkElement({
+        ...baseRemark,
+        id: 102,
+        authorRole: 'HeadOfDepartment'
+    });
+    const hodBadge = hodArticle.querySelector('.remarks-role-badge');
+    assert.ok(hodBadge);
+    assert.ok(hodBadge.classList.contains('remarks-role-hod'));
+    assert.ok(hodArticle.classList.contains('remarks-role-hod'));
+});

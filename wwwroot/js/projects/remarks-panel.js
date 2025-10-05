@@ -1561,15 +1561,19 @@
 
             const canonical = this.resolveCanonicalRole(role);
             const normalized = this.normalizeRoleKey(canonical || role);
-            if (normalized === 'comdt') {
+            if (normalized === 'comdt' || normalized === 'commandant') {
                 return 'remarks-role-comdt';
             }
 
-            if (normalized === 'hod') {
+            if (normalized === 'hod' || normalized === 'headofdepartment') {
                 return 'remarks-role-hod';
             }
 
-            if (normalized === 'mco') {
+            if (
+                normalized === 'mco'
+                || normalized === 'medicalcentreofficer'
+                || normalized === 'medicalcenterofficer'
+            ) {
                 return 'remarks-role-mco';
             }
 
