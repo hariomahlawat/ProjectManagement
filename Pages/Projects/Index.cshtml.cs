@@ -36,8 +36,8 @@ namespace ProjectManagement.Pages.Projects
         [BindProperty(SupportsGet = true)]
         public string? HodUserId { get; set; }
 
-        [BindProperty(SupportsGet = true)]
-        public int Page { get; set; } = 1;
+        [BindProperty(SupportsGet = true, Name = "page")]
+        public int CurrentPage { get; set; } = 1;
 
         [BindProperty(SupportsGet = true)]
         public int PageSize { get; set; } = 25;
@@ -87,25 +87,25 @@ namespace ProjectManagement.Pages.Projects
             TotalCount = await query.CountAsync();
             TotalPages = TotalCount == 0 ? 0 : (int)Math.Ceiling(TotalCount / (double)PageSize);
 
-            if (Page < 1)
+            if (CurrentPage < 1)
             {
-                Page = 1;
+                CurrentPage = 1;
             }
 
-            if (TotalPages > 0 && Page > TotalPages)
+            if (TotalPages > 0 && CurrentPage > TotalPages)
             {
-                Page = TotalPages;
+                CurrentPage = TotalPages;
             }
             else if (TotalPages == 0)
             {
-                Page = 1;
+                CurrentPage = 1;
             }
 
-            var skip = (Page - 1) * PageSize;
+            var skip = (CurrentPage - 1) * PageSize;
             if (TotalCount > 0 && skip >= TotalCount)
             {
-                Page = TotalPages;
-                skip = Math.Max(0, (Page - 1) * PageSize);
+                CurrentPage = TotalPages;
+                skip = Math.Max(0, (CurrentPage - 1) * PageSize);
             }
 
             Projects = await query.Skip(skip).Take(PageSize).ToListAsync();
