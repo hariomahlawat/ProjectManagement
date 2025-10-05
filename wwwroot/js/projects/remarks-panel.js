@@ -1487,11 +1487,13 @@
                         });
                         actions.appendChild(deleteButton);
                     }
-                } else if (remark.authorUserId === this.currentUserId) {
-                    const notice = document.createElement('div');
-                    notice.className = 'text-muted small';
-                    notice.textContent = 'You can edit your remark within 3 hours of posting.';
-                    actions.appendChild(notice);
+
+                    if (!hasOverride && remark.authorUserId === this.currentUserId && withinWindow) {
+                        const notice = document.createElement('div');
+                        notice.className = 'text-muted small text-wrap w-100';
+                        notice.textContent = 'You can edit your remark within 3 hours of posting.';
+                        actions.appendChild(notice);
+                    }
                 }
             }
 
