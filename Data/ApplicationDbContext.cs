@@ -59,6 +59,8 @@ namespace ProjectManagement.Data
         public DbSet<RemarkAudit> RemarkAudits => Set<RemarkAudit>();
         public DbSet<RemarkMention> RemarkMentions => Set<RemarkMention>();
         public DbSet<NotificationDispatch> NotificationDispatches => Set<NotificationDispatch>();
+        public DbSet<UserNotificationPreference> UserNotificationPreferences => Set<UserNotificationPreference>();
+        public DbSet<UserProjectMute> UserProjectMutes => Set<UserProjectMute>();
         public DbSet<ProjectDocument> ProjectDocuments => Set<ProjectDocument>();
         public DbSet<ProjectDocumentRequest> ProjectDocumentRequests => Set<ProjectDocumentRequest>();
         public DbSet<ProjectScheduleSettings> ProjectScheduleSettings => Set<ProjectScheduleSettings>();
@@ -953,6 +955,22 @@ namespace ProjectManagement.Data
                 e.HasOne(x => x.Remark)
                     .WithMany(x => x.AuditEntries)
                     .HasForeignKey(x => x.RemarkId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<UserNotificationPreference>(e =>
+            {
+                e.HasKey(x => new { x.UserId, x.Kind });
+                e.Property(x => x.UserId).HasMaxLength(450).IsRequired();
+            });
+
+            builder.Entity<UserProjectMute>(e =>
+            {
+                e.HasKey(x => new { x.UserId, x.ProjectId });
+                e.Property(x => x.UserId).HasMaxLength(450).IsRequired();
+                e.HasOne<Project>()
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
         }

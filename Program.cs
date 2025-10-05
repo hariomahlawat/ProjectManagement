@@ -188,6 +188,7 @@ builder.Services.AddScoped<ProjectTimelineReadService>();
 builder.Services.AddScoped<ProjectCommentService>();
 builder.Services.AddScoped<ProjectRemarksPanelService>();
 builder.Services.AddScoped<IRemarkService, RemarkService>();
+builder.Services.AddScoped<INotificationPreferenceService, NotificationPreferenceService>();
 builder.Services.AddScoped<IRemarkNotificationService, RemarkNotificationService>();
 builder.Services.AddSingleton<IRemarkMetrics, RemarkMetrics>();
 builder.Services.AddScoped<INotificationPublisher, NotificationPublisher>();

@@ -82,6 +82,39 @@ public class RemarkNotificationServiceTests
     }
 
     [Fact]
+    public async Task NotifyRemarkCreatedAsync_TablePreferenceOverridesClaim()
+    {
+        await using var scope = await CreateContextAsync();
+        var (service, publisher) = await CreateServiceAsync(scope.Db);
+
+        scope.Db.UserClaims.Add(new IdentityUserClaim<string>
+        {
+            UserId = "comdt-1",
+            ClaimType = NotificationClaimTypes.RemarkCreatedOptOut,
+            ClaimValue = NotificationClaimTypes.OptOutValue
+        });
+
+        scope.Db.UserNotificationPreferences.Add(new UserNotificationPreference
+        {
+            UserId = "comdt-1",
+            Kind = NotificationKind.RemarkCreated,
+            Allow = true
+        });
+
+        await scope.Db.SaveChangesAsync();
+
+        var remark = CreateRemark(RemarkType.Internal);
+        var actor = new RemarkActorContext("author-6", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
+        var project = new RemarkProjectInfo(remark.ProjectId, "Project Six", "po-1", "hod-1");
+
+        await service.NotifyRemarkCreatedAsync(remark, actor, project, CancellationToken.None);
+
+        Assert.Single(publisher.Events);
+        var recipients = publisher.Events[0].Recipients.OrderBy(x => x).ToArray();
+        Assert.Equal(new[] { "comdt-1", "hod-1", "po-1" }, recipients);
+    }
+
+    [Fact]
     public async Task NotifyRemarkCreatedAsync_PayloadIncludesPreviewAndMetadata()
     {
         await using var scope = await CreateContextAsync();
@@ -166,10 +199,12 @@ public class RemarkNotificationServiceTests
         var userManager = CreateUserManager(db);
         var publisher = new TestNotificationPublisher();
 
+        var preferences = new NotificationPreferenceService(db);
+
         var service = new RemarkNotificationService(
-            db,
             userManager,
             publisher,
+            preferences,
             NullLogger<RemarkNotificationService>.Instance);
 
         return (service, publisher);
