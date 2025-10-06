@@ -123,9 +123,8 @@ public class RoleBasedNavigationProvider : INavigationProvider
                     },
                     new NavigationItem
                     {
-                        Text = "Help",
-                        Area = "Admin",
-                        Page = "/Help/Index",
+                        Text = "Manage celebrations",
+                        Page = "/Celebrations/Index",
                         RequiredRoles = new[] { "Admin" }
                     }
                 }
