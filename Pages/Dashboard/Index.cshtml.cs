@@ -10,6 +10,7 @@ using System;
 using System.Globalization;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.EntityFrameworkCore;
 
 namespace ProjectManagement.Pages.Dashboard
@@ -52,18 +53,54 @@ namespace ProjectManagement.Pages.Dashboard
 
             var nowUtc = DateTime.UtcNow;
             var rangeEnd = nowUtc.AddDays(30);
+
+            var upcoming = new List<(Guid Id, string Title, DateTime StartUtc, bool IsAllDay)>();
+
             var events = await _db.Events.AsNoTracking()
                 .Where(e => !e.IsDeleted && e.StartUtc >= nowUtc && e.StartUtc < rangeEnd)
                 .OrderBy(e => e.StartUtc)
-                .Take(5)
+                .Take(15)
+                .Select(e => new { e.Id, e.Title, e.StartUtc, e.IsAllDay })
                 .ToListAsync();
             foreach (var ev in events)
             {
-                var startLocal = TimeZoneInfo.ConvertTime(ev.StartUtc, IST);
-                var when = ev.IsAllDay
+                upcoming.Add((ev.Id, ev.Title, ev.StartUtc.UtcDateTime, ev.IsAllDay));
+            }
+
+            var todayIst = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(nowUtc, IST));
+            var celebrations = await _db.Celebrations.AsNoTracking()
+                .Where(c => c.DeletedUtc == null)
+                .ToListAsync();
+
+            foreach (var celebration in celebrations)
+            {
+                var nextOccurrence = CelebrationHelpers.NextOccurrenceLocal(celebration, todayIst);
+
+                var startLocal = CelebrationHelpers.ToLocalDateTime(nextOccurrence);
+                var startUtc = startLocal.UtcDateTime;
+                if (startUtc >= nowUtc && startUtc < rangeEnd)
+                {
+                    var titlePrefix = celebration.EventType switch
+                    {
+                        CelebrationType.Birthday => "Birthday",
+                        CelebrationType.Anniversary => "Anniversary",
+                        _ => celebration.EventType.ToString()
+                    };
+                    var title = $"{titlePrefix}: {CelebrationHelpers.DisplayName(celebration)}";
+                    upcoming.Add((celebration.Id, title, startUtc, true));
+                }
+            }
+
+            foreach (var item in upcoming
+                .OrderBy(x => x.StartUtc)
+                .ThenBy(x => x.Title, StringComparer.OrdinalIgnoreCase)
+                .Take(10))
+            {
+                var startLocal = TimeZoneInfo.ConvertTimeFromUtc(item.StartUtc, IST);
+                var when = item.IsAllDay
                     ? startLocal.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)
                     : startLocal.ToString("dd MMM yyyy, HH:mm", CultureInfo.InvariantCulture);
-                UpcomingEvents.Add(new UpcomingEventVM { Id = ev.Id, Title = ev.Title, When = when });
+                UpcomingEvents.Add(new UpcomingEventVM { Id = item.Id, Title = item.Title, When = when });
             }
         }
 

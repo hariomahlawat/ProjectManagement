@@ -19,7 +19,7 @@ Role membership is managed under **Admin → Users** with guardrails that preven
 After signing in, everyone lands on **Dashboard → Overview**:
 
 - **My Tasks widget** – Shows the top 20 open tasks grouped into _Overdue_, _Today_, and _Upcoming_. Quick-add tokens (`today`, `tomorrow`, `mon`, `next mon`, `!high`, `!low`) set due dates and priority while removing the tokens from the title.【F:Pages/Dashboard/Index.cshtml.cs†L18-L92】【F:Helpers/TodoQuickParser.cs†L8-L57】 Undo banners appear when completing or deleting items and can be re-opened within the page session.
-- **Upcoming events drawer** – A floating **View upcoming events** card sticks to the dashboard's right margin and opens a right-side panel that lists the next five calendar entries within 30 days, formatted in IST. All users can click through to the full calendar; editors can jump straight into the event drawer.【F:Pages/Dashboard/Index.cshtml.cs†L60-L87】
+- **Upcoming events drawer** – A floating **View upcoming events** card sticks to the dashboard's right margin and opens a right-side panel that lists the next ten calendar or celebration entries within 30 days, formatted in IST. All users can click through to the full calendar; editors can jump straight into the event drawer.【F:Pages/Dashboard/Index.cshtml.cs†L60-L104】
 
 ## 3. Tasks hub
 
