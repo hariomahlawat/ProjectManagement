@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -9,7 +10,9 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Notifications;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Notifications;
 
 namespace ProjectManagement.Pages.Projects
 {
@@ -19,12 +22,18 @@ namespace ProjectManagement.Pages.Projects
         private readonly ApplicationDbContext _db;
         private readonly UserManager<ApplicationUser> _users;
         private readonly IAuditService _audit;
+        private readonly INotificationPublisher _notifications;
 
-        public AssignRolesModel(ApplicationDbContext db, UserManager<ApplicationUser> users, IAuditService audit)
+        public AssignRolesModel(
+            ApplicationDbContext db,
+            UserManager<ApplicationUser> users,
+            IAuditService audit,
+            INotificationPublisher notifications)
         {
             _db = db;
             _users = users;
             _audit = audit;
+            _notifications = notifications;
         }
 
         [BindProperty]
@@ -124,6 +133,11 @@ namespace ProjectManagement.Pages.Projects
                 userName: currentUserName
             );
 
+            await PublishProjectOfficerChangeAsync(
+                project,
+                previousPo,
+                currentUserId);
+
             TempData["Flash"] = "Roles updated.";
 
             return RedirectToPage("/Projects/Overview", new { id = project.Id });
@@ -177,6 +191,82 @@ namespace ProjectManagement.Pages.Projects
             }
 
             return user.Email ?? user.Id;
+        }
+
+        private async Task PublishProjectOfficerChangeAsync(
+            Project project,
+            string? previousPoUserId,
+            string? actorUserId)
+        {
+            if (string.Equals(previousPoUserId, project.LeadPoUserId, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var recipients = new List<string>();
+
+            if (!string.IsNullOrWhiteSpace(previousPoUserId))
+            {
+                recipients.Add(previousPoUserId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(project.LeadPoUserId))
+            {
+                recipients.Add(project.LeadPoUserId);
+            }
+
+            if (recipients.Count == 0)
+            {
+                return;
+            }
+
+            var previousPoName = await GetUserDisplayNameAsync(previousPoUserId);
+            var currentPoName = await GetUserDisplayNameAsync(project.LeadPoUserId);
+
+            var payload = new ProjectAssignmentChangedNotificationPayload(
+                project.Id,
+                project.Name,
+                previousPoUserId,
+                previousPoName,
+                project.LeadPoUserId,
+                currentPoName);
+
+            var summary = string.Format(
+                CultureInfo.InvariantCulture,
+                "Project officer assignment changed from {0} to {1}. Review the project overview for details.",
+                previousPoName ?? "Unassigned",
+                currentPoName ?? "Unassigned");
+
+            await _notifications.PublishAsync(
+                NotificationKind.ProjectAssignmentChanged,
+                recipients,
+                payload,
+                module: "Projects",
+                eventType: "ProjectOfficerAssignmentChanged",
+                scopeType: "Project",
+                scopeId: project.Id.ToString(CultureInfo.InvariantCulture),
+                projectId: project.Id,
+                actorUserId: actorUserId,
+                route: $"/projects/overview?id={project.Id}",
+                title: string.IsNullOrWhiteSpace(project.Name)
+                    ? "Project officer assignment updated"
+                    : string.Format(
+                        CultureInfo.InvariantCulture,
+                        "{0} project officer updated",
+                        project.Name),
+                summary: summary,
+                fingerprint: null);
+        }
+
+        private async Task<string?> GetUserDisplayNameAsync(string? userId)
+        {
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return null;
+            }
+
+            var user = await _users.FindByIdAsync(userId);
+            return user is null ? null : DisplayName(user);
         }
     }
 }

@@ -14,5 +14,6 @@ public enum NotificationKind
     DocumentArchived = 32,
     DocumentRestored = 33,
     DocumentDeleted = 34,
-    RoleAssignmentsChanged = 40
+    RoleAssignmentsChanged = 40,
+    ProjectAssignmentChanged = 41
 }
