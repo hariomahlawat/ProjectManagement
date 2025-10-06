@@ -68,6 +68,112 @@
     });
   }
 
+  // ---- 3) Bulk selection toolbar ----
+  function initBulkSelection() {
+    const toolbar = qs('#bulkSelectionToolbar');
+    if (!toolbar) return;
+
+    const countEl = qs('[data-bulk-role="count"]', toolbar);
+    const selectAll = qs('#bulkSelectAll', toolbar);
+    const clearBtn = qs('[data-bulk-action="clear"]', toolbar);
+    const forms = qsa('form.bulk-action-form', toolbar);
+    const listContainer = document.getElementById('taskListContainer');
+
+    const getCheckboxes = () => qsa('.task-select');
+
+    function syncForms(ids) {
+      forms.forEach(form => {
+        const holder = qs('.bulk-selected-inputs', form);
+        if (!holder) return;
+        holder.innerHTML = '';
+        ids.forEach(id => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = 'ids';
+          input.value = id;
+          holder.appendChild(input);
+        });
+      });
+    }
+
+    function updateToolbar() {
+      const boxes = getCheckboxes();
+      const selectedBoxes = boxes.filter(cb => cb.checked);
+      const ids = selectedBoxes.map(cb => cb.value);
+      const count = ids.length;
+
+      if (countEl) {
+        const label = count === 1 ? '1 task selected' : `${count} tasks selected`;
+        countEl.textContent = count > 0 ? label : '0 tasks selected';
+      }
+
+      if (count > 0) {
+        toolbar.classList.remove('d-none');
+      } else {
+        toolbar.classList.add('d-none');
+      }
+
+      if (selectAll) {
+        if (boxes.length === 0) {
+          selectAll.checked = false;
+          selectAll.indeterminate = false;
+          selectAll.disabled = true;
+        } else {
+          selectAll.disabled = false;
+          const allChecked = count === boxes.length;
+          selectAll.checked = allChecked;
+          selectAll.indeterminate = count > 0 && !allChecked;
+        }
+      }
+
+      syncForms(ids);
+    }
+
+    document.addEventListener('change', (e) => {
+      const cb = e.target.closest('.task-select');
+      if (!cb) return;
+      updateToolbar();
+    }, { passive: true });
+
+    if (selectAll) {
+      selectAll.addEventListener('change', () => {
+        const boxes = getCheckboxes();
+        boxes.forEach(cb => {
+          cb.checked = !!selectAll.checked;
+        });
+        updateToolbar();
+      });
+    }
+
+    if (clearBtn) {
+      clearBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const boxes = getCheckboxes();
+        boxes.forEach(cb => { cb.checked = false; });
+        updateToolbar();
+      });
+    }
+
+    forms.forEach(form => {
+      form.addEventListener('submit', (e) => {
+        const boxes = getCheckboxes();
+        const selected = boxes.filter(cb => cb.checked).map(cb => cb.value);
+        if (selected.length === 0) {
+          e.preventDefault();
+          return;
+        }
+        syncForms(selected);
+      });
+    });
+
+    if (listContainer && 'MutationObserver' in window) {
+      const observer = new MutationObserver(() => updateToolbar());
+      observer.observe(listContainer, { childList: true, subtree: true });
+    }
+
+    updateToolbar();
+  }
+
   // ---- 0) Auto-submit done/undo checkboxes ----
   function initDoneAutosubmit() {
     function markVisualDone(cb) {
@@ -99,10 +205,12 @@
       initRowActionReveal();
       initDoneAutosubmit();
       initDragReorder();
+      initBulkSelection();
     });
   } else {
     initRowActionReveal();
     initDoneAutosubmit();
     initDragReorder();
+    initBulkSelection();
   }
 })();

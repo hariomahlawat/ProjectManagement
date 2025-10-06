@@ -224,6 +224,54 @@ namespace ProjectManagement.Pages.Tasks
             return new OkResult();
         }
 
+        public async Task<IActionResult> OnPostBulkDoneAsync([FromForm] Guid[] ids)
+        {
+            var uid = _users.GetUserId(User);
+            if (uid == null || ids == null || ids.Length == 0) return Back();
+            try
+            {
+                await _todo.MarkDoneAsync(uid, ids);
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+            return Back();
+        }
+
+        public async Task<IActionResult> OnPostBulkDeleteAsync([FromForm] Guid[] ids)
+        {
+            var uid = _users.GetUserId(User);
+            if (uid == null || ids == null || ids.Length == 0) return Back();
+            try
+            {
+                await _todo.DeleteManyAsync(uid, ids);
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+            return Back();
+        }
+
+        public async Task<IActionResult> OnPostBulkPinAsync([FromForm] Guid[] ids, bool pin)
+        {
+            var uid = _users.GetUserId(User);
+            if (uid == null || ids == null || ids.Length == 0) return Back();
+            try
+            {
+                foreach (var id in ids)
+                {
+                    await _todo.EditAsync(uid, id, pinned: pin);
+                }
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["Error"] = ex.Message;
+            }
+            return Back();
+        }
+
         public async Task<IActionResult> OnPostDeleteAsync(Guid id)
         {
             var uid = _users.GetUserId(User);
