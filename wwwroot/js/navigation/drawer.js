@@ -81,6 +81,7 @@ function setupDrawer(drawer) {
   const overlay = drawer.querySelector('[data-drawer-overlay]');
   const closeButtons = Array.from(drawer.querySelectorAll('[data-drawer-close]'));
   const toggles = findTogglesForDrawer(resolvedId);
+  const isStaticDrawer = drawer.hasAttribute('data-drawer-static');
 
   if (panel instanceof HTMLElement && !panel.hasAttribute('tabindex')) {
     panel.setAttribute('tabindex', '-1');
@@ -133,8 +134,17 @@ function setupDrawer(drawer) {
 
   const hasVisibleToggle = () => toggles.some((toggle) => isToggleVisible(toggle));
 
-  const shouldForceVisible = () =>
-    (desktopMediaQuery && desktopMediaQuery.matches) || !hasVisibleToggle();
+  const shouldForceVisible = () => {
+    if (!isStaticDrawer) {
+      return false;
+    }
+
+    if (desktopMediaQuery && desktopMediaQuery.matches) {
+      return true;
+    }
+
+    return !hasVisibleToggle();
+  };
 
   const syncAriaHidden = () => {
     if (shouldForceVisible()) {

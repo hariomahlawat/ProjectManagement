@@ -715,6 +715,10 @@ body {
     visibility: hidden;
 }
 
+.pm-drawer--end {
+    justify-content: flex-end;
+}
+
 .pm-drawer.is-open {
     pointer-events: auto;
     visibility: visible;
@@ -749,7 +753,15 @@ body {
     padding: 1.25rem;
 }
 
+.pm-drawer--end .pm-drawer__panel {
+    transform: translateX(100%);
+}
+
 .pm-drawer.is-open .pm-drawer__panel {
+    transform: translateX(0);
+}
+
+.pm-drawer--end.is-open .pm-drawer__panel {
     transform: translateX(0);
 }
 

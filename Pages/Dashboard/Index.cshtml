@@ -42,6 +42,43 @@
   </div>
   <div class="col-lg-4">
     <partial name="_TodoWidget" model="Model.TodoWidget" />
-    <partial name="_UpcomingEventsWidget" model="Model.UpcomingEvents" />
+    <button
+      type="button"
+      class="btn btn-outline-primary w-100 mt-3"
+      data-drawer-toggle
+      data-drawer-target="dashboard-events"
+      aria-controls="dashboard-events"
+      aria-haspopup="dialog"
+    >
+      View upcoming events
+    </button>
+  </div>
+</div>
+
+<div
+  class="pm-drawer pm-drawer--end"
+  data-drawer="dashboard-events"
+  id="dashboard-events"
+  aria-labelledby="dashboard-events-title"
+>
+  <div class="pm-drawer__overlay" data-drawer-overlay></div>
+  <div
+    class="pm-drawer__panel"
+    data-drawer-panel
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="dashboard-events-title"
+  >
+    <div class="pm-drawer__header justify-content-end">
+      <button
+        type="button"
+        class="btn-close"
+        data-drawer-close
+        aria-label="Close upcoming events"
+      ></button>
+    </div>
+    <div class="pm-drawer__body">
+      <partial name="_UpcomingEventsWidget" model="Model.UpcomingEvents" />
+    </div>
   </div>
 </div>
