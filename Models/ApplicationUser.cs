@@ -21,6 +21,8 @@ namespace ProjectManagement.Models
         public bool PendingDeletion { get; set; }
         public DateTime? DeletionRequestedUtc { get; set; }
         public string? DeletionRequestedByUserId { get; set; }
+
+        public bool ShowCelebrationsInCalendar { get; set; } = true;
     }
 }
 

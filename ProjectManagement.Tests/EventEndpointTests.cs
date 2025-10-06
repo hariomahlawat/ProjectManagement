@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Linq;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,7 +14,9 @@ using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 using Xunit;
 
 namespace ProjectManagement.Tests
@@ -44,16 +47,19 @@ namespace ProjectManagement.Tests
             });
         }
 
-        private HttpClient CreateClient(string? role = null)
+        private HttpClient CreateClient(string? role = null, string? userId = null)
         {
             var client = _factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
             client.DefaultRequestHeaders.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Test");
             if (role != null)
                 client.DefaultRequestHeaders.Add("X-Test-Role", role);
+            if (userId != null)
+                client.DefaultRequestHeaders.Add("X-Test-UserId", userId);
             return client;
         }
 
         private record EventVm(string Id, Guid SeriesId, string Title, DateTimeOffset Start, DateTimeOffset End, bool AllDay, string Category, string? Location, bool IsRecurring);
+        private record PreferenceVm(bool showCelebrations);
 
         [Fact]
         public async Task PostRequiresEditorRole()
@@ -126,6 +132,41 @@ namespace ProjectManagement.Tests
             Assert.Contains(items!, i => i.SeriesId == ev.Id && i.AllDay && i.Start == start);
         }
 
+        [Fact]
+        public async Task ShowCelebrationsPreferenceCanBeUpdated()
+        {
+            var userId = Guid.NewGuid().ToString();
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+                var user = new ApplicationUser
+                {
+                    Id = userId,
+                    UserName = "calendar-pref@example.com",
+                    Email = "calendar-pref@example.com",
+                    EmailConfirmed = true,
+                    ShowCelebrationsInCalendar = true,
+                };
+
+                var createResult = await userManager.CreateAsync(user);
+                Assert.True(createResult.Succeeded, string.Join(";", createResult.Errors.Select(e => e.Description)));
+            }
+
+            var client = CreateClient("Admin", userId);
+            var response = await client.PostAsJsonAsync("/calendar/events/preferences/show-celebrations", new { showCelebrations = false });
+            response.EnsureSuccessStatusCode();
+            var payload = await response.Content.ReadFromJsonAsync<PreferenceVm>();
+            Assert.NotNull(payload);
+            Assert.False(payload!.showCelebrations);
+
+            using var verifyScope = _factory.Services.CreateScope();
+            var verifier = verifyScope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var refreshed = await verifier.FindByIdAsync(userId);
+            Assert.NotNull(refreshed);
+            Assert.False(refreshed!.ShowCelebrationsInCalendar);
+        }
+
         private class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
         {
             public TestAuthHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, System.Text.Encodings.Web.UrlEncoder encoder)
@@ -134,7 +175,16 @@ namespace ProjectManagement.Tests
             protected override Task<AuthenticateResult> HandleAuthenticateAsync()
             {
                 var role = Request.Headers["X-Test-Role"].ToString();
-                var claims = new[] { new Claim(ClaimTypes.Name, "test"), new Claim(ClaimTypes.Role, role) };
+                var userId = Request.Headers["X-Test-UserId"].ToString();
+                var claims = new List<Claim> { new Claim(ClaimTypes.Name, "test") };
+                if (!string.IsNullOrEmpty(role))
+                {
+                    claims.Add(new Claim(ClaimTypes.Role, role));
+                }
+                if (!string.IsNullOrEmpty(userId))
+                {
+                    claims.Add(new Claim(ClaimTypes.NameIdentifier, userId));
+                }
                 var identity = new ClaimsIdentity(claims, "Test");
                 var principal = new ClaimsPrincipal(identity);
                 var ticket = new AuthenticationTicket(principal, "Test");

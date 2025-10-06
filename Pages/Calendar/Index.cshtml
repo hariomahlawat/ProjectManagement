@@ -38,20 +38,37 @@
     </div>
   </div>
 
-  @if (Model.CanEdit)
-  {
-    <button class="btn btn-success btn-sm"
-            id="btnNewEvent"
-            type="button"
-            data-bs-toggle="offcanvas"
-            data-bs-target="#eventFormCanvas"
-            aria-controls="eventFormCanvas">New Event</button>
-  }
+  <div class="d-flex align-items-center gap-3">
+    <form id="calendarPreferences"
+          method="post"
+          class="d-flex align-items-center gap-2"
+          data-preference-endpoint="@Url.Content("~/calendar/events/preferences/show-celebrations")">
+      @Html.AntiForgeryToken()
+      <div class="form-check form-switch m-0">
+        <input class="form-check-input"
+               type="checkbox"
+               id="showCelebrationsToggle"
+               @(Model.ShowCelebrations ? "checked" : null)>
+        <label class="form-check-label" for="showCelebrationsToggle">Show celebrations</label>
+      </div>
+    </form>
+
+    @if (Model.CanEdit)
+    {
+      <button class="btn btn-success btn-sm"
+              id="btnNewEvent"
+              type="button"
+              data-bs-toggle="offcanvas"
+              data-bs-target="#eventFormCanvas"
+              aria-controls="eventFormCanvas">New Event</button>
+    }
+  </div>
 </div>
 
 <div id="calendar"
      class="shadow-sm border rounded-3 bg-white"
-     data-can-edit="@Model.CanEdit.ToString().ToLowerInvariant()"></div>
+     data-can-edit="@Model.CanEdit.ToString().ToLowerInvariant()"
+     data-show-celebrations="@Model.ShowCelebrations.ToString().ToLowerInvariant()"></div>
 
 <div id="categoryLegend" class="small text-muted mt-2"></div>
 
