@@ -26,7 +26,10 @@
                     <div class="d-flex align-items-center gap-2 flex-grow-1">
                         <span class="text-muted draggable-handle" title="Drag to reorder"><i class="bi bi-grip-vertical"></i></span>
 
-                        <input class="form-check-input d-none task-select" type="checkbox" value="@t.Id" />
+                        <div class="form-check mb-0">
+                            <input class="form-check-input task-select" type="checkbox" id="select-@t.Id" name="ids" value="@t.Id" title="Select task" />
+                            <label class="visually-hidden" for="select-@t.Id">Select @t.Title</label>
+                        </div>
 
                         <form method="post" asp-page-handler="Toggle" class="m-0 p-0">
                             @Html.AntiForgeryToken()
