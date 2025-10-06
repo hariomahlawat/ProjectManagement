@@ -193,7 +193,7 @@
 .mission-ring {
   --mission-ring-size: 7.5rem;
   --mission-ring-thickness: 12px;
-  --mission-ring-percent: attr(data-percent percentage, 0%);
+  --mission-ring-percent-attr: 0%;
   display: grid;
   place-items: center;
   gap: .2rem;
@@ -203,7 +203,13 @@
   position: relative;
   border-radius: 50%;
   color: inherit;
-  background: conic-gradient(var(--mission-panel-ring-fill) var(--mission-ring-percent, 0%), var(--mission-panel-ring-track) 0);
+  background: conic-gradient(var(--mission-panel-ring-fill) var(--mission-ring-percent, var(--mission-ring-percent-attr, 0%)), var(--mission-panel-ring-track) 0);
+}
+
+@supports (width: attr(data-percent percentage)) {
+  .mission-ring {
+    --mission-ring-percent-attr: attr(data-percent percentage, 0%);
+  }
 }
 
 .mission-ring::after {
