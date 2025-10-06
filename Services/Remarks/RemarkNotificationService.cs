@@ -52,53 +52,61 @@ public sealed class RemarkNotificationService : IRemarkNotificationService
         try
         {
             var recipients = await ResolveRecipientsAsync(project, remark, cancellationToken);
+            var mentionRecipients = ResolveMentionRecipients(remark);
+
+            if (mentionRecipients.Count > 0)
+            {
+                recipients.ExceptWith(mentionRecipients);
+            }
+
+            var payload = BuildPayload(remark, actor, project);
             if (recipients.Count == 0)
             {
                 _logger.LogInformation(
                     "No remark notification recipients found for project {ProjectId}.",
                     project.ProjectId);
-                return;
             }
-
-            var optedInRecipients = await FilterOptOutAsync(
-                NotificationKind.RemarkCreated,
-                recipients,
-                project.ProjectId,
-                cancellationToken);
-            if (optedInRecipients.Count == 0)
+            else
             {
-                _logger.LogInformation(
-                    "All potential recipients for remark {RemarkId} have opted out of notifications.",
-                    remark.Id);
-                return;
+                var optedInRecipients = await FilterOptOutAsync(
+                    NotificationKind.RemarkCreated,
+                    recipients,
+                    project.ProjectId,
+                    cancellationToken);
+
+                if (optedInRecipients.Count == 0)
+                {
+                    _logger.LogInformation(
+                        "All potential recipients for remark {RemarkId} have opted out of notifications.",
+                        remark.Id);
+                }
+                else
+                {
+                    var metadata = BuildMetadata(
+                        remark,
+                        project,
+                        actor,
+                        eventType: "RemarkCreated",
+                        titlePrefix: "New remark posted");
+
+                    await _publisher.PublishAsync(
+                        NotificationKind.RemarkCreated,
+                        optedInRecipients,
+                        payload,
+                        metadata.Module,
+                        metadata.EventType,
+                        metadata.ScopeType,
+                        metadata.ScopeId,
+                        project.ProjectId,
+                        actor.UserId,
+                        metadata.Route,
+                        metadata.Title,
+                        metadata.Summary,
+                        metadata.Fingerprint,
+                        cancellationToken);
+                }
             }
 
-            var payload = BuildPayload(remark, actor, project);
-
-            var metadata = BuildMetadata(
-                remark,
-                project,
-                actor,
-                eventType: "RemarkCreated",
-                titlePrefix: "New remark posted");
-
-            await _publisher.PublishAsync(
-                NotificationKind.RemarkCreated,
-                optedInRecipients,
-                payload,
-                metadata.Module,
-                metadata.EventType,
-                metadata.ScopeType,
-                metadata.ScopeId,
-                project.ProjectId,
-                actor.UserId,
-                metadata.Route,
-                metadata.Title,
-                metadata.Summary,
-                metadata.Fingerprint,
-                cancellationToken);
-
-            var mentionRecipients = ResolveMentionRecipients(remark);
             if (mentionRecipients.Count > 0)
             {
                 var mentionOptedIn = await FilterOptOutAsync(
