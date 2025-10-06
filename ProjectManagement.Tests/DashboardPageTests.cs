@@ -153,6 +153,55 @@ namespace ProjectManagement.Tests
             Assert.Equal(expected, ev.When);
         }
 
+        [Fact]
+        public async Task OnPostSnoozeAsync_TomorrowMorningAfterTen_UsesNextDay()
+        {
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options;
+
+            await using var context = new ApplicationDbContext(options);
+
+            using var serviceProvider = new ServiceCollection().BuildServiceProvider();
+
+            var userManager = new UserManager<ApplicationUser>(
+                new UserStore<ApplicationUser>(context),
+                Options.Create(new IdentityOptions()),
+                new PasswordHasher<ApplicationUser>(),
+                Array.Empty<IUserValidator<ApplicationUser>>(),
+                Array.Empty<IPasswordValidator<ApplicationUser>>(),
+                new UpperInvariantLookupNormalizer(),
+                new IdentityErrorDescriber(),
+                serviceProvider,
+                NullLogger<UserManager<ApplicationUser>>.Instance);
+
+            var todo = new RecordingTodoService();
+            var nowIst = new DateTimeOffset(2024, 5, 10, 15, 30, 0, TimeSpan.FromHours(5.5));
+
+            var page = new TestableIndexModel(todo, userManager, context, nowIst)
+            {
+                PageContext = new PageContext(new ActionContext(
+                    new DefaultHttpContext
+                    {
+                        User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                        {
+                            new Claim(ClaimTypes.NameIdentifier, "user-1")
+                        }, "TestAuth"))
+                    },
+                    new RouteData(),
+                    new ActionDescriptor()))
+            };
+
+            var id = Guid.NewGuid();
+            var result = await page.OnPostSnoozeAsync(id, "tom_am");
+
+            Assert.IsType<RedirectToPageResult>(result);
+
+            var expected = new DateTimeOffset(nowIst.Date.AddDays(1).AddHours(10), nowIst.Offset);
+            Assert.Equal(expected, todo.LastDueAtLocal);
+            Assert.Equal(id, todo.LastEditId);
+        }
+
         private sealed class StubTodoService : ITodoService
         {
             public Task<TodoWidgetResult> GetWidgetAsync(string ownerId, int take = 20) =>
@@ -181,6 +230,57 @@ namespace ProjectManagement.Tests
 
             public Task DeleteManyAsync(string ownerId, IList<Guid> ids) =>
                 throw new NotImplementedException();
+        }
+
+        private sealed class RecordingTodoService : ITodoService
+        {
+            public Guid? LastEditId { get; private set; }
+
+            public DateTimeOffset? LastDueAtLocal { get; private set; }
+
+            public Task<TodoWidgetResult> GetWidgetAsync(string ownerId, int take = 20) =>
+                Task.FromResult(new TodoWidgetResult());
+
+            public Task<TodoItem> CreateAsync(string ownerId, string title, DateTimeOffset? dueAtLocal = null, TodoPriority priority = TodoPriority.Normal, bool pinned = false) =>
+                throw new NotImplementedException();
+
+            public Task<bool> ToggleDoneAsync(string ownerId, Guid id, bool done) =>
+                throw new NotImplementedException();
+
+            public Task<bool> EditAsync(string ownerId, Guid id, string? title = null, DateTimeOffset? dueAtLocal = null, TodoPriority? priority = null, bool? pinned = null)
+            {
+                LastEditId = id;
+                LastDueAtLocal = dueAtLocal;
+                return Task.FromResult(true);
+            }
+
+            public Task<bool> DeleteAsync(string ownerId, Guid id) =>
+                throw new NotImplementedException();
+
+            public Task<int> ClearCompletedAsync(string ownerId) =>
+                throw new NotImplementedException();
+
+            public Task<bool> ReorderAsync(string ownerId, IList<Guid> orderedIds) =>
+                throw new NotImplementedException();
+
+            public Task MarkDoneAsync(string ownerId, IList<Guid> ids) =>
+                throw new NotImplementedException();
+
+            public Task DeleteManyAsync(string ownerId, IList<Guid> ids) =>
+                throw new NotImplementedException();
+        }
+
+        private sealed class TestableIndexModel : IndexModel
+        {
+            private readonly DateTimeOffset _nowIst;
+
+            public TestableIndexModel(ITodoService todo, UserManager<ApplicationUser> users, ApplicationDbContext context, DateTimeOffset nowIst)
+                : base(todo, users, context)
+            {
+                _nowIst = nowIst;
+            }
+
+            internal override DateTimeOffset GetNowIst() => _nowIst;
         }
     }
 }
