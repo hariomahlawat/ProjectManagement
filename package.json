@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "node --test wwwroot/js/projects",
+    "test": "node --test wwwroot/js/projects wwwroot/js/calendar.test.js",
     "lint:views": "./tools/check-views.sh"
   },
   "repository": {

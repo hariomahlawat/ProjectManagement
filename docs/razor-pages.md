@@ -35,6 +35,7 @@ This module summarises the UI components exposed to end users.
   * Prev/next buttons and a dynamic title show the current range.
   * View buttons retain an active state and small screens automatically switch to a list view.
   * Business hours highlight 08:00–18:00 Monday–Saturday and Sundays get a light tint; an empty message appears when no events are visible.
+  * Admin-configured holidays fetched from `/calendar/events/holidays` mark matching cells with the `.pm-holiday` class, tinting the grid with a rose gradient and wrapping the day number in a pill so non-working days stand out.
   * Categories include Visit, Insp, Conference and Other; legacy strings such as "Training" or "TownHall" are mapped to the nearest canonical value and unknown strings default to Other.
   * Local times are respected when editing; all-day events use date-only inputs. Clicking an event pre-fills the form and shows a Delete option, while **New Event** clears any stale data.
   * Saving or moving an event surfaces a toast with an Undo action, and non-editors see a read-only offcanvas with Markdown details and an **Add to My Tasks** button.

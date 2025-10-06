@@ -60,6 +60,7 @@ namespace ProjectManagement.Tests
         }
 
         private record CalendarEventVm(string Id, Guid SeriesId, string Title, DateTimeOffset Start, DateTimeOffset End, bool AllDay, string Category, string? Location, bool IsRecurring, bool IsCelebration, Guid? CelebrationId, string? TaskUrl);
+        private record CalendarHolidayVm(string Date, string Name, bool? SkipWeekends, DateTimeOffset StartUtc, DateTimeOffset EndUtc);
         private record PreferenceVm(bool showCelebrations);
 
         [Fact]
@@ -133,6 +134,36 @@ namespace ProjectManagement.Tests
             var match = Assert.Contains(items!, i => i.SeriesId == ev.Id && i.AllDay && i.Start == start);
             Assert.False(match.IsCelebration);
             Assert.Equal($"/calendar/events/{ev.Id}/task", match.TaskUrl);
+        }
+
+        [Fact]
+        public async Task HolidaysEndpointReturnsConfiguredRowsWithinWindow()
+        {
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                db.Holidays.Add(new ProjectManagement.Models.Scheduling.Holiday
+                {
+                    Date = new DateOnly(2024, 12, 25),
+                    Name = "Founders Day"
+                });
+                await db.SaveChangesAsync();
+            }
+
+            var client = CreateClient("Admin");
+            var start = new DateTimeOffset(new DateTime(2024, 12, 24, 0, 0, 0, DateTimeKind.Utc));
+            var end = new DateTimeOffset(new DateTime(2024, 12, 26, 0, 0, 0, DateTimeKind.Utc));
+            var url = $"/calendar/events/holidays?start={Uri.EscapeDataString(start.UtcDateTime.ToString("o"))}&end={Uri.EscapeDataString(end.UtcDateTime.ToString("o"))}";
+            var response = await client.GetAsync(url);
+            var body = await response.Content.ReadAsStringAsync();
+
+            Assert.True(response.IsSuccessStatusCode, body);
+
+            var items = JsonSerializer.Deserialize<List<CalendarHolidayVm>>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            Assert.NotNull(items);
+            var holiday = Assert.Single(items!);
+            Assert.Equal("Founders Day", holiday.Name);
+            Assert.Equal("2024-12-25", holiday.Date);
         }
 
         [Fact]

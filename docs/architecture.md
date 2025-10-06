@@ -64,6 +64,7 @@ All workers honour `CancellationToken`s and write structured logs so operators c
 The app exposes several API groups in addition to Razor Pages:
 
 - **Calendar (`/calendar/events`)** – CRUD operations guarded by role-based authorization. Supports recurrence rules, Markdown descriptions (sanitised via Markdig + HtmlSanitizer), and range-limited queries to protect the database.【F:Program.cs†L240-L420】
+  - `/calendar/events/holidays` surfaces admin-managed `Holiday` rows, returning ISO dates plus UTC spans for the UI while clamping queries to 400 days and requiring authentication.【F:Program.cs†L492-L534】
 - **Notifications (`/api/notifications`)** – List, count unread, mark read/unread, and mute per project. Responses respect project visibility via `ProjectAccessGuard` and normalise routes for consistent client-side navigation.【F:Program.cs†L500-L615】【F:Services/Notifications/UserNotificationService.cs†L23-L220】
 - **Process templates (`/api/processes/...`)** – Fetch and maintain stage templates and checklist items with row-version checks to prevent conflicting edits. Policies `Checklist.View` and `Checklist.Edit` gate read/write access.【F:Program.cs†L617-L760】
 
