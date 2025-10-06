@@ -2,20 +2,33 @@
 @using ProjectManagement.Helpers
 @model ProjectManagement.Services.TodoWidgetResult
 
+@{
+    var overdueCount = Model?.OverdueCount ?? 0;
+    var dueTodayCount = Model?.DueTodayCount ?? 0;
+    var nextSevenCount = Model?.Next7DaysCount ?? 0;
+    var onTimePercentValue = (Model?.OnTimePercent ?? 0d).ToString("0");
+}
+
 <div class="card shadow-sm todo-widget">
-    <div class="card-header d-flex align-items-center justify-content-between py-2">
-        <span class="fw-semibold">My Tasks</span>
-        <div class="d-flex align-items-center gap-2 small">
-            @if (Model?.OverdueCount > 0)
-            {
-                <span class="badge bg-warning text-dark" title="Overdue">@Model.OverdueCount</span>
-            }
-            @if (Model?.DueTodayCount > 0)
-            {
-                <span class="badge bg-info text-dark" title="Due today">@Model.DueTodayCount</span>
-            }
-            <a asp-page="/Tasks/Index" class="text-decoration-none">View all</a>
+    <div class="card-header mission-panel__header d-flex flex-wrap align-items-center justify-content-between gap-3 py-2">
+        <div class="d-flex flex-wrap align-items-center gap-3">
+            <span class="mission-panel__title fw-semibold">To-Do</span>
+            <div class="mission-panel__kpis d-flex align-items-center gap-2 flex-wrap small">
+                <span class="mission-panel__kpi badge rounded-pill bg-warning text-dark text-nowrap" title="Overdue tasks">
+                    <span class="mission-panel__kpi-label">Overdue</span>
+                    <span class="mission-panel__kpi-value ms-1 fw-semibold">@overdueCount</span>
+                </span>
+                <span class="mission-panel__kpi badge rounded-pill bg-info text-dark text-nowrap" title="Due today">
+                    <span class="mission-panel__kpi-label">Due today</span>
+                    <span class="mission-panel__kpi-value ms-1 fw-semibold">@dueTodayCount</span>
+                </span>
+                <span class="mission-panel__kpi badge rounded-pill bg-primary text-white text-nowrap" title="Due in the next 7 days">
+                    <span class="mission-panel__kpi-label">Next 7 days</span>
+                    <span class="mission-panel__kpi-value ms-1 fw-semibold">@nextSevenCount</span>
+                </span>
+            </div>
         </div>
+        <a asp-page="/Tasks/Index" class="mission-panel__link text-decoration-none small fw-semibold">Open list</a>
     </div>
 
     <div class="card-body">
@@ -30,6 +43,10 @@
         }
         else
         {
+            <div class="mission-ring mb-3" data-percent="@onTimePercentValue">
+                <span class="mission-ring__value">@onTimePercentValue%</span>
+                <span class="mission-ring__caption text-muted">On-time completion</span>
+            </div>
             <ul class="list-group list-group-flush todo-list pm-scroll">
                 @foreach (var t in Model.Items)
                 {
@@ -40,7 +57,8 @@
                         TodoPriority.High => "todo-dot-high",
                         _ => "todo-dot-normal"
                     };
-                    <li class="list-group-item d-flex align-items-center justify-content-between py-1 todo-row @(t.Status == TodoStatus.Done ? "done" : "")">
+                    var status = t.Status == TodoStatus.Done ? "done" : "open";
+                    <li class="list-group-item d-flex align-items-center justify-content-between py-1 todo-row @(t.Status == TodoStatus.Done ? "done" : "")" data-priority="@t.Priority" data-status="@status">
                         <div class="d-flex align-items-center gap-2">
                             <form method="post" asp-page="/Dashboard/Index" asp-page-handler="Toggle" class="m-0 p-0">
                                 @Html.AntiForgeryToken()
