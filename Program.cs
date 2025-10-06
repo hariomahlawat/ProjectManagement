@@ -358,9 +358,82 @@ app.MapHub<NotificationsHub>("/hubs/notifications")
 // Calendar API endpoints
 var eventsApi = app.MapGroup("/calendar/events");
 
+record CalendarEventVm(
+    string Id,
+    Guid SeriesId,
+    string Title,
+    DateTimeOffset Start,
+    DateTimeOffset End,
+    bool AllDay,
+    string Category,
+    string? Location,
+    bool IsRecurring,
+    bool IsCelebration,
+    Guid? CelebrationId,
+    string? TaskUrl);
+
+static IEnumerable<CalendarEventVm> BuildCelebrationOccurrences(
+    IEnumerable<Celebration> celebrations,
+    DateTimeOffset windowStart,
+    DateTimeOffset windowEnd)
+{
+    var tz = IstClock.TimeZone;
+    var startLocalDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(windowStart, tz).DateTime);
+
+    foreach (var celebration in celebrations)
+    {
+        var occurrenceDate = CelebrationHelpers.NextOccurrenceLocal(celebration, startLocalDate);
+        var attempts = 0;
+
+        while (attempts < 3)
+        {
+            var startLocal = CelebrationHelpers.ToLocalDateTime(occurrenceDate);
+            var endLocal = CelebrationHelpers.ToLocalDateTime(occurrenceDate.AddDays(1));
+            var startUtc = startLocal.ToUniversalTime();
+            var endUtc = endLocal.ToUniversalTime();
+
+            if (startUtc >= windowEnd)
+            {
+                break;
+            }
+
+            if (endUtc > windowStart)
+            {
+                var titlePrefix = celebration.EventType switch
+                {
+                    CelebrationType.Birthday => "Birthday",
+                    CelebrationType.Anniversary => "Anniversary",
+                    _ => celebration.EventType.ToString()
+                };
+
+                yield return new CalendarEventVm(
+                    id: $"celebration-{celebration.Id:N}-{occurrenceDate:yyyyMMdd}",
+                    seriesId: celebration.Id,
+                    title: $"{titlePrefix}: {CelebrationHelpers.DisplayName(celebration)}",
+                    start: startUtc,
+                    end: endUtc,
+                    allDay: true,
+                    category: "Celebration",
+                    location: null,
+                    isRecurring: true,
+                    isCelebration: true,
+                    celebrationId: celebration.Id,
+                    taskUrl: $"/calendar/events/celebrations/{celebration.Id}/task");
+            }
+
+            var nextSearch = occurrenceDate.AddDays(1);
+            occurrenceDate = CelebrationHelpers.NextOccurrenceLocal(celebration, nextSearch);
+            attempts++;
+        }
+    }
+}
+
 eventsApi.MapGet("", async (ApplicationDbContext db,
+                             UserManager<ApplicationUser> users,
+                             ClaimsPrincipal user,
                              [FromQuery(Name = "start")] DateTimeOffset start,
-                             [FromQuery(Name = "end")]   DateTimeOffset end) =>
+                             [FromQuery(Name = "end")]   DateTimeOffset end,
+                             [FromQuery(Name = "includeCelebrations")] bool? includeCelebrations) =>
 {
     // Guard against huge windows
     if ((end - start).TotalDays > 400)
@@ -371,7 +444,7 @@ eventsApi.MapGet("", async (ApplicationDbContext db,
                (e.RecurrenceRule != null || (e.StartUtc < end && e.EndUtc > start)))
         .ToListAsync();
 
-    var list = new List<object>();
+    var list = new List<CalendarEventVm>();
     foreach (var ev in rows)
     {
         IEnumerable<RecurrenceExpander.Occ> occs;
@@ -380,23 +453,49 @@ eventsApi.MapGet("", async (ApplicationDbContext db,
 
         foreach (var o in occs)
         {
-            list.Add(new
-            {
-                id = o.InstanceId,
-                seriesId = ev.Id,
-                title = ev.Title,
-                start = o.Start,
-                end   = o.End,
-                allDay = ev.IsAllDay,
-                category = ev.Category.ToString(),
-                location = ev.Location,
-                isRecurring = !string.IsNullOrWhiteSpace(ev.RecurrenceRule)
-            });
+            list.Add(new CalendarEventVm(
+                Id: o.InstanceId,
+                SeriesId: ev.Id,
+                Title: ev.Title,
+                Start: o.Start,
+                End: o.End,
+                AllDay: ev.IsAllDay,
+                Category: ev.Category.ToString(),
+                Location: ev.Location,
+                IsRecurring: !string.IsNullOrWhiteSpace(ev.RecurrenceRule),
+                IsCelebration: false,
+                CelebrationId: null,
+                TaskUrl: $"/calendar/events/{ev.Id}/task"));
         }
     }
 
+    bool shouldIncludeCelebrations;
+    if (includeCelebrations.HasValue)
+    {
+        shouldIncludeCelebrations = includeCelebrations.Value;
+    }
+    else
+    {
+        var currentUser = await users.GetUserAsync(user);
+        shouldIncludeCelebrations = currentUser?.ShowCelebrationsInCalendar ?? true;
+    }
+
+    if (shouldIncludeCelebrations)
+    {
+        var celebrations = await db.Celebrations
+            .AsNoTracking()
+            .Where(c => c.DeletedUtc == null)
+            .ToListAsync();
+        list.AddRange(BuildCelebrationOccurrences(celebrations, start, end));
+    }
+
     // sort by start
-    return Results.Ok(list.OrderBy(x => ((DateTimeOffset)x.GetType().GetProperty("start")!.GetValue(x)!)));
+    var ordered = list
+        .OrderBy(x => x.Start)
+        .ThenBy(x => x.Title, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    return Results.Ok(ordered);
 }).RequireAuthorization();
 
 eventsApi.MapGet("/{id:guid}", async (Guid id, ApplicationDbContext db) =>
@@ -1201,6 +1300,27 @@ eventsApi.MapPost("/{id:guid}/task", async (Guid id, ApplicationDbContext db, IT
     if (ev == null) return Results.NotFound();
     var userId = users.GetUserId(user);
     await todos.CreateAsync(userId!, ev.Title, TimeZoneInfo.ConvertTime(ev.StartUtc, IstClock.TimeZone));
+    return Results.Ok();
+}).RequireAuthorization();
+
+eventsApi.MapPost("/celebrations/{id:guid}/task", async (Guid id,
+                                                        ApplicationDbContext db,
+                                                        ITodoService todos,
+                                                        UserManager<ApplicationUser> users,
+                                                        ClaimsPrincipal user) =>
+{
+    var userId = users.GetUserId(user);
+    if (string.IsNullOrEmpty(userId)) return Results.Unauthorized();
+
+    var celebration = await db.Celebrations.FirstOrDefaultAsync(x => x.Id == id && x.DeletedUtc == null);
+    if (celebration == null) return Results.NotFound();
+
+    var ist = IstClock.TimeZone;
+    var nowLocal = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, ist);
+    var today = DateOnly.FromDateTime(nowLocal.DateTime);
+    var next = CelebrationHelpers.NextOccurrenceLocal(celebration, today);
+    var dueLocal = CelebrationHelpers.ToLocalDateTime(next);
+    await todos.CreateAsync(userId, $"Wish {CelebrationHelpers.DisplayName(celebration)}", dueLocal);
     return Results.Ok();
 }).RequireAuthorization();
 
