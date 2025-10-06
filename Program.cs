@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Threading.RateLimiting;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using Npgsql;
@@ -482,6 +483,56 @@ eventsApi.MapGet("", async (ApplicationDbContext db,
         .ToList();
 
     return Results.Ok(ordered);
+}).RequireAuthorization();
+
+eventsApi.MapGet("/holidays", async (
+        ApplicationDbContext db,
+        [FromQuery(Name = "start")] DateTimeOffset start,
+        [FromQuery(Name = "end")] DateTimeOffset end) =>
+{
+    if (end < start)
+    {
+        return Results.BadRequest("End must be on or after start.");
+    }
+
+    if ((end - start).TotalDays > 400)
+    {
+        end = start.AddDays(400);
+    }
+
+    var tz = IstClock.TimeZone;
+
+    var localStart = TimeZoneInfo.ConvertTime(start, tz);
+    var localEnd = TimeZoneInfo.ConvertTime(end, tz);
+
+    var startDate = DateOnly.FromDateTime(localStart.Date);
+    var endDate = DateOnly.FromDateTime(localEnd.Date);
+
+    var holidays = await db.Holidays
+        .AsNoTracking()
+        .Where(h => h.Date >= startDate && h.Date <= endDate)
+        .OrderBy(h => h.Date)
+        .ToListAsync();
+
+    var items = holidays
+        .Select(h =>
+        {
+            var holidayStartLocal = h.Date.ToDateTime(TimeOnly.MinValue);
+            var holidayEndLocal = h.Date.AddDays(1).ToDateTime(TimeOnly.MinValue);
+
+            var startLocalOffset = new DateTimeOffset(holidayStartLocal, tz.GetUtcOffset(holidayStartLocal));
+            var endLocalOffset = new DateTimeOffset(holidayEndLocal, tz.GetUtcOffset(holidayEndLocal));
+
+            return new CalendarHolidayVm(
+                Date: h.Date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                Name: h.Name,
+                SkipWeekends: null,
+                StartUtc: startLocalOffset.ToUniversalTime(),
+                EndUtc: endLocalOffset.ToUniversalTime());
+        })
+        .ToList();
+
+    return Results.Ok(items);
 }).RequireAuthorization();
 
 eventsApi.MapGet("/{id:guid}", async (Guid id, ApplicationDbContext db) =>
@@ -1767,5 +1818,12 @@ record CalendarEventVm(
     bool IsCelebration,
     Guid? CelebrationId,
     string? TaskUrl);
+
+record CalendarHolidayVm(
+    string Date,
+    string Name,
+    bool? SkipWeekends,
+    DateTimeOffset StartUtc,
+    DateTimeOffset EndUtc);
 
 public partial class Program { }
