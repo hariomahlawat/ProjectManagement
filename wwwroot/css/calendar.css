@@ -88,6 +88,33 @@
   border-color: var(--pm-br);
 }
 
+/* BIRTHDAY — pink */
+.fc-event.pm-cat-birthday {
+  --pm-bg: #fce7f3;
+  --pm-fg: #831843;
+  --pm-br: #ec4899;
+  background: var(--pm-bg);
+  border-color: var(--pm-br);
+}
+
+/* ANNIVERSARY — teal */
+.fc-event.pm-cat-anniversary {
+  --pm-bg: #ccfbf1;
+  --pm-fg: #115e59;
+  --pm-br: #14b8a6;
+  background: var(--pm-bg);
+  border-color: var(--pm-br);
+}
+
+/* CELEBRATION (fallback) */
+.fc-event.pm-cat-celebration {
+  --pm-bg: #fdf2f8;
+  --pm-fg: #9d174d;
+  --pm-br: #f472b6;
+  background: var(--pm-bg);
+  border-color: var(--pm-br);
+}
+
 /* OTHER — slate */
 .fc-event.pm-cat-other {
   --pm-bg: #f1f5f9;
@@ -116,6 +143,8 @@
 #categoryFilters .btn[data-cat="Visit"]::before      { content:"• "; color:#0ea5e9; }
 #categoryFilters .btn[data-cat="Insp"]::before       { content:"• "; color:#f59e0b; }
 #categoryFilters .btn[data-cat="Conference"]::before { content:"• "; color:#8b5cf6; }
+#categoryFilters .btn[data-cat="Birthday"]::before   { content:"• "; color:#ec4899; }
+#categoryFilters .btn[data-cat="Anniversary"]::before{ content:"• "; color:#14b8a6; }
 #categoryFilters .btn[data-cat="Other"]::before      { content:"• "; color:#94a3b8; }
 
 /* Legend dots */
@@ -129,6 +158,9 @@
 .legend-dot.pm-cat-visit      { background:#0ea5e9; }
 .legend-dot.pm-cat-insp       { background:#f59e0b; }
 .legend-dot.pm-cat-conference { background:#8b5cf6; }
+.legend-dot.pm-cat-birthday   { background:#ec4899; }
+.legend-dot.pm-cat-anniversary{ background:#14b8a6; }
+.legend-dot.pm-cat-celebration{ background:#f472b6; }
 .legend-dot.pm-cat-other      { background:#94a3b8; }
 
 .fc-event.pm-recurring::after {
