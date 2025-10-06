@@ -50,6 +50,20 @@ using ProjectManagement.Services.Navigation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 
+record CalendarEventVm(
+    string Id,
+    Guid SeriesId,
+    string Title,
+    DateTimeOffset Start,
+    DateTimeOffset End,
+    bool AllDay,
+    string Category,
+    string? Location,
+    bool IsRecurring,
+    bool IsCelebration,
+    Guid? CelebrationId,
+    string? TaskUrl);
+
 var runForecastBackfill = args.Any(a => string.Equals(a, "--backfill-forecast", StringComparison.OrdinalIgnoreCase));
 
 var builder = WebApplication.CreateBuilder(args);
@@ -358,20 +372,6 @@ app.MapHub<NotificationsHub>("/hubs/notifications")
 // Calendar API endpoints
 var eventsApi = app.MapGroup("/calendar/events");
 
-record CalendarEventVm(
-    string Id,
-    Guid SeriesId,
-    string Title,
-    DateTimeOffset Start,
-    DateTimeOffset End,
-    bool AllDay,
-    string Category,
-    string? Location,
-    bool IsRecurring,
-    bool IsCelebration,
-    Guid? CelebrationId,
-    string? TaskUrl);
-
 static IEnumerable<CalendarEventVm> BuildCelebrationOccurrences(
     IEnumerable<Celebration> celebrations,
     DateTimeOffset windowStart,
@@ -407,18 +407,18 @@ static IEnumerable<CalendarEventVm> BuildCelebrationOccurrences(
                 };
 
                 yield return new CalendarEventVm(
-                    id: $"celebration-{celebration.Id:N}-{occurrenceDate:yyyyMMdd}",
-                    seriesId: celebration.Id,
-                    title: $"{titlePrefix}: {CelebrationHelpers.DisplayName(celebration)}",
-                    start: startUtc,
-                    end: endUtc,
-                    allDay: true,
-                    category: "Celebration",
-                    location: null,
-                    isRecurring: true,
-                    isCelebration: true,
-                    celebrationId: celebration.Id,
-                    taskUrl: $"/calendar/events/celebrations/{celebration.Id}/task");
+                    Id: $"celebration-{celebration.Id:N}-{occurrenceDate:yyyyMMdd}",
+                    SeriesId: celebration.Id,
+                    Title: $"{titlePrefix}: {CelebrationHelpers.DisplayName(celebration)}",
+                    Start: startUtc,
+                    End: endUtc,
+                    AllDay: true,
+                    Category: "Celebration",
+                    Location: null,
+                    IsRecurring: true,
+                    IsCelebration: true,
+                    CelebrationId: celebration.Id,
+                    TaskUrl: $"/calendar/events/celebrations/{celebration.Id}/task");
             }
 
             var nextSearch = occurrenceDate.AddDays(1);
