@@ -43,6 +43,21 @@
   };
   let activeCategory = "";
 
+  const holidayMap = new Map();
+  let holidayRangeKey = '';
+  let holidayFetchController = null;
+  let holidayErrorShown = false;
+  let calendar = null;
+
+  const getIsoDate = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string') {
+      return value.slice(0, 10);
+    }
+    const d = value instanceof Date ? value : new Date(value);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+
   // helpers
   const pad = (n) => String(n).padStart(2,'0');
   const toLocalInputValue = (d) => {
@@ -63,6 +78,118 @@
   const formatDisplayDateTime = (date) => {
     const d = date instanceof Date ? date : new Date(date);
     return `${formatDisplayDate(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const buildHolidayTooltip = (meta) => {
+    const name = meta?.name || meta?.Name || '';
+    return name ? `Holiday: ${name}` : 'Holiday';
+  };
+
+  const buildHolidayAria = (iso, meta) => {
+    const labelDate = formatDisplayDate(`${iso}T00:00:00`);
+    const tooltip = buildHolidayTooltip(meta);
+    return `${labelDate} — ${tooltip}`;
+  };
+
+  const decorateHolidayCell = (el, iso) => {
+    if (!el) return;
+    const meta = iso ? holidayMap.get(iso) : null;
+    if (meta) {
+      el.classList.add('pm-holiday');
+      el.setAttribute('data-pm-holiday-active', '1');
+    } else if (el.getAttribute('data-pm-holiday-active')) {
+      el.classList.remove('pm-holiday');
+      el.removeAttribute('data-pm-holiday-active');
+    } else {
+      el.classList.remove('pm-holiday');
+    }
+  };
+
+  const decorateHolidayLabelElement = (el, iso) => {
+    if (!el) return;
+    const meta = iso ? holidayMap.get(iso) : null;
+    if (meta) {
+      if (!el.hasAttribute('data-pm-holiday-orig-title') && el.hasAttribute('title')) {
+        el.setAttribute('data-pm-holiday-orig-title', el.getAttribute('title'));
+      }
+      if (!el.hasAttribute('data-pm-holiday-orig-aria') && el.hasAttribute('aria-label')) {
+        el.setAttribute('data-pm-holiday-orig-aria', el.getAttribute('aria-label'));
+      }
+      const tooltip = buildHolidayTooltip(meta);
+      const baseAria = el.getAttribute('data-pm-holiday-orig-aria');
+      const aria = baseAria ? `${baseAria}. ${tooltip}` : buildHolidayAria(iso, meta);
+      el.setAttribute('title', tooltip);
+      el.setAttribute('aria-label', aria);
+      el.setAttribute('data-pm-holiday-label', '1');
+    } else if (el.getAttribute('data-pm-holiday-label')) {
+      const origTitle = el.getAttribute('data-pm-holiday-orig-title');
+      if (origTitle !== null) el.setAttribute('title', origTitle);
+      else el.removeAttribute('title');
+      const origAria = el.getAttribute('data-pm-holiday-orig-aria');
+      if (origAria !== null) el.setAttribute('aria-label', origAria);
+      else el.removeAttribute('aria-label');
+      el.removeAttribute('data-pm-holiday-label');
+    }
+  };
+
+  const decorateDayCellElement = (el, iso) => {
+    if (!el || !iso) return;
+    decorateHolidayCell(el, iso);
+    decorateHolidayLabelElement(el, iso);
+    const numberEl = el.querySelector?.('.fc-daygrid-day-number');
+    if (numberEl) decorateHolidayLabelElement(numberEl, iso);
+    const frameEl = el.querySelector?.('.fc-daygrid-day-frame');
+    if (frameEl) decorateHolidayCell(frameEl, iso);
+  };
+
+  const decorateHeaderCellElement = (el, iso) => {
+    if (!el || !iso) return;
+    decorateHolidayCell(el, iso);
+    const cushion = el.querySelector?.('.fc-col-header-cell-cushion');
+    if (cushion) decorateHolidayLabelElement(cushion, iso);
+    else decorateHolidayLabelElement(el, iso);
+  };
+
+  const renderHolidayListBadges = () => {
+    const isListView = (calendar?.view?.type || '').startsWith('list');
+    calendarEl.querySelectorAll('.pm-holiday-badge').forEach(badge => badge.remove());
+    calendarEl.querySelectorAll('.fc-list-day').forEach(row => {
+      const iso = getIsoDate(row.getAttribute('data-date'));
+      const meta = iso ? holidayMap.get(iso) : null;
+      decorateHolidayCell(row, iso);
+      const cushion = row.querySelector('.fc-list-day-cushion');
+      if (cushion) {
+        decorateHolidayCell(cushion, iso);
+        decorateHolidayLabelElement(cushion, iso);
+        const textEl = cushion.querySelector('.fc-list-day-text');
+        if (textEl) decorateHolidayLabelElement(textEl, iso);
+      }
+      if (!isListView || !meta || !cushion) return;
+      const label = buildHolidayTooltip(meta);
+      const badge = document.createElement('span');
+      badge.className = 'pm-holiday-badge';
+      badge.textContent = label;
+      badge.setAttribute('aria-label', label);
+      cushion.appendChild(badge);
+    });
+  };
+
+  const refreshHolidayHighlights = () => {
+    calendarEl.querySelectorAll('.fc-daygrid-day').forEach(cell => {
+      const iso = getIsoDate(cell.getAttribute('data-date'));
+      decorateDayCellElement(cell, iso);
+    });
+    calendarEl.querySelectorAll('.fc-timegrid-col[data-date]').forEach(col => {
+      const iso = getIsoDate(col.getAttribute('data-date'));
+      decorateHolidayCell(col, iso);
+      const frame = col.querySelector('.fc-timegrid-col-frame');
+      if (frame) decorateHolidayCell(frame, iso);
+    });
+    calendarEl.querySelectorAll('.fc-col-header-cell[data-date]').forEach(cell => {
+      const iso = getIsoDate(cell.getAttribute('data-date'));
+      decorateHeaderCellElement(cell, iso);
+    });
+    renderHolidayListBadges();
   };
 
   // cache form elements
@@ -220,6 +347,14 @@
       startTime: '08:00',
       endTime: '18:00'
     },
+    dayCellDidMount(info) {
+      const iso = getIsoDate(info.dateStr || info.date);
+      if (iso) decorateDayCellElement(info.el, iso);
+    },
+    dayHeaderDidMount(info) {
+      const iso = getIsoDate(info.date);
+      if (iso) decorateHeaderCellElement(info.el, iso);
+    },
     eventSources: [{
       id: 'primary',
       url: '/calendar/events',
@@ -266,9 +401,10 @@
   // Only add `plugins` if we actually detected any.
   if (pluginList.length) opts.plugins = pluginList;
 
-  const calendar = new Calendar(calendarEl, opts);
+  calendar = new Calendar(calendarEl, opts);
 
   const CELEBRATIONS_ENDPOINT = '/calendar/events/celebrations';
+  const HOLIDAYS_ENDPOINT = '/calendar/events/holidays';
   let celebrationSource = null;
 
   async function loadCelebrationEvents(info) {
@@ -303,6 +439,21 @@
     }
   }
 
+  async function loadHolidayEvents(info, signal) {
+    const params = new URLSearchParams({
+      start: info.startStr,
+      end: info.endStr
+    });
+    const res = await fetch(`${HOLIDAYS_ENDPOINT}?${params}`, { signal });
+    if (!res.ok) {
+      const error = new Error(`Holidays feed failed: ${res.status}`);
+      error.status = res.status;
+      throw error;
+    }
+    const data = await res.json().catch(() => []);
+    return Array.isArray(data) ? data : [];
+  }
+
   function createCelebrationsSourceConfig() {
     return {
       id: 'celebrations',
@@ -335,6 +486,51 @@
     } else if (celebrationSource) {
       celebrationSource.remove();
       celebrationSource = null;
+    }
+  }
+
+  async function refreshHolidayEvents(info) {
+    const key = `${info.startStr}|${info.endStr}`;
+    if (key === holidayRangeKey) {
+      refreshHolidayHighlights();
+      return;
+    }
+
+    if (holidayFetchController) {
+      holidayFetchController.abort();
+    }
+    const controller = new AbortController();
+    holidayFetchController = controller;
+
+    try {
+      const items = await loadHolidayEvents(info, controller.signal);
+      if (controller.signal.aborted) return;
+      holidayMap.clear();
+      items.forEach(item => {
+        const iso = getIsoDate(item?.date || item?.Date);
+        if (!iso) return;
+        holidayMap.set(iso, {
+          name: item?.name || item?.Name || '',
+          skipWeekends: item?.skipWeekends ?? item?.SkipWeekends ?? null,
+          startUtc: item?.startUtc || item?.StartUtc || null,
+          endUtc: item?.endUtc || item?.EndUtc || null
+        });
+      });
+      holidayRangeKey = key;
+      refreshHolidayHighlights();
+      updateCounts();
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      console.error('Holidays feed failed', err);
+      if (!holidayErrorShown) {
+        alert('Couldn\u2019t load holidays. See console/Network.');
+        holidayErrorShown = true;
+      }
+      holidayRangeKey = '';
+    } finally {
+      if (holidayFetchController === controller) {
+        holidayFetchController = null;
+      }
     }
   }
 
@@ -386,6 +582,7 @@
     if (lblTitle) lblTitle.textContent = calendar.view?.title || '';
   }
   calendar.on('datesSet', updateTitle);
+  calendar.on('datesSet', refreshHolidayEvents);
 
   // empty state handling
   const emptyEl = document.createElement('div');
@@ -401,6 +598,7 @@
   }
   calendar.on('eventsSet', updateEmptyState);
   calendar.on('datesSet', () => setTimeout(updateEmptyState, 0));
+  calendar.on('eventsSet', () => setTimeout(refreshHolidayHighlights, 0));
 
   // render calendar
   calendar.render();
@@ -477,10 +675,13 @@
     const legend = document.getElementById('categoryLegend');
     if (legend) {
       const legendCats = [...baseCategories, ...Object.keys(counts).filter(cat => !baseCategories.includes(cat))];
-      legend.innerHTML = legendCats.map(cat => {
+      let html = legendCats.map(cat => {
         const n = counts[cat] || 0;
         return `<span class="me-3"><span class="legend-dot pm-cat-${cat.toLowerCase()}"></span>${cat} (${n})</span>`;
       }).join('');
+      const holidayCount = holidayMap.size;
+      html += `<span class="me-3"><span class="legend-dot pm-holiday"></span>Holiday (${holidayCount})</span>`;
+      legend.innerHTML = html;
     }
   }
   calendar.on('eventsSet', updateCounts);
