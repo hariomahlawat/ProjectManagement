@@ -1365,12 +1365,7 @@ h6:first-child {
 .todo-list .list-group-item { padding: .35rem .6rem; }
 .todo-actions .btn { padding: 0; width: var(--pm-btn-icon); height: var(--pm-btn-icon); display: inline-flex; align-items: center; justify-content: center; }
 
-/* Celebrations widget */
-.cele-dot { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:.5rem; }
-.cele-dot-birthday { background:#d63384; }
-.cele-dot-anniversary { background:#20c997; }
-
-/* Scroll area for the widget list (you already use .pm-scroll) */
+/* Scroll area helper for dashboard widgets */
 .pm-scroll{ max-height:340px; overflow:auto }
 
 /* Priority dots */
