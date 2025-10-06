@@ -249,10 +249,12 @@ namespace ProjectManagement.Pages.Dashboard
             var uid = _users.GetUserId(User);
             if (uid == null) return Unauthorized();
 
+            var nowIst = GetNowIst();
+
             DateTimeOffset? dueLocal = preset switch
             {
                 "today_pm" => NextOccurrenceTodayOrTomorrow(18, 0),          // Today 6 PM or tomorrow if passed
-                "tom_am"   => NextOccurrenceTodayOrTomorrow(10, 0).AddDays(1),
+                "tom_am"   => new DateTimeOffset(nowIst.Date.AddDays(1).AddHours(10), nowIst.Offset),
                 "next_mon" => NextMondayAt(10, 0),
                 "clear"    => null,
                 _          => null
@@ -267,6 +269,9 @@ namespace ProjectManagement.Pages.Dashboard
             }
             return RedirectToPage();
         }
+
+        internal virtual DateTimeOffset GetNowIst() =>
+            TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IST);
 
         private static DateTimeOffset NextOccurrenceTodayOrTomorrow(int h, int m)
         {
