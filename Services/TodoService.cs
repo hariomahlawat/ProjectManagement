@@ -37,18 +37,29 @@ namespace ProjectManagement.Services
         public async Task<TodoWidgetResult> GetWidgetAsync(string ownerId, int take = 20)
         {
             var nowUtc = _clock.UtcNow;
-            var nowLocal = TimeZoneInfo.ConvertTime(nowUtc, Ist);
-            var startOfTodayLocal = nowLocal.Date;
-            var endOfTodayLocal = startOfTodayLocal.AddDays(1);
-            var startOfTodayUtc = TimeZoneInfo.ConvertTime(new DateTimeOffset(startOfTodayLocal, nowLocal.Offset), TimeZoneInfo.Utc);
-            var endOfTodayUtc = TimeZoneInfo.ConvertTime(new DateTimeOffset(endOfTodayLocal, nowLocal.Offset), TimeZoneInfo.Utc);
+            var nowIst = TimeZoneInfo.ConvertTime(nowUtc, Ist);
+            var startOfTodayIst = nowIst.Date;
+            var startOfTomorrowIst = startOfTodayIst.AddDays(1);
+            var startOfTomorrowUtc = TimeZoneInfo.ConvertTime(new DateTimeOffset(startOfTomorrowIst, nowIst.Offset), TimeZoneInfo.Utc);
+            var startOfNextSevenUtc = TimeZoneInfo.ConvertTime(new DateTimeOffset(startOfTomorrowIst.AddDays(7), nowIst.Offset), TimeZoneInfo.Utc);
+            var completedWindowStartUtc = nowUtc.AddDays(-14);
 
             var baseQuery = _db.TodoItems.AsNoTracking()
                 .Where(x => x.OwnerId == ownerId && x.Status == TodoStatus.Open && x.DeletedUtc == null);
 
             var dueQuery = baseQuery.Where(x => x.DueAtUtc != null);
             var overdueCount = await dueQuery.CountAsync(t => t.DueAtUtc < nowUtc);
-            var dueTodayCount = await dueQuery.CountAsync(t => t.DueAtUtc >= nowUtc && t.DueAtUtc < endOfTodayUtc);
+            var dueTodayCount = await dueQuery.CountAsync(t => t.DueAtUtc >= nowUtc && t.DueAtUtc < startOfTomorrowUtc);
+            var nextSevenCount = await dueQuery.CountAsync(t => t.DueAtUtc >= startOfTomorrowUtc && t.DueAtUtc < startOfNextSevenUtc);
+
+            var recentCompletions = await _db.TodoItems.AsNoTracking()
+                .Where(x => x.OwnerId == ownerId && x.CompletedUtc != null && x.CompletedUtc >= completedWindowStartUtc && x.DeletedUtc == null)
+                .Select(x => new { x.CompletedUtc, x.DueAtUtc })
+                .ToListAsync();
+
+            var completedCount = recentCompletions.Count;
+            var onTimeCount = recentCompletions.Count(x => x.DueAtUtc == null || x.CompletedUtc <= x.DueAtUtc);
+            var onTimePercent = completedCount == 0 ? 0 : (double)onTimeCount / completedCount * 100;
 
             var items = await baseQuery
                 .OrderByDescending(x => x.IsPinned)
@@ -63,7 +74,9 @@ namespace ProjectManagement.Services
             {
                 Items = items,
                 OverdueCount = overdueCount,
-                DueTodayCount = dueTodayCount
+                DueTodayCount = dueTodayCount,
+                Next7DaysCount = nextSevenCount,
+                OnTimePercent = onTimePercent
             };
         }
 

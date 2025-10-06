@@ -221,6 +221,134 @@ namespace ProjectManagement.Tests
         }
 
         [Fact]
+        public async Task WidgetCountsNextSevenDaysUsingIst()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var now = new DateTimeOffset(2023, 1, 1, 11, 30, 0, TimeSpan.Zero); // 17:00 IST
+            var clock = new FakeClock(now);
+            var service = new TodoService(context, audit, clock);
+
+            await service.CreateAsync("alice", "Today", new DateTimeOffset(2023, 1, 1, 23, 0, 0, TimeSpan.FromHours(5.5)));
+            await service.CreateAsync("alice", "Tomorrow", new DateTimeOffset(2023, 1, 2, 0, 30, 0, TimeSpan.FromHours(5.5)));
+            await service.CreateAsync("alice", "Seventh", new DateTimeOffset(2023, 1, 8, 23, 0, 0, TimeSpan.FromHours(5.5)));
+            await service.CreateAsync("alice", "Eighth", new DateTimeOffset(2023, 1, 9, 0, 0, 0, TimeSpan.FromHours(5.5)));
+
+            var result = await service.GetWidgetAsync("alice");
+
+            Assert.Equal(1, result.DueTodayCount);
+            Assert.Equal(2, result.Next7DaysCount);
+            Assert.Equal("Today", TodoViewHelpers.DueBadge(result.Items[0].DueAtUtc, now));
+        }
+
+        [Fact]
+        public async Task OnTimePercentCountsRecentCompletions()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var now = new DateTimeOffset(2023, 1, 15, 0, 0, 0, TimeSpan.Zero);
+            var clock = new FakeClock(now);
+            var service = new TodoService(context, audit, clock);
+
+            context.TodoItems.AddRange(
+                new TodoItem
+                {
+                    Id = Guid.NewGuid(),
+                    OwnerId = "alice",
+                    Title = "On time",
+                    Status = TodoStatus.Done,
+                    CompletedUtc = new DateTimeOffset(2023, 1, 14, 0, 0, 0, TimeSpan.Zero),
+                    DueAtUtc = new DateTimeOffset(2023, 1, 14, 0, 0, 0, TimeSpan.Zero),
+                    OrderIndex = 0,
+                    CreatedUtc = now.AddDays(-10),
+                    UpdatedUtc = now.AddDays(-1)
+                },
+                new TodoItem
+                {
+                    Id = Guid.NewGuid(),
+                    OwnerId = "alice",
+                    Title = "Late",
+                    Status = TodoStatus.Done,
+                    CompletedUtc = new DateTimeOffset(2023, 1, 13, 0, 0, 0, TimeSpan.Zero),
+                    DueAtUtc = new DateTimeOffset(2023, 1, 12, 0, 0, 0, TimeSpan.Zero),
+                    OrderIndex = 1,
+                    CreatedUtc = now.AddDays(-11),
+                    UpdatedUtc = now.AddDays(-2)
+                },
+                new TodoItem
+                {
+                    Id = Guid.NewGuid(),
+                    OwnerId = "alice",
+                    Title = "No due",
+                    Status = TodoStatus.Done,
+                    CompletedUtc = new DateTimeOffset(2023, 1, 10, 0, 0, 0, TimeSpan.Zero),
+                    DueAtUtc = null,
+                    OrderIndex = 2,
+                    CreatedUtc = now.AddDays(-12),
+                    UpdatedUtc = now.AddDays(-5)
+                },
+                new TodoItem
+                {
+                    Id = Guid.NewGuid(),
+                    OwnerId = "alice",
+                    Title = "Edge",
+                    Status = TodoStatus.Done,
+                    CompletedUtc = new DateTimeOffset(2023, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                    DueAtUtc = new DateTimeOffset(2023, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                    OrderIndex = 3,
+                    CreatedUtc = now.AddDays(-20),
+                    UpdatedUtc = now.AddDays(-14)
+                },
+                new TodoItem
+                {
+                    Id = Guid.NewGuid(),
+                    OwnerId = "alice",
+                    Title = "Old",
+                    Status = TodoStatus.Done,
+                    CompletedUtc = new DateTimeOffset(2022, 12, 31, 0, 0, 0, TimeSpan.Zero),
+                    DueAtUtc = new DateTimeOffset(2022, 12, 30, 0, 0, 0, TimeSpan.Zero),
+                    OrderIndex = 4,
+                    CreatedUtc = now.AddDays(-30),
+                    UpdatedUtc = now.AddDays(-25)
+                });
+
+            await context.SaveChangesAsync();
+
+            var result = await service.GetWidgetAsync("alice");
+
+            Assert.Equal(75d, result.OnTimePercent);
+        }
+
+        [Fact]
+        public async Task OnTimePercentZeroWhenNoRecentCompletions()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var now = new DateTimeOffset(2023, 1, 15, 0, 0, 0, TimeSpan.Zero);
+            var clock = new FakeClock(now);
+            var service = new TodoService(context, audit, clock);
+
+            context.TodoItems.Add(new TodoItem
+            {
+                Id = Guid.NewGuid(),
+                OwnerId = "alice",
+                Title = "Old",
+                Status = TodoStatus.Done,
+                CompletedUtc = new DateTimeOffset(2022, 12, 31, 0, 0, 0, TimeSpan.Zero),
+                DueAtUtc = new DateTimeOffset(2022, 12, 30, 0, 0, 0, TimeSpan.Zero),
+                OrderIndex = 0,
+                CreatedUtc = now.AddDays(-30),
+                UpdatedUtc = now.AddDays(-29)
+            });
+
+            await context.SaveChangesAsync();
+
+            var result = await service.GetWidgetAsync("alice");
+
+            Assert.Equal(0d, result.OnTimePercent);
+        }
+
+        [Fact]
         public async Task DateOnlyTaskDueEndOfDay()
         {
             using var context = CreateContext();
