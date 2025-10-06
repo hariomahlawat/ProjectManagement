@@ -59,12 +59,45 @@ public sealed class UserNotificationService
             query = query.Where(n => n.ProjectId == options.ProjectId);
         }
 
-        query = query.OrderByDescending(n => n.CreatedUtc)
-                     .Take(limit);
+        query = query.OrderByDescending(n => n.ReadUtc == null)
+                     .ThenByDescending(n => n.CreatedUtc);
 
-        var notifications = await query.ToListAsync(cancellationToken);
+        var fetchedNotifications = new List<Notification>(capacity: limit);
+        var accessibleResults = new List<NotificationListItem>();
+        var skip = 0;
+        var batchSize = limit;
 
-        return await ProjectAsync(principal, userId, notifications, cancellationToken);
+        while (accessibleResults.Count < limit)
+        {
+            var batch = await query
+                .Skip(skip)
+                .Take(batchSize)
+                .ToListAsync(cancellationToken);
+
+            if (batch.Count == 0)
+            {
+                break;
+            }
+
+            fetchedNotifications.AddRange(batch);
+            skip += batch.Count;
+
+            accessibleResults = await ProjectAsync(principal, userId, fetchedNotifications, cancellationToken);
+
+            if (batch.Count < batchSize)
+            {
+                break;
+            }
+        }
+
+        if (fetchedNotifications.Count == 0)
+        {
+            return Array.Empty<NotificationListItem>();
+        }
+
+        return accessibleResults.Count <= limit
+            ? accessibleResults
+            : accessibleResults.Take(limit).ToList();
     }
 
     public async Task<IReadOnlyList<NotificationListItem>> ProjectAsync(
