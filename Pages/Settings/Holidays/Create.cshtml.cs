@@ -1,3 +1,4 @@
+using System;
 using System.ComponentModel.DataAnnotations;
 using System.Threading;
 using System.Threading.Tasks;
@@ -22,6 +23,8 @@ public class CreateModel : PageModel
 
     public void OnGet()
     {
+        Input ??= new InputModel();
+        Input.Date = DateOnly.FromDateTime(DateTime.Today);
     }
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
