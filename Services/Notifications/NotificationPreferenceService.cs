@@ -90,6 +90,7 @@ public sealed class NotificationPreferenceService : INotificationPreferenceServi
             NotificationKind.DocumentRestored => NotificationClaimTypes.DocumentEventsOptOut,
             NotificationKind.DocumentDeleted => NotificationClaimTypes.DocumentEventsOptOut,
             NotificationKind.RoleAssignmentsChanged => NotificationClaimTypes.RoleChangesOptOut,
+            NotificationKind.ProjectAssignmentChanged => NotificationClaimTypes.ProjectAssignmentOptOut,
             _ => null
         };
 }
