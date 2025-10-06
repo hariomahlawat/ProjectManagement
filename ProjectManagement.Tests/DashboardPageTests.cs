@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
@@ -58,6 +59,8 @@ namespace ProjectManagement.Tests
             });
             await context.SaveChangesAsync();
 
+            using var serviceProvider = new ServiceCollection().BuildServiceProvider();
+
             var userManager = new UserManager<ApplicationUser>(
                 new UserStore<ApplicationUser>(context),
                 Options.Create(new IdentityOptions()),
@@ -66,7 +69,7 @@ namespace ProjectManagement.Tests
                 Array.Empty<IPasswordValidator<ApplicationUser>>(),
                 new UpperInvariantLookupNormalizer(),
                 new IdentityErrorDescriber(),
-                null,
+                serviceProvider,
                 NullLogger<UserManager<ApplicationUser>>.Instance);
 
             var todo = new StubTodoService();
@@ -115,6 +118,8 @@ namespace ProjectManagement.Tests
             });
             await context.SaveChangesAsync();
 
+            using var serviceProvider = new ServiceCollection().BuildServiceProvider();
+
             var userManager = new UserManager<ApplicationUser>(
                 new UserStore<ApplicationUser>(context),
                 Options.Create(new IdentityOptions()),
@@ -123,7 +128,7 @@ namespace ProjectManagement.Tests
                 Array.Empty<IPasswordValidator<ApplicationUser>>(),
                 new UpperInvariantLookupNormalizer(),
                 new IdentityErrorDescriber(),
-                null,
+                serviceProvider,
                 NullLogger<UserManager<ApplicationUser>>.Instance);
 
             var todo = new StubTodoService();
