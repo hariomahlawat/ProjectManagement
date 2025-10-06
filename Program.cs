@@ -50,20 +50,6 @@ using ProjectManagement.Services.Navigation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 
-record CalendarEventVm(
-    string Id,
-    Guid SeriesId,
-    string Title,
-    DateTimeOffset Start,
-    DateTimeOffset End,
-    bool AllDay,
-    string Category,
-    string? Location,
-    bool IsRecurring,
-    bool IsCelebration,
-    Guid? CelebrationId,
-    string? TaskUrl);
-
 var runForecastBackfill = args.Any(a => string.Equals(a, "--backfill-forecast", StringComparison.OrdinalIgnoreCase));
 
 var builder = WebApplication.CreateBuilder(args);
@@ -1767,5 +1753,19 @@ static async Task<IResult> SendUnreadCountAsync(
 }
 
 app.Run();
+
+record CalendarEventVm(
+    string Id,
+    Guid SeriesId,
+    string Title,
+    DateTimeOffset Start,
+    DateTimeOffset End,
+    bool AllDay,
+    string Category,
+    string? Location,
+    bool IsRecurring,
+    bool IsCelebration,
+    Guid? CelebrationId,
+    string? TaskUrl);
 
 public partial class Program { }
