@@ -2,6 +2,7 @@
 
 (function () {
   const RING_SELECTOR = '.mission-ring[data-percent]';
+  const RING_PERCENT_PROPERTY = '--mission-ring-percent';
 
   function clampPercent(value) {
     if (Number.isNaN(value)) return null;
@@ -18,7 +19,7 @@
       const parsed = Number.parseFloat(raw);
       const clamped = clampPercent(parsed);
       if (clamped == null) return;
-      ring.style.setProperty('--p', String(clamped));
+      ring.style.setProperty(RING_PERCENT_PROPERTY, `${clamped}%`);
     });
   }
 
