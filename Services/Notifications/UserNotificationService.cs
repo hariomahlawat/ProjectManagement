@@ -63,7 +63,7 @@ public sealed class UserNotificationService
                      .ThenByDescending(n => n.CreatedUtc);
 
         var fetchedNotifications = new List<Notification>(capacity: limit);
-        var accessibleResults = new List<NotificationListItem>();
+        IReadOnlyList<NotificationListItem> accessibleResults = Array.Empty<NotificationListItem>();
         var skip = 0;
         var batchSize = limit;
 
