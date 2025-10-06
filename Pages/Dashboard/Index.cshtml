@@ -44,13 +44,25 @@
     <partial name="_TodoWidget" model="Model.TodoWidget" />
     <button
       type="button"
-      class="btn btn-outline-primary w-100 mt-3"
+      class="dashboard-events-card pm-card pm-shadow w-100 mt-3"
       data-drawer-toggle
       data-drawer-target="dashboard-events"
       aria-controls="dashboard-events"
       aria-haspopup="dialog"
+      aria-label="View upcoming events"
     >
-      View upcoming events
+      <div class="pm-card-body d-flex align-items-center gap-3">
+        <span class="pm-card-icon" aria-hidden="true">
+          <i class="bi bi-calendar-event"></i>
+        </span>
+        <div class="text-start">
+          <h3 class="pm-card-title h6 mb-0">Upcoming events</h3>
+          <p class="pm-card-subtitle mb-0">See what's coming up next.</p>
+        </div>
+        <span class="ms-auto text-primary" aria-hidden="true">
+          <i class="bi bi-arrow-right-short fs-4"></i>
+        </span>
+      </div>
     </button>
   </div>
 </div>
