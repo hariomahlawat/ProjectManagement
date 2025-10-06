@@ -150,9 +150,13 @@ test('calendar highlights admin holidays during initial load', async () => {
     const calendarEl = window.document.getElementById('calendar');
     const holidayCell = calendarEl.querySelector('.fc-daygrid-day[data-date="2024-12-25"]');
     assert.ok(holidayCell.classList.contains('pm-holiday'));
+    const holidayBadge = holidayCell.querySelector('.pm-holiday-badge');
+    assert.ok(holidayBadge, 'holiday cell should receive badge');
+    assert.equal(holidayBadge.textContent, 'Holiday: Founders Day');
 
     const nonHolidayCell = calendarEl.querySelector('.fc-daygrid-day[data-date="2024-12-26"]');
     assert.ok(!nonHolidayCell.classList.contains('pm-holiday'));
+    assert.equal(nonHolidayCell.querySelector('.pm-holiday-badge'), null);
 
     const numberEl = holidayCell.querySelector('.fc-daygrid-day-number');
     assert.equal(numberEl.getAttribute('title'), 'Holiday: Founders Day');
