@@ -27,43 +27,16 @@
   const antiforgeryInput = preferencesForm?.querySelector('input[name="__RequestVerificationToken"]');
   const preferenceEndpoint = preferencesForm?.dataset.preferenceEndpoint || '/calendar/events/preferences/show-celebrations';
 
-  if (showCelebrationsToggle) {
-    const updatePreference = async (value) => {
-      const previous = showCelebrations;
-      showCelebrationsToggle.disabled = true;
-      try {
-        const response = await fetch(preferenceEndpoint, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(antiforgeryInput?.value ? { 'RequestVerificationToken': antiforgeryInput.value } : {})
-          },
-          body: JSON.stringify({ showCelebrations: value })
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to update preference: ${response.status}`);
-        }
-
-        const payload = await response.json();
-        showCelebrations = !!payload?.showCelebrations;
-        calendarEl.dataset.showCelebrations = showCelebrations;
-        showCelebrationsToggle.checked = showCelebrations;
-      } catch (err) {
-        console.error(err);
-        showCelebrationsToggle.checked = previous;
-        showCelebrations = previous;
-      } finally {
-        showCelebrationsToggle.disabled = false;
-      }
-    };
-
-    showCelebrationsToggle.addEventListener('change', () => {
-      updatePreference(showCelebrationsToggle.checked);
-    });
-  }
-
-  const canonMap = { visit: 'Visit', insp: 'Insp', inspection: 'Insp', conference: 'Conference' };
+  const canonMap = {
+    visit: 'Visit',
+    insp: 'Insp',
+    inspection: 'Insp',
+    conference: 'Conference',
+    other: 'Other',
+    celebration: 'Celebration',
+    birthday: 'Birthday',
+    anniversary: 'Anniversary'
+  };
   const canon = (raw) => {
     const str = (raw || '').toString();
     return canonMap[str.toLowerCase()] || (str || 'Other');
@@ -248,12 +221,22 @@
       endTime: '18:00'
     },
     eventSources: [{
+      id: 'primary',
       url: '/calendar/events',
       method: 'GET',
+      extraParams: () => ({ includeCelebrations: 'false' }),
       failure: (e) => { console.error('Events feed failed', e); alert('Couldn\u2019t load events. See console/Network.'); }
     }],
     eventDidMount(info) {
-      const key = canon(info.event.extendedProps.category);
+      let categorySource = info.event.extendedProps.category;
+      if (info.event.extendedProps.isCelebration) {
+        categorySource = info.event.extendedProps.celebrationType || categorySource;
+        if (!categorySource) {
+          const match = (info.event.title || '').match(/^([^:]+):/);
+          if (match) categorySource = match[1];
+        }
+      }
+      const key = canon(categorySource);
       info.event.setExtendedProp('category', key);
       info.el.classList.add('pm-cat-' + key.toLowerCase());
       const loc = info.event.extendedProps.location;
@@ -284,6 +267,118 @@
   if (pluginList.length) opts.plugins = pluginList;
 
   const calendar = new Calendar(calendarEl, opts);
+
+  const CELEBRATIONS_ENDPOINT = '/calendar/events/celebrations';
+  let celebrationSource = null;
+
+  async function loadCelebrationEvents(info) {
+    const params = new URLSearchParams({
+      start: info.startStr,
+      end: info.endStr
+    });
+
+    const tryFetch = async (url) => {
+      const res = await fetch(url);
+      if (!res.ok) {
+        const error = new Error(`Celebrations feed failed: ${res.status}`);
+        error.status = res.status;
+        throw error;
+      }
+      const data = await res.json().catch(() => []);
+      return Array.isArray(data) ? data : [];
+    };
+
+    try {
+      return await tryFetch(`${CELEBRATIONS_ENDPOINT}?${params}`);
+    } catch (err) {
+      if (err && typeof err === 'object' && 'status' in err && err.status === 404) {
+        try {
+          const fallback = await tryFetch(`/calendar/events?${params}&includeCelebrations=true`);
+          return fallback.filter(ev => ev?.isCelebration);
+        } catch (fallbackErr) {
+          throw fallbackErr;
+        }
+      }
+      throw err;
+    }
+  }
+
+  function createCelebrationsSourceConfig() {
+    return {
+      id: 'celebrations',
+      events(info, successCallback, failureCallback) {
+        loadCelebrationEvents(info)
+          .then(events => successCallback(events))
+          .catch(err => {
+            console.error('Celebrations feed failed', err);
+            failureCallback?.(err);
+            alert('Couldn\u2019t load celebrations. See console/Network.');
+          });
+      }
+    };
+  }
+
+  function setCelebrationsStateLocal(value) {
+    const bool = !!value;
+    showCelebrations = bool;
+    calendarEl.dataset.showCelebrations = bool ? 'true' : 'false';
+    if (showCelebrationsToggle && showCelebrationsToggle.checked !== bool) {
+      showCelebrationsToggle.checked = bool;
+    }
+
+    if (bool) {
+      if (!celebrationSource) {
+        celebrationSource = calendar.addEventSource(createCelebrationsSourceConfig());
+      } else {
+        celebrationSource.refetch();
+      }
+    } else if (celebrationSource) {
+      celebrationSource.remove();
+      celebrationSource = null;
+    }
+  }
+
+  async function persistCelebrationPreference(value, previous) {
+    if (!preferencesForm || !showCelebrationsToggle) return;
+    showCelebrationsToggle.disabled = true;
+    try {
+      const response = await fetch(preferenceEndpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(antiforgeryInput?.value ? { 'RequestVerificationToken': antiforgeryInput.value } : {})
+        },
+        body: JSON.stringify({ showCelebrations: value })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to update preference: ${response.status}`);
+      }
+
+      let payload = null;
+      try { payload = await response.json(); } catch { payload = null; }
+      if (payload && typeof payload.showCelebrations !== 'undefined') {
+        setCelebrationsStateLocal(!!payload.showCelebrations);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Couldn\u2019t update preference. Please try again.');
+      setCelebrationsStateLocal(previous);
+    } finally {
+      showCelebrationsToggle.disabled = false;
+    }
+  }
+
+  if (showCelebrationsToggle) {
+    showCelebrationsToggle.addEventListener('change', () => {
+      const desired = !!showCelebrationsToggle.checked;
+      const previous = showCelebrations;
+      setCelebrationsStateLocal(desired);
+      persistCelebrationPreference(desired, previous);
+    });
+  }
+
+  setCelebrationsStateLocal(showCelebrations);
 
   // title handling
   const lblTitle = document.getElementById('calTitle');
@@ -366,7 +461,8 @@
   }
 
   function updateCounts() {
-    const counts = { Visit:0, Insp:0, Conference:0, Other:0 };
+    const baseCategories = ['Visit', 'Insp', 'Conference', 'Other', 'Birthday', 'Anniversary'];
+    const counts = Object.fromEntries(baseCategories.map(cat => [cat, 0]));
     calendar.getEvents().forEach(ev => {
       const key = canon(ev.extendedProps.category);
       counts[key] = (counts[key] || 0) + 1;
@@ -380,13 +476,79 @@
     }
     const legend = document.getElementById('categoryLegend');
     if (legend) {
-      legend.innerHTML = Object.entries(counts).map(([cat, n]) =>
-        `<span class="me-3"><span class="legend-dot pm-cat-${cat.toLowerCase()}"></span>${cat} (${n})</span>`
-      ).join('');
+      const legendCats = [...baseCategories, ...Object.keys(counts).filter(cat => !baseCategories.includes(cat))];
+      legend.innerHTML = legendCats.map(cat => {
+        const n = counts[cat] || 0;
+        return `<span class="me-3"><span class="legend-dot pm-cat-${cat.toLowerCase()}"></span>${cat} (${n})</span>`;
+      }).join('');
     }
   }
   calendar.on('eventsSet', updateCounts);
   calendar.on('datesSet', () => setTimeout(updateCounts, 0));
+
+  const viewCanvas = document.getElementById('eventDetailsCanvas');
+  const viewTitle = document.getElementById('eventDetailsLabel');
+  const viewTime = document.getElementById('eventDetailsTime');
+  const viewCategory = document.getElementById('eventDetailsCategory');
+  const viewLocation = document.getElementById('eventDetailsLocation');
+  const viewDescription = document.getElementById('eventDetailsDescription');
+  const btnAddToTasks = document.getElementById('btnAddToTasks');
+  let currentTaskUrl = null;
+
+  const toDate = (value) => {
+    if (!value) return null;
+    return value instanceof Date ? value : new Date(value);
+  };
+
+  function showEventDetails(payload) {
+    if (!viewCanvas) return;
+    const start = toDate(payload.start) || new Date();
+    const endRaw = toDate(payload.end);
+    const end = endRaw || start;
+
+    if (viewTitle) viewTitle.textContent = payload.title || '';
+    if (viewCategory) viewCategory.textContent = canon(payload.category);
+    if (viewLocation) viewLocation.textContent = payload.location || '';
+    if (viewDescription) viewDescription.innerHTML = payload.descriptionHtml || payload.description || '';
+
+    if (viewTime) {
+      if (payload.allDay) {
+        const endInc = new Date(end);
+        endInc.setDate(endInc.getDate() - 1);
+        const endDisplay = payload.end ? endInc : start;
+        viewTime.textContent = `${formatDisplayDate(start)} – ${formatDisplayDate(endDisplay)}`;
+      } else {
+        viewTime.textContent = `${formatDisplayDateTime(start)} – ${formatDisplayDateTime(end)}`;
+      }
+    }
+
+    currentTaskUrl = payload.taskUrl || null;
+    if (btnAddToTasks) {
+      const hasTaskUrl = !!currentTaskUrl;
+      btnAddToTasks.disabled = !hasTaskUrl;
+      btnAddToTasks.classList.toggle('d-none', !hasTaskUrl);
+    }
+
+    bootstrap.Offcanvas.getOrCreateInstance(viewCanvas).show();
+  }
+
+  btnAddToTasks && btnAddToTasks.addEventListener('click', async () => {
+    if (!currentTaskUrl) return;
+    btnAddToTasks.disabled = true;
+    try {
+      const response = await fetch(currentTaskUrl, { method: 'POST' });
+      if (!response.ok) {
+        alert('Failed to add to tasks');
+        return;
+      }
+      bootstrap.Offcanvas.getOrCreateInstance(viewCanvas).hide();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to add to tasks');
+    } finally {
+      btnAddToTasks.disabled = false;
+    }
+  });
 
   // Offcanvas form handling (create/edit) — only if editors
   if (canEdit) {
@@ -395,6 +557,21 @@
     calendar.setOption('eventClick', async (arg) => {
       if (!form) return;
       const ev = arg.event;
+
+      if (ev.extendedProps.isCelebration) {
+        showEventDetails({
+          title: ev.title,
+          start: ev.start,
+          end: ev.end,
+          allDay: ev.allDay,
+          category: canon(ev.extendedProps.category),
+          location: ev.extendedProps.location || '',
+          descriptionHtml: ev.extendedProps.description || '',
+          taskUrl: ev.extendedProps.taskUrl || null
+        });
+        return;
+      }
+
       const seriesId = ev.extendedProps.seriesId || ev.id;
       const res = await fetch(`/calendar/events/${seriesId}`);
       if (!res.ok) { console.error('Failed to load event'); return; }
@@ -543,41 +720,37 @@
     });
   } else {
     // Read-only event details for non-editors
-    const viewCanvas = document.getElementById('eventDetailsCanvas');
-    const viewTitle = document.getElementById('eventDetailsLabel');
-    const viewTime = document.getElementById('eventDetailsTime');
-    const viewCategory = document.getElementById('eventDetailsCategory');
-    const viewLocation = document.getElementById('eventDetailsLocation');
-    const viewDescription = document.getElementById('eventDetailsDescription');
-    const btnAddToTasks = document.getElementById('btnAddToTasks');
-    let viewEventId = null;
-
     calendar.setOption('eventClick', async (arg) => {
-      const seriesId = arg.event.extendedProps.seriesId || arg.event.id;
+      const ev = arg.event;
+
+      if (ev.extendedProps.isCelebration) {
+        showEventDetails({
+          title: ev.title,
+          start: ev.start,
+          end: ev.end,
+          allDay: ev.allDay,
+          category: canon(ev.extendedProps.category),
+          location: ev.extendedProps.location || '',
+          descriptionHtml: ev.extendedProps.description || '',
+          taskUrl: ev.extendedProps.taskUrl || null
+        });
+        return;
+      }
+
+      const seriesId = ev.extendedProps.seriesId || ev.id;
       const res = await fetch(`/calendar/events/${seriesId}`);
       if (!res.ok) { console.error('Failed to load event'); return; }
       const data = await res.json();
-      viewEventId = data.id;
-      viewTitle.textContent = data.title;
-      const start = new Date(data.start);
-      const end = new Date(data.end);
-      if (data.allDay) {
-        const endInc = new Date(end); endInc.setDate(endInc.getDate() - 1);
-        viewTime.textContent = `${formatDisplayDate(start)} – ${formatDisplayDate(endInc)}`;
-      } else {
-        viewTime.textContent = `${formatDisplayDateTime(start)} – ${formatDisplayDateTime(end)}`;
-      }
-      viewCategory.textContent = data.category;
-      viewLocation.textContent = data.location || '';
-      viewDescription.innerHTML = data.description || '';
-      bootstrap.Offcanvas.getOrCreateInstance(viewCanvas).show();
-    });
-
-    btnAddToTasks && btnAddToTasks.addEventListener('click', async () => {
-      if (!viewEventId) return;
-      const r = await fetch(`/calendar/events/${viewEventId}/task`, { method: 'POST' });
-      if (!r.ok) { alert('Failed to add to tasks'); return; }
-      bootstrap.Offcanvas.getOrCreateInstance(viewCanvas).hide();
+      showEventDetails({
+        title: data.title,
+        start: data.start,
+        end: data.end,
+        allDay: data.allDay,
+        category: data.category,
+        location: data.location || '',
+        descriptionHtml: data.description || '',
+        taskUrl: ev.extendedProps.taskUrl || `/calendar/events/${seriesId}/task`
+      });
     });
   }
 })();
