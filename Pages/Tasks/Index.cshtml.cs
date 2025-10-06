@@ -124,6 +124,12 @@ namespace ProjectManagement.Pages.Tasks
             var uid = _users.GetUserId(User);
             if (string.IsNullOrWhiteSpace(NewTitle) || uid == null) return Back();
             TodoQuickParser.Parse(NewTitle, out var clean, out var dueLocal, out var prio);
+            clean = clean.Trim();
+            if (string.IsNullOrEmpty(clean))
+            {
+                TempData["Error"] = "Task title cannot be empty.";
+                return Back();
+            }
             try
             {
                 await _todo.CreateAsync(uid, clean, dueLocal, prio);
