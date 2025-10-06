@@ -16,6 +16,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using ProjectManagement.Data;
+using ProjectManagement.Helpers;
 using ProjectManagement.Models;
 using Xunit;
 
@@ -58,7 +59,7 @@ namespace ProjectManagement.Tests
             return client;
         }
 
-        private record EventVm(string Id, Guid SeriesId, string Title, DateTimeOffset Start, DateTimeOffset End, bool AllDay, string Category, string? Location, bool IsRecurring);
+        private record CalendarEventVm(string Id, Guid SeriesId, string Title, DateTimeOffset Start, DateTimeOffset End, bool AllDay, string Category, string? Location, bool IsRecurring, bool IsCelebration, Guid? CelebrationId, string? TaskUrl);
         private record PreferenceVm(bool showCelebrations);
 
         [Fact]
@@ -127,9 +128,11 @@ namespace ProjectManagement.Tests
             var response = await client.GetAsync(url);
             var body = await response.Content.ReadAsStringAsync();
             Assert.True(response.IsSuccessStatusCode, body);
-            var items = JsonSerializer.Deserialize<List<EventVm>>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            var items = JsonSerializer.Deserialize<List<CalendarEventVm>>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             Assert.NotNull(items);
-            Assert.Contains(items!, i => i.SeriesId == ev.Id && i.AllDay && i.Start == start);
+            var match = Assert.Contains(items!, i => i.SeriesId == ev.Id && i.AllDay && i.Start == start);
+            Assert.False(match.IsCelebration);
+            Assert.Equal($"/calendar/events/{ev.Id}/task", match.TaskUrl);
         }
 
         [Fact]
@@ -165,6 +168,71 @@ namespace ProjectManagement.Tests
             var refreshed = await verifier.FindByIdAsync(userId);
             Assert.NotNull(refreshed);
             Assert.False(refreshed!.ShowCelebrationsInCalendar);
+        }
+
+        [Fact]
+        public async Task CelebrationsCanBeIncludedAndTaskEndpointWorks()
+        {
+            var userId = Guid.NewGuid().ToString();
+            var celebrationId = Guid.NewGuid();
+
+            using (var scope = _factory.Services.CreateScope())
+            {
+                var services = scope.ServiceProvider;
+                var db = services.GetRequiredService<ApplicationDbContext>();
+                var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+
+                var user = new ApplicationUser
+                {
+                    Id = userId,
+                    UserName = "calendar-celebration@example.com",
+                    Email = "calendar-celebration@example.com",
+                    EmailConfirmed = true,
+                    ShowCelebrationsInCalendar = false
+                };
+
+                var createResult = await userManager.CreateAsync(user);
+                Assert.True(createResult.Succeeded, string.Join(";", createResult.Errors.Select(e => e.Description)));
+
+                db.Celebrations.Add(new Celebration
+                {
+                    Id = celebrationId,
+                    EventType = CelebrationType.Birthday,
+                    Name = "Leap Legend",
+                    Day = 29,
+                    Month = 2,
+                    CreatedById = userId,
+                    CreatedUtc = DateTimeOffset.UtcNow,
+                    UpdatedUtc = DateTimeOffset.UtcNow
+                });
+
+                await db.SaveChangesAsync();
+            }
+
+            var client = CreateClient("Admin", userId);
+            var start = new DateTimeOffset(2025, 2, 27, 0, 0, 0, TimeSpan.Zero);
+            var end = new DateTimeOffset(2025, 3, 5, 0, 0, 0, TimeSpan.Zero);
+            var url = $"/calendar/events?start={Uri.EscapeDataString(start.UtcDateTime.ToString("o"))}&end={Uri.EscapeDataString(end.UtcDateTime.ToString("o"))}&includeCelebrations=true";
+            var response = await client.GetAsync(url);
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.True(response.IsSuccessStatusCode, body);
+
+            var items = JsonSerializer.Deserialize<List<CalendarEventVm>>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            Assert.NotNull(items);
+            var celebration = Assert.Single(items!.Where(i => i.IsCelebration));
+            Assert.Equal("Celebration", celebration.Category);
+            Assert.Equal(celebrationId, celebration.CelebrationId);
+            Assert.True(celebration.AllDay);
+            Assert.True(celebration.IsRecurring);
+            Assert.Equal($"/calendar/events/celebrations/{celebrationId}/task", celebration.TaskUrl);
+
+            var expectedStart = CelebrationHelpers.ToLocalDateTime(new DateOnly(2025, 2, 28)).ToUniversalTime();
+            Assert.Equal(expectedStart, celebration.Start);
+            Assert.Equal(expectedStart.AddDays(1), celebration.End);
+
+            var taskResponse = await client.PostAsync(celebration.TaskUrl!, null);
+            var taskBody = await taskResponse.Content.ReadAsStringAsync();
+            Assert.True(taskResponse.IsSuccessStatusCode, taskBody);
         }
 
         private class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
