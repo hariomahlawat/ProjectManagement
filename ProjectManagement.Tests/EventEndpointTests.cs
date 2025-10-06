@@ -131,7 +131,7 @@ namespace ProjectManagement.Tests
             Assert.True(response.IsSuccessStatusCode, body);
             var items = JsonSerializer.Deserialize<List<CalendarEventVm>>(body, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
             Assert.NotNull(items);
-            var match = Assert.Contains(items!, i => i.SeriesId == ev.Id && i.AllDay && i.Start == start);
+            var match = Assert.Single(items!.Where(i => i.SeriesId == ev.Id && i.AllDay && i.Start == start));
             Assert.False(match.IsCelebration);
             Assert.Equal($"/calendar/events/{ev.Id}/task", match.TaskUrl);
         }
