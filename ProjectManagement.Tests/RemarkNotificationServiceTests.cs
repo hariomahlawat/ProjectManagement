@@ -160,7 +160,7 @@ public class RemarkNotificationServiceTests
     }
 
     [Fact]
-    public async Task NotifyRemarkCreatedAsync_IncludesMentionRecipients()
+    public async Task NotifyRemarkCreatedAsync_SendsMentionNotificationWithoutDuplicatingRecipients()
     {
         await using var scope = await CreateContextAsync();
         var (service, publisher) = await CreateServiceAsync(scope.Db);
@@ -179,13 +179,37 @@ public class RemarkNotificationServiceTests
         await service.NotifyRemarkCreatedAsync(remark, actor, project, CancellationToken.None);
 
         Assert.Equal(2, publisher.Events.Count);
-        Assert.Contains(mentionUser.Id, publisher.Events[0].Recipients);
+        var remarkEvent = Assert.Single(publisher.Events.Where(e => e.Kind == NotificationKind.RemarkCreated));
+        Assert.DoesNotContain(mentionUser.Id, remarkEvent.Recipients);
 
-        var mentionEvent = publisher.Events[1];
-        Assert.Equal(NotificationKind.MentionedInRemark, mentionEvent.Kind);
+        var mentionEvent = Assert.Single(publisher.Events.Where(e => e.Kind == NotificationKind.MentionedInRemark));
         Assert.Single(mentionEvent.Recipients);
         Assert.Equal(mentionUser.Id, mentionEvent.Recipients.First());
         Assert.Equal("RemarkMentioned", mentionEvent.EventType);
+    }
+
+    [Fact]
+    public async Task NotifyRemarkCreatedAsync_RemovesMentionedUsersFromGeneralNotificationEvenWhenRoleRecipient()
+    {
+        await using var scope = await CreateContextAsync();
+        var (service, publisher) = await CreateServiceAsync(scope.Db);
+
+        var remark = CreateRemark(RemarkType.Internal);
+        remark.Mentions.Add(new RemarkMention { RemarkId = remark.Id, UserId = "hod-1" });
+
+        var actor = new RemarkActorContext("author", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
+        var project = new RemarkProjectInfo(remark.ProjectId, "Project Six", "po-1", "hod-1");
+
+        await service.NotifyRemarkCreatedAsync(remark, actor, project, CancellationToken.None);
+
+        Assert.Equal(2, publisher.Events.Count);
+        var remarkEvent = Assert.Single(publisher.Events.Where(e => e.Kind == NotificationKind.RemarkCreated));
+        Assert.DoesNotContain("hod-1", remarkEvent.Recipients);
+        Assert.Equal(new[] { "comdt-1", "po-1" }.OrderBy(x => x), remarkEvent.Recipients.OrderBy(x => x));
+
+        var mentionEvent = Assert.Single(publisher.Events.Where(e => e.Kind == NotificationKind.MentionedInRemark));
+        Assert.Single(mentionEvent.Recipients);
+        Assert.Equal("hod-1", mentionEvent.Recipients.First());
     }
 
     private static Remark CreateRemark(RemarkType type)
