@@ -54,17 +54,17 @@ namespace ProjectManagement.Pages.Dashboard
             var nowUtc = DateTime.UtcNow;
             var rangeEnd = nowUtc.AddDays(30);
 
-            var upcoming = new List<(Guid Id, string Title, DateTime StartUtc, bool IsAllDay)>();
+            var upcoming = new List<(Guid Id, string Title, DateTime StartUtc, DateTime EndUtc, bool IsAllDay)>();
 
             var events = await _db.Events.AsNoTracking()
                 .Where(e => !e.IsDeleted && e.StartUtc >= nowUtc && e.StartUtc < rangeEnd)
                 .OrderBy(e => e.StartUtc)
                 .Take(15)
-                .Select(e => new { e.Id, e.Title, e.StartUtc, e.IsAllDay })
+                .Select(e => new { e.Id, e.Title, e.StartUtc, e.EndUtc, e.IsAllDay })
                 .ToListAsync();
             foreach (var ev in events)
             {
-                upcoming.Add((ev.Id, ev.Title, ev.StartUtc.UtcDateTime, ev.IsAllDay));
+                upcoming.Add((ev.Id, ev.Title, ev.StartUtc.UtcDateTime, ev.EndUtc.UtcDateTime, ev.IsAllDay));
             }
 
             var todayIst = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(nowUtc, IST));
@@ -87,7 +87,8 @@ namespace ProjectManagement.Pages.Dashboard
                         _ => celebration.EventType.ToString()
                     };
                     var title = $"{titlePrefix}: {CelebrationHelpers.DisplayName(celebration)}";
-                    upcoming.Add((celebration.Id, title, startUtc, true));
+                    var endUtc = CelebrationHelpers.ToLocalDateTime(nextOccurrence.AddDays(1)).UtcDateTime;
+                    upcoming.Add((celebration.Id, title, startUtc, endUtc, true));
                 }
             }
 
@@ -97,9 +98,49 @@ namespace ProjectManagement.Pages.Dashboard
                 .Take(10))
             {
                 var startLocal = TimeZoneInfo.ConvertTimeFromUtc(item.StartUtc, IST);
-                var when = item.IsAllDay
-                    ? startLocal.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)
-                    : startLocal.ToString("dd MMM yyyy, HH:mm", CultureInfo.InvariantCulture);
+                var endLocal = TimeZoneInfo.ConvertTimeFromUtc(item.EndUtc, IST);
+                string when;
+                if (item.IsAllDay)
+                {
+                    var startDate = DateOnly.FromDateTime(startLocal);
+                    var inclusiveEndCandidate = endLocal.AddDays(-1);
+                    if (inclusiveEndCandidate < startLocal)
+                    {
+                        inclusiveEndCandidate = startLocal;
+                    }
+                    var endDate = DateOnly.FromDateTime(inclusiveEndCandidate);
+                    when = startDate == endDate
+                        ? startDate.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)
+                        : string.Format(
+                            CultureInfo.InvariantCulture,
+                            "{0:dd MMM yyyy} – {1:dd MMM yyyy}",
+                            startDate,
+                            endDate);
+                }
+                else
+                {
+                    var startStr = startLocal.ToString("dd MMM yyyy, HH:mm", CultureInfo.InvariantCulture);
+                    if (startLocal == endLocal)
+                    {
+                        when = startStr;
+                    }
+                    else if (startLocal.Date == endLocal.Date)
+                    {
+                        when = string.Format(
+                            CultureInfo.InvariantCulture,
+                            "{0} – {1:HH:mm}",
+                            startStr,
+                            endLocal);
+                    }
+                    else
+                    {
+                        when = string.Format(
+                            CultureInfo.InvariantCulture,
+                            "{0} – {1:dd MMM yyyy, HH:mm}",
+                            startStr,
+                            endLocal);
+                    }
+                }
                 UpcomingEvents.Add(new UpcomingEventVM { Id = item.Id, Title = item.Title, When = when });
             }
         }
