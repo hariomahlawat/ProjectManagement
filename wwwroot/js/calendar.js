@@ -20,6 +20,48 @@
   if (!calendarEl) return;
 
   const canEdit = (calendarEl.dataset.canEdit || '').toLowerCase() === 'true';
+  let showCelebrations = (calendarEl.dataset.showCelebrations || 'true').toLowerCase() === 'true';
+
+  const preferencesForm = document.getElementById('calendarPreferences');
+  const showCelebrationsToggle = document.getElementById('showCelebrationsToggle');
+  const antiforgeryInput = preferencesForm?.querySelector('input[name="__RequestVerificationToken"]');
+  const preferenceEndpoint = preferencesForm?.dataset.preferenceEndpoint || '/calendar/events/preferences/show-celebrations';
+
+  if (showCelebrationsToggle) {
+    const updatePreference = async (value) => {
+      const previous = showCelebrations;
+      showCelebrationsToggle.disabled = true;
+      try {
+        const response = await fetch(preferenceEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(antiforgeryInput?.value ? { 'RequestVerificationToken': antiforgeryInput.value } : {})
+          },
+          body: JSON.stringify({ showCelebrations: value })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to update preference: ${response.status}`);
+        }
+
+        const payload = await response.json();
+        showCelebrations = !!payload?.showCelebrations;
+        calendarEl.dataset.showCelebrations = showCelebrations;
+        showCelebrationsToggle.checked = showCelebrations;
+      } catch (err) {
+        console.error(err);
+        showCelebrationsToggle.checked = previous;
+        showCelebrations = previous;
+      } finally {
+        showCelebrationsToggle.disabled = false;
+      }
+    };
+
+    showCelebrationsToggle.addEventListener('change', () => {
+      updatePreference(showCelebrationsToggle.checked);
+    });
+  }
 
   const canonMap = { visit: 'Visit', insp: 'Insp', inspection: 'Insp', conference: 'Conference' };
   const canon = (raw) => {

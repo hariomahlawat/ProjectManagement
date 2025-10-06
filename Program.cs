@@ -497,6 +497,34 @@ eventsApi.MapDelete("/{id:guid}", async (Guid id, ApplicationDbContext db, ICloc
     return Results.Ok();
 }).RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,TA,HoD" });
 
+eventsApi.MapPost("/preferences/show-celebrations", async (UserManager<ApplicationUser> users,
+                                                           ClaimsPrincipal user,
+                                                           [FromBody] ShowCelebrationsPreferenceRequest request) =>
+{
+    if (request is null)
+    {
+        return Results.BadRequest();
+    }
+
+    var appUser = await users.GetUserAsync(user);
+    if (appUser is null)
+    {
+        return Results.Unauthorized();
+    }
+
+    appUser.ShowCelebrationsInCalendar = request.ShowCelebrations;
+    var result = await users.UpdateAsync(appUser);
+    if (!result.Succeeded)
+    {
+        var errors = result.Errors
+            .GroupBy(e => e.Code ?? string.Empty)
+            .ToDictionary(g => g.Key, g => g.Select(e => e.Description).ToArray());
+        return Results.ValidationProblem(errors);
+    }
+
+    return Results.Ok(new { showCelebrations = appUser.ShowCelebrationsInCalendar });
+}).RequireAuthorization();
+
 var notificationsApi = app.MapGroup("/api/notifications")
     .RequireAuthorization();
 
