@@ -84,6 +84,20 @@
   font-size: var(--pm-font-size-xxs, .75rem);
   font-weight: 600;
 }
+.fc .fc-daygrid-day-top {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+}
+.fc .fc-daygrid-day-top .fc-daygrid-day-number {
+  padding-right: 0;
+}
+.fc .fc-daygrid-day-top .pm-holiday-badge {
+  margin-left: 0;
+}
+.fc .fc-timegrid-col-top .pm-holiday-badge {
+  margin-left: .35rem;
+}
 
 /* Ensure text inherits our dark color everywhere */
 .fc .fc-event,

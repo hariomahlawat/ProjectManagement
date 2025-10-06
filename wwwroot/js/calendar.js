@@ -132,6 +132,28 @@
     }
   };
 
+  const syncHolidayBadge = (targetEl, iso, options = {}) => {
+    if (!targetEl) return;
+    const meta = iso ? holidayMap.get(iso) : null;
+    const predicate = typeof options.shouldDisplay === 'function' ? options.shouldDisplay : null;
+    const shouldShow = !!(meta && (!predicate || predicate(meta, iso)));
+    const badge = targetEl.querySelector('.pm-holiday-badge');
+    if (shouldShow) {
+      const label = buildHolidayTooltip(meta);
+      let node = badge;
+      if (!node) {
+        node = document.createElement('span');
+        node.className = 'pm-holiday-badge';
+        targetEl.appendChild(node);
+      }
+      node.textContent = label;
+      decorateHolidayLabelElement(node, iso);
+    } else if (badge) {
+      decorateHolidayLabelElement(badge, null);
+      badge.remove();
+    }
+  };
+
   const decorateDayCellElement = (el, iso) => {
     if (!el || !iso) return;
     decorateHolidayCell(el, iso);
@@ -140,6 +162,9 @@
     if (numberEl) decorateHolidayLabelElement(numberEl, iso);
     const frameEl = el.querySelector?.('.fc-daygrid-day-frame');
     if (frameEl) decorateHolidayCell(frameEl, iso);
+    const topEl = frameEl?.querySelector?.('.fc-daygrid-day-top') || el.querySelector?.('.fc-daygrid-day-top');
+    const badgeTarget = topEl || frameEl || el;
+    if (badgeTarget) syncHolidayBadge(badgeTarget, iso);
   };
 
   const decorateHeaderCellElement = (el, iso) => {
@@ -152,7 +177,6 @@
 
   const renderHolidayListBadges = () => {
     const isListView = (calendar?.view?.type || '').startsWith('list');
-    calendarEl.querySelectorAll('.pm-holiday-badge').forEach(badge => badge.remove());
     calendarEl.querySelectorAll('.fc-list-day').forEach(row => {
       const iso = getIsoDate(row.getAttribute('data-date'));
       const meta = iso ? holidayMap.get(iso) : null;
@@ -163,14 +187,10 @@
         decorateHolidayLabelElement(cushion, iso);
         const textEl = cushion.querySelector('.fc-list-day-text');
         if (textEl) decorateHolidayLabelElement(textEl, iso);
+        syncHolidayBadge(cushion, iso, {
+          shouldDisplay: () => isListView && !!meta
+        });
       }
-      if (!isListView || !meta || !cushion) return;
-      const label = buildHolidayTooltip(meta);
-      const badge = document.createElement('span');
-      badge.className = 'pm-holiday-badge';
-      badge.textContent = label;
-      badge.setAttribute('aria-label', label);
-      cushion.appendChild(badge);
     });
   };
 
@@ -184,6 +204,8 @@
       decorateHolidayCell(col, iso);
       const frame = col.querySelector('.fc-timegrid-col-frame');
       if (frame) decorateHolidayCell(frame, iso);
+      const badgeTarget = frame?.querySelector?.('.fc-timegrid-col-top') || frame || col;
+      syncHolidayBadge(badgeTarget, iso);
     });
     calendarEl.querySelectorAll('.fc-col-header-cell[data-date]').forEach(cell => {
       const iso = getIsoDate(cell.getAttribute('data-date'));
