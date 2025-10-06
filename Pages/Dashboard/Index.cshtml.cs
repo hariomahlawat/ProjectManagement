@@ -35,9 +35,10 @@ namespace ProjectManagement.Pages.Dashboard
 
         public class UpcomingEventVM
         {
-            public Guid Id { get; set; }
+            public Guid? Id { get; set; }
             public string Title { get; set; } = string.Empty;
             public string When { get; set; } = string.Empty;
+            public bool IsHoliday { get; set; }
         }
 
         [BindProperty]
@@ -54,7 +55,7 @@ namespace ProjectManagement.Pages.Dashboard
             var nowUtc = DateTime.UtcNow;
             var rangeEnd = nowUtc.AddDays(30);
 
-            var upcoming = new List<(Guid Id, string Title, DateTime StartUtc, DateTime EndUtc, bool IsAllDay)>();
+            var upcoming = new List<(Guid? Id, string Title, DateTime StartUtc, DateTime EndUtc, bool IsAllDay, bool IsHoliday)>();
 
             var events = await _db.Events.AsNoTracking()
                 .Where(e => !e.IsDeleted && e.StartUtc >= nowUtc && e.StartUtc < rangeEnd)
@@ -64,10 +65,11 @@ namespace ProjectManagement.Pages.Dashboard
                 .ToListAsync();
             foreach (var ev in events)
             {
-                upcoming.Add((ev.Id, ev.Title, ev.StartUtc.UtcDateTime, ev.EndUtc.UtcDateTime, ev.IsAllDay));
+                upcoming.Add((ev.Id, ev.Title, ev.StartUtc.UtcDateTime, ev.EndUtc.UtcDateTime, ev.IsAllDay, false));
             }
 
             var todayIst = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(nowUtc, IST));
+            var windowEndIst = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(rangeEnd, IST));
             var celebrations = await _db.Celebrations.AsNoTracking()
                 .Where(c => c.DeletedUtc == null)
                 .ToListAsync();
@@ -88,8 +90,21 @@ namespace ProjectManagement.Pages.Dashboard
                     };
                     var title = $"{titlePrefix}: {CelebrationHelpers.DisplayName(celebration)}";
                     var endUtc = CelebrationHelpers.ToLocalDateTime(nextOccurrence.AddDays(1)).UtcDateTime;
-                    upcoming.Add((celebration.Id, title, startUtc, endUtc, true));
+                    upcoming.Add((celebration.Id, title, startUtc, endUtc, true, false));
                 }
+            }
+
+            var holidays = await _db.Holidays.AsNoTracking()
+                .Where(h => h.Date >= todayIst && h.Date <= windowEndIst)
+                .ToListAsync();
+
+            foreach (var holiday in holidays)
+            {
+                var startLocal = DateTime.SpecifyKind(holiday.Date.ToDateTime(TimeOnly.MinValue), DateTimeKind.Unspecified);
+                var endLocal = DateTime.SpecifyKind(holiday.Date.AddDays(1).ToDateTime(TimeOnly.MinValue), DateTimeKind.Unspecified);
+                var startUtc = TimeZoneInfo.ConvertTimeToUtc(startLocal, IST);
+                var endUtc = TimeZoneInfo.ConvertTimeToUtc(endLocal, IST);
+                upcoming.Add((null, $"Holiday: {holiday.Name}", startUtc, endUtc, true, true));
             }
 
             foreach (var item in upcoming
@@ -141,7 +156,7 @@ namespace ProjectManagement.Pages.Dashboard
                             endLocal);
                     }
                 }
-                UpcomingEvents.Add(new UpcomingEventVM { Id = item.Id, Title = item.Title, When = when });
+                UpcomingEvents.Add(new UpcomingEventVM { Id = item.Id, Title = item.Title, When = when, IsHoliday = item.IsHoliday });
             }
         }
 

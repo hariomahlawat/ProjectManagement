@@ -18,6 +18,7 @@ using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
 using ProjectManagement.Pages.Dashboard;
 using ProjectManagement.Services;
+using ProjectManagement.Models.Scheduling;
 using Xunit;
 
 namespace ProjectManagement.Tests
@@ -91,6 +92,59 @@ namespace ProjectManagement.Tests
                 DateOnly.FromDateTime(startLocal.DateTime),
                 DateOnly.FromDateTime(endLocalExclusive.AddDays(-1).DateTime));
 
+            Assert.Equal(expected, ev.When);
+        }
+
+        [Fact]
+        public async Task OnGetAsync_IncludesUpcomingHolidays()
+        {
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options;
+
+            await using var context = new ApplicationDbContext(options);
+
+            var tz = IstClock.TimeZone;
+            var nowLocal = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, tz);
+            var holidayDate = DateOnly.FromDateTime(nowLocal.Date.AddDays(3));
+
+            context.Holidays.Add(new Holiday
+            {
+                Name = "Republic Day",
+                Date = holidayDate
+            });
+            await context.SaveChangesAsync();
+
+            var userManager = new UserManager<ApplicationUser>(
+                new UserStore<ApplicationUser>(context),
+                Options.Create(new IdentityOptions()),
+                new PasswordHasher<ApplicationUser>(),
+                Array.Empty<IUserValidator<ApplicationUser>>(),
+                Array.Empty<IPasswordValidator<ApplicationUser>>(),
+                new UpperInvariantLookupNormalizer(),
+                new IdentityErrorDescriber(),
+                null,
+                NullLogger<UserManager<ApplicationUser>>.Instance);
+
+            var todo = new StubTodoService();
+            var page = new IndexModel(todo, userManager, context)
+            {
+                PageContext = new PageContext(new ActionContext(
+                    new DefaultHttpContext
+                    {
+                        User = new ClaimsPrincipal(new ClaimsIdentity())
+                    },
+                    new RouteData(),
+                    new ActionDescriptor()))
+            };
+
+            await page.OnGetAsync();
+
+            var ev = Assert.Single(page.UpcomingEvents);
+            Assert.Equal("Holiday: Republic Day", ev.Title);
+            Assert.True(ev.IsHoliday);
+
+            var expected = holidayDate.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
             Assert.Equal(expected, ev.When);
         }
 

@@ -14,7 +14,7 @@
 @foreach (var ev in events)
 {
   <li class="small mb-3">
-    <div class="fw-semibold">@ev.Title</div>
+    <div class="fw-semibold@(ev.IsHoliday ? " text-danger" : string.Empty)">@ev.Title</div>
     <div class="text-secondary">@ev.When</div>
   </li>
 }
