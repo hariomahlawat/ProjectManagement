@@ -210,6 +210,14 @@ body {
     transition: transform .2s ease, box-shadow .2s ease;
 }
 
+.dashboard-sidebar {
+    position: relative;
+}
+
+.dashboard-events-card--floating {
+    z-index: 5;
+}
+
 .dashboard-events-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 20px 30px -20px rgba(15, 23, 42, .25);
@@ -230,6 +238,21 @@ body {
 
 .dashboard-events-card .pm-card-body {
     width: 100%;
+}
+
+@media (min-width: 992px) {
+    .dashboard-events-card--floating {
+        position: absolute;
+        top: 0;
+        right: calc(-1 * (100% + 1.5rem));
+        width: 18rem;
+    }
+}
+
+@media (min-width: 1200px) {
+    .dashboard-events-card--floating {
+        right: calc(-1 * (100% + 2.5rem));
+    }
 }
 
 .procurement-metrics {
