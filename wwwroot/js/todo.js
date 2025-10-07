@@ -4,63 +4,163 @@
   // Ensure Bootstrap is available
   if (!window.bootstrap) return;
 
-  // ---------- Dropdowns: render menus in <body> & flip safely ----------
-  function initDropdowns() {
-    document.querySelectorAll('[data-bs-toggle="dropdown"]').forEach(btn => {
-      const parent = btn.parentElement;
-      if (!parent) return;
+  const TODO_TOGGLE_SELECTOR = '.todo-list [data-bs-toggle="dropdown"]';
+  const processedToggles = new WeakSet();
+  const portalRegistry = new WeakMap();
+  const FLIP_FALLBACKS = ['bottom-end', 'top-end', 'top-start', 'bottom-start'];
 
-      const menu = parent.querySelector(':scope > .dropdown-menu') || parent.querySelector('.dropdown-menu');
-      if (!menu) return;
+  function ensureDropdownInstance(toggle) {
+    const popperConfig = {
+      strategy: 'fixed',
+      modifiers: [
+        { name: 'flip', options: { fallbackPlacements: FLIP_FALLBACKS } },
+        { name: 'preventOverflow', options: { boundary: 'viewport' } },
+        { name: 'offset', options: { offset: [0, 6] } }
+      ]
+    };
 
-      const originalParent = menu.parentNode;
-      const originalNextSibling = menu.nextSibling;
-      const todoRow = btn.closest('.todo-row');
-
-      bootstrap.Dropdown.getOrCreateInstance(btn, {
-        popperConfig: {
-          strategy: 'fixed',
-          modifiers: [
-            { name: 'flip', options: { fallbackPlacements: ['bottom-end','top-end','top-start','bottom-start'] } },
-            { name: 'preventOverflow', options: { boundary: 'viewport' } },
-            { name: 'offset', options: { offset: [0, 6] } }
-          ]
-        }
-      });
-
-      btn.addEventListener('show.bs.dropdown', () => {
-        if (todoRow) {
-          todoRow.classList.add('todo-row--dropdown-open');
-        }
-        if (menu.parentNode !== document.body) {
-          document.body.appendChild(menu);
-        }
-      });
-
-      btn.addEventListener('hidden.bs.dropdown', () => {
-        if (todoRow) {
-          todoRow.classList.remove('todo-row--dropdown-open');
-        }
-        if (!originalParent) return;
-
-        if (originalNextSibling && originalNextSibling.parentNode === originalParent) {
-          originalParent.insertBefore(menu, originalNextSibling);
-        } else {
-          originalParent.appendChild(menu);
-        }
-      });
-    });
+    const instance = bootstrap.Dropdown.getOrCreateInstance(toggle, { popperConfig });
+    if (instance && instance._config) {
+      instance._config.popperConfig = popperConfig;
+    }
+    return instance;
   }
 
-  // Close any other open dropdown when a new one opens
-  document.addEventListener('show.bs.dropdown', (e) => {
-    document.querySelectorAll('[data-bs-toggle="dropdown"]').forEach(btn => {
-      if (btn !== e.target) {
-        const inst = bootstrap.Dropdown.getInstance(btn);
-        if (inst) inst.hide();
+  function getPortalData(toggle) {
+    let data = portalRegistry.get(toggle);
+    if (data) {
+      return data;
+    }
+
+    const dropdown = toggle.closest('.dropdown');
+    if (!dropdown) return null;
+
+    if (!dropdown.closest('.todo-list')) return null;
+
+    const menu = dropdown.querySelector('.dropdown-menu');
+    if (!menu) return null;
+
+    data = {
+      menu,
+      row: dropdown.closest('.todo-row'),
+      originalParent: menu.parentNode,
+      originalNextSibling: menu.nextSibling,
+      portalActive: false
+    };
+
+    portalRegistry.set(toggle, data);
+    return data;
+  }
+
+  function setupTodoDropdown(toggle) {
+    if (!(toggle instanceof HTMLElement)) return;
+    if (processedToggles.has(toggle)) return;
+
+    const data = getPortalData(toggle);
+    if (!data) return;
+
+    ensureDropdownInstance(toggle);
+    processedToggles.add(toggle);
+  }
+
+  function scanTodoDropdowns(root) {
+    const elements = [];
+    if (!root || root === document) {
+      elements.push(...document.querySelectorAll(TODO_TOGGLE_SELECTOR));
+    } else if (root instanceof Element || root instanceof DocumentFragment) {
+      if (root instanceof Element && root.matches(TODO_TOGGLE_SELECTOR)) {
+        elements.push(root);
+      }
+      elements.push(...root.querySelectorAll(TODO_TOGGLE_SELECTOR));
+    }
+
+    elements.forEach(setupTodoDropdown);
+  }
+
+  function activatePortal(toggle, data) {
+    if (!data || data.portalActive) return;
+
+    // refresh the anchor position in case the DOM changed while detached
+    data.originalParent = data.menu.parentNode;
+    data.originalNextSibling = data.menu.nextSibling;
+
+    if (data.menu.parentNode !== document.body) {
+      document.body.appendChild(data.menu);
+    }
+
+    data.portalActive = true;
+    data.row?.classList.add('todo-row--dropdown-open');
+  }
+
+  function restorePortal(data) {
+    if (!data || !data.portalActive) return;
+
+    data.portalActive = false;
+    data.row?.classList.remove('todo-row--dropdown-open');
+
+    const { menu, originalParent, originalNextSibling } = data;
+    if (!(originalParent instanceof Element) || !originalParent.isConnected) {
+      menu.remove();
+      return;
+    }
+
+    if (originalNextSibling && originalNextSibling.parentNode === originalParent) {
+      originalParent.insertBefore(menu, originalNextSibling);
+    } else {
+      originalParent.appendChild(menu);
+    }
+  }
+
+  function handleDropdownShow(event) {
+    const toggle = event.target;
+    if (!(toggle instanceof HTMLElement)) return;
+
+    document.querySelectorAll('[data-bs-toggle="dropdown"]').forEach((btn) => {
+      if (btn === toggle) return;
+      const instance = bootstrap.Dropdown.getInstance(btn);
+      if (instance) instance.hide();
+    });
+
+    if (!toggle.closest('.todo-list')) return;
+
+    setupTodoDropdown(toggle);
+    const data = getPortalData(toggle);
+    if (!data) return;
+
+    activatePortal(toggle, data);
+  }
+
+  function handleDropdownHidden(event) {
+    const toggle = event.target;
+    if (!(toggle instanceof HTMLElement)) return;
+
+    const data = portalRegistry.get(toggle);
+    if (!data) return;
+
+    restorePortal(data);
+  }
+
+  document.addEventListener('show.bs.dropdown', handleDropdownShow);
+  document.addEventListener('hidden.bs.dropdown', handleDropdownHidden);
+
+  let dropdownObserver;
+
+  function startDropdownObserver() {
+    if (!('MutationObserver' in window)) return;
+    if (dropdownObserver || !document.body) return;
+
+    dropdownObserver = new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (node instanceof HTMLElement) {
+            scanTodoDropdowns(node);
+          }
+        }
       }
     });
-  });
+
+    dropdownObserver.observe(document.body, { childList: true, subtree: true });
+  }
 
   // ---------- Shared confirm modal ----------
   const modalEl = document.getElementById('appConfirmModal');
@@ -142,15 +242,25 @@
     }, { passive: true });
   }
 
+  function initAll() {
+    scanTodoDropdowns(document);
+    startDropdownObserver();
+    initDoneAutosubmit();
+  }
+
+  // Rescan for dropdowns after HTMX swaps insert todo rows dynamically
+  document.addEventListener('htmx:afterSwap', (event) => {
+    const target = event.detail && event.detail.target;
+    if (target instanceof HTMLElement) {
+      scanTodoDropdowns(target);
+    }
+  });
+
   // ---------- Kick things off ----------
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-      initDropdowns();
-      initDoneAutosubmit();
-    });
+    document.addEventListener('DOMContentLoaded', () => initAll());
   } else {
-    initDropdowns();
-    initDoneAutosubmit();
+    initAll();
   }
 })();
 
