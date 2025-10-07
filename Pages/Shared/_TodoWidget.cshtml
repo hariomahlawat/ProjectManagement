@@ -2,6 +2,8 @@
 @using ProjectManagement.Helpers
 @using Microsoft.AspNetCore.Routing
 @using System.Linq
+@using System.Collections.Generic
+@using System
 @model ProjectManagement.Services.TodoWidgetResult
 
 @{
@@ -16,12 +18,10 @@
             ? "upcoming"
             : "today";
 
-    var routeValues = new RouteValueDictionary();
+    var routeValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
     foreach (var queryParameter in ViewContext.HttpContext.Request.Query)
     {
-        routeValues[queryParameter.Key] = queryParameter.Value.Count > 1
-            ? queryParameter.Value.ToArray()
-            : queryParameter.Value.ToString();
+        routeValues[queryParameter.Key] = queryParameter.Value.ToString();
     }
 
     routeValues["tab"] = defaultTab;
