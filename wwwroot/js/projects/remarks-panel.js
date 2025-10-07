@@ -325,6 +325,7 @@
             this.currentUserId = this.config.currentUserId || null;
             this.actorHasOverride = !!this.config.actorHasOverride;
             this.allowExternal = !!this.config.allowExternal;
+            this.viewerOnly = !!this.config.viewerOnly;
             const parsedPageSize = Number.parseInt(this.config.pageSize, 10);
             this.pageSize = Number.isFinite(parsedPageSize) && parsedPageSize > 0 ? parsedPageSize : 20;
             this.timeZone = this.config.timeZone || 'Asia/Kolkata';
@@ -951,7 +952,7 @@
             const targetPage = Number.isFinite(requestedPage) && requestedPage > 0 ? requestedPage : 1;
             const wasInitialised = this.state.initialised;
 
-            if (!this.actorRole) {
+            if (!this.actorRole && !this.viewerOnly) {
                 if (!append) {
                     this.state.items = [];
                     this.state.page = targetPage;
@@ -1761,6 +1762,10 @@
                 return 'You do not have permission for this action.';
             }
 
+            if (this.viewerOnly) {
+                return 'You do not have permission for this action.';
+            }
+
             if (this.actorHasOverride) {
                 return '';
             }
@@ -1780,6 +1785,10 @@
 
         canEditRemark(remark) {
             if (remark.isDeleted) {
+                return false;
+            }
+
+            if (this.viewerOnly) {
                 return false;
             }
 

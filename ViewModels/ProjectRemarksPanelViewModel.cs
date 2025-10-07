@@ -30,6 +30,8 @@ public sealed class ProjectRemarksPanelViewModel
 
     public bool ActorHasOverride { get; init; }
 
+    public bool ViewerOnly { get; init; }
+
     public string Today { get; init; } = DateOnly.FromDateTime(IstClock.ToIst(DateTime.UtcNow)).ToString("yyyy-MM-dd");
 
     public int PageSize { get; init; } = 20;
