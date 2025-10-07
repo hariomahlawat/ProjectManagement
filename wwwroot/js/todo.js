@@ -197,22 +197,8 @@
     const { menu } = data;
     if (!(menu instanceof HTMLElement)) return;
 
-    let placement = DEFAULT_PLACEMENT;
-    const container = toggle.closest('.todo-list') || toggle.closest('.todo-widget');
-    const menuHeight = measureMenuHeight(menu);
-
-    if (container instanceof HTMLElement && menuHeight > 0) {
-      const toggleRect = toggle.getBoundingClientRect();
-      const containerRect = container.getBoundingClientRect();
-      const spaceAbove = Math.max(0, toggleRect.top - containerRect.top);
-      const spaceBelow = Math.max(0, containerRect.bottom - toggleRect.bottom);
-
-      if (spaceAbove < menuHeight && spaceBelow >= menuHeight) {
-        placement = ALT_PLACEMENT;
-      }
-    }
-
-    data.customPlacement = placement === ALT_PLACEMENT ? placement : null;
+    const placement = DEFAULT_PLACEMENT;
+    data.customPlacement = null;
     schedulePopperPlacement(instance, placement, menu);
   }
 
