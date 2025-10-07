@@ -3,6 +3,22 @@
 (function () {
   const RING_SELECTOR = '.mission-ring[data-percent]';
   const RING_PERCENT_PROPERTY = '--mission-ring-percent';
+  const SCROLL_CONTAINER_SELECTOR = '.pm-scroll';
+
+  function getScrollContainer(element) {
+    if (!element) return null;
+    const widget = element.closest('.todo-widget');
+    if (!widget) return null;
+    return widget.querySelector(SCROLL_CONTAINER_SELECTOR);
+  }
+
+  function toggleDropdownState(event, isOpen) {
+    const target = event?.target;
+    if (!(target instanceof HTMLElement)) return;
+    const scroller = getScrollContainer(target);
+    if (!scroller) return;
+    scroller.classList.toggle('dropdown-open', isOpen);
+  }
 
   function clampPercent(value) {
     if (Number.isNaN(value)) return null;
@@ -38,5 +54,13 @@
     if (target instanceof HTMLElement) {
       init(target);
     }
+  });
+
+  document.addEventListener('show.bs.dropdown', (event) => {
+    toggleDropdownState(event, true);
+  });
+
+  document.addEventListener('hidden.bs.dropdown', (event) => {
+    toggleDropdownState(event, false);
   });
 })();
