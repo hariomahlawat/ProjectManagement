@@ -39,7 +39,8 @@ This document lists every supported configuration value, its default, and how th
 
 | Key | Default | Purpose |
 | --- | --- | --- |
-| `Todo:RetentionDays` | `7` | Number of days completed tasks remain soft-deleted before `TodoPurgeWorker` removes them permanently.【F:appsettings.json†L29-L31】【F:Program.cs†L108-L148】 |
+| `Todo:RetentionDays` | `7` | Number of days completed tasks remain soft-deleted before `TodoPurgeWorker` removes them permanently.【F:appsettings.json†L29-L32】【F:Program.cs†L108-L148】 |
+| `Todo:MaxOpenTasks` | `500` | Cap on concurrently open tasks per user; `TodoService.CreateAsync` refuses to add more once the limit is reached and instructs the UI to show an error message.【F:appsettings.json†L29-L32】【F:Services/TodoService.cs†L20-L78】 |
 
 ## Notifications
 

@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
+using Microsoft.Extensions.Options;
 
 namespace ProjectManagement.Services
 {
@@ -15,12 +16,14 @@ namespace ProjectManagement.Services
         private readonly IAuditService _audit;
         private readonly IClock _clock;
         private static readonly TimeZoneInfo Ist = IstClock.TimeZone;
+        private readonly int _maxOpenTasks;
 
-        public TodoService(ApplicationDbContext db, IAuditService audit, IClock clock)
+        public TodoService(ApplicationDbContext db, IAuditService audit, IClock clock, IOptions<TodoOptions> options)
         {
             _db = db;
             _audit = audit;
             _clock = clock;
+            _maxOpenTasks = options.Value.MaxOpenTasks;
         }
 
         private static DateTimeOffset? ToUtc(DateTimeOffset? localIst)
@@ -84,6 +87,16 @@ namespace ProjectManagement.Services
                                    TodoPriority priority = TodoPriority.Normal, bool pinned = false)
         {
             var utcDue = ToUtc(dueAtLocal);
+            if (_maxOpenTasks > 0)
+            {
+                var openCount = await _db.TodoItems
+                    .CountAsync(x => x.OwnerId == ownerId && x.Status == TodoStatus.Open && x.DeletedUtc == null);
+                if (openCount >= _maxOpenTasks)
+                {
+                    throw new InvalidOperationException(
+                        $"You can only keep {_maxOpenTasks} open tasks at a time. Complete or delete some before adding more.");
+                }
+            }
             var last = await _db.TodoItems.Where(x => x.OwnerId == ownerId && x.DeletedUtc == null).MaxAsync(x => (int?)x.OrderIndex) ?? -1;
             var item = new TodoItem
             {
