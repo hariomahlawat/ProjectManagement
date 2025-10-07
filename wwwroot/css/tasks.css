@@ -274,10 +274,6 @@
   flex: 0 1 auto;
 }
 
-#taskListContainer {
-  --tasks-lane-sticky-offset: 10.75rem;
-}
-
 .tasks-lane {
   position: relative;
   margin-top: 1.5rem;
@@ -288,9 +284,6 @@
 }
 
 .tasks-lane-header {
-  position: sticky;
-  top: calc(var(--pm-sticky-offset, 0) + var(--tasks-lane-sticky-offset, 9.75rem));
-  z-index: 4;
   padding-top: 0.35rem;
   padding-bottom: 0.35rem;
   margin-bottom: 0.65rem;
@@ -373,17 +366,6 @@
 .tasks-lane-empty,
 .tasks-lane .todo-list {
   padding-left: 0.25rem;
-}
-
-@media (max-width: 767.98px) {
-  #taskListContainer {
-    --tasks-lane-sticky-offset: 12.25rem;
-  }
-
-  .tasks-lane-header::after {
-    left: -1rem;
-    right: -1rem;
-  }
 }
 
 .todo-list {
