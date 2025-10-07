@@ -488,6 +488,48 @@
     });
   }
 
+  function initCompactToggle() {
+    const toggle = qs('.tasks-compact-toggle');
+    const container = document.getElementById('taskListContainer');
+    if (!toggle || !container) return;
+
+    const STORAGE_KEY = 'pm.tasks.compact';
+
+    function saveState(value) {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, value ? 'true' : 'false');
+      } catch (_) {
+        /* no-op */
+      }
+    }
+
+    function readStoredState() {
+      try {
+        return window.localStorage.getItem(STORAGE_KEY);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    function applyState(isCompact) {
+      container.classList.toggle('compact', isCompact);
+      toggle.dataset.compact = isCompact ? 'true' : 'false';
+      toggle.setAttribute('aria-pressed', isCompact ? 'true' : 'false');
+      toggle.classList.toggle('is-active', isCompact);
+      saveState(isCompact);
+    }
+
+    const stored = readStoredState();
+    const initial = stored === 'true' || (stored === null && toggle.dataset.compact === 'true');
+    applyState(initial);
+
+    toggle.addEventListener('click', (event) => {
+      event.preventDefault();
+      const current = toggle.dataset.compact === 'true';
+      applyState(!current);
+    });
+  }
+
   // ---- 0) Auto-submit done/undo checkboxes ----
   function initDoneAutosubmit(toastApi) {
     const nativeSubmit = HTMLFormElement.prototype.submit;
@@ -581,6 +623,7 @@
       initDragReorder();
       initBulkSelection();
       initKeyboardNav();
+      initCompactToggle();
     });
   } else {
     const toast = initTaskToast();
@@ -589,5 +632,6 @@
     initDragReorder();
     initBulkSelection();
     initKeyboardNav();
+    initCompactToggle();
   }
 })();
