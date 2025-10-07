@@ -7,9 +7,16 @@
   // ---------- Dropdowns: render menus in <body> & flip safely ----------
   function initDropdowns() {
     document.querySelectorAll('[data-bs-toggle="dropdown"]').forEach(btn => {
-      // Mount menus to body so scrollable cards don't clip them
+      const parent = btn.parentElement;
+      if (!parent) return;
+
+      const menu = parent.querySelector(':scope > .dropdown-menu') || parent.querySelector('.dropdown-menu');
+      if (!menu) return;
+
+      const originalParent = menu.parentNode;
+      const originalNextSibling = menu.nextSibling;
+
       bootstrap.Dropdown.getOrCreateInstance(btn, {
-        container: document.body,
         popperConfig: {
           strategy: 'fixed',
           modifiers: [
@@ -17,6 +24,22 @@
             { name: 'preventOverflow', options: { boundary: 'viewport' } },
             { name: 'offset', options: { offset: [0, 6] } }
           ]
+        }
+      });
+
+      btn.addEventListener('show.bs.dropdown', () => {
+        if (menu.parentNode !== document.body) {
+          document.body.appendChild(menu);
+        }
+      });
+
+      btn.addEventListener('hidden.bs.dropdown', () => {
+        if (!originalParent) return;
+
+        if (originalNextSibling && originalNextSibling.parentNode === originalParent) {
+          originalParent.insertBefore(menu, originalNextSibling);
+        } else {
+          originalParent.appendChild(menu);
         }
       });
     });
