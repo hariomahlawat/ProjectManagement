@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -160,6 +161,33 @@ namespace ProjectManagement.Tests
             await service.ToggleDoneAsync("alice", b.Id, true);
             var ok = await service.ReorderAsync("alice", new List<Guid> { b.Id, a.Id });
             Assert.False(ok);
+        }
+
+        [Fact]
+        public async Task ReorderMultipleSequencesUpdatesOrderIndex()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var clock = new FakeClock(DateTimeOffset.UtcNow);
+            var service = CreateService(context, audit, clock);
+
+            var first = await service.CreateAsync("alice", "First");
+            var second = await service.CreateAsync("alice", "Second");
+            var third = await service.CreateAsync("alice", "Third");
+
+            var ok1 = await service.ReorderAsync("alice", new[] { third.Id, first.Id, second.Id });
+            Assert.True(ok1);
+
+            var ok2 = await service.ReorderAsync("alice", new[] { second.Id, third.Id, first.Id });
+            Assert.True(ok2);
+
+            var stored = await context.TodoItems
+                .Where(x => x.OwnerId == "alice")
+                .OrderBy(x => x.OrderIndex)
+                .ToListAsync();
+
+            Assert.Equal(new[] { second.Id, third.Id, first.Id }, stored.Select(x => x.Id).ToArray());
+            Assert.Equal(new[] { 0, 1, 2 }, stored.Select(x => x.OrderIndex).ToArray());
         }
 
         [Fact]
@@ -410,6 +438,78 @@ namespace ProjectManagement.Tests
             await service.EditAsync("alice", item.Id, dueAtLocal: nextMon);
             var stored3 = await context.TodoItems.FindAsync(item.Id);
             Assert.Equal(nextMon.ToUniversalTime(), stored3!.DueAtUtc);
+        }
+
+        [Fact]
+        public async Task MarkDoneAndBulkPinScenariosUpdateTasks()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var now = new DateTimeOffset(2023, 1, 1, 12, 0, 0, TimeSpan.Zero);
+            var clock = new FakeClock(now);
+            var service = CreateService(context, audit, clock);
+
+            var a = await service.CreateAsync("alice", "Alpha");
+            var b = await service.CreateAsync("alice", "Beta");
+            var c = await service.CreateAsync("alice", "Gamma");
+
+            await service.MarkDoneAsync("alice", new[] { a.Id, c.Id });
+
+            var refreshed = await context.TodoItems.Where(x => x.OwnerId == "alice").ToListAsync();
+            var doneItems = refreshed.Where(x => x.Id == a.Id || x.Id == c.Id).ToList();
+            Assert.All(doneItems, item =>
+            {
+                Assert.Equal(TodoStatus.Done, item.Status);
+                Assert.NotNull(item.CompletedUtc);
+            });
+
+            foreach (var id in new[] { a.Id, b.Id })
+            {
+                var pinned = await service.EditAsync("alice", id, pinned: true);
+                Assert.True(pinned);
+            }
+
+            var pinnedState = await context.TodoItems.Where(x => x.Id == a.Id || x.Id == b.Id).ToListAsync();
+            Assert.All(pinnedState, item => Assert.True(item.IsPinned));
+
+            foreach (var id in new[] { a.Id, b.Id })
+            {
+                var unpinned = await service.EditAsync("alice", id, pinned: false);
+                Assert.True(unpinned);
+            }
+
+            var finalState = await context.TodoItems.Where(x => x.Id == a.Id || x.Id == b.Id).ToListAsync();
+            Assert.All(finalState, item => Assert.False(item.IsPinned));
+
+            Assert.Equal(2, audit.Actions.Count(action => action == "Todo.Pin"));
+            Assert.Equal(2, audit.Actions.Count(action => action == "Todo.Unpin"));
+            Assert.Equal(2, audit.Actions.Count(action => action == "Todo.Done"));
+        }
+
+        [Fact]
+        public async Task SnoozeNearIstMidnightRespectsBoundaries()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var nowUtc = new DateTimeOffset(2023, 1, 1, 18, 20, 0, TimeSpan.Zero); // 23:50 IST
+            var clock = new FakeClock(nowUtc);
+            var service = CreateService(context, audit, clock);
+
+            await service.CreateAsync("alice", "Early", new DateTimeOffset(2023, 1, 1, 0, 5, 0, TimeSpan.FromHours(5.5)));
+            await service.CreateAsync("alice", "Late", new DateTimeOffset(2023, 1, 1, 23, 55, 0, TimeSpan.FromHours(5.5)));
+            await service.CreateAsync("alice", "NextDay", new DateTimeOffset(2023, 1, 2, 0, 5, 0, TimeSpan.FromHours(5.5)));
+
+            var widget = await service.GetWidgetAsync("alice");
+
+            Assert.Equal(1, widget.OverdueCount);
+            Assert.Equal(1, widget.DueTodayCount);
+            Assert.Equal(1, widget.Next7DaysCount);
+
+            var late = widget.Items.Single(x => x.Title == "Late");
+            Assert.Equal(new DateTimeOffset(2023, 1, 1, 18, 25, 0, TimeSpan.Zero), late.DueAtUtc);
+
+            var nextDay = widget.Items.Single(x => x.Title == "NextDay");
+            Assert.Equal(new DateTimeOffset(2023, 1, 1, 18, 35, 0, TimeSpan.Zero), nextDay.DueAtUtc);
         }
 
         [Fact]
