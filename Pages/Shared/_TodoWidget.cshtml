@@ -1,5 +1,7 @@
 @using ProjectManagement.Models
 @using ProjectManagement.Helpers
+@using Microsoft.AspNetCore.Routing
+@using System.Linq
 @model ProjectManagement.Services.TodoWidgetResult
 
 @{
@@ -7,6 +9,22 @@
     var dueTodayCount = Model?.DueTodayCount ?? 0;
     var nextSevenCount = Model?.Next7DaysCount ?? 0;
     var onTimePercentValue = (Model?.OnTimePercent ?? 0d).ToString("0");
+
+    var defaultTab = (overdueCount > 0 || dueTodayCount > 0)
+        ? "today"
+        : nextSevenCount > 0
+            ? "upcoming"
+            : "today";
+
+    var routeValues = new RouteValueDictionary();
+    foreach (var queryParameter in ViewContext.HttpContext.Request.Query)
+    {
+        routeValues[queryParameter.Key] = queryParameter.Value.Count > 1
+            ? queryParameter.Value.ToArray()
+            : queryParameter.Value.ToString();
+    }
+
+    routeValues["tab"] = defaultTab;
 }
 
 <div class="card shadow-sm todo-widget">
@@ -28,7 +46,9 @@
                 </span>
             </div>
         </div>
-        <a asp-page="/Tasks/Index" class="mission-panel__link text-decoration-none small fw-semibold">Open list</a>
+        <a asp-page="/Tasks/Index"
+           asp-all-route-data="routeValues"
+           class="mission-panel__link text-decoration-none small fw-semibold">Open list</a>
     </div>
 
     <div class="card-body">
