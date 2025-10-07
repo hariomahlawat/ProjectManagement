@@ -19,7 +19,11 @@ public interface IRemarkService
     Task<IReadOnlyList<RemarkAudit>> GetRemarkAuditAsync(int remarkId, RemarkActorContext actor, CancellationToken cancellationToken = default);
 }
 
-public sealed record RemarkActorContext(string UserId, RemarkActorRole ActorRole, IReadOnlyCollection<RemarkActorRole> Roles);
+public sealed record RemarkActorContext(
+    string UserId,
+    RemarkActorRole ActorRole,
+    IReadOnlyCollection<RemarkActorRole> Roles,
+    bool IsViewerOnly = false);
 
 public sealed record CreateRemarkRequest(
     int ProjectId,

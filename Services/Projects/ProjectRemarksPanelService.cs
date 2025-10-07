@@ -80,6 +80,8 @@ public sealed class ProjectRemarksPanelService
             .Where(role => role != RemarkActorRole.Unknown)
             .ToHashSet();
 
+        var viewerOnly = false;
+
         if (remarkRoleSet.Count == 0)
         {
             if (!string.IsNullOrWhiteSpace(project.LeadPoUserId)
@@ -93,6 +95,13 @@ public sealed class ProjectRemarksPanelService
             {
                 remarkRoleSet.Add(RemarkActorRole.HeadOfDepartment);
             }
+
+            if (remarkRoleSet.Count == 0
+                && ProjectAccessGuard.CanViewProject(project, userPrincipal, user.Id))
+            {
+                remarkRoleSet.Add(RemarkActorRole.ProjectOfficer);
+                viewerOnly = true;
+            }
         }
 
         var remarkRoles = remarkRoleSet.ToList();
@@ -101,15 +110,15 @@ public sealed class ProjectRemarksPanelService
         var actorRoleCanonical = actorRole == RemarkActorRole.Unknown ? null : actorRole.ToString();
         var actorRoleLabel = actorRole == RemarkActorRole.Unknown ? null : BuildRoleDisplayName(actorRole);
 
-        var canOverride = remarkRoleSet.Any(role => role is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant or RemarkActorRole.Administrator);
-        var canPostAsHoDOrAbove = remarkRoleSet.Any(role => role is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant or RemarkActorRole.Administrator);
-        var canPostAsMco = remarkRoleSet.Contains(RemarkActorRole.Mco);
-        var canPostAsPo = remarkRoleSet.Contains(RemarkActorRole.ProjectOfficer)
+        var canOverride = !viewerOnly && remarkRoleSet.Any(role => role is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant or RemarkActorRole.Administrator);
+        var canPostAsHoDOrAbove = !viewerOnly && remarkRoleSet.Any(role => role is RemarkActorRole.HeadOfDepartment or RemarkActorRole.Commandant or RemarkActorRole.Administrator);
+        var canPostAsMco = !viewerOnly && remarkRoleSet.Contains(RemarkActorRole.Mco);
+        var canPostAsPo = !viewerOnly && remarkRoleSet.Contains(RemarkActorRole.ProjectOfficer)
             && !string.IsNullOrWhiteSpace(project.LeadPoUserId)
             && string.Equals(project.LeadPoUserId, user.Id, StringComparison.Ordinal);
 
-        var showComposer = canPostAsHoDOrAbove || canPostAsMco || canPostAsPo;
-        var allowExternal = canPostAsHoDOrAbove;
+        var showComposer = !viewerOnly && (canPostAsHoDOrAbove || canPostAsMco || canPostAsPo);
+        var allowExternal = !viewerOnly && canPostAsHoDOrAbove;
 
         return new ProjectRemarksPanelViewModel
         {
@@ -122,7 +131,7 @@ public sealed class ProjectRemarksPanelService
             ShowComposer = showComposer,
             AllowInternal = showComposer,
             AllowExternal = allowExternal,
-            ShowDeletedToggle = remarkRoleSet.Contains(RemarkActorRole.Administrator),
+            ShowDeletedToggle = !viewerOnly && remarkRoleSet.Contains(RemarkActorRole.Administrator),
             ActorHasOverride = canOverride,
             StageOptions = stageOptions,
             RoleOptions = roleOptions,
