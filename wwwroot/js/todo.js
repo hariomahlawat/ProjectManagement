@@ -8,6 +8,67 @@
   const processedToggles = new WeakSet();
   const portalRegistry = new WeakMap();
   const FLIP_FALLBACKS = ['bottom-end', 'top-end', 'top-start', 'bottom-start'];
+  const DEFAULT_PLACEMENT = 'bottom-end';
+  const ALT_PLACEMENT = 'top-end';
+
+  function onNextFrame(callback) {
+    if (typeof window.requestAnimationFrame === 'function') {
+      return window.requestAnimationFrame(callback);
+    }
+    return window.setTimeout(callback, 16);
+  }
+
+  function measureMenuHeight(menu) {
+    if (!(menu instanceof HTMLElement)) return 0;
+    const rect = menu.getBoundingClientRect();
+    if (rect.height > 0) return rect.height;
+
+    const { display, visibility } = menu.style;
+    menu.style.visibility = 'hidden';
+    menu.style.display = 'block';
+    const measuredRect = menu.getBoundingClientRect();
+    menu.style.display = display;
+    menu.style.visibility = visibility;
+    return measuredRect.height;
+  }
+
+  function schedulePopperPlacement(instance, placement, menu) {
+    if (!instance) return;
+
+    const desiredPlacement = placement || DEFAULT_PLACEMENT;
+    const shouldHideMenu = menu instanceof HTMLElement && desiredPlacement === ALT_PLACEMENT;
+    const previousVisibility = shouldHideMenu ? menu.style.visibility : null;
+
+    if (shouldHideMenu) {
+      menu.style.visibility = 'hidden';
+    }
+
+    const applyPlacement = (attempt = 0) => {
+      const popper = instance._popper;
+      if (!popper) {
+        if (attempt >= 5) {
+          if (shouldHideMenu) {
+            menu.style.visibility = previousVisibility || '';
+          }
+          return;
+        }
+        onNextFrame(() => applyPlacement(attempt + 1));
+        return;
+      }
+
+      popper.setOptions((options) => ({
+        ...options,
+        placement: desiredPlacement
+      }));
+      popper.update();
+
+      if (shouldHideMenu) {
+        menu.style.visibility = previousVisibility || '';
+      }
+    };
+
+    onNextFrame(() => applyPlacement());
+  }
 
   function ensureDropdownInstance(toggle) {
     const popperConfig = {
@@ -45,7 +106,8 @@
       row: dropdown.closest('.todo-row'),
       originalParent: menu.parentNode,
       originalNextSibling: menu.nextSibling,
-      portalActive: false
+      portalActive: false,
+      customPlacement: null
     };
 
     portalRegistry.set(toggle, data);
@@ -128,6 +190,30 @@
     if (!data) return;
 
     activatePortal(toggle, data);
+
+    const instance = bootstrap.Dropdown.getInstance(toggle);
+    if (!instance) return;
+
+    const { menu } = data;
+    if (!(menu instanceof HTMLElement)) return;
+
+    let placement = DEFAULT_PLACEMENT;
+    const container = toggle.closest('.todo-list') || toggle.closest('.todo-widget');
+    const menuHeight = measureMenuHeight(menu);
+
+    if (container instanceof HTMLElement && menuHeight > 0) {
+      const toggleRect = toggle.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const spaceAbove = Math.max(0, toggleRect.top - containerRect.top);
+      const spaceBelow = Math.max(0, containerRect.bottom - toggleRect.bottom);
+
+      if (spaceBelow < menuHeight && spaceAbove >= menuHeight) {
+        placement = ALT_PLACEMENT;
+      }
+    }
+
+    data.customPlacement = placement === ALT_PLACEMENT ? placement : null;
+    schedulePopperPlacement(instance, placement, menu);
   }
 
   function handleDropdownHidden(event) {
@@ -136,6 +222,17 @@
 
     const data = portalRegistry.get(toggle);
     if (!data) return;
+
+    const instance = bootstrap.Dropdown.getInstance(toggle);
+    if (instance && instance._popper) {
+      instance._popper.setOptions((options) => ({
+        ...options,
+        placement: DEFAULT_PLACEMENT
+      }));
+      instance._popper.update();
+    }
+
+    data.customPlacement = null;
 
     restorePortal(data);
   }
