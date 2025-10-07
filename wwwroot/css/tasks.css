@@ -449,6 +449,16 @@
   box-shadow: 0 0 0 1px var(--todo-row-hover-border), 0 14px 32px -24px rgba(15, 23, 42, .35);
 }
 
+.todo-row--dropdown-open {
+  transform: none !important;
+  z-index: 20;
+}
+
+.todo-row--dropdown-open:hover,
+.todo-row--dropdown-open:focus-within {
+  transform: none !important;
+}
+
 .task-row {
   display: flex;
   align-items: stretch;

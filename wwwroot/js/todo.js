@@ -15,6 +15,7 @@
 
       const originalParent = menu.parentNode;
       const originalNextSibling = menu.nextSibling;
+      const todoRow = btn.closest('.todo-row');
 
       bootstrap.Dropdown.getOrCreateInstance(btn, {
         popperConfig: {
@@ -28,12 +29,18 @@
       });
 
       btn.addEventListener('show.bs.dropdown', () => {
+        if (todoRow) {
+          todoRow.classList.add('todo-row--dropdown-open');
+        }
         if (menu.parentNode !== document.body) {
           document.body.appendChild(menu);
         }
       });
 
       btn.addEventListener('hidden.bs.dropdown', () => {
+        if (todoRow) {
+          todoRow.classList.remove('todo-row--dropdown-open');
+        }
         if (!originalParent) return;
 
         if (originalNextSibling && originalNextSibling.parentNode === originalParent) {
