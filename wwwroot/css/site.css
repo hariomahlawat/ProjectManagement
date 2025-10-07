@@ -1430,7 +1430,11 @@ h6:first-child {
 .badge { letter-spacing: .2px; }
 
 /* Scroll area helper for dashboard widgets */
-.pm-scroll{ max-height:340px; overflow:auto }
+.pm-scroll {
+  max-height: 340px;
+  overflow-y: auto;
+  overflow-x: visible;
+}
 
 /* Keep dropdowns above any cards/sections on the dashboard */
 .dashboard .dropdown-menu,
