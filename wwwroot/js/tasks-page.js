@@ -38,6 +38,31 @@
     if (lists.length === 0) return;
     let dragEl = null;
 
+    const FAILURE_THRESHOLD = 3;
+    const failureState = new WeakMap();
+
+    function getFailureState(list) {
+      let state = failureState.get(list);
+      if (!state) {
+        state = { failures: 0, notified: false, snapshot: null };
+        failureState.set(list, state);
+      }
+      return state;
+    }
+
+    function captureSnapshot(list, state) {
+      const rows = qsa('li[draggable="true"][data-id]', list);
+      state.snapshot = rows.map(node => ({ node, nextSibling: node.nextSibling }));
+    }
+
+    function revertSnapshot(list, state) {
+      if (!state.snapshot) return;
+      for (let i = state.snapshot.length - 1; i >= 0; i -= 1) {
+        const { node, nextSibling } = state.snapshot[i];
+        list.insertBefore(node, nextSibling || null);
+      }
+    }
+
     lists.forEach(list => {
       list.addEventListener('dragstart', e => {
         const li = e.target.closest('.todo-row[draggable="true"]');
@@ -45,6 +70,8 @@
         dragEl = li;
         e.dataTransfer.effectAllowed = 'move';
         li.classList.add('opacity-50');
+        const state = getFailureState(list);
+        captureSnapshot(list, state);
       });
 
       list.addEventListener('dragover', e => {
@@ -63,13 +90,27 @@
         // Only include draggable rows (i.e., open items)
         const ids = qsa('li[draggable="true"][data-id]', list).map(r => r.dataset.id);
         if (ids.length === 0) return;
+        const state = getFailureState(list);
         const fd = new FormData();
         ids.forEach(id => fd.append('ids', id));
         const token = qs('input[name="__RequestVerificationToken"]')?.value;
         if (token) fd.append('__RequestVerificationToken', token);
         try {
-          await fetch('?handler=Reorder', { method: 'POST', body: fd, credentials: 'same-origin' });
-        } catch (_) { /* swallow network errors silently */ }
+          const response = await fetch('?handler=Reorder', { method: 'POST', body: fd, credentials: 'same-origin' });
+          if (!response.ok) {
+            throw new Error('Failed to reorder');
+          }
+          state.failures = 0;
+          state.notified = false;
+          state.snapshot = null;
+        } catch (_) {
+          state.failures = (state.failures || 0) + 1;
+          revertSnapshot(list, state);
+          if (state.failures >= FAILURE_THRESHOLD && !state.notified) {
+            window.alert('We could not save the new order. Please try again later.');
+            state.notified = true;
+          }
+        }
       });
     });
   }
