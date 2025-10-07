@@ -74,9 +74,63 @@ public class TasksPageTests
         Assert.False(todo.CreateCalled);
     }
 
+    [Fact]
+    public async Task OnPostSnoozeAsync_ClearPreset_CallsEditWithNullDueDate()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+
+        using var serviceProvider = new ServiceCollection().BuildServiceProvider();
+
+        var userManager = new UserManager<ApplicationUser>(
+            new UserStore<ApplicationUser>(context),
+            Options.Create(new IdentityOptions()),
+            new PasswordHasher<ApplicationUser>(),
+            Array.Empty<IUserValidator<ApplicationUser>>(),
+            Array.Empty<IPasswordValidator<ApplicationUser>>(),
+            new UpperInvariantLookupNormalizer(),
+            new IdentityErrorDescriber(),
+            serviceProvider,
+            NullLogger<UserManager<ApplicationUser>>.Instance);
+
+        var todo = new RecordingTodoService();
+
+        var httpContext = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+            {
+                new Claim(ClaimTypes.NameIdentifier, "user-1")
+            }, "TestAuth"))
+        };
+
+        var page = new IndexModel(context, todo, userManager)
+        {
+            PageContext = new PageContext(new ActionContext(
+                httpContext,
+                new RouteData(),
+                new ActionDescriptor()))
+        };
+
+        page.TempData = new TempDataDictionary(httpContext, new DictionaryTempDataProvider());
+
+        var id = Guid.NewGuid();
+        var result = await page.OnPostSnoozeAsync(id, "clear");
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal(id, todo.LastEditId);
+        Assert.Null(todo.LastDueAtLocal);
+        Assert.True(todo.LastUpdateDueDate);
+    }
+
     private sealed class RecordingTodoService : ITodoService
     {
         public bool CreateCalled { get; private set; }
+        public Guid? LastEditId { get; private set; }
+        public DateTimeOffset? LastDueAtLocal { get; private set; }
+        public bool LastUpdateDueDate { get; private set; }
 
         public Task<TodoWidgetResult> GetWidgetAsync(string ownerId, int take = 20)
             => throw new NotImplementedException();
@@ -92,8 +146,13 @@ public class TasksPageTests
             => throw new NotImplementedException();
 
         public Task<bool> EditAsync(string ownerId, Guid id, string? title = null, DateTimeOffset? dueAtLocal = null,
-            TodoPriority? priority = null, bool? pinned = null)
-            => throw new NotImplementedException();
+            bool updateDueDate = false, TodoPriority? priority = null, bool? pinned = null)
+        {
+            LastEditId = id;
+            LastDueAtLocal = dueAtLocal;
+            LastUpdateDueDate = updateDueDate;
+            return Task.FromResult(true);
+        }
 
         public Task<bool> DeleteAsync(string ownerId, Guid id)
             => throw new NotImplementedException();

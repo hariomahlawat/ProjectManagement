@@ -128,7 +128,7 @@ namespace ProjectManagement.Tests
             var service = CreateService(context, audit, clock);
             var item = await service.CreateAsync("alice", "Old");
             var dueLocal = new DateTimeOffset(2023, 2, 1, 10, 0, 0, TimeSpan.FromHours(5.5));
-            await service.EditAsync("alice", item.Id, title: "New", priority: TodoPriority.High, dueAtLocal: dueLocal, pinned: true);
+            await service.EditAsync("alice", item.Id, title: "New", dueAtLocal: dueLocal, updateDueDate: true, priority: TodoPriority.High, pinned: true);
             var stored = await context.TodoItems.FindAsync(item.Id);
             Assert.Equal("New", stored!.Title);
             Assert.Equal(TodoPriority.High, stored.Priority);
@@ -425,19 +425,38 @@ namespace ProjectManagement.Tests
             var item = await service.CreateAsync("alice", "Task");
 
             var todayPm = TodayAt(18, 0);
-            await service.EditAsync("alice", item.Id, dueAtLocal: todayPm);
+            await service.EditAsync("alice", item.Id, dueAtLocal: todayPm, updateDueDate: true);
             var stored1 = await context.TodoItems.FindAsync(item.Id);
             Assert.Equal(TodayAt(18,0).ToUniversalTime(), stored1!.DueAtUtc);
 
             var tomAm = TodayAt(10,0).AddDays(1);
-            await service.EditAsync("alice", item.Id, dueAtLocal: tomAm);
+            await service.EditAsync("alice", item.Id, dueAtLocal: tomAm, updateDueDate: true);
             var stored2 = await context.TodoItems.FindAsync(item.Id);
             Assert.Equal(tomAm.ToUniversalTime(), stored2!.DueAtUtc);
 
             var nextMon = NextMondayAt(10,0);
-            await service.EditAsync("alice", item.Id, dueAtLocal: nextMon);
+            await service.EditAsync("alice", item.Id, dueAtLocal: nextMon, updateDueDate: true);
             var stored3 = await context.TodoItems.FindAsync(item.Id);
             Assert.Equal(nextMon.ToUniversalTime(), stored3!.DueAtUtc);
+        }
+
+        [Fact]
+        public async Task EditAsync_CanClearDueDateWhenRequested()
+        {
+            using var context = CreateContext();
+            var audit = new FakeAudit();
+            var clock = new FakeClock(DateTimeOffset.UtcNow);
+            var service = CreateService(context, audit, clock);
+            var item = await service.CreateAsync("alice", "Task", TodayAt(9, 0));
+
+            var storedBefore = await context.TodoItems.FindAsync(item.Id);
+            Assert.NotNull(storedBefore!.DueAtUtc);
+
+            var updated = await service.EditAsync("alice", item.Id, dueAtLocal: null, updateDueDate: true);
+
+            Assert.True(updated);
+            var storedAfter = await context.TodoItems.FindAsync(item.Id);
+            Assert.Null(storedAfter!.DueAtUtc);
         }
 
         [Fact]

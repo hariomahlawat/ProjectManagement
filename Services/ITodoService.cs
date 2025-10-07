@@ -12,7 +12,8 @@ namespace ProjectManagement.Services
                                    TodoPriority priority = TodoPriority.Normal, bool pinned = false);
         Task<bool> ToggleDoneAsync(string ownerId, Guid id, bool done);
         Task<bool> EditAsync(string ownerId, Guid id, string? title = null,
-                              DateTimeOffset? dueAtLocal = null, TodoPriority? priority = null, bool? pinned = null);
+                              DateTimeOffset? dueAtLocal = null, bool updateDueDate = false,
+                              TodoPriority? priority = null, bool? pinned = null);
         Task<bool> DeleteAsync(string ownerId, Guid id);
         Task<int> ClearCompletedAsync(string ownerId);
         Task<bool> ReorderAsync(string ownerId, IList<Guid> orderedIds);

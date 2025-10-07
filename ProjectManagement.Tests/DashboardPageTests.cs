@@ -200,6 +200,55 @@ namespace ProjectManagement.Tests
             var expected = new DateTimeOffset(nowIst.Date.AddDays(1).AddHours(10), nowIst.Offset);
             Assert.Equal(expected, todo.LastDueAtLocal);
             Assert.Equal(id, todo.LastEditId);
+            Assert.True(todo.LastUpdateDueDate);
+        }
+
+        [Fact]
+        public async Task OnPostSnoozeAsync_ClearPreset_ClearsDueDate()
+        {
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options;
+
+            await using var context = new ApplicationDbContext(options);
+
+            using var serviceProvider = new ServiceCollection().BuildServiceProvider();
+
+            var userManager = new UserManager<ApplicationUser>(
+                new UserStore<ApplicationUser>(context),
+                Options.Create(new IdentityOptions()),
+                new PasswordHasher<ApplicationUser>(),
+                Array.Empty<IUserValidator<ApplicationUser>>(),
+                Array.Empty<IPasswordValidator<ApplicationUser>>(),
+                new UpperInvariantLookupNormalizer(),
+                new IdentityErrorDescriber(),
+                serviceProvider,
+                NullLogger<UserManager<ApplicationUser>>.Instance);
+
+            var todo = new RecordingTodoService();
+            var nowIst = new DateTimeOffset(2024, 5, 10, 15, 30, 0, TimeSpan.FromHours(5.5));
+
+            var page = new TestableIndexModel(todo, userManager, context, nowIst)
+            {
+                PageContext = new PageContext(new ActionContext(
+                    new DefaultHttpContext
+                    {
+                        User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                        {
+                            new Claim(ClaimTypes.NameIdentifier, "user-1")
+                        }, "TestAuth"))
+                    },
+                    new RouteData(),
+                    new ActionDescriptor()))
+            };
+
+            var id = Guid.NewGuid();
+            var result = await page.OnPostSnoozeAsync(id, "clear");
+
+            Assert.IsType<RedirectToPageResult>(result);
+            Assert.Equal(id, todo.LastEditId);
+            Assert.Null(todo.LastDueAtLocal);
+            Assert.True(todo.LastUpdateDueDate);
         }
 
         private sealed class StubTodoService : ITodoService
@@ -213,7 +262,7 @@ namespace ProjectManagement.Tests
             public Task<bool> ToggleDoneAsync(string ownerId, Guid id, bool done) =>
                 throw new NotImplementedException();
 
-            public Task<bool> EditAsync(string ownerId, Guid id, string? title = null, DateTimeOffset? dueAtLocal = null, TodoPriority? priority = null, bool? pinned = null) =>
+            public Task<bool> EditAsync(string ownerId, Guid id, string? title = null, DateTimeOffset? dueAtLocal = null, bool updateDueDate = false, TodoPriority? priority = null, bool? pinned = null) =>
                 throw new NotImplementedException();
 
             public Task<bool> DeleteAsync(string ownerId, Guid id) =>
@@ -247,10 +296,13 @@ namespace ProjectManagement.Tests
             public Task<bool> ToggleDoneAsync(string ownerId, Guid id, bool done) =>
                 throw new NotImplementedException();
 
-            public Task<bool> EditAsync(string ownerId, Guid id, string? title = null, DateTimeOffset? dueAtLocal = null, TodoPriority? priority = null, bool? pinned = null)
+            public bool LastUpdateDueDate { get; private set; }
+
+            public Task<bool> EditAsync(string ownerId, Guid id, string? title = null, DateTimeOffset? dueAtLocal = null, bool updateDueDate = false, TodoPriority? priority = null, bool? pinned = null)
             {
                 LastEditId = id;
                 LastDueAtLocal = dueAtLocal;
+                LastUpdateDueDate = updateDueDate;
                 return Task.FromResult(true);
             }
 
