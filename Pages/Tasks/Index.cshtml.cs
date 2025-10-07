@@ -44,7 +44,8 @@ namespace ProjectManagement.Pages.Tasks
         public async Task OnGetAsync()
         {
             var uid = _users.GetUserId(User);
-            var q = _db.TodoItems.AsNoTracking().Where(x => x.OwnerId == uid);
+            var q = _db.TodoItems.AsNoTracking()
+                .Where(x => x.OwnerId == uid && x.DeletedUtc == null);
 
             if (!string.IsNullOrWhiteSpace(Q))
             {
