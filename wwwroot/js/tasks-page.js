@@ -496,6 +496,10 @@
     if (!toggle || !container) return;
 
     const STORAGE_KEY = 'pm.tasks.compact';
+    const labelEl = qs('[data-role="label"]', toggle);
+    const labelCompact = toggle.dataset.labelCompact || 'Compact view';
+    const labelComfy = toggle.dataset.labelComfy || 'Comfortable view';
+    let currentState = null;
 
     function saveState(value) {
       try {
@@ -513,22 +517,230 @@
       }
     }
 
-    function applyState(isCompact) {
+    function updateToggleLabel(isCompact) {
+      const label = isCompact ? labelComfy : labelCompact;
+      if (labelEl) {
+        labelEl.textContent = label;
+      }
+      toggle.setAttribute('title', label);
+      toggle.setAttribute('aria-label', label);
+    }
+
+    function applyState(isCompact, { persist = true } = {}) {
+      const shouldAnnounce = currentState !== null && currentState !== isCompact;
+      currentState = isCompact;
       container.classList.toggle('compact', isCompact);
       toggle.dataset.compact = isCompact ? 'true' : 'false';
       toggle.setAttribute('aria-pressed', isCompact ? 'true' : 'false');
       toggle.classList.toggle('is-active', isCompact);
-      saveState(isCompact);
+      updateToggleLabel(isCompact);
+      if (!isCompact) {
+        qsa('.todo-row.task-row--meta-visible', container).forEach(row => row.classList.remove('task-row--meta-visible'));
+      }
+      if (shouldAnnounce) {
+        container.dispatchEvent(new CustomEvent('tasks:compact-change', { detail: { compact: isCompact } }));
+      }
+      if (persist) {
+        saveState(isCompact);
+      }
     }
 
     const stored = readStoredState();
     const initial = stored === 'true' || (stored === null && toggle.dataset.compact === 'true');
-    applyState(initial);
+    applyState(initial, { persist: false });
 
     toggle.addEventListener('click', (event) => {
       event.preventDefault();
       const current = toggle.dataset.compact === 'true';
       applyState(!current);
+    });
+
+    return { applyState };
+  }
+
+  function initFilterOffcanvas() {
+    const bar = qs('[data-filter-bar]');
+    const desktopSlot = qs('[data-filter-desktop]');
+    const mobileSlot = qs('[data-filter-mobile]');
+    const form = qs('[data-filter-form]');
+    const offcanvasEl = document.getElementById('tasksFilterOffcanvas');
+    if (!bar || !desktopSlot || !mobileSlot || !form) return;
+
+    const media = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(max-width: 767.98px)')
+      : null;
+    let currentMode = null;
+
+    function moveForm(target) {
+      if (!target) return;
+      if (target.contains(form)) return;
+      target.appendChild(form);
+    }
+
+    function hideOffcanvas() {
+      if (!offcanvasEl) return;
+      if (typeof bootstrap !== 'undefined' && typeof bootstrap.Offcanvas !== 'undefined') {
+        const instance = bootstrap.Offcanvas.getInstance(offcanvasEl);
+        if (instance) {
+          instance.hide();
+        }
+      }
+    }
+
+    function setMobileState(active) {
+      if (active) {
+        bar.setAttribute('data-mobile-active', 'true');
+      } else {
+        bar.removeAttribute('data-mobile-active');
+      }
+    }
+
+    function applyLayout() {
+      const shouldMobile = media ? media.matches : false;
+      if (currentMode === shouldMobile) return;
+      currentMode = shouldMobile;
+      if (shouldMobile) {
+        moveForm(mobileSlot);
+        setMobileState(true);
+      } else {
+        moveForm(desktopSlot);
+        setMobileState(false);
+        hideOffcanvas();
+      }
+    }
+
+    applyLayout();
+
+    if (media) {
+      const handler = () => applyLayout();
+      if (typeof media.addEventListener === 'function') {
+        media.addEventListener('change', handler);
+      } else if (typeof media.addListener === 'function') {
+        media.addListener(handler);
+      }
+    }
+  }
+
+  function initTouchMetaReveal() {
+    const container = document.getElementById('taskListContainer');
+    if (!container) return;
+
+    const coarse = typeof window.matchMedia === 'function'
+      ? window.matchMedia('(hover: none)')
+      : null;
+    const supportsTouch = coarse ? coarse.matches : ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+    if (!supportsTouch) return;
+
+    const observed = new WeakSet();
+
+    function shouldEnable() {
+      if (container.classList.contains('compact')) return true;
+      if (typeof window.matchMedia === 'function') {
+        return window.matchMedia('(max-width: 767.98px)').matches;
+      }
+      return false;
+    }
+
+    function closeOthers(except) {
+      qsa('.todo-row.task-row--meta-visible', container).forEach(row => {
+        if (row !== except) {
+          row.classList.remove('task-row--meta-visible');
+        }
+      });
+    }
+
+    function setupRow(row) {
+      if (!row || observed.has(row)) return;
+      const meta = qs('[data-task-meta]', row);
+      if (!meta) return;
+      observed.add(row);
+
+      let pointerId = null;
+      let startX = 0;
+      let startY = 0;
+      let didSwipe = false;
+
+      row.addEventListener('pointerdown', (event) => {
+        if (event.pointerType !== 'touch') return;
+        if (!shouldEnable()) return;
+        if (event.target.closest('[data-task-meta]')) return;
+        if (isEditable(event.target)) return;
+        pointerId = event.pointerId;
+        startX = event.clientX;
+        startY = event.clientY;
+        didSwipe = false;
+      });
+
+      row.addEventListener('pointermove', (event) => {
+        if (event.pointerType !== 'touch') return;
+        if (pointerId === null || event.pointerId !== pointerId) return;
+        if (!shouldEnable()) return;
+        const dx = event.clientX - startX;
+        const dy = event.clientY - startY;
+        if (Math.abs(dy) > 40) {
+          return;
+        }
+        if (dx < -28 && Math.abs(dx) > Math.abs(dy)) {
+          if (!row.classList.contains('task-row--meta-visible')) {
+            closeOthers(row);
+          }
+          row.classList.add('task-row--meta-visible');
+          didSwipe = true;
+        } else if (dx > 24 && Math.abs(dx) > Math.abs(dy)) {
+          row.classList.remove('task-row--meta-visible');
+          didSwipe = true;
+        }
+      });
+
+      row.addEventListener('pointerup', (event) => {
+        if (pointerId === null || event.pointerId !== pointerId) return;
+        pointerId = null;
+        if (!shouldEnable()) return;
+        if (didSwipe) {
+          didSwipe = false;
+          return;
+        }
+        if (event.pointerType === 'touch' && !event.target.closest('[data-task-meta]')) {
+          const isVisible = row.classList.toggle('task-row--meta-visible');
+          if (isVisible) {
+            closeOthers(row);
+          }
+        }
+      });
+
+      row.addEventListener('pointercancel', (event) => {
+        if (pointerId !== null && event.pointerId === pointerId) {
+          pointerId = null;
+          didSwipe = false;
+        }
+      });
+    }
+
+    function refreshRows() {
+      qsa('.todo-row[data-touch-meta]', container).forEach(setupRow);
+    }
+
+    refreshRows();
+
+    if ('MutationObserver' in window) {
+      const observer = new MutationObserver(() => refreshRows());
+      observer.observe(container, { childList: true, subtree: true });
+    }
+
+    container.addEventListener('tasks:compact-change', (event) => {
+      if (!event.detail || event.detail.compact) {
+        return;
+      }
+      closeOthers(null);
+    });
+
+    document.addEventListener('pointerdown', (event) => {
+      if (event.pointerType !== 'touch') return;
+      const row = event.target.closest('.todo-row');
+      if (row && container.contains(row)) {
+        return;
+      }
+      closeOthers(null);
     });
   }
 
@@ -625,6 +837,8 @@
       initDragReorder();
       initBulkSelection();
       initKeyboardNav();
+      initFilterOffcanvas();
+      initTouchMetaReveal();
       initCompactToggle();
     });
   } else {
@@ -634,6 +848,8 @@
     initDragReorder();
     initBulkSelection();
     initKeyboardNav();
+    initFilterOffcanvas();
+    initTouchMetaReveal();
     initCompactToggle();
   }
 })();

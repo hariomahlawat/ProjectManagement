@@ -36,21 +36,32 @@
       <h4 class="tasks-header__title mb-0">My Tasks</h4>
       <span class="tasks-header__count" aria-label="Total tasks">@Model.TotalItems</span>
     </div>
-    <div class="tasks-header__actions">
+  </div>
+
+  <div class="tasks-filter-bar" data-filter-bar>
+    <div class="tasks-filter-bar__controls">
+      <button type="button"
+              class="btn btn-sm btn-outline-primary tasks-filter-bar__mobile-toggle"
+              data-action="open-filter"
+              data-bs-toggle="offcanvas"
+              data-bs-target="#tasksFilterOffcanvas"
+              aria-controls="tasksFilterOffcanvas">
+        <i class="bi bi-funnel" aria-hidden="true"></i>
+        <span>Filters</span>
+      </button>
       <button type="button"
               class="btn btn-sm btn-outline-secondary tasks-compact-toggle"
               data-compact="false"
+              data-label-compact="Compact view"
+              data-label-comfy="Comfortable view"
               aria-pressed="false">
         <span class="tasks-compact-toggle__icon" aria-hidden="true"></span>
-        <span class="tasks-compact-toggle__label">Compact view</span>
+        <span class="tasks-compact-toggle__label" data-role="label">Compact view</span>
       </button>
     </div>
-  </div>
-
-  <div class="tasks-filter-stack">
-    <div class="tasks-filter-card">
-      <form method="get" class="tasks-filter-card__form">
-        <div class="tasks-filter-card__group tasks-filter-card__group--selects">
+    <div class="tasks-filter-bar__body" data-filter-desktop>
+      <form method="get" class="tasks-filter-form" data-filter-form>
+        <div class="tasks-filter-form__group tasks-filter-form__group--selects">
           <select class="form-select form-select-sm" name="tab">
             <option value="all" selected="@(Model.Tab=="all")">All</option>
             <option value="today" selected="@(Model.Tab=="today")">Today</option>
@@ -63,22 +74,30 @@
             <option value="50" selected="@(Model.PageSize==50)">50</option>
           </select>
         </div>
-        <div class="tasks-filter-card__group tasks-filter-card__group--search">
+        <div class="tasks-filter-form__group tasks-filter-form__group--search">
           <input class="form-control form-control-sm" name="q" value="@Model.Q" placeholder="Search" />
         </div>
-        <div class="tasks-filter-card__group tasks-filter-card__group--actions">
+        <div class="tasks-filter-form__group tasks-filter-form__group--actions">
           <button class="btn btn-sm btn-outline-primary">Apply</button>
           <a class="btn btn-sm btn-outline-secondary" asp-page="Index">Reset</a>
         </div>
       </form>
     </div>
-
-    <form method="post" asp-page-handler="Add" class="tasks-add-form input-group input-group-sm pm-form-max-520">
-      @Html.AntiForgeryToken()
-      <input class="form-control" name="NewTitle" placeholder="Add a task…" maxlength="160" required />
-      <button class="btn btn-primary">Add</button>
-    </form>
   </div>
+
+  <div class="offcanvas offcanvas-end tasks-filter-offcanvas" tabindex="-1" id="tasksFilterOffcanvas" aria-labelledby="tasksFilterOffcanvasLabel">
+    <div class="offcanvas-header">
+      <h5 class="offcanvas-title" id="tasksFilterOffcanvasLabel">Task filters</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body" data-filter-mobile></div>
+  </div>
+
+  <form method="post" asp-page-handler="Add" class="tasks-add-form input-group input-group-sm pm-form-max-520">
+    @Html.AntiForgeryToken()
+    <input class="form-control" name="NewTitle" placeholder="Add a task…" maxlength="160" required />
+    <button class="btn btn-primary">Add</button>
+  </form>
 </div>
 
 @if (TempData["Error"] is string err && !string.IsNullOrWhiteSpace(err))
