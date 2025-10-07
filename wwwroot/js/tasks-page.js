@@ -12,6 +12,127 @@
     return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
   }
 
+  function initTaskToast() {
+    const root = document.getElementById('taskToast');
+    if (!root) return null;
+
+    const messageEl = qs('[data-toast-role="message"]', root);
+    const undoForm = qs('form[data-toast-role="undo-form"]', root);
+    const undoInput = qs('[data-toast-role="undo-id"]', root);
+    const undoBtn = qs('[data-toast-action="undo"]', root);
+    const dismissBtn = qs('[data-toast-action="dismiss"]', root);
+
+    let hideTimer = null;
+
+    function clearTimer() {
+      if (hideTimer) {
+        clearTimeout(hideTimer);
+        hideTimer = null;
+      }
+    }
+
+    function setUndoId(id) {
+      if (undoInput) {
+        undoInput.value = id || '';
+      }
+    }
+
+    function finalizeHide() {
+      root.hidden = true;
+    }
+
+    function hide(options = {}) {
+      const { immediate = false } = options;
+      const wasVisible = root.classList.contains('is-visible');
+      clearTimer();
+      root.classList.remove('is-visible');
+      root.setAttribute('aria-hidden', 'true');
+
+      const reduceMotion = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      if (immediate || !wasVisible || reduceMotion) {
+        finalizeHide();
+        return;
+      }
+
+      const onTransitionEnd = (event) => {
+        if (event.target !== root || event.propertyName !== 'opacity') {
+          return;
+        }
+        root.removeEventListener('transitionend', onTransitionEnd);
+        if (root.classList.contains('is-visible')) {
+          return;
+        }
+        finalizeHide();
+      };
+
+      root.addEventListener('transitionend', onTransitionEnd);
+    }
+
+    function show({ message, undoId, autoDismiss = true } = {}) {
+      if (messageEl && typeof message === 'string') {
+        messageEl.textContent = message;
+      }
+      setUndoId(undoId);
+      clearTimer();
+      root.hidden = false;
+      requestAnimationFrame(() => {
+        root.classList.add('is-visible');
+        root.setAttribute('aria-hidden', 'false');
+      });
+      if (autoDismiss) {
+        hideTimer = window.setTimeout(() => hide(), 6000);
+      }
+    }
+
+    if (undoBtn) {
+      undoBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        if (!undoForm || !undoInput || !undoInput.value) {
+          return;
+        }
+        hide();
+        undoForm.requestSubmit();
+      });
+    }
+
+    if (dismissBtn) {
+      dismissBtn.addEventListener('click', (event) => {
+        event.preventDefault();
+        hide();
+      });
+    }
+
+    if (undoForm) {
+      undoForm.addEventListener('submit', () => hide({ immediate: true }));
+    }
+
+    root.addEventListener('pointerenter', clearTimer);
+    root.addEventListener('pointerleave', () => {
+      if (!root.classList.contains('is-visible')) return;
+      clearTimer();
+      hideTimer = window.setTimeout(() => hide(), 3000);
+    });
+
+    root.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        hide();
+      }
+    });
+
+    const autoMessage = root.dataset.toastAutoMessage;
+    const autoId = root.dataset.toastAutoId;
+    if (autoMessage) {
+      show({ message: autoMessage, undoId: autoId || '' });
+    }
+
+    return {
+      show,
+      hide,
+      setUndo: setUndoId
+    };
+  }
+
   // ---- 1) Show row actions whenever a row's edit form changes ----
   function initRowActionReveal() {
     qsa('li[data-id]').forEach(row => {
@@ -368,7 +489,9 @@
   }
 
   // ---- 0) Auto-submit done/undo checkboxes ----
-  function initDoneAutosubmit() {
+  function initDoneAutosubmit(toastApi) {
+    const nativeSubmit = HTMLFormElement.prototype.submit;
+
     function markVisualDone(cb) {
       const row = cb.closest('li[data-id]');
       if (!row) return;
@@ -390,20 +513,79 @@
       const form = cb.closest('form');
       if (form) form.requestSubmit();
     }, { passive: true });
+
+    if (typeof window.fetch === 'function') {
+      document.addEventListener('submit', (e) => {
+        const form = e.target;
+        if (!(form instanceof HTMLFormElement)) return;
+        if (!form.classList.contains('js-toggle-done-form')) return;
+
+        e.preventDefault();
+
+        if (form.dataset.submitting === 'true') {
+          return;
+        }
+        form.dataset.submitting = 'true';
+
+        const cb = qs('.js-done-checkbox', form);
+        if (!cb) {
+          delete form.dataset.submitting;
+          nativeSubmit.call(form);
+          return;
+        }
+
+        const doneChecked = cb.checked;
+        const formData = new FormData(form);
+        const undoIdValue = formData.get('id');
+        const undoId = typeof undoIdValue === 'string' ? undoIdValue : '';
+        const message = form.dataset.successMessage || 'Task marked done.';
+        const target = form.action || window.location.href;
+        const method = (form.getAttribute('method') || 'post').toUpperCase();
+
+        (async () => {
+          try {
+            const response = await fetch(target, {
+              method,
+              body: formData,
+              credentials: 'same-origin'
+            });
+            if (!response.ok) {
+              throw new Error('Request failed');
+            }
+
+            if (toastApi && typeof toastApi.setUndo === 'function') {
+              toastApi.setUndo(doneChecked ? undoId : '');
+            }
+
+            if (doneChecked && toastApi && typeof toastApi.show === 'function') {
+              toastApi.show({ message, undoId });
+            } else if (!doneChecked && toastApi && typeof toastApi.hide === 'function') {
+              toastApi.hide();
+            }
+          } catch (_) {
+            nativeSubmit.call(form);
+          } finally {
+            delete form.dataset.submitting;
+          }
+        })();
+      }, true);
+    }
   }
 
   // Kick everything off
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
+      const toast = initTaskToast();
       initRowActionReveal();
-      initDoneAutosubmit();
+      initDoneAutosubmit(toast);
       initDragReorder();
       initBulkSelection();
       initKeyboardNav();
     });
   } else {
+    const toast = initTaskToast();
     initRowActionReveal();
-    initDoneAutosubmit();
+    initDoneAutosubmit(toast);
     initDragReorder();
     initBulkSelection();
     initKeyboardNav();

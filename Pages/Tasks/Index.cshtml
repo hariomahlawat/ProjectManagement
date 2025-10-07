@@ -3,6 +3,11 @@
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @{
     ViewData["Title"] = "My Tasks";
+    string? toastUndoId = null;
+    if (TempData["UndoId"] is string undo && Guid.TryParse(undo, out var undoGuid))
+    {
+        toastUndoId = undoGuid.ToString();
+    }
 }
 
 @section Styles {
@@ -23,14 +28,16 @@
   <div class="alert alert-warning py-2"><i class="bi bi-exclamation-triangle-fill me-2"></i>@err</div>
 }
 
-@if (TempData["UndoId"] is string undo && Guid.TryParse(undo, out var undoId))
+@if (!string.IsNullOrEmpty(toastUndoId))
 {
-  <form method="post" asp-page-handler="Undo" class="alert alert-success py-2 d-flex justify-content-between align-items-center">
-    @Html.AntiForgeryToken()
-    <input type="hidden" name="id" value="@undoId" />
-    <div><i class="bi bi-check2-circle me-2"></i>Task marked done.</div>
-    <button class="btn btn-sm btn-outline-success">Undo</button>
-  </form>
+  <noscript>
+    <form method="post" asp-page-handler="Undo" class="alert alert-success py-2 d-flex justify-content-between align-items-center">
+      @Html.AntiForgeryToken()
+      <input type="hidden" name="id" value="@toastUndoId" />
+      <div><i class="bi bi-check2-circle me-2"></i>Task marked done.</div>
+      <button class="btn btn-sm btn-outline-success">Undo</button>
+    </form>
+  </noscript>
 }
 
 <form method="get" class="d-flex flex-wrap gap-2 align-items-center mb-3">
@@ -107,6 +114,28 @@
 
 <div id="taskListContainer">
   <partial name="_TaskList" model="Model" />
+</div>
+
+<div id="taskToast"
+     class="pm-toast"
+     role="status"
+     aria-live="polite"
+     aria-atomic="true"
+     aria-hidden="true"
+     hidden
+     data-toast-auto-message="@(toastUndoId is not null ? "Task marked done." : null)"
+     data-toast-auto-id="@toastUndoId">
+  <div class="pm-toast__body">
+    <span class="pm-toast__message" data-toast-role="message"></span>
+    <div class="pm-toast__actions">
+      <button type="button" class="pm-toast__undo" data-toast-action="undo">Undo</button>
+      <button type="button" class="btn-close pm-toast__close" data-toast-action="dismiss" aria-label="Dismiss notification"></button>
+    </div>
+  </div>
+  <form method="post" asp-page-handler="Undo" class="d-none" data-toast-role="undo-form">
+    @Html.AntiForgeryToken()
+    <input type="hidden" name="id" value="@(toastUndoId ?? string.Empty)" data-toast-role="undo-id" />
+  </form>
 </div>
 
 @if (Model.TotalPages > 1)
