@@ -84,10 +84,12 @@ public sealed class ProjectRemarksPanelService
 
         if (remarkRoleSet.Count == 0)
         {
+            const RemarkActorRole fallbackRole = RemarkActorRole.ProjectOfficer;
+
             if (!string.IsNullOrWhiteSpace(project.LeadPoUserId)
                 && string.Equals(project.LeadPoUserId, user.Id, StringComparison.Ordinal))
             {
-                remarkRoleSet.Add(RemarkActorRole.ProjectOfficer);
+                remarkRoleSet.Add(fallbackRole);
             }
 
             if (!string.IsNullOrWhiteSpace(project.HodUserId)
@@ -99,7 +101,7 @@ public sealed class ProjectRemarksPanelService
             if (remarkRoleSet.Count == 0
                 && ProjectAccessGuard.CanViewProject(project, userPrincipal, user.Id))
             {
-                remarkRoleSet.Add(RemarkActorRole.ProjectOfficer);
+                remarkRoleSet.Add(fallbackRole);
                 viewerOnly = true;
             }
         }
@@ -135,7 +137,8 @@ public sealed class ProjectRemarksPanelService
             ActorHasOverride = canOverride,
             StageOptions = stageOptions,
             RoleOptions = roleOptions,
-            Today = today
+            Today = today,
+            ViewerOnly = viewerOnly
         };
     }
 
