@@ -52,16 +52,32 @@ else
 {
     @foreach (var grp in Model.Groups)
     {
-        <div class="mb-2 mt-3 small text-uppercase text-muted fw-semibold">@grp.Title</div>
+        var laneKey = grp.Title?.Trim().ToLowerInvariant().Replace(' ', '-') ?? "lane";
+        string laneIcon = grp.Title switch
+        {
+            "Overdue" => "bi-exclamation-octagon-fill",
+            "Today" => "bi-sun-fill",
+            "Upcoming" => "bi-calendar-event-fill",
+            "Completed" => "bi-check-circle-fill",
+            _ => "bi-inboxes-fill"
+        };
 
-        @if (grp.Items.Length == 0)
-        {
-            <div class="text-muted small mb-3">No tasks here.</div>
-        }
-        else
-        {
-            <ul class="list-group todo-list">
-                @foreach (var t in grp.Items)
+        <section class="tasks-lane" data-lane="@laneKey">
+            <div class="tasks-lane-header" data-lane="@laneKey">
+                <span class="tasks-lane-pill">
+                    <i class="bi @laneIcon" aria-hidden="true"></i>
+                    <span class="tasks-lane-pill__label">@grp.Title</span>
+                </span>
+            </div>
+
+            @if (grp.Items.Length == 0)
+            {
+                <div class="tasks-lane-empty text-muted small">No tasks here.</div>
+            }
+            else
+            {
+                <ul class="list-group todo-list" data-lane="@laneKey">
+                    @foreach (var t in grp.Items)
                 {
                     var formId = $"f-{t.Id}";
                     var chip = TodoViewHelpers.DueBadge(t.DueAtUtc);
@@ -194,7 +210,8 @@ else
                     </div>
                 </li>
                 }
-            </ul>
-        }
+                </ul>
+            }
+        </section>
     }
 }
