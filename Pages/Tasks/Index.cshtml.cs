@@ -29,7 +29,7 @@ namespace ProjectManagement.Pages.Tasks
         }
 
         public record Row(Guid Id, string Title, TodoPriority Priority, bool IsPinned,
-                          TodoStatus Status, DateTimeOffset? DueAtUtc, DateTimeOffset? CompletedUtc);
+                          TodoStatus Status, DateTimeOffset CreatedUtc, DateTimeOffset? DueAtUtc, DateTimeOffset? CompletedUtc);
         public record Group(string Title, Row[] Items);
         public Group[] Groups { get; set; } = Array.Empty<Group>();
 
@@ -74,7 +74,7 @@ namespace ProjectManagement.Pages.Tasks
                 .ThenBy(x => x.DueAtUtc)
                 .ThenBy(x => x.OrderIndex)
                 .ThenBy(x => x.CreatedUtc)
-                .Select(x => new Row(x.Id, x.Title, x.Priority, x.IsPinned, x.Status, x.DueAtUtc, x.CompletedUtc))
+                .Select(x => new Row(x.Id, x.Title, x.Priority, x.IsPinned, x.Status, x.CreatedUtc, x.DueAtUtc, x.CompletedUtc))
                 .ToListAsync();
 
             // Group client-side (fast enough for a single user’s page)
@@ -133,6 +133,7 @@ namespace ProjectManagement.Pages.Tasks
             try
             {
                 await _todo.CreateAsync(uid, clean, dueLocal, prio);
+                TempData["ToastMessage"] = "Task added.";
             }
             catch (InvalidOperationException ex)
             {

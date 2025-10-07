@@ -122,8 +122,10 @@
 
     const autoMessage = root.dataset.toastAutoMessage;
     const autoId = root.dataset.toastAutoId;
+    const autoVariant = root.dataset.toastAutoVariant;
     if (autoMessage) {
-      show({ message: autoMessage, undoId: autoId || '' });
+      const autoDismiss = autoVariant === 'undo' ? false : true;
+      show({ message: autoMessage, undoId: autoId || '', autoDismiss });
     }
 
     return {
@@ -600,7 +602,7 @@
             }
 
             if (doneChecked && toastApi && typeof toastApi.show === 'function') {
-              toastApi.show({ message, undoId });
+              toastApi.show({ message, undoId, autoDismiss: false });
             } else if (!doneChecked && toastApi && typeof toastApi.hide === 'function') {
               toastApi.hide();
             }

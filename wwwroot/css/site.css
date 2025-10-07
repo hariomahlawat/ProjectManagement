@@ -1429,34 +1429,8 @@ h6:first-child {
 .form-control-sm, .form-select-sm { padding-top: .25rem; padding-bottom: .25rem; }
 .badge { letter-spacing: .2px; }
 
-/* Widget row compactness */
-.todo-list .list-group-item { padding: .35rem .6rem; }
-.todo-actions .btn { padding: 0; width: var(--pm-btn-icon); height: var(--pm-btn-icon); display: inline-flex; align-items: center; justify-content: center; }
-
 /* Scroll area helper for dashboard widgets */
 .pm-scroll{ max-height:340px; overflow:auto }
-
-/* Priority dots */
-.todo-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-.todo-dot-low { background: #6c757d; }
-.todo-dot-normal { background: #0d6efd; }
-.todo-dot-high { background: #dc3545; }
-
-/* Truncation helper for titles so icons never wrap */
-.todo-title { max-width: 420px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-/* Kebab: icon-only ghost button (no rectangular chrome) */
-.todo-kebab{
-  width:28px;height:28px;padding:0;border:0;border-radius:50%;
-  background:transparent;display:inline-flex;align-items:center;justify-content:center
-}
-.todo-kebab:hover{ background:rgba(0,0,0,.06) }
-.todo-kebab:active{ background:rgba(0,0,0,.12) }
-.todo-kebab:focus{ outline:none; box-shadow:0 0 0 .2rem rgba(13,110,253,.25) }
-
-/* Remove Bootstrap caret triangles that cause odd « artefacts */
-.todo-kebab.dropdown-toggle::after,
-.dropstart .todo-kebab.dropdown-toggle::before{ display:none !important }
 
 /* Keep dropdowns above any cards/sections on the dashboard */
 .dashboard .dropdown-menu,
@@ -1477,12 +1451,6 @@ h6:first-child {
 
 /* Base menu tweaks */
 .dropdown-menu{ font-size:var(--pm-font-size-base) }
-
-.todo-row.done .todo-title { text-decoration: line-through; color: #6c757d; }
-.todo-row.done { opacity: .85; }
-
-.draggable-handle{cursor:grab}
-
 
 /* ---------- Project photo gallery ---------- */
 html.has-expanded-project-photo-editor,
