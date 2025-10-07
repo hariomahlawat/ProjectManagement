@@ -177,11 +177,17 @@ namespace ProjectManagement.Pages.Tasks
             var uid = _users.GetUserId(User);
             TodoPriority? prio = null;
             if (!string.IsNullOrEmpty(priority) && Enum.TryParse<TodoPriority>(priority, out var p)) prio = p;
+            var updateDueDate = dueLocal.HasValue;
+            if (!updateDueDate && Request?.HasFormContentType == true && Request.Form.ContainsKey("dueLocal"))
+            {
+                updateDueDate = true;
+            }
             try
             {
                 await _todo.EditAsync(uid!, id,
                     title: string.IsNullOrWhiteSpace(title) ? null : title.Trim(),
                     dueAtLocal: dueLocal,
+                    updateDueDate: updateDueDate,
                     priority: prio,
                     pinned: pin);
             }
@@ -208,7 +214,7 @@ namespace ProjectManagement.Pages.Tasks
 
             try
             {
-                await _todo.EditAsync(uid, id, dueAtLocal: dueLocal);
+                await _todo.EditAsync(uid, id, dueAtLocal: dueLocal, updateDueDate: true);
             }
             catch (InvalidOperationException ex)
             {

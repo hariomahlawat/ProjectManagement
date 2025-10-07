@@ -146,12 +146,16 @@ namespace ProjectManagement.Services
         }
 
         public async Task<bool> EditAsync(string ownerId, Guid id, string? title = null,
-                              DateTimeOffset? dueAtLocal = null, TodoPriority? priority = null, bool? pinned = null)
+                              DateTimeOffset? dueAtLocal = null, bool updateDueDate = false,
+                              TodoPriority? priority = null, bool? pinned = null)
         {
             var item = await _db.TodoItems.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == ownerId && x.DeletedUtc == null);
             if (item == null) return false;
             if (title != null) item.Title = title;
-            if (dueAtLocal.HasValue) item.DueAtUtc = ToUtc(dueAtLocal);
+            if (updateDueDate)
+            {
+                item.DueAtUtc = dueAtLocal.HasValue ? ToUtc(dueAtLocal) : null;
+            }
             if (priority.HasValue) item.Priority = priority.Value;
             if (pinned.HasValue && item.IsPinned != pinned.Value)
             {

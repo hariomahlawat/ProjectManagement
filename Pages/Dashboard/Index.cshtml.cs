@@ -267,7 +267,7 @@ namespace ProjectManagement.Pages.Dashboard
             };
             try
             {
-                await _todo.EditAsync(uid, id, dueAtLocal: dueLocal);
+                await _todo.EditAsync(uid, id, dueAtLocal: dueLocal, updateDueDate: true);
             }
             catch (InvalidOperationException ex)
             {
