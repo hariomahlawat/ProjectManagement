@@ -27,41 +27,55 @@
       <h4 class="tasks-header__title mb-0">My Tasks</h4>
       <span class="tasks-header__count" aria-label="Total tasks">@Model.TotalItems</span>
     </div>
-    <div class="tasks-header__actions">
-      <button type="button"
-              class="btn btn-sm btn-outline-secondary tasks-compact-toggle"
-              data-compact="false"
-              aria-pressed="false">
-        <span class="tasks-compact-toggle__icon" aria-hidden="true"></span>
-        <span class="tasks-compact-toggle__label">Compact view</span>
-      </button>
-    </div>
   </div>
 
   <div class="tasks-filter-stack">
-    <div class="tasks-filter-card">
-      <form method="get" class="tasks-filter-card__form">
-        <div class="tasks-filter-card__group tasks-filter-card__group--selects">
-          <select class="form-select form-select-sm" name="tab">
-            <option value="all" selected="@(Model.Tab=="all")">All</option>
-            <option value="today" selected="@(Model.Tab=="today")">Today</option>
-            <option value="upcoming" selected="@(Model.Tab=="upcoming")">Upcoming</option>
-            <option value="completed" selected="@(Model.Tab=="completed")">Completed</option>
-          </select>
-          <select class="form-select form-select-sm" name="PageSize">
-            <option value="10" selected="@(Model.PageSize==10)">10</option>
-            <option value="25" selected="@(Model.PageSize==25)">25</option>
-            <option value="50" selected="@(Model.PageSize==50)">50</option>
-          </select>
-        </div>
-        <div class="tasks-filter-card__group tasks-filter-card__group--search">
-          <input class="form-control form-control-sm" name="q" value="@Model.Q" placeholder="Search" />
-        </div>
-        <div class="tasks-filter-card__group tasks-filter-card__group--actions">
-          <button class="btn btn-sm btn-outline-primary">Apply</button>
-          <a class="btn btn-sm btn-outline-secondary" asp-page="Index">Reset</a>
-        </div>
-      </form>
+    <div class="tasks-filter-card" data-filter-role="card" data-filter-mode="inline">
+      <div class="tasks-filter-card__bar">
+        <button type="button"
+                class="btn btn-sm btn-outline-secondary tasks-filter-bar__trigger d-inline-flex d-md-none"
+                data-bs-toggle="offcanvas"
+                data-bs-target="#tasksFilterOffcanvas"
+                aria-controls="tasksFilterOffcanvas">
+          <i class="bi bi-funnel me-1" aria-hidden="true"></i>
+          Filters
+        </button>
+        <div class="tasks-filter-card__spacer d-none d-md-block"></div>
+        <button type="button"
+                class="btn btn-sm btn-outline-secondary tasks-compact-toggle"
+                data-compact="false"
+                data-label-compact="Compact view"
+                data-label-comfortable="Comfortable view"
+                aria-pressed="false">
+          <span class="tasks-compact-toggle__icon" aria-hidden="true"></span>
+          <span class="tasks-compact-toggle__label">Compact view</span>
+        </button>
+      </div>
+
+      <div class="tasks-filter-card__form-shell" data-filter-role="inline">
+        <form method="get" class="tasks-filter-card__form">
+          <div class="tasks-filter-card__group tasks-filter-card__group--selects">
+            <select class="form-select form-select-sm" name="tab">
+              <option value="all" selected="@(Model.Tab=="all")">All</option>
+              <option value="today" selected="@(Model.Tab=="today")">Today</option>
+              <option value="upcoming" selected="@(Model.Tab=="upcoming")">Upcoming</option>
+              <option value="completed" selected="@(Model.Tab=="completed")">Completed</option>
+            </select>
+            <select class="form-select form-select-sm" name="PageSize">
+              <option value="10" selected="@(Model.PageSize==10)">10</option>
+              <option value="25" selected="@(Model.PageSize==25)">25</option>
+              <option value="50" selected="@(Model.PageSize==50)">50</option>
+            </select>
+          </div>
+          <div class="tasks-filter-card__group tasks-filter-card__group--search">
+            <input class="form-control form-control-sm" name="q" value="@Model.Q" placeholder="Search" />
+          </div>
+          <div class="tasks-filter-card__group tasks-filter-card__group--actions">
+            <button class="btn btn-sm btn-outline-primary">Apply</button>
+            <a class="btn btn-sm btn-outline-secondary" asp-page="Index" data-filter-action="reset">Reset</a>
+          </div>
+        </form>
+      </div>
     </div>
 
     <form method="post" asp-page-handler="Add" class="tasks-add-form input-group input-group-sm pm-form-max-520">
@@ -138,8 +152,16 @@
     </form>
 }
 
-<div id="taskListContainer">
+<div id="taskListContainer" data-compact="false">
   <partial name="_TaskList" model="Model" />
+</div>
+
+<div class="offcanvas offcanvas-bottom offcanvas-sm tasks-filter-offcanvas" tabindex="-1" id="tasksFilterOffcanvas" aria-labelledby="tasksFilterOffcanvasLabel">
+  <div class="offcanvas-header">
+    <h5 class="offcanvas-title" id="tasksFilterOffcanvasLabel">Filters</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body" data-filter-role="offcanvas"></div>
 </div>
 
 <div id="taskToast"

@@ -63,6 +63,36 @@
   background: linear-gradient(135deg, rgba(13, 110, 253, .08), rgba(111, 66, 193, .05));
   box-shadow: 0 8px 22px -18px rgba(13, 110, 253, .9);
   padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.tasks-filter-card__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.tasks-filter-card__spacer {
+  flex: 1 1 auto;
+}
+
+.tasks-filter-card[data-filter-mode="sheet"] .tasks-filter-card__spacer {
+  display: none;
+}
+
+.tasks-filter-card[data-filter-mode="sheet"] {
+  gap: 0.5rem;
+}
+
+.tasks-filter-card[data-filter-mode="sheet"] .tasks-compact-toggle {
+  margin-left: auto;
+}
+
+.tasks-filter-card__form-shell:empty {
+  display: none;
 }
 
 .tasks-filter-card__form {
@@ -70,6 +100,12 @@
   flex-wrap: wrap;
   gap: 0.75rem;
   align-items: center;
+}
+
+.tasks-filter-bar__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .tasks-filter-card__group {
@@ -176,13 +212,44 @@
   background: var(--bs-primary, #0d6efd);
 }
 
-#taskListContainer.compact .todo-list .list-group-item {
+.tasks-filter-offcanvas .tasks-filter-card__form,
+.tasks-filter-offcanvas form.tasks-filter-card__form {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1rem;
+}
+
+.tasks-filter-offcanvas .tasks-filter-card__group {
+  width: 100%;
+  justify-content: stretch;
+}
+
+.tasks-filter-offcanvas .tasks-filter-card__group--actions {
+  margin-left: 0;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+#taskListContainer[data-compact="true"] .todo-list .list-group-item {
   padding-top: 0.45rem;
   padding-bottom: 0.45rem;
 }
 
-#taskListContainer.compact .todo-title {
+#taskListContainer[data-compact="true"] .todo-title {
   font-size: var(--pm-font-size-tight, 0.9rem);
+}
+
+#taskListContainer[data-compact="true"] .todo-row__meta {
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .18s ease, visibility .18s ease;
+}
+
+#taskListContainer[data-compact="true"] .todo-list .list-group-item:hover .todo-row__meta,
+#taskListContainer[data-compact="true"] .todo-list .list-group-item:focus-within .todo-row__meta,
+#taskListContainer[data-compact="true"] .todo-row.todo-row--reveal .todo-row__meta {
+  opacity: 1;
+  visibility: visible;
 }
 
 #taskListContainer {
@@ -312,6 +379,80 @@
   transition: background-color .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
 
+.todo-row {
+  position: relative;
+  overflow: hidden;
+  --todo-reveal-width: clamp(4rem, 32vw, 7rem);
+}
+
+.todo-row__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  transition: transform .2s ease;
+}
+
+.todo-row__meta {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  transition: opacity .18s ease;
+}
+
+@media (max-width: 991.98px) {
+  .todo-row__meta {
+    gap: 0.5rem;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .todo-row__meta {
+    gap: 0.35rem;
+  }
+
+  .todo-row__meta .todo-kebab {
+    display: none;
+  }
+
+  .todo-row.todo-row--reveal .todo-row__meta .todo-kebab {
+    display: inline-flex;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .todo-row {
+    overflow: hidden;
+  }
+
+  .todo-row__meta {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    padding: 0.5rem 0.75rem;
+    background: linear-gradient(90deg, rgba(0, 0, 0, 0), rgba(13, 110, 253, 0.08));
+    align-items: center;
+    justify-content: flex-end;
+    width: var(--todo-reveal-width);
+    transform: translateX(100%);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: transform .2s ease, opacity .18s ease;
+  }
+
+  .todo-row.todo-row--reveal .todo-row__meta {
+    transform: translateX(0);
+    opacity: 1;
+    pointer-events: auto;
+    visibility: visible;
+  }
+
+  .todo-row.todo-row--reveal .todo-row__main {
+    transform: translateX(calc(var(--todo-reveal-width) * -1));
+  }
+}
+
 .todo-list .list-group-item::before {
   content: "";
   position: absolute;
@@ -374,6 +515,11 @@
   border: 0;
   background: transparent;
   padding: .125rem .25rem;
+}
+
+.todo-row.todo-row--reveal .todo-row__meta {
+  opacity: 1;
+  visibility: visible;
 }
 
 .row-actions .btn {

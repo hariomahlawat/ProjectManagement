@@ -494,6 +494,9 @@
     if (!toggle || !container) return;
 
     const STORAGE_KEY = 'pm.tasks.compact';
+    const labelEl = qs('.tasks-compact-toggle__label', toggle);
+    const compactLabel = toggle.dataset.labelCompact || 'Compact view';
+    const comfortableLabel = toggle.dataset.labelComfortable || 'Comfortable view';
 
     function saveState(value) {
       try {
@@ -511,23 +514,192 @@
       }
     }
 
-    function applyState(isCompact) {
-      container.classList.toggle('compact', isCompact);
-      toggle.dataset.compact = isCompact ? 'true' : 'false';
-      toggle.setAttribute('aria-pressed', isCompact ? 'true' : 'false');
+    function applyState(isCompact, { persist = true } = {}) {
+      const value = isCompact ? 'true' : 'false';
+      container.setAttribute('data-compact', value);
+      toggle.dataset.compact = value;
+      toggle.setAttribute('aria-pressed', value);
       toggle.classList.toggle('is-active', isCompact);
-      saveState(isCompact);
+      if (labelEl) {
+        labelEl.textContent = isCompact ? comfortableLabel : compactLabel;
+      }
+      if (persist) {
+        saveState(isCompact);
+      }
     }
 
     const stored = readStoredState();
-    const initial = stored === 'true' || (stored === null && toggle.dataset.compact === 'true');
-    applyState(initial);
+    const initialStateAttr = container.getAttribute('data-compact');
+    const initial = stored === 'true' || (stored === null && initialStateAttr === 'true');
+    applyState(initial, { persist: stored !== null });
 
     toggle.addEventListener('click', (event) => {
       event.preventDefault();
       const current = toggle.dataset.compact === 'true';
       applyState(!current);
     });
+  }
+
+  function initResponsiveFilters() {
+    const inlineSlot = qs('[data-filter-role="inline"]');
+    const offcanvasSlot = qs('[data-filter-role="offcanvas"]');
+    const offcanvasEl = document.getElementById('tasksFilterOffcanvas');
+    const card = qs('[data-filter-role="card"]');
+    if (!inlineSlot || !offcanvasSlot) return;
+
+    const form = qs('form.tasks-filter-card__form', inlineSlot) || qs('form.tasks-filter-card__form', card) || qs('form.tasks-filter-card__form', offcanvasSlot);
+    if (!form) return;
+
+    const media = window.matchMedia('(max-width: 767.98px)');
+    let offcanvasInstance = null;
+
+    function ensureOffcanvasInstance() {
+      if (!offcanvasEl) return null;
+      if (typeof window.bootstrap === 'undefined' || typeof window.bootstrap.Offcanvas !== 'function') {
+        return null;
+      }
+      if (!offcanvasInstance) {
+        offcanvasInstance = window.bootstrap.Offcanvas.getOrCreateInstance(offcanvasEl);
+      }
+      return offcanvasInstance;
+    }
+
+    function moveForm(target) {
+      if (!target || target.contains(form)) return;
+      target.appendChild(form);
+    }
+
+    function syncLayout() {
+      const target = media.matches ? offcanvasSlot : inlineSlot;
+      moveForm(target);
+      if (card) {
+        card.setAttribute('data-filter-mode', media.matches ? 'sheet' : 'inline');
+      }
+      if (!media.matches && offcanvasInstance) {
+        offcanvasInstance.hide();
+      }
+    }
+
+    syncLayout();
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', syncLayout);
+    } else if (typeof media.addListener === 'function') {
+      media.addListener(syncLayout);
+    }
+
+    form.addEventListener('submit', () => {
+      if (!media.matches) return;
+      const instance = ensureOffcanvasInstance();
+      if (instance) {
+        window.setTimeout(() => instance.hide(), 0);
+      }
+    });
+
+    const resetLink = qs('[data-filter-action="reset"]', form);
+    if (resetLink) {
+      resetLink.addEventListener('click', () => {
+        if (!media.matches) return;
+        const instance = ensureOffcanvasInstance();
+        if (instance) {
+          window.setTimeout(() => instance.hide(), 0);
+        }
+      });
+    }
+
+    if (offcanvasEl) {
+      offcanvasEl.addEventListener('show.bs.offcanvas', () => {
+        if (media.matches) {
+          moveForm(offcanvasSlot);
+        }
+      });
+    }
+  }
+
+  function initTouchReveal() {
+    const container = document.getElementById('taskListContainer');
+    if (!container || !window.PointerEvent) return;
+
+    let activeRow = null;
+    let startX = 0;
+    let pointerId = null;
+
+    function clearActive() {
+      if (!activeRow || pointerId === null) return;
+      try {
+        activeRow.releasePointerCapture(pointerId);
+      } catch (_) {
+        /* ignore */
+      }
+      activeRow = null;
+      pointerId = null;
+      startX = 0;
+    }
+
+    function hideAllExcept(row) {
+      qsa('.todo-row.todo-row--reveal', container).forEach(item => {
+        if (!row || item !== row) {
+          item.classList.remove('todo-row--reveal');
+        }
+      });
+    }
+
+    container.addEventListener('pointerdown', (event) => {
+      if (event.pointerType !== 'touch') {
+        hideAllExcept(null);
+        return;
+      }
+      const row = event.target.closest('.todo-row');
+      if (!row) return;
+      hideAllExcept(row);
+      activeRow = row;
+      pointerId = event.pointerId;
+      startX = event.clientX;
+      try {
+        row.setPointerCapture(pointerId);
+      } catch (_) {
+        /* ignore */
+      }
+    });
+
+    container.addEventListener('pointermove', (event) => {
+      if (!activeRow || pointerId !== event.pointerId || event.pointerType !== 'touch') return;
+      const deltaX = startX - event.clientX;
+      if (deltaX > 28) {
+        activeRow.classList.add('todo-row--reveal');
+      } else if (deltaX < -20) {
+        activeRow.classList.remove('todo-row--reveal');
+      }
+    });
+
+    function handlePointerEnd(event) {
+      if (!activeRow || pointerId !== event.pointerId) return;
+      clearActive();
+    }
+
+    container.addEventListener('pointerup', handlePointerEnd);
+    container.addEventListener('pointercancel', handlePointerEnd);
+
+    document.addEventListener('click', (event) => {
+      if (event.target.closest('.todo-row__meta')) return;
+      if (!event.target.closest('.todo-row')) {
+        hideAllExcept(null);
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        hideAllExcept(null);
+      }
+    });
+
+    if ('MutationObserver' in window) {
+      const observer = new MutationObserver(() => {
+        if (!document.contains(container)) {
+          observer.disconnect();
+        }
+      });
+      observer.observe(container, { childList: true, subtree: true });
+    }
   }
 
   // ---- 0) Auto-submit done/undo checkboxes ----
@@ -624,6 +796,8 @@
       initBulkSelection();
       initKeyboardNav();
       initCompactToggle();
+      initResponsiveFilters();
+      initTouchReveal();
     });
   } else {
     const toast = initTaskToast();
@@ -633,5 +807,7 @@
     initBulkSelection();
     initKeyboardNav();
     initCompactToggle();
+    initResponsiveFilters();
+    initTouchReveal();
   }
 })();
