@@ -185,6 +185,118 @@
   font-size: var(--pm-font-size-tight, 0.9rem);
 }
 
+#taskListContainer {
+  --tasks-lane-sticky-offset: 9.75rem;
+}
+
+.tasks-lane {
+  position: relative;
+  margin-top: 1.5rem;
+}
+
+.tasks-lane:first-of-type {
+  margin-top: 0.5rem;
+}
+
+.tasks-lane-header {
+  position: sticky;
+  top: calc(var(--pm-sticky-offset, 0) + var(--tasks-lane-sticky-offset, 9.75rem));
+  z-index: 4;
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+  margin-bottom: 0.65rem;
+  background: var(--bs-body-bg, #fff);
+  display: flex;
+  align-items: center;
+}
+
+.tasks-lane-header::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1.5rem;
+  right: -1.5rem;
+  background: var(--bs-body-bg, #fff);
+  z-index: -1;
+}
+
+.tasks-lane-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 999px;
+  font-size: var(--pm-font-size-tight, 0.82rem);
+  font-weight: 600;
+  letter-spacing: 0.015em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  transition: background-color .18s ease, color .18s ease, border-color .18s ease, box-shadow .18s ease;
+  box-shadow: 0 4px 12px -8px rgba(15, 23, 42, .3);
+}
+
+.tasks-lane-pill i {
+  font-size: 1rem;
+}
+
+.tasks-lane-pill__label {
+  line-height: 1.1;
+}
+
+.tasks-lane-header[data-lane="overdue"] .tasks-lane-pill {
+  background: var(--bs-danger-bg-subtle, rgba(220, 53, 69, .14));
+  border-color: var(--bs-danger-border-subtle, rgba(220, 53, 69, .28));
+  color: var(--bs-danger-text-emphasis, #842029);
+}
+
+.tasks-lane-header[data-lane="today"] .tasks-lane-pill {
+  background: var(--bs-warning-bg-subtle, rgba(255, 193, 7, .2));
+  border-color: var(--bs-warning-border-subtle, rgba(255, 193, 7, .32));
+  color: var(--bs-warning-text-emphasis, #664d03);
+}
+
+.tasks-lane-header[data-lane="upcoming"] .tasks-lane-pill {
+  background: var(--bs-info-bg-subtle, rgba(13, 202, 240, .18));
+  border-color: var(--bs-info-border-subtle, rgba(13, 202, 240, .28));
+  color: var(--bs-info-text-emphasis, #055160);
+}
+
+.tasks-lane-header[data-lane="completed"] .tasks-lane-pill,
+.tasks-lane-header[data-lane="open"] .tasks-lane-pill {
+  background: var(--bs-success-bg-subtle, rgba(25, 135, 84, .16));
+  border-color: var(--bs-success-border-subtle, rgba(25, 135, 84, .28));
+  color: var(--bs-success-text-emphasis, #0f5132);
+}
+
+.tasks-lane .todo-list {
+  margin-bottom: 1.5rem;
+}
+
+.tasks-lane .todo-list:last-child {
+  margin-bottom: 0;
+}
+
+.tasks-lane-empty {
+  margin-bottom: 1.5rem;
+}
+
+.tasks-lane-empty,
+.tasks-lane .todo-list {
+  padding-left: 0.25rem;
+}
+
+@media (max-width: 767.98px) {
+  #taskListContainer {
+    --tasks-lane-sticky-offset: 11rem;
+  }
+
+  .tasks-lane-header::after {
+    left: -1rem;
+    right: -1rem;
+  }
+}
+
 .todo-list {
   --pm-gap: 0.6rem;
   --todo-row-hover-bg: rgba(13, 110, 253, .08);
