@@ -7,6 +7,10 @@
     ViewData["Title"] = "Dashboard";
 }
 
+@section Styles {
+  <link rel="stylesheet" href="~/css/todo-widget.css" asp-append-version="true" />
+}
+
 @if (TempData["Error"] is string err && !string.IsNullOrWhiteSpace(err))
 {
   <div class="alert alert-warning py-2"><i class="bi bi-exclamation-triangle-fill me-2"></i>@err</div>
