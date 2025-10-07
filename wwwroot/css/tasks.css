@@ -1,6 +1,190 @@
 /* wwwroot/css/tasks.css */
 /* Compact, modern task list styling */
 
+.tasks-header {
+  position: sticky;
+  top: var(--pm-sticky-offset, 0);
+  z-index: 10;
+  background: var(--bs-body-bg, #fff);
+  padding: 0.75rem 0 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .06);
+}
+
+.tasks-header__bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.tasks-header__title-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.tasks-header__title {
+  font-weight: 600;
+}
+
+.tasks-header__count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25rem;
+  padding: 0.25rem 0.65rem;
+  font-size: var(--pm-font-size-tight, 0.875rem);
+  font-weight: 600;
+  border-radius: 999px;
+  background: var(--bs-primary-bg-subtle, rgba(13, 110, 253, .12));
+  color: var(--bs-primary-text-emphasis, #0a58ca);
+  border: 1px solid rgba(13, 110, 253, .2);
+}
+
+.tasks-header__actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tasks-filter-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.tasks-filter-card {
+  border: 1px solid rgba(13, 110, 253, .18);
+  border-radius: 0.75rem 0.75rem 0 0;
+  background: linear-gradient(135deg, rgba(13, 110, 253, .08), rgba(111, 66, 193, .05));
+  box-shadow: 0 8px 22px -18px rgba(13, 110, 253, .9);
+  padding: 0.85rem 1rem;
+}
+
+.tasks-filter-card__form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.tasks-filter-card__group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tasks-filter-card__group--selects {
+  flex-wrap: wrap;
+}
+
+.tasks-filter-card__group--selects .form-select {
+  min-width: 8.5rem;
+}
+
+.tasks-filter-card__group--search {
+  flex: 1 1 200px;
+}
+
+.tasks-filter-card__group--search .form-control {
+  width: 100%;
+}
+
+.tasks-filter-card__group--actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tasks-add-form {
+  border: 1px solid rgba(13, 110, 253, .18);
+  border-top: 0;
+  border-radius: 0 0 0.75rem 0.75rem;
+  overflow: hidden;
+  background: var(--bs-body-bg, #fff);
+  box-shadow: 0 12px 24px -20px rgba(13, 110, 253, .75);
+  margin-top: -1px;
+  width: 100%;
+}
+
+.tasks-add-form .form-control {
+  border: 0;
+  box-shadow: none;
+  padding-block: 0.5rem;
+}
+
+.tasks-add-form .form-control:focus {
+  box-shadow: none;
+}
+
+.tasks-add-form .btn {
+  border: 0;
+  border-radius: 0;
+}
+
+.tasks-add-form .btn:focus {
+  box-shadow: none;
+}
+
+.tasks-compact-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  transition: background-color .18s ease, color .18s ease, border-color .18s ease;
+}
+
+.tasks-compact-toggle__icon {
+  position: relative;
+  width: 1.5rem;
+  height: 1rem;
+  border-radius: 999px;
+  background: rgba(13, 110, 253, .12);
+  border: 1px solid rgba(13, 110, 253, .25);
+}
+
+.tasks-compact-toggle__icon::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0.2rem;
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 50%;
+  background: rgba(13, 110, 253, .8);
+  transform: translateY(-50%);
+  transition: transform .18s ease, background-color .18s ease;
+}
+
+.tasks-compact-toggle[data-compact="true"] {
+  color: var(--bs-primary, #0d6efd);
+  border-color: rgba(13, 110, 253, .35);
+  background-color: rgba(13, 110, 253, .08);
+}
+
+.tasks-compact-toggle[data-compact="true"] .tasks-compact-toggle__icon {
+  background: rgba(13, 110, 253, .18);
+  border-color: rgba(13, 110, 253, .45);
+}
+
+.tasks-compact-toggle[data-compact="true"] .tasks-compact-toggle__icon::before {
+  transform: translate(0.55rem, -50%);
+  background: var(--bs-primary, #0d6efd);
+}
+
+#taskListContainer.compact .todo-list .list-group-item {
+  padding-top: 0.45rem;
+  padding-bottom: 0.45rem;
+}
+
+#taskListContainer.compact .todo-title {
+  font-size: var(--pm-font-size-tight, 0.9rem);
+}
+
 .todo-list {
   --pm-gap: 0.6rem;
   --todo-row-hover-bg: rgba(13, 110, 253, .08);
