@@ -4,9 +4,18 @@
 @{
     ViewData["Title"] = "My Tasks";
     string? toastUndoId = null;
+    string? toastMessage = null;
+    string? toastVariant = null;
     if (TempData["UndoId"] is string undo && Guid.TryParse(undo, out var undoGuid))
     {
         toastUndoId = undoGuid.ToString();
+        toastMessage = "Task marked done.";
+        toastVariant = "undo";
+    }
+    else if (TempData["ToastMessage"] is string flash && !string.IsNullOrWhiteSpace(flash))
+    {
+        toastMessage = flash;
+        toastVariant = "success";
     }
 }
 
@@ -149,8 +158,9 @@
      aria-atomic="true"
      aria-hidden="true"
      hidden
-     data-toast-auto-message="@(toastUndoId is not null ? "Task marked done." : null)"
-     data-toast-auto-id="@toastUndoId">
+     data-toast-auto-message="@toastMessage"
+     data-toast-auto-id="@toastUndoId"
+     data-toast-auto-variant="@toastVariant">
   <div class="pm-toast__body">
     <span class="pm-toast__message" data-toast-role="message"></span>
     <div class="pm-toast__actions">

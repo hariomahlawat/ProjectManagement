@@ -1,10 +1,27 @@
 @using ProjectManagement.Models
 @using ProjectManagement.Helpers
+@using ProjectManagement.Infrastructure
 @using System.Linq
 @model ProjectManagement.Pages.Tasks.IndexModel
 
 @functions {
-    string Dot(TodoPriority p) => p == TodoPriority.High ? "todo-dot-high" : p == TodoPriority.Low ? "todo-dot-low" : "todo-dot-normal";
+    private static readonly TimeZoneInfo Ist = IstClock.TimeZone;
+
+    string FormatCreatedMeta(DateTimeOffset createdUtc)
+    {
+        var local = TimeZoneInfo.ConvertTime(createdUtc, Ist);
+        return $"Created {local:dd MMM yyyy h:mm tt}";
+    }
+
+    string? FormatDueMeta(DateTimeOffset? dueUtc)
+    {
+        if (dueUtc is null) return null;
+        var local = TimeZoneInfo.ConvertTime(dueUtc.Value, Ist);
+        var hasExplicitTime = !(local.Hour == 23 && local.Minute == 59 && local.Second == 59);
+        return hasExplicitTime
+            ? $"Due {local:dd MMM yyyy h:mm tt}"
+            : $"Due {local:dd MMM yyyy}";
+    }
 }
 
 @{
@@ -78,61 +95,92 @@ else
             {
                 <ul class="list-group todo-list" data-lane="@laneKey">
                     @foreach (var t in grp.Items)
+                    {
+    var formId = $"f-{t.Id}";
+    var chip = TodoViewHelpers.DueBadge(t.DueAtUtc);
+    var createdMeta = FormatCreatedMeta(t.CreatedUtc);
+    var dueMeta = FormatDueMeta(t.DueAtUtc);
+    var pinMeta = t.IsPinned ? "Pinned task" : string.Empty;
+    var priorityMeta = t.Priority switch
+    {
+        TodoPriority.High => "High priority",
+        TodoPriority.Low => "Low priority",
+        _ => string.Empty
+    };
+    var showPriorityIndicator = !string.IsNullOrEmpty(priorityMeta);
+
+<li class="list-group-item todo-row @(t.Status == TodoStatus.Done ? "done" : string.Empty)"
+    data-id="@t.Id"
+    draggable="@(Model.Tab == "completed" ? "false" : "true")"
+    data-priority="@t.Priority"
+    data-status="@(t.Status == TodoStatus.Done ? "done" : null)">
+    <div class="task-row">
+        <div class="task-row__grip">
+            <span class="task-row__handle text-muted draggable-handle" title="Drag to reorder"><i class="bi bi-grip-vertical"></i></span>
+            <div class="form-check mb-0 task-row__select">
+                <input class="form-check-input task-select" type="checkbox" id="select-@t.Id" name="ids" value="@t.Id" title="Select task" />
+                <label class="visually-hidden" for="select-@t.Id">Select @t.Title</label>
+            </div>
+            <form method="post" asp-page-handler="Toggle" class="m-0 p-0 js-toggle-done-form task-row__done-form" data-success-message="Task marked done.">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@t.Id" />
+                <input class="form-check-input js-done-checkbox"
+                       type="checkbox"
+                       name="done"
+                       value="true"
+                       @(t.Status == TodoStatus.Done ? "checked" : string.Empty)
+                       title="Mark done"
+                       aria-label="Mark done" />
+                <input type="hidden" name="done" value="false" />
+            </form>
+            @if (showPriorityIndicator)
+            {
+                <span class="task-row__priority task-row__priority--@t.Priority.ToString().ToLowerInvariant()" title="@priorityMeta" aria-hidden="true"></span>
+            }
+        </div>
+
+        <div class="task-row__body">
+            <form id="@formId" method="post" asp-page-handler="Edit" class="task-row__title-form">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="id" value="@t.Id" />
+                <input name="title" class="form-control form-control-sm border-0 ps-0 todo-title task-row__title" value="@t.Title" maxlength="160" aria-label="Title" />
+            </form>
+            <div class="task-row__meta">
+                @if (!string.IsNullOrEmpty(createdMeta))
                 {
-                    var formId = $"f-{t.Id}";
-                    var chip = TodoViewHelpers.DueBadge(t.DueAtUtc);
+                    <span class="task-row__meta-item" data-meta="@createdMeta"><span class="visually-hidden">@createdMeta</span></span>
+                }
+                @if (!string.IsNullOrEmpty(dueMeta))
+                {
+                    <span class="task-row__meta-item" data-meta="@dueMeta"><span class="visually-hidden">@dueMeta</span></span>
+                }
+                @if (!string.IsNullOrEmpty(pinMeta))
+                {
+                    <span class="task-row__meta-item" data-meta="@pinMeta"><span class="visually-hidden">@pinMeta</span></span>
+                }
+                @if (!string.IsNullOrEmpty(priorityMeta))
+                {
+                    <span class="task-row__meta-item" data-meta="@priorityMeta"><span class="visually-hidden">@priorityMeta</span></span>
+                }
+            </div>
+        </div>
 
-                <li class="list-group-item d-flex align-items-start justify-content-between py-2 todo-row @(t.Status == TodoStatus.Done ? "done" : "")" data-id="@t.Id" draggable="@(Model.Tab == "completed" ? "false" : "true")" data-priority="@t.Priority">
-                    <div class="d-flex align-items-center gap-2 flex-grow-1">
-                        <span class="text-muted draggable-handle" title="Drag to reorder"><i class="bi bi-grip-vertical"></i></span>
-
-                        <div class="form-check mb-0">
-                            <input class="form-check-input task-select" type="checkbox" id="select-@t.Id" name="ids" value="@t.Id" title="Select task" />
-                            <label class="visually-hidden" for="select-@t.Id">Select @t.Title</label>
-                        </div>
-
-                        <form method="post" asp-page-handler="Toggle" class="m-0 p-0 js-toggle-done-form" data-success-message="Task marked done.">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="id" value="@t.Id" />
-                            <!-- CHECKBOX FIRST -->
-                            <input class="form-check-input js-done-checkbox"
-                                   type="checkbox"
-                                   name="done"
-                                   value="true"
-                                   @(t.Status == TodoStatus.Done ? "checked" : "")
-                                   title="Mark done"
-                                   aria-label="Mark done" />
-                            <!-- HIDDEN FALLBACK AFTER -->
-                            <input type="hidden" name="done" value="false" />
-                        </form>
-
-                        <span class="todo-dot @(Dot(t.Priority))" title="@t.Priority"></span>
-
-                        <form id="@formId" method="post" asp-page-handler="Edit" class="flex-grow-1">
-                            @Html.AntiForgeryToken()
-                            <input type="hidden" name="id" value="@t.Id" />
-                            <input name="title" class="form-control form-control-sm border-0 ps-0 todo-title" value="@t.Title" maxlength="160" aria-label="Title" />
-                        </form>
-
-                        @if (!string.IsNullOrEmpty(chip))
-                        {
-                            <span class="badge rounded-pill bg-light text-dark border">@chip</span>
-                        }
-                    </div>
-
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="row-actions d-none">
-                            <button form="@formId" type="submit" class="btn btn-link btn-sm p-0">Save</button>
-                            <button type="reset" form="@formId" class="btn btn-link btn-sm p-0 text-muted">Cancel</button>
-                        </div>
-
-                        <div class="dropdown">
-                            <button type="button" class="btn todo-kebab dropdown-toggle"
-                                    data-bs-toggle="dropdown" data-bs-auto-close="outside" data-bs-display="dynamic" data-bs-boundary="viewport"
-                                    aria-expanded="false" aria-label="More actions">
-                                <i class="bi bi-three-dots"></i>
-                            </button>
-                            <ul class="dropdown-menu todo-menu dropdown-menu-end">
+        <div class="task-row__actions">
+            @if (!string.IsNullOrEmpty(chip))
+            {
+                <button type="button" class="btn btn-sm btn-link task-row__due" title="@(dueMeta ?? chip)">@chip</button>
+            }
+            <div class="row-actions d-none task-row__inline-actions">
+                <button form="@formId" type="submit" class="btn btn-link btn-sm p-0">Save</button>
+                <button type="reset" form="@formId" class="btn btn-link btn-sm p-0 text-muted">Cancel</button>
+            </div>
+            <div class="dropdown">
+                <button type="button" class="btn todo-kebab dropdown-toggle"
+                        data-bs-toggle="dropdown" data-bs-auto-close="outside" data-bs-display="dynamic" data-bs-boundary="viewport"
+                        aria-expanded="false" aria-label="More actions">
+                    <i class="bi bi-three-dots"></i>
+                </button>
+                <ul class="dropdown-menu todo-menu dropdown-menu-end">
                                 <li>
                                     <form method="post" asp-page-handler="Pin" class="m-0 p-0">
                                         @Html.AntiForgeryToken()
@@ -209,7 +257,7 @@ else
                         </div>
                     </div>
                 </li>
-                }
+                    }
                 </ul>
             }
         </section>
