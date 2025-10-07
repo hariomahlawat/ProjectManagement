@@ -24,190 +24,196 @@
   <link rel="stylesheet" href="~/css/tasks.css" asp-append-version="true" />
 }
 
-<nav aria-label="breadcrumb" class="mb-2">
-  <ol class="breadcrumb small mb-0">
-    <li class="breadcrumb-item"><a asp-page="/Dashboard/Index">Dashboard</a></li>
-    <li class="breadcrumb-item active" aria-current="page">My Tasks</li>
-  </ol>
-</nav>
+<div class="tasks-layout row">
+  <aside class="col-12 col-lg-4 tasks-sidebar" aria-label="Task controls">
+    <nav aria-label="breadcrumb" class="mb-2">
+      <ol class="breadcrumb small mb-0">
+        <li class="breadcrumb-item"><a asp-page="/Dashboard/Index">Dashboard</a></li>
+        <li class="breadcrumb-item active" aria-current="page">My Tasks</li>
+      </ol>
+    </nav>
 
-<div class="tasks-header mb-3">
-  <div class="tasks-header__bar">
-    <div class="tasks-header__title-group">
-      <h4 class="tasks-header__title mb-0">My Tasks</h4>
-      <span class="tasks-header__count" aria-label="Total tasks">@Model.TotalItems</span>
-    </div>
-  </div>
-
-  <div class="tasks-filter-bar" data-filter-bar>
-    <div class="tasks-filter-bar__controls">
-      <button type="button"
-              class="btn btn-sm btn-outline-primary tasks-filter-bar__mobile-toggle"
-              data-action="open-filter"
-              data-bs-toggle="offcanvas"
-              data-bs-target="#tasksFilterOffcanvas"
-              aria-controls="tasksFilterOffcanvas">
-        <i class="bi bi-funnel" aria-hidden="true"></i>
-        <span>Filters</span>
-      </button>
-      <button type="button"
-              class="btn btn-sm btn-outline-secondary tasks-compact-toggle"
-              data-compact="false"
-              data-label-compact="Compact view"
-              data-label-comfy="Comfortable view"
-              aria-pressed="false">
-        <span class="tasks-compact-toggle__icon" aria-hidden="true"></span>
-        <span class="tasks-compact-toggle__label" data-role="label">Compact view</span>
-      </button>
-    </div>
-    <div class="tasks-filter-bar__body" data-filter-desktop>
-      <form method="get" class="tasks-filter-form" data-filter-form>
-        <div class="tasks-filter-form__group tasks-filter-form__group--selects">
-          <select class="form-select form-select-sm" name="tab">
-            <option value="all" selected="@(Model.Tab=="all")">All</option>
-            <option value="today" selected="@(Model.Tab=="today")">Today</option>
-            <option value="upcoming" selected="@(Model.Tab=="upcoming")">Upcoming</option>
-            <option value="completed" selected="@(Model.Tab=="completed")">Completed</option>
-          </select>
-          <select class="form-select form-select-sm" name="PageSize">
-            <option value="10" selected="@(Model.PageSize==10)">10</option>
-            <option value="25" selected="@(Model.PageSize==25)">25</option>
-            <option value="50" selected="@(Model.PageSize==50)">50</option>
-          </select>
+    <header class="tasks-header mb-3">
+      <div class="tasks-header__bar">
+        <div class="tasks-header__title-group">
+          <h4 class="tasks-header__title mb-0">My Tasks</h4>
+          <span class="tasks-header__count" aria-label="Total tasks">@Model.TotalItems</span>
         </div>
-        <div class="tasks-filter-form__group tasks-filter-form__group--search">
-          <input class="form-control form-control-sm" name="q" value="@Model.Q" placeholder="Search" />
-        </div>
-        <div class="tasks-filter-form__group tasks-filter-form__group--actions">
-          <button class="btn btn-sm btn-outline-primary">Apply</button>
-          <a class="btn btn-sm btn-outline-secondary" asp-page="Index">Reset</a>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <div class="offcanvas offcanvas-end tasks-filter-offcanvas" tabindex="-1" id="tasksFilterOffcanvas" aria-labelledby="tasksFilterOffcanvasLabel">
-    <div class="offcanvas-header">
-      <h5 class="offcanvas-title" id="tasksFilterOffcanvasLabel">Task filters</h5>
-      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-    </div>
-    <div class="offcanvas-body" data-filter-mobile></div>
-  </div>
-
-  <form method="post" asp-page-handler="Add" class="tasks-add-form input-group input-group-sm pm-form-max-520">
-    @Html.AntiForgeryToken()
-    <input class="form-control" name="NewTitle" placeholder="Add a task…" maxlength="160" required />
-    <button class="btn btn-primary">Add</button>
-  </form>
-</div>
-
-@if (TempData["Error"] is string err && !string.IsNullOrWhiteSpace(err))
-{
-  <div class="alert alert-warning py-2"><i class="bi bi-exclamation-triangle-fill me-2"></i>@err</div>
-}
-
-@if (!string.IsNullOrEmpty(toastUndoId))
-{
-  <noscript>
-    <form method="post" asp-page-handler="Undo" class="alert alert-success py-2 d-flex justify-content-between align-items-center">
-      @Html.AntiForgeryToken()
-      <input type="hidden" name="id" value="@toastUndoId" />
-      <div><i class="bi bi-check2-circle me-2"></i>Task marked done.</div>
-      <button class="btn btn-sm btn-outline-success">Undo</button>
-    </form>
-  </noscript>
-}
-
-<div id="bulkSelectionToolbar" class="alert alert-secondary py-2 px-3 d-none" role="region" aria-live="polite">
-  <div class="d-flex flex-wrap align-items-center gap-2">
-    <div class="d-flex align-items-center gap-2 me-auto flex-wrap">
-      <div class="form-check mb-0">
-        <input class="form-check-input" type="checkbox" id="bulkSelectAll" />
-        <label class="form-check-label small" for="bulkSelectAll">Select all</label>
       </div>
-      <span class="small text-muted" data-bulk-role="count">0 tasks selected</span>
-      <button type="button" class="btn btn-sm btn-outline-secondary" data-bulk-action="clear">Clear</button>
-    </div>
 
-    <div class="d-flex flex-wrap align-items-center gap-2">
-      <form method="post" asp-page-handler="BulkDone" class="bulk-action-form d-inline">
-        @Html.AntiForgeryToken()
-        <div class="bulk-selected-inputs"></div>
-        <button type="submit" class="btn btn-sm btn-success">Mark done</button>
-      </form>
+      <section class="tasks-filter-bar" data-filter-bar>
+        <div class="tasks-filter-bar__controls">
+          <button type="button"
+                  class="btn btn-sm btn-outline-primary tasks-filter-bar__mobile-toggle"
+                  data-action="open-filter"
+                  data-bs-toggle="offcanvas"
+                  data-bs-target="#tasksFilterOffcanvas"
+                  aria-controls="tasksFilterOffcanvas">
+            <i class="bi bi-funnel" aria-hidden="true"></i>
+            <span>Filters</span>
+          </button>
+          <button type="button"
+                  class="btn btn-sm btn-outline-secondary tasks-compact-toggle"
+                  data-compact="false"
+                  data-label-compact="Compact view"
+                  data-label-comfy="Comfortable view"
+                  aria-pressed="false">
+            <span class="tasks-compact-toggle__icon" aria-hidden="true"></span>
+            <span class="tasks-compact-toggle__label" data-role="label">Compact view</span>
+          </button>
+        </div>
+        <div class="tasks-filter-bar__body" data-filter-desktop>
+          <form method="get" class="tasks-filter-form" data-filter-form>
+            <div class="tasks-filter-form__group tasks-filter-form__group--selects">
+              <select class="form-select form-select-sm" name="tab">
+                <option value="all" selected="@(Model.Tab=="all")">All</option>
+                <option value="today" selected="@(Model.Tab=="today")">Today</option>
+                <option value="upcoming" selected="@(Model.Tab=="upcoming")">Upcoming</option>
+                <option value="completed" selected="@(Model.Tab=="completed")">Completed</option>
+              </select>
+              <select class="form-select form-select-sm" name="PageSize">
+                <option value="10" selected="@(Model.PageSize==10)">10</option>
+                <option value="25" selected="@(Model.PageSize==25)">25</option>
+                <option value="50" selected="@(Model.PageSize==50)">50</option>
+              </select>
+            </div>
+            <div class="tasks-filter-form__group tasks-filter-form__group--search">
+              <input class="form-control form-control-sm" name="q" value="@Model.Q" placeholder="Search" />
+            </div>
+            <div class="tasks-filter-form__group tasks-filter-form__group--actions">
+              <button class="btn btn-sm btn-outline-primary">Apply</button>
+              <a class="btn btn-sm btn-outline-secondary" asp-page="Index">Reset</a>
+            </div>
+          </form>
+        </div>
+      </section>
 
-      <form method="post" asp-page-handler="BulkPin" class="bulk-action-form d-inline">
-        @Html.AntiForgeryToken()
-        <input type="hidden" name="pin" value="true" />
-        <div class="bulk-selected-inputs"></div>
-        <button type="submit" class="btn btn-sm btn-outline-primary">Pin</button>
-      </form>
+      <div class="offcanvas offcanvas-end tasks-filter-offcanvas" tabindex="-1" id="tasksFilterOffcanvas" aria-labelledby="tasksFilterOffcanvasLabel">
+        <div class="offcanvas-header">
+          <h5 class="offcanvas-title" id="tasksFilterOffcanvasLabel">Task filters</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body" data-filter-mobile></div>
+      </div>
+    </header>
 
-      <form method="post" asp-page-handler="BulkPin" class="bulk-action-form d-inline">
-        @Html.AntiForgeryToken()
-        <input type="hidden" name="pin" value="false" />
-        <div class="bulk-selected-inputs"></div>
-        <button type="submit" class="btn btn-sm btn-outline-secondary">Unpin</button>
-      </form>
-
-      <form method="post" asp-page-handler="BulkDelete" class="bulk-action-form d-inline">
-        @Html.AntiForgeryToken()
-        <div class="bulk-selected-inputs"></div>
-        <button type="submit" class="btn btn-sm btn-outline-danger js-confirm-delete" data-confirm="Delete selected tasks?">Delete</button>
-      </form>
-    </div>
-  </div>
-</div>
-
-@if (Model.Tab=="completed" && Model.Groups.Length > 0 && Model.Groups[0].Items.Length > 0)
-{
-    <form method="post" asp-page-handler="ClearCompleted" class="mb-2">
+    <form method="post" asp-page-handler="Add" class="tasks-add-form input-group input-group-sm pm-form-max-520">
       @Html.AntiForgeryToken()
-      <button class="btn btn-sm btn-outline-danger" data-confirm="Clear all completed tasks?">Clear all completed</button>
+      <input class="form-control" name="NewTitle" placeholder="Add a task…" maxlength="160" required />
+      <button class="btn btn-primary">Add</button>
     </form>
-}
 
-<div id="taskListContainer">
-  <partial name="_TaskList" model="Model" />
-</div>
+    @if (TempData["Error"] is string err && !string.IsNullOrWhiteSpace(err))
+    {
+      <div class="alert alert-warning py-2 mt-2"><i class="bi bi-exclamation-triangle-fill me-2"></i>@err</div>
+    }
 
-<div id="taskToast"
-     class="pm-toast"
-     role="status"
-     aria-live="polite"
-     aria-atomic="true"
-     aria-hidden="true"
-     hidden
-     data-toast-auto-message="@toastMessage"
-     data-toast-auto-id="@toastUndoId"
-     data-toast-auto-variant="@toastVariant">
-  <div class="pm-toast__body">
-    <span class="pm-toast__message" data-toast-role="message"></span>
-    <div class="pm-toast__actions">
-      <button type="button" class="pm-toast__undo" data-toast-action="undo">Undo</button>
-      <button type="button" class="btn-close pm-toast__close" data-toast-action="dismiss" aria-label="Dismiss notification"></button>
+    <div id="bulkSelectionToolbar" class="alert alert-secondary py-2 px-3 d-none mt-3" role="region" aria-live="polite">
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2 me-auto flex-wrap">
+          <div class="form-check mb-0">
+            <input class="form-check-input" type="checkbox" id="bulkSelectAll" />
+            <label class="form-check-label small" for="bulkSelectAll">Select all</label>
+          </div>
+          <span class="small text-muted" data-bulk-role="count">0 tasks selected</span>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-bulk-action="clear">Clear</button>
+        </div>
+
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <form method="post" asp-page-handler="BulkDone" class="bulk-action-form d-inline">
+            @Html.AntiForgeryToken()
+            <div class="bulk-selected-inputs"></div>
+            <button type="submit" class="btn btn-sm btn-success">Mark done</button>
+          </form>
+
+          <form method="post" asp-page-handler="BulkPin" class="bulk-action-form d-inline">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="pin" value="true" />
+            <div class="bulk-selected-inputs"></div>
+            <button type="submit" class="btn btn-sm btn-outline-primary">Pin</button>
+          </form>
+
+          <form method="post" asp-page-handler="BulkPin" class="bulk-action-form d-inline">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="pin" value="false" />
+            <div class="bulk-selected-inputs"></div>
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Unpin</button>
+          </form>
+
+          <form method="post" asp-page-handler="BulkDelete" class="bulk-action-form d-inline">
+            @Html.AntiForgeryToken()
+            <div class="bulk-selected-inputs"></div>
+            <button type="submit" class="btn btn-sm btn-outline-danger js-confirm-delete" data-confirm="Delete selected tasks?">Delete</button>
+          </form>
+        </div>
+      </div>
     </div>
-  </div>
-  <form method="post" asp-page-handler="Undo" class="d-none" data-toast-role="undo-form">
-    @Html.AntiForgeryToken()
-    <input type="hidden" name="id" value="@(toastUndoId ?? string.Empty)" data-toast-role="undo-id" />
-  </form>
+
+    @if (Model.Tab=="completed" && Model.Groups.Length > 0 && Model.Groups[0].Items.Length > 0)
+    {
+        <form method="post" asp-page-handler="ClearCompleted" class="mt-3">
+          @Html.AntiForgeryToken()
+          <button class="btn btn-sm btn-outline-danger" data-confirm="Clear all completed tasks?">Clear all completed</button>
+        </form>
+    }
+  </aside>
+
+  <section class="col-12 col-lg-8 tasks-content" aria-label="Task results">
+    @if (!string.IsNullOrEmpty(toastUndoId))
+    {
+      <noscript>
+        <form method="post" asp-page-handler="Undo" class="alert alert-success py-2 d-flex justify-content-between align-items-center">
+          @Html.AntiForgeryToken()
+          <input type="hidden" name="id" value="@toastUndoId" />
+          <div><i class="bi bi-check2-circle me-2"></i>Task marked done.</div>
+          <button class="btn btn-sm btn-outline-success">Undo</button>
+        </form>
+      </noscript>
+    }
+
+    <div id="taskListContainer">
+      <partial name="_TaskList" model="Model" />
+    </div>
+
+    <div id="taskToast"
+         class="pm-toast"
+         role="status"
+         aria-live="polite"
+         aria-atomic="true"
+         aria-hidden="true"
+         hidden
+         data-toast-auto-message="@toastMessage"
+         data-toast-auto-id="@toastUndoId"
+         data-toast-auto-variant="@toastVariant">
+      <div class="pm-toast__body">
+        <span class="pm-toast__message" data-toast-role="message"></span>
+        <div class="pm-toast__actions">
+          <button type="button" class="pm-toast__undo" data-toast-action="undo">Undo</button>
+          <button type="button" class="btn-close pm-toast__close" data-toast-action="dismiss" aria-label="Dismiss notification"></button>
+        </div>
+      </div>
+      <form method="post" asp-page-handler="Undo" class="d-none" data-toast-role="undo-form">
+        @Html.AntiForgeryToken()
+        <input type="hidden" name="id" value="@(toastUndoId ?? string.Empty)" data-toast-role="undo-id" />
+      </form>
+    </div>
+
+    @if (Model.TotalPages > 1)
+    {
+      <nav class="mt-2">
+        <ul class="pagination pagination-sm mb-0">
+          @for (var p = 1; p <= Model.TotalPages; p++)
+          {
+            <li class="page-item @(p==Model.Page ? "active" : "")">
+              <a class="page-link" href="@Url.Page(null, new { tab = Model.Tab, q = Model.Q, page = p, pageSize = Model.PageSize })">@p</a>
+            </li>
+          }
+        </ul>
+      </nav>
+
+    }
+  </section>
 </div>
-
-@if (Model.TotalPages > 1)
-{
-  <nav class="mt-2">
-    <ul class="pagination pagination-sm mb-0">
-      @for (var p = 1; p <= Model.TotalPages; p++)
-      {
-        <li class="page-item @(p==Model.Page ? "active" : "")">
-          <a class="page-link" href="@Url.Page(null, new { tab = Model.Tab, q = Model.Q, page = p, pageSize = Model.PageSize })">@p</a>
-        </li>
-      }
-    </ul>
-  </nav>
-
-}
 
 @section Scripts {
   <script src="~/js/tasks-page.js" asp-append-version="true" defer></script>
