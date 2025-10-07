@@ -7,9 +7,9 @@
   const TODO_TOGGLE_SELECTOR = '.todo-list [data-bs-toggle="dropdown"]';
   const processedToggles = new WeakSet();
   const portalRegistry = new WeakMap();
-  const FLIP_FALLBACKS = ['bottom-end', 'top-end', 'top-start', 'bottom-start'];
-  const DEFAULT_PLACEMENT = 'bottom-end';
-  const ALT_PLACEMENT = 'top-end';
+  const FLIP_FALLBACKS = ['top-end', 'top-start', 'bottom-end', 'bottom-start'];
+  const DEFAULT_PLACEMENT = 'top-end';
+  const ALT_PLACEMENT = 'bottom-end';
 
   function onNextFrame(callback) {
     if (typeof window.requestAnimationFrame === 'function') {
@@ -207,7 +207,7 @@
       const spaceAbove = Math.max(0, toggleRect.top - containerRect.top);
       const spaceBelow = Math.max(0, containerRect.bottom - toggleRect.bottom);
 
-      if (spaceBelow < menuHeight && spaceAbove >= menuHeight) {
+      if (spaceAbove < menuHeight && spaceBelow >= menuHeight) {
         placement = ALT_PLACEMENT;
       }
     }
