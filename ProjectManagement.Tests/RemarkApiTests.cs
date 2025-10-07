@@ -203,25 +203,94 @@ public class RemarkApiTests
     }
 
     [Fact]
-    public async Task ListRemarksAsync_ViewerWithoutRemarkRole_ReturnsForbidden()
+    public async Task ListRemarksAsync_ViewerWithoutRemarkRole_AllowsReadWithViewerFallback()
     {
         using var factory = new RemarkApiFactory();
         var projectId = 9610;
-        await SeedProjectAsync(factory, projectId, leadPoUserId: "lead-owner");
+        await SeedProjectAsync(factory, projectId, leadPoUserId: "viewer-fallback");
+        await UpdateProjectLeadAsync(factory, projectId, "author-owner");
+
+        var authorClient = await CreateClientForUserAsync(factory, "author-owner", "Author Owner", "Project Officer");
+        var createResponse = await authorClient.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
+        {
+            type = RemarkType.Internal,
+            body = "Author remark",
+            eventDate = new DateOnly(2024, 10, 3),
+            stageRef = StageCodes.FS
+        });
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
 
         var viewerClient = await CreateClientForUserAsync(
             factory,
-            "viewer-no-role",
-            "Viewer No Role",
+            "viewer-fallback",
+            "Viewer Fallback",
             false,
             "Project Officer");
 
         var response = await viewerClient.GetAsync($"/api/projects/{projectId}/remarks");
 
-        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
-        var problem = await response.Content.ReadFromJsonAsync<ProblemDetailsDto>(SerializerOptions);
-        Assert.NotNull(problem);
-        Assert.Equal(RemarkService.PermissionDeniedMessage, problem!.Title);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var list = await response.Content.ReadFromJsonAsync<RemarkListResponseDto>(SerializerOptions);
+        Assert.NotNull(list);
+        Assert.Equal(1, list!.Total);
+        Assert.Single(list.Items);
+        Assert.Equal("author-owner", list.Items[0].AuthorUserId);
+    }
+
+    [Fact]
+    public async Task ViewerWithoutRemarkRole_CannotCreateOrEditRemarks()
+    {
+        using var factory = new RemarkApiFactory();
+        var projectId = 9611;
+        await SeedProjectAsync(factory, projectId, leadPoUserId: "viewer-blocked");
+        await UpdateProjectLeadAsync(factory, projectId, "author-owner");
+
+        var authorClient = await CreateClientForUserAsync(factory, "author-owner", "Author Owner", "Project Officer");
+        var createResponse = await authorClient.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
+        {
+            type = RemarkType.Internal,
+            body = "Seed remark",
+            eventDate = new DateOnly(2024, 10, 4),
+            stageRef = StageCodes.FS
+        });
+
+        Assert.Equal(HttpStatusCode.Created, createResponse.StatusCode);
+        var created = await createResponse.Content.ReadFromJsonAsync<RemarkResponseDto>(SerializerOptions);
+        Assert.NotNull(created);
+
+        var viewerClient = await CreateClientForUserAsync(
+            factory,
+            "viewer-blocked",
+            "Viewer Blocked",
+            false,
+            "Project Officer");
+
+        var createAttempt = await viewerClient.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
+        {
+            type = RemarkType.Internal,
+            body = "Viewer attempt",
+            eventDate = new DateOnly(2024, 10, 4),
+            stageRef = StageCodes.FS
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, createAttempt.StatusCode);
+        var createProblem = await createAttempt.Content.ReadFromJsonAsync<ProblemDetailsDto>(SerializerOptions);
+        Assert.NotNull(createProblem);
+        Assert.Equal(RemarkService.PermissionDeniedMessage, createProblem!.Title);
+
+        var editAttempt = await viewerClient.PutAsJsonAsync($"/api/projects/{projectId}/remarks/{created!.Id}", new
+        {
+            body = "Edited body",
+            eventDate = created.EventDate,
+            stageRef = created.StageRef,
+            rowVersion = created.RowVersion
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, editAttempt.StatusCode);
+        var editProblem = await editAttempt.Content.ReadFromJsonAsync<ProblemDetailsDto>(SerializerOptions);
+        Assert.NotNull(editProblem);
+        Assert.Equal(RemarkService.PermissionDeniedMessage, editProblem!.Title);
     }
 
     [Fact]
@@ -523,6 +592,17 @@ public class RemarkApiTests
             Status = StageStatus.NotStarted
         });
 
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task UpdateProjectLeadAsync(RemarkApiFactory factory, int projectId, string? leadPoUserId)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await db.Database.EnsureCreatedAsync();
+
+        var project = await db.Projects.SingleAsync(p => p.Id == projectId);
+        project.LeadPoUserId = leadPoUserId;
         await db.SaveChangesAsync();
     }
 

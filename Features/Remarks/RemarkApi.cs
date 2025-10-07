@@ -13,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
+using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Remarks;
 
 namespace ProjectManagement.Features.Remarks;
@@ -106,7 +107,8 @@ internal static class RemarkApi
             actorRole,
             projectId,
             db,
-            cancellationToken);
+            cancellationToken,
+            allowViewerFallback: true);
         if (error is IResult errorResult)
         {
             return errorResult;
@@ -329,7 +331,8 @@ internal static class RemarkApi
             actorRole,
             projectId,
             db,
-            cancellationToken);
+            cancellationToken,
+            allowViewerFallback: true);
         if (error is IResult errorResult)
         {
             return errorResult;
@@ -431,7 +434,8 @@ internal static class RemarkApi
         string? requestedRole,
         int projectId,
         ApplicationDbContext db,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool allowViewerFallback = false)
     {
         var user = await userManager.GetUserAsync(httpContext.User);
         if (user is null)
@@ -445,12 +449,11 @@ internal static class RemarkApi
             .Where(r => r != RemarkActorRole.Unknown)
             .ToHashSet();
 
+        Project? project = null;
         if (remarkRoleSet.Count == 0)
         {
-            var project = await db.Projects.AsNoTracking()
-                .Where(p => p.Id == projectId)
-                .Select(p => new { p.LeadPoUserId, p.HodUserId })
-                .SingleOrDefaultAsync(cancellationToken);
+            project = await db.Projects.AsNoTracking()
+                .SingleOrDefaultAsync(p => p.Id == projectId, cancellationToken);
 
             if (project is not null)
             {
@@ -469,6 +472,18 @@ internal static class RemarkApi
 
             if (remarkRoleSet.Count == 0)
             {
+                if (allowViewerFallback
+                    && project is not null
+                    && ProjectAccessGuard.CanViewProject(project, httpContext.User, user.Id))
+                {
+                    var fallbackRole = RemarkActorRole.ProjectOfficer;
+                    return (new RemarkActorContext(
+                        user.Id,
+                        fallbackRole,
+                        new[] { fallbackRole },
+                        true), null);
+                }
+
                 return (null, ForbiddenProblem(RemarkService.PermissionDeniedMessage));
             }
         }

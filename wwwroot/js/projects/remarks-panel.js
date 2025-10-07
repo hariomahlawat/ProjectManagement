@@ -990,6 +990,32 @@
                 });
 
                 if (!response.ok) {
+                    if (response.status === 403) {
+                        if (!append) {
+                            this.state.items = [];
+                            this.state.page = targetPage;
+                            this.state.total = 0;
+                            this.state.totalPages = 1;
+                            this.state.hasMore = false;
+                            if (this.listContainer) {
+                                this.listContainer.innerHTML = '';
+                            }
+
+                            if (this.emptyState) {
+                                this.emptyState.classList.remove('d-none');
+                                this.emptyState.textContent = 'This remark is no longer available for your account.';
+                            }
+
+                            if (this.paginationContainer) {
+                                this.paginationContainer.innerHTML = '';
+                                this.paginationContainer.classList.add('d-none');
+                            }
+                        }
+
+                        this.state.initialised = true;
+                        return false;
+                    }
+
                     const problem = await this.readProblemDetails(response);
                     this.toastHandler(problem || 'Unable to load remarks.', 'danger');
                     this.state.initialised = false;
