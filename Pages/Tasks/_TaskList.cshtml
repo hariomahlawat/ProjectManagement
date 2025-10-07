@@ -75,7 +75,7 @@ else
                             <label class="visually-hidden" for="select-@t.Id">Select @t.Title</label>
                         </div>
 
-                        <form method="post" asp-page-handler="Toggle" class="m-0 p-0">
+                        <form method="post" asp-page-handler="Toggle" class="m-0 p-0 js-toggle-done-form" data-success-message="Task marked done.">
                             @Html.AntiForgeryToken()
                             <input type="hidden" name="id" value="@t.Id" />
                             <!-- CHECKBOX FIRST -->

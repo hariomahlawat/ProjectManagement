@@ -1968,3 +1968,97 @@ body.has-project-photo-preview-dialog {
 .notification-menu > .border-top {
   flex: 0 0 auto;
 }
+
+/* ---------- Toast / snackbar ---------- */
+.pm-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 1.5rem;
+  transform: translate(-50%, 1rem);
+  background-color: var(--pm-card);
+  color: var(--pm-text);
+  border-radius: 0.85rem;
+  box-shadow: var(--pm-shadow);
+  padding: 0.75rem 1rem;
+  min-width: 260px;
+  max-width: min(90vw, 420px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .25s ease, transform .25s ease;
+  z-index: 1080;
+}
+
+.pm-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+
+.pm-toast__body {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.pm-toast__message {
+  flex: 1 1 auto;
+}
+
+.pm-toast__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.pm-toast__undo {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: 600;
+  font-size: var(--pm-font-size-sm);
+  color: var(--pm-primary);
+  cursor: pointer;
+}
+
+.pm-toast__undo:hover,
+.pm-toast__undo:focus {
+  color: var(--pm-primary-hover);
+  text-decoration: none;
+}
+
+.pm-toast__undo:focus-visible {
+  outline: 2px solid var(--pm-primary);
+  outline-offset: 2px;
+}
+
+.pm-toast__close {
+  opacity: 0.6;
+}
+
+.pm-toast__close:hover,
+.pm-toast__close:focus {
+  opacity: 1;
+}
+
+@media (max-width: 576px) {
+  .pm-toast {
+    left: 0.75rem;
+    right: 0.75rem;
+    transform: translateY(1rem);
+    width: auto;
+  }
+
+  .pm-toast.is-visible {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pm-toast {
+    transition: none;
+  }
+}
