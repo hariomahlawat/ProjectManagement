@@ -6,6 +6,12 @@
   function qs(sel, root) { return (root || document).querySelector(sel); }
   function qsa(sel, root) { return Array.from((root || document).querySelectorAll(sel)); }
 
+  function isEditable(el) {
+    if (!el) return false;
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+  }
+
   // ---- 1) Show row actions whenever a row's edit form changes ----
   function initRowActionReveal() {
     qsa('li[data-id]').forEach(row => {
@@ -174,6 +180,152 @@
     updateToolbar();
   }
 
+  // ---- 4) Keyboard navigation for task rows ----
+  function initKeyboardNav() {
+    const listContainer = document.getElementById('taskListContainer');
+    if (!listContainer) return;
+
+    const quickAddInput = qs('form input[name="NewTitle"]');
+    const quickAddForm = quickAddInput ? quickAddInput.form : null;
+
+    let currentRow = null;
+
+    function getRows() {
+      return qsa('.todo-row');
+    }
+
+    function ensureRowMetadata(row, isActive) {
+      if (!row) return;
+      if (!row.hasAttribute('tabindex')) {
+        row.setAttribute('tabindex', '-1');
+      }
+      row.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      if (isActive) {
+        row.setAttribute('tabindex', '0');
+      } else {
+        row.setAttribute('tabindex', '-1');
+      }
+    }
+
+    function prepareRows() {
+      const rows = getRows();
+      if (currentRow && !rows.includes(currentRow)) {
+        currentRow = null;
+      }
+      rows.forEach(row => ensureRowMetadata(row, row === currentRow));
+      return rows;
+    }
+
+    function focusRow(row, { scroll = true } = {}) {
+      if (!row) return;
+      const rows = prepareRows();
+      if (!rows.includes(row)) return;
+      if (currentRow && currentRow !== row) {
+        ensureRowMetadata(currentRow, false);
+      }
+      currentRow = row;
+      ensureRowMetadata(row, true);
+      try {
+        row.focus({ preventScroll: true });
+      } catch (_) {
+        row.focus();
+      }
+      if (scroll && typeof row.scrollIntoView === 'function') {
+        row.scrollIntoView({ block: 'nearest' });
+      }
+    }
+
+    function getActiveRow(fallbackToFirst = true) {
+      const rows = prepareRows();
+      if (currentRow && rows.includes(currentRow)) {
+        return currentRow;
+      }
+      if (!fallbackToFirst || rows.length === 0) {
+        return null;
+      }
+      return rows[0];
+    }
+
+    if ('MutationObserver' in window) {
+      const observer = new MutationObserver(() => {
+        const rows = prepareRows();
+        if (!currentRow && rows.length > 0) {
+          ensureRowMetadata(rows[0], false);
+        }
+      });
+      observer.observe(listContainer, { childList: true, subtree: true });
+    }
+
+    prepareRows();
+
+    document.addEventListener('keydown', (e) => {
+      if (e.defaultPrevented) return;
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+
+      const activeEl = document.activeElement;
+      if (isEditable(activeEl)) {
+        if (quickAddInput && activeEl === quickAddInput && e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          if (quickAddForm) {
+            quickAddForm.requestSubmit();
+          }
+        }
+        return;
+      }
+
+      const rows = prepareRows();
+      if (rows.length === 0) return;
+
+      if (e.key === 'j' || e.key === 'k') {
+        const active = getActiveRow();
+        if (!active) return;
+        if (!currentRow) {
+          focusRow(active);
+          e.preventDefault();
+          return;
+        }
+        const idx = rows.indexOf(active);
+        if (idx === -1) return;
+        let nextIdx = idx;
+        if (e.key === 'j' && idx < rows.length - 1) {
+          nextIdx = idx + 1;
+        } else if (e.key === 'k' && idx > 0) {
+          nextIdx = idx - 1;
+        }
+        if (nextIdx !== idx) {
+          focusRow(rows[nextIdx]);
+          e.preventDefault();
+        }
+        return;
+      }
+
+      if (e.key === 'x') {
+        const row = getActiveRow();
+        if (!row) return;
+        const checkbox = qs('.task-select', row);
+        if (!checkbox) return;
+        checkbox.checked = !checkbox.checked;
+        const changeEvent = new Event('change', { bubbles: true });
+        checkbox.dispatchEvent(changeEvent);
+        focusRow(row, { scroll: false });
+        e.preventDefault();
+        return;
+      }
+
+      if (e.key === 'd') {
+        const row = getActiveRow();
+        if (!row) return;
+        const doneCheckbox = qs('.js-done-checkbox', row);
+        if (!doneCheckbox) return;
+        doneCheckbox.checked = !doneCheckbox.checked;
+        const changeEvent = new Event('change', { bubbles: true });
+        doneCheckbox.dispatchEvent(changeEvent);
+        focusRow(row, { scroll: false });
+        e.preventDefault();
+      }
+    });
+  }
+
   // ---- 0) Auto-submit done/undo checkboxes ----
   function initDoneAutosubmit() {
     function markVisualDone(cb) {
@@ -206,11 +358,13 @@
       initDoneAutosubmit();
       initDragReorder();
       initBulkSelection();
+      initKeyboardNav();
     });
   } else {
     initRowActionReveal();
     initDoneAutosubmit();
     initDragReorder();
     initBulkSelection();
+    initKeyboardNav();
   }
 })();
