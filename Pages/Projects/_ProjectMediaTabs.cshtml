@@ -1,0 +1,542 @@
+@using System.Globalization
+@using System.Linq
+@using ProjectManagement.Models
+@using ProjectManagement.ViewModels
+@model ProjectManagement.Pages.Projects.OverviewModel
+
+@{
+    var media = Model.MediaCollections;
+    if (media.Tabs.Count == 0)
+    {
+        return;
+    }
+
+    var project = Model.Project!;
+    var projectId = project.Id;
+    var totFilters = media.TotFilters;
+    var activeTabKey = media.ActiveTabKey;
+    var selectedTot = media.SelectedTotId;
+    var selectedTotLabel = selectedTot.HasValue
+        ? totFilters.FirstOrDefault(f => f.Value.HasValue && f.Value.Value == selectedTot.Value)?.Label
+        : null;
+    var roles = Model.Roles;
+    var isAdmin = roles.IsAdmin;
+    var isThisProjectsPo = roles.IsAssignedProjectOfficer;
+    var isThisProjectsHod = roles.IsAssignedHoD;
+    var canUploadDocuments = Model.CanUploadDocuments;
+    var canViewRecycleBin = Model.CanViewDocumentRecycleBin;
+    var canManagePhotos = Model.CanManagePhotos;
+}
+
+<div class="card pm-card">
+    <div class="card-header pm-card-header">
+        <div class="pm-card-heading">
+            <span class="pm-card-icon" aria-hidden="true">
+                <i class="bi bi-collection"></i>
+            </span>
+            <div>
+                <h3 class="pm-card-title h5 mb-0">Project media</h3>
+                <p class="pm-card-subtitle mb-0">Documents, photos, and more without leaving this page.</p>
+            </div>
+        </div>
+        <div class="pm-card-actions align-items-center gap-2">
+            @if (totFilters.Count > 1)
+            {
+                <form method="get" class="d-flex align-items-center gap-2" data-media-filter-form>
+                    <input type="hidden" name="id" value="@projectId" />
+                    <input type="hidden" name="docStage" value="@(Model.DocumentList.SelectedStageValue ?? string.Empty)" />
+                    <input type="hidden" name="docStatus" value="@(Model.DocumentList.SelectedStatusValue ?? string.Empty)" />
+                    <input type="hidden" name="docPage" value="1" />
+                    <input type="hidden" name="mediaTab" value="@activeTabKey" data-media-tab-input />
+                    <label for="media-tot-filter" class="form-label mb-0 small text-muted">Filter</label>
+                    <select id="media-tot-filter"
+                            name="MediaTotId"
+                            class="form-select form-select-sm"
+                            onchange="this.form.submit()">
+                        @foreach (var filter in totFilters)
+                        {
+                            var optionValue = filter.Value?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+                            <option value="@optionValue" selected="@(filter.Selected ? "selected" : null)">@filter.Label</option>
+                        }
+                    </select>
+                </form>
+            }
+        </div>
+    </div>
+    <div class="card-body pm-card-body">
+        <ul class="nav nav-tabs card-tabs" role="tablist">
+            @for (var index = 0; index < media.Tabs.Count; index++)
+            {
+                var tab = media.Tabs[index];
+                var tabId = $"media-tab-{tab.Key}-{projectId}";
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link @(tab.IsActive ? "active" : string.Empty)"
+                            id="@($"{tabId}-tab")"
+                            data-bs-toggle="tab"
+                            data-bs-target="#@tabId"
+                            type="button"
+                            role="tab"
+                            aria-controls="@tabId"
+                            aria-selected="@(tab.IsActive ? "true" : "false")"
+                            data-media-tab-button
+                            data-media-tab="@tab.Key">
+                        <span class="d-inline-flex align-items-center gap-2">
+                            <i class="bi @tab.Icon" aria-hidden="true"></i>
+                            <span>@tab.Title</span>
+                            @if (tab.BadgeCount > 0)
+                            {
+                                <span class="badge text-bg-warning">@tab.BadgeCount</span>
+                            }
+                            @if (tab.HasTotItems && media.SelectedTotId is null)
+                            {
+                                <span class="badge text-bg-info">ToT</span>
+                            }
+                        </span>
+                    </button>
+                </li>
+            }
+        </ul>
+        <div class="tab-content pt-3">
+            @foreach (var tab in media.Tabs)
+            {
+                var tabId = $"media-tab-{tab.Key}-{projectId}";
+                <div class="tab-pane fade @(tab.IsActive ? "show active" : string.Empty)"
+                     id="@tabId"
+                     role="tabpanel"
+                     aria-labelledby="@($"{tabId}-tab")">
+                    @if (tab.Key == ProjectMediaTabViewModel.DocumentsKey && tab.Documents is { } docTab)
+                    {
+                        var docList = docTab.List;
+                        var displayedCount = docTab.DisplayedCount;
+                        <div class="d-flex justify-content-between flex-wrap align-items-center gap-2 mb-3">
+                            <div class="d-flex align-items-center gap-2">
+                                @if (Model.IsDocumentApprover && docTab.PendingCount > 0)
+                                {
+                                    <span class="badge text-bg-warning">@docTab.PendingCount pending</span>
+                                }
+                            </div>
+                            @if (docTab.CanUpload || docTab.CanViewRecycleBin)
+                            {
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                                            type="button"
+                                            data-bs-toggle="dropdown"
+                                            aria-expanded="false">
+                                        Document actions
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        @if (docTab.CanUpload)
+                                        {
+                                            <li>
+                                                <a class="dropdown-item"
+                                                   asp-page="/Projects/Documents/UploadRequest"
+                                                   asp-route-id="@projectId">Upload</a>
+                                            </li>
+                                        }
+                                        @if (docTab.CanViewRecycleBin)
+                                        {
+                                            <li>
+                                                <a class="dropdown-item d-flex align-items-center gap-2"
+                                                   asp-area="Admin"
+                                                   asp-page="/Documents/Recycle">
+                                                    <i class="bi bi-trash" aria-hidden="true"></i>
+                                                    <span>Recycle Bin</span>
+                                                </a>
+                                            </li>
+                                        }
+                                    </ul>
+                                </div>
+                            }
+                        </div>
+                        <div class="mb-3 text-muted small">
+                            @if (docList.TotalItems > 0)
+                            {
+                                <span>Showing @displayedCount of @docList.TotalItems @docTab.StatusHeading.</span>
+                            }
+                            else
+                            {
+                                if (selectedTot.HasValue && !string.IsNullOrWhiteSpace(selectedTotLabel))
+                                {
+                                    <span>No @selectedTotLabel documents found for this project.</span>
+                                }
+                                else
+                                {
+                                    <span>No @docTab.StatusHeading found for this project.</span>
+                                }
+                            }
+                        </div>
+                        @if (!docList.HasItems)
+                        {
+                            <div class="border rounded p-4 text-center text-muted bg-light-subtle">
+                                <p class="mb-2">
+                                    @(selectedTot.HasValue && !string.IsNullOrWhiteSpace(selectedTotLabel)
+                                        ? $"No {selectedTotLabel} documents are available yet."
+                                        : $"No {docTab.StatusHeading} found for this project.")
+                                </p>
+                                @if (docTab.CanUpload)
+                                {
+                                    <a class="btn btn-sm btn-primary"
+                                       asp-page="/Projects/Documents/UploadRequest"
+                                       asp-route-id="@projectId">Upload document</a>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col" class="text-muted text-uppercase small">Stage</th>
+                                            <th scope="col" class="text-muted text-uppercase small">Document</th>
+                                            <th scope="col" class="text-muted text-uppercase small">Status</th>
+                                            <th scope="col" class="text-end text-muted text-uppercase small">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var group in docTab.Groups)
+                                        {
+                                            foreach (var documentRow in group.Items)
+                                            {
+                                                var item = documentRow.Row;
+                                                var canReplaceDocument = item.DocumentId.HasValue && canUploadDocuments && !item.IsRemoved && !item.IsPending;
+                                                var canRequestDelete = item.DocumentId.HasValue && isThisProjectsPo && !item.IsRemoved && !item.IsPending;
+                                                var canDirectDelete = item.DocumentId.HasValue && (isAdmin || isThisProjectsHod) && !item.IsRemoved && !item.IsPending;
+                                                var canReviewRequest = Model.IsDocumentApprover && item.RequestId.HasValue;
+                                                var hasActions = canReplaceDocument || canRequestDelete || canDirectDelete || canReviewRequest;
+                                                <tr>
+                                                    <td class="text-nowrap align-top">
+                                                        <span class="text-muted">@group.StageDisplayName</span>
+                                                    </td>
+                                                    <td>
+                                                        <div class="fw-semibold d-flex align-items-start gap-2">
+                                                            @if (documentRow.ShowTotBadge)
+                                                            {
+                                                                <span class="badge text-bg-info">ToT</span>
+                                                            }
+                                                            <span>
+                                                                @if (!string.IsNullOrEmpty(item.PreviewUrl))
+                                                                {
+                                                                    <a href="@item.PreviewUrl">@item.Title</a>
+                                                                }
+                                                                else
+                                                                {
+                                                                    @item.Title
+                                                                }
+                                                            </span>
+                                                        </div>
+                                                        <div class="text-muted small mt-1">
+                                                            <span>@item.FileSizeDisplay</span>
+                                                            @if (!string.IsNullOrWhiteSpace(item.MetadataSummary))
+                                                            {
+                                                                <span class="ms-2">@item.MetadataSummary</span>
+                                                            }
+                                                        </div>
+                                                        @if (!string.IsNullOrWhiteSpace(item.SecondarySummary))
+                                                        {
+                                                            <div class="text-muted small mt-1">@item.SecondarySummary</div>
+                                                        }
+                                                        @if (!string.IsNullOrWhiteSpace(item.FileName) && !string.Equals(item.FileName, item.Title, StringComparison.OrdinalIgnoreCase))
+                                                        {
+                                                            <div class="text-muted small mt-1">File: @item.FileName</div>
+                                                        }
+                                                    </td>
+                                                    <td class="align-top">
+                                                        <span class="badge text-bg-@item.StatusVariant">@item.StatusLabel</span>
+                                                    </td>
+                                                    <td class="text-end align-top">
+                                                        @if (hasActions)
+                                                        {
+                                                            <div class="dropdown">
+                                                                <button class="btn btn-link btn-icon dropdown-toggle"
+                                                                        type="button"
+                                                                        data-bs-toggle="dropdown"
+                                                                        aria-expanded="false"
+                                                                        aria-label="Document actions">
+                                                                    <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                                                                </button>
+                                                                <ul class="dropdown-menu dropdown-menu-end">
+                                                                    @if (canReplaceDocument)
+                                                                    {
+                                                                        <li>
+                                                                            <a class="dropdown-item"
+                                                                               asp-page="/Projects/Documents/ReplaceRequest"
+                                                                               asp-route-id="@projectId"
+                                                                               asp-route-documentId="@item.DocumentId">Replace</a>
+                                                                        </li>
+                                                                    }
+                                                                    @if (canRequestDelete)
+                                                                    {
+                                                                        <li>
+                                                                            <a class="dropdown-item"
+                                                                               asp-page="/Projects/Documents/DeleteRequest"
+                                                                               asp-route-id="@projectId"
+                                                                               asp-route-documentId="@item.DocumentId">Request delete</a>
+                                                                        </li>
+                                                                    }
+                                                                    @if (canDirectDelete)
+                                                                    {
+                                                                        <li>
+                                                                            <a class="dropdown-item"
+                                                                               asp-page="/Projects/Documents/DeleteRequest"
+                                                                               asp-route-id="@projectId"
+                                                                               asp-route-documentId="@item.DocumentId">Delete document</a>
+                                                                        </li>
+                                                                    }
+                                                                    @if (canReviewRequest)
+                                                                    {
+                                                                        <li>
+                                                                            <a class="dropdown-item"
+                                                                               asp-page="/Projects/Documents/Approvals/Review"
+                                                                               asp-route-id="@projectId"
+                                                                               asp-route-requestId="@item.RequestId">Review request</a>
+                                                                        </li>
+                                                                    }
+                                                                </ul>
+                                                            </div>
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            }
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                        @if (docList.ShowPagination)
+                        {
+                            <nav class="mt-3">
+                                <ul class="pagination pagination-sm mb-0">
+                                    @for (var pageNumber = 1; pageNumber <= docList.TotalPages; pageNumber++)
+                                    {
+                                        var stageValue = docList.SelectedStageValue;
+                                        var statusValue = docList.SelectedStatusValue;
+                                        var isDefaultStatus = string.Equals(
+                                            statusValue,
+                                            ProjectDocumentListViewModel.PublishedStatusValue,
+                                            StringComparison.OrdinalIgnoreCase);
+                                        var pageUrl = Url.Page(
+                                            null,
+                                            new
+                                            {
+                                                id = projectId,
+                                                docStage = string.IsNullOrEmpty(stageValue) ? null : stageValue,
+                                                docStatus = isDefaultStatus ? null : statusValue,
+                                                docPage = pageNumber,
+                                                MediaTotId = Model.MediaTotId,
+                                                mediaTab = ProjectMediaTabViewModel.DocumentsKey
+                                            });
+                                        <li class="page-item @(pageNumber == docList.Page ? "active" : string.Empty)">
+                                            <a class="page-link" href="@pageUrl">@pageNumber</a>
+                                        </li>
+                                    }
+                                </ul>
+                            </nav>
+                        }
+                    }
+                    else if (tab.Key == ProjectMediaTabViewModel.PhotosKey && tab.Photos is { } photosTab)
+                    {
+                        var previewTiles = photosTab.PreviewTiles;
+                        var lightboxPhotos = photosTab.LightboxPhotos;
+                        var remainingPhotos = photosTab.RemainingCount;
+                        var hasPreview = previewTiles.Count > 0;
+                        string? galleryModalId = null;
+                        ProjectPhotoLightboxViewModel? galleryModalModel = null;
+                        if (lightboxPhotos.Count > 0)
+                        {
+                            galleryModalId = $"project-gallery-modal-{projectId}";
+                            galleryModalModel = new ProjectPhotoLightboxViewModel(
+                                projectId,
+                                project.Name,
+                                lightboxPhotos,
+                                photosTab.CoverPhoto?.Id ?? Model.CoverPhoto?.Id,
+                                photosTab.CoverPhotoVersion ?? Model.CoverPhotoVersion ?? Model.CoverPhoto?.Version,
+                                galleryModalId);
+                        }
+
+                        Func<ProjectPhoto, string, int?, string> photoUrl = (photo, size, version) =>
+                            Url.Page("/Projects/Photos/View", new { id = projectId, photoId = photo.Id, size, v = version ?? photo.Version })!;
+
+                        <div class="project-gallery"
+                             data-gallery
+                             data-gallery-project="@projectId"
+                             data-gallery-modal-id="@(galleryModalId ?? string.Empty)">
+                            <div class="project-gallery__header">
+                                <h3 class="h6 mb-2">Gallery</h3>
+                                <p class="text-muted small mb-0">Browse highlights from recent uploads.</p>
+                            </div>
+                            @if (hasPreview)
+                            {
+                                <div class="project-gallery__grid" role="list">
+                                    @for (var i = 0; i < previewTiles.Count; i++)
+                                    {
+                                        var tile = previewTiles[i];
+                                        var photo = tile.Photo;
+                                        var thumbUrl = photoUrl(photo, "sm", photo.Version);
+                                        var mediumUrl = photoUrl(photo, "md", photo.Version);
+                                        var largeUrl = photoUrl(photo, "xl", photo.Version);
+                                        var thumbSrcSet = string.Join(", ", new[]
+                                        {
+                                            $"{thumbUrl} 1x",
+                                            $"{mediumUrl} 1.5x",
+                                            $"{largeUrl} 2x"
+                                        });
+                                        var captionText = string.IsNullOrWhiteSpace(photo.Caption) ? null : photo.Caption;
+                                        var altText = captionText ?? $"{project.Name} photo";
+                                        <a class="project-gallery__item position-relative"
+                                           role="listitem"
+                                           href="@largeUrl"
+                                           data-gallery-trigger
+                                           data-gallery-photo-id="@photo.Id"
+                                           data-gallery-full="@largeUrl"
+                                           data-gallery-srcset="@thumbSrcSet"
+                                           data-gallery-caption="@captionText"
+                                           data-gallery-alt="@altText"
+                                           aria-label="View photo @(i + 1) of @lightboxPhotos.Count@(captionText is null ? string.Empty : $": {captionText}")">
+                                            @if (tile.ShowTotBadge)
+                                            {
+                                                <span class="badge text-bg-info position-absolute top-0 start-0 m-2">ToT</span>
+                                            }
+                                            <div class="project-gallery__media">
+                                                <picture>
+                                                    <source type="image/webp" srcset="@thumbSrcSet" />
+                                                    <img class="project-gallery__img"
+                                                         loading="lazy"
+                                                         width="320"
+                                                         height="240"
+                                                         src="@thumbUrl"
+                                                         srcset="@thumbSrcSet"
+                                                         alt="@altText" />
+                                                </picture>
+                                            </div>
+                                            <div class="project-gallery__overlay" aria-hidden="true">
+                                                <span class="project-gallery__overlay-text">@(captionText ?? "View photo")</span>
+                                            </div>
+                                        </a>
+                                    }
+
+                                    @if (lightboxPhotos.Count > previewTiles.Count)
+                                    {
+                                        <a class="project-gallery__item project-gallery__item--cta"
+                                           role="listitem"
+                                           href="@Url.Page("/Projects/Photos/Index", new { id = projectId })"
+                                           data-gallery-open
+                                           aria-controls="@galleryModalId"
+                                           aria-label="View the full project photo gallery">
+                                            <div class="project-gallery__cta-body">
+                                                <span class="project-gallery__cta-icon" aria-hidden="true">&#128247;</span>
+                                                <span class="project-gallery__cta-text">View gallery</span>
+                                                @if (remainingPhotos > 0)
+                                                {
+                                                    <span class="project-gallery__cta-meta">+@remainingPhotos more</span>
+                                                }
+                                            </div>
+                                        </a>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                var emptyStateHeadingId = $"project-photo-empty-title-{projectId}";
+                                var emptyStateDescriptionId = $"{emptyStateHeadingId}-desc";
+                                <div class="project-photo-empty border rounded bg-light-subtle text-center"
+                                     role="region"
+                                     aria-labelledby="@emptyStateHeadingId"
+                                     aria-describedby="@emptyStateDescriptionId">
+                                    <div class="project-photo-empty-body">
+                                        <span class="project-photo-empty-icon" aria-hidden="true">
+                                            <i class="bi bi-images"></i>
+                                        </span>
+                                        <h3 id="@emptyStateHeadingId" class="h6 fw-semibold mb-2">
+                                            @(selectedTot.HasValue && !string.IsNullOrWhiteSpace(selectedTotLabel)
+                                                ? $"No {selectedTotLabel} photos yet"
+                                                : "No photos yet")
+                                        </h3>
+                                        <p id="@emptyStateDescriptionId" class="mb-3 text-muted">
+                                            @(selectedTot.HasValue && !string.IsNullOrWhiteSpace(selectedTotLabel)
+                                                ? "This filter doesn't have any photos yet. Try switching filters or add one now."
+                                                : "Add a cover or gallery photo to help everyone recognise this project at a glance.")
+                                        </p>
+                                        @if (canManagePhotos)
+                                        {
+                                            <a class="btn btn-primary"
+                                               asp-page="/Projects/Photos/Index"
+                                               asp-route-id="@projectId"
+                                               aria-label="Upload the first project photo">Upload photo</a>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                        @if (galleryModalModel is not null)
+                        {
+                            <partial name="_ProjectPhotoLightbox" model="galleryModalModel" />
+                        }
+                    }
+                    else if (tab.Key == ProjectMediaTabViewModel.VideosKey && tab.Videos is { } videosTab)
+                    {
+                        if (videosTab.Items.Count == 0)
+                        {
+                            <p class="text-muted mb-0">No videos available yet.</p>
+                        }
+                        else
+                        {
+                            <div class="row g-3">
+                                @foreach (var video in videosTab.Items)
+                                {
+                                    <div class="col-sm-6 col-md-4">
+                                        <div class="card h-100 border-0 shadow-sm">
+                                            <img src="@video.ThumbnailUrl" class="card-img-top" alt="@video.Title" />
+                                            <div class="card-body p-3">
+                                                <h4 class="h6 mb-2 d-flex align-items-center gap-2">
+                                                    @if (video.ShowTotBadge)
+                                                    {
+                                                        <span class="badge text-bg-info">ToT</span>
+                                                    }
+                                                    <span>@video.Title</span>
+                                                </h4>
+                                                <p class="text-muted small mb-0">Playback support coming soon.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <p class="text-muted mb-0">No items to display.</p>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var tabButtons = document.querySelectorAll('[data-media-tab-button]');
+        if (!tabButtons || tabButtons.length === 0) {
+            return;
+        }
+        var filterForm = document.querySelector('[data-media-filter-form]');
+        if (!filterForm) {
+            return;
+        }
+        var tabInput = filterForm.querySelector('[data-media-tab-input]');
+        tabButtons.forEach(function (button) {
+            button.addEventListener('shown.bs.tab', function (event) {
+                if (!tabInput) {
+                    return;
+                }
+                var target = event.target;
+                if (target && target.getAttribute) {
+                    var key = target.getAttribute('data-media-tab');
+                    if (key) {
+                        tabInput.value = key;
+                    }
+                }
+            });
+        });
+    });
+</script>

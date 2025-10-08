@@ -39,10 +39,11 @@ namespace ProjectManagement.Pages.Projects
         private readonly IClock _clock;
         private readonly ProjectRemarksPanelService _remarksPanelService;
         private readonly ProjectLifecycleService _lifecycleService;
+        private readonly ProjectMediaAggregator _mediaAggregator;
 
         public PlanCompareService PlanCompare { get; }
 
-        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock, ProjectRemarksPanelService remarksPanelService, ProjectLifecycleService lifecycleService)
+        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock, ProjectRemarksPanelService remarksPanelService, ProjectLifecycleService lifecycleService, ProjectMediaAggregator mediaAggregator)
         {
             _db = db;
             _procureRead = procureRead;
@@ -54,6 +55,7 @@ namespace ProjectManagement.Pages.Projects
             _clock = clock;
             _remarksPanelService = remarksPanelService;
             _lifecycleService = lifecycleService;
+            _mediaAggregator = mediaAggregator;
         }
 
         public Project Project { get; private set; } = default!;
@@ -83,6 +85,11 @@ namespace ProjectManagement.Pages.Projects
         public ProjectRemarkSummaryViewModel RemarkSummary { get; private set; } = ProjectRemarkSummaryViewModel.Empty;
         public ProjectTotSummaryViewModel TotSummary { get; private set; } = ProjectTotSummaryViewModel.Empty;
         public bool CanManageTot { get; private set; }
+        public ProjectMediaCollectionViewModel MediaCollections { get; private set; } = ProjectMediaCollectionViewModel.Empty;
+        public IReadOnlyCollection<int> AvailableMediaTotIds { get; private set; } = Array.Empty<int>();
+        public bool CanUploadDocuments { get; private set; }
+        public bool CanViewDocumentRecycleBin { get; private set; }
+        public bool CanManagePhotos { get; private set; }
 
         [BindProperty(SupportsGet = true)]
         public string? DocumentStageFilter { get; set; }
@@ -92,6 +99,12 @@ namespace ProjectManagement.Pages.Projects
 
         [BindProperty(SupportsGet = true)]
         public int DocumentPage { get; set; } = 1;
+
+        [BindProperty(SupportsGet = true)]
+        public int? MediaTotId { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public string? MediaTab { get; set; }
 
         public ProjectDocumentListViewModel DocumentList { get; private set; } = ProjectDocumentListViewModel.Empty;
 
@@ -160,6 +173,11 @@ namespace ProjectManagement.Pages.Projects
                 .ThenBy(p => p.Id)
                 .ToList();
 
+            var availableTotIds = Photos
+                .Where(p => p.TotId.HasValue)
+                .Select(p => p.TotId!.Value)
+                .ToHashSet();
+
             if (project.CoverPhotoId.HasValue)
             {
                 CoverPhoto = Photos.FirstOrDefault(p => p.Id == project.CoverPhotoId.Value);
@@ -198,6 +216,10 @@ namespace ProjectManagement.Pages.Projects
             var isProjectOfficer = User.IsInRole("Project Officer");
             var isThisProjectsPo = isProjectOfficer && string.Equals(project.LeadPoUserId, CurrentUserId, StringComparison.Ordinal);
             var isThisProjectsHod = isHoD && string.Equals(project.HodUserId, CurrentUserId, StringComparison.Ordinal);
+
+            CanManagePhotos = isAdmin || isThisProjectsPo || isThisProjectsHod;
+            CanUploadDocuments = isAdmin || isThisProjectsPo || isThisProjectsHod;
+            CanViewDocumentRecycleBin = isAdmin;
 
             Roles = new ProjectRolesViewModel
             {
@@ -283,7 +305,7 @@ namespace ProjectManagement.Pages.Projects
                 MetaChangeRequest = await BuildMetaChangeRequestVmAsync(project, pendingMetaRequest, ct);
             }
 
-            await LoadDocumentOverviewAsync(project, isAdmin, isHoD, ct);
+            await LoadDocumentOverviewAsync(project, isAdmin, isHoD, availableTotIds, ct);
 
             RemarksPanel = await _remarksPanelService.BuildAsync(project, Stages, User, ct);
 
@@ -291,6 +313,31 @@ namespace ProjectManagement.Pages.Projects
             RemarkSummary = await LoadRemarkSummaryAsync(project.Id, ct);
             TotSummary = BuildTotSummary(project.Tot);
             MediaSummary = BuildMediaSummary();
+
+            AvailableMediaTotIds = availableTotIds.ToArray();
+
+            var totFilterLabel = TotSummary.HasTotRecord
+                ? string.Format(CultureInfo.InvariantCulture, "Transfer of Technology ({0})", TotSummary.StatusLabel)
+                : "Transfer of Technology";
+
+            MediaCollections = _mediaAggregator.Build(new ProjectMediaAggregationRequest(
+                DocumentList,
+                DocumentSummary,
+                DocumentPendingRequests,
+                IsDocumentApprover,
+                CanUploadDocuments,
+                CanViewDocumentRecycleBin,
+                DocumentPendingRequestCount,
+                Photos,
+                CoverPhoto,
+                CoverPhotoVersion,
+                CoverPhotoUrl,
+                CanManagePhotos,
+                Array.Empty<ProjectMediaVideoViewModel>(),
+                AvailableMediaTotIds,
+                MediaTotId,
+                MediaTab,
+                totFilterLabel));
 
             return Page();
         }
@@ -473,7 +520,7 @@ namespace ProjectManagement.Pages.Projects
 
 
 
-        private async Task LoadDocumentOverviewAsync(Project project, bool isAdmin, bool isHoD, CancellationToken ct)
+        private async Task LoadDocumentOverviewAsync(Project project, bool isAdmin, bool isHoD, HashSet<int> availableTotIds, CancellationToken ct)
         {
             var isApprover = isAdmin || isHoD;
             IsDocumentApprover = isApprover;
@@ -500,6 +547,14 @@ namespace ProjectManagement.Pages.Projects
                     .ToList();
             }
 
+            foreach (var document in documents)
+            {
+                if (document.TotId.HasValue)
+                {
+                    availableTotIds.Add(document.TotId.Value);
+                }
+            }
+
             var pendingRequests = await _db.ProjectDocumentRequests
                 .AsNoTracking()
                 .Where(r => r.ProjectId == project.Id && r.Status == ProjectDocumentRequestStatus.Submitted)
@@ -509,13 +564,33 @@ namespace ProjectManagement.Pages.Projects
                 .OrderByDescending(r => r.RequestedAtUtc)
                 .ToListAsync(ct);
 
-            DocumentPendingRequestCount = pendingRequests.Count;
+            foreach (var request in pendingRequests)
+            {
+                if (request.Document?.TotId is int requestTotId)
+                {
+                    availableTotIds.Add(requestTotId);
+                }
+            }
+
+            MediaTotId = NormalizeMediaTotFilter(MediaTotId, availableTotIds);
+
+            var selectedTotId = MediaTotId;
+
+            var documentsForDisplay = selectedTotId.HasValue
+                ? documents.Where(d => d.TotId == selectedTotId.Value).ToList()
+                : documents;
+
+            var requestsForDisplay = selectedTotId.HasValue
+                ? pendingRequests.Where(r => r.Document?.TotId == selectedTotId.Value).ToList()
+                : pendingRequests;
+
+            DocumentPendingRequestCount = requestsForDisplay.Count;
 
             var tz = TimeZoneHelper.GetIst();
 
             if (isApprover)
             {
-                DocumentPendingRequests = pendingRequests
+                DocumentPendingRequests = requestsForDisplay
                     .OrderByDescending(r => r.RequestedAtUtc)
                     .Take(5)
                     .Select(r => BuildPendingRequestSummary(project.Id, r, tz))
@@ -526,19 +601,19 @@ namespace ProjectManagement.Pages.Projects
                 DocumentPendingRequests = Array.Empty<ProjectDocumentPendingRequestViewModel>();
             }
 
-            var pendingByDocumentId = pendingRequests
+            var pendingByDocumentId = requestsForDisplay
                 .Where(r => r.DocumentId.HasValue)
                 .GroupBy(r => r.DocumentId!.Value)
                 .ToDictionary(g => g.Key, g => g.First());
 
-            var filteredDocuments = documents
+            var filteredDocuments = documentsForDisplay
                 .Where(d => StageMatches(d.Stage?.StageCode, normalizedStage))
                 .OrderBy(d => StageOrder(d.Stage?.StageCode))
                 .ThenByDescending(d => d.UploadedAtUtc)
                 .ThenBy(d => d.Id)
                 .ToList();
 
-            var filteredRequests = pendingRequests
+            var filteredRequests = requestsForDisplay
                 .Where(r => StageMatches(r.Stage?.StageCode, normalizedStage))
                 .OrderBy(r => StageOrder(r.Stage?.StageCode))
                 .ThenByDescending(r => r.RequestedAtUtc)
@@ -574,7 +649,7 @@ namespace ProjectManagement.Pages.Projects
                     g.ToList()))
                 .ToList();
 
-            var stageFilters = BuildStageFilters(documents, pendingRequests, normalizedStage);
+            var stageFilters = BuildStageFilters(documentsForDisplay, requestsForDisplay, normalizedStage);
             var statusFilters = BuildStatusFilters(normalizedStatus, isApprover);
 
             DocumentSummary = new ProjectDocumentSummaryViewModel
@@ -1119,6 +1194,16 @@ namespace ProjectManagement.Pages.Projects
             }
 
             return ProjectDocumentListViewModel.PublishedStatusValue;
+        }
+
+        private static int? NormalizeMediaTotFilter(int? value, IReadOnlyCollection<int> availableTotIds)
+        {
+            if (!value.HasValue || availableTotIds.Count == 0)
+            {
+                return null;
+            }
+
+            return availableTotIds.Contains(value.Value) ? value : null;
         }
 
         private static bool StageMatches(string? stageCode, string? filter)
