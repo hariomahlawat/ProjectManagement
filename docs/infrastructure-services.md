@@ -76,10 +76,11 @@ Nightly background service that aggregates the previous day's successful logins 
 * **`UserNotificationService`** – application-facing API that lists, counts, marks read/unread, and mutes notifications with project access guards to prevent leaking data across teams.【F:Services/Notifications/UserNotificationService.cs†L17-L220】
 
 ### Document workflow services
-* **`DocumentService`** – core file pipeline that validates PDF uploads, enforces size/MIME rules, optionally scans for viruses, moves files between temp and permanent storage, records audits, and notifies stakeholders after publication.【F:Services/Documents/DocumentService.cs†L19-L220】
+* **`DocumentService`** – core file pipeline that validates PDF uploads, enforces size/MIME rules, optionally scans for viruses, moves files between temp and permanent storage, records audits, and notifies stakeholders after publication.【F:Services/Documents/DocumentService.cs†L19-L420】
 * **`DocumentRequestService`** – orchestrates request lifecycles (create, edit, submit, cancel) and persists temporary files before review.【F:Services/Documents/DocumentRequestService.cs†L12-L179】
-* **`DocumentDecisionService`** – handles approvals or rejections, including publishing replacements, archiving old versions, emitting audit events, and issuing notifications.【F:Services/Documents/DocumentDecisionService.cs†L11-L189】
-* **`DocumentPreviewTokenService`** – issues short-lived tokens used to authorise inline PDF previews without exposing the underlying storage path.【F:Services/Documents/DocumentPreviewTokenService.cs†L11-L120】
+* **`DocumentDecisionService`** – handles approvals or rejections, including publishing replacements, archiving old versions, emitting audit events, and issuing notifications.【F:Services/Documents/DocumentDecisionService.cs†L11-L188】
+* **`DocumentNotificationService`** – resolves HoD/PO recipients, honours notification preferences, and pushes document activity into the notification pipeline with rich payloads and deduplicated fingerprints.【F:Services/Documents/DocumentNotificationService.cs†L15-L196】
+* **`DocumentPreviewTokenService`** – issues short-lived tokens used to authorise inline PDF previews without exposing the underlying storage path.【F:Services/Documents/DocumentPreviewTokenService.cs†L10-L124】
 
 ### Logging
 `appsettings.json` and `Program.cs` configure logging filters to keep output concise: verbose Entity Framework messages and routine To-Do service logs are suppressed, while the `TodoPurgeWorker` logs only warnings or higher. Additionally, `AuditService` skips writing `Todo.*` actions to the `AuditLogs` table.
