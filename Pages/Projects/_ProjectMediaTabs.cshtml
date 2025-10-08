@@ -513,30 +513,3 @@
     </div>
 </div>
 
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        var tabButtons = document.querySelectorAll('[data-media-tab-button]');
-        if (!tabButtons || tabButtons.length === 0) {
-            return;
-        }
-        var filterForm = document.querySelector('[data-media-filter-form]');
-        if (!filterForm) {
-            return;
-        }
-        var tabInput = filterForm.querySelector('[data-media-tab-input]');
-        tabButtons.forEach(function (button) {
-            button.addEventListener('shown.bs.tab', function (event) {
-                if (!tabInput) {
-                    return;
-                }
-                var target = event.target;
-                if (target && target.getAttribute) {
-                    var key = target.getAttribute('data-media-tab');
-                    if (key) {
-                        tabInput.value = key;
-                    }
-                }
-            });
-        });
-    });
-</script>
