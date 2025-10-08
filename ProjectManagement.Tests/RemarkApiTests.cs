@@ -83,6 +83,7 @@ public class RemarkApiTests
         var createResponse = await client.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
         {
             type = RemarkType.Internal,
+            scope = RemarkScope.General,
             body = "<b>Hello</b>",
             eventDate = new DateOnly(2024, 10, 1),
             stageRef = StageCodes.FS
@@ -93,6 +94,7 @@ public class RemarkApiTests
         Assert.NotNull(created);
         Assert.Equal("user-po", created!.AuthorUserId);
         Assert.Equal("<b>Hello</b>", created.Body);
+        Assert.Equal(RemarkScope.General, created.Scope);
         Assert.False(string.IsNullOrWhiteSpace(created.RowVersion));
 
         var list = await client.GetFromJsonAsync<RemarkListResponseDto>($"/api/projects/{projectId}/remarks", SerializerOptions);
@@ -101,6 +103,7 @@ public class RemarkApiTests
         Assert.Single(list.Items);
         Assert.Equal("user-po", list.Items[0].AuthorUserId);
         Assert.Equal("<b>Hello</b>", list.Items[0].Body);
+        Assert.Equal(RemarkScope.General, list.Items[0].Scope);
     }
 
     [Fact]
@@ -115,6 +118,7 @@ public class RemarkApiTests
         var createResponse = await client.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
         {
             type = RemarkType.Internal,
+            scope = RemarkScope.General,
             body = "Ping @[Mention Target](user:mention-user)",
             eventDate = new DateOnly(2024, 9, 15),
             stageRef = StageCodes.FS
@@ -126,6 +130,7 @@ public class RemarkApiTests
         Assert.Contains("remark-mention", created!.Body, StringComparison.Ordinal);
         Assert.Single(created.Mentions);
         Assert.Equal("mention-user", created.Mentions[0].Id);
+        Assert.Equal(RemarkScope.General, created.Scope);
 
         var list = await client.GetFromJsonAsync<RemarkListResponseDto>($"/api/projects/{projectId}/remarks", SerializerOptions);
         Assert.NotNull(list);
@@ -133,6 +138,7 @@ public class RemarkApiTests
         Assert.Single(list.Items[0].Mentions);
         Assert.Equal("mention-user", list.Items[0].Mentions[0].Id);
         Assert.Equal("Mention Target", list.Items[0].Mentions[0].DisplayName);
+        Assert.Equal(RemarkScope.General, list.Items[0].Scope);
     }
 
     [Fact]
@@ -148,6 +154,7 @@ public class RemarkApiTests
         var createResponse = await client.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
         {
             type = RemarkType.Internal,
+            scope = RemarkScope.General,
             body = "Fallback PO remark",
             eventDate = today,
             stageRef = StageCodes.FS
@@ -158,6 +165,7 @@ public class RemarkApiTests
         Assert.NotNull(created);
         Assert.Equal("po-fallback", created!.AuthorUserId);
         Assert.Equal(RemarkActorRole.ProjectOfficer, created.AuthorRole);
+        Assert.Equal(RemarkScope.General, created.Scope);
 
         var list = await client.GetFromJsonAsync<RemarkListResponseDto>($"/api/projects/{projectId}/remarks", SerializerOptions);
         Assert.NotNull(list);
@@ -165,6 +173,7 @@ public class RemarkApiTests
         Assert.Single(list.Items);
         Assert.Equal("po-fallback", list.Items[0].AuthorUserId);
         Assert.Equal(RemarkActorRole.ProjectOfficer, list.Items[0].AuthorRole);
+        Assert.Equal(RemarkScope.General, list.Items[0].Scope);
     }
 
     [Fact]
@@ -180,6 +189,7 @@ public class RemarkApiTests
         var createResponse = await client.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
         {
             type = RemarkType.Internal,
+            scope = RemarkScope.General,
             body = "Fallback HoD remark",
             eventDate = today,
             stageRef = StageCodes.FS,
@@ -191,6 +201,7 @@ public class RemarkApiTests
         Assert.NotNull(created);
         Assert.Equal("hod-fallback", created!.AuthorUserId);
         Assert.Equal(RemarkActorRole.HeadOfDepartment, created.AuthorRole);
+        Assert.Equal(RemarkScope.General, created.Scope);
 
         var list = await client.GetFromJsonAsync<RemarkListResponseDto>(
             $"/api/projects/{projectId}/remarks?actorRole={Uri.EscapeDataString(RemarkActorRole.HeadOfDepartment.ToString())}",
@@ -200,6 +211,7 @@ public class RemarkApiTests
         Assert.Single(list.Items);
         Assert.Equal(RemarkActorRole.HeadOfDepartment, list.Items[0].AuthorRole);
         Assert.Equal("hod-fallback", list.Items[0].AuthorUserId);
+        Assert.Equal(RemarkScope.General, list.Items[0].Scope);
     }
 
     [Fact]
@@ -214,6 +226,7 @@ public class RemarkApiTests
         var createResponse = await authorClient.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
         {
             type = RemarkType.Internal,
+            scope = RemarkScope.General,
             body = "Author remark",
             eventDate = new DateOnly(2024, 10, 3),
             stageRef = StageCodes.FS
@@ -236,6 +249,7 @@ public class RemarkApiTests
         Assert.Equal(1, list!.Total);
         Assert.Single(list.Items);
         Assert.Equal("author-owner", list.Items[0].AuthorUserId);
+        Assert.Equal(RemarkScope.General, list.Items[0].Scope);
     }
 
     [Fact]
@@ -250,6 +264,7 @@ public class RemarkApiTests
         var createResponse = await authorClient.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
         {
             type = RemarkType.Internal,
+            scope = RemarkScope.General,
             body = "Seed remark",
             eventDate = new DateOnly(2024, 10, 4),
             stageRef = StageCodes.FS
@@ -269,6 +284,7 @@ public class RemarkApiTests
         var createAttempt = await viewerClient.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
         {
             type = RemarkType.Internal,
+            scope = RemarkScope.General,
             body = "Viewer attempt",
             eventDate = new DateOnly(2024, 10, 4),
             stageRef = StageCodes.FS
@@ -282,6 +298,7 @@ public class RemarkApiTests
         var editAttempt = await viewerClient.PutAsJsonAsync($"/api/projects/{projectId}/remarks/{created!.Id}", new
         {
             body = "Edited body",
+            scope = RemarkScope.General,
             eventDate = created.EventDate,
             stageRef = created.StageRef,
             rowVersion = created.RowVersion
@@ -304,6 +321,7 @@ public class RemarkApiTests
         var create = await client.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
         {
             type = RemarkType.Internal,
+            scope = RemarkScope.General,
             body = "Initial",
             eventDate = DateOnly.FromDateTime(DateTime.UtcNow.Date),
             stageRef = StageCodes.FS
@@ -319,6 +337,7 @@ public class RemarkApiTests
         var update = await client.PutAsJsonAsync($"/api/projects/{projectId}/remarks/{created.Id}", new
         {
             body = "Updated",
+            scope = RemarkScope.General,
             eventDate = DateOnly.FromDateTime(DateTime.UtcNow.Date),
             stageRef = StageCodes.FS,
             rowVersion,
@@ -342,6 +361,7 @@ public class RemarkApiTests
         var create = await authorClient.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
         {
             type = RemarkType.Internal,
+            scope = RemarkScope.General,
             body = "Body",
             eventDate = new DateOnly(2024, 9, 30),
             stageRef = StageCodes.FS
@@ -383,6 +403,7 @@ public class RemarkApiTests
         var createResponse = await client.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
         {
             type = RemarkType.Internal,
+            scope = RemarkScope.General,
             body = remarkBody,
             eventDate = today,
             stageRef = StageCodes.FS,
@@ -394,16 +415,19 @@ public class RemarkApiTests
         Assert.NotNull(created);
         Assert.Equal(userId, created!.AuthorUserId);
         Assert.Equal(remarkBody, created.Body);
+        Assert.Equal(RemarkScope.General, created.Scope);
 
         var list = await client.GetFromJsonAsync<RemarkListResponseDto>($"/api/projects/{projectId}/remarks?actorRole={Uri.EscapeDataString(canonicalRole)}", SerializerOptions);
         Assert.NotNull(list);
         Assert.Equal(1, list!.Total);
         Assert.Single(list.Items);
         Assert.Equal(created.Id, list.Items[0].Id);
+        Assert.Equal(RemarkScope.General, list.Items[0].Scope);
 
         var updateResponse = await client.PutAsJsonAsync($"/api/projects/{projectId}/remarks/{created.Id}", new
         {
             body = $"Updated remark for {canonicalRole}",
+            scope = RemarkScope.General,
             eventDate = today,
             stageRef = StageCodes.FS,
             rowVersion = created.RowVersion,
@@ -414,6 +438,7 @@ public class RemarkApiTests
         var updated = await updateResponse.Content.ReadFromJsonAsync<RemarkResponseDto>(SerializerOptions);
         Assert.NotNull(updated);
         Assert.Equal($"Updated remark for {canonicalRole}", updated!.Body);
+        Assert.Equal(RemarkScope.General, updated.Scope);
 
         var deleteRequest = new
         {
@@ -451,6 +476,7 @@ public class RemarkApiTests
         var createResponse = await client.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
         {
             type = RemarkType.Internal,
+            scope = RemarkScope.General,
             body = targetBody,
             eventDate = today,
             stageRef = StageCodes.FS,
@@ -462,6 +488,7 @@ public class RemarkApiTests
         var otherResponse = await client.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
         {
             type = RemarkType.Internal,
+            scope = RemarkScope.General,
             body = otherBody,
             eventDate = today,
             stageRef = StageCodes.FS,
@@ -479,6 +506,60 @@ public class RemarkApiTests
         Assert.Single(list.Items);
         Assert.Equal(targetBody, list.Items[0].Body);
         Assert.Equal(expectedRole, list.Items[0].AuthorRole);
+        Assert.Equal(RemarkScope.General, list.Items[0].Scope);
+    }
+
+    [Fact]
+    public async Task ListRemarks_FilterByScope_Succeeds()
+    {
+        using var factory = new RemarkApiFactory();
+        var projectId = 9900;
+        var client = await CreateClientForUserAsync(factory, "scope-po", "Scope Tester", "Project Officer");
+        await SeedProjectAsync(factory, projectId, leadPoUserId: "scope-po");
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+
+        var totResponse = await client.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
+        {
+            type = RemarkType.Internal,
+            scope = RemarkScope.TransferOfTechnology,
+            body = "ToT remark",
+            eventDate = today,
+            stageRef = StageCodes.FS
+        });
+
+        Assert.Equal(HttpStatusCode.Created, totResponse.StatusCode);
+        var totCreated = await totResponse.Content.ReadFromJsonAsync<RemarkResponseDto>(SerializerOptions);
+        Assert.NotNull(totCreated);
+        Assert.Equal(RemarkScope.TransferOfTechnology, totCreated!.Scope);
+
+        var generalResponse = await client.PostAsJsonAsync($"/api/projects/{projectId}/remarks", new
+        {
+            type = RemarkType.Internal,
+            scope = RemarkScope.General,
+            body = "General remark",
+            eventDate = today,
+            stageRef = StageCodes.FS
+        });
+
+        Assert.Equal(HttpStatusCode.Created, generalResponse.StatusCode);
+        var generalCreated = await generalResponse.Content.ReadFromJsonAsync<RemarkResponseDto>(SerializerOptions);
+        Assert.NotNull(generalCreated);
+        Assert.Equal(RemarkScope.General, generalCreated!.Scope);
+
+        var totList = await client.GetFromJsonAsync<RemarkListResponseDto>($"/api/projects/{projectId}/remarks?scope=tot", SerializerOptions);
+        Assert.NotNull(totList);
+        Assert.Equal(1, totList!.Total);
+        Assert.Single(totList.Items);
+        Assert.Equal("ToT remark", totList.Items[0].Body);
+        Assert.Equal(RemarkScope.TransferOfTechnology, totList.Items[0].Scope);
+
+        var generalList = await client.GetFromJsonAsync<RemarkListResponseDto>($"/api/projects/{projectId}/remarks?scope=General", SerializerOptions);
+        Assert.NotNull(generalList);
+        Assert.Equal(1, generalList!.Total);
+        Assert.Single(generalList.Items);
+        Assert.Equal("General remark", generalList.Items[0].Body);
+        Assert.Equal(RemarkScope.General, generalList.Items[0].Scope);
     }
 
     private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web)
@@ -628,6 +709,7 @@ public class RemarkApiTests
         public int Id { get; init; }
         public int ProjectId { get; init; }
         public RemarkType Type { get; init; }
+        public RemarkScope Scope { get; init; }
         public RemarkActorRole AuthorRole { get; init; }
         public string AuthorUserId { get; init; } = string.Empty;
         public string AuthorDisplayName { get; init; } = string.Empty;

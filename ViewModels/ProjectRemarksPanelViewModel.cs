@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ProjectManagement.Infrastructure;
+using ProjectManagement.Models.Remarks;
 
 namespace ProjectManagement.ViewModels;
 
@@ -38,11 +39,17 @@ public sealed class ProjectRemarksPanelViewModel
 
     public string TimeZone { get; init; } = "Asia/Kolkata";
 
+    public string DefaultScope { get; init; } = RemarkScope.General.ToString();
+
     public IReadOnlyList<RemarkRoleOption> RoleOptions { get; init; } = Array.Empty<RemarkRoleOption>();
 
     public IReadOnlyList<RemarkStageOption> StageOptions { get; init; } = Array.Empty<RemarkStageOption>();
 
+    public IReadOnlyList<RemarkScopeOption> ScopeOptions { get; init; } = Array.Empty<RemarkScopeOption>();
+
     public sealed record RemarkRoleOption(string Value, string Label, string Canonical);
 
     public sealed record RemarkStageOption(string Value, string Label);
+
+    public sealed record RemarkScopeOption(string Value, string Label, string Canonical);
 }

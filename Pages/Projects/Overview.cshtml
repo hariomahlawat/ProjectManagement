@@ -867,6 +867,16 @@
                                         </div>
                                         <div class="d-flex flex-column gap-2 w-100 align-items-lg-end">
                                             <div class="d-flex flex-wrap flex-lg-nowrap gap-2 justify-content-between justify-content-lg-end w-100" role="toolbar" aria-label="Filter remarks">
+                                                @if (Model.RemarksPanel.ScopeOptions.Count > 1)
+                                                {
+                                                    <div class="btn-group btn-group-sm pm-remarks-filter" role="group" aria-label="Filter remarks by scope" data-remarks-scope-group>
+                                                        <button type="button" class="btn btn-outline-primary active" data-remarks-scope="all" aria-pressed="true">All scopes</button>
+                                                        @foreach (var scope in Model.RemarksPanel.ScopeOptions)
+                                                        {
+                                                            <button type="button" class="btn btn-outline-primary" data-remarks-scope="@scope.Canonical" aria-pressed="false">@scope.Label</button>
+                                                        }
+                                                    </div>
+                                                }
                                                 <div class="btn-group btn-group-sm pm-remarks-filter" role="group" aria-label="Filter remarks by type" data-remarks-type-group>
                                                     <button type="button" class="btn btn-outline-primary active" data-remarks-type="all" aria-pressed="true">All</button>
                                                     <button type="button" class="btn btn-outline-primary" data-remarks-type="Internal" aria-pressed="false">Internal</button>
@@ -978,6 +988,16 @@
                                             }
                                         </div>
                                         <div class="remarks-composer-options d-flex flex-wrap align-items-center gap-2">
+                                            @if (Model.RemarksPanel.ScopeOptions.Count > 1)
+                                            {
+                                                <div class="btn-group btn-group-sm" role="group" aria-label="Remark scope" data-remarks-composer-scope>
+                                                    @foreach (var scope in Model.RemarksPanel.ScopeOptions)
+                                                    {
+                                                        var isDefaultScope = string.Equals(scope.Canonical, Model.RemarksPanel.DefaultScope, StringComparison.OrdinalIgnoreCase);
+                                                        <button type="button" class="btn btn-outline-secondary@(isDefaultScope ? " active" : string.Empty)" data-remarks-composer-scope-option="@scope.Canonical" aria-pressed="@(isDefaultScope ? "true" : "false")">@scope.Label</button>
+                                                    }
+                                                </div>
+                                            }
                                             <div class="btn-group btn-group-sm" role="group" aria-label="Remark audience" data-remarks-composer-type>
                                                 <button type="button" class="btn btn-outline-secondary active" data-remarks-composer-option="Internal" aria-pressed="true">Internal</button>
                                                 @if (Model.RemarksPanel.AllowExternal)

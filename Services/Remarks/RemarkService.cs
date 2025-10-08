@@ -90,6 +90,7 @@ public sealed class RemarkService : IRemarkService
             AuthorUserId = request.Actor.UserId,
             AuthorRole = request.Actor.ActorRole,
             Type = request.Type,
+            Scope = request.Scope,
             Body = processedBody.Body,
             EventDate = request.EventDate,
             StageRef = stage.StageRef,
@@ -152,6 +153,11 @@ public sealed class RemarkService : IRemarkService
         if (request.AuthorRole.HasValue)
         {
             query = query.Where(r => r.AuthorRole == request.AuthorRole.Value);
+        }
+
+        if (request.Scope.HasValue)
+        {
+            query = query.Where(r => r.Scope == request.Scope.Value);
         }
 
         if (!string.IsNullOrWhiteSpace(request.StageRef))
@@ -227,6 +233,7 @@ public sealed class RemarkService : IRemarkService
         var stage = await NormalizeStageAsync(remark.ProjectId, request.StageRef, request.StageNameSnapshot, cancellationToken);
 
         remark.Body = processedBody.Body;
+        remark.Scope = request.Scope;
         remark.EventDate = request.EventDate;
         remark.StageRef = stage.StageRef;
         remark.StageNameSnapshot = stage.StageNameSnapshot;
@@ -647,6 +654,7 @@ public sealed class RemarkService : IRemarkService
             RemarkId = remark.Id,
             Action = action,
             SnapshotType = remark.Type,
+            SnapshotScope = remark.Scope,
             SnapshotAuthorRole = remark.AuthorRole,
             SnapshotAuthorUserId = remark.AuthorUserId,
             SnapshotEventDate = remark.EventDate,
