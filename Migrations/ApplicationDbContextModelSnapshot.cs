@@ -1629,9 +1629,6 @@ namespace ProjectManagement.Migrations
                     b.Property<int?>("StageId")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("TotId")
-                        .HasColumnType("integer");
-
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -1648,6 +1645,9 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<int?>("TotId")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DocumentId")
@@ -1657,6 +1657,8 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("ProjectId");
 
+                    b.HasIndex("ProjectId", "Status");
+
                     b.HasIndex("ProjectId", "TotId");
 
                     b.HasIndex("RequestedByUserId");
@@ -1664,8 +1666,6 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("ReviewedByUserId");
 
                     b.HasIndex("StageId");
-
-                    b.HasIndex("ProjectId", "Status");
 
                     b.ToTable("ProjectDocumentRequests");
                 });
