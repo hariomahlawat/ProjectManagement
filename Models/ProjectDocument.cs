@@ -55,6 +55,10 @@ namespace ProjectManagement.Models
         [Range(0, int.MaxValue)]
         public int FileStamp { get; set; }
 
+        public int? TotId { get; set; }
+
+        public ProjectTot? Tot { get; set; }
+
         [Required]
         [MaxLength(450)]
         public string UploadedByUserId { get; set; } = string.Empty;

@@ -24,6 +24,12 @@ namespace ProjectManagement.Models.Remarks
         MainOffice = 8
     }
 
+    public enum RemarkScope
+    {
+        General = 0,
+        TransferOfTechnology = 1
+    }
+
     public enum RemarkAuditAction
     {
         Created = 0,
@@ -47,6 +53,9 @@ namespace ProjectManagement.Models.Remarks
 
         [Required]
         public RemarkType Type { get; set; }
+
+        [Required]
+        public RemarkScope Scope { get; set; } = RemarkScope.General;
 
         [Required]
         [MaxLength(4000)]
@@ -95,6 +104,9 @@ namespace ProjectManagement.Models.Remarks
 
         [Required]
         public RemarkType SnapshotType { get; set; }
+
+        [Required]
+        public RemarkScope SnapshotScope { get; set; }
 
         [Required]
         public RemarkActorRole SnapshotAuthorRole { get; set; }

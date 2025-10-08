@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ProjectManagement.Data;
@@ -11,9 +12,11 @@ using ProjectManagement.Data;
 namespace ProjectManagement.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251008034359_20251015120000_AddProjectLifecycleAndTot")]
+    partial class _20251015120000_AddProjectLifecycleAndTot
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -238,8 +241,7 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("text");
 
                     b.Property<bool>("ShowCelebrationsInCalendar")
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("boolean");
@@ -538,8 +540,7 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasDefaultValue("NotStarted");
+                        .HasColumnType("character varying(32)");
 
                     b.HasKey("Id");
 
@@ -1104,8 +1105,7 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("LifecycleStatus")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasDefaultValue("Active");
+                        .HasColumnType("character varying(32)");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -2065,8 +2065,7 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("Scope")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasDefaultValue("General");
+                        .HasColumnType("character varying(32)");
 
                     b.Property<string>("StageNameSnapshot")
                         .HasMaxLength(256)
@@ -2172,8 +2171,7 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("SnapshotScope")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("character varying(32)")
-                        .HasDefaultValue("General");
+                        .HasColumnType("character varying(32)");
 
                     b.Property<string>("SnapshotStageName")
                         .HasMaxLength(256)

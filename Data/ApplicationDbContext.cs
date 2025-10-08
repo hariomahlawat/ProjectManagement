@@ -51,6 +51,7 @@ namespace ProjectManagement.Data
         public DbSet<ProjectPlanSnapshotRow> ProjectPlanSnapshotRows => Set<ProjectPlanSnapshotRow>();
         public DbSet<ProjectStage> ProjectStages => Set<ProjectStage>();
         public DbSet<ProjectPhoto> ProjectPhotos => Set<ProjectPhoto>();
+        public DbSet<ProjectTot> ProjectTots => Set<ProjectTot>();
         public DbSet<ProjectMetaChangeRequest> ProjectMetaChangeRequests => Set<ProjectMetaChangeRequest>();
         public DbSet<ProjectComment> ProjectComments => Set<ProjectComment>();
         public DbSet<ProjectCommentAttachment> ProjectCommentAttachments => Set<ProjectCommentAttachment>();
@@ -90,6 +91,19 @@ namespace ProjectManagement.Data
                 ConfigureRowVersion(e);
                 e.Property(x => x.CreatedByUserId).HasMaxLength(64).IsRequired();
                 e.Property(x => x.CoverPhotoVersion).HasDefaultValue(1).IsConcurrencyToken();
+                e.Property(x => x.LifecycleStatus)
+                    .HasConversion<string>()
+                    .HasMaxLength(32)
+                    .HasDefaultValue(ProjectLifecycleStatus.Active)
+                    .IsRequired();
+                e.Property(x => x.IsLegacy).HasDefaultValue(false);
+                e.Property(x => x.CompletedOn).HasColumnType("date");
+                e.Property(x => x.CompletedYear);
+                e.Property(x => x.CancelledOn).HasColumnType("date");
+                e.Property(x => x.CancelReason).HasMaxLength(512);
+                e.HasIndex(x => x.LifecycleStatus);
+                e.HasIndex(x => x.IsLegacy);
+                e.HasIndex(x => x.CompletedYear);
                 e.HasMany(x => x.Photos)
                     .WithOne(x => x.Project)
                     .HasForeignKey(x => x.ProjectId)
@@ -123,11 +137,13 @@ namespace ProjectManagement.Data
                 e.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
                 e.Property(x => x.ContentType).HasMaxLength(128).IsRequired();
                 e.Property(x => x.Caption).HasMaxLength(512);
+                e.Property(x => x.TotId).IsRequired(false);
                 e.Property(x => x.Version).HasDefaultValue(1).IsConcurrencyToken();
                 e.Property(x => x.Ordinal).HasDefaultValue(1);
                 e.Property(x => x.CreatedUtc).HasDefaultValueSql("now() at time zone 'utc'");
                 e.Property(x => x.UpdatedUtc).HasDefaultValueSql("now() at time zone 'utc'");
                 e.HasIndex(x => new { x.ProjectId, x.Ordinal }).IsUnique();
+                e.HasIndex(x => new { x.ProjectId, x.TotId });
 
                 if (Database.IsSqlServer())
                 {
@@ -151,6 +167,28 @@ namespace ProjectManagement.Data
                     e.Property(x => x.CreatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
                     e.Property(x => x.UpdatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
                 }
+
+                e.HasOne(x => x.Tot)
+                    .WithMany()
+                    .HasForeignKey(x => x.TotId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            builder.Entity<ProjectTot>(e =>
+            {
+                e.Property(x => x.Status)
+                    .HasConversion<string>()
+                    .HasMaxLength(32)
+                    .HasDefaultValue(ProjectTotStatus.NotStarted)
+                    .IsRequired();
+                e.Property(x => x.StartedOn).HasColumnType("date");
+                e.Property(x => x.CompletedOn).HasColumnType("date");
+                e.Property(x => x.Remarks).HasMaxLength(2000);
+                e.HasIndex(x => x.ProjectId).IsUnique();
+                e.HasOne(x => x.Project)
+                    .WithOne(x => x.Tot)
+                    .HasForeignKey<ProjectTot>(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<ProjectDocument>(e =>
@@ -176,6 +214,7 @@ namespace ProjectManagement.Data
                 e.Property(x => x.ArchivedByUserId).HasMaxLength(450);
                 e.HasIndex(x => new { x.ProjectId, x.StageId, x.IsArchived });
                 e.HasIndex(x => x.ProjectId);
+                e.HasIndex(x => new { x.ProjectId, x.TotId });
                 e.HasOne(x => x.Project)
                     .WithMany()
                     .HasForeignKey(x => x.ProjectId)
@@ -187,6 +226,10 @@ namespace ProjectManagement.Data
                 e.HasOne(x => x.Request)
                     .WithOne(x => x.Document)
                     .HasForeignKey<ProjectDocument>(x => x.RequestId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                e.HasOne(x => x.Tot)
+                    .WithMany()
+                    .HasForeignKey(x => x.TotId)
                     .OnDelete(DeleteBehavior.SetNull);
                 e.HasOne(x => x.UploadedByUser)
                     .WithMany()
@@ -957,6 +1000,11 @@ namespace ProjectManagement.Data
                 e.Property(x => x.AuthorUserId).HasMaxLength(450).IsRequired();
                 e.Property(x => x.AuthorRole).HasConversion<string>().HasMaxLength(64).IsRequired();
                 e.Property(x => x.Type).HasConversion<string>().HasMaxLength(32).IsRequired();
+                e.Property(x => x.Scope)
+                    .HasConversion<string>()
+                    .HasMaxLength(32)
+                    .HasDefaultValue(RemarkScope.General)
+                    .IsRequired();
                 e.Property(x => x.Body).HasMaxLength(4000).IsRequired();
                 e.Property(x => x.StageRef).HasMaxLength(64);
                 e.Property(x => x.StageNameSnapshot).HasMaxLength(256);
@@ -971,6 +1019,9 @@ namespace ProjectManagement.Data
                     .IsDescending(false, false, true);
                 e.HasIndex(x => new { x.ProjectId, x.IsDeleted, x.Type, x.EventDate })
                     .HasDatabaseName("IX_Remarks_ProjectId_IsDeleted_Type_EventDate");
+                e.HasIndex(x => new { x.ProjectId, x.IsDeleted, x.Scope, x.CreatedAtUtc })
+                    .HasDatabaseName("IX_Remarks_ProjectId_IsDeleted_Scope_CreatedAtUtc")
+                    .IsDescending(false, false, false, true);
                 e.HasOne(x => x.Project)
                     .WithMany()
                     .HasForeignKey(x => x.ProjectId)
@@ -992,6 +1043,11 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => x.RemarkId);
                 e.Property(x => x.Action).HasConversion<string>().HasMaxLength(32).IsRequired();
                 e.Property(x => x.SnapshotType).HasConversion<string>().HasMaxLength(32).IsRequired();
+                e.Property(x => x.SnapshotScope)
+                    .HasConversion<string>()
+                    .HasMaxLength(32)
+                    .HasDefaultValue(RemarkScope.General)
+                    .IsRequired();
                 e.Property(x => x.SnapshotAuthorRole).HasConversion<string>().HasMaxLength(64).IsRequired();
                 e.Property(x => x.SnapshotDeletedByRole).HasConversion<string>().HasMaxLength(64);
                 e.Property(x => x.ActorRole).HasConversion<string>().HasMaxLength(64).IsRequired();

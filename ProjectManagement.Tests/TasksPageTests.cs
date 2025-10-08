@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.AspNetCore.Mvc.ViewFeatures.Infrastructure;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -168,5 +169,15 @@ public class TasksPageTests
 
         public Task DeleteManyAsync(string ownerId, IList<Guid> ids)
             => throw new NotImplementedException();
+    }
+
+    private sealed class DictionaryTempDataProvider : ITempDataProvider
+    {
+        public IDictionary<string, object?> LoadTempData(HttpContext context)
+            => new Dictionary<string, object?>();
+
+        public void SaveTempData(HttpContext context, IDictionary<string, object?> values)
+        {
+        }
     }
 }
