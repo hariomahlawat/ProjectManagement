@@ -134,6 +134,203 @@ namespace ProjectManagement.Tests
             Assert.Equal(1, context.Projects.Count());
         }
 
+        [Fact]
+        public async Task CreateModel_WhenActiveProject_SetsLifecycleAndTotDefaults()
+        {
+            var (context, userManager) = CreateContextWithIdentity();
+            await userManager.CreateAsync(new ApplicationUser { Id = "creator", UserName = "creator" });
+
+            var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 9, 30, 0, TimeSpan.Zero));
+            var audit = new NoOpAuditService();
+            var page = new CreateModel(context, userManager, clock, audit)
+            {
+                Input = new CreateModel.InputModel
+                {
+                    Name = "Project Orion"
+                },
+                PageContext = BuildPageContext("creator")
+            };
+
+            var result = await page.OnPostAsync();
+
+            var redirect = Assert.IsType<RedirectToPageResult>(result);
+            Assert.Equal("/Projects/Overview", redirect.PageName);
+
+            var project = await context.Projects.Include(p => p.Tot).SingleAsync();
+            Assert.False(project.IsLegacy);
+            Assert.Equal(ProjectLifecycleStatus.Active, project.LifecycleStatus);
+            Assert.Null(project.CompletedOn);
+            Assert.Null(project.CompletedYear);
+            Assert.NotNull(project.Tot);
+            Assert.Equal(ProjectTotStatus.NotStarted, project.Tot!.Status);
+
+            Assert.Empty(context.ProjectIpaFacts);
+            Assert.Empty(context.ProjectAonFacts);
+            Assert.Empty(context.ProjectBenchmarkFacts);
+            Assert.Empty(context.ProjectCommercialFacts);
+            Assert.Empty(context.ProjectPncFacts);
+            Assert.Empty(context.ProjectSowFacts);
+            Assert.Empty(context.ProjectSupplyOrderFacts);
+        }
+
+        [Fact]
+        public async Task CreateModel_WhenLegacyProjectWithDate_CreatesLifecycleAndFacts()
+        {
+            var (context, userManager) = CreateContextWithIdentity();
+            await userManager.CreateAsync(new ApplicationUser { Id = "creator", UserName = "creator" });
+
+            var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 9, 30, 0, TimeSpan.Zero));
+            var audit = new NoOpAuditService();
+            var page = new CreateModel(context, userManager, clock, audit)
+            {
+                Input = new CreateModel.InputModel
+                {
+                    Name = "Legacy Project",
+                    IsLegacy = true,
+                    LegacyCompletedOn = new DateTime(2021, 6, 18)
+                },
+                PageContext = BuildPageContext("creator")
+            };
+
+            var result = await page.OnPostAsync();
+
+            var redirect = Assert.IsType<RedirectToPageResult>(result);
+            Assert.Equal("/Projects/Overview", redirect.PageName);
+
+            var project = await context.Projects.Include(p => p.Tot).SingleAsync();
+            Assert.True(project.IsLegacy);
+            Assert.Equal(ProjectLifecycleStatus.Completed, project.LifecycleStatus);
+            Assert.Equal(new DateOnly(2021, 6, 18), project.CompletedOn);
+            Assert.Equal(2021, project.CompletedYear);
+            Assert.NotNull(project.Tot);
+            Assert.Equal(ProjectTotStatus.NotRequired, project.Tot!.Status);
+
+            Assert.Single(context.ProjectIpaFacts);
+            Assert.Single(context.ProjectAonFacts);
+            Assert.Single(context.ProjectBenchmarkFacts);
+            Assert.Single(context.ProjectCommercialFacts);
+            Assert.Single(context.ProjectPncFacts);
+            var sow = await context.ProjectSowFacts.SingleAsync();
+            Assert.Equal("Unspecified", sow.SponsoringUnit);
+            Assert.Equal("Unspecified", sow.SponsoringLineDirectorate);
+            var supplyOrder = await context.ProjectSupplyOrderFacts.SingleAsync();
+            Assert.Equal(new DateOnly(2021, 6, 18), supplyOrder.SupplyOrderDate);
+        }
+
+        [Fact]
+        public async Task CreateModel_WhenLegacyProjectWithYearOnly_UsesYearForCompletion()
+        {
+            var (context, userManager) = CreateContextWithIdentity();
+            await userManager.CreateAsync(new ApplicationUser { Id = "creator", UserName = "creator" });
+
+            var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 9, 30, 0, TimeSpan.Zero));
+            var audit = new NoOpAuditService();
+            var page = new CreateModel(context, userManager, clock, audit)
+            {
+                Input = new CreateModel.InputModel
+                {
+                    Name = "Legacy Project",
+                    IsLegacy = true,
+                    LegacyCompletedYear = 2019
+                },
+                PageContext = BuildPageContext("creator")
+            };
+
+            var result = await page.OnPostAsync();
+
+            var redirect = Assert.IsType<RedirectToPageResult>(result);
+            Assert.Equal("/Projects/Overview", redirect.PageName);
+
+            var project = await context.Projects.Include(p => p.Tot).SingleAsync();
+            Assert.True(project.IsLegacy);
+            Assert.Equal(ProjectLifecycleStatus.Completed, project.LifecycleStatus);
+            Assert.Null(project.CompletedOn);
+            Assert.Equal(2019, project.CompletedYear);
+            Assert.NotNull(project.Tot);
+            Assert.Equal(ProjectTotStatus.NotRequired, project.Tot!.Status);
+
+            var supplyOrder = await context.ProjectSupplyOrderFacts.SingleAsync();
+            Assert.Equal(new DateOnly(2019, 1, 1), supplyOrder.SupplyOrderDate);
+        }
+
+        [Fact]
+        public async Task CreateModel_WhenLegacyMissingCompletionDetails_AddsValidationError()
+        {
+            var (context, userManager) = CreateContextWithIdentity();
+            await userManager.CreateAsync(new ApplicationUser { Id = "creator", UserName = "creator" });
+
+            var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 9, 30, 0, TimeSpan.Zero));
+            var audit = new NoOpAuditService();
+            var page = new CreateModel(context, userManager, clock, audit)
+            {
+                Input = new CreateModel.InputModel
+                {
+                    Name = "Legacy Project",
+                    IsLegacy = true
+                },
+                PageContext = BuildPageContext("creator")
+            };
+
+            var result = await page.OnPostAsync();
+
+            Assert.IsType<PageResult>(result);
+            Assert.True(page.ModelState.ContainsKey("Input.LegacyCompletedOn"));
+            Assert.Empty(context.Projects);
+        }
+
+        [Fact]
+        public async Task CreateModel_WhenLegacyHasDateAndYear_AddsValidationError()
+        {
+            var (context, userManager) = CreateContextWithIdentity();
+            await userManager.CreateAsync(new ApplicationUser { Id = "creator", UserName = "creator" });
+
+            var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 9, 30, 0, TimeSpan.Zero));
+            var audit = new NoOpAuditService();
+            var page = new CreateModel(context, userManager, clock, audit)
+            {
+                Input = new CreateModel.InputModel
+                {
+                    Name = "Legacy Project",
+                    IsLegacy = true,
+                    LegacyCompletedOn = new DateTime(2018, 3, 12),
+                    LegacyCompletedYear = 2018
+                },
+                PageContext = BuildPageContext("creator")
+            };
+
+            var result = await page.OnPostAsync();
+
+            Assert.IsType<PageResult>(result);
+            Assert.True(page.ModelState.ContainsKey("Input.LegacyCompletedYear"));
+            Assert.Empty(context.Projects);
+        }
+
+        [Fact]
+        public async Task CreateModel_WhenLegacyDateIsInFuture_AddsValidationError()
+        {
+            var (context, userManager) = CreateContextWithIdentity();
+            await userManager.CreateAsync(new ApplicationUser { Id = "creator", UserName = "creator" });
+
+            var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 9, 30, 0, TimeSpan.Zero));
+            var audit = new NoOpAuditService();
+            var page = new CreateModel(context, userManager, clock, audit)
+            {
+                Input = new CreateModel.InputModel
+                {
+                    Name = "Legacy Project",
+                    IsLegacy = true,
+                    LegacyCompletedOn = new DateTime(2025, 1, 1)
+                },
+                PageContext = BuildPageContext("creator")
+            };
+
+            var result = await page.OnPostAsync();
+
+            Assert.IsType<PageResult>(result);
+            Assert.True(page.ModelState.ContainsKey("Input.LegacyCompletedOn"));
+            Assert.Empty(context.Projects);
+        }
+
         private static PageContext BuildPageContext(string userId)
         {
             var httpContext = new DefaultHttpContext

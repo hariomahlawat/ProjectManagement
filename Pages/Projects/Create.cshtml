@@ -94,20 +94,44 @@
         <div class="card mb-4">
             <div class="card-header">Current Status (optional)</div>
             <div class="card-body">
-                <div class="form-check form-switch mb-2">
-                    <input class="form-check-input" type="checkbox" id="IsOngoing" asp-for="Input.IsOngoing" />
-                    <label class="form-check-label" for="IsOngoing">Project already in progress</label>
-                </div>
-                <div id="OngoingFields" class="row g-3 visually-hidden">
-                    <div class="col-md-6">
-                        <label asp-for="Input.LastStageCompleted" class="form-label">Last stage completed</label>
-                        <select asp-for="Input.LastStageCompleted" class="form-select" asp-items="Model.StageOptions"></select>
-                        <span asp-validation-for="Input.LastStageCompleted" class="text-danger"></span>
+                <div class="row g-3">
+                    <div class="col-lg-6">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="IsOngoing" asp-for="Input.IsOngoing" />
+                            <label class="form-check-label" for="IsOngoing">Project already in progress</label>
+                        </div>
+                        <div id="OngoingFields" class="row g-3 visually-hidden">
+                            <div class="col-md-12">
+                                <label asp-for="Input.LastStageCompleted" class="form-label">Last stage completed</label>
+                                <select asp-for="Input.LastStageCompleted" class="form-select" asp-items="Model.StageOptions"></select>
+                                <span asp-validation-for="Input.LastStageCompleted" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-12">
+                                <label asp-for="Input.LastStageCompletedOn" class="form-label">Completed on</label>
+                                <input asp-for="Input.LastStageCompletedOn" type="date" class="form-control" />
+                                <span asp-validation-for="Input.LastStageCompletedOn" class="text-danger"></span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="col-md-6">
-                        <label asp-for="Input.LastStageCompletedOn" class="form-label">Completed on</label>
-                        <input asp-for="Input.LastStageCompletedOn" type="date" class="form-control" />
-                        <span asp-validation-for="Input.LastStageCompletedOn" class="text-danger"></span>
+                    <div class="col-lg-6">
+                        <div class="form-check form-switch mb-2">
+                            <input class="form-check-input" type="checkbox" id="IsLegacy" asp-for="Input.IsLegacy" />
+                            <label class="form-check-label" for="IsLegacy">Project is a legacy record</label>
+                        </div>
+                        <div id="LegacyFields" class="row g-3@(Model.Input?.IsLegacy == true ? string.Empty : " visually-hidden")">
+                            <div class="col-md-12">
+                                <label asp-for="Input.LegacyCompletedOn" class="form-label">Completion date</label>
+                                <input asp-for="Input.LegacyCompletedOn" type="date" class="form-control" />
+                                <div class="form-text">Provide the exact completion date, or leave blank and record the year.</div>
+                                <span asp-validation-for="Input.LegacyCompletedOn" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-12">
+                                <label asp-for="Input.LegacyCompletedYear" class="form-label">Completion year</label>
+                                <input asp-for="Input.LegacyCompletedYear" type="number" class="form-control" min="1900" max="2099" />
+                                <div class="form-text">If the exact date is unknown, capture the calendar year only.</div>
+                                <span asp-validation-for="Input.LegacyCompletedYear" class="text-danger"></span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

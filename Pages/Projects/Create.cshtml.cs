@@ -66,10 +66,18 @@ namespace ProjectManagement.Pages.Projects
 
             public bool IsOngoing { get; set; }
 
+            public bool IsLegacy { get; set; }
+
             public string? LastStageCompleted { get; set; }
 
             [DataType(DataType.Date)]
             public DateTime? LastStageCompletedOn { get; set; }
+
+            [DataType(DataType.Date)]
+            public DateTime? LegacyCompletedOn { get; set; }
+
+            [Display(Name = "Completion year")]
+            public int? LegacyCompletedYear { get; set; }
 
             [Display(Name = "Sponsoring Unit")]
             public int? SponsoringUnitId { get; set; }
@@ -86,6 +94,21 @@ namespace ProjectManagement.Pages.Projects
         public async Task<IActionResult> OnPostAsync()
         {
             await LoadAsync();
+
+            if (Input.IsLegacy)
+            {
+                ValidateLegacyInputs();
+            }
+            else
+            {
+                Input.LegacyCompletedOn = null;
+                Input.LegacyCompletedYear = null;
+            }
+
+            if (Input.IsLegacy && Input.IsOngoing)
+            {
+                ModelState.AddModelError("Input.IsLegacy", "Legacy projects cannot be marked as ongoing.");
+            }
 
             if (Input.IsOngoing)
             {
@@ -160,6 +183,27 @@ namespace ProjectManagement.Pages.Projects
 
             var categoryId = Input.SubCategoryId ?? Input.CategoryId;
 
+            var lifecycleStatus = ProjectLifecycleStatus.Active;
+            DateOnly? completedOn = null;
+            int? completedYear = null;
+
+            if (Input.IsLegacy)
+            {
+                lifecycleStatus = ProjectLifecycleStatus.Completed;
+
+                if (Input.LegacyCompletedOn.HasValue)
+                {
+                    completedOn = DateOnly.FromDateTime(Input.LegacyCompletedOn.Value.Date);
+                    completedYear = completedOn.Value.Year;
+                }
+                else if (Input.LegacyCompletedYear.HasValue)
+                {
+                    completedYear = Input.LegacyCompletedYear.Value;
+                }
+            }
+
+            var totStatus = Input.IsLegacy ? ProjectTotStatus.NotRequired : ProjectTotStatus.NotStarted;
+
             var project = new Project
             {
                 Name = Input.Name.Trim(),
@@ -172,7 +216,17 @@ namespace ProjectManagement.Pages.Projects
                 SponsoringLineDirectorateId = Input.SponsoringLineDirectorateId,
                 CreatedByUserId = currentUserId,
                 CreatedAt = _clock.UtcNow.UtcDateTime,
-                CoverPhotoVersion = 1
+                CoverPhotoVersion = 1,
+                IsLegacy = Input.IsLegacy,
+                LifecycleStatus = lifecycleStatus,
+                CompletedOn = completedOn,
+                CompletedYear = completedYear
+            };
+
+            project.Tot = new ProjectTot
+            {
+                Project = project,
+                Status = totStatus
             };
 
             _db.Projects.Add(project);
@@ -184,8 +238,17 @@ namespace ProjectManagement.Pages.Projects
             catch (DbUpdateException ex) when (ex.InnerException is PostgresException pg && pg.ConstraintName == "IX_Projects_CaseFileNumber")
             {
                 _db.Entry(project).State = EntityState.Detached;
+                if (project.Tot is not null)
+                {
+                    _db.Entry(project.Tot).State = EntityState.Detached;
+                }
                 ModelState.AddModelError("Input.CaseFileNumber", "Case file number already exists.");
                 return Page();
+            }
+
+            if (Input.IsLegacy)
+            {
+                await CreateLegacyFactRecordsAsync(project, currentUserId);
             }
 
             if (Input.IsOngoing && !string.IsNullOrWhiteSpace(Input.LastStageCompleted) && Input.LastStageCompletedOn.HasValue)
@@ -224,6 +287,122 @@ namespace ProjectManagement.Pages.Projects
             );
 
             return RedirectToPage("/Projects/Overview", new { id = project.Id });
+        }
+
+        private void ValidateLegacyInputs()
+        {
+            var hasDate = Input.LegacyCompletedOn.HasValue;
+            var hasYear = Input.LegacyCompletedYear.HasValue;
+
+            if (!hasDate && !hasYear)
+            {
+                ModelState.AddModelError("Input.LegacyCompletedOn", "Provide the completion date or year for legacy projects.");
+            }
+
+            if (hasDate && hasYear)
+            {
+                ModelState.AddModelError("Input.LegacyCompletedYear", "Provide either a completion date or a completion year, not both.");
+            }
+
+            if (hasDate)
+            {
+                var completionDate = DateOnly.FromDateTime(Input.LegacyCompletedOn!.Value.Date);
+                var today = DateOnly.FromDateTime(_clock.UtcNow.UtcDateTime);
+                if (completionDate > today)
+                {
+                    ModelState.AddModelError("Input.LegacyCompletedOn", "Completion date cannot be in the future.");
+                }
+            }
+
+            if (hasYear)
+            {
+                var year = Input.LegacyCompletedYear!.Value;
+                var currentYear = _clock.UtcNow.Year;
+                if (year < 1900 || year > currentYear)
+                {
+                    ModelState.AddModelError("Input.LegacyCompletedYear", $"Completion year must be between 1900 and {currentYear}.");
+                }
+            }
+        }
+
+        private async Task CreateLegacyFactRecordsAsync(Project project, string userId)
+        {
+            var nowUtc = _clock.UtcNow.UtcDateTime;
+            var supplyOrderDate = project.CompletedOn ?? (project.CompletedYear.HasValue ? new DateOnly(project.CompletedYear.Value, 1, 1) : (DateOnly?)null);
+
+            var sponsoringUnitName = Input.SponsoringUnitId.HasValue
+                ? await _db.SponsoringUnits
+                    .Where(u => u.Id == Input.SponsoringUnitId.Value)
+                    .Select(u => u.Name)
+                    .FirstOrDefaultAsync()
+                : null;
+
+            var sponsoringLineDirectorateName = Input.SponsoringLineDirectorateId.HasValue
+                ? await _db.LineDirectorates
+                    .Where(l => l.Id == Input.SponsoringLineDirectorateId.Value)
+                    .Select(l => l.Name)
+                    .FirstOrDefaultAsync()
+                : null;
+
+            sponsoringUnitName ??= "Unspecified";
+            sponsoringLineDirectorateName ??= "Unspecified";
+
+            await _db.ProjectIpaFacts.AddAsync(new ProjectIpaFact
+            {
+                ProjectId = project.Id,
+                CreatedByUserId = userId,
+                CreatedOnUtc = nowUtc
+            });
+
+            await _db.ProjectAonFacts.AddAsync(new ProjectAonFact
+            {
+                ProjectId = project.Id,
+                CreatedByUserId = userId,
+                CreatedOnUtc = nowUtc
+            });
+
+            await _db.ProjectBenchmarkFacts.AddAsync(new ProjectBenchmarkFact
+            {
+                ProjectId = project.Id,
+                CreatedByUserId = userId,
+                CreatedOnUtc = nowUtc
+            });
+
+            await _db.ProjectCommercialFacts.AddAsync(new ProjectCommercialFact
+            {
+                ProjectId = project.Id,
+                CreatedByUserId = userId,
+                CreatedOnUtc = nowUtc
+            });
+
+            await _db.ProjectPncFacts.AddAsync(new ProjectPncFact
+            {
+                ProjectId = project.Id,
+                CreatedByUserId = userId,
+                CreatedOnUtc = nowUtc
+            });
+
+            await _db.ProjectSowFacts.AddAsync(new ProjectSowFact
+            {
+                ProjectId = project.Id,
+                CreatedByUserId = userId,
+                CreatedOnUtc = nowUtc,
+                SponsoringUnit = sponsoringUnitName,
+                SponsoringLineDirectorate = sponsoringLineDirectorateName
+            });
+
+            if (supplyOrderDate.HasValue)
+            {
+                await _db.ProjectSupplyOrderFacts.AddAsync(new ProjectSupplyOrderFact
+                {
+                    ProjectId = project.Id,
+                    CreatedByUserId = userId,
+                    CreatedOnUtc = nowUtc,
+                    SupplyOrderDate = supplyOrderDate.Value
+                });
+            }
+
+            await _db.SaveChangesAsync();
         }
 
         private async Task LoadAsync()
