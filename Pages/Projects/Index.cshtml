@@ -1,5 +1,6 @@
 @page
 @model ProjectManagement.Pages.Projects.IndexModel
+@using ProjectManagement.Services.Projects
 @{
     ViewData["Title"] = "Projects";
 }
@@ -15,7 +16,28 @@
         }
     </div>
 
-    <form method="get" class="row row-cols-1 row-cols-md-3 row-cols-lg-5 g-3 align-items-end mb-4">
+    <ul class="nav nav-pills mb-3" role="tablist">
+        @foreach (var lifecycle in Model.LifecycleTabs)
+        {
+            <li class="nav-item" role="presentation">
+                <a class="nav-link @(lifecycle.IsActive ? "active" : null)"
+                   asp-page="./Index"
+                   asp-route-Lifecycle="@lifecycle.RouteValue"
+                   asp-route-Query="@Model.Query"
+                   asp-route-CategoryId="@Model.CategoryId"
+                   asp-route-LeadPoUserId="@Model.LeadPoUserId"
+                   asp-route-HodUserId="@Model.HodUserId"
+                   asp-route-CompletedYear="@Model.CompletedYear"
+                   asp-route-TotStatus="@(Model.TotStatus?.ToString())"
+                   role="tab">
+                    @lifecycle.Label
+                </a>
+            </li>
+        }
+    </ul>
+
+    <form method="get" class="row row-cols-1 row-cols-md-3 row-cols-lg-6 g-3 align-items-end mb-4">
+        <input type="hidden" name="Lifecycle" value="@Model.Lifecycle" />
         <div class="col">
             <label asp-for="Query" class="form-label">Search projects</label>
             <input asp-for="Query" class="form-control" placeholder="Search by name, description, case file, category, or people" />
@@ -31,6 +53,14 @@
         <div class="col">
             <label asp-for="LeadPoUserId" class="form-label">Project Officer</label>
             <select asp-for="LeadPoUserId" class="form-select" asp-items="Model.LeadPoOptions"></select>
+        </div>
+        <div class="col">
+            <label asp-for="CompletedYear" class="form-label">Completion year</label>
+            <select asp-for="CompletedYear" class="form-select" asp-items="Model.CompletionYearOptions"></select>
+        </div>
+        <div class="col">
+            <label asp-for="TotStatus" class="form-label">ToT status</label>
+            <select asp-for="TotStatus" class="form-select" asp-items="Model.TotStatusOptions"></select>
         </div>
         <div class="col">
             <button type="submit" class="btn btn-outline-primary w-100">Apply filters</button>
@@ -118,6 +148,9 @@
                            asp-route-CategoryId="@Model.CategoryId"
                            asp-route-LeadPoUserId="@Model.LeadPoUserId"
                            asp-route-HodUserId="@Model.HodUserId"
+                           asp-route-Lifecycle="@((Model.Lifecycle == ProjectLifecycleFilter.All) ? null : Model.Lifecycle.ToString())"
+                           asp-route-CompletedYear="@Model.CompletedYear"
+                           asp-route-TotStatus="@(Model.TotStatus?.ToString())"
                            aria-label="Previous"
                            aria-disabled="@(Model.CurrentPage <= 1)">Previous</a>
                     </li>
@@ -131,7 +164,10 @@
                                asp-route-Query="@Model.Query"
                                asp-route-CategoryId="@Model.CategoryId"
                                asp-route-LeadPoUserId="@Model.LeadPoUserId"
-                               asp-route-HodUserId="@Model.HodUserId">@i</a>
+                               asp-route-HodUserId="@Model.HodUserId"
+                               asp-route-Lifecycle="@((Model.Lifecycle == ProjectLifecycleFilter.All) ? null : Model.Lifecycle.ToString())"
+                               asp-route-CompletedYear="@Model.CompletedYear"
+                               asp-route-TotStatus="@(Model.TotStatus?.ToString())">@i</a>
                         </li>
                     }
                     <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)">
@@ -143,6 +179,9 @@
                            asp-route-CategoryId="@Model.CategoryId"
                            asp-route-LeadPoUserId="@Model.LeadPoUserId"
                            asp-route-HodUserId="@Model.HodUserId"
+                           asp-route-Lifecycle="@((Model.Lifecycle == ProjectLifecycleFilter.All) ? null : Model.Lifecycle.ToString())"
+                           asp-route-CompletedYear="@Model.CompletedYear"
+                           asp-route-TotStatus="@(Model.TotStatus?.ToString())"
                            aria-label="Next"
                            aria-disabled="@(Model.CurrentPage >= Model.TotalPages)">Next</a>
                     </li>

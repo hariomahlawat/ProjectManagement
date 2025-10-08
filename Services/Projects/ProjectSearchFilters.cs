@@ -5,11 +5,23 @@ using ProjectManagement.Models;
 
 namespace ProjectManagement.Services.Projects
 {
+    public enum ProjectLifecycleFilter
+    {
+        All = 0,
+        Active = 1,
+        Completed = 2,
+        Cancelled = 3,
+        Legacy = 4
+    }
+
     public record ProjectSearchFilters(
         string? Query,
         int? CategoryId,
         string? LeadPoUserId,
-        string? HodUserId);
+        string? HodUserId,
+        ProjectLifecycleFilter Lifecycle = ProjectLifecycleFilter.All,
+        int? CompletedYear = null,
+        ProjectTotStatus? TotStatus = null);
 
     public static class ProjectSearchQueryExtensions
     {
@@ -50,6 +62,27 @@ namespace ProjectManagement.Services.Projects
             if (filters.CategoryId.HasValue)
             {
                 source = source.Where(p => p.CategoryId == filters.CategoryId);
+            }
+
+            source = filters.Lifecycle switch
+            {
+                ProjectLifecycleFilter.Active => source.Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Active),
+                ProjectLifecycleFilter.Completed => source.Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Completed),
+                ProjectLifecycleFilter.Cancelled => source.Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Cancelled),
+                ProjectLifecycleFilter.Legacy => source.Where(p => p.IsLegacy),
+                _ => source
+            };
+
+            if (filters.CompletedYear.HasValue)
+            {
+                var year = filters.CompletedYear.Value;
+                source = source.Where(p => p.CompletedYear.HasValue && p.CompletedYear == year);
+            }
+
+            if (filters.TotStatus.HasValue)
+            {
+                var status = filters.TotStatus.Value;
+                source = source.Where(p => p.Tot != null && p.Tot.Status == status);
             }
 
             if (!string.IsNullOrWhiteSpace(filters.LeadPoUserId))
