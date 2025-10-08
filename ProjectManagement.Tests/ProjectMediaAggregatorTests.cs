@@ -218,7 +218,8 @@ public sealed class ProjectMediaAggregatorTests
             PreviewUrl: $"/preview/{id}",
             SecondarySummary: null,
             PendingRequestType: null,
-            TotId: totId);
+            TotId: totId,
+            IsTotLinked: totId.HasValue);
     }
 
     private static ProjectPhoto CreatePhoto(int id, int ordinal, int? totId, string caption)
