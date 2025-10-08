@@ -203,7 +203,7 @@ public sealed class ProjectMediaAggregatorTests
     private static ProjectDocumentRowViewModel CreateDocumentRow(int id, string title, int? totId)
     {
         return new ProjectDocumentRowViewModel(
-            stageCode: "exe",
+            StageCode: "exe",
             StageDisplayName: "Execution",
             DocumentId: id,
             RequestId: null,

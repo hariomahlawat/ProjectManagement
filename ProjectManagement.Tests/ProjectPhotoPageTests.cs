@@ -129,7 +129,7 @@ public sealed class ProjectPhotoPageTests
             var photoService = new ProjectPhotoService(db, clock, new RecordingAudit(), optionsWrapper, uploadRoot, NullLogger<ProjectPhotoService>.Instance);
 
             await using var stream = await CreateImageStreamAsync(1600, 1200);
-            var added = await photoService.AddAsync(6, stream, "cover.png", "image/png", "creator", true, "Cover", CancellationToken.None);
+            var added = await photoService.AddAsync(6, stream, "cover.png", "image/png", "creator", true, "Cover", totId: null, cancellationToken: CancellationToken.None);
 
             var overview = CreateOverviewPage(db, clock);
             ConfigurePageContext(overview);
