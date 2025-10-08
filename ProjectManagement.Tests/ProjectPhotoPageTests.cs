@@ -407,7 +407,8 @@ public sealed class ProjectPhotoPageTests
         var userManager = CreateUserManager(db);
         var remarksPanel = new ProjectRemarksPanelService(userManager, clock);
         var lifecycle = new ProjectLifecycleService(db, new NoOpAuditService(), clock);
-        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle);
+        var mediaAggregator = new ProjectMediaAggregator();
+        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, mediaAggregator);
     }
 
     private static UserManager<ApplicationUser> CreateUserManager(ApplicationDbContext db)
@@ -666,53 +667,6 @@ public sealed class ProjectPhotoPageTests
         public ClaimsPrincipal User { get; }
 
         public string? UserId { get; }
-    }
-
-    private sealed class SimpleUrlHelper : IUrlHelper
-    {
-        public SimpleUrlHelper(ActionContext context)
-        {
-            ActionContext = context;
-        }
-
-        public ActionContext ActionContext { get; }
-
-        public string? Action(UrlActionContext actionContext) => throw new NotImplementedException();
-
-        public string? Content(string? contentPath) => contentPath;
-
-        public bool IsLocalUrl(string? url) => true;
-
-        public string? Link(string? routeName, object? values) => throw new NotImplementedException();
-
-        public string? RouteUrl(UrlRouteContext routeContext) => throw new NotImplementedException();
-
-        public string? RouteUrl(string? routeName, object? values, string? protocol, string? host, string? fragment) => throw new NotImplementedException();
-
-        public string? RouteUrl(string? routeName, object? values) => throw new NotImplementedException();
-
-        public string? RouteUrl(string? routeName, object? values, string? protocol, string? host) => throw new NotImplementedException();
-
-        public string? Page(string? pageName, string? pageHandler, object? values, string? protocol, string? host, string? fragment)
-        {
-            return $"/Pages{pageName}?{values}";
-        }
-
-        public string? Page(string? pageName, string? pageHandler, object? values, string? protocol) => throw new NotImplementedException();
-
-        public string? Page(string? pageName, string? pageHandler, object? values) => throw new NotImplementedException();
-
-        public string? Page(string? pageName, string? pageHandler, object? values, string? protocol, string? host) => throw new NotImplementedException();
-
-        public string? Page(string? pageName, object? values) => Page(pageName, null, values, null, null, null);
-
-        public string? RouteUrl(string? routeName, object? values, string? protocol) => throw new NotImplementedException();
-
-        public string? Action(string? action, string? controller, object? values, string? protocol, string? host, string? fragment) => throw new NotImplementedException();
-
-        public string? Action(string? action, string? controller, object? values) => throw new NotImplementedException();
-
-        public string? Action(string? action, string? controller, object? values, string? protocol) => throw new NotImplementedException();
     }
 
     private sealed class FixedClock : IClock
