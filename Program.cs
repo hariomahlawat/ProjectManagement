@@ -192,6 +192,7 @@ builder.Services.AddScoped<ProjectFactsReadService>();
 builder.Services.AddScoped<ProjectProcurementReadService>();
 builder.Services.AddScoped<ProjectTimelineReadService>();
 builder.Services.AddScoped<ProjectLifecycleService>();
+builder.Services.AddScoped<ProjectTotService>();
 builder.Services.AddScoped<ProjectCommentService>();
 builder.Services.AddScoped<ProjectRemarksPanelService>();
 builder.Services.AddScoped<IRemarkService, RemarkService>();
