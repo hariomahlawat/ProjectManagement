@@ -1,0 +1,33 @@
+using System;
+using System.ComponentModel.DataAnnotations;
+
+namespace ProjectManagement.Models
+{
+    public enum ProjectTotStatus
+    {
+        NotRequired = 0,
+        NotStarted = 1,
+        InProgress = 2,
+        Completed = 3
+    }
+
+    public sealed class ProjectTot
+    {
+        public int Id { get; set; }
+
+        [Required]
+        public int ProjectId { get; set; }
+
+        public Project Project { get; set; } = null!;
+
+        [Required]
+        public ProjectTotStatus Status { get; set; } = ProjectTotStatus.NotStarted;
+
+        public DateOnly? StartedOn { get; set; }
+
+        public DateOnly? CompletedOn { get; set; }
+
+        [MaxLength(2000)]
+        public string? Remarks { get; set; }
+    }
+}

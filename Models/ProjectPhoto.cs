@@ -33,6 +33,10 @@ namespace ProjectManagement.Models
         [MaxLength(512)]
         public string? Caption { get; set; }
 
+        public int? TotId { get; set; }
+
+        public ProjectTot? Tot { get; set; }
+
         public bool IsCover { get; set; }
 
         public int Version { get; set; } = 1;

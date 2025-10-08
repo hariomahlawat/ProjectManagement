@@ -20,6 +20,19 @@ namespace ProjectManagement.Models
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+        public ProjectLifecycleStatus LifecycleStatus { get; set; } = ProjectLifecycleStatus.Active;
+
+        public bool IsLegacy { get; set; }
+
+        public DateOnly? CompletedOn { get; set; }
+
+        public int? CompletedYear { get; set; }
+
+        public DateOnly? CancelledOn { get; set; }
+
+        [MaxLength(512)]
+        public string? CancelReason { get; set; }
+
         [MaxLength(64)]
         public string? CaseFileNumber { get; set; }
 
@@ -78,6 +91,8 @@ namespace ProjectManagement.Models
         public int? CoverPhotoId { get; set; }
 
         public int CoverPhotoVersion { get; set; } = 1;
+
+        public ProjectTot? Tot { get; set; }
 
         [NotMapped]
         public ProjectPhoto? CoverPhoto => CoverPhotoId.HasValue
