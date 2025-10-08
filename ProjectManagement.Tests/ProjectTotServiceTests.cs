@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
@@ -61,6 +62,57 @@ public sealed class ProjectTotServiceTests
         Assert.Null(tot.StartedOn);
         Assert.Null(tot.CompletedOn);
         Assert.Null(tot.Remarks);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenSetToNotRequired_PersistsStatus_WithSqlite()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+
+        db.Projects.Add(new Project
+        {
+            Id = 41,
+            Name = "Lambda",
+            CreatedAt = new DateTime(2024, 1, 1),
+            CreatedByUserId = "creator"
+        });
+        db.ProjectTots.Add(new ProjectTot
+        {
+            ProjectId = 41,
+            Status = ProjectTotStatus.NotStarted,
+            StartedOn = new DateOnly(2024, 1, 10),
+            Remarks = "Existing"
+        });
+        await db.SaveChangesAsync();
+
+        var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 6, 0, 0, TimeSpan.Zero));
+        var service = new ProjectTotService(db, clock);
+
+        var result = await service.UpdateAsync(
+            41,
+            new ProjectTotUpdateRequest(ProjectTotStatus.NotRequired, null, null, null),
+            "actor");
+
+        Assert.True(result.IsSuccess);
+
+        db.ChangeTracker.Clear();
+
+        var persisted = await db.ProjectTots
+            .AsNoTracking()
+            .SingleAsync(t => t.ProjectId == 41);
+
+        Assert.Equal(ProjectTotStatus.NotRequired, persisted.Status);
+        Assert.Null(persisted.Remarks);
+        Assert.Null(persisted.StartedOn);
+        Assert.Null(persisted.CompletedOn);
     }
 
     [Fact]
