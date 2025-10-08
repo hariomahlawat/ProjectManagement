@@ -17,6 +17,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Infrastructure;
+using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
@@ -72,6 +73,13 @@ namespace ProjectManagement.Pages.Projects
         public int? CoverPhotoVersion { get; private set; }
         public string? CoverPhotoUrl { get; private set; }
 
+        public ProjectRolesViewModel Roles { get; private set; } = ProjectRolesViewModel.Empty;
+        public ProjectLifecycleSummaryViewModel LifecycleSummary { get; private set; } = ProjectLifecycleSummaryViewModel.Empty;
+        public ProjectMediaSummaryViewModel MediaSummary { get; private set; } = ProjectMediaSummaryViewModel.Empty;
+        public ProjectDocumentSummaryViewModel DocumentSummary { get; private set; } = ProjectDocumentSummaryViewModel.Empty;
+        public ProjectRemarkSummaryViewModel RemarkSummary { get; private set; } = ProjectRemarkSummaryViewModel.Empty;
+        public ProjectTotSummaryViewModel TotSummary { get; private set; } = ProjectTotSummaryViewModel.Empty;
+
         [BindProperty(SupportsGet = true)]
         public string? DocumentStageFilter { get; set; }
 
@@ -101,6 +109,7 @@ namespace ProjectManagement.Pages.Projects
                 .Include(p => p.SponsoringUnit)
                 .Include(p => p.SponsoringLineDirectorate)
                 .Include(p => p.Photos)
+                .Include(p => p.Tot)
                 .FirstOrDefaultAsync(p => p.Id == id, ct);
 
             if (project is null)
@@ -147,6 +156,21 @@ namespace ProjectManagement.Pages.Projects
                 .ToDictionary(s => s.StageCode!, s => s.Status, StringComparer.OrdinalIgnoreCase);
 
             bool Completed(string code) => stageLookup.TryGetValue(code, out var status) && status == StageStatus.Completed;
+
+            var isAdmin = User.IsInRole("Admin");
+            var isHoD = User.IsInRole("HoD");
+            var isProjectOfficer = User.IsInRole("Project Officer");
+            var isThisProjectsPo = isProjectOfficer && string.Equals(project.LeadPoUserId, CurrentUserId, StringComparison.Ordinal);
+            var isThisProjectsHod = isHoD && string.Equals(project.HodUserId, CurrentUserId, StringComparison.Ordinal);
+
+            Roles = new ProjectRolesViewModel
+            {
+                IsAdmin = isAdmin,
+                IsHoD = isHoD,
+                IsProjectOfficer = isProjectOfficer,
+                IsAssignedProjectOfficer = isThisProjectsPo,
+                IsAssignedHoD = isThisProjectsHod
+            };
 
             if (project.CategoryId.HasValue)
             {
@@ -204,14 +228,14 @@ namespace ProjectManagement.Pages.Projects
                 MetaChangeRequest = await BuildMetaChangeRequestVmAsync(project, pendingMetaRequest, ct);
             }
 
-            var isAdmin = User.IsInRole("Admin");
-            var isHoD = User.IsInRole("HoD");
-            var isProjectOfficer = User.IsInRole("Project Officer");
-            var isThisProjectsPo = isProjectOfficer && string.Equals(project.LeadPoUserId, CurrentUserId, StringComparison.Ordinal);
-
             await LoadDocumentOverviewAsync(project, isAdmin, isHoD, ct);
 
             RemarksPanel = await _remarksPanelService.BuildAsync(project, Stages, User, ct);
+
+            LifecycleSummary = BuildLifecycleSummary(project);
+            RemarkSummary = await LoadRemarkSummaryAsync(project.Id, ct);
+            TotSummary = BuildTotSummary(project.Tot);
+            MediaSummary = BuildMediaSummary();
 
             return Page();
         }
@@ -322,6 +346,13 @@ namespace ProjectManagement.Pages.Projects
             var stageFilters = BuildStageFilters(documents, pendingRequests, normalizedStage);
             var statusFilters = BuildStatusFilters(normalizedStatus, isApprover);
 
+            DocumentSummary = new ProjectDocumentSummaryViewModel
+            {
+                TotalCount = documents.Count,
+                PublishedCount = documents.Count(d => d.Status == ProjectDocumentStatus.Published),
+                PendingCount = pendingRequests.Count
+            };
+
             DocumentPage = page;
 
             DocumentList = new ProjectDocumentListViewModel(
@@ -333,6 +364,230 @@ namespace ProjectManagement.Pages.Projects
                 page,
                 ProjectDocumentListViewModel.DefaultPageSize,
                 totalItems);
+        }
+
+        private ProjectMediaSummaryViewModel BuildMediaSummary()
+        {
+            var coverPhoto = CoverPhoto;
+
+            var orderedPhotos = Photos
+                .OrderBy(p => p.Ordinal)
+                .ThenBy(p => p.Id)
+                .ToList();
+
+            var additionalPhotos = orderedPhotos
+                .Where(p => coverPhoto is null || p.Id != coverPhoto.Id)
+                .ToList();
+
+            var previewPhotos = additionalPhotos
+                .Take(ProjectMediaSummaryViewModel.DefaultPreviewCount)
+                .ToList();
+
+            var remaining = Math.Max(0, additionalPhotos.Count - previewPhotos.Count);
+
+            return new ProjectMediaSummaryViewModel
+            {
+                PhotoCount = orderedPhotos.Count,
+                AdditionalPhotoCount = additionalPhotos.Count,
+                PreviewPhotos = previewPhotos,
+                RemainingPhotoCount = remaining,
+                CoverPhoto = coverPhoto,
+                CoverPhotoVersion = CoverPhotoVersion,
+                CoverPhotoUrl = CoverPhotoUrl,
+                DocumentCount = DocumentSummary.PublishedCount,
+                PendingDocumentCount = DocumentSummary.PendingCount
+            };
+        }
+
+        private ProjectLifecycleSummaryViewModel BuildLifecycleSummary(Project project)
+        {
+            var facts = new List<ProjectLifecycleSummaryViewModel.LifecycleFact>();
+            string? primaryDetail = null;
+            string? secondaryDetail = null;
+
+            if (project.LifecycleStatus == ProjectLifecycleStatus.Completed)
+            {
+                if (project.CompletedOn.HasValue)
+                {
+                    var completedOn = project.CompletedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+                    primaryDetail = string.Format(CultureInfo.InvariantCulture, "Project completed on {0}.", completedOn);
+                    facts.Add(new ProjectLifecycleSummaryViewModel.LifecycleFact("Completed on", completedOn));
+                }
+                else
+                {
+                    primaryDetail = "Project marked as completed.";
+                }
+
+                if (project.CompletedYear.HasValue)
+                {
+                    var yearDisplay = project.CompletedYear.Value.ToString(CultureInfo.InvariantCulture);
+                    facts.Add(new ProjectLifecycleSummaryViewModel.LifecycleFact("Completed in", yearDisplay));
+                }
+            }
+            else if (project.LifecycleStatus == ProjectLifecycleStatus.Cancelled)
+            {
+                if (project.CancelledOn.HasValue)
+                {
+                    var cancelledOn = project.CancelledOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+                    primaryDetail = string.Format(CultureInfo.InvariantCulture, "Project cancelled on {0}.", cancelledOn);
+                    facts.Add(new ProjectLifecycleSummaryViewModel.LifecycleFact("Cancelled on", cancelledOn));
+                }
+                else
+                {
+                    primaryDetail = "Project marked as cancelled.";
+                }
+
+                if (!string.IsNullOrWhiteSpace(project.CancelReason))
+                {
+                    secondaryDetail = string.Format(CultureInfo.InvariantCulture, "Reason: {0}", project.CancelReason);
+                }
+            }
+            else if (project.IsLegacy)
+            {
+                primaryDetail = "Legacy project view — timeline actions disabled.";
+            }
+
+            var statusLabel = project.LifecycleStatus switch
+            {
+                ProjectLifecycleStatus.Completed => "Completed",
+                ProjectLifecycleStatus.Cancelled => "Cancelled",
+                _ => "Active"
+            };
+
+            if (string.IsNullOrWhiteSpace(primaryDetail))
+            {
+                primaryDetail = project.IsLegacy
+                    ? "Legacy project view — timeline actions disabled."
+                    : "Project is active.";
+            }
+
+            return new ProjectLifecycleSummaryViewModel
+            {
+                ShowPostCompletionView = project.LifecycleStatus != ProjectLifecycleStatus.Active || project.IsLegacy,
+                Status = project.LifecycleStatus,
+                StatusLabel = statusLabel,
+                IsLegacy = project.IsLegacy,
+                PrimaryDetail = primaryDetail,
+                SecondaryDetail = secondaryDetail,
+                BadgeText = project.IsLegacy ? "Legacy" : null,
+                Facts = facts
+            };
+        }
+
+        private async Task<ProjectRemarkSummaryViewModel> LoadRemarkSummaryAsync(int projectId, CancellationToken ct)
+        {
+            var remarkCounts = await _db.Remarks
+                .AsNoTracking()
+                .Where(r => r.ProjectId == projectId && !r.IsDeleted)
+                .GroupBy(_ => 1)
+                .Select(g => new
+                {
+                    Internal = g.Sum(r => r.Type == RemarkType.Internal ? 1 : 0),
+                    External = g.Sum(r => r.Type == RemarkType.External ? 1 : 0)
+                })
+                .SingleOrDefaultAsync(ct);
+
+            var lastRemark = await _db.Remarks
+                .AsNoTracking()
+                .Where(r => r.ProjectId == projectId && !r.IsDeleted)
+                .OrderByDescending(r => r.CreatedAtUtc)
+                .Select(r => new
+                {
+                    r.Id,
+                    r.Type,
+                    r.Body,
+                    r.CreatedAtUtc,
+                    r.AuthorRole
+                })
+                .FirstOrDefaultAsync(ct);
+
+            return new ProjectRemarkSummaryViewModel
+            {
+                InternalCount = remarkCounts?.Internal ?? 0,
+                ExternalCount = remarkCounts?.External ?? 0,
+                LastRemarkId = lastRemark?.Id,
+                LastRemarkType = lastRemark?.Type,
+                LastRemarkActorRole = lastRemark?.AuthorRole,
+                LastActivityUtc = lastRemark?.CreatedAtUtc,
+                LastRemarkPreview = BuildRemarkPreview(lastRemark?.Body)
+            };
+        }
+
+        private static string? BuildRemarkPreview(string? body)
+        {
+            if (string.IsNullOrWhiteSpace(body))
+            {
+                return null;
+            }
+
+            var trimmed = body.Trim();
+            trimmed = trimmed.Replace("\r", " ", StringComparison.Ordinal).Replace("\n", " ", StringComparison.Ordinal);
+
+            const int limit = 140;
+            if (trimmed.Length <= limit)
+            {
+                return trimmed;
+            }
+
+            return string.Concat(trimmed.AsSpan(0, limit), "…");
+        }
+
+        private ProjectTotSummaryViewModel BuildTotSummary(ProjectTot? tot)
+        {
+            if (tot is null)
+            {
+                return new ProjectTotSummaryViewModel
+                {
+                    HasTotRecord = false,
+                    Status = ProjectTotStatus.NotStarted,
+                    StatusLabel = "Not tracked",
+                    Summary = "Transfer of Technology tracking has not been configured for this project."
+                };
+            }
+
+            var facts = new List<ProjectTotSummaryViewModel.TotFact>();
+
+            if (tot.StartedOn.HasValue)
+            {
+                var started = tot.StartedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+                facts.Add(new ProjectTotSummaryViewModel.TotFact("Started on", started));
+            }
+
+            if (tot.CompletedOn.HasValue)
+            {
+                var completed = tot.CompletedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+                facts.Add(new ProjectTotSummaryViewModel.TotFact("Completed on", completed));
+            }
+
+            var summary = tot.Status switch
+            {
+                ProjectTotStatus.NotRequired => "Transfer of Technology was not required for this project.",
+                ProjectTotStatus.NotStarted => "Transfer of Technology has not started.",
+                ProjectTotStatus.InProgress when tot.StartedOn.HasValue
+                    => string.Format(CultureInfo.InvariantCulture, "Transfer of Technology started on {0} and is in progress.", tot.StartedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)),
+                ProjectTotStatus.InProgress => "Transfer of Technology is in progress.",
+                ProjectTotStatus.Completed when tot.CompletedOn.HasValue
+                    => string.Format(CultureInfo.InvariantCulture, "Transfer of Technology completed on {0}.", tot.CompletedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)),
+                ProjectTotStatus.Completed => "Transfer of Technology is marked as completed.",
+                _ => "Transfer of Technology details are unavailable."
+            };
+
+            return new ProjectTotSummaryViewModel
+            {
+                HasTotRecord = true,
+                Status = tot.Status,
+                StatusLabel = tot.Status switch
+                {
+                    ProjectTotStatus.NotRequired => "Not required",
+                    ProjectTotStatus.NotStarted => "Not started",
+                    ProjectTotStatus.InProgress => "In progress",
+                    ProjectTotStatus.Completed => "Completed",
+                    _ => tot.Status.ToString()
+                },
+                Summary = summary,
+                Remarks = string.IsNullOrWhiteSpace(tot.Remarks) ? null : tot.Remarks,
+                Facts = facts
+            };
         }
 
         private IReadOnlyList<ProjectDocumentFilterOptionViewModel> BuildStageFilters(
