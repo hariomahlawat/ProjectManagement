@@ -1,0 +1,179 @@
+@using System
+@using ProjectManagement.Models
+@model ProjectManagement.Pages.Projects.OverviewModel
+
+@{
+    var project = Model.Project;
+    var roles = Model.Roles;
+    var isAdmin = roles.IsAdmin;
+    var isHoD = roles.IsHoD;
+    var isThisProjectsPo = roles.IsAssignedProjectOfficer;
+    var isThisProjectsHod = roles.IsAssignedHoD;
+    var canManagePhotos = isAdmin || isThisProjectsPo || isThisProjectsHod;
+    var coverPhoto = Model.MediaSummary.CoverPhoto ?? Model.CoverPhoto;
+    var coverVersion = Model.MediaSummary.CoverPhotoVersion ?? Model.CoverPhotoVersion ?? coverPhoto?.Version;
+    Func<ProjectPhoto, string, int?, string> photoUrl = (photo, size, version) =>
+        Url.Page("/Projects/Photos/View", new { id = Model.Project!.Id, photoId = photo.Id, size, v = version ?? photo.Version })!;
+    var coverXs = coverPhoto != null ? photoUrl(coverPhoto, "xs", coverVersion) : null;
+    var coverSm = coverPhoto != null ? photoUrl(coverPhoto, "sm", coverVersion) : null;
+    var coverMd = coverPhoto != null ? photoUrl(coverPhoto, "md", coverVersion) : null;
+    var coverXl = coverPhoto != null ? photoUrl(coverPhoto, "xl", coverVersion) : null;
+    var coverSrcSet = coverPhoto != null
+        ? string.Join(", ", new[]
+        {
+            $"{coverXs} 400w",
+            $"{coverSm} 800w",
+            $"{coverMd} 1200w",
+            $"{coverXl} 1600w"
+        })
+        : null;
+}
+
+<div class="card pm-card">
+    <div class="card-header pm-card-header">
+        <div class="pm-card-heading">
+            <span class="pm-card-icon" aria-hidden="true">
+                <i class="bi bi-layout-text-window"></i>
+            </span>
+            <div>
+                <h2 class="pm-card-title h5 mb-0">Project overview</h2>
+                <p class="pm-card-subtitle mb-0">Description and key project facts</p>
+            </div>
+        </div>
+        @if (canManagePhotos || isThisProjectsPo || isAdmin || isHoD)
+        {
+            <div class="pm-card-menu dropdown">
+                <button class="btn pm-card-menu-toggle"
+                        type="button"
+                        data-bs-toggle="dropdown"
+                        aria-expanded="false"
+                        aria-label="Project overview actions">
+                    <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end">
+                    @if (canManagePhotos)
+                    {
+                        <li>
+                            <a class="dropdown-item d-flex align-items-center gap-2"
+                               asp-page="/Projects/Photos/Index"
+                               asp-route-id="@Model.Project!.Id">
+                                <i class="bi bi-sliders" aria-hidden="true"></i>
+                                <span>Manage photos</span>
+                            </a>
+                        </li>
+                    }
+                    @if (isThisProjectsPo)
+                    {
+                        <li>
+                            <a class="dropdown-item"
+                               asp-page="/Projects/Meta/Request"
+                               asp-route-id="@Model.Project!.Id">Request change</a>
+                        </li>
+                    }
+                    @if (isAdmin || isHoD)
+                    {
+                        <li>
+                            <a class="dropdown-item"
+                               asp-page="/Projects/Meta/Edit"
+                               asp-route-id="@Model.Project!.Id">Edit details</a>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+    </div>
+    <div class="card-body pm-card-body">
+        <div class="row g-4 align-items-start">
+            <div class="col-12 col-lg-5 col-xl-4">
+                <div class="project-photo-cover">
+                    <div class="ratio ratio-4x3 w-100">
+                        @if (coverPhoto != null)
+                        {
+                            <picture>
+                                <source type="image/webp"
+                                        srcset="@coverSrcSet"
+                                        sizes="(min-width: 1200px) 360px, (min-width: 992px) 320px, 100vw" />
+                                <img class="w-100 h-100 object-fit-cover rounded border"
+                                     width="360"
+                                     height="270"
+                                     src="@coverXs"
+                                     srcset="@coverSrcSet"
+                                     sizes="(min-width: 1200px) 360px, (min-width: 992px) 320px, 100vw"
+                                     alt="@(string.IsNullOrWhiteSpace(coverPhoto.Caption) ? $"{project?.Name} cover photo" : coverPhoto.Caption)" />
+                            </picture>
+                        }
+                        else
+                        {
+                            <div class="d-flex align-items-center justify-content-center w-100 h-100 rounded border bg-light text-muted">
+                                <span>No cover photo</span>
+                            </div>
+                        }
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(coverPhoto?.Caption))
+                    {
+                        <div class="mt-2 text-muted small">@coverPhoto.Caption</div>
+                    }
+                </div>
+            </div>
+            <div class="col-12 col-lg-7 col-xl-8">
+                <dl class="row mb-0">
+                    <dt class="col-sm-4">Category</dt>
+                    <dd class="col-sm-8">
+                        @if (Model.CategoryPath.Any())
+                        {
+                            <span class="badge text-bg-light">@string.Join(" › ", Model.CategoryPath.Select(c => c.Name))</span>
+                        }
+                        else
+                        {
+                            <span>—</span>
+                        }
+                    </dd>
+
+                    <dt class="col-sm-4">Sponsoring Unit</dt>
+                    <dd class="col-sm-8">@(Model.Project?.SponsoringUnit?.Name ?? "—")</dd>
+
+                    <dt class="col-sm-4">Sponsoring Line Dte</dt>
+                    <dd class="col-sm-8">@(Model.Project?.SponsoringLineDirectorate?.Name ?? "—")</dd>
+
+                    <dt class="col-sm-4">Head of Department</dt>
+                    <dd class="col-sm-8">@FormatUser(project?.HodUser)</dd>
+
+                    <dt class="col-sm-4">Project Officer</dt>
+                    <dd class="col-sm-8">@FormatUser(project?.LeadPoUser)</dd>
+                </dl>
+            </div>
+            <div class="col-12">
+                <h3 class="h6 mb-2">Project description</h3>
+                <div class="project-overview__description">@(!string.IsNullOrWhiteSpace(project?.Description) ? project.Description : "—")</div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+@functions {
+    private static string FormatUser(ApplicationUser? user)
+    {
+        if (user is null)
+        {
+            return "—";
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.FullName))
+        {
+            return user.FullName!;
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.UserName))
+        {
+            return user.UserName!;
+        }
+
+        if (!string.IsNullOrWhiteSpace(user.Email))
+        {
+            return user.Email!;
+        }
+
+        return "—";
+    }
+}

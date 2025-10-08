@@ -1,0 +1,134 @@
+@using System
+@using ProjectManagement.Models
+@using ProjectManagement.ViewModels
+@model ProjectManagement.Pages.Projects.OverviewModel
+
+@{
+    var project = Model.Project;
+    var roles = Model.Roles;
+    var isAdmin = roles.IsAdmin;
+    var isThisProjectsPo = roles.IsAssignedProjectOfficer;
+    var isThisProjectsHod = roles.IsAssignedHoD;
+    var canManagePhotos = isAdmin || isThisProjectsPo || isThisProjectsHod;
+    var media = Model.MediaSummary;
+    var previewPhotos = media.PreviewPhotos;
+    var additionalCount = media.AdditionalPhotoCount;
+    var remainingPhotos = media.RemainingPhotoCount;
+    var hasAdditionalPhotos = media.HasAdditionalPhotos;
+    Func<ProjectPhoto, string, int?, string> photoUrl = (photo, size, version) =>
+        Url.Page("/Projects/Photos/View", new { id = Model.Project!.Id, photoId = photo.Id, size, v = version ?? photo.Version })!;
+    string? galleryModalId = null;
+    ProjectPhotoLightboxViewModel? galleryModalModel = null;
+    if (hasAdditionalPhotos)
+    {
+        galleryModalId = $"project-gallery-modal-{Model.Project!.Id}";
+        galleryModalModel = new ProjectPhotoLightboxViewModel(
+            Model.Project!.Id,
+            project?.Name ?? "Project",
+            Model.Photos,
+            Model.CoverPhoto?.Id,
+            Model.CoverPhotoVersion ?? Model.CoverPhoto?.Version,
+            galleryModalId);
+    }
+}
+
+<div class="project-gallery" data-gallery data-gallery-project="@Model.Project!.Id" data-gallery-modal-id="@(galleryModalId ?? string.Empty)">
+    <div class="project-gallery__header">
+        <h3 class="h6 mb-2">Gallery</h3>
+        <p class="text-muted small mb-0">Browse project highlights without leaving the page.</p>
+    </div>
+    @if (hasAdditionalPhotos)
+    {
+        <div class="project-gallery__grid" role="list">
+            @for (var i = 0; i < previewPhotos.Count; i++)
+            {
+                var photo = previewPhotos[i];
+                var thumbUrl = photoUrl(photo, "sm", photo.Version);
+                var mediumUrl = photoUrl(photo, "md", photo.Version);
+                var largeUrl = photoUrl(photo, "xl", photo.Version);
+                var thumbSrcSet = string.Join(", ", new[]
+                {
+                    $"{thumbUrl} 1x",
+                    $"{mediumUrl} 1.5x",
+                    $"{largeUrl} 2x"
+                });
+                var captionText = string.IsNullOrWhiteSpace(photo.Caption) ? null : photo.Caption;
+                var altText = captionText ?? $"{project?.Name ?? "Project"} photo";
+                <a class="project-gallery__item"
+                   role="listitem"
+                   href="@largeUrl"
+                   data-gallery-trigger
+                   data-gallery-photo-id="@photo.Id"
+                   data-gallery-full="@largeUrl"
+                   data-gallery-srcset="@thumbSrcSet"
+                   data-gallery-caption="@captionText"
+                   data-gallery-alt="@altText"
+                   aria-label="View photo @(i + 1) of @additionalCount@(captionText is null ? string.Empty : $": {captionText}")">
+                    <div class="project-gallery__media">
+                        <picture>
+                            <source type="image/webp" srcset="@thumbSrcSet" />
+                            <img class="project-gallery__img"
+                                 loading="lazy"
+                                 width="320"
+                                 height="240"
+                                 src="@thumbUrl"
+                                 srcset="@thumbSrcSet"
+                                 alt="@altText" />
+                        </picture>
+                    </div>
+                    <div class="project-gallery__overlay" aria-hidden="true">
+                        <span class="project-gallery__overlay-text">@(captionText ?? "View photo")</span>
+                    </div>
+                </a>
+            }
+
+            <a class="project-gallery__item project-gallery__item--cta"
+               role="listitem"
+               href="@Url.Page("/Projects/Photos/Index", new { id = Model.Project!.Id })"
+               data-gallery-open
+               aria-controls="@galleryModalId"
+               aria-label="View the full project photo gallery">
+                <div class="project-gallery__cta-body">
+                    <span class="project-gallery__cta-icon" aria-hidden="true">&#128247;</span>
+                    <span class="project-gallery__cta-text">View gallery</span>
+                    @if (remainingPhotos > 0)
+                    {
+                        <span class="project-gallery__cta-meta">+@remainingPhotos more</span>
+                    }
+                </div>
+            </a>
+        </div>
+    }
+    else
+    {
+        var emptyStateHeadingId = $"project-photo-empty-title-{Model.Project?.Id ?? 0}";
+        var emptyStateDescriptionId = $"{emptyStateHeadingId}-desc";
+        <div class="project-photo-empty border rounded bg-light-subtle text-center"
+             role="region"
+             aria-labelledby="@emptyStateHeadingId"
+             aria-describedby="@emptyStateDescriptionId">
+            <div class="project-photo-empty-body">
+                <span class="project-photo-empty-icon" aria-hidden="true">
+                    <i class="bi bi-images"></i>
+                </span>
+                <h3 id="@emptyStateHeadingId" class="h6 fw-semibold mb-2">No photos yet</h3>
+                <p id="@emptyStateDescriptionId" class="mb-3 text-muted">
+                    Add a cover or gallery photo to help everyone recognise this project at a glance.
+                </p>
+                @if (canManagePhotos)
+                {
+                    <a class="btn btn-primary"
+                       asp-page="/Projects/Photos/Index"
+                       asp-route-id="@Model.Project!.Id"
+                       aria-label="Upload the first project photo">
+                        Upload photo
+                    </a>
+                }
+            </div>
+        </div>
+    }
+</div>
+@if (galleryModalModel is not null)
+{
+    <partial name="_ProjectPhotoLightbox" model="galleryModalModel" />
+}

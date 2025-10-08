@@ -1,0 +1,415 @@
+@using System
+@using System.Globalization
+@using System.Linq
+@using System.Text.Json
+@using ProjectManagement.Models
+@using ProjectManagement.Models.Remarks
+@model ProjectManagement.Pages.Projects.OverviewModel
+
+@{
+    var project = Model.Project;
+    var lifecycle = Model.LifecycleSummary;
+    var media = Model.MediaSummary;
+    var documentSummary = Model.DocumentSummary;
+    var tot = Model.TotSummary;
+    var remarkSummary = Model.RemarkSummary;
+    var roles = Model.Roles;
+    var isAdmin = roles.IsAdmin;
+    var isHoD = roles.IsHoD;
+    var isThisProjectsPo = roles.IsAssignedProjectOfficer;
+    var isThisProjectsHod = roles.IsAssignedHoD;
+    var remarksConfigJson = JsonSerializer.Serialize(Model.RemarksPanel, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    var lifecycleVariant = lifecycle.Status switch
+    {
+        ProjectLifecycleStatus.Completed => "success",
+        ProjectLifecycleStatus.Cancelled => "danger",
+        _ => "secondary"
+    };
+    var totVariant = !tot.HasTotRecord
+        ? "secondary"
+        : tot.Status switch
+        {
+            ProjectTotStatus.Completed => "success",
+            ProjectTotStatus.InProgress => "info",
+            ProjectTotStatus.NotRequired => "secondary",
+            _ => "secondary"
+        };
+    var tabPrefix = $"project-media-{Model.Project?.Id ?? 0}";
+    var photosTabId = $"{tabPrefix}-photos";
+    var docsTabId = $"{tabPrefix}-documents";
+}
+
+<div class="row g-3 mb-4">
+    <div class="col-lg-8 d-flex flex-column gap-3">
+        <div class="card pm-card">
+            <div class="card-header pm-card-header">
+                <div class="pm-card-heading">
+                    <span class="pm-card-icon" aria-hidden="true">
+                        <i class="bi bi-flag"></i>
+                    </span>
+                    <div>
+                        <h2 class="pm-card-title h5 mb-0">Lifecycle summary</h2>
+                        <p class="pm-card-subtitle mb-0">Project status after completion.</p>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    @if (!string.IsNullOrWhiteSpace(lifecycle.BadgeText))
+                    {
+                        <span class="badge text-bg-secondary">@lifecycle.BadgeText</span>
+                    }
+                </div>
+            </div>
+            <div class="card-body pm-card-body d-flex flex-column gap-3">
+                <div>
+                    <span class="badge text-bg-@lifecycleVariant">@lifecycle.StatusLabel</span>
+                    @if (!string.IsNullOrWhiteSpace(lifecycle.PrimaryDetail))
+                    {
+                        <p class="mt-2 mb-0">@lifecycle.PrimaryDetail</p>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(lifecycle.SecondaryDetail))
+                    {
+                        <p class="text-muted mb-0">@lifecycle.SecondaryDetail</p>
+                    }
+                </div>
+                @if (lifecycle.Facts.Any())
+                {
+                    <dl class="row small mb-0">
+                        @foreach (var fact in lifecycle.Facts)
+                        {
+                            <dt class="col-sm-4">@fact.Label</dt>
+                            <dd class="col-sm-8">@fact.Value</dd>
+                        }
+                    </dl>
+                }
+            </div>
+        </div>
+
+        <partial name="_ProjectOverviewCard" model="Model" />
+
+        <div class="card pm-card">
+            <div class="card-header pm-card-header">
+                <div class="pm-card-heading">
+                    <span class="pm-card-icon" aria-hidden="true">
+                        <i class="bi bi-collection"></i>
+                    </span>
+                    <div>
+                        <h3 class="pm-card-title h5 mb-0">Project media</h3>
+                        <p class="pm-card-subtitle mb-0">Archived photos and documents.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body pm-card-body">
+                <ul class="nav nav-tabs mb-3" id="@tabPrefix" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active"
+                                id="@photosTabId-tab"
+                                data-bs-toggle="tab"
+                                data-bs-target="#@photosTabId"
+                                type="button"
+                                role="tab"
+                                aria-controls="@photosTabId"
+                                aria-selected="true">
+                            Photos (@media.PhotoCount)
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link"
+                                id="@docsTabId-tab"
+                                data-bs-toggle="tab"
+                                data-bs-target="#@docsTabId"
+                                type="button"
+                                role="tab"
+                                aria-controls="@docsTabId"
+                                aria-selected="false">
+                            Documents (@documentSummary.PublishedCount)
+                        </button>
+                    </li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active"
+                         id="@photosTabId"
+                         role="tabpanel"
+                         aria-labelledby="@photosTabId-tab">
+                        <partial name="_ProjectGalleryContent" model="Model" />
+                    </div>
+                    <div class="tab-pane fade"
+                         id="@docsTabId"
+                         role="tabpanel"
+                         aria-labelledby="@docsTabId-tab">
+                        <div class="d-flex flex-column gap-2">
+                            @if (documentSummary.PublishedCount > 0)
+                            {
+                                <p class="mb-0">Published documents: <strong>@documentSummary.PublishedCount</strong></p>
+                            }
+                            else
+                            {
+                                <p class="text-muted mb-0">No published documents for this project.</p>
+                            }
+                            @if (documentSummary.HasPending && Model.IsDocumentApprover)
+                            {
+                                <p class="mb-0 text-muted">Pending approval requests: @documentSummary.PendingCount</p>
+                            }
+                            <div class="d-flex flex-wrap gap-2">
+                                <a class="btn btn-sm btn-outline-secondary"
+                                   asp-page="/Projects/Documents/Index"
+                                   asp-route-id="@Model.Project!.Id">Open documents workspace</a>
+                                @if (Model.IsDocumentApprover)
+                                {
+                                    <a class="btn btn-sm btn-outline-secondary"
+                                       asp-page="/Projects/Documents/Approvals/Index"
+                                       asp-route-id="@Model.Project!.Id">Review approvals</a>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-4 d-flex flex-column gap-3">
+        <div class="card pm-card">
+            <div class="card-header pm-card-header">
+                <div class="pm-card-heading">
+                    <span class="pm-card-icon" aria-hidden="true">
+                        <i class="bi bi-diagram-3"></i>
+                    </span>
+                    <div>
+                        <h3 class="pm-card-title h6 mb-0">Transfer of Technology</h3>
+                        <p class="pm-card-subtitle mb-0">Status and milestones.</p>
+                    </div>
+                </div>
+                <span class="badge text-bg-@totVariant">@tot.StatusLabel</span>
+            </div>
+            <div class="card-body pm-card-body d-flex flex-column gap-2">
+                <p class="mb-0">@tot.Summary</p>
+                @if (tot.Facts.Any())
+                {
+                    <dl class="row small mb-0">
+                        @foreach (var fact in tot.Facts)
+                        {
+                            <dt class="col-sm-5">@fact.Label</dt>
+                            <dd class="col-sm-7">@fact.Value</dd>
+                        }
+                    </dl>
+                }
+                @if (!string.IsNullOrWhiteSpace(tot.Remarks))
+                {
+                    <div class="alert alert-secondary mb-0" role="status">@tot.Remarks</div>
+                }
+            </div>
+        </div>
+
+        @if (Model.IsDocumentApprover && Model.DocumentPendingRequests.Any())
+        {
+            <div class="card pm-card">
+                <div class="card-header pm-card-header">
+                    <div class="pm-card-heading">
+                        <span class="pm-card-icon" aria-hidden="true">
+                            <i class="bi bi-inbox"></i>
+                        </span>
+                        <div>
+                            <h3 class="pm-card-title h6 mb-0">Document requests</h3>
+                            <p class="pm-card-subtitle mb-0">Newest submissions awaiting your decision.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body pm-card-body d-flex flex-column gap-3">
+                    @foreach (var request in Model.DocumentPendingRequests)
+                    {
+                        <div class="border rounded p-3">
+                            <div class="d-flex justify-content-between align-items-start gap-2">
+                                <div>
+                                    <div class="fw-semibold">@request.Title</div>
+                                    <div class="text-muted small">@request.StageDisplayName · @request.RequestTypeLabel</div>
+                                    <div class="text-muted small">@request.RequestedSummary</div>
+                                    <div class="text-muted small">@request.FileName (@request.FileSizeDisplay)</div>
+                                </div>
+                                <span class="badge text-bg-warning">Pending</span>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2 mt-3">
+                                <form method="post"
+                                      class="d-inline"
+                                      asp-page="/Projects/Documents/Approvals/Review"
+                                      asp-page-handler="Approve"
+                                      asp-route-id="@Model.Project!.Id"
+                                      asp-route-requestId="@request.RequestId">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="Input.RequestId" value="@request.RequestId" />
+                                    <input type="hidden" name="Input.RowVersion" value="@request.RowVersion" />
+                                    <button type="submit" class="btn btn-sm btn-success">Approve</button>
+                                </form>
+                                <form method="post"
+                                      class="d-inline"
+                                      asp-page="/Projects/Documents/Approvals/Review"
+                                      asp-page-handler="Reject"
+                                      asp-route-id="@Model.Project!.Id"
+                                      asp-route-requestId="@request.RequestId">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="Input.RequestId" value="@request.RequestId" />
+                                    <input type="hidden" name="Input.RowVersion" value="@request.RowVersion" />
+                                    <button type="submit" class="btn btn-sm btn-outline-danger">Reject</button>
+                                </form>
+                                <a class="btn btn-sm btn-outline-secondary"
+                                   asp-page="/Projects/Documents/Approvals/Review"
+                                   asp-route-id="@Model.Project!.Id"
+                                   asp-route-requestId="@request.RequestId">Review</a>
+                            </div>
+                        </div>
+                    }
+                    <a class="btn btn-sm btn-outline-secondary align-self-start"
+                       asp-page="/Projects/Documents/Approvals/Index"
+                       asp-route-id="@Model.Project!.Id">View all requests</a>
+                </div>
+            </div>
+        }
+
+        @if (Model.MetaChangeRequest is { } metaRequest)
+        {
+            if (isHoD || isAdmin)
+            {
+                <div class="card pm-card">
+                    <div class="card-header pm-card-header">
+                        <div class="pm-card-heading">
+                            <span class="pm-card-icon" aria-hidden="true">
+                                <i class="bi bi-arrow-repeat"></i>
+                            </span>
+                            <div>
+                                <h3 class="pm-card-title h6 mb-0">Pending metadata update</h3>
+                                <p class="pm-card-subtitle mb-0">Review project detail change requests.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body pm-card-body">
+                        <p class="mb-1"><strong>@metaRequest.RequestedBy</strong> requested changes on @metaRequest.RequestedOn.ToLocalTime().ToString("dd MMM yyyy").</p>
+                        <p class="text-muted mb-3">@metaRequest.Summary</p>
+                        <div class="d-flex gap-2">
+                            <a class="btn btn-sm btn-primary"
+                               asp-page="/Projects/Meta/Decide"
+                               asp-route-id="@Model.Project!.Id"
+                               asp-route-requestId="@metaRequest.RequestId">Review request</a>
+                            <a class="btn btn-sm btn-outline-secondary"
+                               asp-page="/Projects/Meta/View"
+                               asp-route-id="@Model.Project!.Id"
+                               asp-route-requestId="@metaRequest.RequestId">View details</a>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+
+        <div class="card pm-card">
+            <div class="card-header pm-card-header">
+                <div class="pm-card-heading">
+                    <span class="pm-card-icon" aria-hidden="true">
+                        <i class="bi bi-chat-dots"></i>
+                    </span>
+                    <div>
+                        <h3 class="pm-card-title h6 mb-0">Remarks</h3>
+                        <p class="pm-card-subtitle mb-0">Latest conversation highlights.</p>
+                    </div>
+                </div>
+                <span class="badge text-bg-secondary">@remarkSummary.TotalCount total</span>
+            </div>
+            <div class="card-body pm-card-body d-flex flex-column gap-3">
+                <div class="small text-muted">
+                    Internal: @remarkSummary.InternalCount · External: @remarkSummary.ExternalCount
+                </div>
+                @if (remarkSummary.LastActivityUtc is DateTime lastActivity)
+                {
+                    var lastTime = lastActivity.ToLocalTime().ToString("dd MMM yyyy, HH:mm", CultureInfo.InvariantCulture);
+                    var roleLabel = FormatRole(remarkSummary.LastRemarkActorRole);
+                    var typeLabel = FormatRemarkType(remarkSummary.LastRemarkType);
+                    <div class="text-muted small">Last remark on @lastTime@(!string.IsNullOrWhiteSpace(roleLabel) ? $" · {roleLabel}" : string.Empty)@(!string.IsNullOrWhiteSpace(typeLabel) ? $" · {typeLabel}" : string.Empty).</div>
+                    if (!string.IsNullOrWhiteSpace(remarkSummary.LastRemarkPreview))
+                    {
+                        <blockquote class="blockquote mb-0 small text-muted">@remarkSummary.LastRemarkPreview</blockquote>
+                    }
+                }
+                <div class="remarks-panel" data-remarks-panel data-config='@remarksConfigJson'>
+                    @if (Model.RemarksPanel.ShowComposer)
+                    {
+                        <form class="remarks-composer" data-remarks-composer>
+                            @Html.AntiForgeryToken()
+                            <div class="d-flex flex-column gap-3">
+                                <div>
+                                    <label for="remark-body" class="form-label fw-semibold mb-1">Add a remark</label>
+                                    <textarea id="remark-body" class="form-control" rows="3" maxlength="4000" data-remarks-body required></textarea>
+                                    <div class="form-text">Maximum 4000 characters.</div>
+                                    @if (!string.IsNullOrWhiteSpace(Model.RemarksPanel.ActorDisplayName))
+                                    {
+                                        <div class="small text-muted mt-1">Posting as @Model.RemarksPanel.ActorDisplayName</div>
+                                    }
+                                </div>
+                                <div class="remarks-composer-options d-flex flex-wrap align-items-center gap-2">
+                                    <div class="btn-group btn-group-sm" role="group" aria-label="Remark audience" data-remarks-composer-type>
+                                        <button type="button" class="btn btn-outline-secondary active" data-remarks-composer-option="Internal" aria-pressed="true">Internal</button>
+                                        @if (Model.RemarksPanel.AllowExternal)
+                                        {
+                                            <button type="button" class="btn btn-outline-secondary" data-remarks-composer-option="External" aria-pressed="false">External</button>
+                                        }
+                                    </div>
+                                    <div class="remarks-composer-external d-flex flex-wrap align-items-end gap-2 d-none" data-remarks-external-fields>
+                                        <div>
+                                            <label for="remark-event-date" class="form-label mb-1 small">Event date</label>
+                                            <input type="date" id="remark-event-date" class="form-control form-control-sm" data-remarks-event-date value="@Model.RemarksPanel.Today" max="@Model.RemarksPanel.Today" />
+                                        </div>
+                                        <div>
+                                            <label for="remark-stage" class="form-label mb-1 small">Stage <span class="text-muted">(optional)</span></label>
+                                            <select id="remark-stage" class="form-select form-select-sm" data-remarks-stage>
+                                                <option value="">Not linked</option>
+                                                @foreach (var stage in Model.RemarksPanel.StageOptions)
+                                                {
+                                                    <option value="@stage.Value">@stage.Label</option>
+                                                }
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="d-flex flex-column flex-sm-row gap-2 align-items-sm-center justify-content-between">
+                                    <div class="small" data-remarks-feedback></div>
+                                    <div class="d-flex gap-2 ms-sm-auto">
+                                        <button type="reset" class="btn btn-sm btn-outline-secondary" data-remarks-reset>Clear</button>
+                                        <button type="submit" class="btn btn-primary btn-sm" data-remarks-submit>Post remark</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    }
+                    else
+                    {
+                        <div class="alert alert-info border-info-subtle bg-info-subtle text-dark" role="status">
+                            Remarks can only be posted by the assigned project team and leadership.
+                        </div>
+                    }
+                    <div class="remarks-list" data-remarks-list>
+                        <div class="text-muted" data-remarks-empty>Loading remarks…</div>
+                        <div class="vstack gap-3" data-remarks-items></div>
+                        <a class="btn btn-outline-secondary btn-sm align-self-start" asp-page="/Projects/Remarks/Index" asp-route-projectId="@Model.Project!.Id">View all remarks</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@functions {
+    private static string FormatRole(RemarkActorRole? role) => role switch
+    {
+        RemarkActorRole.ProjectOfficer => "PO",
+        RemarkActorRole.HeadOfDepartment => "HoD",
+        RemarkActorRole.Commandant => "Comdt",
+        RemarkActorRole.Administrator => "Admin",
+        RemarkActorRole.Mco => "MCO",
+        RemarkActorRole.ProjectOffice => "Project Office",
+        RemarkActorRole.MainOffice => "Main Office",
+        RemarkActorRole.Ta => "TA",
+        _ => string.Empty
+    };
+
+    private static string FormatRemarkType(RemarkType? type) => type switch
+    {
+        RemarkType.External => "External",
+        RemarkType.Internal => "Internal",
+        _ => string.Empty
+    };
+}

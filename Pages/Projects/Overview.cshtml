@@ -11,13 +11,11 @@
 @{
     var project = Model.Project;
     var pageTitle = project?.Name ?? "Project";
-    var isAdmin = User.IsInRole("Admin");
-    var isHoD = User.IsInRole("HoD");
-    var isProjectOfficer = User.IsInRole("Project Officer");
-    var isThisProjectsPo = isProjectOfficer &&
-        string.Equals(Model.Project?.LeadPoUserId, Model.CurrentUserId, StringComparison.Ordinal);
-    var isThisProjectsHod = isHoD &&
-        string.Equals(Model.Project?.HodUserId, Model.CurrentUserId, StringComparison.Ordinal);
+    var roles = Model.Roles;
+    var isAdmin = roles.IsAdmin;
+    var isHoD = roles.IsHoD;
+    var isThisProjectsPo = roles.IsAssignedProjectOfficer;
+    var isThisProjectsHod = roles.IsAssignedHoD;
     var planState = Model.PlanEdit?.State ?? new PlanEditorStateVm();
     var planLocked = planState.IsLocked;
     var hasMyDraft = planState.HasMyDraft;
@@ -27,40 +25,6 @@
     var completedStages = Model.Timeline.CompletedCount;
     var totalStages = Model.Timeline.TotalStages;
     var progressMax = totalStages == 0 ? 1 : totalStages;
-    var canManagePhotos = isAdmin || isThisProjectsPo || isThisProjectsHod;
-    var coverPhoto = Model.CoverPhoto;
-    var coverVersion = Model.CoverPhotoVersion ?? coverPhoto?.Version;
-    var additionalPhotos = Model.Photos.Where(p => coverPhoto == null || p.Id != coverPhoto.Id).ToList();
-    Func<ProjectPhoto, string, int?, string> photoUrl = (photo, size, version) =>
-        Url.Page("/Projects/Photos/View", new { id = Model.Project!.Id, photoId = photo.Id, size, v = version })!;
-    var coverXs = coverPhoto != null ? photoUrl(coverPhoto, "xs", coverVersion) : null;
-    var coverSm = coverPhoto != null ? photoUrl(coverPhoto, "sm", coverVersion) : null;
-    var coverMd = coverPhoto != null ? photoUrl(coverPhoto, "md", coverVersion) : null;
-    var coverXl = coverPhoto != null ? photoUrl(coverPhoto, "xl", coverVersion) : null;
-    var coverSrcSet = coverPhoto != null
-        ? string.Join(", ", new[]
-        {
-            $"{coverXs} 400w",
-            $"{coverSm} 800w",
-            $"{coverMd} 1200w",
-            $"{coverXl} 1600w"
-        })
-        : null;
-    var previewPhotos = additionalPhotos.Take(4).ToList();
-    var remainingPhotos = Math.Max(0, additionalPhotos.Count - previewPhotos.Count);
-    string? galleryModalId = null;
-    ProjectPhotoLightboxViewModel? galleryModalModel = null;
-    if (additionalPhotos.Any())
-    {
-        galleryModalId = $"project-gallery-modal-{Model.Project!.Id}";
-        galleryModalModel = new ProjectPhotoLightboxViewModel(
-            Model.Project!.Id,
-            project?.Name ?? "Project",
-            Model.Photos,
-            coverPhoto?.Id,
-            Model.CoverPhotoVersion ?? coverPhoto?.Version,
-            galleryModalId);
-    }
     ViewData["Title"] = pageTitle;
     var remarksConfigJson = JsonSerializer.Serialize(Model.RemarksPanel, new JsonSerializerOptions(JsonSerializerDefaults.Web));
 }
@@ -136,14 +100,17 @@
         </div>
     }
 
-    <div class="alert alert-warning d-flex align-items-center justify-content-between@(Model.HasBackfill ? string.Empty : " d-none")"
-         role="alert"
-         data-backfill-banner>
-        <div>
-            <strong>Action needed:</strong> Some earlier stages were auto-completed and need dates or costs.
+    @if (!Model.LifecycleSummary.ShowPostCompletionView)
+    {
+        <div class="alert alert-warning d-flex align-items-center justify-content-between@(Model.HasBackfill ? string.Empty : " d-none")"
+             role="alert"
+             data-backfill-banner>
+            <div>
+                <strong>Action needed:</strong> Some earlier stages were auto-completed and need dates or costs.
+            </div>
+            <button type="button" class="btn btn-sm btn-warning text-dark" data-action="open-backfill">Backfill now</button>
         </div>
-        <button type="button" class="btn btn-sm btn-warning text-dark" data-action="open-backfill">Backfill now</button>
-    </div>
+    }
 
     @if (project?.HodUserId == null || project?.LeadPoUserId == null)
     {
@@ -171,7 +138,7 @@
         </div>
     }
 
-    @if (planState.HasPendingSubmission)
+    @if (!Model.LifecycleSummary.ShowPostCompletionView && planState.HasPendingSubmission)
     {
         <div class="alert alert-info d-flex align-items-center justify-content-between" role="alert">
             <div>
@@ -205,129 +172,15 @@
         </div>
     }
 
+    @if (Model.LifecycleSummary.ShowPostCompletionView)
+    {
+        <partial name="_ProjectPostCompletion" model="Model" />
+    }
+    else
+    {
     <div class="row g-3 mb-4">
         <div class="col-lg-8 d-flex flex-column gap-3">
-            <div class="card pm-card">
-                <div class="card-header pm-card-header">
-                    <div class="pm-card-heading">
-                        <span class="pm-card-icon" aria-hidden="true">
-                            <i class="bi bi-layout-text-window"></i>
-                        </span>
-                        <div>
-                            <h2 class="pm-card-title h5 mb-0">Project overview</h2>
-                            <p class="pm-card-subtitle mb-0">Description and key project facts</p>
-                        </div>
-                    </div>
-                    @if (canManagePhotos || isThisProjectsPo || isAdmin || isHoD)
-                    {
-                        <div class="pm-card-menu dropdown">
-                            <button class="btn pm-card-menu-toggle"
-                                    type="button"
-                                    data-bs-toggle="dropdown"
-                                    aria-expanded="false"
-                                    aria-label="Project overview actions">
-                                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
-                            </button>
-                            <ul class="dropdown-menu dropdown-menu-end">
-                                @if (canManagePhotos)
-                                {
-                                    <li>
-                                        <a class="dropdown-item d-flex align-items-center gap-2"
-                                           asp-page="/Projects/Photos/Index"
-                                           asp-route-id="@Model.Project!.Id">
-                                            <i class="bi bi-sliders" aria-hidden="true"></i>
-                                            <span>Manage photos</span>
-                                        </a>
-                                    </li>
-                                }
-                                @if (isThisProjectsPo)
-                                {
-                                    <li>
-                                        <a class="dropdown-item"
-                                           asp-page="/Projects/Meta/Request"
-                                           asp-route-id="@Model.Project!.Id">Request change</a>
-                                    </li>
-                                }
-                                @if (isAdmin || isHoD)
-                                {
-                                    <li>
-                                        <a class="dropdown-item"
-                                           asp-page="/Projects/Meta/Edit"
-                                           asp-route-id="@Model.Project!.Id">Edit details</a>
-                                    </li>
-                                }
-                            </ul>
-                        </div>
-                    }
-                </div>
-                <div class="card-body pm-card-body">
-                    <div class="row g-4 align-items-start">
-                        <div class="col-12 col-lg-5 col-xl-4">
-                            <div class="project-photo-cover">
-                                <div class="ratio ratio-4x3 w-100">
-                                    @if (coverPhoto != null)
-                                    {
-                                        <picture>
-                                            <source type="image/webp"
-                                                    srcset="@coverSrcSet"
-                                                    sizes="(min-width: 1200px) 360px, (min-width: 992px) 320px, 100vw" />
-                                            <img class="w-100 h-100 object-fit-cover rounded border"
-                                                 width="360"
-                                                 height="270"
-                                                 src="@coverXs"
-                                                 srcset="@coverSrcSet"
-                                                 sizes="(min-width: 1200px) 360px, (min-width: 992px) 320px, 100vw"
-                                                 alt="@(string.IsNullOrWhiteSpace(coverPhoto.Caption) ? $"{project?.Name} cover photo" : coverPhoto.Caption)" />
-                                        </picture>
-                                    }
-                                    else
-                                    {
-                                        <div class="d-flex align-items-center justify-content-center w-100 h-100 rounded border bg-light text-muted">
-                                            <span>No cover photo</span>
-                                        </div>
-                                    }
-                                </div>
-                                @if (!string.IsNullOrWhiteSpace(coverPhoto?.Caption))
-                                {
-                                    <div class="mt-2 text-muted small">@coverPhoto.Caption</div>
-                                }
-                            </div>
-                        </div>
-                        <div class="col-12 col-lg-7 col-xl-8">
-                            <dl class="row mb-0">
-                                <dt class="col-sm-4">Category</dt>
-                                <dd class="col-sm-8">
-                                    @if (Model.CategoryPath.Any())
-                                    {
-                                        <span class="badge text-bg-light">@string.Join(" › ", Model.CategoryPath.Select(c => c.Name))</span>
-                                    }
-                                    else
-                                    {
-                                        <span>—</span>
-                                    }
-                                </dd>
-
-                                <dt class="col-sm-4">Sponsoring Unit</dt>
-                                <dd class="col-sm-8">@(Model.Project?.SponsoringUnit?.Name ?? "—")</dd>
-
-                                <dt class="col-sm-4">Sponsoring Line Dte</dt>
-                                <dd class="col-sm-8">@(Model.Project?.SponsoringLineDirectorate?.Name ?? "—")</dd>
-
-                                <dt class="col-sm-4">Head of Department</dt>
-                                <dd class="col-sm-8">@DisplayUser(project?.HodUser)</dd>
-
-                                <dt class="col-sm-4">Project Officer</dt>
-                                <dd class="col-sm-8">@DisplayUser(project?.LeadPoUser)</dd>
-                            </dl>
-                        </div>
-                        <div class="col-12">
-                            <h3 class="h6 mb-2">Project description</h3>
-                            <div class="project-overview__description">@(!string.IsNullOrWhiteSpace(project?.Description) ? project.Description : "—")</div>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
+            <partial name="_ProjectOverviewCard" model="Model" />
             <partial name="_ProjectProcurementAtAGlance" model="Model.Procurement" />
 
             <div class="card pm-card">
@@ -624,111 +477,7 @@
                     }
                 </div>
             </div>
-            <div class="card pm-card">
-                <div class="card-body pm-card-body">
-                    <div class="project-gallery" data-gallery data-gallery-project="@Model.Project!.Id" data-gallery-modal-id="@(galleryModalId ?? string.Empty)">
-                        <div class="project-gallery__header">
-                            <h3 class="h6 mb-2">Gallery</h3>
-                            <p class="text-muted small mb-0">Browse project highlights without leaving the page.</p>
-                        </div>
-                        @if (additionalPhotos.Any())
-                        {
-                            <div class="project-gallery__grid" role="list">
-                                @for (var i = 0; i < previewPhotos.Count; i++)
-                                {
-                                    var photo = previewPhotos[i];
-                                    var thumbUrl = photoUrl(photo, "sm", photo.Version);
-                                    var mediumUrl = photoUrl(photo, "md", photo.Version);
-                                    var largeUrl = photoUrl(photo, "xl", photo.Version);
-                                    var thumbSrcSet = string.Join(", ", new[]
-                                    {
-                                        $"{thumbUrl} 1x",
-                                        $"{mediumUrl} 1.5x",
-                                        $"{largeUrl} 2x"
-                                    });
-                                    var captionText = string.IsNullOrWhiteSpace(photo.Caption) ? null : photo.Caption;
-                                    var altText = captionText ?? $"{project?.Name ?? "Project"} photo";
-                                    <a class="project-gallery__item"
-                                       role="listitem"
-                                       href="@largeUrl"
-                                       data-gallery-trigger
-                                       data-gallery-photo-id="@photo.Id"
-                                       data-gallery-full="@largeUrl"
-                                       data-gallery-srcset="@thumbSrcSet"
-                                       data-gallery-caption="@captionText"
-                                       data-gallery-alt="@altText"
-                                       aria-label="View photo @(i + 1) of @additionalPhotos.Count@(captionText is null ? string.Empty : $": {captionText}")">
-                                        <div class="project-gallery__media">
-                                            <picture>
-                                                <source type="image/webp" srcset="@thumbSrcSet" />
-                                                <img class="project-gallery__img"
-                                                     loading="lazy"
-                                                     width="320"
-                                                     height="240"
-                                                     src="@thumbUrl"
-                                                     srcset="@thumbSrcSet"
-                                                     alt="@altText" />
-                                            </picture>
-                                        </div>
-                                        <div class="project-gallery__overlay" aria-hidden="true">
-                                            <span class="project-gallery__overlay-text">@(captionText ?? "View photo")</span>
-                                        </div>
-                                    </a>
-                                }
-
-                                <a class="project-gallery__item project-gallery__item--cta"
-                                   role="listitem"
-                                   href="@Url.Page("/Projects/Photos/Index", new { id = Model.Project!.Id })"
-                                   data-gallery-open
-                                   aria-controls="@galleryModalId"
-                                   aria-label="View the full project photo gallery">
-                                    <div class="project-gallery__cta-body">
-                                        <span class="project-gallery__cta-icon" aria-hidden="true">&#128247;</span>
-                                        <span class="project-gallery__cta-text">View gallery</span>
-                                        @if (remainingPhotos > 0)
-                                        {
-                                            <span class="project-gallery__cta-meta">+@remainingPhotos more</span>
-                                        }
-                                    </div>
-                                </a>
-                            </div>
-                        }
-                        else
-                        {
-                            var emptyStateHeadingId = $"project-photo-empty-title-{Model.Project?.Id ?? 0}";
-                            var emptyStateDescriptionId = $"{emptyStateHeadingId}-desc";
-                            <div class="project-photo-empty border rounded bg-light-subtle text-center"
-                                 role="region"
-                                 aria-labelledby="@emptyStateHeadingId"
-                                 aria-describedby="@emptyStateDescriptionId">
-                                <div class="project-photo-empty-body">
-                                    <span class="project-photo-empty-icon" aria-hidden="true">
-                                        <i class="bi bi-images"></i>
-                                    </span>
-                                    <h3 id="@emptyStateHeadingId" class="h6 fw-semibold mb-2">No photos yet</h3>
-                                    <p id="@emptyStateDescriptionId" class="mb-3 text-muted">
-                                        Add a cover or gallery photo to help everyone recognise this project at a glance.
-                                    </p>
-                                    @if (canManagePhotos)
-                                    {
-                                        <a class="btn btn-primary"
-                                           asp-page="/Projects/Photos/Index"
-                                           asp-route-id="@Model.Project!.Id"
-                                           aria-label="Upload the first project photo">
-                                            Upload photo
-                                        </a>
-                                    }
-                                </div>
-                            </div>
-                        }
-                    </div>
-                </div>
-            </div>
-            @if (additionalPhotos.Any())
-            {
-                <partial name="_ProjectPhotoLightbox" model="galleryModalModel" />
-            }
-        </div>
+            <partial name="_ProjectGalleryCard" model="Model" />
         <div class="col-lg-4 d-flex flex-column gap-3">
             @if (Model.IsDocumentApprover && Model.DocumentPendingRequests.Any())
             {
@@ -1269,6 +1018,7 @@
             </div>
         </div>
     </div>
+    }
 
     <partial name="Projects/_BackfillModal" model="Model.Backfill" />
     <partial name="_StageDirectApplyModal" />
