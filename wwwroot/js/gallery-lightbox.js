@@ -15,9 +15,31 @@ function initGallery(gallery) {
     return;
   }
 
+  let payloadText = '';
+
+  if (dataEl instanceof HTMLTemplateElement) {
+    payloadText = dataEl.innerHTML ?? '';
+  } else if (dataEl.hasAttribute('data-gallery-payload')) {
+    const encodedPayload = dataEl.getAttribute('data-gallery-payload') ?? '';
+    if (encodedPayload) {
+      try {
+        payloadText = window.atob(encodedPayload);
+      } catch (error) {
+        console.error('Failed to decode gallery data', error);
+        return;
+      }
+    }
+  } else {
+    payloadText = dataEl.textContent ?? '';
+  }
+
+  const jsonText = typeof payloadText === 'string' && payloadText.trim().length > 0
+    ? payloadText
+    : '[]';
+
   let photos = [];
   try {
-    photos = JSON.parse(dataEl.textContent ?? '[]');
+    photos = JSON.parse(jsonText);
   } catch (error) {
     console.error('Failed to parse gallery data', error);
     return;
