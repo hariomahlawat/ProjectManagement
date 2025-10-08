@@ -56,7 +56,7 @@ public sealed class ProjectMediaAggregatorTests
 
         // Assert
         var documentTab = result.Tabs.Single(t => t.Key == ProjectMediaTabViewModel.DocumentsKey).Documents!;
-        Assert.Equal(new[] { 1, 2 }, documentTab.Groups.Single().Items.Select(i => i.Row.DocumentId));
+        Assert.Equal(new int?[] { 1, 2 }, documentTab.Groups.Single().Items.Select(i => i.Row.DocumentId));
 
         var photoTab = result.Tabs.Single(t => t.Key == ProjectMediaTabViewModel.PhotosKey).Photos!;
         Assert.Equal(new[] { 4, 3, 5 }, photoTab.PreviewTiles.Select(t => t.Photo.Id));
