@@ -68,6 +68,41 @@ public static class Audit
             return new AuditEvent("Project.PhotoReordered", userId, data);
         }
 
+        public static AuditEvent ProjectLifecycleMarkedCompleted(int projectId, string userId, int? completionYear)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["CompletionYear"] = completionYear?.ToString(CultureInfo.InvariantCulture)
+            };
+
+            return new AuditEvent("Project.LifecycleCompleted", userId, data);
+        }
+
+        public static AuditEvent ProjectLifecycleCompletionEndorsed(int projectId, string userId, DateOnly completionDate, int? completionYear)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["CompletionDate"] = completionDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                ["CompletionYear"] = completionYear?.ToString(CultureInfo.InvariantCulture)
+            };
+
+            return new AuditEvent("Project.LifecycleCompletionEndorsed", userId, data);
+        }
+
+        public static AuditEvent ProjectLifecycleCancelled(int projectId, string userId, DateOnly cancelledOn, string reason)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["CancelledOn"] = cancelledOn.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                ["Reason"] = reason
+            };
+
+            return new AuditEvent("Project.LifecycleCancelled", userId, data);
+        }
+
         public static AuditEvent ProjectDocumentRequested(int projectId, int requestId, string userId, ProjectDocumentRequestType type, int? documentId)
         {
             var data = new Dictionary<string, string?>

@@ -1,0 +1,92 @@
+@model ProjectManagement.Pages.Projects.OverviewModel
+
+@{
+    var project = Model.Project;
+    var actions = Model.LifecycleActions;
+    var hasCompletionForm = actions.CanMarkCompleted;
+    var hasEndorseForm = actions.CanEndorseCompletedDate;
+    var hasCancelForm = actions.CanCancel;
+}
+
+<div class="card pm-card mb-3">
+    <div class="card-header pm-card-header">
+        <div class="pm-card-heading">
+            <span class="pm-card-icon" aria-hidden="true">
+                <i class="bi bi-check2-square"></i>
+            </span>
+            <div>
+                <h2 class="pm-card-title h6 mb-0">Lifecycle actions</h2>
+                <p class="pm-card-subtitle mb-0">Update the project lifecycle status and key dates.</p>
+            </div>
+        </div>
+    </div>
+    <div class="card-body pm-card-body">
+        <div class="row g-4">
+            @if (hasCompletionForm)
+            {
+                <div class="col-lg-4">
+                    <h3 class="h6 mb-2">Mark completed</h3>
+                    <form method="post" asp-page-handler="Complete" asp-route-id="@project.Id" class="d-flex flex-column gap-3">
+                        <input asp-for="CompleteProjectInput.ProjectId" type="hidden" />
+                        <div class="mb-0">
+                            <label asp-for="CompleteProjectInput.CompletedYear" class="form-label">Completion year (optional)</label>
+                            <input asp-for="CompleteProjectInput.CompletedYear" type="number" class="form-control" min="1900" max="2099" />
+                            <div class="form-text">Provide the year the project completed if the exact date is not known.</div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary btn-sm">Save completion</button>
+                        </div>
+                    </form>
+                </div>
+            }
+
+            @if (hasEndorseForm)
+            {
+                <div class="col-lg-4">
+                    <h3 class="h6 mb-2">Endorse completion date</h3>
+                    <form method="post" asp-page-handler="Endorse" asp-route-id="@project.Id" class="d-flex flex-column gap-3">
+                        <input asp-for="EndorseCompletionInput.ProjectId" type="hidden" />
+                        <div class="mb-0">
+                            <label asp-for="EndorseCompletionInput.CompletedOn" class="form-label">Completion date</label>
+                            <input asp-for="EndorseCompletionInput.CompletedOn" type="date" class="form-control" />
+                            <div class="form-text">Set the exact date the project finished to finalise completion.</div>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-success btn-sm">Endorse date</button>
+                        </div>
+                    </form>
+                </div>
+            }
+
+            @if (hasCancelForm)
+            {
+                <div class="col-lg-4">
+                    <h3 class="h6 mb-2">Cancel project</h3>
+                    <form method="post" asp-page-handler="Cancel" asp-route-id="@project.Id" class="d-flex flex-column gap-3">
+                        <input asp-for="CancelProjectInput.ProjectId" type="hidden" />
+                        <div class="mb-0">
+                            <label asp-for="CancelProjectInput.CancelledOn" class="form-label">Cancellation date</label>
+                            <input asp-for="CancelProjectInput.CancelledOn" type="date" class="form-control" />
+                        </div>
+                        <div class="mb-0">
+                            <label asp-for="CancelProjectInput.Reason" class="form-label">Reason</label>
+                            <textarea asp-for="CancelProjectInput.Reason" class="form-control" rows="3" maxlength="512"></textarea>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-danger btn-sm">Cancel project</button>
+                        </div>
+                    </form>
+                </div>
+            }
+
+            @if (!hasCompletionForm && !hasEndorseForm && !hasCancelForm)
+            {
+                <div class="col-12">
+                    <div class="alert alert-secondary mb-0" role="status">
+                        No lifecycle actions are currently available for this project.
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>

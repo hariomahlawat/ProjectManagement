@@ -406,7 +406,8 @@ public sealed class ProjectPhotoPageTests
         var planCompare = new PlanCompareService(db);
         var userManager = CreateUserManager(db);
         var remarksPanel = new ProjectRemarksPanelService(userManager, clock);
-        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel);
+        var lifecycle = new ProjectLifecycleService(db, new NoOpAuditService(), clock);
+        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle);
     }
 
     private static UserManager<ApplicationUser> CreateUserManager(ApplicationDbContext db)
@@ -716,5 +717,11 @@ public sealed class ProjectPhotoPageTests
         }
 
         public DateTimeOffset UtcNow { get; }
+    }
+
+    private sealed class NoOpAuditService : IAuditService
+    {
+        public Task LogAsync(string action, string? message = null, string level = "Info", string? userId = null, string? userName = null, IDictionary<string, string?>? data = null, HttpContext? http = null)
+            => Task.CompletedTask;
     }
 }
