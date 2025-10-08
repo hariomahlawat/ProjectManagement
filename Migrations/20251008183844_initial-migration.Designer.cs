@@ -12,8 +12,8 @@ using ProjectManagement.Data;
 namespace ProjectManagement.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20251005154047_AddUserNotificationPreferences")]
-    partial class AddUserNotificationPreferences
+    [Migration("20251008183844_initial-migration")]
+    partial class initialmigration
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -239,6 +239,9 @@ namespace ProjectManagement.Migrations
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");
+
+                    b.Property<bool>("ShowCelebrationsInCalendar")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("boolean");
@@ -722,8 +725,7 @@ namespace ProjectManagement.Migrations
 
                     b.Property<string>("PayloadJson")
                         .IsRequired()
-                        .HasMaxLength(4000)
-                        .HasColumnType("character varying(4000)");
+                        .HasColumnType("text");
 
                     b.Property<int?>("ProjectId")
                         .HasColumnType("integer");
@@ -1048,11 +1050,24 @@ namespace ProjectManagement.Migrations
                     b.Property<int?>("ActivePlanVersionNo")
                         .HasColumnType("integer");
 
+                    b.Property<string>("CancelReason")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<DateOnly?>("CancelledOn")
+                        .HasColumnType("date");
+
                     b.Property<string>("CaseFileNumber")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
                     b.Property<int?>("CategoryId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly?>("CompletedOn")
+                        .HasColumnType("date");
+
+                    b.Property<int?>("CompletedYear")
                         .HasColumnType("integer");
 
                     b.Property<int?>("CoverPhotoId")
@@ -1079,8 +1094,20 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("HodUserId")
                         .HasColumnType("text");
 
+                    b.Property<bool>("IsLegacy")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("LeadPoUserId")
                         .HasColumnType("text");
+
+                    b.Property<string>("LifecycleStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("Active");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -1114,11 +1141,17 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("CategoryId");
 
+                    b.HasIndex("CompletedYear");
+
                     b.HasIndex("CoverPhotoId");
 
                     b.HasIndex("HodUserId");
 
+                    b.HasIndex("IsLegacy");
+
                     b.HasIndex("LeadPoUserId");
+
+                    b.HasIndex("LifecycleStatus");
 
                     b.HasIndex("Name");
 
@@ -1495,6 +1528,9 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<int?>("TotId")
+                        .HasColumnType("integer");
+
                     b.Property<DateTimeOffset>("UploadedAtUtc")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -1513,7 +1549,11 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("StageId");
 
+                    b.HasIndex("TotId");
+
                     b.HasIndex("UploadedByUserId");
+
+                    b.HasIndex("ProjectId", "TotId");
 
                     b.HasIndex("ProjectId", "StageId", "IsArchived");
 
@@ -1604,6 +1644,9 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<int?>("TotId")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("DocumentId")
@@ -1619,7 +1662,11 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("StageId");
 
+                    b.HasIndex("TotId");
+
                     b.HasIndex("ProjectId", "Status");
+
+                    b.HasIndex("ProjectId", "TotId");
 
                     b.ToTable("ProjectDocumentRequests");
                 });
@@ -1790,6 +1837,9 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(260)
                         .HasColumnType("character varying(260)");
 
+                    b.Property<int?>("TotId")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("UpdatedUtc")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp without time zone")
@@ -1811,8 +1861,12 @@ namespace ProjectManagement.Migrations
                         .HasDatabaseName("UX_ProjectPhotos_Cover")
                         .HasFilter("\"IsCover\" = TRUE");
 
+                    b.HasIndex("TotId");
+
                     b.HasIndex("ProjectId", "Ordinal")
                         .IsUnique();
+
+                    b.HasIndex("ProjectId", "TotId");
 
                     b.ToTable("ProjectPhotos");
                 });
@@ -1929,6 +1983,42 @@ namespace ProjectManagement.Migrations
                     b.ToTable("ProjectSupplyOrderFacts");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.ProjectTot", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateOnly?>("CompletedOn")
+                        .HasColumnType("date");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateOnly?>("StartedOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("NotStarted");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId")
+                        .IsUnique();
+
+                    b.ToTable("ProjectTots");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Remarks.Remark", b =>
                 {
                     b.Property<int>("Id")
@@ -1983,6 +2073,13 @@ namespace ProjectManagement.Migrations
                         .IsRequired()
                         .HasColumnType("bytea");
 
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("General");
+
                     b.Property<string>("StageNameSnapshot")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
@@ -2001,6 +2098,10 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("ProjectId", "IsDeleted", "CreatedAtUtc")
                         .IsDescending(false, false, true)
                         .HasDatabaseName("IX_Remarks_ProjectId_IsDeleted_CreatedAtUtc");
+
+                    b.HasIndex("ProjectId", "IsDeleted", "Scope", "CreatedAtUtc")
+                        .IsDescending(false, false, false, true)
+                        .HasDatabaseName("IX_Remarks_ProjectId_IsDeleted_Scope_CreatedAtUtc");
 
                     b.HasIndex("ProjectId", "IsDeleted", "Type", "EventDate")
                         .HasDatabaseName("IX_Remarks_ProjectId_IsDeleted_Type_EventDate");
@@ -2079,6 +2180,13 @@ namespace ProjectManagement.Migrations
 
                     b.Property<int>("SnapshotProjectId")
                         .HasColumnType("integer");
+
+                    b.Property<string>("SnapshotScope")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("General");
 
                     b.Property<string>("SnapshotStageName")
                         .HasMaxLength(256)
@@ -3137,6 +3245,11 @@ namespace ProjectManagement.Migrations
                         .HasForeignKey("StageId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("ProjectManagement.Models.ProjectTot", "Tot")
+                        .WithMany()
+                        .HasForeignKey("TotId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("ProjectManagement.Models.ApplicationUser", "UploadedByUser")
                         .WithMany()
                         .HasForeignKey("UploadedByUserId")
@@ -3148,6 +3261,8 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Project");
 
                     b.Navigation("Stage");
+
+                    b.Navigation("Tot");
 
                     b.Navigation("UploadedByUser");
                 });
@@ -3181,6 +3296,11 @@ namespace ProjectManagement.Migrations
                         .HasForeignKey("StageId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("ProjectManagement.Models.ProjectTot", "Tot")
+                        .WithMany()
+                        .HasForeignKey("TotId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Document");
 
                     b.Navigation("Project");
@@ -3190,6 +3310,8 @@ namespace ProjectManagement.Migrations
                     b.Navigation("ReviewedByUser");
 
                     b.Navigation("Stage");
+
+                    b.Navigation("Tot");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectIpaFact", b =>
@@ -3220,7 +3342,14 @@ namespace ProjectManagement.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("ProjectManagement.Models.ProjectTot", "Tot")
+                        .WithMany()
+                        .HasForeignKey("TotId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Project");
+
+                    b.Navigation("Tot");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectPncFact", b =>
@@ -3248,6 +3377,17 @@ namespace ProjectManagement.Migrations
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectTot", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Project", "Project")
+                        .WithOne("Tot")
+                        .HasForeignKey("ProjectManagement.Models.ProjectTot", "ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Remarks.Remark", b =>
@@ -3397,6 +3537,8 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Photos");
 
                     b.Navigation("ProjectStages");
+
+                    b.Navigation("Tot");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectCategory", b =>

@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace ProjectManagement.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialMigrations : Migration
+    public partial class initialmigration : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -43,6 +43,7 @@ namespace ProjectManagement.Migrations
                     PendingDeletion = table.Column<bool>(type: "boolean", nullable: false),
                     DeletionRequestedUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
                     DeletionRequestedByUserId = table.Column<string>(type: "text", nullable: true),
+                    ShowCelebrationsInCalendar = table.Column<bool>(type: "boolean", nullable: false),
                     UserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
                     NormalizedUserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
                     Email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
@@ -190,6 +191,36 @@ namespace ProjectManagement.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_LineDirectorates", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "NotificationDispatches",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    RecipientUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
+                    Kind = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    Module = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    EventType = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
+                    ScopeType = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    ScopeId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
+                    ProjectId = table.Column<int>(type: "integer", nullable: true),
+                    ActorUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
+                    Fingerprint = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
+                    Route = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: true),
+                    Title = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    Summary = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    PayloadJson = table.Column<string>(type: "text", nullable: false),
+                    CreatedUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    LockedUntilUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    AttemptCount = table.Column<int>(type: "integer", nullable: false, defaultValue: 0),
+                    DispatchedUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    Error = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_NotificationDispatches", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -373,6 +404,19 @@ namespace ProjectManagement.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "UserNotificationPreferences",
+                columns: table => new
+                {
+                    UserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
+                    Kind = table.Column<int>(type: "integer", nullable: false),
+                    Allow = table.Column<bool>(type: "boolean", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_UserNotificationPreferences", x => new { x.UserId, x.Kind });
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Workflows",
                 columns: table => new
                 {
@@ -493,63 +537,59 @@ namespace ProjectManagement.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Projects",
+                name: "StageChecklistTemplates",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
-                    Description = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
-                    CaseFileNumber = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
-                    CreatedByUserId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false),
-                    ActivePlanVersionNo = table.Column<int>(type: "integer", nullable: true),
-                    CategoryId = table.Column<int>(type: "integer", nullable: true),
-                    SponsoringUnitId = table.Column<int>(type: "integer", nullable: true),
-                    SponsoringLineDirectorateId = table.Column<int>(type: "integer", nullable: true),
-                    HodUserId = table.Column<string>(type: "text", nullable: true),
-                    LeadPoUserId = table.Column<string>(type: "text", nullable: true),
-                    PlanApprovedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    PlanApprovedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true)
+                    Version = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    StageCode = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
+                    UpdatedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
+                    UpdatedOn = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Projects", x => x.Id);
+                    table.PrimaryKey("PK_StageChecklistTemplates", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Projects_AspNetUsers_HodUserId",
-                        column: x => x.HodUserId,
-                        principalTable: "AspNetUsers",
-                        principalColumn: "Id");
-                    table.ForeignKey(
-                        name: "FK_Projects_AspNetUsers_LeadPoUserId",
-                        column: x => x.LeadPoUserId,
-                        principalTable: "AspNetUsers",
-                        principalColumn: "Id");
-                    table.ForeignKey(
-                        name: "FK_Projects_AspNetUsers_PlanApprovedByUserId",
-                        column: x => x.PlanApprovedByUserId,
+                        name: "FK_StageChecklistTemplates_AspNetUsers_UpdatedByUserId",
+                        column: x => x.UpdatedByUserId,
                         principalTable: "AspNetUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.SetNull);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Notifications",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    RecipientUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
+                    Module = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    EventType = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
+                    ScopeType = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    ScopeId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
+                    ProjectId = table.Column<int>(type: "integer", nullable: true),
+                    ActorUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
+                    Fingerprint = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
+                    Route = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: true),
+                    Title = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    Summary = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    CreatedUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false, defaultValueSql: "now() at time zone 'utc'"),
+                    SeenUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    ReadUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    SourceDispatchId = table.Column<int>(type: "integer", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Notifications", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Projects_LineDirectorates_SponsoringLineDirectorateId",
-                        column: x => x.SponsoringLineDirectorateId,
-                        principalTable: "LineDirectorates",
+                        name: "FK_Notifications_NotificationDispatches_SourceDispatchId",
+                        column: x => x.SourceDispatchId,
+                        principalTable: "NotificationDispatches",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Projects_ProjectCategories_CategoryId",
-                        column: x => x.CategoryId,
-                        principalTable: "ProjectCategories",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_Projects_SponsoringUnits_SponsoringUnitId",
-                        column: x => x.SponsoringUnitId,
-                        principalTable: "SponsoringUnits",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.SetNull);
                 });
 
             migrationBuilder.CreateTable(
@@ -579,6 +619,89 @@ namespace ProjectManagement.Migrations
                         principalTable: "Workflows",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "StageChecklistItemTemplates",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    TemplateId = table.Column<int>(type: "integer", nullable: false),
+                    Text = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: false),
+                    Sequence = table.Column<int>(type: "integer", nullable: false),
+                    UpdatedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
+                    UpdatedOn = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StageChecklistItemTemplates", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_StageChecklistItemTemplates_AspNetUsers_UpdatedByUserId",
+                        column: x => x.UpdatedByUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "FK_StageChecklistItemTemplates_StageChecklistTemplates_Templat~",
+                        column: x => x.TemplateId,
+                        principalTable: "StageChecklistTemplates",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "StageChecklistAudits",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    TemplateId = table.Column<int>(type: "integer", nullable: false),
+                    ItemId = table.Column<int>(type: "integer", nullable: true),
+                    Action = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    PayloadJson = table.Column<string>(type: "jsonb", nullable: true),
+                    PerformedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
+                    PerformedOn = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StageChecklistAudits", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_StageChecklistAudits_StageChecklistItemTemplates_ItemId",
+                        column: x => x.ItemId,
+                        principalTable: "StageChecklistItemTemplates",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "FK_StageChecklistAudits_StageChecklistTemplates_TemplateId",
+                        column: x => x.TemplateId,
+                        principalTable: "StageChecklistTemplates",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "PlanApprovalLogs",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    PlanVersionId = table.Column<int>(type: "integer", nullable: false),
+                    Action = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    Note = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: true),
+                    PerformedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
+                    PerformedOn = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PlanApprovalLogs", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_PlanApprovalLogs_AspNetUsers_PerformedByUserId",
+                        column: x => x.PerformedByUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -640,10 +763,27 @@ namespace ProjectManagement.Migrations
                         principalTable: "AspNetUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.SetNull);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "StagePlans",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    PlanVersionId = table.Column<int>(type: "integer", nullable: false),
+                    StageCode = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
+                    PlannedStart = table.Column<DateOnly>(type: "date", nullable: true),
+                    PlannedDue = table.Column<DateOnly>(type: "date", nullable: true),
+                    DurationDays = table.Column<int>(type: "integer", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_StagePlans", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_PlanVersions_Projects_ProjectId",
-                        column: x => x.ProjectId,
-                        principalTable: "Projects",
+                        name: "FK_StagePlans_PlanVersions_PlanVersionId",
+                        column: x => x.PlanVersionId,
+                        principalTable: "PlanVersions",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -664,12 +804,6 @@ namespace ProjectManagement.Migrations
                 {
                     table.PrimaryKey("PK_ProjectAonFacts", x => x.Id);
                     table.CheckConstraint("ck_aonfact_amount", "\"AonCost\" >= 0");
-                    table.ForeignKey(
-                        name: "FK_ProjectAonFacts_Projects_ProjectId",
-                        column: x => x.ProjectId,
-                        principalTable: "Projects",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -688,10 +822,90 @@ namespace ProjectManagement.Migrations
                 {
                     table.PrimaryKey("PK_ProjectBenchmarkFacts", x => x.Id);
                     table.CheckConstraint("ck_bmfact_amount", "\"BenchmarkCost\" >= 0");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProjectCommentAttachments",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    CommentId = table.Column<int>(type: "integer", nullable: false),
+                    StoredFileName = table.Column<string>(type: "character varying(260)", maxLength: 260, nullable: false),
+                    OriginalFileName = table.Column<string>(type: "character varying(260)", maxLength: 260, nullable: false),
+                    ContentType = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
+                    SizeBytes = table.Column<long>(type: "bigint", nullable: false),
+                    StoragePath = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: false),
+                    UploadedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
+                    UploadedOn = table.Column<DateTime>(type: "timestamp without time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProjectCommentAttachments", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_ProjectBenchmarkFacts_Projects_ProjectId",
-                        column: x => x.ProjectId,
-                        principalTable: "Projects",
+                        name: "FK_ProjectCommentAttachments_AspNetUsers_UploadedByUserId",
+                        column: x => x.UploadedByUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProjectCommentMentions",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    CommentId = table.Column<int>(type: "integer", nullable: false),
+                    UserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProjectCommentMentions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ProjectCommentMentions_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProjectComments",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    ProjectStageId = table.Column<int>(type: "integer", nullable: true),
+                    ParentCommentId = table.Column<int>(type: "integer", nullable: true),
+                    Body = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
+                    Type = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    Pinned = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
+                    CreatedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
+                    CreatedOn = table.Column<DateTime>(type: "timestamp without time zone", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
+                    EditedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
+                    EditedOn = table.Column<DateTime>(type: "timestamp without time zone", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProjectComments", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ProjectComments_AspNetUsers_CreatedByUserId",
+                        column: x => x.CreatedByUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_ProjectComments_AspNetUsers_EditedByUserId",
+                        column: x => x.EditedByUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_ProjectComments_ProjectComments_ParentCommentId",
+                        column: x => x.ParentCommentId,
+                        principalTable: "ProjectComments",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -712,12 +926,91 @@ namespace ProjectManagement.Migrations
                 {
                     table.PrimaryKey("PK_ProjectCommercialFacts", x => x.Id);
                     table.CheckConstraint("ck_l1fact_amount", "\"L1Cost\" >= 0");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProjectDocumentRequests",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    StageId = table.Column<int>(type: "integer", nullable: true),
+                    DocumentId = table.Column<int>(type: "integer", nullable: true),
+                    TotId = table.Column<int>(type: "integer", nullable: true),
+                    Title = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    Description = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    Status = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false, defaultValue: "Draft"),
+                    RequestType = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false, defaultValue: "Upload"),
+                    TempStorageKey = table.Column<string>(type: "character varying(260)", maxLength: 260, nullable: true),
+                    OriginalFileName = table.Column<string>(type: "character varying(260)", maxLength: 260, nullable: true),
+                    ContentType = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
+                    FileSize = table.Column<long>(type: "bigint", nullable: true),
+                    RequestedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
+                    RequestedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now() at time zone 'utc'"),
+                    ReviewedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
+                    ReviewedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    ReviewerNote = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProjectDocumentRequests", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_ProjectCommercialFacts_Projects_ProjectId",
-                        column: x => x.ProjectId,
-                        principalTable: "Projects",
+                        name: "FK_ProjectDocumentRequests_AspNetUsers_RequestedByUserId",
+                        column: x => x.RequestedByUserId,
+                        principalTable: "AspNetUsers",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_ProjectDocumentRequests_AspNetUsers_ReviewedByUserId",
+                        column: x => x.ReviewedByUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProjectDocuments",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    StageId = table.Column<int>(type: "integer", nullable: true),
+                    RequestId = table.Column<int>(type: "integer", nullable: true),
+                    Title = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    Description = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    StorageKey = table.Column<string>(type: "character varying(260)", maxLength: 260, nullable: false),
+                    OriginalFileName = table.Column<string>(type: "character varying(260)", maxLength: 260, nullable: false),
+                    ContentType = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
+                    FileSize = table.Column<long>(type: "bigint", nullable: false),
+                    Status = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false, defaultValue: "Published"),
+                    FileStamp = table.Column<int>(type: "integer", nullable: false, defaultValue: 0),
+                    TotId = table.Column<int>(type: "integer", nullable: true),
+                    UploadedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
+                    UploadedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false, defaultValueSql: "now() at time zone 'utc'"),
+                    IsArchived = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
+                    ArchivedAtUtc = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    ArchivedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProjectDocuments", x => x.Id);
+                    table.CheckConstraint("ck_projectdocuments_filesize", "\"FileSize\" >= 0");
+                    table.ForeignKey(
+                        name: "FK_ProjectDocuments_AspNetUsers_ArchivedByUserId",
+                        column: x => x.ArchivedByUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "FK_ProjectDocuments_AspNetUsers_UploadedByUserId",
+                        column: x => x.UploadedByUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -736,12 +1029,6 @@ namespace ProjectManagement.Migrations
                 {
                     table.PrimaryKey("PK_ProjectIpaFacts", x => x.Id);
                     table.CheckConstraint("ck_ipafact_amount", "\"IpaCost\" >= 0");
-                    table.ForeignKey(
-                        name: "FK_ProjectIpaFacts_Projects_ProjectId",
-                        column: x => x.ProjectId,
-                        principalTable: "Projects",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -771,12 +1058,105 @@ namespace ProjectManagement.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_ProjectMetaChangeRequests", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProjectPhotos",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    StorageKey = table.Column<string>(type: "character varying(260)", maxLength: 260, nullable: false),
+                    OriginalFileName = table.Column<string>(type: "character varying(260)", maxLength: 260, nullable: false),
+                    ContentType = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
+                    Width = table.Column<int>(type: "integer", nullable: false),
+                    Height = table.Column<int>(type: "integer", nullable: false),
+                    Ordinal = table.Column<int>(type: "integer", nullable: false, defaultValue: 1),
+                    Caption = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true),
+                    TotId = table.Column<int>(type: "integer", nullable: true),
+                    IsCover = table.Column<bool>(type: "boolean", nullable: false),
+                    Version = table.Column<int>(type: "integer", nullable: false, defaultValue: 1),
+                    CreatedUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false, defaultValueSql: "now() at time zone 'utc'"),
+                    UpdatedUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false, defaultValueSql: "now() at time zone 'utc'")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProjectPhotos", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Projects",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
+                    Description = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    LifecycleStatus = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false, defaultValue: "Active"),
+                    IsLegacy = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
+                    CompletedOn = table.Column<DateOnly>(type: "date", nullable: true),
+                    CompletedYear = table.Column<int>(type: "integer", nullable: true),
+                    CancelledOn = table.Column<DateOnly>(type: "date", nullable: true),
+                    CancelReason = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true),
+                    CaseFileNumber = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    CreatedByUserId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false),
+                    ActivePlanVersionNo = table.Column<int>(type: "integer", nullable: true),
+                    CategoryId = table.Column<int>(type: "integer", nullable: true),
+                    SponsoringUnitId = table.Column<int>(type: "integer", nullable: true),
+                    SponsoringLineDirectorateId = table.Column<int>(type: "integer", nullable: true),
+                    HodUserId = table.Column<string>(type: "text", nullable: true),
+                    LeadPoUserId = table.Column<string>(type: "text", nullable: true),
+                    PlanApprovedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    PlanApprovedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
+                    CoverPhotoId = table.Column<int>(type: "integer", nullable: true),
+                    CoverPhotoVersion = table.Column<int>(type: "integer", nullable: false, defaultValue: 1)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Projects", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_ProjectMetaChangeRequests_Projects_ProjectId",
-                        column: x => x.ProjectId,
-                        principalTable: "Projects",
+                        name: "FK_Projects_AspNetUsers_HodUserId",
+                        column: x => x.HodUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_Projects_AspNetUsers_LeadPoUserId",
+                        column: x => x.LeadPoUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_Projects_AspNetUsers_PlanApprovedByUserId",
+                        column: x => x.PlanApprovedByUserId,
+                        principalTable: "AspNetUsers",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "FK_Projects_LineDirectorates_SponsoringLineDirectorateId",
+                        column: x => x.SponsoringLineDirectorateId,
+                        principalTable: "LineDirectorates",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Projects_ProjectCategories_CategoryId",
+                        column: x => x.CategoryId,
+                        principalTable: "ProjectCategories",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Projects_ProjectPhotos_CoverPhotoId",
+                        column: x => x.CoverPhotoId,
+                        principalTable: "ProjectPhotos",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "FK_Projects_SponsoringUnits_SponsoringUnitId",
+                        column: x => x.SponsoringUnitId,
+                        principalTable: "SponsoringUnits",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -953,53 +1333,76 @@ namespace ProjectManagement.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "PlanApprovalLogs",
+                name: "ProjectTots",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    PlanVersionId = table.Column<int>(type: "integer", nullable: false),
-                    Action = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
-                    Note = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: true),
-                    PerformedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
-                    PerformedOn = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false)
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    Status = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false, defaultValue: "NotStarted"),
+                    StartedOn = table.Column<DateOnly>(type: "date", nullable: true),
+                    CompletedOn = table.Column<DateOnly>(type: "date", nullable: true),
+                    Remarks = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_PlanApprovalLogs", x => x.Id);
+                    table.PrimaryKey("PK_ProjectTots", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_PlanApprovalLogs_AspNetUsers_PerformedByUserId",
-                        column: x => x.PerformedByUserId,
-                        principalTable: "AspNetUsers",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_PlanApprovalLogs_PlanVersions_PlanVersionId",
-                        column: x => x.PlanVersionId,
-                        principalTable: "PlanVersions",
+                        name: "FK_ProjectTots_Projects_ProjectId",
+                        column: x => x.ProjectId,
+                        principalTable: "Projects",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
-                name: "StagePlans",
+                name: "Remarks",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    PlanVersionId = table.Column<int>(type: "integer", nullable: false),
-                    StageCode = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: false),
-                    PlannedStart = table.Column<DateOnly>(type: "date", nullable: true),
-                    PlannedDue = table.Column<DateOnly>(type: "date", nullable: true),
-                    DurationDays = table.Column<int>(type: "integer", nullable: false)
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    AuthorUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
+                    AuthorRole = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    Type = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    Scope = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false, defaultValue: "General"),
+                    Body = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: false),
+                    EventDate = table.Column<DateOnly>(type: "date", nullable: false),
+                    StageRef = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    StageNameSnapshot = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
+                    CreatedAtUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    LastEditedAtUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
+                    DeletedAtUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    DeletedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
+                    DeletedByRole = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_StagePlans", x => x.Id);
+                    table.PrimaryKey("PK_Remarks", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_StagePlans_PlanVersions_PlanVersionId",
-                        column: x => x.PlanVersionId,
-                        principalTable: "PlanVersions",
+                        name: "FK_Remarks_Projects_ProjectId",
+                        column: x => x.ProjectId,
+                        principalTable: "Projects",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "UserProjectMutes",
+                columns: table => new
+                {
+                    UserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_UserProjectMutes", x => new { x.UserId, x.ProjectId });
+                    table.ForeignKey(
+                        name: "FK_UserProjectMutes_Projects_ProjectId",
+                        column: x => x.ProjectId,
+                        principalTable: "Projects",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -1027,111 +1430,66 @@ namespace ProjectManagement.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "ProjectComments",
+                name: "RemarkAudits",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    ProjectId = table.Column<int>(type: "integer", nullable: false),
-                    ProjectStageId = table.Column<int>(type: "integer", nullable: true),
-                    ParentCommentId = table.Column<int>(type: "integer", nullable: true),
-                    Body = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
-                    Type = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    Pinned = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
-                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
-                    CreatedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
-                    CreatedOn = table.Column<DateTime>(type: "timestamp without time zone", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
-                    EditedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
-                    EditedOn = table.Column<DateTime>(type: "timestamp without time zone", nullable: true)
+                    RemarkId = table.Column<int>(type: "integer", nullable: false),
+                    Action = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    SnapshotType = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
+                    SnapshotScope = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false, defaultValue: "General"),
+                    SnapshotAuthorRole = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    SnapshotAuthorUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
+                    SnapshotEventDate = table.Column<DateOnly>(type: "date", nullable: false),
+                    SnapshotStageRef = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    SnapshotStageName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
+                    SnapshotBody = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: false),
+                    SnapshotCreatedAtUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    SnapshotLastEditedAtUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    SnapshotIsDeleted = table.Column<bool>(type: "boolean", nullable: false),
+                    SnapshotDeletedAtUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    SnapshotDeletedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
+                    SnapshotDeletedByRole = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
+                    SnapshotProjectId = table.Column<int>(type: "integer", nullable: false),
+                    ActorUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
+                    ActorRole = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    ActionAtUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    Meta = table.Column<string>(type: "jsonb", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_ProjectComments", x => x.Id);
+                    table.PrimaryKey("PK_RemarkAudits", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_ProjectComments_AspNetUsers_CreatedByUserId",
-                        column: x => x.CreatedByUserId,
-                        principalTable: "AspNetUsers",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_ProjectComments_AspNetUsers_EditedByUserId",
-                        column: x => x.EditedByUserId,
-                        principalTable: "AspNetUsers",
-                        principalColumn: "Id");
-                    table.ForeignKey(
-                        name: "FK_ProjectComments_ProjectComments_ParentCommentId",
-                        column: x => x.ParentCommentId,
-                        principalTable: "ProjectComments",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_ProjectComments_ProjectStages_ProjectStageId",
-                        column: x => x.ProjectStageId,
-                        principalTable: "ProjectStages",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_ProjectComments_Projects_ProjectId",
-                        column: x => x.ProjectId,
-                        principalTable: "Projects",
+                        name: "FK_RemarkAudits_Remarks_RemarkId",
+                        column: x => x.RemarkId,
+                        principalTable: "Remarks",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
-                name: "ProjectCommentAttachments",
+                name: "RemarkMentions",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    CommentId = table.Column<int>(type: "integer", nullable: false),
-                    StoredFileName = table.Column<string>(type: "character varying(260)", maxLength: 260, nullable: false),
-                    OriginalFileName = table.Column<string>(type: "character varying(260)", maxLength: 260, nullable: false),
-                    ContentType = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
-                    SizeBytes = table.Column<long>(type: "bigint", nullable: false),
-                    StoragePath = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: false),
-                    UploadedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
-                    UploadedOn = table.Column<DateTime>(type: "timestamp without time zone", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_ProjectCommentAttachments", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_ProjectCommentAttachments_AspNetUsers_UploadedByUserId",
-                        column: x => x.UploadedByUserId,
-                        principalTable: "AspNetUsers",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_ProjectCommentAttachments_ProjectComments_CommentId",
-                        column: x => x.CommentId,
-                        principalTable: "ProjectComments",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "ProjectCommentMentions",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    CommentId = table.Column<int>(type: "integer", nullable: false),
+                    RemarkId = table.Column<int>(type: "integer", nullable: false),
                     UserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_ProjectCommentMentions", x => x.Id);
+                    table.PrimaryKey("PK_RemarkMentions", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_ProjectCommentMentions_AspNetUsers_UserId",
+                        name: "FK_RemarkMentions_AspNetUsers_UserId",
                         column: x => x.UserId,
                         principalTable: "AspNetUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
-                        name: "FK_ProjectCommentMentions_ProjectComments_CommentId",
-                        column: x => x.CommentId,
-                        principalTable: "ProjectComments",
+                        name: "FK_RemarkMentions_Remarks_RemarkId",
+                        column: x => x.RemarkId,
+                        principalTable: "Remarks",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
                 });
@@ -1246,6 +1604,67 @@ namespace ProjectManagement.Migrations
                 table: "LineDirectorates",
                 column: "Name",
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_NotificationDispatches_ActorUserId_DispatchedUtc",
+                table: "NotificationDispatches",
+                columns: new[] { "ActorUserId", "DispatchedUtc" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_NotificationDispatches_DispatchedUtc",
+                table: "NotificationDispatches",
+                column: "DispatchedUtc");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_NotificationDispatches_Fingerprint",
+                table: "NotificationDispatches",
+                column: "Fingerprint");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_NotificationDispatches_Module_EventType_DispatchedUtc",
+                table: "NotificationDispatches",
+                columns: new[] { "Module", "EventType", "DispatchedUtc" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_NotificationDispatches_ProjectId_DispatchedUtc",
+                table: "NotificationDispatches",
+                columns: new[] { "ProjectId", "DispatchedUtc" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_NotificationDispatches_RecipientUserId_Kind_DispatchedUtc",
+                table: "NotificationDispatches",
+                columns: new[] { "RecipientUserId", "Kind", "DispatchedUtc" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_NotificationDispatches_ScopeType_ScopeId_DispatchedUtc",
+                table: "NotificationDispatches",
+                columns: new[] { "ScopeType", "ScopeId", "DispatchedUtc" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Notifications_Fingerprint",
+                table: "Notifications",
+                column: "Fingerprint",
+                filter: "\"Fingerprint\" IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Notifications_RecipientUserId_CreatedUtc",
+                table: "Notifications",
+                columns: new[] { "RecipientUserId", "CreatedUtc" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Notifications_RecipientUserId_ReadUtc_CreatedUtc",
+                table: "Notifications",
+                columns: new[] { "RecipientUserId", "ReadUtc", "CreatedUtc" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Notifications_RecipientUserId_SeenUtc_CreatedUtc",
+                table: "Notifications",
+                columns: new[] { "RecipientUserId", "SeenUtc", "CreatedUtc" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Notifications_SourceDispatchId",
+                table: "Notifications",
+                column: "SourceDispatchId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_PlanApprovalLogs_PerformedByUserId",
@@ -1363,6 +1782,83 @@ namespace ProjectManagement.Migrations
                 column: "ProjectId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_ProjectDocumentRequests_ProjectId",
+                table: "ProjectDocumentRequests",
+                column: "ProjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectDocumentRequests_ProjectId_Status",
+                table: "ProjectDocumentRequests",
+                columns: new[] { "ProjectId", "Status" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectDocumentRequests_ProjectId_TotId",
+                table: "ProjectDocumentRequests",
+                columns: new[] { "ProjectId", "TotId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectDocumentRequests_RequestedByUserId",
+                table: "ProjectDocumentRequests",
+                column: "RequestedByUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectDocumentRequests_ReviewedByUserId",
+                table: "ProjectDocumentRequests",
+                column: "ReviewedByUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectDocumentRequests_StageId",
+                table: "ProjectDocumentRequests",
+                column: "StageId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectDocumentRequests_TotId",
+                table: "ProjectDocumentRequests",
+                column: "TotId");
+
+            migrationBuilder.CreateIndex(
+                name: "ux_projectdocumentrequests_pending_document",
+                table: "ProjectDocumentRequests",
+                column: "DocumentId",
+                unique: true,
+                filter: "\"DocumentId\" IS NOT NULL AND \"Status\" IN ('Draft', 'Submitted')");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectDocuments_ArchivedByUserId",
+                table: "ProjectDocuments",
+                column: "ArchivedByUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectDocuments_ProjectId",
+                table: "ProjectDocuments",
+                column: "ProjectId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectDocuments_ProjectId_StageId_IsArchived",
+                table: "ProjectDocuments",
+                columns: new[] { "ProjectId", "StageId", "IsArchived" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectDocuments_ProjectId_TotId",
+                table: "ProjectDocuments",
+                columns: new[] { "ProjectId", "TotId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectDocuments_StageId",
+                table: "ProjectDocuments",
+                column: "StageId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectDocuments_TotId",
+                table: "ProjectDocuments",
+                column: "TotId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectDocuments_UploadedByUserId",
+                table: "ProjectDocuments",
+                column: "UploadedByUserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_ProjectIpaFacts_ProjectId",
                 table: "ProjectIpaFacts",
                 column: "ProjectId");
@@ -1373,6 +1869,29 @@ namespace ProjectManagement.Migrations
                 column: "ProjectId",
                 unique: true,
                 filter: "\"DecisionStatus\" = 'Pending'");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectPhotos_ProjectId_Ordinal",
+                table: "ProjectPhotos",
+                columns: new[] { "ProjectId", "Ordinal" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectPhotos_ProjectId_TotId",
+                table: "ProjectPhotos",
+                columns: new[] { "ProjectId", "TotId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProjectPhotos_TotId",
+                table: "ProjectPhotos",
+                column: "TotId");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_ProjectPhotos_Cover",
+                table: "ProjectPhotos",
+                column: "ProjectId",
+                unique: true,
+                filter: "\"IsCover\" = TRUE");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ProjectPlanDurations_ProjectId_StageCode",
@@ -1406,14 +1925,34 @@ namespace ProjectManagement.Migrations
                 column: "CategoryId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Projects_CompletedYear",
+                table: "Projects",
+                column: "CompletedYear");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Projects_CoverPhotoId",
+                table: "Projects",
+                column: "CoverPhotoId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Projects_HodUserId",
                 table: "Projects",
                 column: "HodUserId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Projects_IsLegacy",
+                table: "Projects",
+                column: "IsLegacy");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Projects_LeadPoUserId",
                 table: "Projects",
                 column: "LeadPoUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Projects_LifecycleStatus",
+                table: "Projects",
+                column: "LifecycleStatus");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Projects_Name",
@@ -1459,6 +1998,45 @@ namespace ProjectManagement.Migrations
                 column: "ProjectId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_ProjectTots_ProjectId",
+                table: "ProjectTots",
+                column: "ProjectId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RemarkAudits_RemarkId",
+                table: "RemarkAudits",
+                column: "RemarkId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RemarkMentions_RemarkId_UserId",
+                table: "RemarkMentions",
+                columns: new[] { "RemarkId", "UserId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RemarkMentions_UserId",
+                table: "RemarkMentions",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Remarks_ProjectId_IsDeleted_CreatedAtUtc",
+                table: "Remarks",
+                columns: new[] { "ProjectId", "IsDeleted", "CreatedAtUtc" },
+                descending: new[] { false, false, true });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Remarks_ProjectId_IsDeleted_Scope_CreatedAtUtc",
+                table: "Remarks",
+                columns: new[] { "ProjectId", "IsDeleted", "Scope", "CreatedAtUtc" },
+                descending: new[] { false, false, false, true });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Remarks_ProjectId_IsDeleted_Type_EventDate",
+                table: "Remarks",
+                columns: new[] { "ProjectId", "IsDeleted", "Type", "EventDate" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_SponsoringUnits_Name",
                 table: "SponsoringUnits",
                 column: "Name",
@@ -1475,6 +2053,38 @@ namespace ProjectManagement.Migrations
                 columns: new[] { "ProjectId", "StageCode" },
                 unique: true,
                 filter: "\"DecisionStatus\" = 'Pending'");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StageChecklistAudits_ItemId",
+                table: "StageChecklistAudits",
+                column: "ItemId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StageChecklistAudits_TemplateId",
+                table: "StageChecklistAudits",
+                column: "TemplateId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StageChecklistItemTemplates_TemplateId_Sequence",
+                table: "StageChecklistItemTemplates",
+                columns: new[] { "TemplateId", "Sequence" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StageChecklistItemTemplates_UpdatedByUserId",
+                table: "StageChecklistItemTemplates",
+                column: "UpdatedByUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StageChecklistTemplates_UpdatedByUserId",
+                table: "StageChecklistTemplates",
+                column: "UpdatedByUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_StageChecklistTemplates_Version_StageCode",
+                table: "StageChecklistTemplates",
+                columns: new[] { "Version", "StageCode" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_StageDependencyTemplates_Version_FromStageCode_DependsOnSta~",
@@ -1521,6 +2131,11 @@ namespace ProjectManagement.Migrations
                 columns: new[] { "OwnerId", "Status", "IsPinned", "DueAtUtc" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_UserProjectMutes_ProjectId",
+                table: "UserProjectMutes",
+                column: "ProjectId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_WorkflowStatuses_Name_WorkflowId",
                 table: "WorkflowStatuses",
                 columns: new[] { "Name", "WorkflowId" },
@@ -1535,11 +2150,191 @@ namespace ProjectManagement.Migrations
                 name: "IX_WorkflowStatuses_WorkflowId",
                 table: "WorkflowStatuses",
                 column: "WorkflowId");
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_PlanApprovalLogs_PlanVersions_PlanVersionId",
+                table: "PlanApprovalLogs",
+                column: "PlanVersionId",
+                principalTable: "PlanVersions",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Cascade);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_PlanVersions_Projects_ProjectId",
+                table: "PlanVersions",
+                column: "ProjectId",
+                principalTable: "Projects",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Cascade);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProjectAonFacts_Projects_ProjectId",
+                table: "ProjectAonFacts",
+                column: "ProjectId",
+                principalTable: "Projects",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Cascade);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProjectBenchmarkFacts_Projects_ProjectId",
+                table: "ProjectBenchmarkFacts",
+                column: "ProjectId",
+                principalTable: "Projects",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Cascade);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProjectCommentAttachments_ProjectComments_CommentId",
+                table: "ProjectCommentAttachments",
+                column: "CommentId",
+                principalTable: "ProjectComments",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Cascade);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProjectCommentMentions_ProjectComments_CommentId",
+                table: "ProjectCommentMentions",
+                column: "CommentId",
+                principalTable: "ProjectComments",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Cascade);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProjectComments_ProjectStages_ProjectStageId",
+                table: "ProjectComments",
+                column: "ProjectStageId",
+                principalTable: "ProjectStages",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Cascade);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProjectComments_Projects_ProjectId",
+                table: "ProjectComments",
+                column: "ProjectId",
+                principalTable: "Projects",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Cascade);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProjectCommercialFacts_Projects_ProjectId",
+                table: "ProjectCommercialFacts",
+                column: "ProjectId",
+                principalTable: "Projects",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Cascade);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProjectDocumentRequests_ProjectDocuments_DocumentId",
+                table: "ProjectDocumentRequests",
+                column: "DocumentId",
+                principalTable: "ProjectDocuments",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.SetNull);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProjectDocumentRequests_ProjectStages_StageId",
+                table: "ProjectDocumentRequests",
+                column: "StageId",
+                principalTable: "ProjectStages",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.SetNull);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProjectDocumentRequests_ProjectTots_TotId",
+                table: "ProjectDocumentRequests",
+                column: "TotId",
+                principalTable: "ProjectTots",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.SetNull);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProjectDocumentRequests_Projects_ProjectId",
+                table: "ProjectDocumentRequests",
+                column: "ProjectId",
+                principalTable: "Projects",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Cascade);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProjectDocuments_ProjectStages_StageId",
+                table: "ProjectDocuments",
+                column: "StageId",
+                principalTable: "ProjectStages",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.SetNull);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProjectDocuments_ProjectTots_TotId",
+                table: "ProjectDocuments",
+                column: "TotId",
+                principalTable: "ProjectTots",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.SetNull);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProjectDocuments_Projects_ProjectId",
+                table: "ProjectDocuments",
+                column: "ProjectId",
+                principalTable: "Projects",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Cascade);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProjectIpaFacts_Projects_ProjectId",
+                table: "ProjectIpaFacts",
+                column: "ProjectId",
+                principalTable: "Projects",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Cascade);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProjectMetaChangeRequests_Projects_ProjectId",
+                table: "ProjectMetaChangeRequests",
+                column: "ProjectId",
+                principalTable: "Projects",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Cascade);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProjectPhotos_ProjectTots_TotId",
+                table: "ProjectPhotos",
+                column: "TotId",
+                principalTable: "ProjectTots",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.SetNull);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProjectPhotos_Projects_ProjectId",
+                table: "ProjectPhotos",
+                column: "ProjectId",
+                principalTable: "Projects",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.Cascade);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropForeignKey(
+                name: "FK_Projects_AspNetUsers_HodUserId",
+                table: "Projects");
+
+            migrationBuilder.DropForeignKey(
+                name: "FK_Projects_AspNetUsers_LeadPoUserId",
+                table: "Projects");
+
+            migrationBuilder.DropForeignKey(
+                name: "FK_Projects_AspNetUsers_PlanApprovedByUserId",
+                table: "Projects");
+
+            migrationBuilder.DropForeignKey(
+                name: "FK_ProjectPhotos_Projects_ProjectId",
+                table: "ProjectPhotos");
+
+            migrationBuilder.DropForeignKey(
+                name: "FK_ProjectTots_Projects_ProjectId",
+                table: "ProjectTots");
+
             migrationBuilder.DropTable(
                 name: "AspNetRoleClaims");
 
@@ -1574,6 +2369,9 @@ namespace ProjectManagement.Migrations
                 name: "Holidays");
 
             migrationBuilder.DropTable(
+                name: "Notifications");
+
+            migrationBuilder.DropTable(
                 name: "PlanApprovalLogs");
 
             migrationBuilder.DropTable(
@@ -1590,6 +2388,9 @@ namespace ProjectManagement.Migrations
 
             migrationBuilder.DropTable(
                 name: "ProjectCommercialFacts");
+
+            migrationBuilder.DropTable(
+                name: "ProjectDocumentRequests");
 
             migrationBuilder.DropTable(
                 name: "ProjectIpaFacts");
@@ -1616,10 +2417,19 @@ namespace ProjectManagement.Migrations
                 name: "ProjectSupplyOrderFacts");
 
             migrationBuilder.DropTable(
+                name: "RemarkAudits");
+
+            migrationBuilder.DropTable(
+                name: "RemarkMentions");
+
+            migrationBuilder.DropTable(
                 name: "StageChangeLogs");
 
             migrationBuilder.DropTable(
                 name: "StageChangeRequests");
+
+            migrationBuilder.DropTable(
+                name: "StageChecklistAudits");
 
             migrationBuilder.DropTable(
                 name: "StageDependencyTemplates");
@@ -1637,16 +2447,34 @@ namespace ProjectManagement.Migrations
                 name: "TodoItems");
 
             migrationBuilder.DropTable(
+                name: "UserNotificationPreferences");
+
+            migrationBuilder.DropTable(
+                name: "UserProjectMutes");
+
+            migrationBuilder.DropTable(
                 name: "WorkflowStatuses");
 
             migrationBuilder.DropTable(
                 name: "AspNetRoles");
 
             migrationBuilder.DropTable(
+                name: "NotificationDispatches");
+
+            migrationBuilder.DropTable(
                 name: "ProjectComments");
 
             migrationBuilder.DropTable(
+                name: "ProjectDocuments");
+
+            migrationBuilder.DropTable(
                 name: "ProjectPlanSnapshots");
+
+            migrationBuilder.DropTable(
+                name: "Remarks");
+
+            migrationBuilder.DropTable(
+                name: "StageChecklistItemTemplates");
 
             migrationBuilder.DropTable(
                 name: "PlanVersions");
@@ -1661,10 +2489,13 @@ namespace ProjectManagement.Migrations
                 name: "ProjectStages");
 
             migrationBuilder.DropTable(
-                name: "Projects");
+                name: "StageChecklistTemplates");
 
             migrationBuilder.DropTable(
                 name: "AspNetUsers");
+
+            migrationBuilder.DropTable(
+                name: "Projects");
 
             migrationBuilder.DropTable(
                 name: "LineDirectorates");
@@ -1673,7 +2504,13 @@ namespace ProjectManagement.Migrations
                 name: "ProjectCategories");
 
             migrationBuilder.DropTable(
+                name: "ProjectPhotos");
+
+            migrationBuilder.DropTable(
                 name: "SponsoringUnits");
+
+            migrationBuilder.DropTable(
+                name: "ProjectTots");
         }
     }
 }
