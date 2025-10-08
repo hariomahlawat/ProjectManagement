@@ -247,7 +247,7 @@ namespace ProjectManagement.Pages.Projects
             CancelProjectInput.CancelledOn = project.CancelledOn ?? todayLocalDate;
             CancelProjectInput.Reason = project.CancelReason;
 
-            LifecycleActions = BuildLifecycleActions(project, isAdmin, isHoD, isThisProjectsPo);
+            LifecycleActions = BuildLifecycleActions(project, isAdmin, isHoD, isThisProjectsHod);
 
             if (project.CategoryId.HasValue)
             {
@@ -373,7 +373,7 @@ namespace ProjectManagement.Pages.Projects
                 return NotFound();
             }
 
-            if (!CanManageLifecycle(userId, projectInfo.LeadPoUserId, projectInfo.HodUserId))
+            if (!CanManageLifecycle(userId, projectInfo.HodUserId))
             {
                 return Forbid();
             }
@@ -434,7 +434,7 @@ namespace ProjectManagement.Pages.Projects
                 return NotFound();
             }
 
-            if (!CanManageLifecycle(userId, projectInfo.LeadPoUserId, projectInfo.HodUserId))
+            if (!CanManageLifecycle(userId, projectInfo.HodUserId))
             {
                 return Forbid();
             }
@@ -493,7 +493,7 @@ namespace ProjectManagement.Pages.Projects
                 return NotFound();
             }
 
-            if (!CanManageLifecycle(userId, projectInfo.LeadPoUserId, projectInfo.HodUserId))
+            if (!CanManageLifecycle(userId, projectInfo.HodUserId))
             {
                 return Forbid();
             }
@@ -705,9 +705,9 @@ namespace ProjectManagement.Pages.Projects
             };
         }
 
-        private ProjectLifecycleActionsViewModel BuildLifecycleActions(Project project, bool isAdmin, bool isHoD, bool isAssignedProjectOfficer)
+        private ProjectLifecycleActionsViewModel BuildLifecycleActions(Project project, bool isAdmin, bool isHoD, bool isAssignedHoD)
         {
-            var canManage = isAdmin || isHoD || isAssignedProjectOfficer;
+            var canManage = isAdmin || isHoD || isAssignedHoD;
 
             var canMarkCompleted = canManage &&
                 (project.LifecycleStatus == ProjectLifecycleStatus.Active ||
@@ -733,7 +733,7 @@ namespace ProjectManagement.Pages.Projects
             };
         }
 
-        private bool CanManageLifecycle(string? userId, string? projectOfficerId, string? projectHodId)
+        private bool CanManageLifecycle(string? userId, string? projectHodId)
         {
             if (string.IsNullOrEmpty(userId))
             {
@@ -746,11 +746,6 @@ namespace ProjectManagement.Pages.Projects
             }
 
             if (!string.IsNullOrEmpty(projectHodId) && string.Equals(projectHodId, userId, StringComparison.Ordinal))
-            {
-                return true;
-            }
-
-            if (User.IsInRole("Project Officer") && string.Equals(projectOfficerId, userId, StringComparison.Ordinal))
             {
                 return true;
             }

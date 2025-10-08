@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
@@ -74,6 +75,104 @@ public sealed class ProjectOverviewLifecycleTests
         Assert.Equal(RemarkType.Internal, overview.RemarkSummary.LastRemarkType);
         Assert.Equal(ProjectTotStatus.Completed, overview.TotSummary.Status);
         Assert.Contains("Transfer of Technology completed", overview.TotSummary.Summary, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Overview_WhenProjectOfficerAssigned_ShowsReadOnlyLifecycleActions()
+    {
+        await using var db = CreateContext();
+        await SeedLifecycleProjectAsync(db, projectId: 3, hodUserId: "hod-3", poUserId: "po-3");
+
+        var clock = new FixedClock(DateTimeOffset.UtcNow);
+        var overview = CreateOverviewPage(db, clock);
+        var user = CreateUser("po-3", "Project Officer");
+        ConfigurePageContext(overview, user);
+
+        var result = await overview.OnGetAsync(3, CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.False(overview.LifecycleActions.CanMarkCompleted);
+        Assert.False(overview.LifecycleActions.CanEndorseCompletedDate);
+        Assert.False(overview.LifecycleActions.CanCancel);
+        Assert.False(overview.LifecycleActions.HasActions);
+    }
+
+    [Fact]
+    public async Task CompleteLifecycle_AllowsAdminUsers()
+    {
+        await using var db = CreateContext();
+        await SeedLifecycleProjectAsync(db, projectId: 4, hodUserId: "hod-4", poUserId: "po-4");
+
+        var clock = new FixedClock(new DateTimeOffset(2024, 5, 1, 0, 0, 0, TimeSpan.Zero));
+        var overview = CreateOverviewPage(db, clock);
+        overview.CompleteProjectInput = new ProjectsOverviewModel.CompleteLifecycleInput
+        {
+            ProjectId = 4,
+            CompletedYear = 2024
+        };
+
+        var user = CreateUser("admin-4", "Admin");
+        ConfigurePageContext(overview, user);
+
+        var result = await overview.OnPostCompleteAsync(4, CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        var project = await db.Projects.FindAsync(4);
+        Assert.NotNull(project);
+        Assert.Equal(ProjectLifecycleStatus.Completed, project!.LifecycleStatus);
+        Assert.Equal(2024, project.CompletedYear);
+    }
+
+    [Fact]
+    public async Task CancelLifecycle_AllowsAssignedHoD()
+    {
+        await using var db = CreateContext();
+        await SeedLifecycleProjectAsync(db, projectId: 5, hodUserId: "hod-5", poUserId: "po-5");
+
+        var clock = new FixedClock(new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero));
+        var overview = CreateOverviewPage(db, clock);
+        overview.CancelProjectInput = new ProjectsOverviewModel.CancelLifecycleInput
+        {
+            ProjectId = 5,
+            CancelledOn = new DateOnly(2024, 5, 15),
+            Reason = "Scope reduced"
+        };
+
+        var user = CreateUser("hod-5");
+        ConfigurePageContext(overview, user);
+
+        var result = await overview.OnPostCancelAsync(5, CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        var project = await db.Projects.FindAsync(5);
+        Assert.NotNull(project);
+        Assert.Equal(ProjectLifecycleStatus.Cancelled, project!.LifecycleStatus);
+        Assert.Equal(new DateOnly(2024, 5, 15), project.CancelledOn);
+        Assert.Equal("Scope reduced", project.CancelReason);
+    }
+
+    [Fact]
+    public async Task CompleteLifecycle_ForbidsProjectOfficer()
+    {
+        await using var db = CreateContext();
+        await SeedLifecycleProjectAsync(db, projectId: 6, hodUserId: "hod-6", poUserId: "po-6");
+
+        var clock = new FixedClock(new DateTimeOffset(2024, 5, 1, 0, 0, 0, TimeSpan.Zero));
+        var overview = CreateOverviewPage(db, clock);
+        overview.CompleteProjectInput = new ProjectsOverviewModel.CompleteLifecycleInput
+        {
+            ProjectId = 6
+        };
+
+        var user = CreateUser("po-6", "Project Officer");
+        ConfigurePageContext(overview, user);
+
+        var result = await overview.OnPostCompleteAsync(6, CancellationToken.None);
+
+        Assert.IsType<ForbidResult>(result);
+        var project = await db.Projects.FindAsync(6);
+        Assert.NotNull(project);
+        Assert.Equal(ProjectLifecycleStatus.Active, project!.LifecycleStatus);
     }
 
     private static async Task SeedProjectAsync(ApplicationDbContext db, int projectId)
@@ -175,6 +274,23 @@ public sealed class ProjectOverviewLifecycleTests
         await db.SaveChangesAsync();
     }
 
+    private static async Task SeedLifecycleProjectAsync(ApplicationDbContext db, int projectId, string? hodUserId, string? poUserId)
+    {
+        db.Projects.Add(new Project
+        {
+            Id = projectId,
+            Name = $"Lifecycle Project {projectId}",
+            CreatedByUserId = "creator",
+            CreatedAt = new DateTime(2024, 1, 1),
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            HodUserId = hodUserId,
+            LeadPoUserId = poUserId,
+            RowVersion = new byte[] { 3 }
+        });
+
+        await db.SaveChangesAsync();
+    }
+
     private static ProjectsOverviewModel CreateOverviewPage(ApplicationDbContext db, IClock clock)
     {
         var procure = new ProjectProcurementReadService(db);
@@ -233,6 +349,18 @@ public sealed class ProjectOverviewLifecycleTests
         };
         page.TempData = new TempDataDictionary(httpContext, tempDataProvider);
         page.Url = new SimpleUrlHelper(page.PageContext);
+    }
+
+    private static ClaimsPrincipal CreateUser(string userId, params string[] roles)
+    {
+        var identity = new ClaimsIdentity("Test");
+        identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, userId));
+        foreach (var role in roles)
+        {
+            identity.AddClaim(new Claim(ClaimTypes.Role, role));
+        }
+
+        return new ClaimsPrincipal(identity);
     }
 
     private sealed class InMemoryTempDataProvider : ITempDataProvider
