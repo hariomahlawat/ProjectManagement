@@ -67,6 +67,7 @@ The app exposes several API groups in addition to Razor Pages:
   - `/calendar/events/holidays` surfaces admin-managed `Holiday` rows, returning ISO dates plus UTC spans for the UI while clamping queries to 400 days and requiring authentication.【F:Program.cs†L492-L534】
 - **Notifications (`/api/notifications`)** – List, count unread, mark read/unread, and mute per project. Responses respect project visibility via `ProjectAccessGuard` and normalise routes for consistent client-side navigation.【F:Program.cs†L500-L615】【F:Services/Notifications/UserNotificationService.cs†L23-L220】
 - **Process templates (`/api/processes/...`)** – Fetch and maintain stage templates and checklist items with row-version checks to prevent conflicting edits. Policies `Checklist.View` and `Checklist.Edit` gate read/write access.【F:Program.cs†L617-L760】
+- **Document viewer (`/Projects/Documents/View`)** – Streams published PDFs once project access (or a preview token) is validated, applies private caching with ETags, and rejects archived or draft records so moderators can safely share review links.【F:Program.cs†L1376-L1456】【F:Services/Documents/DocumentPreviewTokenService.cs†L10-L124】
 
 ## Storage and uploads
 
