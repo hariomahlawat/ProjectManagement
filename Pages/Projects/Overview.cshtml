@@ -183,10 +183,10 @@
     }
     else
     {
-    <div class="row g-3 mb-4">
-        <div class="col-lg-8 d-flex flex-column gap-3">
-            <partial name="_ProjectOverviewCard" model="Model" />
-            <partial name="_ProjectProcurementAtAGlance" model="Model.Procurement" />
+        <div class="row g-3 mb-4">
+            <div class="col-lg-8 d-flex flex-column gap-3">
+                <partial name="_ProjectOverviewCard" model="Model" />
+                <partial name="_ProjectProcurementAtAGlance" model="Model.Procurement" />
 
             <div class="card pm-card">
                 <div class="card-header pm-card-header">
@@ -488,7 +488,8 @@
                     }
                 </div>
             </div>
-        <div class="col-lg-4 d-flex flex-column gap-3">
+            </div>
+            <div class="col-lg-4 d-flex flex-column gap-3">
             <partial name="_ProjectTotPanel" model="Model" />
             @if (Model.IsDocumentApprover && Model.DocumentPendingRequests.Any())
             {

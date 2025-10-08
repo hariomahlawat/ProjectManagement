@@ -17,6 +17,8 @@ public sealed class ProjectMetaChangeRequestVm
 
     public DateTimeOffset RequestedOnUtc { get; init; }
 
+    public DateTimeOffset RequestedOn => RequestedOnUtc;
+
     public string? RequestNote { get; init; }
 
     public string OriginalName { get; init; } = string.Empty;
@@ -42,4 +44,6 @@ public sealed class ProjectMetaChangeRequestVm
     public bool HasDrift { get; init; }
 
     public IReadOnlyList<ProjectMetaChangeDriftVm> Drift { get; init; } = Array.Empty<ProjectMetaChangeDriftVm>();
+
+    public string Summary { get; init; } = string.Empty;
 }

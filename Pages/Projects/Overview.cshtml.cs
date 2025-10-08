@@ -1071,24 +1071,26 @@ namespace ProjectManagement.Pages.Projects
             }
 
             var previewUrl = Url.Page("/Projects/Documents/Preview", new { documentId = document.Id });
+            var totId = document.TotId;
 
-        return new ProjectDocumentRowViewModel(
-            stageCode,
-            stageDisplay,
-            document.Id,
-            requestId,
-            title,
-            document.OriginalFileName,
-            FormatFileSize(document.FileSize),
-            metadata,
-            statusLabel,
-            statusVariant,
-            isPending,
-            document.Status == ProjectDocumentStatus.SoftDeleted,
-            previewUrl,
-            secondarySummary,
-            pendingType,
-            document.TotId.HasValue);
+            return new ProjectDocumentRowViewModel(
+                stageCode,
+                stageDisplay,
+                document.Id,
+                requestId,
+                title,
+                document.OriginalFileName,
+                FormatFileSize(document.FileSize),
+                metadata,
+                statusLabel,
+                statusVariant,
+                isPending,
+                document.Status == ProjectDocumentStatus.SoftDeleted,
+                previewUrl,
+                secondarySummary,
+                pendingType,
+                totId,
+                totId.HasValue);
         }
 
         private ProjectDocumentRowViewModel BuildPendingRow(ProjectDocumentRequest request, TimeZoneInfo tz)
@@ -1111,24 +1113,26 @@ namespace ProjectManagement.Pages.Projects
                 DescribeRequestType(request.RequestType));
 
             var fileName = request.OriginalFileName ?? request.Document?.OriginalFileName;
+            var totId = request.TotId ?? request.Document?.TotId;
 
-        return new ProjectDocumentRowViewModel(
-            stageCode,
-            stageDisplay,
-            request.DocumentId,
-            request.Id,
-            title,
-            fileName,
-            FormatFileSize(request.FileSize ?? request.Document?.FileSize),
-            metadata,
-            "Pending",
-            "warning",
-            true,
-            false,
-            previewUrl,
-            secondarySummary,
-            request.RequestType,
-            request.TotId.HasValue);
+            return new ProjectDocumentRowViewModel(
+                stageCode,
+                stageDisplay,
+                request.DocumentId,
+                request.Id,
+                title,
+                fileName,
+                FormatFileSize(request.FileSize ?? request.Document?.FileSize),
+                metadata,
+                "Pending",
+                "warning",
+                true,
+                false,
+                previewUrl,
+                secondarySummary,
+                request.RequestType,
+                totId,
+                totId.HasValue);
         }
 
         private ProjectDocumentPendingRequestViewModel BuildPendingRequestSummary(int projectId, ProjectDocumentRequest request, TimeZoneInfo tz)
@@ -1453,6 +1457,67 @@ namespace ProjectManagement.Pages.Projects
                 }
             }
 
+            var nameField = new ProjectMetaChangeFieldVm(
+                project.Name,
+                proposedNameDisplay,
+                !string.Equals(project.Name, proposedNameRaw, StringComparison.Ordinal));
+            var descriptionField = new ProjectMetaChangeFieldVm(
+                Format(project.Description),
+                proposedDescriptionDisplay,
+                !string.Equals(project.Description ?? string.Empty, proposedDescription ?? string.Empty, StringComparison.Ordinal));
+            var caseFileField = new ProjectMetaChangeFieldVm(
+                Format(project.CaseFileNumber),
+                proposedCaseFileDisplay,
+                !string.Equals(project.CaseFileNumber ?? string.Empty, proposedCaseFileNumber ?? string.Empty, StringComparison.Ordinal));
+            var categoryField = new ProjectMetaChangeFieldVm(
+                currentCategoryDisplay,
+                proposedCategoryDisplay,
+                project.CategoryId != proposedCategoryId);
+            var unitField = new ProjectMetaChangeFieldVm(
+                currentUnitDisplay,
+                proposedUnitDisplay,
+                project.SponsoringUnitId != proposedUnitId);
+            var lineDirectorateField = new ProjectMetaChangeFieldVm(
+                currentLineDirectorateDisplay,
+                proposedLineDisplay,
+                project.SponsoringLineDirectorateId != proposedLineDirectorateId);
+
+            var summaryFields = new List<string>();
+
+            void AddSummary(ProjectMetaChangeFieldVm field, string label)
+            {
+                if (field.HasChanged)
+                {
+                    summaryFields.Add(label);
+                }
+            }
+
+            AddSummary(nameField, "name");
+            AddSummary(descriptionField, "description");
+            AddSummary(caseFileField, "case file number");
+            AddSummary(categoryField, "category");
+            AddSummary(unitField, "sponsoring unit");
+            AddSummary(lineDirectorateField, "sponsoring line directorate");
+
+            string summary;
+            if (summaryFields.Count == 0)
+            {
+                summary = "Requested metadata review.";
+            }
+            else if (summaryFields.Count == 1)
+            {
+                summary = string.Format(CultureInfo.InvariantCulture, "Requested update to {0}.", summaryFields[0]);
+            }
+            else if (summaryFields.Count == 2)
+            {
+                summary = string.Format(CultureInfo.InvariantCulture, "Requested updates to {0} and {1}.", summaryFields[0], summaryFields[1]);
+            }
+            else
+            {
+                var leading = string.Join(", ", summaryFields.Take(summaryFields.Count - 1));
+                summary = string.Format(CultureInfo.InvariantCulture, "Requested updates to {0}, and {1}.", leading, summaryFields[^1]);
+            }
+
             return new ProjectMetaChangeRequestVm
             {
                 RequestId = request.Id,
@@ -1464,14 +1529,15 @@ namespace ProjectManagement.Pages.Projects
                 OriginalDescription = originalDescriptionDisplay,
                 OriginalCaseFileNumber = originalCaseFileDisplay,
                 OriginalCategory = originalCategoryDisplay,
-                Name = new ProjectMetaChangeFieldVm(project.Name, proposedNameDisplay, !string.Equals(project.Name, proposedNameRaw, StringComparison.Ordinal)),
-                Description = new ProjectMetaChangeFieldVm(Format(project.Description), proposedDescriptionDisplay, !string.Equals(project.Description ?? string.Empty, proposedDescription ?? string.Empty, StringComparison.Ordinal)),
-                CaseFileNumber = new ProjectMetaChangeFieldVm(Format(project.CaseFileNumber), proposedCaseFileDisplay, !string.Equals(project.CaseFileNumber ?? string.Empty, proposedCaseFileNumber ?? string.Empty, StringComparison.Ordinal)),
-                Category = new ProjectMetaChangeFieldVm(currentCategoryDisplay, proposedCategoryDisplay, project.CategoryId != proposedCategoryId),
-                SponsoringUnit = new ProjectMetaChangeFieldVm(currentUnitDisplay, proposedUnitDisplay, project.SponsoringUnitId != proposedUnitId),
-                SponsoringLineDirectorate = new ProjectMetaChangeFieldVm(currentLineDirectorateDisplay, proposedLineDisplay, project.SponsoringLineDirectorateId != proposedLineDirectorateId),
+                Name = nameField,
+                Description = descriptionField,
+                CaseFileNumber = caseFileField,
+                Category = categoryField,
+                SponsoringUnit = unitField,
+                SponsoringLineDirectorate = lineDirectorateField,
                 HasDrift = drift.Count > 0,
-                Drift = drift
+                Drift = drift,
+                Summary = summary
             };
         }
 
