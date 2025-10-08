@@ -1594,6 +1594,81 @@ using (var scope = app.Services.CreateScope())
             ADD CONSTRAINT "CK_ProjectStages_CompletedHasDate"
             CHECK ("Status" <> 'Completed' OR ("CompletedOn" IS NOT NULL AND "ActualStart" IS NOT NULL) OR "RequiresBackfill" IS TRUE);
         """);
+
+        var databaseProvider = db.Database.ProviderName;
+        if (string.Equals(databaseProvider, "Npgsql.EntityFrameworkCore.PostgreSQL", StringComparison.Ordinal))
+        {
+            await db.Database.ExecuteSqlRawAsync("""
+                ALTER TABLE "ProjectDocuments"
+                ADD COLUMN IF NOT EXISTS "TotId" integer;
+            """);
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE INDEX IF NOT EXISTS "IX_ProjectDocuments_ProjectId_TotId"
+                ON "ProjectDocuments" ("ProjectId", "TotId");
+            """);
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE INDEX IF NOT EXISTS "IX_ProjectDocuments_TotId"
+                ON "ProjectDocuments" ("TotId");
+            """);
+            await db.Database.ExecuteSqlRawAsync("""
+                ALTER TABLE "ProjectDocumentRequests"
+                ADD COLUMN IF NOT EXISTS "TotId" integer;
+            """);
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE INDEX IF NOT EXISTS "IX_ProjectDocumentRequests_ProjectId_TotId"
+                ON "ProjectDocumentRequests" ("ProjectId", "TotId");
+            """);
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE INDEX IF NOT EXISTS "IX_ProjectDocumentRequests_TotId"
+                ON "ProjectDocumentRequests" ("TotId");
+            """);
+            await db.Database.ExecuteSqlRawAsync("""
+                ALTER TABLE "ProjectPhotos"
+                ADD COLUMN IF NOT EXISTS "TotId" integer;
+            """);
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE INDEX IF NOT EXISTS "IX_ProjectPhotos_ProjectId_TotId"
+                ON "ProjectPhotos" ("ProjectId", "TotId");
+            """);
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE INDEX IF NOT EXISTS "IX_ProjectPhotos_TotId"
+                ON "ProjectPhotos" ("TotId");
+            """);
+            await db.Database.ExecuteSqlRawAsync("""
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1
+                        FROM information_schema.tables
+                        WHERE table_schema = current_schema()
+                          AND table_name = 'ProjectTots'
+                    ) THEN
+                        IF NOT EXISTS (
+                            SELECT 1 FROM pg_constraint WHERE conname = 'FK_ProjectDocuments_ProjectTots_TotId'
+                        ) THEN
+                            ALTER TABLE "ProjectDocuments"
+                            ADD CONSTRAINT "FK_ProjectDocuments_ProjectTots_TotId"
+                            FOREIGN KEY ("TotId") REFERENCES "ProjectTots" ("Id") ON DELETE SET NULL;
+                        END IF;
+                        IF NOT EXISTS (
+                            SELECT 1 FROM pg_constraint WHERE conname = 'FK_ProjectDocumentRequests_ProjectTots_TotId'
+                        ) THEN
+                            ALTER TABLE "ProjectDocumentRequests"
+                            ADD CONSTRAINT "FK_ProjectDocumentRequests_ProjectTots_TotId"
+                            FOREIGN KEY ("TotId") REFERENCES "ProjectTots" ("Id") ON DELETE SET NULL;
+                        END IF;
+                        IF NOT EXISTS (
+                            SELECT 1 FROM pg_constraint WHERE conname = 'FK_ProjectPhotos_ProjectTots_TotId'
+                        ) THEN
+                            ALTER TABLE "ProjectPhotos"
+                            ADD CONSTRAINT "FK_ProjectPhotos_ProjectTots_TotId"
+                            FOREIGN KEY ("TotId") REFERENCES "ProjectTots" ("Id") ON DELETE SET NULL;
+                        END IF;
+                    END IF;
+                END;
+                $$ LANGUAGE plpgsql;
+            """);
+        }
         var migrations = await db.Database.GetAppliedMigrationsAsync();
         if (!migrations.Contains("20250909153316_UseXminForTodoItem"))
         {
