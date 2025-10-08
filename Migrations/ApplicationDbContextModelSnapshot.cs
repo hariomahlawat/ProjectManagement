@@ -1629,6 +1629,9 @@ namespace ProjectManagement.Migrations
                     b.Property<int?>("StageId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("TotId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
