@@ -1,6 +1,8 @@
 (function () {
   const isOngoing = document.getElementById('IsOngoing');
   const ongoingFields = document.getElementById('OngoingFields');
+  const isLegacy = document.getElementById('IsLegacy');
+  const legacyFields = document.getElementById('LegacyFields');
   const categorySelect = document.querySelector('[name="Input.CategoryId"]');
   const subCategorySelect = document.getElementById('SubCategoryId');
 
@@ -11,6 +13,23 @@
 
     const active = Boolean(isOngoing && isOngoing.checked);
     ongoingFields.classList.toggle('visually-hidden', !active);
+  }
+
+  function toggleLegacy() {
+    if (!legacyFields) {
+      return;
+    }
+
+    const active = Boolean(isLegacy && isLegacy.checked);
+    legacyFields.classList.toggle('visually-hidden', !active);
+
+    if (isOngoing) {
+      if (active) {
+        isOngoing.checked = false;
+      }
+      isOngoing.disabled = active;
+      toggleOngoing();
+    }
   }
 
   async function loadSubCategories(categoryId, selectedValue) {
@@ -58,6 +77,9 @@
 
   isOngoing?.addEventListener('change', toggleOngoing);
   toggleOngoing();
+
+  isLegacy?.addEventListener('change', toggleLegacy);
+  toggleLegacy();
 
   const preselectedSub = subCategorySelect?.dataset.selected || '';
   if (categorySelect && categorySelect.value) {
