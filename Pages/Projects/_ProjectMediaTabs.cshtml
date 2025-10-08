@@ -52,7 +52,7 @@
                     <select id="media-tot-filter"
                             name="MediaTotId"
                             class="form-select form-select-sm"
-                            onchange="this.form.submit()">
+                            data-auto-submit>
                         @foreach (var filter in totFilters)
                         {
                             var optionValue = filter.Value?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
