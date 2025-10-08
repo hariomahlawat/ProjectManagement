@@ -70,10 +70,7 @@ public sealed record ProjectDocumentRowViewModel(
     string? PreviewUrl,
     string? SecondarySummary,
     ProjectDocumentRequestType? PendingRequestType,
-    int? TotId)
-{
-    public bool HasTotBadge => TotId.HasValue;
-}
+    bool IsTotLinked);
 
 public sealed record ProjectDocumentFilterOptionViewModel(string? Value, string Label, bool Selected);
 

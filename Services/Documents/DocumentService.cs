@@ -164,6 +164,7 @@ public sealed class DocumentService : IDocumentService
     public async Task<ProjectDocument> PublishNewAsync(
         int projectId,
         int? stageId,
+        int? totId,
         string nomenclature,
         string tempStorageKey,
         string originalFileName,
@@ -194,8 +195,22 @@ public sealed class DocumentService : IDocumentService
         }
 
         var project = await _db.Projects
+            .Include(p => p.Tot)
             .SingleOrDefaultAsync(p => p.Id == projectId, cancellationToken)
             ?? throw new InvalidOperationException($"Project {projectId} was not found.");
+
+        if (totId.HasValue)
+        {
+            if (project.Tot is null || project.Tot.Id != totId.Value)
+            {
+                throw new InvalidOperationException("Selected Transfer of Technology record was not found for this project.");
+            }
+
+            if (project.Tot.Status == ProjectTotStatus.NotRequired)
+            {
+                throw new InvalidOperationException("Transfer of Technology is not required for this project.");
+            }
+        }
 
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
@@ -204,6 +219,7 @@ public sealed class DocumentService : IDocumentService
         {
             ProjectId = projectId,
             StageId = stageId,
+            TotId = totId,
             Title = nomenclature?.Trim() ?? string.Empty,
             StorageKey = string.Empty,
             OriginalFileName = sanitizedName,

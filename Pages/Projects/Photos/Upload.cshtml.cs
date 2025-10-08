@@ -40,6 +40,17 @@ public class UploadModel : PageModel
 
     public Project Project { get; private set; } = null!;
 
+    public bool AllowTotLinking => Project?.Tot is { Status: not ProjectTotStatus.NotRequired };
+
+    public string TotStatusDisplay => Project?.Tot?.Status switch
+    {
+        ProjectTotStatus.NotRequired => "Not required",
+        ProjectTotStatus.NotStarted => "Not started",
+        ProjectTotStatus.InProgress => "In progress",
+        ProjectTotStatus.Completed => "Completed",
+        _ => "Unknown"
+    };
+
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
         var userId = _userContext.UserId;
@@ -48,7 +59,9 @@ public class UploadModel : PageModel
             return Forbid();
         }
 
-        var project = await _db.Projects.SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+        var project = await _db.Projects
+            .Include(p => p.Tot)
+            .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (project is null)
         {
             return NotFound();
@@ -62,6 +75,7 @@ public class UploadModel : PageModel
         Project = project;
         Input.ProjectId = project.Id;
         Input.RowVersion = Convert.ToBase64String(project.RowVersion);
+        Input.LinkToTot = false;
 
         return Page();
     }
@@ -96,7 +110,9 @@ public class UploadModel : PageModel
             return Forbid();
         }
 
-        var project = await _db.Projects.SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+        var project = await _db.Projects
+            .Include(p => p.Tot)
+            .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (project is null)
         {
             return NotFound();
@@ -109,6 +125,17 @@ public class UploadModel : PageModel
 
         Project = project;
         Input.RowVersion = Convert.ToBase64String(project.RowVersion);
+
+        var tot = project.Tot;
+        var canLinkTot = tot is not null && tot.Status != ProjectTotStatus.NotRequired;
+        if (Input.LinkToTot && !canLinkTot)
+        {
+            ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology is not required for this project.");
+        }
+        else if (Input.LinkToTot && tot is null)
+        {
+            ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology details have not been set up for this project yet.");
+        }
 
         if (rowVersionBytes is not null && !project.RowVersion.SequenceEqual(rowVersionBytes))
         {
@@ -133,6 +160,7 @@ public class UploadModel : PageModel
                     Input.SetAsCover,
                     Input.Caption,
                     crop.Value,
+                    Input.LinkToTot ? project.Tot!.Id : (int?)null,
                     cancellationToken);
             }
             else
@@ -144,6 +172,7 @@ public class UploadModel : PageModel
                     userId,
                     Input.SetAsCover,
                     Input.Caption,
+                    Input.LinkToTot ? project.Tot!.Id : (int?)null,
                     cancellationToken);
             }
 
@@ -227,6 +256,8 @@ public class UploadModel : PageModel
         public string? Caption { get; set; }
 
         public bool SetAsCover { get; set; }
+
+        public bool LinkToTot { get; set; }
 
         public int? CropX { get; set; }
 

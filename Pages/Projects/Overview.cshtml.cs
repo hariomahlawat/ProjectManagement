@@ -1072,23 +1072,23 @@ namespace ProjectManagement.Pages.Projects
 
             var previewUrl = Url.Page("/Projects/Documents/Preview", new { documentId = document.Id });
 
-            return new ProjectDocumentRowViewModel(
-                stageCode,
-                stageDisplay,
-                document.Id,
-                requestId,
-                title,
-                document.OriginalFileName,
-                FormatFileSize(document.FileSize),
-                metadata,
-                statusLabel,
-                statusVariant,
-                isPending,
-                document.Status == ProjectDocumentStatus.SoftDeleted,
-                previewUrl,
-                secondarySummary,
-                pendingType,
-                document.TotId);
+        return new ProjectDocumentRowViewModel(
+            stageCode,
+            stageDisplay,
+            document.Id,
+            requestId,
+            title,
+            document.OriginalFileName,
+            FormatFileSize(document.FileSize),
+            metadata,
+            statusLabel,
+            statusVariant,
+            isPending,
+            document.Status == ProjectDocumentStatus.SoftDeleted,
+            previewUrl,
+            secondarySummary,
+            pendingType,
+            document.TotId.HasValue);
         }
 
         private ProjectDocumentRowViewModel BuildPendingRow(ProjectDocumentRequest request, TimeZoneInfo tz)
@@ -1112,23 +1112,23 @@ namespace ProjectManagement.Pages.Projects
 
             var fileName = request.OriginalFileName ?? request.Document?.OriginalFileName;
 
-            return new ProjectDocumentRowViewModel(
-                stageCode,
-                stageDisplay,
-                request.DocumentId,
-                request.Id,
-                title,
-                fileName,
-                FormatFileSize(request.FileSize ?? request.Document?.FileSize),
-                metadata,
-                "Pending",
-                "warning",
-                true,
-                false,
-                previewUrl,
-                secondarySummary,
-                request.RequestType,
-                request.Document?.TotId);
+        return new ProjectDocumentRowViewModel(
+            stageCode,
+            stageDisplay,
+            request.DocumentId,
+            request.Id,
+            title,
+            fileName,
+            FormatFileSize(request.FileSize ?? request.Document?.FileSize),
+            metadata,
+            "Pending",
+            "warning",
+            true,
+            false,
+            previewUrl,
+            secondarySummary,
+            request.RequestType,
+            request.TotId.HasValue);
         }
 
         private ProjectDocumentPendingRequestViewModel BuildPendingRequestSummary(int projectId, ProjectDocumentRequest request, TimeZoneInfo tz)

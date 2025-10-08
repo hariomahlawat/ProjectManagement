@@ -80,6 +80,12 @@ namespace ProjectManagement.Migrations
                 type: "integer",
                 nullable: true);
 
+            migrationBuilder.AddColumn<int>(
+                name: "TotId",
+                table: "ProjectDocumentRequests",
+                type: "integer",
+                nullable: true);
+
             migrationBuilder.AlterColumn<bool>(
                 name: "ShowCelebrationsInCalendar",
                 table: "AspNetUsers",
@@ -157,6 +163,11 @@ namespace ProjectManagement.Migrations
                 column: "TotId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_ProjectDocumentRequests_ProjectId_TotId",
+                table: "ProjectDocumentRequests",
+                columns: new[] { "ProjectId", "TotId" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_ProjectTots_ProjectId",
                 table: "ProjectTots",
                 column: "ProjectId",
@@ -165,6 +176,14 @@ namespace ProjectManagement.Migrations
             migrationBuilder.AddForeignKey(
                 name: "FK_ProjectDocuments_ProjectTots_TotId",
                 table: "ProjectDocuments",
+                column: "TotId",
+                principalTable: "ProjectTots",
+                principalColumn: "Id",
+                onDelete: ReferentialAction.SetNull);
+
+            migrationBuilder.AddForeignKey(
+                name: "FK_ProjectDocumentRequests_ProjectTots_TotId",
+                table: "ProjectDocumentRequests",
                 column: "TotId",
                 principalTable: "ProjectTots",
                 principalColumn: "Id",
@@ -185,6 +204,10 @@ namespace ProjectManagement.Migrations
             migrationBuilder.DropForeignKey(
                 name: "FK_ProjectDocuments_ProjectTots_TotId",
                 table: "ProjectDocuments");
+
+            migrationBuilder.DropForeignKey(
+                name: "FK_ProjectDocumentRequests_ProjectTots_TotId",
+                table: "ProjectDocumentRequests");
 
             migrationBuilder.DropForeignKey(
                 name: "FK_ProjectPhotos_ProjectTots_TotId",
@@ -225,6 +248,10 @@ namespace ProjectManagement.Migrations
                 name: "IX_ProjectDocuments_TotId",
                 table: "ProjectDocuments");
 
+            migrationBuilder.DropIndex(
+                name: "IX_ProjectDocumentRequests_ProjectId_TotId",
+                table: "ProjectDocumentRequests");
+
             migrationBuilder.DropColumn(
                 name: "Scope",
                 table: "Remarks");
@@ -264,6 +291,10 @@ namespace ProjectManagement.Migrations
             migrationBuilder.DropColumn(
                 name: "TotId",
                 table: "ProjectDocuments");
+
+            migrationBuilder.DropColumn(
+                name: "TotId",
+                table: "ProjectDocumentRequests");
 
             migrationBuilder.AlterColumn<bool>(
                 name: "ShowCelebrationsInCalendar",

@@ -37,6 +37,10 @@ namespace ProjectManagement.Models
 
         public ProjectDocument? Document { get; set; }
 
+        public int? TotId { get; set; }
+
+        public ProjectTot? Tot { get; set; }
+
         [Required]
         [MaxLength(200)]
         public string Title { get; set; } = string.Empty;
