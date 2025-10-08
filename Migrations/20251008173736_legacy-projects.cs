@@ -41,18 +41,45 @@ namespace ProjectManagement.Migrations
                 oldType: "boolean",
                 oldDefaultValue: true);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_ProjectDocumentRequests_TotId",
-                table: "ProjectDocumentRequests",
-                column: "TotId");
+            migrationBuilder.Sql(
+                """
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1
+                        FROM information_schema.columns
+                        WHERE table_schema = 'public'
+                          AND table_name = 'ProjectDocumentRequests'
+                          AND column_name = 'TotId'
+                    ) THEN
+                        CREATE INDEX IF NOT EXISTS "IX_ProjectDocumentRequests_TotId"
+                            ON "ProjectDocumentRequests" ("TotId");
+                    END IF;
+                END
+                $$;
+                """
+            );
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_ProjectDocumentRequests_TotId",
-                table: "ProjectDocumentRequests");
+            migrationBuilder.Sql(
+                """
+                DO $$
+                BEGIN
+                    IF EXISTS (
+                        SELECT 1
+                        FROM pg_indexes
+                        WHERE schemaname = 'public'
+                          AND indexname = 'IX_ProjectDocumentRequests_TotId'
+                    ) THEN
+                        DROP INDEX "IX_ProjectDocumentRequests_TotId";
+                    END IF;
+                END
+                $$;
+                """
+            );
 
             migrationBuilder.AlterColumn<string>(
                 name: "Status",
