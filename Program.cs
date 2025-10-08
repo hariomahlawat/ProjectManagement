@@ -195,6 +195,7 @@ builder.Services.AddScoped<ProjectLifecycleService>();
 builder.Services.AddScoped<ProjectTotService>();
 builder.Services.AddScoped<ProjectCommentService>();
 builder.Services.AddScoped<ProjectRemarksPanelService>();
+builder.Services.AddScoped<ProjectMediaAggregator>();
 builder.Services.AddScoped<IRemarkService, RemarkService>();
 builder.Services.AddScoped<INotificationPreferenceService, NotificationPreferenceService>();
 builder.Services.AddScoped<IRemarkNotificationService, RemarkNotificationService>();

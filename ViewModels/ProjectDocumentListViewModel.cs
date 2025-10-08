@@ -69,7 +69,11 @@ public sealed record ProjectDocumentRowViewModel(
     bool IsRemoved,
     string? PreviewUrl,
     string? SecondarySummary,
-    ProjectDocumentRequestType? PendingRequestType);
+    ProjectDocumentRequestType? PendingRequestType,
+    int? TotId)
+{
+    public bool HasTotBadge => TotId.HasValue;
+}
 
 public sealed record ProjectDocumentFilterOptionViewModel(string? Value, string Label, bool Selected);
 
