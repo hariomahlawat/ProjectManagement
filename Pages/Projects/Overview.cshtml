@@ -100,6 +100,11 @@
         </div>
     }
 
+    @if (Model.LifecycleActions.HasActions)
+    {
+        <partial name="_ProjectLifecycleActions" model="Model" />
+    }
+
     @if (!Model.LifecycleSummary.ShowPostCompletionView)
     {
         <div class="alert alert-warning d-flex align-items-center justify-content-between@(Model.HasBackfill ? string.Empty : " d-none")"

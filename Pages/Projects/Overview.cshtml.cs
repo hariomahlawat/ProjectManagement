@@ -38,10 +38,11 @@ namespace ProjectManagement.Pages.Projects
         private readonly ILogger<OverviewModel> _logger;
         private readonly IClock _clock;
         private readonly ProjectRemarksPanelService _remarksPanelService;
+        private readonly ProjectLifecycleService _lifecycleService;
 
         public PlanCompareService PlanCompare { get; }
 
-        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock, ProjectRemarksPanelService remarksPanelService)
+        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock, ProjectRemarksPanelService remarksPanelService, ProjectLifecycleService lifecycleService)
         {
             _db = db;
             _procureRead = procureRead;
@@ -52,6 +53,7 @@ namespace ProjectManagement.Pages.Projects
             _logger = logger;
             _clock = clock;
             _remarksPanelService = remarksPanelService;
+            _lifecycleService = lifecycleService;
         }
 
         public Project Project { get; private set; } = default!;
@@ -75,6 +77,7 @@ namespace ProjectManagement.Pages.Projects
 
         public ProjectRolesViewModel Roles { get; private set; } = ProjectRolesViewModel.Empty;
         public ProjectLifecycleSummaryViewModel LifecycleSummary { get; private set; } = ProjectLifecycleSummaryViewModel.Empty;
+        public ProjectLifecycleActionsViewModel LifecycleActions { get; private set; } = ProjectLifecycleActionsViewModel.Empty;
         public ProjectMediaSummaryViewModel MediaSummary { get; private set; } = ProjectMediaSummaryViewModel.Empty;
         public ProjectDocumentSummaryViewModel DocumentSummary { get; private set; } = ProjectDocumentSummaryViewModel.Empty;
         public ProjectRemarkSummaryViewModel RemarkSummary { get; private set; } = ProjectRemarkSummaryViewModel.Empty;
@@ -96,6 +99,38 @@ namespace ProjectManagement.Pages.Projects
         public bool IsDocumentApprover { get; private set; }
 
         public int DocumentPendingRequestCount { get; private set; }
+
+        [BindProperty]
+        public CompleteLifecycleInput CompleteProjectInput { get; set; } = new();
+
+        [BindProperty]
+        public EndorseLifecycleInput EndorseCompletionInput { get; set; } = new();
+
+        [BindProperty]
+        public CancelLifecycleInput CancelProjectInput { get; set; } = new();
+
+        public sealed class CompleteLifecycleInput
+        {
+            public int ProjectId { get; set; }
+
+            public int? CompletedYear { get; set; }
+        }
+
+        public sealed class EndorseLifecycleInput
+        {
+            public int ProjectId { get; set; }
+
+            public DateOnly? CompletedOn { get; set; }
+        }
+
+        public sealed class CancelLifecycleInput
+        {
+            public int ProjectId { get; set; }
+
+            public DateOnly? CancelledOn { get; set; }
+
+            public string? Reason { get; set; }
+        }
 
         public async Task<IActionResult> OnGetAsync(int id, CancellationToken ct)
         {
@@ -172,6 +207,23 @@ namespace ProjectManagement.Pages.Projects
                 IsAssignedHoD = isThisProjectsHod
             };
 
+            var todayLocalDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst()));
+
+            CompleteProjectInput ??= new CompleteLifecycleInput();
+            CompleteProjectInput.ProjectId = project.Id;
+            CompleteProjectInput.CompletedYear = project.CompletedYear;
+
+            EndorseCompletionInput ??= new EndorseLifecycleInput();
+            EndorseCompletionInput.ProjectId = project.Id;
+            EndorseCompletionInput.CompletedOn = project.CompletedOn;
+
+            CancelProjectInput ??= new CancelLifecycleInput();
+            CancelProjectInput.ProjectId = project.Id;
+            CancelProjectInput.CancelledOn = project.CancelledOn ?? todayLocalDate;
+            CancelProjectInput.Reason = project.CancelReason;
+
+            LifecycleActions = BuildLifecycleActions(project, isAdmin, isHoD, isThisProjectsPo);
+
             if (project.CategoryId.HasValue)
             {
                 CategoryPath = await BuildCategoryPathAsync(project.CategoryId.Value, ct);
@@ -240,7 +292,183 @@ namespace ProjectManagement.Pages.Projects
             return Page();
         }
 
-        
+
+        public async Task<IActionResult> OnPostCompleteAsync(int id, CancellationToken ct)
+        {
+            if (CompleteProjectInput is null || CompleteProjectInput.ProjectId != id)
+            {
+                return BadRequest();
+            }
+
+            var userId = _users.GetUserId(User);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Forbid();
+            }
+
+            var projectInfo = await _db.Projects
+                .AsNoTracking()
+                .Select(p => new
+                {
+                    p.Id,
+                    p.LifecycleStatus,
+                    p.CompletedOn,
+                    p.LeadPoUserId,
+                    p.HodUserId
+                })
+                .FirstOrDefaultAsync(p => p.Id == id, ct);
+
+            if (projectInfo is null)
+            {
+                return NotFound();
+            }
+
+            if (!CanManageLifecycle(userId, projectInfo.LeadPoUserId, projectInfo.HodUserId))
+            {
+                return Forbid();
+            }
+
+            var result = await _lifecycleService.MarkCompletedAsync(id, userId, CompleteProjectInput.CompletedYear, ct);
+
+            if (result.Status == ProjectLifecycleOperationStatus.NotFound)
+            {
+                return NotFound();
+            }
+
+            if (result.IsSuccess)
+            {
+                var message = projectInfo.LifecycleStatus == ProjectLifecycleStatus.Active
+                    ? "Project marked as completed."
+                    : "Completion details updated.";
+                TempData["Flash"] = message;
+            }
+            else
+            {
+                TempData["Error"] = result.ErrorMessage ?? "Unable to update project completion.";
+            }
+
+            return RedirectToPage(new { id });
+        }
+
+        public async Task<IActionResult> OnPostEndorseAsync(int id, CancellationToken ct)
+        {
+            if (EndorseCompletionInput is null || EndorseCompletionInput.ProjectId != id)
+            {
+                return BadRequest();
+            }
+
+            if (EndorseCompletionInput.CompletedOn is null)
+            {
+                TempData["Error"] = "Completion date is required to endorse the project.";
+                return RedirectToPage(new { id });
+            }
+
+            var userId = _users.GetUserId(User);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Forbid();
+            }
+
+            var projectInfo = await _db.Projects
+                .AsNoTracking()
+                .Select(p => new
+                {
+                    p.Id,
+                    p.LeadPoUserId,
+                    p.HodUserId
+                })
+                .FirstOrDefaultAsync(p => p.Id == id, ct);
+
+            if (projectInfo is null)
+            {
+                return NotFound();
+            }
+
+            if (!CanManageLifecycle(userId, projectInfo.LeadPoUserId, projectInfo.HodUserId))
+            {
+                return Forbid();
+            }
+
+            var result = await _lifecycleService.EndorseCompletionAsync(id, userId, EndorseCompletionInput.CompletedOn.Value, ct);
+
+            if (result.Status == ProjectLifecycleOperationStatus.NotFound)
+            {
+                return NotFound();
+            }
+
+            if (result.IsSuccess)
+            {
+                TempData["Flash"] = "Completion date endorsed.";
+            }
+            else
+            {
+                TempData["Error"] = result.ErrorMessage ?? "Unable to endorse completion date.";
+            }
+
+            return RedirectToPage(new { id });
+        }
+
+        public async Task<IActionResult> OnPostCancelAsync(int id, CancellationToken ct)
+        {
+            if (CancelProjectInput is null || CancelProjectInput.ProjectId != id)
+            {
+                return BadRequest();
+            }
+
+            if (CancelProjectInput.CancelledOn is null)
+            {
+                TempData["Error"] = "Cancellation date is required.";
+                return RedirectToPage(new { id });
+            }
+
+            var userId = _users.GetUserId(User);
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Forbid();
+            }
+
+            var projectInfo = await _db.Projects
+                .AsNoTracking()
+                .Select(p => new
+                {
+                    p.Id,
+                    p.LifecycleStatus,
+                    p.LeadPoUserId,
+                    p.HodUserId
+                })
+                .FirstOrDefaultAsync(p => p.Id == id, ct);
+
+            if (projectInfo is null)
+            {
+                return NotFound();
+            }
+
+            if (!CanManageLifecycle(userId, projectInfo.LeadPoUserId, projectInfo.HodUserId))
+            {
+                return Forbid();
+            }
+
+            var reason = CancelProjectInput.Reason ?? string.Empty;
+            var result = await _lifecycleService.CancelProjectAsync(id, userId, CancelProjectInput.CancelledOn.Value, reason, ct);
+
+            if (result.Status == ProjectLifecycleOperationStatus.NotFound)
+            {
+                return NotFound();
+            }
+
+            if (result.IsSuccess)
+            {
+                TempData["Flash"] = "Project cancelled.";
+            }
+            else
+            {
+                TempData["Error"] = result.ErrorMessage ?? "Unable to cancel project.";
+            }
+
+            return RedirectToPage(new { id });
+        }
+
+
 
         private async Task LoadDocumentOverviewAsync(Project project, bool isAdmin, bool isHoD, CancellationToken ct)
         {
@@ -397,6 +625,59 @@ namespace ProjectManagement.Pages.Projects
                 DocumentCount = DocumentSummary.PublishedCount,
                 PendingDocumentCount = DocumentSummary.PendingCount
             };
+        }
+
+        private ProjectLifecycleActionsViewModel BuildLifecycleActions(Project project, bool isAdmin, bool isHoD, bool isAssignedProjectOfficer)
+        {
+            var canManage = isAdmin || isHoD || isAssignedProjectOfficer;
+
+            var canMarkCompleted = canManage &&
+                (project.LifecycleStatus == ProjectLifecycleStatus.Active ||
+                 (project.LifecycleStatus == ProjectLifecycleStatus.Completed && project.CompletedOn is null));
+
+            var canEndorse = canManage &&
+                project.LifecycleStatus == ProjectLifecycleStatus.Completed &&
+                project.CompletedYear.HasValue &&
+                project.CompletedOn is null;
+
+            var canCancel = canManage && project.LifecycleStatus == ProjectLifecycleStatus.Active;
+
+            return new ProjectLifecycleActionsViewModel
+            {
+                Status = project.LifecycleStatus,
+                CanMarkCompleted = canMarkCompleted,
+                CanEndorseCompletedDate = canEndorse,
+                CanCancel = canCancel,
+                CompletedYear = project.CompletedYear,
+                CompletedOn = project.CompletedOn,
+                CancelledOn = project.CancelledOn,
+                CancelReason = project.CancelReason
+            };
+        }
+
+        private bool CanManageLifecycle(string? userId, string? projectOfficerId, string? projectHodId)
+        {
+            if (string.IsNullOrEmpty(userId))
+            {
+                return false;
+            }
+
+            if (User.IsInRole("Admin") || User.IsInRole("HoD"))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrEmpty(projectHodId) && string.Equals(projectHodId, userId, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (User.IsInRole("Project Officer") && string.Equals(projectOfficerId, userId, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            return false;
         }
 
         private ProjectLifecycleSummaryViewModel BuildLifecycleSummary(Project project)
