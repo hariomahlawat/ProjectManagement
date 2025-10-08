@@ -310,6 +310,12 @@
                                                         @item.Title
                                                     }
                                                 </div>
+                                                @if (item.IsTotLinked)
+                                                {
+                                                    <div class="mt-1">
+                                                        <span class="badge text-bg-info">Transfer of Technology</span>
+                                                    </div>
+                                                }
                                                 <div class="text-muted small mt-1">
                                                     <span>@item.FileSizeDisplay</span>
                                                     @if (!string.IsNullOrWhiteSpace(item.MetadataSummary))

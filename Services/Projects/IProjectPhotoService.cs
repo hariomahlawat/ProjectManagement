@@ -15,6 +15,7 @@ namespace ProjectManagement.Services.Projects
                                     string userId,
                                     bool setAsCover,
                                     string? caption,
+                                    int? totId,
                                     CancellationToken cancellationToken);
 
         Task<ProjectPhoto> AddAsync(int projectId,
@@ -25,6 +26,7 @@ namespace ProjectManagement.Services.Projects
                                     bool setAsCover,
                                     string? caption,
                                     ProjectPhotoCrop crop,
+                                    int? totId,
                                     CancellationToken cancellationToken);
 
         Task<ProjectPhoto?> ReplaceAsync(int projectId,
@@ -47,6 +49,8 @@ namespace ProjectManagement.Services.Projects
         Task<ProjectPhoto?> UpdateCaptionAsync(int projectId, int photoId, string? caption, string userId, CancellationToken cancellationToken);
 
         Task<ProjectPhoto?> UpdateCropAsync(int projectId, int photoId, ProjectPhotoCrop crop, string userId, CancellationToken cancellationToken);
+
+        Task<ProjectPhoto?> UpdateTotAsync(int projectId, int photoId, int? totId, string userId, CancellationToken cancellationToken);
 
         Task<bool> RemoveAsync(int projectId, int photoId, string userId, CancellationToken cancellationToken);
 

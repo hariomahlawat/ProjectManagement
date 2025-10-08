@@ -53,6 +53,26 @@
         <span asp-validation-for="Input.Caption" class="text-danger"></span>
     </div>
 
+    @if (Model.Project.Tot is not null)
+    {
+        <div class="mb-3">
+            <label class="form-label">Transfer of Technology</label>
+            @if (Model.AllowTotLinking)
+            {
+                <div class="form-check">
+                    <input asp-for="Input.LinkToTot" class="form-check-input" />
+                    <label asp-for="Input.LinkToTot" class="form-check-label">Link this photo to Transfer of Technology work</label>
+                </div>
+                <div class="form-text">Current status: @Model.TotStatusDisplay.</div>
+                <span asp-validation-for="Input.LinkToTot" class="text-danger"></span>
+            }
+            else
+            {
+                <p class="form-text mb-0">Transfer of Technology is @Model.TotStatusDisplay for this project.</p>
+            }
+        </div>
+    }
+
     <div class="form-check mb-3">
         <input asp-for="Input.SetAsCover"
                class="form-check-input"

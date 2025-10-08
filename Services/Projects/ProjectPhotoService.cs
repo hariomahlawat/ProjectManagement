@@ -63,10 +63,11 @@ namespace ProjectManagement.Services.Projects
                                                  string userId,
                                                  bool setAsCover,
                                                  string? caption,
+                                                 int? totId,
                                                  CancellationToken cancellationToken)
         {
             _ = contentType;
-            return await AddInternalAsync(projectId, content, originalFileName, userId, setAsCover, caption, null, cancellationToken);
+            return await AddInternalAsync(projectId, content, originalFileName, userId, setAsCover, caption, null, totId, cancellationToken);
         }
 
         public async Task<ProjectPhoto> AddAsync(int projectId,
@@ -77,10 +78,11 @@ namespace ProjectManagement.Services.Projects
                                                  bool setAsCover,
                                                  string? caption,
                                                  ProjectPhotoCrop crop,
+                                                 int? totId,
                                                  CancellationToken cancellationToken)
         {
             _ = contentType;
-            return await AddInternalAsync(projectId, content, originalFileName, userId, setAsCover, caption, crop, cancellationToken);
+            return await AddInternalAsync(projectId, content, originalFileName, userId, setAsCover, caption, crop, totId, cancellationToken);
         }
 
         public async Task<ProjectPhoto?> ReplaceAsync(int projectId,
@@ -139,6 +141,57 @@ namespace ProjectManagement.Services.Projects
         public async Task<ProjectPhoto?> UpdateCropAsync(int projectId, int photoId, ProjectPhotoCrop crop, string userId, CancellationToken cancellationToken)
         {
             return await ReplaceInternalAsync(projectId, photoId, null, null, userId, crop, cancellationToken, reuseOriginal: true);
+        }
+
+        public async Task<ProjectPhoto?> UpdateTotAsync(int projectId, int photoId, int? totId, string userId, CancellationToken cancellationToken)
+        {
+            var photo = await _db.ProjectPhotos
+                .Include(p => p.Project)
+                .ThenInclude(p => p.Tot)
+                .FirstOrDefaultAsync(p => p.Id == photoId && p.ProjectId == projectId, cancellationToken);
+
+            if (photo == null)
+            {
+                return null;
+            }
+
+            var project = photo.Project;
+            if (project == null)
+            {
+                project = await _db.Projects
+                    .Include(p => p.Tot)
+                    .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken)
+                    ?? throw new InvalidOperationException("Project not found.");
+            }
+
+            if (totId.HasValue)
+            {
+                if (project.Tot is null || project.Tot.Id != totId.Value)
+                {
+                    throw new InvalidOperationException("Selected Transfer of Technology record was not found for this project.");
+                }
+
+                if (project.Tot.Status == ProjectTotStatus.NotRequired)
+                {
+                    throw new InvalidOperationException("Transfer of Technology is not required for this project.");
+                }
+            }
+
+            if (photo.TotId == totId)
+            {
+                return photo;
+            }
+
+            photo.TotId = totId;
+            photo.Version += 1;
+            photo.UpdatedUtc = _clock.UtcNow.UtcDateTime;
+
+            await _db.SaveChangesAsync(cancellationToken);
+
+            var changeType = totId.HasValue ? "TotLinked" : "TotCleared";
+            await Audit.Events.ProjectPhotoUpdated(projectId, photo.Id, userId, changeType).WriteAsync(_audit);
+
+            return photo;
         }
 
         public async Task<bool> RemoveAsync(int projectId, int photoId, string userId, CancellationToken cancellationToken)
@@ -341,10 +394,26 @@ namespace ProjectManagement.Services.Projects
                                                           bool setAsCover,
                                                           string? caption,
                                                           ProjectPhotoCrop? crop,
+                                                          int? totId,
                                                           CancellationToken cancellationToken)
         {
-            var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken)
+            var project = await _db.Projects
+                .Include(p => p.Tot)
+                .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken)
                 ?? throw new InvalidOperationException("Project not found.");
+
+            if (totId.HasValue)
+            {
+                if (project.Tot is null || project.Tot.Id != totId.Value)
+                {
+                    throw new InvalidOperationException("Selected Transfer of Technology record was not found for this project.");
+                }
+
+                if (project.Tot.Status == ProjectTotStatus.NotRequired)
+                {
+                    throw new InvalidOperationException("Transfer of Technology is not required for this project.");
+                }
+            }
 
             await using var copy = await CopyToMemoryStreamAsync(content, cancellationToken);
 
@@ -372,6 +441,7 @@ namespace ProjectManagement.Services.Projects
                 Height = validation.CroppedHeight,
                 Ordinal = ordinal + 1,
                 Caption = captionValue,
+                TotId = totId,
                 IsCover = false,
                 CreatedUtc = now,
                 UpdatedUtc = now,

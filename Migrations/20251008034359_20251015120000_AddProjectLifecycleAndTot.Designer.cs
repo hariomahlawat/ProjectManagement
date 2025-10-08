@@ -1509,6 +1509,9 @@ namespace ProjectManagement.Migrations
                     b.Property<int?>("StageId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("TotId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -1650,6 +1653,8 @@ namespace ProjectManagement.Migrations
                         .HasFilter("\"DocumentId\" IS NOT NULL AND \"Status\" IN ('Draft', 'Submitted')");
 
                     b.HasIndex("ProjectId");
+
+                    b.HasIndex("ProjectId", "TotId");
 
                     b.HasIndex("RequestedByUserId");
 
@@ -3281,6 +3286,11 @@ namespace ProjectManagement.Migrations
                         .HasForeignKey("StageId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("ProjectManagement.Models.ProjectTot", "Tot")
+                        .WithMany()
+                        .HasForeignKey("TotId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Document");
 
                     b.Navigation("Project");
@@ -3290,6 +3300,8 @@ namespace ProjectManagement.Migrations
                     b.Navigation("ReviewedByUser");
 
                     b.Navigation("Stage");
+
+                    b.Navigation("Tot");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectIpaFact", b =>

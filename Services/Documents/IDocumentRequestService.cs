@@ -10,6 +10,7 @@ public interface IDocumentRequestService
         int projectId,
         int? stageId,
         string nomenclature,
+        int? totId,
         DocumentFileDescriptor file,
         string requestedByUserId,
         CancellationToken cancellationToken);

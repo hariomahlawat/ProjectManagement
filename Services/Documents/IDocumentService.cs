@@ -19,6 +19,7 @@ public interface IDocumentService
     Task<ProjectDocument> PublishNewAsync(
         int projectId,
         int? stageId,
+        int? totId,
         string nomenclature,
         string tempStorageKey,
         string originalFileName,

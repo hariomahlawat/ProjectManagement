@@ -69,7 +69,8 @@ public sealed record ProjectDocumentRowViewModel(
     bool IsRemoved,
     string? PreviewUrl,
     string? SecondarySummary,
-    ProjectDocumentRequestType? PendingRequestType);
+    ProjectDocumentRequestType? PendingRequestType,
+    bool IsTotLinked);
 
 public sealed record ProjectDocumentFilterOptionViewModel(string? Value, string Label, bool Selected);
 

@@ -60,6 +60,17 @@ public class UploadRequestModel : PageModel
 
     public IReadOnlyCollection<string> AllowedContentTypes => _options.AllowedMimeTypes.ToList();
 
+    public bool AllowTotLinking => Project?.Tot is { Status: not ProjectTotStatus.NotRequired };
+
+    public string TotStatusDisplay => Project?.Tot?.Status switch
+    {
+        ProjectTotStatus.NotRequired => "Not required",
+        ProjectTotStatus.NotStarted => "Not started",
+        ProjectTotStatus.InProgress => "In progress",
+        ProjectTotStatus.Completed => "Completed",
+        _ => "Unknown"
+    };
+
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
         var result = await EnsureProjectAccessAsync(id, cancellationToken);
@@ -70,6 +81,7 @@ public class UploadRequestModel : PageModel
 
         StageOptions = await BuildStageOptionsAsync(id, cancellationToken);
         Input.ProjectId = id;
+        Input.LinkToTot = false;
 
         return Page();
     }
@@ -110,6 +122,17 @@ public class UploadRequestModel : PageModel
 
         Input.Nomenclature = Input.Nomenclature?.Trim() ?? string.Empty;
 
+        var tot = Project?.Tot;
+        var canLinkTot = tot is not null && tot.Status != ProjectTotStatus.NotRequired;
+        if (Input.LinkToTot && !canLinkTot)
+        {
+            ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology is not required for this project.");
+        }
+        else if (Input.LinkToTot && tot is null)
+        {
+            ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology details have not been set up for this project yet.");
+        }
+
         if (!ModelState.IsValid)
         {
             return Page();
@@ -138,6 +161,7 @@ public class UploadRequestModel : PageModel
                 Input.ProjectId,
                 Input.StageId,
                 Input.Nomenclature,
+                Input.LinkToTot ? Project!.Tot!.Id : (int?)null,
                 tempFile,
                 userId,
                 cancellationToken);
@@ -174,7 +198,9 @@ public class UploadRequestModel : PageModel
             return Challenge();
         }
 
-        var project = await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken);
+        var project = await _db.Projects
+            .Include(p => p.Tot)
+            .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken);
         if (project is null)
         {
             return NotFound();
@@ -236,5 +262,7 @@ public class UploadRequestModel : PageModel
 
         [Required]
         public IFormFile? File { get; set; }
+
+        public bool LinkToTot { get; set; }
     }
 }
