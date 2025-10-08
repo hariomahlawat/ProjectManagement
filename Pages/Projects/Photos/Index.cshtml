@@ -70,6 +70,12 @@ else
                         {
                             <span class="text-muted">No caption</span>
                         }
+                        @if (photo.TotId.HasValue)
+                        {
+                            <div class="mt-1">
+                                <span class="badge text-bg-info">Transfer of Technology</span>
+                            </div>
+                        }
                     </td>
                     <td>@photo.Ordinal</td>
                     <td>

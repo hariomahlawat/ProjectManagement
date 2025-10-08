@@ -42,6 +42,17 @@ public class EditModel : PageModel
 
     public ProjectPhoto Photo { get; private set; } = null!;
 
+    public bool AllowTotLinking => Project?.Tot is { Status: not ProjectTotStatus.NotRequired };
+
+    public string TotStatusDisplay => Project?.Tot?.Status switch
+    {
+        ProjectTotStatus.NotRequired => "Not required",
+        ProjectTotStatus.NotStarted => "Not started",
+        ProjectTotStatus.InProgress => "In progress",
+        ProjectTotStatus.Completed => "Completed",
+        _ => "Unknown"
+    };
+
     public async Task<IActionResult> OnGetAsync(int id, int photoId, CancellationToken cancellationToken)
     {
         var userId = _userContext.UserId;
@@ -51,6 +62,7 @@ public class EditModel : PageModel
         }
 
         var project = await _db.Projects
+            .Include(p => p.Tot)
             .Include(p => p.Photos)
             .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
 
@@ -78,7 +90,8 @@ public class EditModel : PageModel
             PhotoId = photo.Id,
             RowVersion = Convert.ToBase64String(project.RowVersion),
             Caption = photo.Caption,
-            SetAsCover = photo.IsCover
+            SetAsCover = photo.IsCover,
+            LinkToTot = photo.TotId.HasValue
         };
 
         return Page();
@@ -110,6 +123,7 @@ public class EditModel : PageModel
         }
 
         var project = await _db.Projects
+            .Include(p => p.Tot)
             .Include(p => p.Photos)
             .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
 
@@ -137,6 +151,17 @@ public class EditModel : PageModel
         Project = project;
         Photo = photo;
         Input.RowVersion = Convert.ToBase64String(project.RowVersion);
+
+        var tot = project.Tot;
+        var canLinkTot = tot is not null && tot.Status != ProjectTotStatus.NotRequired;
+        if (Input.LinkToTot && !canLinkTot)
+        {
+            ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology is not required for this project.");
+        }
+        else if (Input.LinkToTot && tot is null)
+        {
+            ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology details have not been set up for this project yet.");
+        }
 
         if (!ModelState.IsValid)
         {
@@ -198,6 +223,17 @@ public class EditModel : PageModel
                 project.CoverPhotoVersion = photo.Version;
                 await _db.SaveChangesAsync(cancellationToken);
                 hasChanges = true;
+            }
+
+            var desiredTotId = Input.LinkToTot ? project.Tot?.Id : null;
+            if (photo.TotId != desiredTotId)
+            {
+                var updated = await _photoService.UpdateTotAsync(project.Id, photo.Id, desiredTotId, userId, cancellationToken);
+                if (updated is not null)
+                {
+                    photo = updated;
+                    hasChanges = true;
+                }
             }
         }
         catch (Exception ex)
@@ -279,6 +315,8 @@ public class EditModel : PageModel
         public string? Caption { get; set; }
 
         public bool SetAsCover { get; set; }
+
+        public bool LinkToTot { get; set; }
 
         public IFormFile? File { get; set; }
 

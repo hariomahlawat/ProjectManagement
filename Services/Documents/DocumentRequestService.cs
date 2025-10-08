@@ -26,6 +26,7 @@ public sealed class DocumentRequestService : IDocumentRequestService
         int projectId,
         int? stageId,
         string nomenclature,
+        int? totId,
         DocumentFileDescriptor file,
         string requestedByUserId,
         CancellationToken cancellationToken)
@@ -40,12 +41,30 @@ public sealed class DocumentRequestService : IDocumentRequestService
             throw new ArgumentException("Requested by user id is required.", nameof(requestedByUserId));
         }
 
+        ProjectTot? tot = null;
+        if (totId.HasValue)
+        {
+            tot = await _db.ProjectTots
+                .FirstOrDefaultAsync(t => t.Id == totId.Value && t.ProjectId == projectId, cancellationToken);
+
+            if (tot is null)
+            {
+                throw new InvalidOperationException("Selected Transfer of Technology record was not found for this project.");
+            }
+
+            if (tot.Status == ProjectTotStatus.NotRequired)
+            {
+                throw new InvalidOperationException("Transfer of Technology is not required for this project.");
+            }
+        }
+
         var request = new ProjectDocumentRequest
         {
             ProjectId = projectId,
             StageId = stageId,
             DocumentId = null,
             Title = nomenclature?.Trim() ?? string.Empty,
+            TotId = tot?.Id,
             RequestType = ProjectDocumentRequestType.Upload,
             Status = ProjectDocumentRequestStatus.Submitted,
             TempStorageKey = file.StorageKey,

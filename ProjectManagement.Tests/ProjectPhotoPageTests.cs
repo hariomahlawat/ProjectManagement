@@ -547,10 +547,10 @@ public sealed class ProjectPhotoPageTests
 
     private sealed class ThrowingPhotoService : IProjectPhotoService
     {
-        public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, CancellationToken cancellationToken)
+        public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, int? totId, CancellationToken cancellationToken)
             => throw new NotImplementedException();
 
-        public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, ProjectPhotoCrop crop, CancellationToken cancellationToken)
+        public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, ProjectPhotoCrop crop, int? totId, CancellationToken cancellationToken)
             => throw new NotImplementedException();
 
         public Task<ProjectPhoto?> ReplaceAsync(int projectId, int photoId, Stream content, string originalFileName, string? contentType, string userId, CancellationToken cancellationToken)
@@ -563,6 +563,9 @@ public sealed class ProjectPhotoPageTests
             => throw new NotImplementedException();
 
         public Task<ProjectPhoto?> UpdateCropAsync(int projectId, int photoId, ProjectPhotoCrop crop, string userId, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public Task<ProjectPhoto?> UpdateTotAsync(int projectId, int photoId, int? totId, string userId, CancellationToken cancellationToken)
             => throw new NotImplementedException();
 
         public Task<bool> RemoveAsync(int projectId, int photoId, string userId, CancellationToken cancellationToken)
@@ -590,10 +593,10 @@ public sealed class ProjectPhotoPageTests
 
         public bool? PreferWebpRequested { get; private set; }
 
-        public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, CancellationToken cancellationToken)
+        public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, int? totId, CancellationToken cancellationToken)
             => throw new NotImplementedException();
 
-        public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, ProjectPhotoCrop crop, CancellationToken cancellationToken)
+        public Task<ProjectPhoto> AddAsync(int projectId, Stream content, string originalFileName, string? contentType, string userId, bool setAsCover, string? caption, ProjectPhotoCrop crop, int? totId, CancellationToken cancellationToken)
             => throw new NotImplementedException();
 
         public Task<ProjectPhoto?> ReplaceAsync(int projectId, int photoId, Stream content, string originalFileName, string? contentType, string userId, CancellationToken cancellationToken)
@@ -606,6 +609,9 @@ public sealed class ProjectPhotoPageTests
             => throw new NotImplementedException();
 
         public Task<ProjectPhoto?> UpdateCropAsync(int projectId, int photoId, ProjectPhotoCrop crop, string userId, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public Task<ProjectPhoto?> UpdateTotAsync(int projectId, int photoId, int? totId, string userId, CancellationToken cancellationToken)
             => throw new NotImplementedException();
 
         public Task<bool> RemoveAsync(int projectId, int photoId, string userId, CancellationToken cancellationToken)

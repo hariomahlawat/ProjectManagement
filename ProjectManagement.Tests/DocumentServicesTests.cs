@@ -81,7 +81,7 @@ public sealed class DocumentServicesTests
             using var stream = CreatePdfStream(2048);
 
             var temp = await documentService.SaveTempAsync(1, stream, "spec.pdf", "application/pdf", CancellationToken.None);
-            var request = await requestService.CreateUploadRequestAsync(1, 10, "Spec", temp, "requestor", CancellationToken.None);
+            var request = await requestService.CreateUploadRequestAsync(1, 10, "Spec", null, temp, "requestor", CancellationToken.None);
 
             await decisionService.ApproveAsync(request.Id, "approver", "Looks good", CancellationToken.None);
 
@@ -106,6 +106,63 @@ public sealed class DocumentServicesTests
     }
 
     [Fact]
+    public async Task ApproveUpload_WithTot_AssignsTot()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 6, 60, ProjectTotStatus.InProgress);
+        var tot = await db.ProjectTots.SingleAsync(t => t.ProjectId == 6);
+
+        var options = CreateDocumentOptions();
+        var root = CreateTempRoot();
+        SetUploadRoot(root);
+        try
+        {
+            var (documentService, requestService, decisionService, _) = CreateServices(db, options);
+            using var stream = CreatePdfStream(2048);
+
+            var temp = await documentService.SaveTempAsync(1, stream, "tot.pdf", "application/pdf", CancellationToken.None);
+            var request = await requestService.CreateUploadRequestAsync(6, 60, "ToT Plan", tot.Id, temp, "requestor", CancellationToken.None);
+
+            await decisionService.ApproveAsync(request.Id, "approver", null, CancellationToken.None);
+
+            var document = await db.ProjectDocuments.SingleAsync();
+            Assert.Equal(tot.Id, document.TotId);
+        }
+        finally
+        {
+            ResetUploadRoot();
+            CleanupTempRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task CreateUploadRequestAsync_ThrowsWhenTotNotAllowed()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 7, 70, ProjectTotStatus.NotRequired);
+        var tot = await db.ProjectTots.SingleAsync(t => t.ProjectId == 7);
+
+        var options = CreateDocumentOptions();
+        var root = CreateTempRoot();
+        SetUploadRoot(root);
+        try
+        {
+            var (documentService, requestService, _, _) = CreateServices(db, options);
+            using var stream = CreatePdfStream(2048);
+
+            var temp = await documentService.SaveTempAsync(1, stream, "invalid.pdf", "application/pdf", CancellationToken.None);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                requestService.CreateUploadRequestAsync(7, 70, "Invalid", tot.Id, temp, "requestor", CancellationToken.None));
+        }
+        finally
+        {
+            ResetUploadRoot();
+            CleanupTempRoot(root);
+        }
+    }
+
+    [Fact]
     public async Task ApproveReplace_UpdatesFileStamp()
     {
         await using var db = CreateContext();
@@ -118,7 +175,7 @@ public sealed class DocumentServicesTests
             var (documentService, requestService, decisionService, _) = CreateServices(db, options);
             using var initial = CreatePdfStream(1024);
             var temp = await documentService.SaveTempAsync(1, initial, "init.pdf", "application/pdf", CancellationToken.None);
-            var uploadRequest = await requestService.CreateUploadRequestAsync(2, 20, "Manual", temp, "requestor", CancellationToken.None);
+            var uploadRequest = await requestService.CreateUploadRequestAsync(2, 20, "Manual", null, temp, "requestor", CancellationToken.None);
             await decisionService.ApproveAsync(uploadRequest.Id, "approver", null, CancellationToken.None);
 
             var document = await db.ProjectDocuments.SingleAsync();
@@ -160,7 +217,7 @@ public sealed class DocumentServicesTests
             var (documentService, requestService, decisionService, _) = CreateServices(db, options);
             using var stream = CreatePdfStream(1024);
             var temp = await documentService.SaveTempAsync(1, stream, "soft.pdf", "application/pdf", CancellationToken.None);
-            var request = await requestService.CreateUploadRequestAsync(3, 30, "Soft", temp, "requestor", CancellationToken.None);
+            var request = await requestService.CreateUploadRequestAsync(3, 30, "Soft", null, temp, "requestor", CancellationToken.None);
             await decisionService.ApproveAsync(request.Id, "approver", null, CancellationToken.None);
 
             var document = await db.ProjectDocuments.SingleAsync();
@@ -192,7 +249,7 @@ public sealed class DocumentServicesTests
             var (documentService, requestService, decisionService, _) = CreateServices(db, options);
             using var stream = CreatePdfStream(1024);
             var temp = await documentService.SaveTempAsync(1, stream, "hard.pdf", "application/pdf", CancellationToken.None);
-            var request = await requestService.CreateUploadRequestAsync(4, 40, "Hard", temp, "requestor", CancellationToken.None);
+            var request = await requestService.CreateUploadRequestAsync(4, 40, "Hard", null, temp, "requestor", CancellationToken.None);
             await decisionService.ApproveAsync(request.Id, "approver", null, CancellationToken.None);
 
             var document = await db.ProjectDocuments.SingleAsync();
@@ -224,7 +281,7 @@ public sealed class DocumentServicesTests
             var (documentService, requestService, decisionService, _) = CreateServices(db, options);
             using var stream = CreatePdfStream(1024);
             var temp = await documentService.SaveTempAsync(1, stream, "original.pdf", "application/pdf", CancellationToken.None);
-            var uploadRequest = await requestService.CreateUploadRequestAsync(5, 50, "Original", temp, "requestor", CancellationToken.None);
+            var uploadRequest = await requestService.CreateUploadRequestAsync(5, 50, "Original", null, temp, "requestor", CancellationToken.None);
             await decisionService.ApproveAsync(uploadRequest.Id, "approver", null, CancellationToken.None);
             var document = await db.ProjectDocuments.SingleAsync();
 
@@ -255,7 +312,7 @@ public sealed class DocumentServicesTests
         return new ApplicationDbContext(options);
     }
 
-    private static async Task SeedProjectAsync(ApplicationDbContext db, int projectId, int stageId)
+    private static async Task SeedProjectAsync(ApplicationDbContext db, int projectId, int stageId, ProjectTotStatus? totStatus = null)
     {
         db.Projects.Add(new Project
         {
@@ -272,6 +329,15 @@ public sealed class DocumentServicesTests
             StageCode = $"ST{stageId}",
             SortOrder = 1
         });
+
+        if (totStatus.HasValue)
+        {
+            db.ProjectTots.Add(new ProjectTot
+            {
+                ProjectId = projectId,
+                Status = totStatus.Value
+            });
+        }
 
         await db.SaveChangesAsync();
     }

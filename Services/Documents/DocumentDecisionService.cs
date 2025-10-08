@@ -131,6 +131,7 @@ public sealed class DocumentDecisionService : IDocumentDecisionService
         var document = await _documentService.PublishNewAsync(
             request.ProjectId,
             request.StageId,
+            request.TotId,
             request.Title,
             request.TempStorageKey,
             request.OriginalFileName,

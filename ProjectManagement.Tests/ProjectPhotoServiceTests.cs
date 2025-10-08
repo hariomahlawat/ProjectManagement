@@ -44,7 +44,7 @@ public sealed class ProjectPhotoServiceTests
             var service = CreateService(db, options);
 
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                service.AddAsync(1, oversized, "large.png", "image/png", "user-1", false, null, CancellationToken.None));
+                service.AddAsync(1, oversized, "large.png", "image/png", "user-1", false, null, null, CancellationToken.None));
         }
         finally
         {
@@ -74,7 +74,7 @@ public sealed class ProjectPhotoServiceTests
             var service = CreateService(db, options);
 
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                service.AddAsync(5, stream, "sample.bmp", "image/bmp", "auditor", false, null, CancellationToken.None));
+                service.AddAsync(5, stream, "sample.bmp", "image/bmp", "auditor", false, null, null, CancellationToken.None));
 
             Assert.Contains("not allowed", ex.Message, StringComparison.OrdinalIgnoreCase);
         }
@@ -104,7 +104,7 @@ public sealed class ProjectPhotoServiceTests
             var service = CreateService(db, options);
 
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                service.AddAsync(7, stream, "small.png", "image/png", "editor", false, null, CancellationToken.None));
+                service.AddAsync(7, stream, "small.png", "image/png", "editor", false, null, null, CancellationToken.None));
 
             Assert.Contains("at least", ex.Message, StringComparison.OrdinalIgnoreCase);
         }
@@ -131,7 +131,7 @@ public sealed class ProjectPhotoServiceTests
             var service = CreateService(db, options);
 
             var crop = new ProjectPhotoCrop(100, 150, 1200, 900);
-            var photo = await service.AddAsync(11, stream, "cover.png", "image/png", "owner", true, "Caption", crop, CancellationToken.None);
+            var photo = await service.AddAsync(11, stream, "cover.png", "image/png", "owner", true, "Caption", crop, null, CancellationToken.None);
 
             Assert.Equal(1200, photo.Width);
             Assert.Equal(900, photo.Height);
@@ -175,7 +175,7 @@ public sealed class ProjectPhotoServiceTests
             var service = CreateService(db, options);
 
             var crop = new ProjectPhotoCrop(0, 0, 867, 650);
-            var photo = await service.AddAsync(13, stream, "tolerant.png", "image/png", "user", false, null, crop, CancellationToken.None);
+            var photo = await service.AddAsync(13, stream, "tolerant.png", "image/png", "user", false, null, crop, null, CancellationToken.None);
 
             Assert.Equal(867, photo.Width);
             Assert.Equal(650, photo.Height);
@@ -203,7 +203,7 @@ public sealed class ProjectPhotoServiceTests
             var service = CreateService(db, options);
 
             var crop = new ProjectPhotoCrop(10, 15, 1066, 800);
-            var photo = await service.AddAsync(14, stream, "variance.png", "image/png", "user", false, null, crop, CancellationToken.None);
+            var photo = await service.AddAsync(14, stream, "variance.png", "image/png", "user", false, null, crop, null, CancellationToken.None);
 
             Assert.Equal(1066, photo.Width);
             Assert.Equal(800, photo.Height);
@@ -233,7 +233,7 @@ public sealed class ProjectPhotoServiceTests
             var crop = new ProjectPhotoCrop(0, 0, 1065, 800);
 
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
-                service.AddAsync(15, stream, "bad-variance.png", "image/png", "user", false, null, crop, CancellationToken.None));
+                service.AddAsync(15, stream, "bad-variance.png", "image/png", "user", false, null, crop, null, CancellationToken.None));
         }
         finally
         {
@@ -256,7 +256,7 @@ public sealed class ProjectPhotoServiceTests
             var service = CreateService(db, options);
 
             await using var initial = await CreateTransparentImageStreamAsync(1600, 1200);
-            var photo = await service.AddAsync(17, initial, "scene.png", "image/png", "creator", true, null, CancellationToken.None);
+            var photo = await service.AddAsync(17, initial, "scene.png", "image/png", "creator", true, null, null, CancellationToken.None);
 
             var project = await db.Projects.SingleAsync(p => p.Id == 17);
             Assert.Equal(photo.Version, project.CoverPhotoVersion);
@@ -301,10 +301,10 @@ public sealed class ProjectPhotoServiceTests
             var service = CreateService(db, options);
 
             await using var firstStream = await CreateImageStreamAsync(1600, 1200);
-            var first = await service.AddAsync(23, firstStream, "first.png", "image/png", "owner", true, null, CancellationToken.None);
+            var first = await service.AddAsync(23, firstStream, "first.png", "image/png", "owner", true, null, null, CancellationToken.None);
 
             await using var secondStream = await CreateImageStreamAsync(1600, 1200);
-            var second = await service.AddAsync(23, secondStream, "second.png", "image/png", "owner", true, null, CancellationToken.None);
+            var second = await service.AddAsync(23, secondStream, "second.png", "image/png", "owner", true, null, null, CancellationToken.None);
 
             var refreshedFirst = await db.ProjectPhotos.SingleAsync(p => p.Id == first.Id);
             var refreshedProject = await db.Projects.SingleAsync(p => p.Id == 23);
@@ -316,6 +316,58 @@ public sealed class ProjectPhotoServiceTests
             Assert.Equal(second.Id, refreshedProject.CoverPhotoId);
             Assert.Equal(second.Version, refreshedProject.CoverPhotoVersion);
             Assert.Equal(1, coverCount);
+        }
+        finally
+        {
+            ResetUploadRoot();
+            CleanupTempRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task AddAsync_WithTot_AssignsTot()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 45, ProjectTotStatus.InProgress);
+        var tot = await db.ProjectTots.SingleAsync(t => t.ProjectId == 45);
+
+        var root = CreateTempRoot();
+        SetUploadRoot(root);
+        try
+        {
+            var options = CreateOptions();
+            var service = CreateService(db, options);
+
+            await using var stream = await CreateImageStreamAsync(1600, 1200);
+            var photo = await service.AddAsync(45, stream, "tot.png", "image/png", "owner", false, null, tot.Id, CancellationToken.None);
+
+            Assert.Equal(tot.Id, photo.TotId);
+        }
+        finally
+        {
+            ResetUploadRoot();
+            CleanupTempRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task AddAsync_ThrowsWhenTotNotAllowed()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 46, ProjectTotStatus.NotRequired);
+        var tot = await db.ProjectTots.SingleAsync(t => t.ProjectId == 46);
+
+        var root = CreateTempRoot();
+        SetUploadRoot(root);
+        try
+        {
+            var options = CreateOptions();
+            var service = CreateService(db, options);
+
+            await using var stream = await CreateImageStreamAsync(1600, 1200);
+
+            await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                service.AddAsync(46, stream, "invalid.png", "image/png", "owner", false, null, tot.Id, CancellationToken.None));
         }
         finally
         {
@@ -341,7 +393,7 @@ public sealed class ProjectPhotoServiceTests
             await using var stream = await CreateImageStreamAsync(1600, 1200);
             var service = CreateService(db, options);
 
-            var photo = await service.AddAsync(31, stream, "fresh.png", "image/png", "user", true, null, CancellationToken.None);
+            var photo = await service.AddAsync(31, stream, "fresh.png", "image/png", "user", true, null, null, CancellationToken.None);
 
             var derivative = await service.OpenDerivativeAsync(31, photo.Id, "xl", preferWebp: true, CancellationToken.None);
 
@@ -371,7 +423,7 @@ public sealed class ProjectPhotoServiceTests
             var options = CreateOptions();
             var service = CreateService(db, options);
 
-            var photo = await service.AddAsync(29, stream, "metadata.jpg", "image/jpeg", "owner", false, null, CancellationToken.None);
+            var photo = await service.AddAsync(29, stream, "metadata.jpg", "image/jpeg", "owner", false, null, null, CancellationToken.None);
 
             foreach (var key in options.Derivatives.Keys)
             {
@@ -394,6 +446,42 @@ public sealed class ProjectPhotoServiceTests
     }
 
     [Fact]
+    public async Task UpdateTotAsync_UpdatesAssociation()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 48, ProjectTotStatus.InProgress);
+        var tot = await db.ProjectTots.SingleAsync(t => t.ProjectId == 48);
+
+        var root = CreateTempRoot();
+        SetUploadRoot(root);
+        try
+        {
+            var options = CreateOptions();
+            var service = CreateService(db, options);
+
+            await using var stream = await CreateImageStreamAsync(1600, 1200);
+            var photo = await service.AddAsync(48, stream, "initial.png", "image/png", "owner", false, null, null, CancellationToken.None);
+
+            Assert.Null(photo.TotId);
+
+            var linked = await service.UpdateTotAsync(48, photo.Id, tot.Id, "owner", CancellationToken.None);
+            Assert.NotNull(linked);
+            Assert.Equal(tot.Id, linked!.TotId);
+            Assert.Equal(photo.Version + 1, linked.Version);
+
+            var cleared = await service.UpdateTotAsync(48, photo.Id, null, "owner", CancellationToken.None);
+            Assert.NotNull(cleared);
+            Assert.Null(cleared!.TotId);
+            Assert.Equal(linked.Version + 1, cleared.Version);
+        }
+        finally
+        {
+            ResetUploadRoot();
+            CleanupTempRoot(root);
+        }
+    }
+
+    [Fact]
     public async Task RemoveAsync_DeletesDerivativesAndClearsCover()
     {
         await using var db = CreateContext();
@@ -407,7 +495,7 @@ public sealed class ProjectPhotoServiceTests
             var service = CreateService(db, options);
 
             await using var stream = await CreateImageStreamAsync(1600, 1200);
-            var photo = await service.AddAsync(31, stream, "delete.png", "image/png", "owner", true, null, CancellationToken.None);
+            var photo = await service.AddAsync(31, stream, "delete.png", "image/png", "owner", true, null, null, CancellationToken.None);
 
             var paths = options.Derivatives.Keys
                 .SelectMany(key => new[]
@@ -451,10 +539,10 @@ public sealed class ProjectPhotoServiceTests
             var service = CreateService(db, options);
 
             await using var firstStream = await CreateImageStreamAsync(1600, 1200);
-            var cover = await service.AddAsync(41, firstStream, "cover.png", "image/png", "owner", true, null, CancellationToken.None);
+            var cover = await service.AddAsync(41, firstStream, "cover.png", "image/png", "owner", true, null, null, CancellationToken.None);
 
             await using var secondStream = await CreateImageStreamAsync(1600, 1200);
-            var second = await service.AddAsync(41, secondStream, "second.png", "image/png", "owner", false, "Second", CancellationToken.None);
+            var second = await service.AddAsync(41, secondStream, "second.png", "image/png", "owner", false, "Second", null, CancellationToken.None);
 
             var removed = await service.RemoveAsync(41, cover.Id, "owner", CancellationToken.None);
             Assert.True(removed);
@@ -482,7 +570,7 @@ public sealed class ProjectPhotoServiceTests
         return new ApplicationDbContext(options);
     }
 
-    private static async Task SeedProjectAsync(ApplicationDbContext db, int projectId)
+    private static async Task SeedProjectAsync(ApplicationDbContext db, int projectId, ProjectTotStatus? totStatus = null)
     {
         db.Projects.Add(new Project
         {
@@ -491,6 +579,15 @@ public sealed class ProjectPhotoServiceTests
             CreatedByUserId = "creator",
             RowVersion = new byte[] { 1 }
         });
+
+        if (totStatus.HasValue)
+        {
+            db.ProjectTots.Add(new ProjectTot
+            {
+                ProjectId = projectId,
+                Status = totStatus.Value
+            });
+        }
         await db.SaveChangesAsync();
     }
 

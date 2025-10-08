@@ -344,6 +344,7 @@ namespace ProjectManagement.Data
                 e.Property(x => x.ProjectId).IsRequired();
                 e.Property(x => x.StageId).IsRequired(false);
                 e.Property(x => x.DocumentId).IsRequired(false);
+                e.Property(x => x.TotId).IsRequired(false);
                 e.Property(x => x.Title).HasMaxLength(200).IsRequired();
                 e.Property(x => x.Description).HasMaxLength(2000);
                 e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).HasDefaultValue(ProjectDocumentRequestStatus.Draft).IsRequired();
@@ -358,6 +359,7 @@ namespace ProjectManagement.Data
                 e.Property(x => x.ReviewerNote).HasMaxLength(2000);
                 e.HasIndex(x => new { x.ProjectId, x.Status });
                 e.HasIndex(x => x.ProjectId);
+                e.HasIndex(x => new { x.ProjectId, x.TotId });
                 e.HasOne(x => x.Project)
                     .WithMany()
                     .HasForeignKey(x => x.ProjectId)
@@ -369,6 +371,10 @@ namespace ProjectManagement.Data
                 e.HasOne(x => x.Document)
                     .WithOne(x => x.Request)
                     .HasForeignKey<ProjectDocumentRequest>(x => x.DocumentId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                e.HasOne(x => x.Tot)
+                    .WithMany()
+                    .HasForeignKey(x => x.TotId)
                     .OnDelete(DeleteBehavior.SetNull);
                 e.HasOne(x => x.RequestedByUser)
                     .WithMany()
