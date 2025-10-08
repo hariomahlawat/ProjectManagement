@@ -4,8 +4,10 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
@@ -600,6 +602,48 @@ namespace ProjectManagement.Data
                 {
                     tb.HasCheckConstraint(checkName, $"\"{amountColumn}\" >= 0");
                 });
+            }
+
+            if (!Database.IsNpgsql())
+            {
+                var dateOnlyConverter = new ValueConverter<DateOnly, DateTime>(
+                    static date => date.ToDateTime(TimeOnly.MinValue),
+                    static dateTime => DateOnly.FromDateTime(dateTime));
+
+                var nullableDateOnlyConverter = new ValueConverter<DateOnly?, DateTime?>(
+                    static date => date.HasValue ? date.Value.ToDateTime(TimeOnly.MinValue) : null,
+                    static dateTime => dateTime.HasValue ? DateOnly.FromDateTime(dateTime.Value) : null);
+
+                var dateOnlyComparer = new ValueComparer<DateOnly>(
+                    static (left, right) => left.DayNumber == right.DayNumber,
+                    static date => date.GetHashCode(),
+                    static date => DateOnly.FromDayNumber(date.DayNumber));
+
+                var nullableDateOnlyComparer = new ValueComparer<DateOnly?>(
+                    static (left, right) =>
+                        left.HasValue == right.HasValue &&
+                        (!left.HasValue || left.Value.DayNumber == right.Value.DayNumber),
+                    static date => date.HasValue ? date.Value.GetHashCode() : 0,
+                    static date => date.HasValue ? DateOnly.FromDayNumber(date.Value.DayNumber) : null);
+
+                foreach (var entityType in builder.Model.GetEntityTypes())
+                {
+                    foreach (var property in entityType.GetProperties())
+                    {
+                        if (property.ClrType == typeof(DateOnly))
+                        {
+                            property.SetValueConverter(dateOnlyConverter);
+                            property.SetValueComparer(dateOnlyComparer);
+                            property.SetColumnType("date");
+                        }
+                        else if (property.ClrType == typeof(DateOnly?))
+                        {
+                            property.SetValueConverter(nullableDateOnlyConverter);
+                            property.SetValueComparer(nullableDateOnlyComparer);
+                            property.SetColumnType("date");
+                        }
+                    }
+                }
             }
 
             ConfigureMoneyFact(builder.Entity<ProjectIpaFact>(), nameof(ProjectIpaFact.IpaCost), "ck_ipafact_amount");
