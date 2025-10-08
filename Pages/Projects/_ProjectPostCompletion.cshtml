@@ -11,7 +11,6 @@
     var lifecycle = Model.LifecycleSummary;
     var media = Model.MediaSummary;
     var documentSummary = Model.DocumentSummary;
-    var tot = Model.TotSummary;
     var remarkSummary = Model.RemarkSummary;
     var roles = Model.Roles;
     var isAdmin = roles.IsAdmin;
@@ -25,15 +24,6 @@
         ProjectLifecycleStatus.Cancelled => "danger",
         _ => "secondary"
     };
-    var totVariant = !tot.HasTotRecord
-        ? "secondary"
-        : tot.Status switch
-        {
-            ProjectTotStatus.Completed => "success",
-            ProjectTotStatus.InProgress => "info",
-            ProjectTotStatus.NotRequired => "secondary",
-            _ => "secondary"
-        };
     var tabPrefix = $"project-media-{Model.Project?.Id ?? 0}";
     var photosTabId = $"{tabPrefix}-photos";
     var docsTabId = $"{tabPrefix}-documents";
@@ -167,37 +157,7 @@
         </div>
     </div>
     <div class="col-lg-4 d-flex flex-column gap-3">
-        <div class="card pm-card">
-            <div class="card-header pm-card-header">
-                <div class="pm-card-heading">
-                    <span class="pm-card-icon" aria-hidden="true">
-                        <i class="bi bi-diagram-3"></i>
-                    </span>
-                    <div>
-                        <h3 class="pm-card-title h6 mb-0">Transfer of Technology</h3>
-                        <p class="pm-card-subtitle mb-0">Status and milestones.</p>
-                    </div>
-                </div>
-                <span class="badge text-bg-@totVariant">@tot.StatusLabel</span>
-            </div>
-            <div class="card-body pm-card-body d-flex flex-column gap-2">
-                <p class="mb-0">@tot.Summary</p>
-                @if (tot.Facts.Any())
-                {
-                    <dl class="row small mb-0">
-                        @foreach (var fact in tot.Facts)
-                        {
-                            <dt class="col-sm-5">@fact.Label</dt>
-                            <dd class="col-sm-7">@fact.Value</dd>
-                        }
-                    </dl>
-                }
-                @if (!string.IsNullOrWhiteSpace(tot.Remarks))
-                {
-                    <div class="alert alert-secondary mb-0" role="status">@tot.Remarks</div>
-                }
-            </div>
-        </div>
+        <partial name="_ProjectTotPanel" model="Model" />
 
         @if (Model.IsDocumentApprover && Model.DocumentPendingRequests.Any())
         {

@@ -1,0 +1,100 @@
+@page "{id:int}"
+@using ProjectManagement.Models
+@model ProjectManagement.Pages.Projects.Tot.EditModel
+@{
+    var projectName = Model.Project?.Name ?? "Project";
+    ViewData["Title"] = $"Transfer of Technology · {projectName}";
+}
+
+<div class="container-xxl py-4">
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-page="/Projects/Index">Projects</a></li>
+            <li class="breadcrumb-item"><a asp-page="/Projects/Overview" asp-route-id="@Model.Project?.Id">@projectName</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Transfer of Technology</li>
+        </ol>
+    </nav>
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card pm-card">
+                <div class="card-header pm-card-header">
+                    <div class="pm-card-heading">
+                        <span class="pm-card-icon" aria-hidden="true">
+                            <i class="bi bi-diagram-3"></i>
+                        </span>
+                        <div>
+                            <h1 class="pm-card-title h5 mb-0">Update Transfer of Technology</h1>
+                            <p class="pm-card-subtitle mb-0">Track ToT status, milestones, and remarks.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body pm-card-body">
+                    <form method="post" class="d-flex flex-column gap-3">
+                        <input asp-for="Input.ProjectId" type="hidden" />
+                        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+                        <div>
+                            <label asp-for="Input.Status" class="form-label">Current status</label>
+                            <select asp-for="Input.Status" class="form-select" asp-items="Model.StatusOptions"></select>
+                            <span asp-validation-for="Input.Status" class="text-danger"></span>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label asp-for="Input.StartedOn" class="form-label">Start date</label>
+                                <input asp-for="Input.StartedOn" class="form-control" type="date" />
+                                <div class="form-text">Required when ToT is in progress or completed.</div>
+                                <span asp-validation-for="Input.StartedOn" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="Input.CompletedOn" class="form-label">Completion date</label>
+                                <input asp-for="Input.CompletedOn" class="form-control" type="date" />
+                                <div class="form-text">Required when ToT is completed.</div>
+                                <span asp-validation-for="Input.CompletedOn" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label asp-for="Input.Remarks" class="form-label">Remarks</label>
+                            <textarea asp-for="Input.Remarks" class="form-control" rows="3" maxlength="2000"></textarea>
+                            <span asp-validation-for="Input.Remarks" class="text-danger"></span>
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="submit" class="btn btn-primary">Save changes</button>
+                            <a class="btn btn-outline-secondary" asp-page="/Projects/Overview" asp-route-id="@Model.Project?.Id">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card pm-card">
+                <div class="card-header pm-card-header">
+                    <div class="pm-card-heading">
+                        <span class="pm-card-icon" aria-hidden="true">
+                            <i class="bi bi-info-circle"></i>
+                        </span>
+                        <div>
+                            <h2 class="pm-card-title h6 mb-0">Guidance</h2>
+                            <p class="pm-card-subtitle mb-0">Date requirements by status.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body pm-card-body">
+                    <ul class="list-unstyled mb-0 small">
+                        <li class="mb-2"><strong>Not required</strong>: Leave both dates empty.</li>
+                        <li class="mb-2"><strong>Not started</strong>: Leave both dates empty until ToT begins.</li>
+                        <li class="mb-2"><strong>In progress</strong>: Provide the start date; completion must stay empty.</li>
+                        <li><strong>Completed</strong>: Provide both start and completion dates; completion cannot be earlier than the start.</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

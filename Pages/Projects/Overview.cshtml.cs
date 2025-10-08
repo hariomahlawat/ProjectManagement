@@ -82,6 +82,7 @@ namespace ProjectManagement.Pages.Projects
         public ProjectDocumentSummaryViewModel DocumentSummary { get; private set; } = ProjectDocumentSummaryViewModel.Empty;
         public ProjectRemarkSummaryViewModel RemarkSummary { get; private set; } = ProjectRemarkSummaryViewModel.Empty;
         public ProjectTotSummaryViewModel TotSummary { get; private set; } = ProjectTotSummaryViewModel.Empty;
+        public bool CanManageTot { get; private set; }
 
         [BindProperty(SupportsGet = true)]
         public string? DocumentStageFilter { get; set; }
@@ -206,6 +207,8 @@ namespace ProjectManagement.Pages.Projects
                 IsAssignedProjectOfficer = isThisProjectsPo,
                 IsAssignedHoD = isThisProjectsHod
             };
+
+            CanManageTot = isAdmin || isHoD || isThisProjectsPo || isThisProjectsHod;
 
             var todayLocalDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst()));
 
