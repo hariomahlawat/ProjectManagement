@@ -29,6 +29,7 @@ public sealed record CreateRemarkRequest(
     int ProjectId,
     RemarkActorContext Actor,
     RemarkType Type,
+    RemarkScope Scope,
     string Body,
     DateOnly EventDate,
     string? StageRef,
@@ -39,6 +40,7 @@ public sealed record ListRemarksRequest(
     int ProjectId,
     RemarkActorContext Actor,
     RemarkType? Type = null,
+    RemarkScope? Scope = null,
     RemarkActorRole? AuthorRole = null,
     string? StageRef = null,
     DateOnly? FromDate = null,
@@ -53,6 +55,7 @@ public sealed record RemarkListResult(int TotalCount, IReadOnlyList<Remark> Item
 public sealed record EditRemarkRequest(
     RemarkActorContext Actor,
     string Body,
+    RemarkScope Scope,
     DateOnly EventDate,
     string? StageRef,
     string? StageNameSnapshot,

@@ -336,6 +336,7 @@
             this.initialPage = this.resolveInitialPage(initialPageSource);
             this.state = {
                 type: 'all',
+                scope: 'all',
                 timeRange: 'all',
                 includeDeleted: false,
                 page: this.initialPage,
@@ -351,6 +352,8 @@
             this.roleLabels = new Map();
             this.roleCanonicalMap = new Map();
             this.stageLabels = new Map();
+            this.scopeLabels = new Map();
+            this.scopeCanonicalMap = new Map();
             this.mentionAutocompletes = new WeakMap();
             this.mentionMaps = new WeakMap();
             this.editMentionMap = null;
@@ -400,10 +403,60 @@
                     this.stageLabels.set(option.value, option.label || option.value);
                 }
             });
+
+            const scopeOptions = Array.isArray(this.config.scopeOptions) ? this.config.scopeOptions : [];
+            scopeOptions.forEach((option) => {
+                if (!option) {
+                    return;
+                }
+
+                const canonical = option.canonical || option.value || '';
+                const rawValue = option.value || canonical;
+                const label = option.label || rawValue || canonical || '';
+
+                if (canonical) {
+                    this.scopeCanonicalMap.set(canonical, canonical);
+                    this.scopeCanonicalMap.set(canonical.toLowerCase(), canonical);
+                }
+
+                if (rawValue) {
+                    const lower = rawValue.toLowerCase();
+                    this.scopeCanonicalMap.set(rawValue, canonical || rawValue);
+                    this.scopeCanonicalMap.set(lower, canonical || rawValue);
+                }
+
+                if (label) {
+                    const lowerLabel = label.toLowerCase();
+                    this.scopeCanonicalMap.set(label, canonical || rawValue || label);
+                    this.scopeCanonicalMap.set(lowerLabel, canonical || rawValue || label);
+                }
+
+                if (canonical) {
+                    const resolvedLabel = label || canonical;
+                    this.scopeLabels.set(canonical, resolvedLabel);
+                    this.scopeLabels.set(canonical.toLowerCase(), resolvedLabel);
+                }
+            });
+
+            if (!this.scopeCanonicalMap.has('General') && !this.scopeCanonicalMap.has('general')) {
+                this.scopeCanonicalMap.set('General', 'General');
+                this.scopeCanonicalMap.set('general', 'General');
+                this.scopeLabels.set('General', 'General');
+                this.scopeLabels.set('general', 'General');
+            }
+
+            this.defaultScope = this.resolveCanonicalScope(this.config.defaultScope)
+                || (scopeOptions.length > 0
+                    ? this.resolveCanonicalScope(scopeOptions[0]?.canonical || scopeOptions[0]?.value)
+                    : 'General')
+                || 'General';
+            this.composerScope = this.defaultScope;
             this.cacheElements();
             this.bindEvents();
             this.updateTypeButtons();
             this.updateTimeButtons();
+            this.updateScopeButtons();
+            this.setComposerScope(this.defaultScope);
         }
 
         parseConfig(raw) {
@@ -436,6 +489,7 @@
             const remarksContainer = this.root.closest('[data-panel-project-id]') || this.root;
             this.typeButtons = Array.from(remarksContainer.querySelectorAll('[data-remarks-type]'));
             this.timeButtons = Array.from(remarksContainer.querySelectorAll('[data-remarks-time]'));
+            this.scopeButtons = Array.from(remarksContainer.querySelectorAll('[data-remarks-scope]'));
             this.includeDeletedToggle = remarksContainer.querySelector('[data-remarks-include-deleted]');
             this.listContainer = this.root.querySelector('[data-remarks-items]');
             this.emptyState = this.root.querySelector('[data-remarks-empty]');
@@ -451,6 +505,9 @@
             this.bodyField = this.composerForm ? this.composerForm.querySelector('[data-remarks-body]') : null;
             this.tokenInput = this.composerForm ? this.composerForm.querySelector('input[name="__RequestVerificationToken"]') : null;
             this.composerType = 'Internal';
+            this.composerScopeButtons = this.composerForm
+                ? Array.from(this.composerForm.querySelectorAll('[data-remarks-composer-scope-option]'))
+                : [];
         }
 
         bindEvents() {
@@ -458,6 +515,14 @@
                 this.typeButtons.forEach((button) => {
                     button.addEventListener('click', () => {
                         this.setTypeFilter(button.dataset.remarksType || 'all');
+                    });
+                });
+            }
+
+            if (this.scopeButtons.length > 0) {
+                this.scopeButtons.forEach((button) => {
+                    button.addEventListener('click', () => {
+                        this.setScopeFilter(button.getAttribute('data-remarks-scope') || 'all');
                     });
                 });
             }
@@ -555,6 +620,14 @@
                     options.forEach((button) => {
                         button.addEventListener('click', () => {
                             this.setComposerType(button.getAttribute('data-remarks-composer-option') || 'Internal');
+                        });
+                    });
+                }
+
+                if (Array.isArray(this.composerScopeButtons) && this.composerScopeButtons.length > 0) {
+                    this.composerScopeButtons.forEach((button) => {
+                        button.addEventListener('click', () => {
+                            this.setComposerScope(button.getAttribute('data-remarks-composer-scope-option'));
                         });
                     });
                 }
@@ -785,6 +858,39 @@
             });
         }
 
+        setScopeFilter(scope) {
+            const value = typeof scope === 'string' ? scope.trim() : '';
+            const normalized = value.toLowerCase();
+            const target = normalized === 'all' || normalized.length === 0
+                ? 'all'
+                : (this.resolveCanonicalScope(value) || value);
+
+            if (this.state.scope === target) {
+                this.updateScopeButtons();
+                return;
+            }
+
+            this.state.scope = target;
+            this.updateScopeButtons();
+            this.reload();
+        }
+
+        updateScopeButtons() {
+            if (!Array.isArray(this.scopeButtons)) {
+                return;
+            }
+
+            this.scopeButtons.forEach((button) => {
+                const value = button.getAttribute('data-remarks-scope') || 'all';
+                const normalized = value.toLowerCase();
+                const canonical = normalized === 'all' ? 'all' : (this.resolveCanonicalScope(value) || value);
+                const isActive = (this.state.scope === 'all' && normalized === 'all')
+                    || (this.state.scope !== 'all' && canonical === this.state.scope);
+                button.classList.toggle('active', isActive);
+                button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            });
+        }
+
         setTypeFilter(type) {
             const value = (type || 'all').toString().toLowerCase();
             if (value === 'internal') {
@@ -925,6 +1031,10 @@
 
             if (this.actorRole) {
                 params.set('actorRole', this.actorRole);
+            }
+
+            if (this.state.scope && this.state.scope !== 'all') {
+                params.set('scope', this.state.scope);
             }
 
             if (this.state.type === 'Internal' || this.state.type === 'External') {
@@ -1329,6 +1439,14 @@
             typeBadge.textContent = remark.type === 'External' ? 'External' : 'Internal';
             metaRow.appendChild(typeBadge);
 
+            const canonicalScope = this.resolveCanonicalScope(remark.scope);
+            if (canonicalScope && canonicalScope !== 'General') {
+                const scopeBadge = document.createElement('span');
+                scopeBadge.className = 'badge rounded-pill text-bg-info';
+                scopeBadge.textContent = this.getScopeLabel(canonicalScope);
+                metaRow.appendChild(scopeBadge);
+            }
+
             if (remark.type === 'External') {
                 if (remark.eventDate) {
                     const eventBadge = document.createElement('span');
@@ -1646,6 +1764,28 @@
             return raw;
         }
 
+        resolveCanonicalScope(value) {
+            if (value === null || value === undefined) {
+                return null;
+            }
+
+            const raw = value.toString().trim();
+            if (raw.length === 0) {
+                return null;
+            }
+
+            if (this.scopeCanonicalMap.has(raw)) {
+                return this.scopeCanonicalMap.get(raw);
+            }
+
+            const lower = raw.toLowerCase();
+            if (this.scopeCanonicalMap.has(lower)) {
+                return this.scopeCanonicalMap.get(lower);
+            }
+
+            return raw;
+        }
+
         toCamelCase(value) {
             if (value === null || value === undefined) {
                 return '';
@@ -1710,6 +1850,27 @@
             return raw
                 .replace(/[_\-]+/g, ' ')
                 .replace(/([a-z])([A-Z])/g, '$1 $2')
+                .trim();
+        }
+
+        getScopeLabel(scope) {
+            if (!scope) {
+                return '';
+            }
+
+            const raw = scope.toString();
+            if (this.scopeLabels.has(raw)) {
+                return this.scopeLabels.get(raw);
+            }
+
+            const lower = raw.toLowerCase();
+            if (this.scopeLabels.has(lower)) {
+                return this.scopeLabels.get(lower);
+            }
+
+            return raw
+                .replace(/([a-z])([A-Z])/g, '$1 $2')
+                .replace(/[_\-]+/g, ' ')
                 .trim();
         }
 
@@ -1868,6 +2029,7 @@
 
             const payload = {
                 body: bodyText,
+                scope: remark.scope,
                 eventDate: remark.eventDate,
                 stageRef: remark.stageRef,
                 stageName: remark.stageName,
@@ -1990,6 +2152,7 @@
                     id: 0,
                     projectId: this.config.projectId || 0,
                     type: 'Internal',
+                    scope: this.defaultScope || 'General',
                     authorRole: '',
                     authorUserId: '',
                     authorDisplayName: '',
@@ -2019,6 +2182,7 @@
                 id: Number.isFinite(id) ? id : 0,
                 projectId: Number.isFinite(Number(projectRaw)) ? Number(projectRaw) : 0,
                 type,
+                scope: this.resolveCanonicalScope(data.scope ?? data.Scope) || this.defaultScope || 'General',
                 authorRole: data.authorRole ?? data.AuthorRole ?? '',
                 authorUserId: data.authorUserId ?? data.AuthorUserId ?? '',
                 authorDisplayName: data.authorDisplayName ?? data.AuthorDisplayName ?? (data.authorUserId ?? data.AuthorUserId ?? ''),
@@ -2085,6 +2249,22 @@
             this.validateComposer();
         }
 
+        setComposerScope(scope) {
+            const resolved = this.resolveCanonicalScope(scope) || this.defaultScope || 'General';
+            this.composerScope = resolved;
+
+            if (Array.isArray(this.composerScopeButtons)) {
+                this.composerScopeButtons.forEach((button) => {
+                    const value = this.resolveCanonicalScope(button?.getAttribute('data-remarks-composer-scope-option'));
+                    const isActive = value === resolved;
+                    button.classList.toggle('active', isActive);
+                    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+                });
+            }
+
+            this.validateComposer();
+        }
+
         resetComposer() {
             if (this.bodyField) {
                 this.bodyField.value = '';
@@ -2099,6 +2279,7 @@
                 this.stageSelect.value = '';
             }
 
+            this.setComposerScope(this.defaultScope);
             this.setComposerType('Internal');
             this.clearFeedback();
             this.validateComposer();
@@ -2197,6 +2378,7 @@
 
             const payload = {
                 type: this.composerType,
+                scope: this.composerScope,
                 body,
                 eventDate,
                 stageRef,

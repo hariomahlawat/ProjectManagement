@@ -59,6 +59,19 @@ public sealed class ProjectRemarksPanelService
             })
             .ToList();
 
+        var scopeOptions = new List<ProjectRemarksPanelViewModel.RemarkScopeOption>
+        {
+            new(RemarkScope.General.ToString(), "General", RemarkScope.General.ToString())
+        };
+
+        if (project.Tot is not null)
+        {
+            scopeOptions.Add(new ProjectRemarksPanelViewModel.RemarkScopeOption(
+                RemarkScope.TransferOfTechnology.ToString(),
+                "ToT",
+                RemarkScope.TransferOfTechnology.ToString()));
+        }
+
         var today = DateOnly.FromDateTime(IstClock.ToIst(_clock.UtcNow.UtcDateTime))
             .ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
 
@@ -70,6 +83,8 @@ public sealed class ProjectRemarksPanelService
                 ProjectId = project.Id,
                 StageOptions = stageOptions,
                 RoleOptions = roleOptions,
+                ScopeOptions = scopeOptions,
+                DefaultScope = RemarkScope.General.ToString(),
                 Today = today
             };
         }
@@ -137,6 +152,8 @@ public sealed class ProjectRemarksPanelService
             ActorHasOverride = canOverride,
             StageOptions = stageOptions,
             RoleOptions = roleOptions,
+            ScopeOptions = scopeOptions,
+            DefaultScope = RemarkScope.General.ToString(),
             Today = today,
             ViewerOnly = viewerOnly
         };

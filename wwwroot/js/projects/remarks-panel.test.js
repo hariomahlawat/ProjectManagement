@@ -39,6 +39,7 @@ function makeRemark(overrides = {}) {
         authorDisplayName: 'Alice Bob',
         authorUserId: 'user-123',
         type: 'Internal',
+        scope: 'General',
         body: '<p>Test remark</p>',
         eventDate: null,
         stageRef: null,
@@ -100,6 +101,7 @@ test('saveEdit serializes mentions using the stored mapping', async () => {
         id: 1,
         projectId: 1,
         type: 'Internal',
+        scope: 'General',
         authorRole: '',
         authorUserId: 'author-1',
         authorDisplayName: 'Author One',
@@ -170,6 +172,7 @@ test('saveEdit serializes mentions using the stored mapping', async () => {
 
     assert.ok(requestBody);
     assert.equal(requestBody.body, '@[John Doe](user:user-1)');
+    assert.equal(requestBody.scope, 'General');
 });
 
 test('buildRemarkElement applies role accent classes for canonical roles', () => {

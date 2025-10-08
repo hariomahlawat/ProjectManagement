@@ -64,6 +64,7 @@ internal static class RemarkApi
                     ProjectId: projectId,
                     Actor: actor!,
                     Type: request.Type,
+                    Scope: request.Scope,
                     Body: request.Body ?? string.Empty,
                     EventDate: request.EventDate,
                     StageRef: request.StageRef,
@@ -91,6 +92,7 @@ internal static class RemarkApi
         HttpContext httpContext,
         CancellationToken cancellationToken,
         [FromQuery] string? type,
+        [FromQuery] string? scope,
         [FromQuery] string? role,
         [FromQuery] string? stageRef,
         [FromQuery(Name = "mine")] bool? mine,
@@ -119,6 +121,11 @@ internal static class RemarkApi
             return typeError!;
         }
 
+        if (!TryParseRemarkScope(scope, out var remarkScope, out var scopeError))
+        {
+            return scopeError!;
+        }
+
         if (!TryParseRemarkRole(role, out var authorRole, out var roleError))
         {
             return roleError!;
@@ -134,6 +141,7 @@ internal static class RemarkApi
                     ProjectId: projectId,
                     Actor: actor!,
                     Type: remarkType,
+                    Scope: remarkScope,
                     AuthorRole: authorRole,
                     StageRef: stageRef,
                     FromDate: from,
@@ -223,6 +231,7 @@ internal static class RemarkApi
                 new EditRemarkRequest(
                     Actor: actor!,
                     Body: request.Body ?? string.Empty,
+                    Scope: request.Scope,
                     EventDate: request.EventDate,
                     StageRef: request.StageRef,
                     StageNameSnapshot: request.StageName,
@@ -356,6 +365,7 @@ internal static class RemarkApi
                     a.Meta,
                     new RemarkSnapshotDto(
                         a.SnapshotType,
+                        a.SnapshotScope,
                         a.SnapshotAuthorRole,
                         a.SnapshotAuthorUserId,
                         a.SnapshotBody,
@@ -392,6 +402,7 @@ internal static class RemarkApi
             remark.Id,
             remark.ProjectId,
             remark.Type,
+            remark.Scope,
             remark.AuthorRole,
             remark.AuthorUserId,
             author?.DisplayName ?? remark.AuthorUserId,
@@ -587,6 +598,45 @@ internal static class RemarkApi
         return false;
     }
 
+    private static bool TryParseRemarkScope(string? value, out RemarkScope? scope, out IResult? error)
+    {
+        scope = null;
+        error = null;
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return true;
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.Length == 0 || string.Equals(trimmed, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var normalized = trimmed
+            .Replace(" ", string.Empty, StringComparison.Ordinal)
+            .Replace("-", string.Empty, StringComparison.Ordinal);
+
+        if (string.Equals(normalized, "tot", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = RemarkScope.TransferOfTechnology.ToString();
+        }
+
+        if (Enum.TryParse<RemarkScope>(normalized, true, out var parsed))
+        {
+            scope = parsed;
+            return true;
+        }
+
+        error = Results.BadRequest(new ProblemDetails
+        {
+            Title = "Invalid scope.",
+            Detail = "Scope must be 'General' or 'TransferOfTechnology'."
+        });
+        return false;
+    }
+
     private static bool TryParseRowVersion(string? value, out byte[] rowVersion, out IResult? error)
     {
         rowVersion = Array.Empty<byte>();
@@ -771,6 +821,7 @@ internal static class RemarkApi
     private sealed record CreateRemarkRequestDto
     {
         public RemarkType Type { get; init; }
+        public RemarkScope Scope { get; init; } = RemarkScope.General;
         public string? Body { get; init; }
         public DateOnly EventDate { get; init; }
         public string? StageRef { get; init; }
@@ -782,6 +833,7 @@ internal static class RemarkApi
     private sealed record UpdateRemarkRequestDto
     {
         public string? Body { get; init; }
+        public RemarkScope Scope { get; init; } = RemarkScope.General;
         public DateOnly EventDate { get; init; }
         public string? StageRef { get; init; }
         public string? StageName { get; init; }
@@ -801,6 +853,7 @@ internal static class RemarkApi
         int Id,
         int ProjectId,
         RemarkType Type,
+        RemarkScope Scope,
         RemarkActorRole AuthorRole,
         string AuthorUserId,
         string AuthorDisplayName,
@@ -838,6 +891,7 @@ internal static class RemarkApi
 
     private sealed record RemarkSnapshotDto(
         RemarkType Type,
+        RemarkScope Scope,
         RemarkActorRole AuthorRole,
         string AuthorUserId,
         string Body,
