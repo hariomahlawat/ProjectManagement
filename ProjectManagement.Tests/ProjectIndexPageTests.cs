@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Pages.Projects;
+using ProjectManagement.Services.Projects;
 using Xunit;
 
 namespace ProjectManagement.Tests
@@ -105,6 +106,66 @@ namespace ProjectManagement.Tests
             Assert.Equal(caseMatch.Id, model.Projects[0].Id);
             Assert.Equal(nameNewer.Id, model.Projects[1].Id);
             Assert.Equal(nameOlder.Id, model.Projects[2].Id);
+        }
+
+        [Fact]
+        public async Task OnGet_FiltersProjectsByLifecycle()
+        {
+            await using var context = CreateContext();
+
+            var active = new Project
+            {
+                Name = "Active",
+                LifecycleStatus = ProjectLifecycleStatus.Active,
+                CreatedByUserId = "creator",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var completed = new Project
+            {
+                Name = "Completed",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                CreatedByUserId = "creator",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            context.Projects.AddRange(active, completed);
+            await context.SaveChangesAsync();
+
+            var model = new IndexModel(context)
+            {
+                Lifecycle = ProjectLifecycleFilter.Completed
+            };
+
+            await model.OnGetAsync();
+
+            Assert.Single(model.Projects);
+            Assert.All(model.Projects, p => Assert.Equal(ProjectLifecycleStatus.Completed, p.LifecycleStatus));
+        }
+
+        [Fact]
+        public async Task LifecycleTabs_HighlightSelectedFilter()
+        {
+            await using var context = CreateContext();
+
+            context.Projects.Add(new Project
+            {
+                Name = "Only",
+                LifecycleStatus = ProjectLifecycleStatus.Active,
+                CreatedByUserId = "creator",
+                CreatedAt = DateTime.UtcNow
+            });
+            await context.SaveChangesAsync();
+
+            var model = new IndexModel(context)
+            {
+                Lifecycle = ProjectLifecycleFilter.Cancelled
+            };
+
+            await model.OnGetAsync();
+
+            Assert.Contains(model.LifecycleTabs, tab => tab.Filter == ProjectLifecycleFilter.Cancelled && tab.IsActive);
+            Assert.Contains(model.LifecycleTabs, tab => tab.Filter == ProjectLifecycleFilter.All && !tab.IsActive);
         }
 
         private static ApplicationDbContext CreateContext()

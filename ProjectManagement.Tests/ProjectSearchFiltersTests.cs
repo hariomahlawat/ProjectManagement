@@ -125,6 +125,147 @@ namespace ProjectManagement.Tests
             Assert.DoesNotContain(results, p => p.Name == other.Name);
         }
 
+        [Fact]
+        public async Task Lifecycle_Filter_SelectsCompletedProjects()
+        {
+            await using var context = CreateContext();
+
+            var active = new Project
+            {
+                Name = "Active",
+                LifecycleStatus = ProjectLifecycleStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+                CreatedByUserId = "creator"
+            };
+
+            var completed = new Project
+            {
+                Name = "Completed",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                CreatedAt = DateTime.UtcNow.AddDays(-1),
+                CreatedByUserId = "creator"
+            };
+
+            context.Projects.AddRange(active, completed);
+            await context.SaveChangesAsync();
+
+            var filters = new ProjectSearchFilters(null, null, null, null, ProjectLifecycleFilter.Completed);
+
+            var results = await context.Projects.ApplyProjectSearch(filters).ToListAsync();
+
+            Assert.Single(results);
+            Assert.Equal(ProjectLifecycleStatus.Completed, results[0].LifecycleStatus);
+        }
+
+        [Fact]
+        public async Task Lifecycle_Filter_SelectsLegacyProjects()
+        {
+            await using var context = CreateContext();
+
+            var modern = new Project
+            {
+                Name = "Modern",
+                LifecycleStatus = ProjectLifecycleStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+                CreatedByUserId = "creator"
+            };
+
+            var legacy = new Project
+            {
+                Name = "Legacy",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                IsLegacy = true,
+                CreatedAt = DateTime.UtcNow.AddYears(-5),
+                CreatedByUserId = "creator"
+            };
+
+            context.Projects.AddRange(modern, legacy);
+            await context.SaveChangesAsync();
+
+            var filters = new ProjectSearchFilters(null, null, null, null, ProjectLifecycleFilter.Legacy);
+
+            var results = await context.Projects.ApplyProjectSearch(filters).ToListAsync();
+
+            Assert.Single(results);
+            Assert.True(results[0].IsLegacy);
+        }
+
+        [Fact]
+        public async Task CompletedYear_Filter_ReturnsMatchingProjects()
+        {
+            await using var context = CreateContext();
+
+            var project2023 = new Project
+            {
+                Name = "Project 2023",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                CompletedYear = 2023,
+                CreatedAt = DateTime.UtcNow.AddYears(-1),
+                CreatedByUserId = "creator"
+            };
+
+            var project2024 = new Project
+            {
+                Name = "Project 2024",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                CompletedYear = 2024,
+                CreatedAt = DateTime.UtcNow,
+                CreatedByUserId = "creator"
+            };
+
+            context.Projects.AddRange(project2023, project2024);
+            await context.SaveChangesAsync();
+
+            var filters = new ProjectSearchFilters(null, null, null, null, ProjectLifecycleFilter.All, 2024);
+
+            var results = await context.Projects.ApplyProjectSearch(filters).ToListAsync();
+
+            Assert.Single(results);
+            Assert.Equal(2024, results[0].CompletedYear);
+        }
+
+        [Fact]
+        public async Task TotStatus_Filter_ReturnsMatchingProjects()
+        {
+            await using var context = CreateContext();
+
+            var withTot = new Project
+            {
+                Name = "Project With Tot",
+                LifecycleStatus = ProjectLifecycleStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+                CreatedByUserId = "creator"
+            };
+            withTot.Tot = new ProjectTot
+            {
+                Project = withTot,
+                Status = ProjectTotStatus.Completed
+            };
+
+            var withoutTot = new Project
+            {
+                Name = "Project Without Tot",
+                LifecycleStatus = ProjectLifecycleStatus.Active,
+                CreatedAt = DateTime.UtcNow,
+                CreatedByUserId = "creator"
+            };
+            withoutTot.Tot = new ProjectTot
+            {
+                Project = withoutTot,
+                Status = ProjectTotStatus.NotStarted
+            };
+
+            context.Projects.AddRange(withTot, withoutTot);
+            await context.SaveChangesAsync();
+
+            var filters = new ProjectSearchFilters(null, null, null, null, ProjectLifecycleFilter.All, null, ProjectTotStatus.Completed);
+
+            var results = await context.Projects.Include(p => p.Tot).ApplyProjectSearch(filters).ToListAsync();
+
+            Assert.Single(results);
+            Assert.Equal(ProjectTotStatus.Completed, results[0].Tot!.Status);
+        }
+
         private static ApplicationDbContext CreateContext()
         {
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()

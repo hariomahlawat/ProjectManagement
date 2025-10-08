@@ -36,6 +36,15 @@ namespace ProjectManagement.Pages.Projects
         [BindProperty(SupportsGet = true)]
         public string? HodUserId { get; set; }
 
+        [BindProperty(SupportsGet = true)]
+        public ProjectLifecycleFilter Lifecycle { get; set; } = ProjectLifecycleFilter.All;
+
+        [BindProperty(SupportsGet = true)]
+        public int? CompletedYear { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public ProjectTotStatus? TotStatus { get; set; }
+
         [BindProperty(SupportsGet = true, Name = "page")]
         public int CurrentPage { get; set; } = 1;
 
@@ -54,7 +63,10 @@ namespace ProjectManagement.Pages.Projects
             !string.IsNullOrWhiteSpace(Query) ||
             CategoryId.HasValue ||
             !string.IsNullOrWhiteSpace(LeadPoUserId) ||
-            !string.IsNullOrWhiteSpace(HodUserId);
+            !string.IsNullOrWhiteSpace(HodUserId) ||
+            Lifecycle != ProjectLifecycleFilter.All ||
+            CompletedYear.HasValue ||
+            TotStatus.HasValue;
 
         public IEnumerable<SelectListItem> CategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
 
@@ -62,18 +74,26 @@ namespace ProjectManagement.Pages.Projects
 
         public IEnumerable<SelectListItem> HodOptions { get; private set; } = Array.Empty<SelectListItem>();
 
+        public IEnumerable<SelectListItem> CompletionYearOptions { get; private set; } = Array.Empty<SelectListItem>();
+
+        public IEnumerable<SelectListItem> TotStatusOptions { get; private set; } = Array.Empty<SelectListItem>();
+
+        public IReadOnlyList<LifecycleFilterTab> LifecycleTabs { get; private set; } = Array.Empty<LifecycleFilterTab>();
+
         public async Task OnGetAsync()
         {
             await LoadFilterOptionsAsync();
+            LifecycleTabs = BuildLifecycleTabs();
 
             var query = _db.Projects
                 .AsNoTracking()
                 .Include(p => p.Category)
                 .Include(p => p.HodUser)
                 .Include(p => p.LeadPoUser)
+                .Include(p => p.Tot)
                 .AsQueryable();
 
-            var filters = new ProjectSearchFilters(Query, CategoryId, LeadPoUserId, HodUserId);
+            var filters = new ProjectSearchFilters(Query, CategoryId, LeadPoUserId, HodUserId, Lifecycle, CompletedYear, TotStatus);
             query = query.ApplyProjectSearch(filters);
             query = query.ApplyProjectOrdering(filters);
 
@@ -145,6 +165,18 @@ namespace ProjectManagement.Pages.Projects
                 .ToListAsync();
 
             LeadPoOptions = BuildUserOptions(leadPoUsers, LeadPoUserId, "Any Project Officer");
+
+            var completionYears = await _db.Projects
+                .AsNoTracking()
+                .Where(p => p.CompletedYear.HasValue)
+                .Select(p => p.CompletedYear!.Value)
+                .Distinct()
+                .OrderByDescending(year => year)
+                .ToListAsync();
+
+            CompletionYearOptions = BuildCompletionYearOptions(completionYears, CompletedYear);
+
+            TotStatusOptions = BuildTotStatusOptions(TotStatus);
         }
 
         private static IEnumerable<SelectListItem> BuildCategoryOptions(IEnumerable<CategoryOption> categories, int? selectedId)
@@ -200,6 +232,69 @@ namespace ProjectManagement.Pages.Projects
 
             return option.Id;
         }
+
+        private IReadOnlyList<LifecycleFilterTab> BuildLifecycleTabs()
+        {
+            return new[]
+            {
+                CreateLifecycleTab(ProjectLifecycleFilter.All, "All"),
+                CreateLifecycleTab(ProjectLifecycleFilter.Active, "Active"),
+                CreateLifecycleTab(ProjectLifecycleFilter.Completed, "Completed"),
+                CreateLifecycleTab(ProjectLifecycleFilter.Cancelled, "Cancelled"),
+                CreateLifecycleTab(ProjectLifecycleFilter.Legacy, "Legacy"),
+            };
+        }
+
+        private LifecycleFilterTab CreateLifecycleTab(ProjectLifecycleFilter filter, string label)
+        {
+            return new LifecycleFilterTab(filter, label, filter == ProjectLifecycleFilter.All ? null : filter.ToString(), Lifecycle == filter);
+        }
+
+        private static IEnumerable<SelectListItem> BuildCompletionYearOptions(IEnumerable<int> years, int? selectedYear)
+        {
+            var options = new List<SelectListItem>
+            {
+                new("Any completion year", string.Empty, !selectedYear.HasValue)
+            };
+
+            foreach (var year in years)
+            {
+                var isSelected = selectedYear.HasValue && selectedYear.Value == year;
+                options.Add(new SelectListItem(year.ToString(), year.ToString(), isSelected));
+            }
+
+            return options;
+        }
+
+        private static IEnumerable<SelectListItem> BuildTotStatusOptions(ProjectTotStatus? selectedStatus)
+        {
+            var options = new List<SelectListItem>
+            {
+                new("All ToT statuses", string.Empty, !selectedStatus.HasValue)
+            };
+
+            foreach (var status in Enum.GetValues<ProjectTotStatus>())
+            {
+                var isSelected = selectedStatus.HasValue && selectedStatus.Value == status;
+                options.Add(new SelectListItem(GetTotStatusLabel(status), status.ToString(), isSelected));
+            }
+
+            return options;
+        }
+
+        private static string GetTotStatusLabel(ProjectTotStatus status)
+        {
+            return status switch
+            {
+                ProjectTotStatus.NotRequired => "Not required",
+                ProjectTotStatus.NotStarted => "Not started",
+                ProjectTotStatus.InProgress => "In progress",
+                ProjectTotStatus.Completed => "Completed",
+                _ => status.ToString()
+            };
+        }
+
+        public sealed record LifecycleFilterTab(ProjectLifecycleFilter Filter, string Label, string? RouteValue, bool IsActive);
 
         private sealed record UserOption(string Id, string? FullName, string? UserName);
 
