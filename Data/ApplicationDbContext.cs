@@ -178,11 +178,12 @@ namespace ProjectManagement.Data
 
             builder.Entity<ProjectTot>(e =>
             {
-                e.Property(x => x.Status)
+                var statusBuilder = e.Property(x => x.Status)
                     .HasConversion<string>()
                     .HasMaxLength(32)
-                    .HasDefaultValue(ProjectTotStatus.NotStarted)
                     .IsRequired();
+
+                statusBuilder.ValueGeneratedNever();
                 e.Property(x => x.StartedOn).HasColumnType("date");
                 e.Property(x => x.CompletedOn).HasColumnType("date");
                 e.Property(x => x.Remarks).HasMaxLength(2000);
