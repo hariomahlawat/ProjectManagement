@@ -60,6 +60,11 @@ body {
     background-color: var(--pm-surface);
 }
 
+/* ---------- Utility classes ---------- */
+.min-w-0 {
+    min-width: 0;
+}
+
 /* Keep the navigation drawer toggle visible when the navbar is expanded */
 .navbar-expand-lg .navbar-toggler {
     display: inline-flex;
