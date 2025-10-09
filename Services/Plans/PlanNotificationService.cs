@@ -257,7 +257,7 @@ public sealed class PlanNotificationService : IPlanNotificationService
     }
 
     private static string BuildRoute(int projectId)
-        => string.Format(CultureInfo.InvariantCulture, "/projects/{0}/timeline", projectId);
+        => string.Format(CultureInfo.InvariantCulture, "/projects/overview/{0}?timeline=1", projectId);
 
     private sealed record NotificationMetadata(
         string Module,

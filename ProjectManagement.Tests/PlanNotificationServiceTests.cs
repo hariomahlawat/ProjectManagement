@@ -46,7 +46,7 @@ public sealed class PlanNotificationServiceTests
         Assert.Equal("PlanSubmitted", evt.EventType);
         Assert.Equal("Project", evt.ScopeType);
         Assert.Equal("5", evt.ScopeId);
-        Assert.Equal("/projects/5/timeline", evt.Route);
+        Assert.Equal("/projects/overview/5?timeline=1", evt.Route);
         Assert.Equal("po-1", evt.ActorUserId);
         Assert.Equal("Alpha plan submitted", evt.Title);
         Assert.Contains((NotificationKind.PlanSubmitted, "hod-1", 5), preferences.Calls);

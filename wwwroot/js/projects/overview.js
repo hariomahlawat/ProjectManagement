@@ -333,6 +333,52 @@
             return 'timeline';
         }
 
+        function getTimelineOverride() {
+            if (typeof window === 'undefined') {
+                return null;
+            }
+
+            const hash = typeof window.location.hash === 'string'
+                ? window.location.hash.trim().toLowerCase()
+                : '';
+
+            if (hash === '#timeline' || hash === '#project-panel-toggle-timeline' || hash === '#project-panel-body-timeline') {
+                return 'timeline';
+            }
+
+            const search = typeof window.location.search === 'string'
+                ? window.location.search
+                : '';
+
+            if (!search) {
+                return null;
+            }
+
+            try {
+                const params = new URLSearchParams(search);
+                const panel = params.get('panel');
+                if (typeof panel === 'string' && panel.toLowerCase() === 'timeline') {
+                    return 'timeline';
+                }
+
+                if (params.has('timeline')) {
+                    const value = params.get('timeline');
+                    if (!value) {
+                        return 'timeline';
+                    }
+
+                    const normalized = value.toLowerCase();
+                    if (normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'timeline') {
+                        return 'timeline';
+                    }
+                }
+            } catch (error) {
+                // Ignore malformed query parameters
+            }
+
+            return null;
+        }
+
         function setActive(name) {
             const target = name === 'remarks' ? 'remarks' : 'timeline';
             buttons.forEach((button) => {
@@ -385,7 +431,9 @@
             });
         });
 
-        setActive(getStored());
+        const override = getTimelineOverride();
+        const initial = override || getStored();
+        setActive(initial);
     }
 
     const remarksElement = document.querySelector('[data-remarks-panel]');
