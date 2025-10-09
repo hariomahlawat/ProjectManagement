@@ -597,7 +597,11 @@ public sealed class ProjectPhotoServiceTests
         var audit = new RecordingAudit();
         var optionsWrapper = Options.Create(options);
         var documentOptions = Options.Create(new ProjectDocumentOptions());
-        var uploadRoot = new UploadRootProvider(optionsWrapper, documentOptions);
+        var environment = new TestWebHostEnvironment
+        {
+            ContentRootPath = Path.Combine(Path.GetTempPath(), "pm-photo-tests")
+        };
+        var uploadRoot = new UploadRootProvider(optionsWrapper, documentOptions, environment, NullLogger<UploadRootProvider>.Instance);
         return new ProjectPhotoService(db, clock, audit, optionsWrapper, uploadRoot, NullLogger<ProjectPhotoService>.Instance);
     }
 

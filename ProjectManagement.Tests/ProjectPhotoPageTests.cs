@@ -125,7 +125,11 @@ public sealed class ProjectPhotoPageTests
         {
             var optionsWrapper = Options.Create(options);
             var documentOptions = Options.Create(new ProjectDocumentOptions());
-            var uploadRoot = new UploadRootProvider(optionsWrapper, documentOptions);
+            var environment = new TestWebHostEnvironment
+            {
+                ContentRootPath = Path.Combine(Path.GetTempPath(), "pm-photo-page-tests")
+            };
+            var uploadRoot = new UploadRootProvider(optionsWrapper, documentOptions, environment, NullLogger<UploadRootProvider>.Instance);
             var photoService = new ProjectPhotoService(db, clock, new RecordingAudit(), optionsWrapper, uploadRoot, NullLogger<ProjectPhotoService>.Instance);
 
             await using var stream = await CreateImageStreamAsync(1600, 1200);
