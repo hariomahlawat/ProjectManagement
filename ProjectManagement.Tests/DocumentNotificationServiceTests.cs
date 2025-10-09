@@ -6,6 +6,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Notifications;
 using ProjectManagement.Services.Documents;
+using ProjectManagement.ViewModels;
 using Xunit;
 
 namespace ProjectManagement.Tests;
@@ -32,7 +33,7 @@ public sealed class DocumentNotificationServiceTests
         Assert.Equal("DocumentPublished", evt.EventType);
         Assert.Equal("Document", evt.ScopeType);
         Assert.Equal("30", evt.ScopeId);
-        Assert.Equal("/projects/12/documents", evt.Route);
+        Assert.Equal("/projects/overview?id=12&mediaTab=" + ProjectMediaTabViewModel.DocumentsKey, evt.Route);
         Assert.Contains((NotificationKind.DocumentPublished, "hod-7", 12), preferences.Calls);
         Assert.Contains((NotificationKind.DocumentPublished, "po-7", 12), preferences.Calls);
     }

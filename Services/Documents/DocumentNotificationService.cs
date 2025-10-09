@@ -9,6 +9,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Notifications;
 using ProjectManagement.Services.Notifications;
+using ProjectManagement.ViewModels;
 
 namespace ProjectManagement.Services.Documents;
 
@@ -241,7 +242,11 @@ public sealed class DocumentNotificationService : IDocumentNotificationService
     }
 
     private static string BuildRoute(int projectId)
-        => string.Format(CultureInfo.InvariantCulture, "/projects/{0}/documents", projectId);
+        => string.Format(
+            CultureInfo.InvariantCulture,
+            "/projects/overview?id={0}&mediaTab={1}",
+            projectId,
+            ProjectMediaTabViewModel.DocumentsKey);
 
     private static string FormatTimestamp(DateTimeOffset value)
         => value.ToString("o", CultureInfo.InvariantCulture);
