@@ -16,10 +16,29 @@
 
             <div class="mb-3">
                 <label asp-for="Input.StageId" class="form-label">Stage</label>
-                <select asp-for="Input.StageId" asp-items="Model.StageOptions" class="form-select" data-doc-stage-select>
-                    <option value="">Select a stage</option>
-                </select>
+                @if (Model.HasStageOptions)
+                {
+                    <select asp-for="Input.StageId" asp-items="Model.StageOptions" class="form-select" data-doc-stage-select>
+                        <option value="">Select a stage</option>
+                    </select>
+                }
+                else
+                {
+                    <select asp-for="Input.StageId" class="form-select" disabled>
+                        <option value="">General</option>
+                    </select>
+                }
                 <span asp-validation-for="Input.StageId" class="text-danger"></span>
+                <div id="doc-stage-help" class="form-text">
+                    @if (Model.HasStageOptions)
+                    {
+                        <text>You can upload for any stage (past or present).</text>
+                    }
+                    else
+                    {
+                        <text>This project has no defined stages. The document will be stored under the &ldquo;General&rdquo; category.</text>
+                    }
+                </div>
             </div>
 
             @if (Model.Project?.Tot is not null)
@@ -57,7 +76,6 @@
                 <input asp-for="Input.File" class="form-control visually-hidden" id="fileInput" data-doc-file data-max-size="@Model.MaxFileSizeBytes" data-allowed="@string.Join(',', Model.AllowedContentTypes)" />
                 <span asp-validation-for="Input.File" class="text-danger"></span>
                 <div id="doc-upload-help" class="form-text">PDF only • ≤ 25 MB</div>
-                <div id="doc-stage-help" class="form-text">You can upload for any stage (past or present).</div>
             </div>
 
             <div class="d-flex gap-2">
