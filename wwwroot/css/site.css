@@ -1155,6 +1155,16 @@ body {
     padding: .25rem .5rem;
 }
 
+@media (max-width: 991.98px) {
+    .pm-remarks-filter {
+        flex-wrap: wrap;
+    }
+
+    .pm-remarks-filter .btn {
+        flex: 1 1 auto;
+    }
+}
+
 /* ---------- Remarks panel ---------- */
 .remarks-panel {
     display: flex;
