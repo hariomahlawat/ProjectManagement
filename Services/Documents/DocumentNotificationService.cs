@@ -244,7 +244,7 @@ public sealed class DocumentNotificationService : IDocumentNotificationService
     private static string BuildRoute(int projectId)
         => string.Format(
             CultureInfo.InvariantCulture,
-            "/projects/overview?id={0}&mediaTab={1}",
+            "/projects/overview/{0}?mediaTab={1}",
             projectId,
             ProjectMediaTabViewModel.DocumentsKey);
 
