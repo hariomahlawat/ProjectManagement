@@ -117,34 +117,24 @@
                             </div>
                             @if (docTab.CanUpload || docTab.CanViewRecycleBin)
                             {
-                                <div class="dropdown">
-                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
-                                            type="button"
-                                            data-bs-toggle="dropdown"
-                                            aria-expanded="false">
-                                        Document actions
-                                    </button>
-                                    <ul class="dropdown-menu dropdown-menu-end">
-                                        @if (docTab.CanUpload)
-                                        {
-                                            <li>
-                                                <a class="dropdown-item"
-                                                   asp-page="/Projects/Documents/UploadRequest"
-                                                   asp-route-id="@projectId">Upload</a>
-                                            </li>
-                                        }
-                                        @if (docTab.CanViewRecycleBin)
-                                        {
-                                            <li>
-                                                <a class="dropdown-item d-flex align-items-center gap-2"
-                                                   asp-area="Admin"
-                                                   asp-page="/Documents/Recycle">
-                                                    <i class="bi bi-trash" aria-hidden="true"></i>
-                                                    <span>Recycle Bin</span>
-                                                </a>
-                                            </li>
-                                        }
-                                    </ul>
+                                <div class="d-flex flex-wrap gap-2">
+                                    @if (docTab.CanUpload)
+                                    {
+                                        <a class="btn btn-sm btn-primary"
+                                           asp-page="/Projects/Documents/UploadRequest"
+                                           asp-route-id="@projectId"
+                                           aria-label="Upload a document to this project">Upload document</a>
+                                    }
+                                    @if (docTab.CanViewRecycleBin)
+                                    {
+                                        <a class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-2"
+                                           asp-area="Admin"
+                                           asp-page="/Documents/Recycle"
+                                           aria-label="Open the document recycle bin">
+                                            <i class="bi bi-trash" aria-hidden="true"></i>
+                                            <span>Recycle Bin</span>
+                                        </a>
+                                    }
                                 </div>
                             }
                         </div>
@@ -361,9 +351,24 @@
                              data-gallery
                              data-gallery-project="@projectId"
                              data-gallery-modal-id="@(galleryModalId ?? string.Empty)">
-                            <div class="project-gallery__header">
-                                <h3 class="h6 mb-2">Gallery</h3>
-                                <p class="text-muted small mb-0">Browse highlights from recent uploads.</p>
+                            <div class="project-gallery__header d-flex flex-wrap justify-content-between align-items-start gap-2">
+                                <div>
+                                    <h3 class="h6 mb-2">Gallery</h3>
+                                    <p class="text-muted small mb-0">Browse highlights from recent uploads.</p>
+                                </div>
+                                @if (photosTab.CanManagePhotos)
+                                {
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <a class="btn btn-sm btn-outline-secondary"
+                                           asp-page="/Projects/Photos/Index"
+                                           asp-route-id="@projectId"
+                                           aria-label="Manage photos for this project">Manage photos</a>
+                                        <a class="btn btn-sm btn-primary"
+                                           asp-page="/Projects/Photos/Upload"
+                                           asp-route-id="@projectId"
+                                           aria-label="Upload a new project photo">Upload photo</a>
+                                    </div>
+                                }
                             </div>
                             @if (hasPreview)
                             {
