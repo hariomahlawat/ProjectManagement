@@ -247,7 +247,7 @@ namespace ProjectManagement.Pages.Projects
                 scopeId: project.Id.ToString(CultureInfo.InvariantCulture),
                 projectId: project.Id,
                 actorUserId: actorUserId,
-                route: $"/projects/overview?id={project.Id}",
+                route: $"/projects/overview/{project.Id}",
                 title: string.IsNullOrWhiteSpace(project.Name)
                     ? "Project officer assignment updated"
                     : string.Format(

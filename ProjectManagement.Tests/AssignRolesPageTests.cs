@@ -87,7 +87,7 @@ public sealed class AssignRolesPageTests
         Assert.Equal("10", notification.ScopeId);
         Assert.Equal(10, notification.ProjectId);
         Assert.Equal("actor-1", notification.ActorUserId);
-        Assert.Equal("/projects/overview?id=10", notification.Route);
+        Assert.Equal("/projects/overview/10", notification.Route);
         Assert.Equal("Transit Hub project officer updated", notification.Title);
 
         var expectedSummary = string.Format(
