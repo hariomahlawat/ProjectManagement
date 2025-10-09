@@ -1163,6 +1163,8 @@ body {
 @media (max-width: 991.98px) {
     .pm-remarks-filter {
         flex-wrap: wrap;
+        flex: 1 1 100%;
+        max-width: 100%;
     }
 
     .pm-remarks-filter .btn {
