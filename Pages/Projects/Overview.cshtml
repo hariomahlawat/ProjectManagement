@@ -56,15 +56,33 @@
     </nav>
 
     <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between mb-3 gap-3">
-        <div>
-            <h1 class="h3 mb-1">
-                @pageTitle
-                @if (!string.IsNullOrWhiteSpace(project?.CaseFileNumber))
-                {
-                    <small class="text-muted">(@project?.CaseFileNumber)</small>
-                }
-            </h1>
-            <div class="text-muted">Created on @(project is { } p ? p.CreatedAt.ToString("dd MMM yyyy") : "—")</div>
+        <div class="d-flex align-items-start gap-2">
+            <div>
+                <h1 class="h3 mb-1">
+                    @pageTitle
+                    @if (!string.IsNullOrWhiteSpace(project?.CaseFileNumber))
+                    {
+                        <small class="text-muted">(@project?.CaseFileNumber)</small>
+                    }
+                </h1>
+                <div class="text-muted">Created on @(project is { } p ? p.CreatedAt.ToString("dd MMM yyyy") : "—")</div>
+            </div>
+            @if (Model.LifecycleActions.HasActions)
+            {
+                <div class="dropdown">
+                    <button class="btn btn-outline-secondary btn-sm" type="button" id="project-actions-menu" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="bi bi-three-dots"></i>
+                        <span class="visually-hidden">Project actions</span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="project-actions-menu">
+                        <li>
+                            <button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#projectLifecycleActionsModal">
+                                Manage lifecycle
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+            }
         </div>
         <partial name="_AssignRolesOffcanvas" model="Model.AssignRoles" />
     </div>
