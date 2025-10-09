@@ -9,8 +9,6 @@
 @{
     var project = Model.Project;
     var lifecycle = Model.LifecycleSummary;
-    var media = Model.MediaSummary;
-    var documentSummary = Model.DocumentSummary;
     var remarkSummary = Model.RemarkSummary;
     var roles = Model.Roles;
     var isAdmin = roles.IsAdmin;
@@ -24,9 +22,6 @@
         ProjectLifecycleStatus.Cancelled => "danger",
         _ => "secondary"
     };
-    var tabPrefix = $"project-media-{Model.Project?.Id ?? 0}";
-    var photosTabId = $"{tabPrefix}-photos";
-    var docsTabId = $"{tabPrefix}-documents";
 }
 
 <div class="row g-3 mb-4">
@@ -76,85 +71,7 @@
 
         <partial name="_ProjectOverviewCard" model="Model" />
 
-        <div class="card pm-card">
-            <div class="card-header pm-card-header">
-                <div class="pm-card-heading">
-                    <span class="pm-card-icon" aria-hidden="true">
-                        <i class="bi bi-collection"></i>
-                    </span>
-                    <div>
-                        <h3 class="pm-card-title h5 mb-0">Project media</h3>
-                        <p class="pm-card-subtitle mb-0">Archived photos and documents.</p>
-                    </div>
-                </div>
-            </div>
-            <div class="card-body pm-card-body">
-                <ul class="nav nav-tabs mb-3" id="@tabPrefix" role="tablist">
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link active"
-                                id="@photosTabId-tab"
-                                data-bs-toggle="tab"
-                                data-bs-target="#@photosTabId"
-                                type="button"
-                                role="tab"
-                                aria-controls="@photosTabId"
-                                aria-selected="true">
-                            Photos (@media.PhotoCount)
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link"
-                                id="@docsTabId-tab"
-                                data-bs-toggle="tab"
-                                data-bs-target="#@docsTabId"
-                                type="button"
-                                role="tab"
-                                aria-controls="@docsTabId"
-                                aria-selected="false">
-                            Documents (@documentSummary.PublishedCount)
-                        </button>
-                    </li>
-                </ul>
-                <div class="tab-content">
-                    <div class="tab-pane fade show active"
-                         id="@photosTabId"
-                         role="tabpanel"
-                         aria-labelledby="@photosTabId-tab">
-                        <partial name="_ProjectMediaTabs" model="Model" />
-                    </div>
-                    <div class="tab-pane fade"
-                         id="@docsTabId"
-                         role="tabpanel"
-                         aria-labelledby="@docsTabId-tab">
-                        <div class="d-flex flex-column gap-2">
-                            @if (documentSummary.PublishedCount > 0)
-                            {
-                                <p class="mb-0">Published documents: <strong>@documentSummary.PublishedCount</strong></p>
-                            }
-                            else
-                            {
-                                <p class="text-muted mb-0">No published documents for this project.</p>
-                            }
-                            @if (documentSummary.HasPending && Model.IsDocumentApprover)
-                            {
-                                <p class="mb-0 text-muted">Pending approval requests: @documentSummary.PendingCount</p>
-                            }
-                            <div class="d-flex flex-wrap gap-2">
-                                <a class="btn btn-sm btn-outline-secondary"
-                                   asp-page="/Projects/Documents/Index"
-                                   asp-route-id="@Model.Project!.Id">Open documents workspace</a>
-                                @if (Model.IsDocumentApprover)
-                                {
-                                    <a class="btn btn-sm btn-outline-secondary"
-                                       asp-page="/Projects/Documents/Approvals/Index"
-                                       asp-route-id="@Model.Project!.Id">Review approvals</a>
-                                }
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <partial name="_ProjectMediaTabs" model="Model" />
     </div>
     <div class="col-lg-4 d-flex flex-column gap-3">
         <partial name="_ProjectTotPanel" model="Model" />
