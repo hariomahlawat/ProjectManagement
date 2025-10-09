@@ -4,6 +4,24 @@
     ViewData["Title"] = "Account settings";
 }
 <h3>@ViewData["Title"]</h3>
+<div class="pm-card pm-shadow p-4 p-md-5 mb-4">
+  <h4 class="h5 mb-3">Current roles</h4>
+  @if (Model.Roles.Count > 0)
+  {
+    <ul class="list-unstyled mb-0">
+      @foreach (var role in Model.Roles)
+      {
+        <li class="mb-2">
+          <span class="badge rounded-pill text-bg-secondary">@role</span>
+        </li>
+      }
+    </ul>
+  }
+  else
+  {
+    <p class="text-muted mb-0">You do not currently have any assigned roles.</p>
+  }
+</div>
 <div class="pm-card pm-shadow p-4 p-md-5">
   <ul class="list-unstyled mb-0">
     <li><a asp-page="./ChangePassword">Change password</a></li>

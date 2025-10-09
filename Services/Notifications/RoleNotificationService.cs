@@ -113,7 +113,7 @@ public sealed class RoleNotificationService : ProjectManagement.Services.IRoleNo
                 scopeId: user.Id,
                 projectId: null,
                 actorUserId: actorUserId,
-                route: "/admin/users",
+                route: "/Identity/Account/Manage",
                 title: "Your roles have been updated",
                 summary: summary,
                 fingerprint: string.Format(
