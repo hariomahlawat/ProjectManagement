@@ -56,6 +56,8 @@ public class UploadRequestModel : PageModel
 
     public IEnumerable<SelectListItem> StageOptions { get; private set; } = Array.Empty<SelectListItem>();
 
+    public bool HasStageOptions { get; private set; }
+
     public long MaxFileSizeBytes => (long)_options.MaxSizeMb * 1024L * 1024L;
 
     public IReadOnlyCollection<string> AllowedContentTypes => _options.AllowedMimeTypes.ToList();
@@ -80,6 +82,10 @@ public class UploadRequestModel : PageModel
         }
 
         StageOptions = await BuildStageOptionsAsync(id, cancellationToken);
+        if (!HasStageOptions)
+        {
+            Input.StageId = null;
+        }
         Input.ProjectId = id;
         Input.LinkToTot = false;
 
@@ -101,7 +107,11 @@ public class UploadRequestModel : PageModel
 
         StageOptions = await BuildStageOptionsAsync(id, cancellationToken);
 
-        if (Input.StageId is null)
+        if (!HasStageOptions)
+        {
+            Input.StageId = null;
+        }
+        else if (Input.StageId is null)
         {
             ModelState.AddModelError("Input.StageId", "Select a stage.");
         }
@@ -241,6 +251,8 @@ public class UploadRequestModel : PageModel
             .Select(s => new { s.Id, s.StageCode })
             .ToListAsync(cancellationToken);
 
+        HasStageOptions = stages.Count > 0;
+
         return stages
             .Select(stage => new SelectListItem(
                 string.Format(CultureInfo.InvariantCulture, "{0} ({1})", StageCodes.DisplayNameOf(stage.StageCode), stage.StageCode),
@@ -253,7 +265,6 @@ public class UploadRequestModel : PageModel
         [Required]
         public int ProjectId { get; set; }
 
-        [Required(ErrorMessage = "Select a stage.")]
         public int? StageId { get; set; }
 
         [Required]
