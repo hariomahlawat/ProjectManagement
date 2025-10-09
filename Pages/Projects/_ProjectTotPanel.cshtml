@@ -3,62 +3,69 @@
 @model ProjectManagement.Pages.Projects.OverviewModel
 
 @{
-    var tot = Model.TotSummary;
-    var hasTot = tot.HasTotRecord;
-    var badgeVariant = hasTot
-        ? tot.Status switch
-        {
-            ProjectTotStatus.Completed => "success",
-            ProjectTotStatus.InProgress => "info",
-            ProjectTotStatus.NotRequired => "secondary",
-            _ => "secondary"
-        }
-        : "secondary";
-    var canManageTot = Model.CanManageTot;
+    var showTransferOfTechnology = Model.LifecycleSummary.Status == ProjectLifecycleStatus.Completed;
 }
 
-<div class="card pm-card">
-    <div class="card-header pm-card-header">
-        <div class="pm-card-heading">
-            <span class="pm-card-icon" aria-hidden="true">
-                <i class="bi bi-diagram-3"></i>
-            </span>
-            <div>
-                <h3 class="pm-card-title h6 mb-0">Transfer of Technology</h3>
-                <p class="pm-card-subtitle mb-0">Status and milestones.</p>
+@if (showTransferOfTechnology)
+{
+    @{
+        var tot = Model.TotSummary;
+        var hasTot = tot.HasTotRecord;
+        var badgeVariant = hasTot
+            ? tot.Status switch
+            {
+                ProjectTotStatus.Completed => "success",
+                ProjectTotStatus.InProgress => "info",
+                ProjectTotStatus.NotRequired => "secondary",
+                _ => "secondary"
+            }
+            : "secondary";
+        var canManageTot = Model.CanManageTot;
+    }
+
+    <div class="card pm-card">
+        <div class="card-header pm-card-header">
+            <div class="pm-card-heading">
+                <span class="pm-card-icon" aria-hidden="true">
+                    <i class="bi bi-diagram-3"></i>
+                </span>
+                <div>
+                    <h3 class="pm-card-title h6 mb-0">Transfer of Technology</h3>
+                    <p class="pm-card-subtitle mb-0">Status and milestones.</p>
+                </div>
+            </div>
+            <div class="pm-card-actions d-flex align-items-center gap-2">
+                <span class="badge text-bg-@badgeVariant">@tot.StatusLabel</span>
+                @if (canManageTot && Model.Project is { } project)
+                {
+                    <a class="btn btn-sm btn-outline-secondary"
+                       asp-page="/Projects/Tot/Edit"
+                       asp-route-id="@project.Id">
+                        Update
+                    </a>
+                }
             </div>
         </div>
-        <div class="pm-card-actions d-flex align-items-center gap-2">
-            <span class="badge text-bg-@badgeVariant">@tot.StatusLabel</span>
-            @if (canManageTot && Model.Project is { } project)
+        <div class="card-body pm-card-body d-flex flex-column gap-2">
+            <p class="mb-0">@tot.Summary</p>
+            @if (tot.Facts.Any())
             {
-                <a class="btn btn-sm btn-outline-secondary"
-                   asp-page="/Projects/Tot/Edit"
-                   asp-route-id="@project.Id">
-                    Update
-                </a>
+                <dl class="row small mb-0">
+                    @foreach (var fact in tot.Facts)
+                    {
+                        <dt class="col-sm-5">@fact.Label</dt>
+                        <dd class="col-sm-7">@fact.Value</dd>
+                    }
+                </dl>
+            }
+            @if (!string.IsNullOrWhiteSpace(tot.Remarks))
+            {
+                <div class="alert alert-secondary mb-0" role="status">@tot.Remarks</div>
+            }
+            @if (!hasTot)
+            {
+                <p class="text-muted small mb-0">Set up ToT tracking to capture milestones and remarks.</p>
             }
         </div>
     </div>
-    <div class="card-body pm-card-body d-flex flex-column gap-2">
-        <p class="mb-0">@tot.Summary</p>
-        @if (tot.Facts.Any())
-        {
-            <dl class="row small mb-0">
-                @foreach (var fact in tot.Facts)
-                {
-                    <dt class="col-sm-5">@fact.Label</dt>
-                    <dd class="col-sm-7">@fact.Value</dd>
-                }
-            </dl>
-        }
-        @if (!string.IsNullOrWhiteSpace(tot.Remarks))
-        {
-            <div class="alert alert-secondary mb-0" role="status">@tot.Remarks</div>
-        }
-        @if (!hasTot)
-        {
-            <p class="text-muted small mb-0">Set up ToT tracking to capture milestones and remarks.</p>
-        }
-    </div>
-</div>
+}
