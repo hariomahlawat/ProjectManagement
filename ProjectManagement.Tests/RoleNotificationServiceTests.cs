@@ -33,7 +33,7 @@ public sealed class RoleNotificationServiceTests
         Assert.Equal("RoleAssignmentsChanged", evt.EventType);
         Assert.Equal("User", evt.ScopeType);
         Assert.Equal("user-1", evt.ScopeId);
-        Assert.Equal("/admin/users", evt.Route);
+        Assert.Equal("/Identity/Account/Manage", evt.Route);
         Assert.Contains((NotificationKind.RoleAssignmentsChanged, "user-1", null), preferences.Calls);
     }
 
