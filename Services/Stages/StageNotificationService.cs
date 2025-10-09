@@ -181,7 +181,21 @@ public sealed class StageNotificationService : IStageNotificationService
     }
 
     private static string BuildRoute(int projectId, string stageCode)
-        => string.Format(CultureInfo.InvariantCulture, "/projects/{0}/timeline/stages/{1}", projectId, stageCode);
+    {
+        var baseRoute = string.Format(CultureInfo.InvariantCulture, "/projects/{0}/overview", projectId);
+
+        if (string.IsNullOrWhiteSpace(stageCode))
+        {
+            return baseRoute + "#timeline";
+        }
+
+        var safeStage = Uri.EscapeDataString(stageCode);
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            "{0}?timeline-stage={1}#timeline",
+            baseRoute,
+            safeStage);
+    }
 
     private sealed record StageNotificationPayload(
         int StageId,

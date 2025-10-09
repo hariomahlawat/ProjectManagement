@@ -342,7 +342,7 @@
                 ? window.location.hash.trim().toLowerCase()
                 : '';
 
-            if (hash === '#timeline' || hash === '#project-panel-toggle-timeline' || hash === '#project-panel-body-timeline') {
+            if (hash === '#timeline' || hash === '#project-panel-toggle-timeline' || hash === '#project-panel-body-timeline' || hash.startsWith('#timeline-stage')) {
                 return 'timeline';
             }
 
@@ -356,6 +356,10 @@
 
             try {
                 const params = new URLSearchParams(search);
+                if (params.has('timeline-stage')) {
+                    return 'timeline';
+                }
+
                 const panel = params.get('panel');
                 if (typeof panel === 'string' && panel.toLowerCase() === 'timeline') {
                     return 'timeline';
@@ -436,6 +440,95 @@
         setActive(initial);
     }
 
+    function getTimelineStageTarget() {
+        if (typeof window === 'undefined') {
+            return null;
+        }
+
+        const search = typeof window.location.search === 'string'
+            ? window.location.search
+            : '';
+
+        if (search) {
+            try {
+                const params = new URLSearchParams(search);
+                const stage = params.get('timeline-stage');
+                if (typeof stage === 'string' && stage.trim().length > 0) {
+                    return stage.trim();
+                }
+            } catch (error) {
+                // Ignore malformed query parameters
+            }
+        }
+
+        const hash = typeof window.location.hash === 'string'
+            ? window.location.hash.trim()
+            : '';
+
+        if (!hash) {
+            return null;
+        }
+
+        const match = hash.match(/^#timeline-stage[-=]?(.+)$/i);
+        if (!match || match.length < 2) {
+            return null;
+        }
+
+        const raw = match[1];
+        if (!raw) {
+            return null;
+        }
+
+        try {
+            const decoded = decodeURIComponent(raw);
+            return decoded.trim() || null;
+        } catch (error) {
+            return raw.trim() || null;
+        }
+    }
+
+    function highlightTimelineStage(stageCode, attempt = 0) {
+        if (!stageCode || attempt > 10) {
+            return;
+        }
+
+        const timeline = document.querySelector('[data-panel="timeline"]');
+        if (!timeline) {
+            window.setTimeout(() => highlightTimelineStage(stageCode, attempt + 1), 150);
+            return;
+        }
+
+        const target = Array.from(timeline.querySelectorAll('[data-stage-row]')).find((element) => {
+            const value = element.getAttribute('data-stage-row');
+            return typeof value === 'string' && value.toLowerCase() === stageCode.toLowerCase();
+        });
+
+        if (!target) {
+            window.setTimeout(() => highlightTimelineStage(stageCode, attempt + 1), 150);
+            return;
+        }
+
+        target.classList.add('is-target');
+
+        if (typeof target.scrollIntoView === 'function') {
+            try {
+                const prefersReducedMotion = typeof window.matchMedia === 'function'
+                    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                target.scrollIntoView({
+                    behavior: prefersReducedMotion ? 'auto' : 'smooth',
+                    block: 'center',
+                    inline: 'nearest'
+                });
+            } catch (error) {
+                target.scrollIntoView();
+            }
+        }
+
+        window.setTimeout(() => {
+            target.classList.remove('is-target');
+        }, 8000);
+    }
+
     const remarksElement = document.querySelector('[data-remarks-panel]');
     let remarksPanelInstance = null;
     const createRemarksPanel = typeof remarksNamespace.createRemarksPanel === 'function'
@@ -450,5 +543,10 @@
         initPanelToggle(panelCard, remarksPanelInstance);
     } else if (remarksPanelInstance) {
         remarksPanelInstance.ensureLoaded();
+    }
+
+    const timelineStageTarget = getTimelineStageTarget();
+    if (timelineStageTarget) {
+        window.setTimeout(() => highlightTimelineStage(timelineStageTarget), 200);
     }
 })();
