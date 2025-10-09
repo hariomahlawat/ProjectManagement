@@ -8,20 +8,18 @@
 
 @if (showTransferOfTechnology)
 {
-    @{
-        var tot = Model.TotSummary;
-        var hasTot = tot.HasTotRecord;
-        var badgeVariant = hasTot
-            ? tot.Status switch
-            {
-                ProjectTotStatus.Completed => "success",
-                ProjectTotStatus.InProgress => "info",
-                ProjectTotStatus.NotRequired => "secondary",
-                _ => "secondary"
-            }
-            : "secondary";
-        var canManageTot = Model.CanManageTot;
-    }
+    var tot = Model.TotSummary;
+    var hasTot = tot.HasTotRecord;
+    var badgeVariant = hasTot
+        ? tot.Status switch
+        {
+            ProjectTotStatus.Completed => "success",
+            ProjectTotStatus.InProgress => "info",
+            ProjectTotStatus.NotRequired => "secondary",
+            _ => "secondary"
+        }
+        : "secondary";
+    var canManageTot = Model.CanManageTot;
 
     <div class="card pm-card">
         <div class="card-header pm-card-header">
