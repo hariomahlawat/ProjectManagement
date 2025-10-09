@@ -358,7 +358,11 @@ public sealed class DocumentServicesTests
         var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 12, 0, 0, TimeSpan.Zero));
         var photoOptions = Options.Create(new ProjectPhotoOptions());
         var documentOptions = Options.Create(options);
-        var uploadRoot = new UploadRootProvider(photoOptions, documentOptions);
+        var environment = new TestWebHostEnvironment
+        {
+            ContentRootPath = Path.Combine(Path.GetTempPath(), "pm-doc-tests")
+        };
+        var uploadRoot = new UploadRootProvider(photoOptions, documentOptions, environment, NullLogger<UploadRootProvider>.Instance);
         var documentService = new DocumentService(db, documentOptions, uploadRoot, clock, audit, new NullDocumentNotificationService(), null, NullLogger<DocumentService>.Instance);
         var requestService = new DocumentRequestService(db, clock, audit);
         var decisionService = new DocumentDecisionService(db, documentService, clock, audit);
