@@ -197,10 +197,22 @@ public sealed class ProjectModerationService
 
         using var tx = await _db.Database.BeginTransactionAsync(cancellationToken);
 
-        var metadata = await PurgeProjectAsync(projectId, includeAssets, cancellationToken);
+        var purgeResult = await PurgeProjectAsync(projectId, cancellationToken);
+        var assetsPurged = includeAssets && TryDeleteProjectAssets(projectId);
+        purgeResult.Metadata["assetsPurged"] = assetsPurged;
+        var metadataJson = purgeResult.Metadata.Count == 0
+            ? null
+            : JsonSerializer.Serialize(purgeResult.Metadata);
 
-        await WriteAuditAsync(projectId, AuditActions.Purge, actorUserId, project.DeleteReason, metadata, cancellationToken);
+        await WriteAuditAsync(projectId, AuditActions.Purge, actorUserId, project.DeleteReason, metadataJson, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (purgeResult.Project is not null)
+        {
+            _db.Projects.Remove(purgeResult.Project);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
         await tx.CommitAsync(cancellationToken);
 
         return ProjectModerationResult.Success();
@@ -222,9 +234,21 @@ public sealed class ProjectModerationService
         {
             try
             {
-                var metadata = await PurgeProjectAsync(projectId, includeAssets, cancellationToken);
-                await WriteAuditAsync(projectId, AuditActions.Purge, "system", reason: null, metadata, cancellationToken);
+                var purgeResult = await PurgeProjectAsync(projectId, cancellationToken);
+                var assetsPurged = includeAssets && TryDeleteProjectAssets(projectId);
+                purgeResult.Metadata["assetsPurged"] = assetsPurged;
+                var metadataJson = purgeResult.Metadata.Count == 0
+                    ? null
+                    : JsonSerializer.Serialize(purgeResult.Metadata);
+
+                await WriteAuditAsync(projectId, AuditActions.Purge, "system", reason: null, metadataJson, cancellationToken);
                 await _db.SaveChangesAsync(cancellationToken);
+
+                if (purgeResult.Project is not null)
+                {
+                    _db.Projects.Remove(purgeResult.Project);
+                    await _db.SaveChangesAsync(cancellationToken);
+                }
                 purged++;
             }
             catch (Exception ex)
@@ -241,9 +265,8 @@ public sealed class ProjectModerationService
         return await _db.Projects.FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken);
     }
 
-    private async Task<string?> PurgeProjectAsync(
+    private async Task<PurgeProjectResult> PurgeProjectAsync(
         int projectId,
-        bool includeAssets,
         CancellationToken cancellationToken)
     {
         var metadata = new Dictionary<string, object?>();
@@ -345,20 +368,11 @@ public sealed class ProjectModerationService
 
         var project = await _db.Projects
             .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken);
-        if (project != null)
-        {
-            _db.Projects.Remove(project);
-        }
 
-        await _db.SaveChangesAsync(cancellationToken);
-
-        var assetsPurged = includeAssets && TryDeleteProjectAssets(projectId);
-        metadata["assetsPurged"] = assetsPurged;
-
-        return metadata.Count == 0
-            ? null
-            : JsonSerializer.Serialize(metadata);
+        return new PurgeProjectResult(metadata, project);
     }
+
+    private sealed record PurgeProjectResult(Dictionary<string, object?> Metadata, Project? Project);
 
     private bool TryDeleteProjectAssets(int projectId)
     {
