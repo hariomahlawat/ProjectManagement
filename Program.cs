@@ -813,7 +813,7 @@ notificationsApi.MapDelete("/projects/{projectId:int}/mute", async (int projectI
     };
 });
 
-var projectsApi = app.MapGroup("/projects").RequireAuthorization();
+var projectsApi = app.MapGroup("/api/projects").RequireAuthorization();
 
 projectsApi.MapPost("/{id:int}/archive", async (
     int id,
