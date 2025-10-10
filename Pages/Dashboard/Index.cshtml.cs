@@ -32,6 +32,8 @@ namespace ProjectManagement.Pages.Dashboard
 
         public TodoWidgetResult? TodoWidget { get; set; }
         public List<UpcomingEventVM> UpcomingEvents { get; set; } = new();
+        public List<MyProjectsSection> MyProjectSections { get; private set; } = new();
+        public bool HasMyProjects => MyProjectSections.Any(section => section.Items.Count > 0);
 
         public class UpcomingEventVM
         {
@@ -158,6 +160,108 @@ namespace ProjectManagement.Pages.Dashboard
                 }
                 UpcomingEvents.Add(new UpcomingEventVM { Id = item.Id, Title = item.Title, When = when, IsHoliday = item.IsHoliday });
             }
+
+            if (uid != null)
+            {
+                await LoadMyProjectsAsync(uid);
+            }
+        }
+
+        private async Task LoadMyProjectsAsync(string userId)
+        {
+            var sections = new List<MyProjectsSection>();
+
+            var officerProjects = await _db.Projects
+                .AsNoTracking()
+                .Where(p => !p.IsDeleted && p.LeadPoUserId == userId)
+                .OrderBy(p => p.Name)
+                .Select(p => new ProjectAssignmentSummary
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Category = p.Category != null ? p.Category.Name : null,
+                    CoverPhotoId = p.CoverPhotoId,
+                    CoverPhotoVersion = p.CoverPhotoVersion
+                })
+                .ToListAsync();
+
+            if (officerProjects.Count > 0)
+            {
+                sections.Add(new MyProjectsSection
+                {
+                    Title = "Project Officer",
+                    Items = officerProjects.Select(CreateProjectItem).ToList()
+                });
+            }
+
+            var hodProjects = await _db.Projects
+                .AsNoTracking()
+                .Where(p => !p.IsDeleted && p.HodUserId == userId)
+                .OrderBy(p => p.Name)
+                .Select(p => new ProjectAssignmentSummary
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Category = p.Category != null ? p.Category.Name : null,
+                    CoverPhotoId = p.CoverPhotoId,
+                    CoverPhotoVersion = p.CoverPhotoVersion
+                })
+                .ToListAsync();
+
+            if (hodProjects.Count > 0)
+            {
+                sections.Add(new MyProjectsSection
+                {
+                    Title = "Head of Department",
+                    Items = hodProjects.Select(CreateProjectItem).ToList()
+                });
+            }
+
+            MyProjectSections = sections;
+
+            MyProjectItem CreateProjectItem(ProjectAssignmentSummary summary)
+            {
+                string? coverImageUrl = summary.CoverPhotoId.HasValue
+                    ? Url.Page("/Projects/Photos/View", new
+                    {
+                        id = summary.Id,
+                        photoId = summary.CoverPhotoId.Value,
+                        size = "xs",
+                        v = summary.CoverPhotoVersion
+                    })
+                    : null;
+
+                return new MyProjectItem
+                {
+                    ProjectId = summary.Id,
+                    Name = summary.Name,
+                    Category = string.IsNullOrWhiteSpace(summary.Category) ? null : summary.Category,
+                    CoverImageUrl = coverImageUrl
+                };
+            }
+        }
+
+        public sealed class MyProjectsSection
+        {
+            public string Title { get; init; } = string.Empty;
+            public List<MyProjectItem> Items { get; init; } = new();
+        }
+
+        public sealed class MyProjectItem
+        {
+            public int ProjectId { get; init; }
+            public string Name { get; init; } = string.Empty;
+            public string? Category { get; init; }
+            public string? CoverImageUrl { get; init; }
+        }
+
+        private sealed class ProjectAssignmentSummary
+        {
+            public int Id { get; init; }
+            public string Name { get; init; } = string.Empty;
+            public string? Category { get; init; }
+            public int? CoverPhotoId { get; init; }
+            public int CoverPhotoVersion { get; init; }
         }
 
         public async Task<IActionResult> OnPostAddAsync()
