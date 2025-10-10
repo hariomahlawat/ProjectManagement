@@ -5,159 +5,157 @@
     ViewData["Title"] = "Projects";
 }
 
-<div class="container-xxl">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="h3 mb-0">Projects</h1>
-        </div>
-        @if (User.IsInRole("Admin") || User.IsInRole("HoD"))
-        {
-            <a asp-page="/Projects/Create" class="btn btn-primary">Create Project</a>
-        }
-    </div>
+<div class="projects-page-layout">
+    <div class="projects-page-layout__content">
+        <div class="container-xxl">
+            <div class="d-flex align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">Projects</h1>
+                </div>
+            </div>
 
-    <ul class="nav nav-pills mb-3" role="tablist">
-        @foreach (var lifecycle in Model.LifecycleTabs)
-        {
-            <li class="nav-item" role="presentation">
-                <a class="nav-link @(lifecycle.IsActive ? "active" : null)"
-                   asp-page="./Index"
-                   asp-route-Lifecycle="@lifecycle.RouteValue"
-                   asp-route-Query="@Model.Query"
-                   asp-route-CategoryId="@Model.CategoryId"
-                   asp-route-LeadPoUserId="@Model.LeadPoUserId"
-                   asp-route-HodUserId="@Model.HodUserId"
-                   asp-route-CompletedYear="@Model.CompletedYear"
-                   asp-route-TotStatus="@(Model.TotStatus?.ToString())"
-                   role="tab">
-                    @lifecycle.Label
-                </a>
-            </li>
-        }
-    </ul>
-
-    <form method="get" class="row row-cols-1 row-cols-md-3 row-cols-lg-6 g-3 align-items-end mb-4">
-        <input type="hidden" name="Lifecycle" value="@Model.Lifecycle" />
-        <div class="col">
-            <label asp-for="Query" class="form-label">Search projects</label>
-            <input asp-for="Query" class="form-control" placeholder="Search by name, description, case file, category, or people" />
-        </div>
-        <div class="col">
-            <label asp-for="CategoryId" class="form-label">Category</label>
-            <select asp-for="CategoryId" class="form-select" asp-items="Model.CategoryOptions"></select>
-        </div>
-        <div class="col">
-            <label asp-for="HodUserId" class="form-label">Head of Department</label>
-            <select asp-for="HodUserId" class="form-select" asp-items="Model.HodOptions"></select>
-        </div>
-        <div class="col">
-            <label asp-for="LeadPoUserId" class="form-label">Project Officer</label>
-            <select asp-for="LeadPoUserId" class="form-select" asp-items="Model.LeadPoOptions"></select>
-        </div>
-        <div class="col">
-            <label asp-for="CompletedYear" class="form-label">Completion year</label>
-            <select asp-for="CompletedYear" class="form-select" asp-items="Model.CompletionYearOptions"></select>
-        </div>
-        <div class="col">
-            <label asp-for="TotStatus" class="form-label">ToT status</label>
-            <select asp-for="TotStatus" class="form-select" asp-items="Model.TotStatusOptions"></select>
-        </div>
-        <div class="col">
-            <button type="submit" class="btn btn-outline-primary w-100">Apply filters</button>
-        </div>
-    </form>
-
-    @if (!Model.Projects.Any())
-    {
-        <div class="alert alert-info">No projects match your search. Adjust the keywords or filters and try again.</div>
-    }
-    else
-    {
-        <div class="table-responsive">
-            <table class="table align-middle">
-                <thead>
-                    <tr>
-                        <th class="text-center">Cover</th>
-                        <th>Name</th>
-                        <th>Case File #</th>
-                        <th>Category</th>
-                        <th>HoD</th>
-                        <th>Project Officer</th>
-                        <th>Created</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach (var project in Model.Projects)
+            <ul class="nav nav-pills mb-3" role="tablist">
+                @foreach (var lifecycle in Model.LifecycleTabs)
                 {
-                    <tr>
-                        <td class="text-center">
-                            @{
-                                var coverThumb = project.CoverPhotoId.HasValue
-                                    ? Url.Page("/Projects/Photos/View", new
-                                    {
-                                        id = project.Id,
-                                        photoId = project.CoverPhotoId,
-                                        size = "sm",
-                                        v = project.CoverPhotoVersion
-                                    })
-                                    : null;
-                            }
-                            <div class="ratio ratio-4x3 d-inline-block" style="width: 96px;">
-                                @if (!string.IsNullOrEmpty(coverThumb))
-                                {
-                                    <img class="w-100 h-100 object-fit-cover rounded border"
-                                         width="96"
-                                         height="72"
-                                         src="@coverThumb"
-                                         alt="@($"{project.Name} cover photo")" />
-                                }
-                                else
-                                {
-                                    <div class="w-100 h-100 rounded border bg-light d-flex align-items-center justify-content-center text-muted small">
-                                        <span>—</span>
-                                    </div>
-                                }
-                            </div>
-                        </td>
-                        <td>
-                            <a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="fw-semibold text-decoration-none">
-                                @project.Name
-                            </a>
-                        </td>
-                        <td>@project.CaseFileNumber</td>
-                        <td>@project.Category?.Name</td>
-                        <td>@(project.HodUser?.FullName ?? project.HodUser?.UserName)</td>
-                        <td>@(project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName)</td>
-                        <td>@project.CreatedAt.ToString("dd MMM yyyy")</td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-
-        @if (Model.TotalPages > 1)
-        {
-            <nav class="mt-3" aria-label="Project pagination">
-                <ul class="pagination">
-                    <li class="page-item @(Model.CurrentPage <= 1 ? "disabled" : null)">
-                        <a class="page-link"
+                    <li class="nav-item" role="presentation">
+                        <a class="nav-link @(lifecycle.IsActive ? "active" : null)"
                            asp-page="./Index"
-                           asp-route-page="@(Model.CurrentPage - 1)"
-                           asp-route-PageSize="@Model.PageSize"
+                           asp-route-Lifecycle="@lifecycle.RouteValue"
                            asp-route-Query="@Model.Query"
                            asp-route-CategoryId="@Model.CategoryId"
                            asp-route-LeadPoUserId="@Model.LeadPoUserId"
                            asp-route-HodUserId="@Model.HodUserId"
-                           asp-route-Lifecycle="@((Model.Lifecycle == ProjectLifecycleFilter.All) ? null : Model.Lifecycle.ToString())"
                            asp-route-CompletedYear="@Model.CompletedYear"
                            asp-route-TotStatus="@(Model.TotStatus?.ToString())"
-                           aria-label="Previous"
-                           aria-disabled="@(Model.CurrentPage <= 1)">Previous</a>
+                           role="tab">
+                            @lifecycle.Label
+                        </a>
                     </li>
-                    @for (var i = 1; i <= Model.TotalPages; i++)
-                    {
-                        <li class="page-item @(i == Model.CurrentPage ? "active" : null)">
-                            <a class="page-link"
+                }
+            </ul>
+
+            <form method="get" class="row row-cols-1 row-cols-md-3 row-cols-lg-6 g-3 align-items-end mb-4">
+                <input type="hidden" name="Lifecycle" value="@Model.Lifecycle" />
+                <div class="col">
+                    <label asp-for="Query" class="form-label">Search projects</label>
+                    <input asp-for="Query" class="form-control" placeholder="Search by name, description, case file, category, or people" />
+                </div>
+                <div class="col">
+                    <label asp-for="CategoryId" class="form-label">Category</label>
+                    <select asp-for="CategoryId" class="form-select" asp-items="Model.CategoryOptions"></select>
+                </div>
+                <div class="col">
+                    <label asp-for="HodUserId" class="form-label">Head of Department</label>
+                    <select asp-for="HodUserId" class="form-select" asp-items="Model.HodOptions"></select>
+                </div>
+                <div class="col">
+                    <label asp-for="LeadPoUserId" class="form-label">Project Officer</label>
+                    <select asp-for="LeadPoUserId" class="form-select" asp-items="Model.LeadPoOptions"></select>
+                </div>
+                <div class="col">
+                    <label asp-for="CompletedYear" class="form-label">Completion year</label>
+                    <select asp-for="CompletedYear" class="form-select" asp-items="Model.CompletionYearOptions"></select>
+                </div>
+                <div class="col">
+                    <label asp-for="TotStatus" class="form-label">ToT status</label>
+                    <select asp-for="TotStatus" class="form-select" asp-items="Model.TotStatusOptions"></select>
+                </div>
+                <div class="col">
+                    <button type="submit" class="btn btn-outline-primary w-100">Apply filters</button>
+                </div>
+            </form>
+
+            @if (!Model.Projects.Any())
+            {
+                <div class="alert alert-info">No projects match your search. Adjust the keywords or filters and try again.</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table align-middle">
+                        <thead>
+                            <tr>
+                                <th class="text-center">Cover</th>
+                                <th>Name</th>
+                                <th>Case File #</th>
+                                <th>Category</th>
+                                <th>HoD</th>
+                                <th>Project Officer</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var project in Model.Projects)
+                        {
+                            <tr>
+                                <td class="text-center">
+                                    @{
+                                        var coverThumb = project.CoverPhotoId.HasValue
+                                            ? Url.Page("/Projects/Photos/View", new
+                                            {
+                                                id = project.Id,
+                                                photoId = project.CoverPhotoId,
+                                                size = "sm",
+                                                v = project.CoverPhotoVersion
+                                            })
+                                            : null;
+                                    }
+                                    <div class="ratio ratio-4x3 d-inline-block" style="width: 96px;">
+                                        @if (!string.IsNullOrEmpty(coverThumb))
+                                        {
+                                            <img class="w-100 h-100 object-fit-cover rounded border"
+                                                 width="96"
+                                                 height="72"
+                                                 src="@coverThumb"
+                                                 alt="@($"{project.Name} cover photo")" />
+                                        }
+                                        else
+                                        {
+                                            <div class="w-100 h-100 rounded border bg-light d-flex align-items-center justify-content-center text-muted small">
+                                                <span>—</span>
+                                            </div>
+                                        }
+                                    </div>
+                                </td>
+                                <td>
+                                    <a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="fw-semibold text-decoration-none">
+                                        @project.Name
+                                    </a>
+                                </td>
+                                <td>@project.CaseFileNumber</td>
+                                <td>@project.Category?.Name</td>
+                                <td>@(project.HodUser?.FullName ?? project.HodUser?.UserName)</td>
+                                <td>@(project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName)</td>
+                                <td>@project.CreatedAt.ToString("dd MMM yyyy")</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+
+                @if (Model.TotalPages > 1)
+                {
+                    <nav class="mt-3" aria-label="Project pagination">
+                        <ul class="pagination">
+                            <li class="page-item @(Model.CurrentPage <= 1 ? "disabled" : null)">
+                                <a class="page-link"
+                                   asp-page="./Index"
+                                   asp-route-page="@(Model.CurrentPage - 1)"
+                                   asp-route-PageSize="@Model.PageSize"
+                                   asp-route-Query="@Model.Query"
+                                   asp-route-CategoryId="@Model.CategoryId"
+                                   asp-route-LeadPoUserId="@Model.LeadPoUserId"
+                                   asp-route-HodUserId="@Model.HodUserId"
+                                   asp-route-Lifecycle="@((Model.Lifecycle == ProjectLifecycleFilter.All) ? null : Model.Lifecycle.ToString())"
+                                   asp-route-CompletedYear="@Model.CompletedYear"
+                                   asp-route-TotStatus="@(Model.TotStatus?.ToString())"
+                                   aria-label="Previous"
+                                   aria-disabled="@(Model.CurrentPage <= 1)">Previous</a>
+                            </li>
+                            @for (var i = 1; i <= Model.TotalPages; i++)
+                            {
+                                <li class="page-item @(i == Model.CurrentPage ? "active" : null)">
+                                    <a class="page-link"
                                asp-page="./Index"
                                asp-route-page="@i"
                                asp-route-PageSize="@Model.PageSize"
@@ -188,5 +186,17 @@
                 </ul>
             </nav>
         }
+    }
+
+        </div>
+    </div>
+    @if (User.IsInRole("Admin") || User.IsInRole("HoD"))
+    {
+        <div class="projects-create-action">
+            <a asp-page="/Projects/Create" class="projects-create-action__button" aria-label="Create project">
+                <i class="bi bi-kanban" aria-hidden="true"></i>
+            </a>
+            <span class="projects-create-action__label">Create Project</span>
+        </div>
     }
 </div>
