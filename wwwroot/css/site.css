@@ -245,6 +245,104 @@ body {
     width: 100%;
 }
 
+.dashboard-my-projects {
+    display: flex;
+    flex-direction: column;
+}
+
+.dashboard-my-projects__section + .dashboard-my-projects__section {
+    margin-top: 1.5rem;
+}
+
+.dashboard-my-projects__list {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+}
+
+.dashboard-project-card {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .65rem .75rem;
+    border: 1px solid var(--pm-border);
+    border-radius: .9rem;
+    background-color: var(--pm-card);
+    color: inherit;
+    text-decoration: none;
+    box-shadow: 0 16px 24px -26px rgba(15, 23, 42, .35);
+    transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.dashboard-project-card:hover,
+.dashboard-project-card:focus {
+    text-decoration: none;
+    border-color: rgba(45, 108, 223, .45);
+    box-shadow: 0 22px 32px -26px rgba(45, 108, 223, .4);
+    transform: translateY(-1px);
+}
+
+.dashboard-project-card:focus-visible {
+    outline: 2px solid var(--pm-primary);
+    outline-offset: 4px;
+}
+
+.dashboard-project-card__cover {
+    width: 80px;
+    aspect-ratio: 4 / 3;
+    border-radius: .75rem;
+    overflow: hidden;
+    border: 1px solid var(--pm-border);
+    background-color: var(--pm-surface);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--pm-muted);
+    font-size: var(--pm-font-size-xs);
+    flex-shrink: 0;
+}
+
+.dashboard-project-card__cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.dashboard-project-card__cover-placeholder {
+    padding-inline: .25rem;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    font-size: var(--pm-font-size-xxs);
+}
+
+.dashboard-project-card__content {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.dashboard-project-card__title {
+    font-weight: 600;
+    letter-spacing: .1px;
+}
+
+.dashboard-project-card__meta {
+    margin-top: .125rem;
+    font-size: var(--pm-font-size-xs);
+    color: var(--pm-text-secondary);
+}
+
+.dashboard-project-card__chevron {
+    color: var(--pm-primary);
+    font-size: 1.35rem;
+    flex-shrink: 0;
+}
+
+.dashboard-my-projects__section-title {
+    letter-spacing: .4px;
+}
+
 @media (min-width: 992px) {
     .dashboard-events-card--floating {
         position: absolute;
