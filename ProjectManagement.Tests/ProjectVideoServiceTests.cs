@@ -94,6 +94,57 @@ public sealed class ProjectVideoServiceTests
     }
 
     [Fact]
+    public async Task AddAsync_RollsBackWhenProjectUpdateConflicts()
+    {
+        var databaseName = Guid.NewGuid().ToString("N");
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(databaseName)
+            .Options;
+
+        await using var db = new ConcurrencyFailingDbContext(options);
+        await SeedProjectAsync(db, 53);
+
+        var projectRoot = CreateTempRoot();
+        SetUploadRoot(projectRoot);
+        try
+        {
+            var service = CreateService(db, CreateOptions());
+
+            using var stream = CreateVideoStream();
+            db.SimulateProjectConcurrencyOnSave = true;
+
+            await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() =>
+                service.AddAsync(53,
+                    stream,
+                    "conflict.mp4",
+                    "video/mp4",
+                    "owner",
+                    title: null,
+                    description: null,
+                    totId: null,
+                    setAsFeatured: true,
+                    CancellationToken.None));
+
+            await using var verification = new ApplicationDbContext(options);
+            Assert.Equal(0, await verification.ProjectVideos.CountAsync());
+
+            var project = await verification.Projects.SingleAsync(p => p.Id == 53);
+            Assert.Null(project.FeaturedVideoId);
+
+            var projectDirectory = Path.Combine(projectRoot, "projects", "53", "videos");
+            if (Directory.Exists(projectDirectory))
+            {
+                Assert.Empty(Directory.EnumerateFiles(projectDirectory));
+            }
+        }
+        finally
+        {
+            ResetUploadRoot();
+            CleanupTempRoot(projectRoot);
+        }
+    }
+
+    [Fact]
     public async Task SetFeaturedAsync_TogglesFeaturedVideo()
     {
         await using var db = CreateContext();
@@ -273,6 +324,32 @@ public sealed class ProjectVideoServiceTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         return new ApplicationDbContext(options);
+    }
+
+    private sealed class ConcurrencyFailingDbContext : ApplicationDbContext
+    {
+        public ConcurrencyFailingDbContext(DbContextOptions<ApplicationDbContext> options)
+            : base(options)
+        {
+        }
+
+        public bool SimulateProjectConcurrencyOnSave { get; set; }
+
+        public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+        {
+            if (SimulateProjectConcurrencyOnSave && ChangeTracker.Entries<Project>().Any(e => e.State == EntityState.Modified))
+            {
+                SimulateProjectConcurrencyOnSave = false;
+                throw new DbUpdateConcurrencyException("Simulated concurrency conflict.");
+            }
+
+            return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+
+        public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            return SaveChangesAsync(true, cancellationToken);
+        }
     }
 
     private static async Task SeedProjectAsync(ApplicationDbContext db, int projectId)
