@@ -44,7 +44,6 @@ public sealed class ProjectVideoServiceTests
                     "user-1",
                     title: null,
                     description: null,
-                    totId: null,
                     setAsFeatured: false,
                     CancellationToken.None));
         }
@@ -76,7 +75,6 @@ public sealed class ProjectVideoServiceTests
                 "owner",
                 title: "Launch",
                 description: null,
-                totId: null,
                 setAsFeatured: false,
                 CancellationToken.None);
 
@@ -121,7 +119,6 @@ public sealed class ProjectVideoServiceTests
                     "owner",
                     title: null,
                     description: null,
-                    totId: null,
                     setAsFeatured: true,
                     CancellationToken.None));
 
@@ -165,7 +162,6 @@ public sealed class ProjectVideoServiceTests
                 "owner",
                 title: "Alpha",
                 description: null,
-                totId: null,
                 setAsFeatured: false,
                 CancellationToken.None);
 
@@ -177,7 +173,6 @@ public sealed class ProjectVideoServiceTests
                 "owner",
                 title: "Beta",
                 description: null,
-                totId: null,
                 setAsFeatured: false,
                 CancellationToken.None);
 
@@ -218,7 +213,6 @@ public sealed class ProjectVideoServiceTests
                 "owner",
                 title: null,
                 description: null,
-                totId: null,
                 setAsFeatured: true,
                 CancellationToken.None);
 
@@ -261,7 +255,6 @@ public sealed class ProjectVideoServiceTests
                 "owner",
                 title: null,
                 description: null,
-                totId: null,
                 setAsFeatured: false,
                 CancellationToken.None);
 
@@ -301,7 +294,6 @@ public sealed class ProjectVideoServiceTests
                 "owner",
                 title: null,
                 description: null,
-                totId: null,
                 setAsFeatured: false,
                 CancellationToken.None);
 

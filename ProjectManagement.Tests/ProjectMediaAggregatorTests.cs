@@ -169,7 +169,7 @@ public sealed class ProjectMediaAggregatorTests
     }
 
     [Fact]
-    public void Build_FiltersVideosByTotSelection()
+    public void Build_DoesNotFilterVideosByTotSelection()
     {
         // Arrange
         var documentRows = new List<ProjectDocumentRowViewModel> { CreateDocumentRow(60, "General", null) };
@@ -192,8 +192,8 @@ public sealed class ProjectMediaAggregatorTests
         var photos = new List<ProjectPhoto> { CreatePhoto(70, ordinal: 1, totId: null, caption: "General") };
         var videos = new List<ProjectMediaVideoViewModel>
         {
-            new(1, "General", "/videos/1", "/thumbs/1", null, null, false),
-            new(2, "ToT", "/videos/2", "/thumbs/2", null, 5, true)
+            new(1, "General", "/videos/1", "/thumbs/1", null),
+            new(2, "Other", "/videos/2", "/thumbs/2", null)
         };
 
         var request = CreateRequest(
@@ -211,12 +211,13 @@ public sealed class ProjectMediaAggregatorTests
 
         // Assert
         var videoTab = result.Tabs.Single(t => t.Key == ProjectMediaTabViewModel.VideosKey).Videos!;
-        Assert.Single(videoTab.Items);
-        Assert.Equal(2, videoTab.Items[0].Id);
+        Assert.Equal(2, videoTab.Items.Count);
+        Assert.Contains(videoTab.Items, v => v.Id == 1);
+        Assert.Contains(videoTab.Items, v => v.Id == 2);
     }
 
     [Fact]
-    public void Build_SetsVideoTotBadges()
+    public void Build_DoesNotSetVideoTotBadges()
     {
         // Arrange
         var documentRows = new List<ProjectDocumentRowViewModel> { CreateDocumentRow(80, "General", null) };
@@ -239,8 +240,8 @@ public sealed class ProjectMediaAggregatorTests
         var photos = new List<ProjectPhoto> { CreatePhoto(90, ordinal: 1, totId: null, caption: "General") };
         var videos = new List<ProjectMediaVideoViewModel>
         {
-            new(1, "General", "/videos/1", "/thumbs/1", null, null, false),
-            new(2, "ToT", "/videos/2", "/thumbs/2", null, 5, true)
+            new(1, "General", "/videos/1", "/thumbs/1", null),
+            new(2, "Other", "/videos/2", "/thumbs/2", null)
         };
 
         var request = CreateRequest(
@@ -258,9 +259,7 @@ public sealed class ProjectMediaAggregatorTests
 
         // Assert
         var tab = result.Tabs.Single(t => t.Key == ProjectMediaTabViewModel.VideosKey);
-        Assert.True(tab.HasTotItems);
-        var videoTab = tab.Videos!;
-        Assert.True(videoTab.Items.Any(v => v.TotId.HasValue));
+        Assert.False(tab.HasTotItems);
     }
 
     private static ProjectMediaAggregationRequest CreateRequest(

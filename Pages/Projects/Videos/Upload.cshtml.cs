@@ -39,17 +39,6 @@ public sealed class UploadModel : PageModel
 
     public Project Project { get; private set; } = null!;
 
-    public bool AllowTotLinking => Project?.Tot is { Status: not ProjectTotStatus.NotRequired };
-
-    public string TotStatusDisplay => Project?.Tot?.Status switch
-    {
-        ProjectTotStatus.NotRequired => "Not required",
-        ProjectTotStatus.NotStarted => "Not started",
-        ProjectTotStatus.InProgress => "In progress",
-        ProjectTotStatus.Completed => "Completed",
-        _ => "Unknown"
-    };
-
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
     {
         var userId = _userContext.UserId;
@@ -59,7 +48,6 @@ public sealed class UploadModel : PageModel
         }
 
         var project = await _db.Projects
-            .Include(p => p.Tot)
             .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
 
         if (project is null)
@@ -75,7 +63,6 @@ public sealed class UploadModel : PageModel
         Project = project;
         Input.ProjectId = project.Id;
         Input.RowVersion = Convert.ToBase64String(project.RowVersion);
-        Input.LinkToTot = false;
         Input.SetAsFeatured = project.FeaturedVideoId is null;
 
         return Page();
@@ -106,7 +93,6 @@ public sealed class UploadModel : PageModel
         }
 
         var project = await _db.Projects
-            .Include(p => p.Tot)
             .Include(p => p.Videos)
             .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
 
@@ -128,17 +114,6 @@ public sealed class UploadModel : PageModel
             ModelState.AddModelError(string.Empty, "The project was updated by someone else. Please reload and try again.");
         }
 
-        var tot = project.Tot;
-        var canLinkTot = tot is not null && tot.Status != ProjectTotStatus.NotRequired;
-        if (Input.LinkToTot && !canLinkTot)
-        {
-            ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology is not required for this project.");
-        }
-        else if (Input.LinkToTot && tot is null)
-        {
-            ModelState.AddModelError("Input.LinkToTot", "Transfer of Technology details have not been set up for this project yet.");
-        }
-
         if (!ModelState.IsValid)
         {
             return Page();
@@ -155,7 +130,6 @@ public sealed class UploadModel : PageModel
                 userId,
                 Input.Title,
                 Input.Description,
-                Input.LinkToTot ? project.Tot?.Id : (int?)null,
                 Input.SetAsFeatured,
                 cancellationToken);
 
@@ -214,8 +188,6 @@ public sealed class UploadModel : PageModel
         public string? Title { get; set; }
 
         public string? Description { get; set; }
-
-        public bool LinkToTot { get; set; }
 
         public bool SetAsFeatured { get; set; }
     }
