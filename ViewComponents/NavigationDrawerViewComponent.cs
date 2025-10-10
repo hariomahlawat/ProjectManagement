@@ -80,17 +80,42 @@ public class NavigationDrawerViewComponent : ViewComponent
     {
         if (!string.IsNullOrEmpty(item.Page))
         {
-            var values = item.Area is null ? null : new { area = item.Area };
+            var values = BuildRouteValues(item);
             return _linkGenerator.GetPathByPage(HttpContext, page: item.Page, values: values);
         }
 
         if (!string.IsNullOrEmpty(item.Controller) && !string.IsNullOrEmpty(item.Action))
         {
-            var values = item.Area is null ? null : new { area = item.Area };
+            var values = BuildRouteValues(item);
             return _linkGenerator.GetPathByAction(HttpContext, action: item.Action, controller: item.Controller, values: values);
         }
 
         return null;
+    }
+
+    private static RouteValueDictionary? BuildRouteValues(NavigationItem item)
+    {
+        if (string.IsNullOrEmpty(item.Area) && (item.RouteValues is null || item.RouteValues.Count == 0))
+        {
+            return null;
+        }
+
+        var values = new RouteValueDictionary();
+
+        if (!string.IsNullOrEmpty(item.Area))
+        {
+            values["area"] = item.Area;
+        }
+
+        if (item.RouteValues is not null)
+        {
+            foreach (var pair in item.RouteValues)
+            {
+                values[pair.Key] = pair.Value;
+            }
+        }
+
+        return values;
     }
 
     private static bool IsActive(
