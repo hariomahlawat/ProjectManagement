@@ -156,6 +156,7 @@ if (root) {
           }
         });
         canvas.onclick = (evt) => {
+          const activeFilters = getFilters(card);
           const points = newChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
           if (points.length === 0) {
             return;
@@ -163,7 +164,7 @@ if (root) {
           const point = points[0];
           const slice = newChart.data.datasets[point.datasetIndex].meta[point.index];
           const params = {
-            Lifecycle: filters.lifecycle === 'All' ? undefined : filters.lifecycle,
+            Lifecycle: activeFilters.lifecycle === 'All' ? undefined : activeFilters.lifecycle,
             CategoryId: slice.CategoryId || undefined
           };
           navigateToProjects(params);
@@ -223,6 +224,7 @@ if (root) {
           }
         });
         canvas.onclick = (evt) => {
+          const activeFilters = getFilters(card);
           const points = newChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
           if (points.length === 0) {
             return;
@@ -230,8 +232,8 @@ if (root) {
           const point = points[0];
           const stage = newChart.data.datasets[point.datasetIndex].meta[point.index];
           const params = {
-            Lifecycle: filters.lifecycle === 'All' ? undefined : filters.lifecycle,
-            CategoryId: filters.categoryId || undefined,
+            Lifecycle: activeFilters.lifecycle === 'All' ? undefined : activeFilters.lifecycle,
+            CategoryId: activeFilters.categoryId || undefined,
             StageCode: stage.StageCode
           };
           navigateToProjects(params);
@@ -287,13 +289,14 @@ if (root) {
           }
         });
         canvas.onclick = (evt) => {
+          const activeFilters = getFilters(card);
           const points = newChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
           if (points.length === 0) return;
           const point = points[0];
           const status = newChart.data.labels[point.index];
           const params = {
             Lifecycle: status,
-            CategoryId: filters.categoryId || undefined
+            CategoryId: activeFilters.categoryId || undefined
           };
           navigateToProjects(params);
         };
@@ -350,6 +353,7 @@ if (root) {
       if (chart) {
         chart.data.labels = labels;
         chart.data.datasets = datasets;
+        chart.$months = data.Months;
         chart.update();
       } else {
         const newChart = new window.Chart(canvas.getContext('2d'), {
@@ -371,15 +375,21 @@ if (root) {
             }
           }
         });
+        newChart.$months = data.Months;
         canvas.onclick = (evt) => {
+          const activeFilters = getFilters(card);
           const points = newChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
           if (points.length === 0) return;
           const point = points[0];
           const dataset = newChart.data.datasets[point.datasetIndex];
-          const monthBucket = data.Months[point.index];
+          const months = newChart.$months || [];
+          const monthBucket = months[point.index];
+          if (!monthBucket) {
+            return;
+          }
           const params = {
-            Lifecycle: filters.lifecycle === 'All' ? undefined : filters.lifecycle,
-            CategoryId: filters.categoryId || undefined,
+            Lifecycle: activeFilters.lifecycle === 'All' ? undefined : activeFilters.lifecycle,
+            CategoryId: activeFilters.categoryId || undefined,
             StageCode: dataset.stageCode,
             StageCompletedMonth: monthBucket.Key
           };
@@ -435,13 +445,14 @@ if (root) {
           }
         });
         canvas.onclick = (evt) => {
+          const activeFilters = getFilters(card);
           const points = newChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
           if (points.length === 0) return;
           const point = points[0];
           const bucket = newChart.data.datasets[point.datasetIndex].meta[point.index];
           const params = {
-            Lifecycle: filters.lifecycle === 'All' ? undefined : filters.lifecycle,
-            CategoryId: filters.categoryId || undefined,
+            Lifecycle: activeFilters.lifecycle === 'All' ? undefined : activeFilters.lifecycle,
+            CategoryId: activeFilters.categoryId || undefined,
             SlipBucket: bucket.Key
           };
           navigateToProjects(params);
