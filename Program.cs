@@ -175,6 +175,7 @@ builder.Services.Configure<TodoOptions>(
 builder.Services.AddScoped<ILoginAnalyticsService, LoginAnalyticsService>();
 builder.Services.AddHostedService<LoginAggregationWorker>();
 builder.Services.AddHostedService<TodoPurgeWorker>();
+builder.Services.AddHostedService<ProjectRetentionWorker>();
 builder.Services.AddScoped<PlanDraftService>();
 builder.Services.AddScoped<PlanApprovalService>();
 builder.Services.AddScoped<INavigationProvider, RoleBasedNavigationProvider>();
@@ -196,6 +197,7 @@ builder.Services.AddScoped<ProjectTotService>();
 builder.Services.AddScoped<ProjectCommentService>();
 builder.Services.AddScoped<ProjectRemarksPanelService>();
 builder.Services.AddScoped<ProjectMediaAggregator>();
+builder.Services.AddScoped<ProjectModerationService>();
 builder.Services.AddScoped<IRemarkService, RemarkService>();
 builder.Services.AddScoped<INotificationPreferenceService, NotificationPreferenceService>();
 builder.Services.AddScoped<IRemarkNotificationService, RemarkNotificationService>();
@@ -229,6 +231,8 @@ builder.Services.AddOptions<ProjectDocumentOptions>()
 builder.Services.AddSingleton<IConfigureOptions<ProjectPhotoOptions>, ProjectPhotoOptionsSetup>();
 builder.Services.AddSingleton<IUploadRootProvider, UploadRootProvider>();
 builder.Services.AddScoped<IProjectPhotoService, ProjectPhotoService>();
+builder.Services.AddOptions<ProjectRetentionOptions>()
+    .Bind(builder.Configuration.GetSection("Projects:Retention"));
 
 builder.Services.ConfigureHttpJsonOptions(o =>
 {
@@ -779,6 +783,115 @@ notificationsApi.MapDelete("/projects/{projectId:int}/mute", async (int projectI
         NotificationOperationResult.Forbidden => Results.Forbid(),
         _ => Results.BadRequest()
     };
+});
+
+var projectsApi = app.MapGroup("/projects").RequireAuthorization();
+
+projectsApi.MapPost("/{id:int}/archive", async (
+    int id,
+    HttpContext httpContext,
+    ProjectModerationService moderation,
+    CancellationToken cancellationToken) =>
+{
+    if (!IsProjectArchiveActor(httpContext.User))
+    {
+        return Results.Forbid();
+    }
+
+    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (string.IsNullOrEmpty(userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    var result = await moderation.ArchiveAsync(id, userId, cancellationToken);
+    return MapProjectModerationResult(result);
+});
+
+projectsApi.MapPost("/{id:int}/restore-archive", async (
+    int id,
+    HttpContext httpContext,
+    ProjectModerationService moderation,
+    CancellationToken cancellationToken) =>
+{
+    if (!IsProjectArchiveActor(httpContext.User))
+    {
+        return Results.Forbid();
+    }
+
+    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (string.IsNullOrEmpty(userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    var result = await moderation.RestoreFromArchiveAsync(id, userId, cancellationToken);
+    return MapProjectModerationResult(result);
+});
+
+projectsApi.MapPost("/{id:int}/trash", async (
+    int id,
+    HttpContext httpContext,
+    ProjectModerationService moderation,
+    TrashProjectRequest request,
+    CancellationToken cancellationToken) =>
+{
+    if (!IsProjectArchiveActor(httpContext.User))
+    {
+        return Results.Forbid();
+    }
+
+    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (string.IsNullOrEmpty(userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    var result = await moderation.MoveToTrashAsync(id, userId, request.Reason, cancellationToken);
+    return MapProjectModerationResult(result);
+});
+
+projectsApi.MapPost("/{id:int}/restore-trash", async (
+    int id,
+    HttpContext httpContext,
+    ProjectModerationService moderation,
+    CancellationToken cancellationToken) =>
+{
+    if (!httpContext.User.IsInRole("Admin"))
+    {
+        return Results.Forbid();
+    }
+
+    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (string.IsNullOrEmpty(userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    var result = await moderation.RestoreFromTrashAsync(id, userId, cancellationToken);
+    return MapProjectModerationResult(result);
+});
+
+projectsApi.MapPost("/{id:int}/purge", async (
+    int id,
+    HttpContext httpContext,
+    ProjectModerationService moderation,
+    PurgeProjectRequest request,
+    CancellationToken cancellationToken) =>
+{
+    if (!httpContext.User.IsInRole("Admin"))
+    {
+        return Results.Forbid();
+    }
+
+    var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (string.IsNullOrEmpty(userId))
+    {
+        return Results.Unauthorized();
+    }
+
+    var result = await moderation.PurgeAsync(id, userId, request.RemoveAssets, cancellationToken);
+    return MapProjectModerationResult(result);
 });
 
 var processFlowApi = app.MapGroup("/api/processes/{version}/flow")
@@ -1806,6 +1919,18 @@ static async Task<IResult> SendUnreadCountAsync(
     return Results.NoContent();
 }
 
+static bool IsProjectArchiveActor(ClaimsPrincipal principal) =>
+    principal.IsInRole("Admin") || principal.IsInRole("HoD");
+
+static IResult MapProjectModerationResult(ProjectModerationResult result) => result.Status switch
+{
+    ProjectModerationStatus.Success => Results.NoContent(),
+    ProjectModerationStatus.NotFound => Results.NotFound(),
+    ProjectModerationStatus.InvalidState => Results.Conflict(new { error = result.Error }),
+    ProjectModerationStatus.ValidationFailed => Results.BadRequest(new { error = result.Error }),
+    _ => Results.BadRequest()
+};
+
 app.Run();
 
 record CalendarEventVm(
@@ -1828,5 +1953,9 @@ record CalendarHolidayVm(
     bool? SkipWeekends,
     DateTimeOffset StartUtc,
     DateTimeOffset EndUtc);
+
+record TrashProjectRequest(string Reason);
+
+record PurgeProjectRequest(bool RemoveAssets);
 
 public partial class Program { }

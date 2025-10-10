@@ -76,6 +76,7 @@ namespace ProjectManagement.Data
         public DbSet<WorkflowStatus> WorkflowStatuses => Set<WorkflowStatus>();
         public DbSet<SponsoringUnit> SponsoringUnits => Set<SponsoringUnit>();
         public DbSet<LineDirectorate> LineDirectorates => Set<LineDirectorate>();
+        public DbSet<ProjectAudit> ProjectAudits => Set<ProjectAudit>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -131,6 +132,76 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.PlanApprovedByUserId)
                     .OnDelete(DeleteBehavior.SetNull);
+
+                e.Property(x => x.IsArchived).HasDefaultValue(false);
+                e.Property(x => x.ArchivedAt);
+                e.Property(x => x.ArchivedByUserId).HasMaxLength(450);
+                e.Property(x => x.IsDeleted).HasDefaultValue(false);
+                e.Property(x => x.DeletedAt);
+                e.Property(x => x.DeletedByUserId).HasMaxLength(450);
+                e.Property(x => x.DeleteReason).HasMaxLength(512);
+                e.Property(x => x.DeleteMethod).HasMaxLength(32);
+                e.Property(x => x.DeleteApprovedByUserId).HasMaxLength(450);
+
+                e.HasIndex(x => new { x.IsDeleted, x.IsArchived })
+                    .HasDatabaseName("IX_Projects_IsDeleted_IsArchived");
+
+                if (Database.IsSqlServer())
+                {
+                    e.HasIndex(x => x.IsDeleted)
+                        .HasDatabaseName("IX_Projects_IsDeleted_Filtered")
+                        .HasFilter("[IsDeleted] = 1");
+                }
+                else if (Database.IsNpgsql())
+                {
+                    e.HasIndex(x => x.IsDeleted)
+                        .HasDatabaseName("IX_Projects_IsDeleted_Filtered")
+                        .HasFilter("\"IsDeleted\" = TRUE");
+                }
+                else
+                {
+                    e.HasIndex(x => x.IsDeleted)
+                        .HasDatabaseName("IX_Projects_IsDeleted");
+                }
+            });
+
+            builder.Entity<ProjectAudit>(e =>
+            {
+                e.Property(x => x.Action)
+                    .IsRequired()
+                    .HasMaxLength(32);
+                e.Property(x => x.PerformedByUserId)
+                    .IsRequired()
+                    .HasMaxLength(450);
+                e.Property(x => x.PerformedAt)
+                    .HasDefaultValueSql("now() at time zone 'utc'");
+                e.Property(x => x.Reason)
+                    .HasMaxLength(512);
+                e.Property(x => x.MetadataJson)
+                    .HasMaxLength(4000);
+                e.HasIndex(x => new { x.ProjectId, x.PerformedAt })
+                    .HasDatabaseName("IX_ProjectAudit_ProjectId_PerformedAt");
+
+                e.HasOne(x => x.Project)
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                e.HasOne(x => x.PerformedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.PerformedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                if (Database.IsSqlServer())
+                {
+                    e.Property(x => x.PerformedAt)
+                        .HasDefaultValueSql("GETUTCDATE()");
+                }
+                else if (!Database.IsNpgsql())
+                {
+                    e.Property(x => x.PerformedAt)
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
             });
 
             builder.Entity<ProjectPhoto>(e =>
