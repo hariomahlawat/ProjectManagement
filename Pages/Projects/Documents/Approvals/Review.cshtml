@@ -130,8 +130,22 @@
                     </div>
 
                     <div class="d-flex flex-wrap gap-2">
-                        <button type="submit" class="btn btn-success" asp-page-handler="Approve">@approveButtonLabel</button>
-                        <button type="submit" class="btn btn-outline-danger" asp-page-handler="Reject">Reject</button>
+                        <button type="submit"
+                                class="btn btn-success"
+                                asp-page="./Review"
+                                asp-page-handler="Approve"
+                                asp-route-id="@Model.Project.Id"
+                                asp-route-requestId="@Model.RequestDetail.RequestId">
+                            @approveButtonLabel
+                        </button>
+                        <button type="submit"
+                                class="btn btn-outline-danger"
+                                asp-page="./Review"
+                                asp-page-handler="Reject"
+                                asp-route-id="@Model.Project.Id"
+                                asp-route-requestId="@Model.RequestDetail.RequestId">
+                            Reject
+                        </button>
                     </div>
                 </form>
             </div>
