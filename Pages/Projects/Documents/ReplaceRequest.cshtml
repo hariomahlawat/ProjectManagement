@@ -1,7 +1,49 @@
 @page
 @model ProjectManagement.Pages.Projects.Documents.ReplaceRequestModel
+@using System
+@using System.Collections.Generic
+@using System.Linq
 @{
     ViewData["Title"] = $"Replace document – {Model.Project?.Name}";
+
+    string FormatFileSize(long bytes)
+    {
+        if (bytes <= 0)
+        {
+            return "0 bytes";
+        }
+
+        string[] suffixes = { "bytes", "KB", "MB", "GB", "TB" };
+        double size = bytes;
+        var suffixIndex = 0;
+
+        while (size >= 1024 && suffixIndex < suffixes.Length - 1)
+        {
+            size /= 1024;
+            suffixIndex++;
+        }
+
+        return suffixIndex == 0
+            ? FormattableString.Invariant($"{bytes} {suffixes[suffixIndex]}")
+            : FormattableString.Invariant($"{size:0.#} {suffixes[suffixIndex]}");
+    }
+
+    string ToReadableList(IReadOnlyList<string> values) => values.Count switch
+    {
+        0 => string.Empty,
+        1 => values[0],
+        2 => $"{values[0]} or {values[1]}",
+        _ => $"{string.Join(", ", values.Take(values.Count - 1))}, or {values[^1]}"
+    };
+
+    var allowedTypes = (Model.AllowedContentTypes ?? Array.Empty<string>())
+        .Where(type => !string.IsNullOrWhiteSpace(type))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .OrderBy(type => type, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    var allowedTypesText = ToReadableList(allowedTypes);
+    var maxFileSizeText = FormatFileSize(Model.MaxFileSizeBytes);
 }
 
 <div class="row justify-content-between gy-4">
@@ -43,7 +85,13 @@
                 </div>
                 <input asp-for="Input.File" class="form-control visually-hidden" id="replaceFile" data-doc-file data-max-size="@Model.MaxFileSizeBytes" data-allowed="@string.Join(',', Model.AllowedContentTypes)" />
                 <span asp-validation-for="Input.File" class="text-danger"></span>
-                <div id="replace-upload-help" class="form-text">PDF only • ≤ 25 MB</div>
+                <div id="replace-upload-help" class="form-text">
+                    @if (!string.IsNullOrEmpty(allowedTypesText))
+                    {
+                        <text>Allowed types: @allowedTypesText. </text>
+                    }
+                    <text>Maximum size: @maxFileSizeText.</text>
+                </div>
             </div>
 
             <div class="d-flex gap-2">
