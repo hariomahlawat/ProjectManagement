@@ -206,6 +206,8 @@ public sealed class ProjectModerationServiceTests
         public string GetProjectDocumentsRoot(int projectId) => Path.Combine(GetProjectRoot(projectId), "docs");
 
         public string GetProjectCommentsRoot(int projectId) => Path.Combine(GetProjectRoot(projectId), "comments");
+
+        public string GetProjectVideosRoot(int projectId) => Path.Combine(GetProjectRoot(projectId), "videos");
     }
 
     private sealed class TempDirectory : IDisposable

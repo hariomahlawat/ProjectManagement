@@ -271,8 +271,6 @@ namespace ProjectManagement.Data
                 e.Property(x => x.CreatedUtc).HasDefaultValueSql("now() at time zone 'utc'");
                 e.Property(x => x.UpdatedUtc).HasDefaultValueSql("now() at time zone 'utc'");
                 e.HasIndex(x => new { x.ProjectId, x.Ordinal }).IsUnique();
-                e.HasIndex(x => new { x.ProjectId, x.TotId });
-
                 if (Database.IsSqlServer())
                 {
                     e.Property(x => x.CreatedUtc).HasDefaultValueSql("GETUTCDATE()");
@@ -283,11 +281,6 @@ namespace ProjectManagement.Data
                     e.Property(x => x.CreatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
                     e.Property(x => x.UpdatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
                 }
-
-                e.HasOne(x => x.Tot)
-                    .WithMany()
-                    .HasForeignKey(x => x.TotId)
-                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             builder.Entity<ProjectTot>(e =>

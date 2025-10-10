@@ -38,10 +38,6 @@ namespace ProjectManagement.Models
 
         public bool IsFeatured { get; set; }
 
-        public int? TotId { get; set; }
-
-        public ProjectTot? Tot { get; set; }
-
         public int Version { get; set; } = 1;
 
         public DateTime CreatedUtc { get; set; }
