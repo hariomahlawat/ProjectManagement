@@ -168,6 +168,57 @@ namespace ProjectManagement.Tests
             Assert.Contains(model.LifecycleTabs, tab => tab.Filter == ProjectLifecycleFilter.All && !tab.IsActive);
         }
 
+        [Fact]
+        public async Task LifecycleTabs_DisplayCounts()
+        {
+            await using var context = CreateContext();
+
+            var now = DateTime.UtcNow;
+
+            context.Projects.AddRange(
+                new Project
+                {
+                    Name = "Active",
+                    LifecycleStatus = ProjectLifecycleStatus.Active,
+                    CreatedByUserId = "creator",
+                    CreatedAt = now
+                },
+                new Project
+                {
+                    Name = "Completed",
+                    LifecycleStatus = ProjectLifecycleStatus.Completed,
+                    CreatedByUserId = "creator",
+                    CreatedAt = now
+                },
+                new Project
+                {
+                    Name = "Cancelled",
+                    LifecycleStatus = ProjectLifecycleStatus.Cancelled,
+                    CreatedByUserId = "creator",
+                    CreatedAt = now
+                },
+                new Project
+                {
+                    Name = "Legacy",
+                    LifecycleStatus = ProjectLifecycleStatus.Completed,
+                    IsLegacy = true,
+                    CreatedByUserId = "creator",
+                    CreatedAt = now
+                });
+
+            await context.SaveChangesAsync();
+
+            var model = new IndexModel(context);
+
+            await model.OnGetAsync();
+
+            Assert.Equal(4, model.LifecycleTabs.Single(tab => tab.Filter == ProjectLifecycleFilter.All).Count);
+            Assert.Equal(1, model.LifecycleTabs.Single(tab => tab.Filter == ProjectLifecycleFilter.Active).Count);
+            Assert.Equal(1, model.LifecycleTabs.Single(tab => tab.Filter == ProjectLifecycleFilter.Completed).Count);
+            Assert.Equal(1, model.LifecycleTabs.Single(tab => tab.Filter == ProjectLifecycleFilter.Cancelled).Count);
+            Assert.Equal(1, model.LifecycleTabs.Single(tab => tab.Filter == ProjectLifecycleFilter.Legacy).Count);
+        }
+
         private static ApplicationDbContext CreateContext()
         {
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()
