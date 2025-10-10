@@ -131,6 +131,30 @@ public class RoleBasedNavigationProvider : INavigationProvider
                     },
                     new NavigationItem
                     {
+                        Text = "Archived projects",
+                        Page = "/Projects/Index",
+                        RequiredRoles = new[] { "Admin" },
+                        RouteValues = new Dictionary<string, object?>
+                        {
+                            ["IncludeArchived"] = true
+                        }
+                    },
+                    new NavigationItem
+                    {
+                        Text = "Document recycle bin",
+                        Area = "Admin",
+                        Page = "/Documents/Recycle",
+                        RequiredRoles = new[] { "Admin" }
+                    },
+                    new NavigationItem
+                    {
+                        Text = "Calendar deleted events",
+                        Area = "Admin",
+                        Page = "/Calendar/Deleted",
+                        RequiredRoles = new[] { "Admin" }
+                    },
+                    new NavigationItem
+                    {
                         Text = "Manage holidays",
                         Page = "/Settings/Holidays/Index",
                         RequiredRoles = new[] { "Admin" }

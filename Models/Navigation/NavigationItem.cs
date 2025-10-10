@@ -15,6 +15,8 @@ public record class NavigationItem
 
     public string? Action { get; init; }
 
+    public IReadOnlyDictionary<string, object?>? RouteValues { get; init; }
+
     public IReadOnlyList<NavigationItem> Children { get; init; } = Array.Empty<NavigationItem>();
 
     public string? AuthorizationPolicy { get; init; }
