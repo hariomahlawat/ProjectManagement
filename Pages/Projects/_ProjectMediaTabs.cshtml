@@ -33,6 +33,7 @@
     var canUploadDocuments = Model.CanUploadDocuments;
     var canViewRecycleBin = Model.CanViewDocumentRecycleBin;
     var canManagePhotos = Model.CanManagePhotos;
+    var canManageVideos = Model.CanManageVideos;
 }
 
 <div class="card pm-card">
@@ -487,8 +488,6 @@
                     }
                     else if (tab.Key == ProjectMediaTabViewModel.VideosKey && tab.Videos is { } videosTab)
                     {
-                        var canManageVideos = isAdmin || isThisProjectsPo || isThisProjectsHod;
-
                         if (videosTab.Items.Count == 0)
                         {
                             <div class="border rounded p-4 text-center text-muted bg-light-subtle">

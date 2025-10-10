@@ -218,13 +218,56 @@ public sealed class ProjectMediaAggregatorTests
             video => Assert.Equal(2, video.Id));
     }
 
+    [Fact]
+    public void Build_IncludesVideosTabWhenUserCanManageVideos()
+    {
+        // Arrange
+        var documentRows = new List<ProjectDocumentRowViewModel> { CreateDocumentRow(80, "General", null) };
+        var documentList = new ProjectDocumentListViewModel(
+            new List<ProjectDocumentStageGroupViewModel>
+            {
+                new("exe", "Execution", documentRows)
+            },
+            new List<ProjectDocumentFilterOptionViewModel> { new(null, "All stages", true) },
+            new List<ProjectDocumentFilterOptionViewModel>
+            {
+                new(ProjectDocumentListViewModel.PublishedStatusValue, "Published", true)
+            },
+            null,
+            ProjectDocumentListViewModel.PublishedStatusValue,
+            1,
+            ProjectDocumentListViewModel.DefaultPageSize,
+            documentRows.Count);
+
+        var photos = new List<ProjectPhoto>();
+
+        var request = CreateRequest(
+            documentList,
+            documentRows.Count,
+            photos,
+            availableTotIds: new int[0],
+            selectedTotId: null,
+            videos: new List<ProjectMediaVideoViewModel>(),
+            canManageVideos: true);
+
+        var aggregator = new ProjectMediaAggregator();
+
+        // Act
+        var result = aggregator.Build(request);
+
+        // Assert
+        var videoTab = result.Tabs.Single(t => t.Key == ProjectMediaTabViewModel.VideosKey).Videos!;
+        Assert.Empty(videoTab.Items);
+    }
+
     private static ProjectMediaAggregationRequest CreateRequest(
         ProjectDocumentListViewModel documentList,
         int documentCount,
         IReadOnlyList<ProjectPhoto> photos,
         IReadOnlyCollection<int> availableTotIds,
         int? selectedTotId,
-        IReadOnlyList<ProjectMediaVideoViewModel>? videos = null)
+        IReadOnlyList<ProjectMediaVideoViewModel>? videos = null,
+        bool canManageVideos = false)
     {
         return new ProjectMediaAggregationRequest(
             documentList,
@@ -244,6 +287,7 @@ public sealed class ProjectMediaAggregatorTests
             CoverPhotoVersion: null,
             CoverPhotoUrl: null,
             CanManagePhotos: true,
+            CanManageVideos: canManageVideos,
             Videos: videos ?? new List<ProjectMediaVideoViewModel>(),
             AvailableTotIds: availableTotIds,
             SelectedTotId: selectedTotId,

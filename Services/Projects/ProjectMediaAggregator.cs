@@ -26,14 +26,16 @@ public sealed class ProjectMediaAggregator
             request.CanManagePhotos);
 
         var videos = request.Videos.ToList();
-        var videoTab = videos.Count > 0
+        var hasVideoItems = videos.Count > 0;
+        var shouldShowVideosTab = hasVideoItems || request.CanManageVideos;
+        var videoTab = shouldShowVideosTab
             ? new ProjectMediaVideosTabViewModel(videos, Math.Max(0, videos.Count - ProjectMediaSummaryViewModel.DefaultPreviewCount))
             : null;
 
         var documentsTab = BuildDocumentsTab(request);
         var hasDocuments = documentsTab.Groups.Count > 0 || request.DocumentList.TotalItems > 0;
         var hasPhotos = photoTab.LightboxPhotos.Count > 0 || request.CanManagePhotos;
-        var hasVideos = videoTab is not null;
+        var hasVideos = shouldShowVideosTab;
 
         var activeTab = NormalizeTabKey(request.ActiveTabKey, hasDocuments, hasPhotos, hasVideos);
 
@@ -222,6 +224,7 @@ public sealed record ProjectMediaAggregationRequest(
     int? CoverPhotoVersion,
     string? CoverPhotoUrl,
     bool CanManagePhotos,
+    bool CanManageVideos,
     IReadOnlyList<ProjectMediaVideoViewModel> Videos,
     IReadOnlyCollection<int> AvailableTotIds,
     int? SelectedTotId,
