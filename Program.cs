@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Http;
@@ -273,12 +274,29 @@ var developmentLoopbackOrigins = builder.Environment.IsDevelopment()
 var app = builder.Build();
 
 // Ensure the database schema is up to date before handling requests
+string? latestAppliedMigration = null;
+List<string> pendingMigrations = new();
+var databaseIsRelational = false;
+
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     if (db.Database.IsRelational())
     {
+        databaseIsRelational = true;
         await db.Database.MigrateAsync();
+
+        var applied = (await db.Database.GetAppliedMigrationsAsync()).ToList();
+        latestAppliedMigration = applied.Count > 0 ? applied[^1] : "(none)";
+
+        pendingMigrations = (await db.Database.GetPendingMigrationsAsync()).ToList();
+        if (pendingMigrations.Count > 0)
+        {
+            app.Logger.LogWarning(
+                "Database has {Count} pending migration(s): {Migrations}",
+                pendingMigrations.Count,
+                string.Join(", ", pendingMigrations));
+        }
     }
 }
 
@@ -291,7 +309,17 @@ if (runForecastBackfill)
     return;
 }
 
-app.Logger.LogInformation("Using database {Database} on host {Host}", csb.Database, csb.Host);
+var migrationLabel = latestAppliedMigration ?? (databaseIsRelational ? "(none)" : "(not available)");
+app.Logger.LogInformation(
+    "Using database {Database} on host {Host}; latest migration {Migration}",
+    csb.Database,
+    csb.Host,
+    migrationLabel);
+
+if (databaseIsRelational && pendingMigrations.Count == 0)
+{
+    app.Logger.LogInformation("Database schema is up to date.");
+}
 
 app.UseForwardedHeaders();
 

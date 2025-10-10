@@ -96,6 +96,13 @@ public class RoleBasedNavigationProvider : INavigationProvider
                     },
                     new NavigationItem
                     {
+                        Text = "DB health",
+                        Area = "Admin",
+                        Page = "/Diagnostics/DbHealth",
+                        RequiredRoles = new[] { "Admin" }
+                    },
+                    new NavigationItem
+                    {
                         Text = "Sponsoring units",
                         Area = "Admin",
                         Page = "/Lookups/SponsoringUnits/Index",

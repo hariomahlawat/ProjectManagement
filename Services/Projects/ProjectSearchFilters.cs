@@ -33,6 +33,8 @@ namespace ProjectManagement.Services.Projects
                 throw new ArgumentNullException(nameof(filters));
             }
 
+            source = source.Where(p => !p.IsDeleted);
+
             if (!string.IsNullOrWhiteSpace(filters.Query))
             {
                 var term = filters.Query.Trim();
