@@ -87,6 +87,12 @@ public sealed class UploadRootProvider : IUploadRootProvider
         return EnsureDirectory(CombineOptional(projectRoot, _documentOptions.CommentsSubpath));
     }
 
+    public string GetProjectVideosRoot(int projectId)
+    {
+        var projectRoot = GetProjectRoot(projectId);
+        return EnsureDirectory(CombineOptional(projectRoot, _documentOptions.VideosSubpath));
+    }
+
     private static string CombineOptional(string root, string? subpath)
     {
         return string.IsNullOrWhiteSpace(subpath) ? root : Path.Combine(root, subpath);

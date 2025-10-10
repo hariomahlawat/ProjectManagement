@@ -1,0 +1,15 @@
+<svg width="640" height="360" viewBox="0 0 640 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Project video placeholder</title>
+  <desc id="desc">A stylised play icon over a gradient background.</desc>
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1f5cff" stop-opacity="0.85" />
+      <stop offset="100%" stop-color="#0dcaf0" stop-opacity="0.85" />
+    </linearGradient>
+  </defs>
+  <rect width="640" height="360" rx="24" fill="url(#grad)" />
+  <g fill="#fff" opacity="0.9">
+    <circle cx="320" cy="180" r="80" opacity="0.25" />
+    <path d="M320 130c-27.6 0-50 22.4-50 50s22.4 50 50 50 50-22.4 50-50-22.4-50-50-50zm-14 30 52 20-52 20v-40z" />
+  </g>
+</svg>

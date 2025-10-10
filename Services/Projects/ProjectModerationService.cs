@@ -254,6 +254,12 @@ public sealed class ProjectModerationService
         metadata["photoCount"] = photos.Count;
         _db.ProjectPhotos.RemoveRange(photos);
 
+        var videos = await _db.ProjectVideos
+            .Where(v => v.ProjectId == projectId)
+            .ToListAsync(cancellationToken);
+        metadata["videoCount"] = videos.Count;
+        _db.ProjectVideos.RemoveRange(videos);
+
         var documents = await _db.ProjectDocuments
             .Where(d => d.ProjectId == projectId)
             .ToListAsync(cancellationToken);

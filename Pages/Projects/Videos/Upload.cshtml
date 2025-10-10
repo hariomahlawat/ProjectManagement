@@ -1,0 +1,89 @@
+@page "/Projects/{id:int}/Videos/Upload"
+@model ProjectManagement.Pages.Projects.Videos.UploadModel
+@using System
+@using ProjectManagement.Services.Projects
+@inject Microsoft.Extensions.Options.IOptions<ProjectVideoOptions> VideoOptions
+@{
+    ViewData["Title"] = $"Upload video · {Model.Project.Name}";
+    var options = VideoOptions.Value;
+    string FormatFileSize(long bytes)
+    {
+        if (bytes <= 0)
+        {
+            return "0 B";
+        }
+        string[] units = { "B", "KB", "MB", "GB", "TB" };
+        var order = (int)Math.Min(units.Length - 1, Math.Log(bytes, 1024));
+        var value = bytes / Math.Pow(1024, order);
+        return $"{value:0.##} {units[order]}";
+    }
+}
+
+<div class="container py-4">
+    <nav aria-label="Breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a asp-page="/Projects/Index">Projects</a></li>
+            <li class="breadcrumb-item"><a asp-page="/Projects/Overview" asp-route-id="@Model.Project.Id">@Model.Project.Name</a></li>
+            <li class="breadcrumb-item"><a asp-page="/Projects/Videos/Index" asp-route-id="@Model.Project.Id">Videos</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Upload</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <h1 class="h3 mb-3">Upload a video</h1>
+            <form method="post" enctype="multipart/form-data" novalidate>
+                <input type="hidden" asp-for="Input.ProjectId" />
+                <input type="hidden" asp-for="Input.RowVersion" />
+
+                <div class="mb-3">
+                    <label class="form-label" asp-for="Input.File">Video file</label>
+                    <input class="form-control" asp-for="Input.File" type="file" accept="video/*" />
+                    <span class="form-text text-muted">Maximum size @FormatFileSize(options.MaxFileSizeBytes). Supported formats: @string.Join(", ", options.AllowedContentTypes).</span>
+                    <span class="text-danger" asp-validation-for="Input.File"></span>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" asp-for="Input.Title">Title</label>
+                    <input class="form-control" asp-for="Input.Title" maxlength="200" />
+                    <span class="form-text text-muted">Optional. Defaults to the file name if left blank.</span>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" asp-for="Input.Description">Description</label>
+                    <textarea class="form-control" asp-for="Input.Description" rows="3" maxlength="512"></textarea>
+                    <span class="form-text text-muted">Optional short description for context.</span>
+                </div>
+
+                <div class="form-check mb-3">
+                    <input class="form-check-input" asp-for="Input.SetAsFeatured" />
+                    <label class="form-check-label" asp-for="Input.SetAsFeatured">Set as featured video</label>
+                    <span class="form-text text-muted">Featured videos are highlighted on the project overview.</span>
+                </div>
+
+                @if (Model.AllowTotLinking)
+                {
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" asp-for="Input.LinkToTot" />
+                        <label class="form-check-label" asp-for="Input.LinkToTot">Link to Transfer of Technology</label>
+                        <span class="form-text text-muted">Current status: @Model.TotStatusDisplay.</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="alert alert-secondary" role="status">
+                        <p class="mb-1 fw-semibold">Transfer of Technology</p>
+                        <p class="mb-0">@Model.TotStatusDisplay</p>
+                    </div>
+                }
+
+                <button type="submit" class="btn btn-primary">Upload video</button>
+                <a class="btn btn-outline-secondary" asp-page="/Projects/Videos/Index" asp-route-id="@Model.Project.Id">Cancel</a>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

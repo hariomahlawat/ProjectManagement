@@ -19,6 +19,13 @@
     var selectedTotLabel = selectedTot.HasValue
         ? totFilters.FirstOrDefault(f => f.Value.HasValue && f.Value.Value == selectedTot.Value)?.Label
         : null;
+
+    string FormatDuration(TimeSpan value)
+    {
+        return value.TotalHours >= 1
+            ? value.ToString("h\\:mm\\:ss", CultureInfo.InvariantCulture)
+            : value.ToString("m\\:ss", CultureInfo.InvariantCulture);
+    }
     var roles = Model.Roles;
     var isAdmin = roles.IsAdmin;
     var isThisProjectsPo = roles.IsAssignedProjectOfficer;
@@ -490,17 +497,30 @@
                                 @foreach (var video in videosTab.Items)
                                 {
                                     <div class="col-sm-6 col-md-4">
-                                        <div class="card h-100 border-0 shadow-sm">
-                                            <img src="@video.ThumbnailUrl" class="card-img-top" alt="@video.Title" />
+                                        <div class="card h-100 border-0 shadow-sm position-relative">
+                                            <video class="card-img-top" controls preload="metadata" poster="@video.ThumbnailUrl">
+                                                <source src="@video.PlaybackUrl" />
+                                                Your browser does not support the video tag.
+                                            </video>
                                             <div class="card-body p-3">
                                                 <h4 class="h6 mb-2 d-flex align-items-center gap-2">
-                                                    @if (video.ShowTotBadge)
+                                                    @if (video.TotId.HasValue)
                                                     {
                                                         <span class="badge text-bg-info">ToT</span>
                                                     }
                                                     <span>@video.Title</span>
                                                 </h4>
-                                                <p class="text-muted small mb-0">Playback support coming soon.</p>
+                                                <div class="d-flex justify-content-between align-items-center text-muted small">
+                                                    @if (video.Duration.HasValue)
+                                                    {
+                                                        <span>Duration: @FormatDuration(video.Duration.Value)</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span></span>
+                                                    }
+                                                    <a class="text-decoration-none" href="@video.PlaybackUrl" target="_blank" rel="noopener">Open</a>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
