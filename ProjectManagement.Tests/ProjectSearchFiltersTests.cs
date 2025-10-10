@@ -302,6 +302,45 @@ namespace ProjectManagement.Tests
             Assert.Equal(2, includedResults.Count);
         }
 
+        [Fact]
+        public async Task Trashed_Projects_Are_Always_Excluded()
+        {
+            await using var context = CreateContext();
+
+            var active = new Project
+            {
+                Name = "Active",
+                CreatedByUserId = "creator",
+                CreatedAt = DateTime.UtcNow,
+                IsArchived = false,
+                IsDeleted = false
+            };
+
+            var trashed = new Project
+            {
+                Name = "Trashed",
+                CreatedByUserId = "creator",
+                CreatedAt = DateTime.UtcNow.AddDays(-1),
+                IsArchived = true,
+                IsDeleted = true
+            };
+
+            context.Projects.AddRange(active, trashed);
+            await context.SaveChangesAsync();
+
+            var defaultFilters = new ProjectSearchFilters(null, null, null, null);
+            var defaultResults = await context.Projects.ApplyProjectSearch(defaultFilters).ToListAsync();
+
+            Assert.Single(defaultResults);
+            Assert.Equal(active.Name, defaultResults[0].Name);
+
+            var includeFilters = new ProjectSearchFilters(null, null, null, null, ProjectLifecycleFilter.All, null, null, true);
+            var includedResults = await context.Projects.ApplyProjectSearch(includeFilters).ToListAsync();
+
+            Assert.Single(includedResults);
+            Assert.All(includedResults, p => Assert.False(p.IsDeleted));
+        }
+
         private static ApplicationDbContext CreateContext()
         {
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()

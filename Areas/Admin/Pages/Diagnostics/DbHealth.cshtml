@@ -1,0 +1,73 @@
+@page
+@model ProjectManagement.Areas.Admin.Pages.Diagnostics.DbHealthModel
+@{
+    ViewData["Title"] = "Database health";
+}
+
+<div class="container-xxl py-4">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Database health</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex align-items-center mb-3">
+        <h1 class="h3 mb-0">Database health</h1>
+    </div>
+
+    @if (!Model.IsRelational)
+    {
+        <div class="alert alert-info" role="alert">
+            Migration status is unavailable because the configured provider is not relational.
+        </div>
+    }
+    else
+    {
+        if (Model.HasPendingMigrations)
+        {
+            <div class="alert alert-warning" role="alert">
+                <strong>Pending migrations detected.</strong> Apply the migration(s) below to keep the schema in sync.
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-success" role="alert">
+                <strong>No pending migrations.</strong> The application and database schemas are aligned.
+            </div>
+        }
+
+        <div class="card mb-4">
+            <div class="card-header">Connection summary</div>
+            <div class="card-body">
+                <dl class="row mb-0">
+                    <dt class="col-sm-3">Host</dt>
+                    <dd class="col-sm-9">@(!string.IsNullOrWhiteSpace(Model.Host) ? Model.Host : "(unknown)")</dd>
+                    <dt class="col-sm-3">Database</dt>
+                    <dd class="col-sm-9">@(!string.IsNullOrWhiteSpace(Model.DatabaseName) ? Model.DatabaseName : "(unknown)")</dd>
+                    <dt class="col-sm-3">Latest migration</dt>
+                    <dd class="col-sm-9">@Model.LatestMigration</dd>
+                </dl>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">Pending migrations (@Model.PendingMigrations.Count)</div>
+            <div class="card-body">
+                @if (Model.PendingMigrations.Count == 0)
+                {
+                    <p class="mb-0 text-muted">None.</p>
+                }
+                else
+                {
+                    <ul class="mb-0">
+                        @foreach (var migration in Model.PendingMigrations)
+                        {
+                            <li>@migration</li>
+                        }
+                    </ul>
+                }
+            </div>
+        </div>
+    }
+</div>

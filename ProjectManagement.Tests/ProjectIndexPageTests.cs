@@ -219,6 +219,64 @@ namespace ProjectManagement.Tests
             Assert.Equal(1, model.LifecycleTabs.Single(tab => tab.Filter == ProjectLifecycleFilter.Legacy).Count);
         }
 
+        [Fact]
+        public async Task OnGet_ExcludesTrashedProjects()
+        {
+            await using var context = CreateContext();
+
+            var now = DateTime.UtcNow;
+
+            context.Projects.AddRange(
+                new Project
+                {
+                    Name = "Active",
+                    CreatedByUserId = "creator",
+                    CreatedAt = now
+                },
+                new Project
+                {
+                    Name = "Archived",
+                    CreatedByUserId = "creator",
+                    CreatedAt = now.AddDays(-1),
+                    IsArchived = true
+                },
+                new Project
+                {
+                    Name = "Trashed",
+                    CreatedByUserId = "creator",
+                    CreatedAt = now.AddDays(-2),
+                    IsDeleted = true,
+                    DeletedAt = now.AddDays(-2)
+                });
+
+            await context.SaveChangesAsync();
+
+            var defaultModel = new IndexModel(context)
+            {
+                PageSize = 10
+            };
+
+            await defaultModel.OnGetAsync();
+
+            Assert.Single(defaultModel.Projects);
+            Assert.All(defaultModel.Projects, p => Assert.False(p.IsDeleted));
+
+            var includeArchivedModel = new IndexModel(context)
+            {
+                PageSize = 10,
+                IncludeArchived = true
+            };
+
+            await includeArchivedModel.OnGetAsync();
+
+            Assert.Equal(2, includeArchivedModel.Projects.Count);
+            Assert.Contains(includeArchivedModel.Projects, p => p.IsArchived);
+            Assert.DoesNotContain(includeArchivedModel.Projects, p => p.IsDeleted);
+
+            var lifecycleTab = includeArchivedModel.LifecycleTabs.Single(tab => tab.Filter == ProjectLifecycleFilter.All);
+            Assert.Equal(2, lifecycleTab.Count);
+        }
+
         private static ApplicationDbContext CreateContext()
         {
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()

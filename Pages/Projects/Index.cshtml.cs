@@ -103,6 +103,7 @@ namespace ProjectManagement.Pages.Projects
 
             var query = _db.Projects
                 .AsNoTracking()
+                .Where(p => !p.IsDeleted)
                 .Include(p => p.Category)
                 .Include(p => p.HodUser)
                 .Include(p => p.LeadPoUser)
@@ -162,7 +163,7 @@ namespace ProjectManagement.Pages.Projects
 
             var hodUsers = await _db.Projects
                 .AsNoTracking()
-                .Where(p => p.HodUserId != null)
+                .Where(p => !p.IsDeleted && p.HodUserId != null)
                 .Select(p => new UserOption(
                     p.HodUserId!,
                     p.HodUser != null ? p.HodUser.FullName : null,
@@ -173,7 +174,7 @@ namespace ProjectManagement.Pages.Projects
 
             var leadPoUsers = await _db.Projects
                 .AsNoTracking()
-                .Where(p => p.LeadPoUserId != null)
+                .Where(p => !p.IsDeleted && p.LeadPoUserId != null)
                 .Select(p => new UserOption(
                     p.LeadPoUserId!,
                     p.LeadPoUser != null ? p.LeadPoUser.FullName : null,
@@ -184,7 +185,7 @@ namespace ProjectManagement.Pages.Projects
 
             var completionYears = await _db.Projects
                 .AsNoTracking()
-                .Where(p => p.CompletedYear.HasValue)
+                .Where(p => !p.IsDeleted && p.CompletedYear.HasValue)
                 .Select(p => p.CompletedYear!.Value)
                 .Distinct()
                 .OrderByDescending(year => year)
