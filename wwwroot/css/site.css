@@ -316,18 +316,11 @@ body {
 }
 
 .pm-header .navbar-toggler-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
     width: 1.75rem;
     height: 1.75rem;
-    background-image: none;
+    background-image: var(--bs-navbar-toggler-icon-bg);
+    background-size: 1.25rem 1.25rem;
     padding: 0;
-}
-
-.pm-header .navbar-toggler-icon .bi-list {
-    font-size: 1.5rem;
-    color: var(--pm-text);
 }
 
 .pm-footer {
