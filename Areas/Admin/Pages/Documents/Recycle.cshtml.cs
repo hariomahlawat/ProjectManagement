@@ -259,9 +259,6 @@ public class RecycleModel : PageModel
         var query = _db.ProjectDocuments
             .AsNoTracking()
             .Where(d => d.Status == ProjectDocumentStatus.SoftDeleted)
-            .Include(d => d.Project)
-            .Include(d => d.Stage)
-            .Include(d => d.ArchivedByUser)
             .AsQueryable();
 
         if (ProjectId.HasValue)
