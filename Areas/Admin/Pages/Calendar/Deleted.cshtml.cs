@@ -30,15 +30,20 @@ namespace ProjectManagement.Areas.Admin.Pages.Calendar
 
         public async Task OnGetAsync()
         {
-            Events = await _db.Events.AsNoTracking()
+            var deletedEvents = await _db.Events.AsNoTracking()
                 .Where(e => e.IsDeleted)
                 .OrderByDescending(e => e.UpdatedAt)
+                .Select(e => new { e.Id, e.Title, e.StartUtc })
+                .ToListAsync();
+
+            Events = deletedEvents
                 .Select(e => new EventVM
                 {
                     Id = e.Id,
                     Title = e.Title,
                     Start = TimeZoneInfo.ConvertTime(e.StartUtc, IST).ToString("dd MMM yyyy")
-                }).ToListAsync();
+                })
+                .ToList();
         }
 
         public async Task<IActionResult> OnPostRestoreAsync(Guid id)
