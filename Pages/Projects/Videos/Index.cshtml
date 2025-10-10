@@ -60,11 +60,17 @@
     {
         <div class="table-responsive">
             <table class="table align-middle">
+                <colgroup>
+                    <col style="width: 50%;" />
+                    <col style="width: 15%;" />
+                    <col style="width: 20%;" />
+                    <col style="width: 15%;" />
+                </colgroup>
                 <thead>
                     <tr>
                         <th scope="col">Title</th>
-                        <th scope="col">Size</th>
-                        <th scope="col">Uploaded</th>
+                        <th scope="col" class="text-nowrap">Size</th>
+                        <th scope="col" class="text-nowrap">Uploaded</th>
                         <th scope="col" class="text-end">Actions</th>
                     </tr>
                 </thead>
@@ -83,8 +89,8 @@
                                 }
                             </div>
                         </th>
-                        <td>@(video.FileSize > 0 ? FormatSize(video.FileSize) : "–")</td>
-                        <td>@video.CreatedUtc.ToString("g")</td>
+                        <td class="text-nowrap">@(video.FileSize > 0 ? FormatSize(video.FileSize) : "–")</td>
+                        <td class="text-nowrap">@video.CreatedUtc.ToString("g")</td>
                         <td class="text-end">
                             <div class="d-flex justify-content-end gap-2">
                                 <form method="post" asp-page-handler="SetFeatured" asp-route-id="@Model.Project.Id" class="d-inline">
