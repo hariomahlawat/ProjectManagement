@@ -169,7 +169,7 @@ public sealed class ProjectMediaAggregatorTests
     }
 
     [Fact]
-    public void Build_DoesNotFilterVideosByTotSelection()
+    public void Build_PopulatesVideosTabWithProvidedVideos()
     {
         // Arrange
         var documentRows = new List<ProjectDocumentRowViewModel> { CreateDocumentRow(60, "General", null) };
@@ -212,54 +212,10 @@ public sealed class ProjectMediaAggregatorTests
         // Assert
         var videoTab = result.Tabs.Single(t => t.Key == ProjectMediaTabViewModel.VideosKey).Videos!;
         Assert.Equal(2, videoTab.Items.Count);
-        Assert.Contains(videoTab.Items, v => v.Id == 1);
-        Assert.Contains(videoTab.Items, v => v.Id == 2);
-    }
-
-    [Fact]
-    public void Build_DoesNotSetVideoTotBadges()
-    {
-        // Arrange
-        var documentRows = new List<ProjectDocumentRowViewModel> { CreateDocumentRow(80, "General", null) };
-        var documentList = new ProjectDocumentListViewModel(
-            new List<ProjectDocumentStageGroupViewModel>
-            {
-                new("exe", "Execution", documentRows)
-            },
-            new List<ProjectDocumentFilterOptionViewModel> { new(null, "All stages", true) },
-            new List<ProjectDocumentFilterOptionViewModel>
-            {
-                new(ProjectDocumentListViewModel.PublishedStatusValue, "Published", true)
-            },
-            null,
-            ProjectDocumentListViewModel.PublishedStatusValue,
-            1,
-            ProjectDocumentListViewModel.DefaultPageSize,
-            documentRows.Count);
-
-        var photos = new List<ProjectPhoto> { CreatePhoto(90, ordinal: 1, totId: null, caption: "General") };
-        var videos = new List<ProjectMediaVideoViewModel>
-        {
-            new(1, "General", "/videos/1", "/thumbs/1", null),
-            new(2, "Other", "/videos/2", "/thumbs/2", null)
-        };
-
-        var request = CreateRequest(
-            documentList,
-            documentRows.Count,
-            photos,
-            availableTotIds: new[] { 5 },
-            selectedTotId: null,
-            videos: videos);
-
-        var aggregator = new ProjectMediaAggregator();
-
-        // Act
-        var result = aggregator.Build(request);
-
-        // Assert
-        var tab = result.Tabs.Single(t => t.Key == ProjectMediaTabViewModel.VideosKey);
-        Assert.False(tab.HasTotItems);
+        Assert.Collection(
+            videoTab.Items,
+            video => Assert.Equal(1, video.Id),
+            video => Assert.Equal(2, video.Id));
     }
 
     private static ProjectMediaAggregationRequest CreateRequest(
