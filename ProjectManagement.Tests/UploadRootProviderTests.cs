@@ -55,4 +55,33 @@ public sealed class UploadRootProviderTests
         Assert.Equal(Path.GetFullPath(primaryRoot), attempted[0]);
         Assert.Contains(expectedFallback, attempted);
     }
+
+    [Fact]
+    public void CreatesVideoDirectoryUnderProject()
+    {
+        var options = Options.Create(new ProjectPhotoOptions());
+        var documentOptions = Options.Create(new ProjectDocumentOptions
+        {
+            ProjectsSubpath = "projects",
+            VideosSubpath = "videos"
+        });
+
+        var environment = new TestWebHostEnvironment
+        {
+            ContentRootPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"))
+        };
+
+        var provider = new UploadRootProvider(
+            options,
+            documentOptions,
+            environment,
+            NullLogger<UploadRootProvider>.Instance);
+
+        var projectRoot = provider.GetProjectRoot(42);
+        var videosRoot = provider.GetProjectVideosRoot(42);
+
+        Assert.True(Directory.Exists(videosRoot));
+        Assert.StartsWith(projectRoot, videosRoot, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(Path.Combine(projectRoot, "videos"), videosRoot);
+    }
 }

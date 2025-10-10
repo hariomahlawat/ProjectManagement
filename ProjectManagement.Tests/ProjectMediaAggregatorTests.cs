@@ -168,12 +168,108 @@ public sealed class ProjectMediaAggregatorTests
         Assert.True(result.Tabs.Single(t => t.Key == ProjectMediaTabViewModel.PhotosKey).HasTotItems);
     }
 
+    [Fact]
+    public void Build_FiltersVideosByTotSelection()
+    {
+        // Arrange
+        var documentRows = new List<ProjectDocumentRowViewModel> { CreateDocumentRow(60, "General", null) };
+        var documentList = new ProjectDocumentListViewModel(
+            new List<ProjectDocumentStageGroupViewModel>
+            {
+                new("exe", "Execution", documentRows)
+            },
+            new List<ProjectDocumentFilterOptionViewModel> { new(null, "All stages", true) },
+            new List<ProjectDocumentFilterOptionViewModel>
+            {
+                new(ProjectDocumentListViewModel.PublishedStatusValue, "Published", true)
+            },
+            null,
+            ProjectDocumentListViewModel.PublishedStatusValue,
+            1,
+            ProjectDocumentListViewModel.DefaultPageSize,
+            documentRows.Count);
+
+        var photos = new List<ProjectPhoto> { CreatePhoto(70, ordinal: 1, totId: null, caption: "General") };
+        var videos = new List<ProjectMediaVideoViewModel>
+        {
+            new(1, "General", "/videos/1", "/thumbs/1", null, null, false),
+            new(2, "ToT", "/videos/2", "/thumbs/2", null, 5, true)
+        };
+
+        var request = CreateRequest(
+            documentList,
+            documentRows.Count,
+            photos,
+            availableTotIds: new[] { 5 },
+            selectedTotId: 5,
+            videos: videos);
+
+        var aggregator = new ProjectMediaAggregator();
+
+        // Act
+        var result = aggregator.Build(request);
+
+        // Assert
+        var videoTab = result.Tabs.Single(t => t.Key == ProjectMediaTabViewModel.VideosKey).Videos!;
+        Assert.Single(videoTab.Items);
+        Assert.Equal(2, videoTab.Items[0].Id);
+    }
+
+    [Fact]
+    public void Build_SetsVideoTotBadges()
+    {
+        // Arrange
+        var documentRows = new List<ProjectDocumentRowViewModel> { CreateDocumentRow(80, "General", null) };
+        var documentList = new ProjectDocumentListViewModel(
+            new List<ProjectDocumentStageGroupViewModel>
+            {
+                new("exe", "Execution", documentRows)
+            },
+            new List<ProjectDocumentFilterOptionViewModel> { new(null, "All stages", true) },
+            new List<ProjectDocumentFilterOptionViewModel>
+            {
+                new(ProjectDocumentListViewModel.PublishedStatusValue, "Published", true)
+            },
+            null,
+            ProjectDocumentListViewModel.PublishedStatusValue,
+            1,
+            ProjectDocumentListViewModel.DefaultPageSize,
+            documentRows.Count);
+
+        var photos = new List<ProjectPhoto> { CreatePhoto(90, ordinal: 1, totId: null, caption: "General") };
+        var videos = new List<ProjectMediaVideoViewModel>
+        {
+            new(1, "General", "/videos/1", "/thumbs/1", null, null, false),
+            new(2, "ToT", "/videos/2", "/thumbs/2", null, 5, true)
+        };
+
+        var request = CreateRequest(
+            documentList,
+            documentRows.Count,
+            photos,
+            availableTotIds: new[] { 5 },
+            selectedTotId: null,
+            videos: videos);
+
+        var aggregator = new ProjectMediaAggregator();
+
+        // Act
+        var result = aggregator.Build(request);
+
+        // Assert
+        var tab = result.Tabs.Single(t => t.Key == ProjectMediaTabViewModel.VideosKey);
+        Assert.True(tab.HasTotItems);
+        var videoTab = tab.Videos!;
+        Assert.True(videoTab.Items.Any(v => v.TotId.HasValue));
+    }
+
     private static ProjectMediaAggregationRequest CreateRequest(
         ProjectDocumentListViewModel documentList,
         int documentCount,
         IReadOnlyList<ProjectPhoto> photos,
         IReadOnlyCollection<int> availableTotIds,
-        int? selectedTotId)
+        int? selectedTotId,
+        IReadOnlyList<ProjectMediaVideoViewModel>? videos = null)
     {
         return new ProjectMediaAggregationRequest(
             documentList,
@@ -193,7 +289,7 @@ public sealed class ProjectMediaAggregatorTests
             CoverPhotoVersion: null,
             CoverPhotoUrl: null,
             CanManagePhotos: true,
-            Videos: new List<ProjectMediaVideoViewModel>(),
+            Videos: videos ?? new List<ProjectMediaVideoViewModel>(),
             AvailableTotIds: availableTotIds,
             SelectedTotId: selectedTotId,
             ActiveTabKey: ProjectMediaTabViewModel.DocumentsKey,

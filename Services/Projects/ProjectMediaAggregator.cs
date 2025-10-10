@@ -72,7 +72,7 @@ public sealed class ProjectMediaAggregator
                 null,
                 null,
                 videoTab,
-                videoTab.Items.Any(v => v.ShowTotBadge)));
+                videoTab.Items.Any(v => v.TotId.HasValue)));
         }
 
         var totFilters = BuildTotFilters(request.AvailableTotIds, request.SelectedTotId, request.TotFilterLabel);
@@ -218,7 +218,7 @@ public sealed class ProjectMediaAggregator
         }
 
         return videos
-            .Where(v => v.ShowTotBadge)
+            .Where(v => v.TotId.HasValue && v.TotId.Value == totId.Value)
             .ToList();
     }
 }

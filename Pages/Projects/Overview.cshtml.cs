@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -73,9 +74,13 @@ namespace ProjectManagement.Pages.Projects
         public string? CurrentUserId { get; private set; }
         public ProjectMetaChangeRequestVm? MetaChangeRequest { get; private set; }
         public IReadOnlyList<ProjectPhoto> Photos { get; private set; } = Array.Empty<ProjectPhoto>();
+        public IReadOnlyList<ProjectVideo> Videos { get; private set; } = Array.Empty<ProjectVideo>();
         public ProjectPhoto? CoverPhoto { get; private set; }
         public int? CoverPhotoVersion { get; private set; }
         public string? CoverPhotoUrl { get; private set; }
+        public ProjectVideo? FeaturedVideo { get; private set; }
+        public int? FeaturedVideoVersion { get; private set; }
+        public string? FeaturedVideoUrl { get; private set; }
 
         public ProjectRolesViewModel Roles { get; private set; } = ProjectRolesViewModel.Empty;
         public ProjectLifecycleSummaryViewModel LifecycleSummary { get; private set; } = ProjectLifecycleSummaryViewModel.Empty;
@@ -158,6 +163,7 @@ namespace ProjectManagement.Pages.Projects
                 .Include(p => p.SponsoringUnit)
                 .Include(p => p.SponsoringLineDirectorate)
                 .Include(p => p.Photos)
+                .Include(p => p.Videos)
                 .Include(p => p.Tot)
                 .FirstOrDefaultAsync(p => p.Id == id, ct);
 
@@ -173,10 +179,20 @@ namespace ProjectManagement.Pages.Projects
                 .ThenBy(p => p.Id)
                 .ToList();
 
+            Videos = project.Videos
+                .OrderBy(v => v.Ordinal)
+                .ThenBy(v => v.Id)
+                .ToList();
+
             var availableTotIds = Photos
                 .Where(p => p.TotId.HasValue)
                 .Select(p => p.TotId!.Value)
                 .ToHashSet();
+
+            foreach (var totId in Videos.Where(v => v.TotId.HasValue).Select(v => v.TotId!.Value))
+            {
+                availableTotIds.Add(totId);
+            }
 
             if (project.CoverPhotoId.HasValue)
             {
@@ -190,6 +206,21 @@ namespace ProjectManagement.Pages.Projects
                         photoId = CoverPhoto.Id,
                         size = "md",
                         v = CoverPhotoVersion
+                    });
+                }
+            }
+
+            if (project.FeaturedVideoId.HasValue)
+            {
+                FeaturedVideo = Videos.FirstOrDefault(v => v.Id == project.FeaturedVideoId.Value);
+                FeaturedVideoVersion = FeaturedVideo?.Version ?? project.FeaturedVideoVersion;
+                if (FeaturedVideo is not null)
+                {
+                    FeaturedVideoUrl = Url.Page("/Projects/Videos/Stream", new
+                    {
+                        id = project.Id,
+                        videoId = FeaturedVideo.Id,
+                        v = FeaturedVideoVersion
                     });
                 }
             }
@@ -320,6 +351,8 @@ namespace ProjectManagement.Pages.Projects
                 ? string.Format(CultureInfo.InvariantCulture, "Transfer of Technology ({0})", TotSummary.StatusLabel)
                 : "Transfer of Technology";
 
+            var videoViewModels = BuildVideoViewModels(project);
+
             MediaCollections = _mediaAggregator.Build(new ProjectMediaAggregationRequest(
                 DocumentList,
                 DocumentSummary,
@@ -333,7 +366,7 @@ namespace ProjectManagement.Pages.Projects
                 CoverPhotoVersion,
                 CoverPhotoUrl,
                 CanManagePhotos,
-                Array.Empty<ProjectMediaVideoViewModel>(),
+                videoViewModels,
                 AvailableMediaTotIds,
                 MediaTotId,
                 MediaTab,
@@ -672,6 +705,59 @@ namespace ProjectManagement.Pages.Projects
                 totalItems);
         }
 
+        private IReadOnlyList<ProjectMediaVideoViewModel> BuildVideoViewModels(Project project)
+        {
+            if (Videos.Count == 0)
+            {
+                return Array.Empty<ProjectMediaVideoViewModel>();
+            }
+
+            var placeholder = Url.Content("~/img/placeholders/project-video-placeholder.svg") ?? string.Empty;
+            var items = new List<ProjectMediaVideoViewModel>(Videos.Count);
+
+            foreach (var video in Videos)
+            {
+                var playbackUrl = Url.Page("/Projects/Videos/Stream", new
+                {
+                    id = project.Id,
+                    videoId = video.Id,
+                    v = video.Version
+                }) ?? string.Empty;
+
+                string? thumbnailUrl = null;
+                if (!string.IsNullOrWhiteSpace(video.PosterStorageKey))
+                {
+                    thumbnailUrl = Url.Page("/Projects/Videos/Poster", new
+                    {
+                        id = project.Id,
+                        videoId = video.Id,
+                        v = video.Version
+                    });
+                }
+
+                thumbnailUrl ??= placeholder;
+
+                TimeSpan? duration = video.DurationSeconds.HasValue
+                    ? TimeSpan.FromSeconds(video.DurationSeconds.Value)
+                    : (TimeSpan?)null;
+
+                var title = string.IsNullOrWhiteSpace(video.Title)
+                    ? Path.GetFileNameWithoutExtension(video.OriginalFileName)
+                    : video.Title!;
+
+                items.Add(new ProjectMediaVideoViewModel(
+                    video.Id,
+                    title,
+                    playbackUrl,
+                    thumbnailUrl,
+                    duration,
+                    video.TotId,
+                    video.TotId.HasValue));
+            }
+
+            return items;
+        }
+
         private ProjectMediaSummaryViewModel BuildMediaSummary()
         {
             var coverPhoto = CoverPhoto;
@@ -701,7 +787,11 @@ namespace ProjectManagement.Pages.Projects
                 CoverPhotoVersion = CoverPhotoVersion,
                 CoverPhotoUrl = CoverPhotoUrl,
                 DocumentCount = DocumentSummary.PublishedCount,
-                PendingDocumentCount = DocumentSummary.PendingCount
+                PendingDocumentCount = DocumentSummary.PendingCount,
+                VideoCount = Videos.Count,
+                FeaturedVideo = FeaturedVideo,
+                FeaturedVideoVersion = FeaturedVideoVersion,
+                FeaturedVideoUrl = FeaturedVideoUrl
             };
         }
 

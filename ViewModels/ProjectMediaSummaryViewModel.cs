@@ -18,9 +18,14 @@ public sealed class ProjectMediaSummaryViewModel
     public IReadOnlyList<ProjectPhoto> PreviewPhotos { get; init; } = Array.Empty<ProjectPhoto>();
     public int DocumentCount { get; init; }
     public int PendingDocumentCount { get; init; }
+    public int VideoCount { get; init; }
+    public ProjectVideo? FeaturedVideo { get; init; }
+    public int? FeaturedVideoVersion { get; init; }
+    public string? FeaturedVideoUrl { get; init; }
 
     public bool HasPhotos => PhotoCount > 0;
     public bool HasAdditionalPhotos => AdditionalPhotoCount > 0;
     public bool HasDocuments => DocumentCount > 0;
     public bool HasPendingDocuments => PendingDocumentCount > 0;
+    public bool HasVideos => VideoCount > 0;
 }

@@ -72,5 +72,8 @@ public sealed record ProjectMediaVideosTabViewModel(
 public sealed record ProjectMediaVideoViewModel(
     int Id,
     string Title,
+    string PlaybackUrl,
     string ThumbnailUrl,
+    TimeSpan? Duration,
+    int? TotId,
     bool ShowTotBadge);

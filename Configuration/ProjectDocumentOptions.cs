@@ -25,6 +25,8 @@ namespace ProjectManagement.Configuration
 
         public string CommentsSubpath { get; set; } = "comments";
 
+        public string VideosSubpath { get; set; } = "videos";
+
         public string TempSubPath { get; set; } = "temp";
 
         public int MaxSizeMb { get; set; } = 25;

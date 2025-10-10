@@ -11,4 +11,6 @@ public interface IUploadRootProvider
     string GetProjectDocumentsRoot(int projectId);
 
     string GetProjectCommentsRoot(int projectId);
+
+    string GetProjectVideosRoot(int projectId);
 }

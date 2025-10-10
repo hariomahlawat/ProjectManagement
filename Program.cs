@@ -229,9 +229,12 @@ builder.Services.AddOptions<ProjectPhotoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectPhotos"));
 builder.Services.AddOptions<ProjectDocumentOptions>()
     .Bind(builder.Configuration.GetSection("ProjectDocuments"));
+builder.Services.AddOptions<ProjectVideoOptions>()
+    .Bind(builder.Configuration.GetSection("ProjectVideos"));
 builder.Services.AddSingleton<IConfigureOptions<ProjectPhotoOptions>, ProjectPhotoOptionsSetup>();
 builder.Services.AddSingleton<IUploadRootProvider, UploadRootProvider>();
 builder.Services.AddScoped<IProjectPhotoService, ProjectPhotoService>();
+builder.Services.AddScoped<IProjectVideoService, ProjectVideoService>();
 builder.Services.AddOptions<ProjectRetentionOptions>()
     .Bind(builder.Configuration.GetSection("Projects:Retention"));
 

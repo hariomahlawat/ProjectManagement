@@ -53,6 +53,7 @@ namespace ProjectManagement.Data
         public DbSet<ProjectPlanSnapshotRow> ProjectPlanSnapshotRows => Set<ProjectPlanSnapshotRow>();
         public DbSet<ProjectStage> ProjectStages => Set<ProjectStage>();
         public DbSet<ProjectPhoto> ProjectPhotos => Set<ProjectPhoto>();
+        public DbSet<ProjectVideo> ProjectVideos => Set<ProjectVideo>();
         public DbSet<ProjectTot> ProjectTots => Set<ProjectTot>();
         public DbSet<ProjectMetaChangeRequest> ProjectMetaChangeRequests => Set<ProjectMetaChangeRequest>();
         public DbSet<ProjectComment> ProjectComments => Set<ProjectComment>();
@@ -94,6 +95,7 @@ namespace ProjectManagement.Data
                 ConfigureRowVersion(e);
                 e.Property(x => x.CreatedByUserId).HasMaxLength(64).IsRequired();
                 e.Property(x => x.CoverPhotoVersion).HasDefaultValue(1).IsConcurrencyToken();
+                e.Property(x => x.FeaturedVideoVersion).HasDefaultValue(1).IsConcurrencyToken();
                 e.Property(x => x.LifecycleStatus)
                     .HasConversion<string>()
                     .HasMaxLength(32)
@@ -114,6 +116,14 @@ namespace ProjectManagement.Data
                 e.HasOne<ProjectPhoto>()
                     .WithMany()
                     .HasForeignKey(x => x.CoverPhotoId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                e.HasMany(x => x.Videos)
+                    .WithOne(x => x.Project)
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne<ProjectVideo>()
+                    .WithMany()
+                    .HasForeignKey(x => x.FeaturedVideoId)
                     .OnDelete(DeleteBehavior.SetNull);
                 e.HasOne(x => x.Category)
                     .WithMany(x => x.Projects)
@@ -237,6 +247,39 @@ namespace ProjectManagement.Data
                 else
                 {
                     e.HasIndex(x => x.ProjectId).HasDatabaseName("IX_ProjectPhotos_ProjectId");
+                    e.Property(x => x.CreatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                    e.Property(x => x.UpdatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+
+                e.HasOne(x => x.Tot)
+                    .WithMany()
+                    .HasForeignKey(x => x.TotId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            builder.Entity<ProjectVideo>(e =>
+            {
+                e.Property(x => x.StorageKey).HasMaxLength(260).IsRequired();
+                e.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
+                e.Property(x => x.ContentType).HasMaxLength(128).IsRequired();
+                e.Property(x => x.Title).HasMaxLength(200);
+                e.Property(x => x.Description).HasMaxLength(512);
+                e.Property(x => x.PosterStorageKey).HasMaxLength(260);
+                e.Property(x => x.PosterContentType).HasMaxLength(128);
+                e.Property(x => x.Version).HasDefaultValue(1).IsConcurrencyToken();
+                e.Property(x => x.Ordinal).HasDefaultValue(1);
+                e.Property(x => x.CreatedUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                e.Property(x => x.UpdatedUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                e.HasIndex(x => new { x.ProjectId, x.Ordinal }).IsUnique();
+                e.HasIndex(x => new { x.ProjectId, x.TotId });
+
+                if (Database.IsSqlServer())
+                {
+                    e.Property(x => x.CreatedUtc).HasDefaultValueSql("GETUTCDATE()");
+                    e.Property(x => x.UpdatedUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else if (!Database.IsNpgsql())
+                {
                     e.Property(x => x.CreatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
                     e.Property(x => x.UpdatedUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
                 }

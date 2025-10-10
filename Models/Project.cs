@@ -90,6 +90,7 @@ namespace ProjectManagement.Models
 
         private ICollection<ProjectStage> _projectStages = new List<ProjectStage>();
         private ICollection<ProjectPhoto> _photos = new List<ProjectPhoto>();
+        private ICollection<ProjectVideo> _videos = new List<ProjectVideo>();
 
         public ICollection<ProjectStage> ProjectStages
         {
@@ -111,9 +112,19 @@ namespace ProjectManagement.Models
             set => _photos = value ?? new List<ProjectPhoto>();
         }
 
+        public ICollection<ProjectVideo> Videos
+        {
+            get => _videos;
+            set => _videos = value ?? new List<ProjectVideo>();
+        }
+
         public int? CoverPhotoId { get; set; }
 
         public int CoverPhotoVersion { get; set; } = 1;
+
+        public int? FeaturedVideoId { get; set; }
+
+        public int FeaturedVideoVersion { get; set; } = 1;
 
         public ProjectTot? Tot { get; set; }
 
@@ -123,6 +134,14 @@ namespace ProjectManagement.Models
             : null;
 
         [NotMapped]
+        public ProjectVideo? FeaturedVideo => FeaturedVideoId.HasValue
+            ? Videos.FirstOrDefault(v => v.Id == FeaturedVideoId.Value)
+            : null;
+
+        [NotMapped]
         public int? CurrentCoverPhotoVersion => CoverPhoto?.Version ?? (CoverPhotoId.HasValue ? CoverPhotoVersion : null);
+
+        [NotMapped]
+        public int? CurrentFeaturedVideoVersion => FeaturedVideo?.Version ?? (FeaturedVideoId.HasValue ? FeaturedVideoVersion : null);
     }
 }
