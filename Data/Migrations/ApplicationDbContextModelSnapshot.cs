@@ -1088,13 +1088,49 @@ namespace ProjectManagement.Data.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<DateTimeOffset?>("ArchivedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ArchivedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
                     b.Property<string>("HodUserId")
                         .HasColumnType("text");
+
+                    b.Property<bool>("IsArchived")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<bool>("IsLegacy")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DeletedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("DeleteApprovedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("DeleteMethod")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("DeleteReason")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
 
                     b.Property<string>("LeadPoUserId")
                         .HasColumnType("text");
@@ -1141,6 +1177,13 @@ namespace ProjectManagement.Data.Migrations
                     b.HasIndex("CompletedYear");
 
                     b.HasIndex("CoverPhotoId");
+
+                    b.HasIndex("IsDeleted", "IsArchived")
+                        .HasDatabaseName("IX_Projects_IsDeleted_IsArchived");
+
+                    b.HasIndex("IsDeleted")
+                        .HasDatabaseName("IX_Projects_IsDeleted_Filtered")
+                        .HasFilter("\"IsDeleted\" = TRUE");
 
                     b.HasIndex("HodUserId");
 
@@ -1666,6 +1709,50 @@ namespace ProjectManagement.Data.Migrations
                     b.HasIndex("ProjectId", "TotId");
 
                     b.ToTable("ProjectDocumentRequests");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectAudit", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("MetadataJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTimeOffset>("PerformedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<string>("PerformedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PerformedByUserId");
+
+                    b.HasIndex("ProjectId", "PerformedAt")
+                        .HasDatabaseName("IX_ProjectAudit_ProjectId_PerformedAt");
+
+                    b.ToTable("ProjectAudits");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectIpaFact", b =>
@@ -3307,6 +3394,25 @@ namespace ProjectManagement.Data.Migrations
                     b.Navigation("Stage");
 
                     b.Navigation("Tot");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectAudit", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "PerformedByUser")
+                        .WithMany()
+                        .HasForeignKey("PerformedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PerformedByUser");
+
+                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectIpaFact", b =>

@@ -48,6 +48,29 @@ namespace ProjectManagement.Models
         public int? CategoryId { get; set; }
         public ProjectCategory? Category { get; set; }
 
+        public bool IsArchived { get; set; }
+
+        public DateTimeOffset? ArchivedAt { get; set; }
+
+        [MaxLength(450)]
+        public string? ArchivedByUserId { get; set; }
+
+        public bool IsDeleted { get; set; }
+
+        public DateTimeOffset? DeletedAt { get; set; }
+
+        [MaxLength(450)]
+        public string? DeletedByUserId { get; set; }
+
+        [MaxLength(512)]
+        public string? DeleteReason { get; set; }
+
+        [MaxLength(32)]
+        public string? DeleteMethod { get; set; }
+
+        [MaxLength(450)]
+        public string? DeleteApprovedByUserId { get; set; }
+
         public int? SponsoringUnitId { get; set; }
         public SponsoringUnit? SponsoringUnit { get; set; }
 
