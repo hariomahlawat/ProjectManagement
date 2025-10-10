@@ -83,7 +83,18 @@ namespace ProjectManagement.Pages.Projects
         public async Task OnGetAsync()
         {
             await LoadFilterOptionsAsync();
-            LifecycleTabs = BuildLifecycleTabs();
+
+            var baseFilters = new ProjectSearchFilters(
+                Query,
+                CategoryId,
+                LeadPoUserId,
+                HodUserId,
+                ProjectLifecycleFilter.All,
+                CompletedYear,
+                TotStatus);
+
+            var lifecycleCounts = await CountProjectsByLifecycleAsync(baseFilters);
+            LifecycleTabs = BuildLifecycleTabs(lifecycleCounts);
 
             var query = _db.Projects
                 .AsNoTracking()
@@ -93,7 +104,7 @@ namespace ProjectManagement.Pages.Projects
                 .Include(p => p.Tot)
                 .AsQueryable();
 
-            var filters = new ProjectSearchFilters(Query, CategoryId, LeadPoUserId, HodUserId, Lifecycle, CompletedYear, TotStatus);
+            var filters = baseFilters with { Lifecycle = Lifecycle };
             query = query.ApplyProjectSearch(filters);
             query = query.ApplyProjectOrdering(filters);
 
@@ -233,21 +244,47 @@ namespace ProjectManagement.Pages.Projects
             return option.Id;
         }
 
-        private IReadOnlyList<LifecycleFilterTab> BuildLifecycleTabs()
+        private async Task<IReadOnlyDictionary<ProjectLifecycleFilter, int>> CountProjectsByLifecycleAsync(ProjectSearchFilters baseFilters)
+        {
+            var counts = new Dictionary<ProjectLifecycleFilter, int>();
+
+            foreach (var filter in new[]
+                     {
+                         ProjectLifecycleFilter.All,
+                         ProjectLifecycleFilter.Active,
+                         ProjectLifecycleFilter.Completed,
+                         ProjectLifecycleFilter.Cancelled,
+                         ProjectLifecycleFilter.Legacy
+                     })
+            {
+                var countFilters = baseFilters with { Lifecycle = filter };
+                var count = await _db.Projects
+                    .AsNoTracking()
+                    .ApplyProjectSearch(countFilters)
+                    .CountAsync();
+
+                counts[filter] = count;
+            }
+
+            return counts;
+        }
+
+        private IReadOnlyList<LifecycleFilterTab> BuildLifecycleTabs(IReadOnlyDictionary<ProjectLifecycleFilter, int> counts)
         {
             return new[]
             {
-                CreateLifecycleTab(ProjectLifecycleFilter.All, "All"),
-                CreateLifecycleTab(ProjectLifecycleFilter.Active, "Active"),
-                CreateLifecycleTab(ProjectLifecycleFilter.Completed, "Completed"),
-                CreateLifecycleTab(ProjectLifecycleFilter.Cancelled, "Cancelled"),
-                CreateLifecycleTab(ProjectLifecycleFilter.Legacy, "Legacy"),
+                CreateLifecycleTab(ProjectLifecycleFilter.All, "All", counts),
+                CreateLifecycleTab(ProjectLifecycleFilter.Active, "Active", counts),
+                CreateLifecycleTab(ProjectLifecycleFilter.Completed, "Completed", counts),
+                CreateLifecycleTab(ProjectLifecycleFilter.Cancelled, "Cancelled", counts),
+                CreateLifecycleTab(ProjectLifecycleFilter.Legacy, "Legacy", counts),
             };
         }
 
-        private LifecycleFilterTab CreateLifecycleTab(ProjectLifecycleFilter filter, string label)
+        private LifecycleFilterTab CreateLifecycleTab(ProjectLifecycleFilter filter, string label, IReadOnlyDictionary<ProjectLifecycleFilter, int> counts)
         {
-            return new LifecycleFilterTab(filter, label, filter == ProjectLifecycleFilter.All ? null : filter.ToString(), Lifecycle == filter);
+            counts.TryGetValue(filter, out var count);
+            return new LifecycleFilterTab(filter, label, filter == ProjectLifecycleFilter.All ? null : filter.ToString(), Lifecycle == filter, count);
         }
 
         private static IEnumerable<SelectListItem> BuildCompletionYearOptions(IEnumerable<int> years, int? selectedYear)
@@ -294,7 +331,7 @@ namespace ProjectManagement.Pages.Projects
             };
         }
 
-        public sealed record LifecycleFilterTab(ProjectLifecycleFilter Filter, string Label, string? RouteValue, bool IsActive);
+        public sealed record LifecycleFilterTab(ProjectLifecycleFilter Filter, string Label, string? RouteValue, bool IsActive, int Count);
 
         private sealed record UserOption(string Id, string? FullName, string? UserName);
 

@@ -28,7 +28,7 @@
                            asp-route-CompletedYear="@Model.CompletedYear"
                            asp-route-TotStatus="@(Model.TotStatus?.ToString())"
                            role="tab">
-                            @lifecycle.Label
+                            @lifecycle.Label (@lifecycle.Count)
                         </a>
                     </li>
                 }
