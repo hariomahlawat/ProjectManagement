@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Execution;
 
 namespace ProjectManagement.Services.Projects
 {
@@ -22,7 +23,10 @@ namespace ProjectManagement.Services.Projects
         ProjectLifecycleFilter Lifecycle = ProjectLifecycleFilter.All,
         int? CompletedYear = null,
         ProjectTotStatus? TotStatus = null,
-        bool IncludeArchived = false);
+        bool IncludeArchived = false,
+        string? StageCode = null,
+        DateOnly? StageCompletedMonth = null,
+        string? SlipBucket = null);
 
     public static class ProjectSearchQueryExtensions
     {
@@ -103,6 +107,25 @@ namespace ProjectManagement.Services.Projects
             {
                 var hodId = filters.HodUserId.Trim();
                 source = source.Where(p => p.HodUserId != null && p.HodUserId == hodId);
+            }
+
+            if (filters.StageCompletedMonth.HasValue && !string.IsNullOrWhiteSpace(filters.StageCode))
+            {
+                var stageCode = filters.StageCode.Trim();
+                var monthStart = new DateOnly(filters.StageCompletedMonth.Value.Year, filters.StageCompletedMonth.Value.Month, 1);
+                var nextMonth = monthStart.AddMonths(1);
+                source = source.Where(p => p.ProjectStages.Any(s =>
+                    s.StageCode == stageCode &&
+                    s.CompletedOn.HasValue &&
+                    s.CompletedOn.Value >= monthStart &&
+                    s.CompletedOn.Value < nextMonth));
+            }
+            else if (!string.IsNullOrWhiteSpace(filters.StageCode))
+            {
+                var stageCode = filters.StageCode.Trim();
+                source = source.Where(p => p.ProjectStages.Any(s =>
+                    s.StageCode == stageCode &&
+                    (s.Status == StageStatus.InProgress || s.Status == StageStatus.Completed)));
             }
 
             return source;

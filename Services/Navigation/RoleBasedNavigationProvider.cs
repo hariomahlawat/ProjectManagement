@@ -60,6 +60,11 @@ public class RoleBasedNavigationProvider : INavigationProvider
             {
                 Text = "Dashboard",
                 Page = "/Dashboard/Index"
+            },
+            new()
+            {
+                Text = "Analytics",
+                Page = "/Analytics/Index"
             }
         };
 
