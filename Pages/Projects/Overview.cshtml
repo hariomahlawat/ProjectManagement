@@ -67,7 +67,7 @@
                 </h1>
                 <div class="text-muted">Created on @(project is { } p ? p.CreatedAt.ToString("dd MMM yyyy") : "—")</div>
             </div>
-            @if (Model.LifecycleActions.HasActions)
+            @if (Model.LifecycleActions.CanManageLifecycle)
             {
                 <div class="dropdown">
                     <button class="btn btn-outline-secondary btn-sm" type="button" id="project-actions-menu" data-bs-toggle="dropdown" aria-expanded="false">
@@ -118,7 +118,7 @@
         </div>
     }
 
-    @if (Model.LifecycleActions.HasActions)
+    @if (Model.LifecycleActions.CanManageLifecycle)
     {
         <partial name="_ProjectLifecycleActions" model="Model" />
     }
