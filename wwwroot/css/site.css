@@ -1139,20 +1139,14 @@ body {
 }
 
 .projects-create-action {
-  position: sticky;
+  position: fixed;
   top: 96px;
+  right: clamp(1rem, 2.5vw, 2.25rem);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
-  z-index: 5;
-}
-
-@media (min-width: 992px) {
-  .projects-create-action {
-    margin-left: 0.5rem;
-    transform: translateX(0.75rem);
-  }
+  z-index: 1080;
 }
 
 .projects-create-action__button {
@@ -1193,25 +1187,11 @@ body {
   outline-offset: 3px;
 }
 
-.projects-create-action__label {
-  font-size: var(--pm-font-size-compact);
-  font-weight: 600;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-  color: var(--pm-muted);
-}
-
 @media (max-width: 991.98px) {
   .projects-create-action {
-    position: static;
-    align-self: flex-end;
-    transform: none;
-    flex-direction: row;
-    gap: 0.75rem;
-  }
-
-  .projects-create-action__label {
-    letter-spacing: .05em;
+    top: auto;
+    bottom: 1.5rem;
+    right: 1rem;
   }
 }
 
