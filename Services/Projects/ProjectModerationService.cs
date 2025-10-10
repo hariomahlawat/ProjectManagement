@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -278,11 +279,19 @@ public sealed class ProjectModerationService
         metadata["planSnapshotCount"] = planSnapshots.Count;
         _db.ProjectPlanSnapshots.RemoveRange(planSnapshots);
 
-        var planSnapshotRows = await _db.ProjectPlanSnapshotRows
-            .Where(s => s.ProjectId == projectId)
-            .ToListAsync(cancellationToken);
-        metadata["planSnapshotRowCount"] = planSnapshotRows.Count;
-        _db.ProjectPlanSnapshotRows.RemoveRange(planSnapshotRows);
+        var snapshotIds = planSnapshots.Select(s => s.Id).ToList();
+        if (snapshotIds.Count > 0)
+        {
+            var planSnapshotRows = await _db.ProjectPlanSnapshotRows
+                .Where(s => snapshotIds.Contains(s.SnapshotId))
+                .ToListAsync(cancellationToken);
+            metadata["planSnapshotRowCount"] = planSnapshotRows.Count;
+            _db.ProjectPlanSnapshotRows.RemoveRange(planSnapshotRows);
+        }
+        else
+        {
+            metadata["planSnapshotRowCount"] = 0;
+        }
 
         var planVersions = await _db.PlanVersions
             .Where(v => v.ProjectId == projectId)
@@ -290,17 +299,26 @@ public sealed class ProjectModerationService
         metadata["planVersionCount"] = planVersions.Count;
         _db.PlanVersions.RemoveRange(planVersions);
 
-        var schedules = await _db.StagePlans
-            .Where(p => p.ProjectId == projectId)
-            .ToListAsync(cancellationToken);
-        metadata["stagePlanCount"] = schedules.Count;
-        _db.StagePlans.RemoveRange(schedules);
+        var planVersionIds = planVersions.Select(v => v.Id).ToList();
+        if (planVersionIds.Count > 0)
+        {
+            var schedules = await _db.StagePlans
+                .Where(p => planVersionIds.Contains(p.PlanVersionId))
+                .ToListAsync(cancellationToken);
+            metadata["stagePlanCount"] = schedules.Count;
+            _db.StagePlans.RemoveRange(schedules);
 
-        var approvals = await _db.PlanApprovalLogs
-            .Where(p => p.ProjectId == projectId)
-            .ToListAsync(cancellationToken);
-        metadata["planApprovalLogCount"] = approvals.Count;
-        _db.PlanApprovalLogs.RemoveRange(approvals);
+            var approvals = await _db.PlanApprovalLogs
+                .Where(p => planVersionIds.Contains(p.PlanVersionId))
+                .ToListAsync(cancellationToken);
+            metadata["planApprovalLogCount"] = approvals.Count;
+            _db.PlanApprovalLogs.RemoveRange(approvals);
+        }
+        else
+        {
+            metadata["stagePlanCount"] = 0;
+            metadata["planApprovalLogCount"] = 0;
+        }
 
         var timelineEntries = await _db.StageChangeLogs
             .Where(l => l.ProjectId == projectId)
@@ -313,18 +331,6 @@ public sealed class ProjectModerationService
             .ToListAsync(cancellationToken);
         metadata["metaChangeRequestCount"] = metaRequests.Count;
         _db.ProjectMetaChangeRequests.RemoveRange(metaRequests);
-
-        var statusRows = await _db.WorkflowStatuses
-            .Where(s => s.ProjectId == projectId)
-            .ToListAsync(cancellationToken);
-        metadata["workflowStatusCount"] = statusRows.Count;
-        _db.WorkflowStatuses.RemoveRange(statusRows);
-
-        var todoItems = await _db.TodoItems
-            .Where(t => t.ProjectId == projectId)
-            .ToListAsync(cancellationToken);
-        metadata["todoCount"] = todoItems.Count;
-        _db.TodoItems.RemoveRange(todoItems);
 
         var project = await _db.Projects
             .FirstOrDefaultAsync(p => p.Id == projectId, cancellationToken);
