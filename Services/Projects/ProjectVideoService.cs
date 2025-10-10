@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore.Storage;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
@@ -140,21 +141,39 @@ namespace ProjectManagement.Services.Projects
                 video.IsFeatured = true;
             }
 
+            IDbContextTransaction? transaction = null;
             try
             {
+                transaction = await _db.Database
+                    .BeginTransactionAsync(cancellationToken)
+                    .ConfigureAwait(false);
+
                 await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+                if (shouldFeature)
+                {
+                    project.FeaturedVideoId = video.Id;
+                    project.FeaturedVideoVersion = video.Version;
+                    await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                }
+
+                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
             }
             catch
             {
                 SafeDelete(destinationPath);
+                if (transaction is not null)
+                {
+                    await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                }
                 throw;
             }
-
-            if (shouldFeature)
+            finally
             {
-                project.FeaturedVideoId = video.Id;
-                project.FeaturedVideoVersion = video.Version;
-                await _db.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                if (transaction is not null)
+                {
+                    await transaction.DisposeAsync().ConfigureAwait(false);
+                }
             }
 
             await _audit.LogAsync(
