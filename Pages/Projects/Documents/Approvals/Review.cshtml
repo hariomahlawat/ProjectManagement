@@ -118,7 +118,7 @@
                 <h2 class="h5 mb-3">Decision</h2>
                 <p class="text-muted">Approvals publish the change immediately. Rejections discard staged files.</p>
 
-                <form method="post" novalidate asp-route-id="@Model.Project.Id" asp-route-requestId="@Model.RequestDetail.RequestId">
+                <form method="post" novalidate asp-page="./Review" asp-route-id="@Model.Project.Id" asp-route-requestId="@Model.RequestDetail.RequestId">
                     <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
                     <input type="hidden" asp-for="Input.RequestId" />
                     <input type="hidden" asp-for="Input.RowVersion" />
