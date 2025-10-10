@@ -49,14 +49,14 @@
           </div>
           @if (Model.HasMyProjects)
           {
-            @foreach (var section in Model.MyProjectSections)
+            @foreach (var projectSection in Model.MyProjectSections)
             {
               <div class="dashboard-my-projects__section">
                 <h3 class="dashboard-my-projects__section-title text-uppercase text-secondary fw-semibold small mb-2">
-                  @section.Title
+                  @projectSection.Title
                 </h3>
                 <div class="dashboard-my-projects__list" role="list">
-                  @foreach (var project in section.Items)
+                  @foreach (var project in projectSection.Items)
                   {
                     <a
                       asp-page="/Projects/Overview"
