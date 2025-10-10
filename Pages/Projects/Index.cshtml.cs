@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -8,6 +9,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Projects;
 
 namespace ProjectManagement.Pages.Projects
@@ -16,10 +18,12 @@ namespace ProjectManagement.Pages.Projects
     public class IndexModel : PageModel
     {
         private readonly ApplicationDbContext _db;
+        private readonly ProjectAnalyticsService _analytics;
 
-        public IndexModel(ApplicationDbContext db)
+        public IndexModel(ApplicationDbContext db, ProjectAnalyticsService analytics)
         {
             _db = db;
+            _analytics = analytics;
         }
 
         public IList<Project> Projects { get; private set; } = new List<Project>();
@@ -54,6 +58,15 @@ namespace ProjectManagement.Pages.Projects
         [BindProperty(SupportsGet = true)]
         public bool IncludeArchived { get; set; }
 
+        [BindProperty(SupportsGet = true)]
+        public string? StageCode { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public string? StageCompletedMonth { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public string? SlipBucket { get; set; }
+
         public int TotalCount { get; private set; }
 
         public int TotalPages { get; private set; }
@@ -70,7 +83,10 @@ namespace ProjectManagement.Pages.Projects
             Lifecycle != ProjectLifecycleFilter.All ||
             CompletedYear.HasValue ||
             TotStatus.HasValue ||
-            IncludeArchived;
+            IncludeArchived ||
+            !string.IsNullOrWhiteSpace(StageCode) ||
+            !string.IsNullOrWhiteSpace(StageCompletedMonth) ||
+            !string.IsNullOrWhiteSpace(SlipBucket);
 
         public IEnumerable<SelectListItem> CategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
 
@@ -88,6 +104,8 @@ namespace ProjectManagement.Pages.Projects
         {
             await LoadFilterOptionsAsync();
 
+            var stageMonth = ParseStageMonth(StageCompletedMonth);
+
             var baseFilters = new ProjectSearchFilters(
                 Query,
                 CategoryId,
@@ -96,7 +114,10 @@ namespace ProjectManagement.Pages.Projects
                 ProjectLifecycleFilter.All,
                 CompletedYear,
                 TotStatus,
-                IncludeArchived);
+                IncludeArchived,
+                StageCode,
+                stageMonth,
+                SlipBucket);
 
             var lifecycleCounts = await CountProjectsByLifecycleAsync(baseFilters);
             LifecycleTabs = BuildLifecycleTabs(lifecycleCounts);
@@ -112,6 +133,27 @@ namespace ProjectManagement.Pages.Projects
 
             var filters = baseFilters with { Lifecycle = Lifecycle };
             query = query.ApplyProjectSearch(filters);
+
+            if (!string.IsNullOrWhiteSpace(SlipBucket))
+            {
+                var slipIds = await _analytics
+                    .GetProjectIdsForSlipBucketAsync(
+                        filters.Lifecycle,
+                        filters.CategoryId,
+                        SlipBucket!,
+                        HttpContext.RequestAborted);
+
+                if (slipIds.Count == 0)
+                {
+                    query = query.Where(_ => false);
+                }
+                else
+                {
+                    var idArray = slipIds.ToArray();
+                    query = query.Where(p => idArray.Contains(p.Id));
+                }
+            }
+
             query = query.ApplyProjectOrdering(filters);
 
             PageSize = PageSize switch
@@ -149,6 +191,21 @@ namespace ProjectManagement.Pages.Projects
 
             ResultsStart = TotalCount == 0 ? 0 : skip + 1;
             ResultsEnd = TotalCount == 0 ? 0 : Math.Min(skip + Projects.Count, TotalCount);
+        }
+
+        private static DateOnly? ParseStageMonth(string? month)
+        {
+            if (string.IsNullOrWhiteSpace(month))
+            {
+                return null;
+            }
+
+            if (DateOnly.TryParseExact(month + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed))
+            {
+                return parsed;
+            }
+
+            return null;
         }
 
         private async Task LoadFilterOptionsAsync()
@@ -264,10 +321,29 @@ namespace ProjectManagement.Pages.Projects
                      })
             {
                 var countFilters = baseFilters with { Lifecycle = filter };
-                var count = await _db.Projects
+                var query = _db.Projects
                     .AsNoTracking()
-                    .ApplyProjectSearch(countFilters)
-                    .CountAsync();
+                    .ApplyProjectSearch(countFilters);
+
+                if (!string.IsNullOrWhiteSpace(baseFilters.SlipBucket))
+                {
+                    var slipIds = await _analytics.GetProjectIdsForSlipBucketAsync(
+                        countFilters.Lifecycle,
+                        countFilters.CategoryId,
+                        baseFilters.SlipBucket!,
+                        HttpContext.RequestAborted);
+
+                    if (slipIds.Count == 0)
+                    {
+                        counts[filter] = 0;
+                        continue;
+                    }
+
+                    var idArray = slipIds.ToArray();
+                    query = query.Where(p => idArray.Contains(p.Id));
+                }
+
+                var count = await query.CountAsync();
 
                 counts[filter] = count;
             }

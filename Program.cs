@@ -19,6 +19,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Plans;
+using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Scheduling;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Remarks;
@@ -44,6 +45,7 @@ using ProjectManagement.Utilities;
 using ProjectManagement.Services.Stages;
 using Microsoft.Net.Http.Headers;
 using System.Threading;
+using ProjectManagement.Features.Analytics;
 using ProjectManagement.Features.Remarks;
 using ProjectManagement.Features.Users;
 using ProjectManagement.Hubs;
@@ -225,6 +227,7 @@ builder.Services.AddScoped<IForecastWriter, ForecastWriter>();
 builder.Services.AddScoped<ForecastBackfillService>();
 builder.Services.AddScoped<ProjectMetaChangeRequestService>();
 builder.Services.AddScoped<ProjectMetaChangeDecisionService>();
+builder.Services.AddScoped<ProjectAnalyticsService>();
 builder.Services.AddOptions<ProjectPhotoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectPhotos"));
 builder.Services.AddOptions<ProjectDocumentOptions>()
@@ -1616,6 +1619,7 @@ app.MapGet("/Projects/Documents/View", async (
 }).AllowAnonymous();
 
 app.MapRemarkApi();
+app.MapProjectAnalyticsApi();
 app.MapMentionApi();
 app.MapRazorPages();
 

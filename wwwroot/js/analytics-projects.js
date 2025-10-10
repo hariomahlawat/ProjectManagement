@@ -1,0 +1,554 @@
+const root = document.getElementById('analytics-root');
+
+if (root) {
+  const defaultLifecycle = root.dataset.defaultLifecycle || 'Active';
+  const projectsIndexUrl = root.dataset.projectsIndexUrl || '/Projects/Index';
+  const projectOverviewTemplate = root.dataset.projectOverviewUrl || '/Projects/Overview/0';
+  const projectOverviewBase = projectOverviewTemplate.endsWith('/0')
+    ? projectOverviewTemplate.slice(0, -1)
+    : projectOverviewTemplate;
+
+  const palette = [
+    '#1a73e8', '#fbbc04', '#34a853', '#ea4335', '#9c27b0', '#fb8c00', '#00acc1', '#8d6e63', '#5c6bc0', '#43a047'
+  ];
+
+  const charts = new Map();
+
+  const monthInputDefaults = (() => {
+    const now = new Date();
+    now.setDate(1);
+    const end = new Date(now);
+    const start = new Date(now);
+    start.setMonth(start.getMonth() - 5);
+    return { start, end };
+  })();
+
+  function formatMonthValue(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+  }
+
+  function setInitialMonthInputs(card) {
+    const fromInput = card.querySelector('input[data-filter="from-month"]');
+    const toInput = card.querySelector('input[data-filter="to-month"]');
+    if (fromInput && !fromInput.value) {
+      fromInput.value = formatMonthValue(monthInputDefaults.start);
+    }
+    if (toInput && !toInput.value) {
+      toInput.value = formatMonthValue(monthInputDefaults.end);
+    }
+  }
+
+  function buildUrl(base, params) {
+    const url = new URL(base, window.location.origin);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        url.searchParams.set(key, value);
+      }
+    });
+    return url.toString();
+  }
+
+  function navigateToProjects(params) {
+    window.location.href = buildUrl(projectsIndexUrl, params);
+  }
+
+  function navigateToOverview(id) {
+    window.location.href = `${projectOverviewBase}${id}`;
+  }
+
+  function activateLifecycleButton(button, activeValue) {
+    const group = button.closest('[data-filter-strip]');
+    if (!group) return;
+    group.querySelectorAll('button[data-filter="lifecycle"]').forEach((btn) => {
+      const match = btn.dataset.value === activeValue;
+      btn.classList.toggle('active', match);
+      btn.setAttribute('aria-pressed', match ? 'true' : 'false');
+    });
+  }
+
+  function getFilters(card) {
+    const filters = {};
+    const lifecycleBtn = card.querySelector('button[data-filter="lifecycle"].active');
+    filters.lifecycle = lifecycleBtn ? lifecycleBtn.dataset.value : defaultLifecycle;
+
+    const categorySelect = card.querySelector('select[data-filter="category"]');
+    filters.categoryId = categorySelect ? categorySelect.value : '';
+
+    const fromInput = card.querySelector('input[data-filter="from-month"]');
+    if (fromInput) {
+      filters.fromMonth = fromInput.value;
+    }
+    const toInput = card.querySelector('input[data-filter="to-month"]');
+    if (toInput) {
+      filters.toMonth = toInput.value;
+    }
+    return filters;
+  }
+
+  async function fetchJson(url) {
+    const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    if (!response.ok) {
+      throw new Error(`Request failed with ${response.status}`);
+    }
+    return response.json();
+  }
+
+  function showLoading(card) {
+    card.classList.add('is-loading');
+  }
+
+  function hideLoading(card) {
+    card.classList.remove('is-loading');
+  }
+
+  function getChart(card, canvas) {
+    if (!canvas) return null;
+    if (charts.has(canvas)) {
+      return charts.get(canvas);
+    }
+    return null;
+  }
+
+  function setChart(card, canvas, chart) {
+    charts.set(canvas, chart);
+    card.dataset.hasChart = 'true';
+  }
+
+  async function loadCategoryShare(card) {
+    const canvas = card.querySelector('canvas[data-chart="category-share"]');
+    if (!canvas) return;
+    showLoading(card);
+    const filters = getFilters(card);
+    try {
+      const url = buildUrl('/api/analytics/projects/category-share', {
+        lifecycle: filters.lifecycle
+      });
+      const data = await fetchJson(url);
+      const labels = data.Slices.map((slice) => slice.CategoryName);
+      const values = data.Slices.map((slice) => slice.Count);
+      const meta = data.Slices;
+      const chart = getChart(card, canvas);
+      const dataset = {
+        label: 'Projects',
+        data: values,
+        backgroundColor: values.map((_, idx) => palette[idx % palette.length]),
+        borderWidth: 0,
+        meta
+      };
+      if (chart) {
+        chart.data.labels = labels;
+        chart.data.datasets = [dataset];
+        chart.update();
+      } else {
+        const newChart = new window.Chart(canvas.getContext('2d'), {
+          type: 'doughnut',
+          data: {
+            labels,
+            datasets: [dataset]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'bottom' }
+            }
+          }
+        });
+        canvas.onclick = (evt) => {
+          const points = newChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+          if (points.length === 0) {
+            return;
+          }
+          const point = points[0];
+          const slice = newChart.data.datasets[point.datasetIndex].meta[point.index];
+          const params = {
+            Lifecycle: filters.lifecycle === 'All' ? undefined : filters.lifecycle,
+            CategoryId: slice.CategoryId || undefined
+          };
+          navigateToProjects(params);
+        };
+        setChart(card, canvas, newChart);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      hideLoading(card);
+    }
+  }
+
+  async function loadStageDistribution(card) {
+    const canvas = card.querySelector('canvas[data-chart="stage-distribution"]');
+    if (!canvas) return;
+    showLoading(card);
+    const filters = getFilters(card);
+    try {
+      const url = buildUrl('/api/analytics/projects/stage-distribution', {
+        lifecycle: filters.lifecycle,
+        categoryId: filters.categoryId
+      });
+      const data = await fetchJson(url);
+      const labels = data.Items.map((item) => item.StageName);
+      const values = data.Items.map((item) => item.Count);
+      const meta = data.Items;
+      const chart = getChart(card, canvas);
+      const dataset = {
+        label: 'Projects',
+        backgroundColor: '#1a73e8',
+        borderRadius: 4,
+        data: values,
+        meta
+      };
+      if (chart) {
+        chart.data.labels = labels;
+        chart.data.datasets = [dataset];
+        chart.update();
+      } else {
+        const newChart = new window.Chart(canvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [dataset]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              x: { ticks: { maxRotation: 0 } },
+              y: { beginAtZero: true }
+            }
+          }
+        });
+        canvas.onclick = (evt) => {
+          const points = newChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+          if (points.length === 0) {
+            return;
+          }
+          const point = points[0];
+          const stage = newChart.data.datasets[point.datasetIndex].meta[point.index];
+          const params = {
+            Lifecycle: filters.lifecycle === 'All' ? undefined : filters.lifecycle,
+            CategoryId: filters.categoryId || undefined,
+            StageCode: stage.StageCode
+          };
+          navigateToProjects(params);
+        };
+        setChart(card, canvas, newChart);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      hideLoading(card);
+    }
+  }
+
+  async function loadLifecycleStatus(card) {
+    const canvas = card.querySelector('canvas[data-chart="lifecycle-status"]');
+    if (!canvas) return;
+    showLoading(card);
+    const filters = getFilters(card);
+    try {
+      const url = buildUrl('/api/analytics/projects/lifecycle-breakdown', {
+        categoryId: filters.categoryId
+      });
+      const data = await fetchJson(url);
+      const labels = data.Items.map((item) => item.Status);
+      const values = data.Items.map((item) => item.Count);
+      const colors = ['#1a73e8', '#34a853', '#ea4335'];
+      const chart = getChart(card, canvas);
+      const dataset = {
+        label: 'Projects',
+        data: values,
+        backgroundColor: labels.map((_, idx) => colors[idx % colors.length]),
+        borderRadius: 4
+      };
+      if (chart) {
+        chart.data.labels = labels;
+        chart.data.datasets = [dataset];
+        chart.update();
+      } else {
+        const newChart = new window.Chart(canvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [dataset]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { display: false }
+            },
+            scales: {
+              y: { beginAtZero: true }
+            }
+          }
+        });
+        canvas.onclick = (evt) => {
+          const points = newChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+          if (points.length === 0) return;
+          const point = points[0];
+          const status = newChart.data.labels[point.index];
+          const params = {
+            Lifecycle: status,
+            CategoryId: filters.categoryId || undefined
+          };
+          navigateToProjects(params);
+        };
+        setChart(card, canvas, newChart);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      hideLoading(card);
+    }
+  }
+
+  function renderStageCompletionKpis(card, kpis) {
+    const container = card.querySelector('[data-kpis]');
+    if (!container) return;
+    const total = container.querySelector('[data-kpi="total"]');
+    const adv = container.querySelector('[data-kpi="advancements"]');
+    const top = container.querySelector('[data-kpi="top-stage"]');
+    if (total) total.textContent = kpis.TotalCompletionsThisMonth ?? '0';
+    if (adv) adv.textContent = kpis.ProjectsAdvancedTwoOrMoreStages ?? '0';
+    if (top) {
+      if (kpis.TopStageName) {
+        top.textContent = `${kpis.TopStageName} (${kpis.TopStageCount})`;
+      } else {
+        top.textContent = '—';
+      }
+    }
+  }
+
+  async function loadStageCompletions(card) {
+    const canvas = card.querySelector('canvas[data-chart="stage-completions"]');
+    if (!canvas) return;
+    setInitialMonthInputs(card);
+    showLoading(card);
+    const filters = getFilters(card);
+    try {
+      const url = buildUrl('/api/analytics/projects/monthly-stage-completions', {
+        lifecycle: filters.lifecycle,
+        categoryId: filters.categoryId,
+        fromMonth: filters.fromMonth,
+        toMonth: filters.toMonth
+      });
+      const data = await fetchJson(url);
+      renderStageCompletionKpis(card, data.Kpis);
+      const labels = data.Months.map((month) => month.Label);
+      const datasets = data.Series.map((serie, idx) => ({
+        label: serie.StageName,
+        data: serie.Counts,
+        backgroundColor: palette[idx % palette.length],
+        stageCode: serie.StageCode,
+        stack: 'stages'
+      }));
+      const chart = getChart(card, canvas);
+      if (chart) {
+        chart.data.labels = labels;
+        chart.data.datasets = datasets;
+        chart.update();
+      } else {
+        const newChart = new window.Chart(canvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels,
+            datasets
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              tooltip: { mode: 'index', intersect: false },
+              legend: { position: 'bottom' }
+            },
+            scales: {
+              x: { stacked: true },
+              y: { stacked: true, beginAtZero: true }
+            }
+          }
+        });
+        canvas.onclick = (evt) => {
+          const points = newChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+          if (points.length === 0) return;
+          const point = points[0];
+          const dataset = newChart.data.datasets[point.datasetIndex];
+          const monthBucket = data.Months[point.index];
+          const params = {
+            Lifecycle: filters.lifecycle === 'All' ? undefined : filters.lifecycle,
+            CategoryId: filters.categoryId || undefined,
+            StageCode: dataset.stageCode,
+            StageCompletedMonth: monthBucket.Key
+          };
+          navigateToProjects(params);
+        };
+        setChart(card, canvas, newChart);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      hideLoading(card);
+    }
+  }
+
+  async function loadSlipBuckets(card) {
+    const canvas = card.querySelector('canvas[data-chart="slip-buckets"]');
+    if (!canvas) return;
+    showLoading(card);
+    const filters = getFilters(card);
+    try {
+      const url = buildUrl('/api/analytics/projects/slip-buckets', {
+        lifecycle: filters.lifecycle,
+        categoryId: filters.categoryId
+      });
+      const data = await fetchJson(url);
+      const labels = data.Buckets.map((bucket) => bucket.Label);
+      const values = data.Buckets.map((bucket) => bucket.Count);
+      const chart = getChart(card, canvas);
+        const dataset = {
+          label: 'Projects',
+          data: values,
+          backgroundColor: '#1a73e8',
+          borderRadius: 4,
+          meta: data.Buckets
+        };
+      if (chart) {
+        chart.data.labels = labels;
+        chart.data.datasets = [dataset];
+        chart.update();
+      } else {
+        const newChart = new window.Chart(canvas.getContext('2d'), {
+          type: 'bar',
+          data: {
+            labels,
+            datasets: [dataset]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { beginAtZero: true }
+            }
+          }
+        });
+        canvas.onclick = (evt) => {
+          const points = newChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
+          if (points.length === 0) return;
+          const point = points[0];
+          const bucket = newChart.data.datasets[point.datasetIndex].meta[point.index];
+          const params = {
+            Lifecycle: filters.lifecycle === 'All' ? undefined : filters.lifecycle,
+            CategoryId: filters.categoryId || undefined,
+            SlipBucket: bucket.Key
+          };
+          navigateToProjects(params);
+        };
+        setChart(card, canvas, newChart);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      hideLoading(card);
+    }
+  }
+
+  async function loadTopOverdue(card) {
+    const container = card.querySelector('[data-top-overdue]');
+    if (!container) return;
+    showLoading(card);
+    container.innerHTML = '<p class="text-secondary mb-0">Loading…</p>';
+    const filters = getFilters(card);
+    try {
+      const url = buildUrl('/api/analytics/projects/top-overdue', {
+        lifecycle: filters.lifecycle,
+        categoryId: filters.categoryId,
+        take: 5
+      });
+      const data = await fetchJson(url);
+      if (!data.Projects || data.Projects.length === 0) {
+        container.innerHTML = '<p class="text-secondary mb-0">No overdue projects for this view.</p>';
+        return;
+      }
+      const list = document.createElement('ul');
+      list.className = 'analytics-top-overdue-list';
+      data.Projects.forEach((project) => {
+        const item = document.createElement('li');
+        item.innerHTML = `
+          <button type="button" class="analytics-top-link">
+            <span class="analytics-top-name">${project.Name}</span>
+            <span class="analytics-top-meta">${project.Category}</span>
+            <span class="analytics-top-stage">${project.StageName}</span>
+            <span class="analytics-top-slip">${project.SlipDays}d</span>
+          </button>
+        `;
+        const button = item.querySelector('button');
+        button.addEventListener('click', () => navigateToOverview(project.ProjectId));
+        list.appendChild(item);
+      });
+      container.innerHTML = '';
+      container.appendChild(list);
+    } catch (err) {
+      console.error(err);
+      container.innerHTML = '<p class="text-danger mb-0">Unable to load data.</p>';
+    } finally {
+      hideLoading(card);
+    }
+  }
+
+  function handleFilterInteractions(card, loader) {
+    card.querySelectorAll('button[data-filter="lifecycle"]').forEach((button) => {
+      button.addEventListener('click', () => {
+        activateLifecycleButton(button, button.dataset.value || defaultLifecycle);
+        loader(card);
+      });
+    });
+
+    card.querySelectorAll('select[data-filter], input[data-filter]').forEach((input) => {
+      input.addEventListener('change', () => loader(card));
+    });
+  }
+
+  function init() {
+    const cards = root.querySelectorAll('[data-analytics-card]');
+    cards.forEach((card) => {
+      const type = card.dataset.analyticsCard;
+      switch (type) {
+        case 'category-share':
+          handleFilterInteractions(card, loadCategoryShare);
+          loadCategoryShare(card);
+          break;
+        case 'stage-distribution':
+          handleFilterInteractions(card, loadStageDistribution);
+          loadStageDistribution(card);
+          break;
+        case 'lifecycle-status':
+          handleFilterInteractions(card, loadLifecycleStatus);
+          loadLifecycleStatus(card);
+          break;
+        case 'stage-completions':
+          handleFilterInteractions(card, loadStageCompletions);
+          loadStageCompletions(card);
+          break;
+        case 'slip-buckets':
+          handleFilterInteractions(card, loadSlipBuckets);
+          loadSlipBuckets(card);
+          break;
+        case 'top-overdue':
+          handleFilterInteractions(card, loadTopOverdue);
+          loadTopOverdue(card);
+          break;
+        default:
+          break;
+      }
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
+    init();
+  }
+}

@@ -14,6 +14,10 @@ A modular ASP.NET Core 8 platform for running task boards, celebrations, shared 
 | **Notifications** | Background dispatcher and retention workers move queued notifications into the realtime hub and prune old rows. The API supports unread counts, per-project filters, and mute toggles scoped by project access checks.【F:Program.cs†L236-L356】【F:Services/Notifications/UserNotificationService.cs†L23-L220】 |
 | **Admin centre** | Role-gated area for user lifecycle, process templates, analytics, and lookup management. User guardrails block disabling the last active admin and export CSV snapshots for audits.【F:Areas/Admin/Pages/Users/Index.cshtml.cs†L14-L87】【F:Program.cs†L125-L206】 |
 
+## Analytics space
+
+The portal includes a dedicated **Analytics** area focused on project insights. The landing page renders six responsive chart cards—category share, stage distribution, lifecycle counts, monthly stage completions (with KPI row), slip buckets, and the top overdue projects—each with in-card filters and drill-through links back into the Projects workspace. Data flows through minimal API endpoints (`/api/analytics/projects/*`) that rely on `ProjectAnalyticsService` for pre-filtered aggregations while excluding archived or trashed projects. Chart.js rendering and client-side filter orchestration live in `wwwroot/js/analytics-projects.js` alongside styles under `wwwroot/css/site.css`.
+
 ## Architecture overview
 
 The solution follows a layered design:
