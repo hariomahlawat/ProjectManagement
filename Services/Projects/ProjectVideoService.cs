@@ -51,7 +51,6 @@ namespace ProjectManagement.Services.Projects
                                                 string userId,
                                                 string? title,
                                                 string? description,
-                                                int? totId,
                                                 bool setAsFeatured,
                                                 CancellationToken cancellationToken)
         {
@@ -67,7 +66,6 @@ namespace ProjectManagement.Services.Projects
 
             var project = await _db.Projects
                 .Include(p => p.Videos)
-                .Include(p => p.Tot)
                 .SingleOrDefaultAsync(p => p.Id == projectId, cancellationToken)
                 .ConfigureAwait(false);
 
@@ -75,8 +73,6 @@ namespace ProjectManagement.Services.Projects
             {
                 throw new InvalidOperationException($"Project {projectId} was not found.");
             }
-
-            ValidateTotAssociation(project, totId);
 
             var sanitizedName = FileNameSanitizer.Sanitize(originalFileName);
             var extension = Path.GetExtension(sanitizedName);
@@ -120,7 +116,6 @@ namespace ProjectManagement.Services.Projects
                 FileSize = totalBytes,
                 Title = string.IsNullOrWhiteSpace(title) ? Path.GetFileNameWithoutExtension(sanitizedName) : title?.Trim(),
                 Description = string.IsNullOrWhiteSpace(description) ? null : description!.Trim(),
-                TotId = totId,
                 Ordinal = ordinal,
                 IsFeatured = shouldFeature,
                 CreatedUtc = now,
@@ -195,7 +190,6 @@ namespace ProjectManagement.Services.Projects
                                                              int videoId,
                                                              string? title,
                                                              string? description,
-                                                             int? totId,
                                                              string userId,
                                                              CancellationToken cancellationToken)
         {
@@ -208,8 +202,6 @@ namespace ProjectManagement.Services.Projects
             {
                 return null;
             }
-
-            ValidateTotAssociation(video.Project, totId);
 
             var trimmedTitle = string.IsNullOrWhiteSpace(title) ? null : title!.Trim();
             var trimmedDescription = string.IsNullOrWhiteSpace(description) ? null : description!.Trim();
@@ -224,12 +216,6 @@ namespace ProjectManagement.Services.Projects
             if (!string.Equals(video.Description, trimmedDescription, StringComparison.Ordinal))
             {
                 video.Description = trimmedDescription;
-                hasChanges = true;
-            }
-
-            if (video.TotId != totId)
-            {
-                video.TotId = totId;
                 hasChanges = true;
             }
 
@@ -601,19 +587,6 @@ namespace ProjectManagement.Services.Projects
             catch
             {
                 // ignored
-            }
-        }
-
-        private void ValidateTotAssociation(Project project, int? totId)
-        {
-            if (!totId.HasValue)
-            {
-                return;
-            }
-
-            if (project.Tot is null || project.Tot.Id != totId.Value)
-            {
-                throw new InvalidOperationException("The provided ToT identifier is not associated with this project.");
             }
         }
 

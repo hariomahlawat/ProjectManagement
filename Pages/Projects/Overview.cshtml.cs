@@ -189,11 +189,6 @@ namespace ProjectManagement.Pages.Projects
                 .Select(p => p.TotId!.Value)
                 .ToHashSet();
 
-            foreach (var totId in Videos.Where(v => v.TotId.HasValue).Select(v => v.TotId!.Value))
-            {
-                availableTotIds.Add(totId);
-            }
-
             if (project.CoverPhotoId.HasValue)
             {
                 CoverPhoto = Photos.FirstOrDefault(p => p.Id == project.CoverPhotoId.Value);
@@ -750,9 +745,7 @@ namespace ProjectManagement.Pages.Projects
                     title,
                     playbackUrl,
                     thumbnailUrl,
-                    duration,
-                    video.TotId,
-                    video.TotId.HasValue));
+                    duration));
             }
 
             return items;

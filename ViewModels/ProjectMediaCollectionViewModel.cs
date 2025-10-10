@@ -74,6 +74,4 @@ public sealed record ProjectMediaVideoViewModel(
     string Title,
     string PlaybackUrl,
     string ThumbnailUrl,
-    TimeSpan? Duration,
-    int? TotId,
-    bool ShowTotBadge);
+    TimeSpan? Duration);
