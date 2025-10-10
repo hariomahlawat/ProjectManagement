@@ -58,8 +58,7 @@ public sealed class ProjectAnalyticsService
     {
         var query = _db.Projects
             .AsNoTracking()
-            .Where(p => !p.IsDeleted && !p.IsArchived)
-            .Include(p => p.ProjectStages);
+            .Where(p => !p.IsDeleted && !p.IsArchived);
 
         query = ApplyLifecycleFilter(query, lifecycle);
 
@@ -69,6 +68,7 @@ public sealed class ProjectAnalyticsService
         }
 
         var projects = await query
+            .Include(p => p.ProjectStages)
             .Select(p => new ProjectStageSnapshot(
                 p.Id,
                 p.LifecycleStatus,
