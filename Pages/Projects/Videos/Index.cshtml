@@ -63,7 +63,6 @@
                 <thead>
                     <tr>
                         <th scope="col">Title</th>
-                        <th scope="col">Transfer of Technology</th>
                         <th scope="col">Size</th>
                         <th scope="col">Uploaded</th>
                         <th scope="col" class="text-end">Actions</th>
@@ -84,16 +83,6 @@
                                 }
                             </div>
                         </th>
-                        <td>
-                            @if (video.TotId.HasValue)
-                            {
-                                <span class="badge text-bg-info">Linked</span>
-                            }
-                            else
-                            {
-                                <span class="text-muted">—</span>
-                            }
-                        </td>
                         <td>@(video.FileSize > 0 ? FormatSize(video.FileSize) : "–")</td>
                         <td>@video.CreatedUtc.ToString("g")</td>
                         <td class="text-end">

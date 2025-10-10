@@ -93,6 +93,7 @@ public sealed class UploadModel : PageModel
         }
 
         var project = await _db.Projects
+            .Include(p => p.Videos)
             .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
 
         if (project is null)
@@ -129,7 +130,6 @@ public sealed class UploadModel : PageModel
                 userId,
                 Input.Title,
                 Input.Description,
-                null,
                 Input.SetAsFeatured,
                 cancellationToken);
 

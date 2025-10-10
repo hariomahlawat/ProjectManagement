@@ -15,7 +15,6 @@ namespace ProjectManagement.Services.Projects
                                     string userId,
                                     string? title,
                                     string? description,
-                                    int? totId,
                                     bool setAsFeatured,
                                     CancellationToken cancellationToken);
 
@@ -23,7 +22,6 @@ namespace ProjectManagement.Services.Projects
                                                 int videoId,
                                                 string? title,
                                                 string? description,
-                                                int? totId,
                                                 string userId,
                                                 CancellationToken cancellationToken);
 
