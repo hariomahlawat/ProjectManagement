@@ -25,7 +25,7 @@ public sealed class ProjectMediaAggregator
             request.CoverPhotoUrl,
             request.CanManagePhotos);
 
-        var videos = FilterVideos(request.Videos, request.SelectedTotId);
+        var videos = request.Videos.ToList();
         var videoTab = videos.Count > 0
             ? new ProjectMediaVideosTabViewModel(videos, Math.Max(0, videos.Count - ProjectMediaSummaryViewModel.DefaultPreviewCount))
             : null;
@@ -206,13 +206,6 @@ public sealed class ProjectMediaAggregator
             coverPhoto,
             coverPhotoVersion,
             coverPhotoUrl);
-    }
-
-    private static List<ProjectMediaVideoViewModel> FilterVideos(
-        IReadOnlyList<ProjectMediaVideoViewModel> videos,
-        int? _)
-    {
-        return videos.ToList();
     }
 }
 

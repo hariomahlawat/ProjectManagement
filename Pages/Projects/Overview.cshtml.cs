@@ -708,47 +708,46 @@ namespace ProjectManagement.Pages.Projects
             }
 
             var placeholder = Url.Content("~/img/placeholders/project-video-placeholder.svg") ?? string.Empty;
-            var items = new List<ProjectMediaVideoViewModel>(Videos.Count);
 
-            foreach (var video in Videos)
-            {
-                var playbackUrl = Url.Page("/Projects/Videos/Stream", new
+            return Videos
+                .Select(video =>
                 {
-                    id = project.Id,
-                    videoId = video.Id,
-                    v = video.Version
-                }) ?? string.Empty;
-
-                string? thumbnailUrl = null;
-                if (!string.IsNullOrWhiteSpace(video.PosterStorageKey))
-                {
-                    thumbnailUrl = Url.Page("/Projects/Videos/Poster", new
+                    var playbackUrl = Url.Page("/Projects/Videos/Stream", new
                     {
                         id = project.Id,
                         videoId = video.Id,
                         v = video.Version
-                    });
-                }
+                    }) ?? string.Empty;
 
-                thumbnailUrl ??= placeholder;
+                    string? thumbnailUrl = null;
+                    if (!string.IsNullOrWhiteSpace(video.PosterStorageKey))
+                    {
+                        thumbnailUrl = Url.Page("/Projects/Videos/Poster", new
+                        {
+                            id = project.Id,
+                            videoId = video.Id,
+                            v = video.Version
+                        });
+                    }
 
-                TimeSpan? duration = video.DurationSeconds.HasValue
-                    ? TimeSpan.FromSeconds(video.DurationSeconds.Value)
-                    : (TimeSpan?)null;
+                    thumbnailUrl ??= placeholder;
 
-                var title = string.IsNullOrWhiteSpace(video.Title)
-                    ? Path.GetFileNameWithoutExtension(video.OriginalFileName)
-                    : video.Title!;
+                    TimeSpan? duration = video.DurationSeconds.HasValue
+                        ? TimeSpan.FromSeconds(video.DurationSeconds.Value)
+                        : (TimeSpan?)null;
 
-                items.Add(new ProjectMediaVideoViewModel(
-                    video.Id,
-                    title,
-                    playbackUrl,
-                    thumbnailUrl,
-                    duration));
-            }
+                    var title = string.IsNullOrWhiteSpace(video.Title)
+                        ? Path.GetFileNameWithoutExtension(video.OriginalFileName)
+                        : video.Title!;
 
-            return items;
+                    return new ProjectMediaVideoViewModel(
+                        video.Id,
+                        title,
+                        playbackUrl,
+                        thumbnailUrl,
+                        duration);
+                })
+                .ToList();
         }
 
         private ProjectMediaSummaryViewModel BuildMediaSummary()
