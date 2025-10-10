@@ -1,14 +1,19 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
+using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Storage;
 
 namespace ProjectManagement.Services.Projects;
 
@@ -26,15 +31,21 @@ public sealed class ProjectModerationService
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly ILogger<ProjectModerationService> _logger;
+    private readonly IUploadRootProvider _uploadRootProvider;
+    private readonly ProjectDocumentOptions _documentOptions;
 
     public ProjectModerationService(
         ApplicationDbContext db,
         IClock clock,
-        ILogger<ProjectModerationService> logger)
+        ILogger<ProjectModerationService> logger,
+        IUploadRootProvider uploadRootProvider,
+        IOptions<ProjectDocumentOptions> documentOptions)
     {
         _db = db;
         _clock = clock;
         _logger = logger;
+        _uploadRootProvider = uploadRootProvider ?? throw new ArgumentNullException(nameof(uploadRootProvider));
+        _documentOptions = documentOptions?.Value ?? throw new ArgumentNullException(nameof(documentOptions));
     }
 
     public async Task<ProjectModerationResult> ArchiveAsync(
@@ -341,14 +352,85 @@ public sealed class ProjectModerationService
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        if (includeAssets)
-        {
-            metadata["assetsPurged"] = true;
-        }
+        var assetsPurged = includeAssets && TryDeleteProjectAssets(projectId);
+        metadata["assetsPurged"] = assetsPurged;
 
         return metadata.Count == 0
             ? null
             : JsonSerializer.Serialize(metadata);
+    }
+
+    private bool TryDeleteProjectAssets(int projectId)
+    {
+        try
+        {
+            var path = BuildProjectRootPath(projectId);
+            if (string.IsNullOrWhiteSpace(path) || !Directory.Exists(path))
+            {
+                return false;
+            }
+
+            Directory.Delete(path, recursive: true);
+            TryDeleteParentIfEmpty(path);
+            return true;
+        }
+        catch (IOException ex)
+        {
+            _logger.LogWarning(ex, "Failed to delete asset directory for project {ProjectId}", projectId);
+            return false;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _logger.LogWarning(ex, "Access denied deleting asset directory for project {ProjectId}", projectId);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Unexpected error deleting asset directory for project {ProjectId}", projectId);
+            return false;
+        }
+    }
+
+    private string BuildProjectRootPath(int projectId)
+    {
+        var projectSegment = projectId.ToString(CultureInfo.InvariantCulture);
+        var segments = new[]
+        {
+            _uploadRootProvider.RootPath,
+            string.IsNullOrWhiteSpace(_documentOptions.ProjectsSubpath) ? null : _documentOptions.ProjectsSubpath,
+            projectSegment
+        };
+
+        return Path.GetFullPath(Path.Combine(segments.Where(s => !string.IsNullOrWhiteSpace(s)).ToArray()));
+    }
+
+    private void TryDeleteParentIfEmpty(string path)
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(path);
+            var root = Path.GetFullPath(_uploadRootProvider.RootPath);
+            while (!string.IsNullOrWhiteSpace(directory) && Directory.Exists(directory))
+            {
+                var current = Path.GetFullPath(directory);
+                if (string.Equals(current, root, StringComparison.OrdinalIgnoreCase))
+                {
+                    break;
+                }
+
+                if (Directory.EnumerateFileSystemEntries(directory).Any())
+                {
+                    break;
+                }
+
+                Directory.Delete(directory, recursive: false);
+                directory = Path.GetDirectoryName(directory);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.LogDebug(ex, "Failed to clean up parent directories after purging assets at {Path}", path);
+        }
     }
 
     private async Task WriteAuditAsync(

@@ -80,6 +80,31 @@
                                 Manage lifecycle
                             </button>
                         </li>
+                        @if (isAdmin || isHoD)
+                        {
+                            <li><hr class="dropdown-divider" /></li>
+                            @if (project?.IsArchived == true)
+                            {
+                                <li>
+                                    <button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#projectRestoreArchiveModal">
+                                        Restore from archive
+                                    </button>
+                                </li>
+                            }
+                            else
+                            {
+                                <li>
+                                    <button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#projectArchiveModal">
+                                        Archive project
+                                    </button>
+                                </li>
+                            }
+                            <li>
+                                <button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#projectTrashModal">
+                                    Move to Trash
+                                </button>
+                            </li>
+                        }
                     </ul>
                 </div>
             }
@@ -121,6 +146,11 @@
     @if (Model.LifecycleActions.CanManageLifecycle)
     {
         <partial name="_ProjectLifecycleActions" model="Model" />
+    }
+
+    @if (isAdmin || isHoD)
+    {
+        <partial name="_ProjectModerationActions" model="Model" />
     }
 
     @if (!Model.LifecycleSummary.ShowPostCompletionView)

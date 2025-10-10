@@ -1,0 +1,111 @@
+@model ProjectManagement.Pages.Projects.OverviewModel
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+
+@{
+    var project = Model.Project!;
+    var tokens = Antiforgery.GetAndStoreTokens(ViewContext.HttpContext);
+    var projectName = project.Name;
+}
+
+<input type="hidden"
+       value="@tokens.RequestToken"
+       data-project-moderation-token />
+
+<div class="modal fade"
+     id="projectArchiveModal"
+     tabindex="-1"
+     aria-labelledby="projectArchiveModalLabel"
+     aria-hidden="true"
+     data-project-id="@project.Id">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="projectArchiveModalLabel">Archive project</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0">Archiving <strong>@projectName</strong> hides it from day-to-day views. You can restore it later.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button"
+                        class="btn btn-primary"
+                        data-project-moderation-submit
+                        data-action="archive"
+                        data-endpoint="@Url.Content($"~/api/projects/{project.Id}/archive")">
+                    Archive project
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade"
+     id="projectRestoreArchiveModal"
+     tabindex="-1"
+     aria-labelledby="projectRestoreArchiveModalLabel"
+     aria-hidden="true"
+     data-project-id="@project.Id">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="projectRestoreArchiveModalLabel">Restore project</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0">Restoring <strong>@projectName</strong> returns it to active listings.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button"
+                        class="btn btn-success"
+                        data-project-moderation-submit
+                        data-action="restore-archive"
+                        data-endpoint="@Url.Content($"~/api/projects/{project.Id}/restore-archive")">
+                    Restore project
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade"
+     id="projectTrashModal"
+     tabindex="-1"
+     aria-labelledby="projectTrashModalLabel"
+     aria-hidden="true"
+     data-project-id="@project.Id">
+    <div class="modal-dialog modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title fs-5" id="projectTrashModalLabel">Move project to Trash</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning" role="alert">
+                    Trashed projects are hidden from all views and will be permanently deleted after the retention period unless restored.
+                </div>
+                <div class="mb-3">
+                    <label for="projectTrashReason" class="form-label">Reason for Trash <span class="text-muted">(required)</span></label>
+                    <textarea id="projectTrashReason"
+                              class="form-control"
+                              rows="3"
+                              maxlength="512"
+                              data-project-trash-reason
+                              required></textarea>
+                </div>
+                <div class="text-danger small d-none" data-project-trash-errors role="alert"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button"
+                        class="btn btn-danger"
+                        data-project-moderation-submit
+                        data-action="trash"
+                        data-endpoint="@Url.Content($"~/api/projects/{project.Id}/trash")">
+                    Move to Trash
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

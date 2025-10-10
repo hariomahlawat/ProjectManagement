@@ -16,6 +16,133 @@
             }
         };
 
+    function parseErrorResponse(response) {
+        if (!response) {
+            return Promise.resolve('Unable to complete the request.');
+        }
+
+        return response.json().then((data) => {
+            if (data && typeof data.error === 'string' && data.error.trim().length > 0) {
+                return data.error;
+            }
+
+            return 'Unable to complete the request.';
+        }).catch(() => 'Unable to complete the request.');
+    }
+
+    function initProjectModeration() {
+        const tokenInput = document.querySelector('[data-project-moderation-token]');
+        if (!tokenInput) {
+            return;
+        }
+
+        const trashModal = document.getElementById('projectTrashModal');
+        if (trashModal) {
+            const reasonInput = trashModal.querySelector('[data-project-trash-reason]');
+            const errorContainer = trashModal.querySelector('[data-project-trash-errors]');
+            trashModal.addEventListener('shown.bs.modal', () => {
+                if (reasonInput instanceof HTMLTextAreaElement) {
+                    reasonInput.focus();
+                }
+            });
+            trashModal.addEventListener('hidden.bs.modal', () => {
+                if (reasonInput instanceof HTMLTextAreaElement) {
+                    reasonInput.value = '';
+                }
+                if (errorContainer) {
+                    errorContainer.textContent = '';
+                    errorContainer.classList.add('d-none');
+                }
+            });
+        }
+
+        async function handleModeration(button) {
+            const action = button.getAttribute('data-action');
+            const endpoint = button.getAttribute('data-endpoint');
+            if (!action || !endpoint) {
+                return;
+            }
+
+            const modalEl = button.closest('.modal');
+            const modalInstance = modalEl ? bootstrap.Modal.getOrCreateInstance(modalEl) : null;
+            let payload = {};
+            const headers = {
+                'Content-Type': 'application/json',
+                'RequestVerificationToken': tokenInput.value
+            };
+
+            if (action === 'trash' && modalEl) {
+                const reasonInput = modalEl.querySelector('[data-project-trash-reason]');
+                const errorContainer = modalEl.querySelector('[data-project-trash-errors]');
+                const reason = typeof reasonInput?.value === 'string' ? reasonInput.value.trim() : '';
+                if (errorContainer) {
+                    errorContainer.textContent = '';
+                    errorContainer.classList.add('d-none');
+                }
+
+                if (!reason) {
+                    if (errorContainer) {
+                        errorContainer.textContent = 'Please provide a reason to move this project to Trash.';
+                        errorContainer.classList.remove('d-none');
+                    }
+                    reasonInput?.focus();
+                    return;
+                }
+
+                payload = { reason };
+            }
+
+            button.disabled = true;
+            button.classList.add('disabled');
+
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(payload),
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    modalInstance?.hide();
+                    window.location.reload();
+                    return;
+                }
+
+                const message = await parseErrorResponse(response);
+
+                if (action === 'trash' && modalEl) {
+                    const errorContainer = modalEl.querySelector('[data-project-trash-errors]');
+                    if (errorContainer) {
+                        errorContainer.textContent = message;
+                        errorContainer.classList.remove('d-none');
+                    } else {
+                        showToast(message, 'danger');
+                    }
+                } else {
+                    showToast(message, 'danger');
+                }
+            } catch (error) {
+                showToast('A network error prevented the request from completing.', 'danger');
+            } finally {
+                button.disabled = false;
+                button.classList.remove('disabled');
+            }
+        }
+
+        document.querySelectorAll('[data-project-moderation-submit]').forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.preventDefault();
+                if (button.disabled) {
+                    return;
+                }
+                handleModeration(button);
+            });
+        });
+    }
+
+    initProjectModeration();
+
     function setBackfillVisibility(hasBackfill) {
         const banner = document.querySelector('[data-backfill-banner]');
         if (banner) {
