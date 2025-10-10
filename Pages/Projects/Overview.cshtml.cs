@@ -95,6 +95,7 @@ namespace ProjectManagement.Pages.Projects
         public bool CanUploadDocuments { get; private set; }
         public bool CanViewDocumentRecycleBin { get; private set; }
         public bool CanManagePhotos { get; private set; }
+        public bool CanManageVideos { get; private set; }
 
         [BindProperty(SupportsGet = true)]
         public string? DocumentStageFilter { get; set; }
@@ -244,6 +245,7 @@ namespace ProjectManagement.Pages.Projects
             var isThisProjectsHod = isHoD && string.Equals(project.HodUserId, CurrentUserId, StringComparison.Ordinal);
 
             CanManagePhotos = isAdmin || isThisProjectsPo || isThisProjectsHod;
+            CanManageVideos = CanManagePhotos;
             CanUploadDocuments = isAdmin || isThisProjectsPo || isThisProjectsHod;
             CanViewDocumentRecycleBin = isAdmin;
 
@@ -361,6 +363,7 @@ namespace ProjectManagement.Pages.Projects
                 CoverPhotoVersion,
                 CoverPhotoUrl,
                 CanManagePhotos,
+                CanManageVideos,
                 videoViewModels,
                 AvailableMediaTotIds,
                 MediaTotId,
