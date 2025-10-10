@@ -83,54 +83,25 @@ namespace ProjectManagement.Areas.Admin.Pages
             var deletedEventsQuery = _db.Events.AsNoTracking()
                 .Where(e => e.IsDeleted);
 
-            var totalUsersTask = usersQuery.CountAsync();
-            var disabledUsersTask = usersQuery.Where(u => u.IsDisabled).CountAsync();
-            var mustChangePwdTask = usersQuery.Where(u => u.MustChangePassword).CountAsync();
+            Metrics.TotalUsers = await usersQuery.CountAsync();
+            Metrics.DisabledUsers = await usersQuery.Where(u => u.IsDisabled).CountAsync();
+            Metrics.MustChangePwd = await usersQuery.Where(u => u.MustChangePassword).CountAsync();
 
-            var loginSuccessTask = loginQuery.Where(a => a.Action == "LoginSuccess").CountAsync();
-            var uniqueLoginsTask = loginQuery.Where(a => a.Action == "LoginSuccess" && a.UserId != null)
+            Metrics.LoginsLast7d = await loginQuery.Where(a => a.Action == "LoginSuccess").CountAsync();
+            Metrics.UniqueLoginsLast7d = await loginQuery.Where(a => a.Action == "LoginSuccess" && a.UserId != null)
                 .Select(a => a.UserId!)
                 .Distinct()
                 .CountAsync();
-            var failedLoginsTask = loginQuery.Where(a => a.Action == "LoginFailed").CountAsync();
+            Metrics.FailedLoginsLast7d = await loginQuery.Where(a => a.Action == "LoginFailed").CountAsync();
 
-            var totalEventsTask = recentEventsQuery.CountAsync();
-            var warningEventsTask = recentEventsQuery.Where(a => a.Level == "Warning").CountAsync();
-            var errorEventsTask = recentEventsQuery.Where(a => a.Level == "Error").CountAsync();
+            Metrics.AuditEvents24h = await recentEventsQuery.CountAsync();
+            Metrics.WarningEvents24h = await recentEventsQuery.Where(a => a.Level == "Warning").CountAsync();
+            Metrics.ErrorEvents24h = await recentEventsQuery.Where(a => a.Level == "Error").CountAsync();
 
-            var archivedProjectsTask = projectsQuery.Where(p => !p.IsDeleted && p.IsArchived).CountAsync();
-            var trashedProjectsTask = projectsQuery.Where(p => p.IsDeleted).CountAsync();
-            var deletedDocumentsTask = documentsQuery.CountAsync();
-            var deletedEventsTask = deletedEventsQuery.CountAsync();
-
-            await Task.WhenAll(
-                totalUsersTask,
-                disabledUsersTask,
-                mustChangePwdTask,
-                loginSuccessTask,
-                uniqueLoginsTask,
-                failedLoginsTask,
-                totalEventsTask,
-                warningEventsTask,
-                errorEventsTask,
-                archivedProjectsTask,
-                trashedProjectsTask,
-                deletedDocumentsTask,
-                deletedEventsTask);
-
-            Metrics.TotalUsers = await totalUsersTask;
-            Metrics.DisabledUsers = await disabledUsersTask;
-            Metrics.MustChangePwd = await mustChangePwdTask;
-            Metrics.LoginsLast7d = await loginSuccessTask;
-            Metrics.UniqueLoginsLast7d = await uniqueLoginsTask;
-            Metrics.FailedLoginsLast7d = await failedLoginsTask;
-            Metrics.AuditEvents24h = await totalEventsTask;
-            Metrics.WarningEvents24h = await warningEventsTask;
-            Metrics.ErrorEvents24h = await errorEventsTask;
-            Metrics.ArchivedProjects = await archivedProjectsTask;
-            Metrics.TrashedProjects = await trashedProjectsTask;
-            Metrics.DeletedDocuments = await deletedDocumentsTask;
-            Metrics.DeletedEvents = await deletedEventsTask;
+            Metrics.ArchivedProjects = await projectsQuery.Where(p => !p.IsDeleted && p.IsArchived).CountAsync();
+            Metrics.TrashedProjects = await projectsQuery.Where(p => p.IsDeleted).CountAsync();
+            Metrics.DeletedDocuments = await documentsQuery.CountAsync();
+            Metrics.DeletedEvents = await deletedEventsQuery.CountAsync();
 
             if (Metrics.MustChangePwd > 0)
                 Attention.Items.Add(new AttentionItem
