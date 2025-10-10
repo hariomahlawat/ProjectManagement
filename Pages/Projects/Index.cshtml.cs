@@ -51,6 +51,9 @@ namespace ProjectManagement.Pages.Projects
         [BindProperty(SupportsGet = true)]
         public int PageSize { get; set; } = 25;
 
+        [BindProperty(SupportsGet = true)]
+        public bool IncludeArchived { get; set; }
+
         public int TotalCount { get; private set; }
 
         public int TotalPages { get; private set; }
@@ -59,14 +62,15 @@ namespace ProjectManagement.Pages.Projects
 
         public int ResultsEnd { get; private set; }
 
-        public bool HasActiveFilters =>
+            public bool HasActiveFilters =>
             !string.IsNullOrWhiteSpace(Query) ||
             CategoryId.HasValue ||
             !string.IsNullOrWhiteSpace(LeadPoUserId) ||
             !string.IsNullOrWhiteSpace(HodUserId) ||
             Lifecycle != ProjectLifecycleFilter.All ||
             CompletedYear.HasValue ||
-            TotStatus.HasValue;
+            TotStatus.HasValue ||
+            IncludeArchived;
 
         public IEnumerable<SelectListItem> CategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
 
@@ -91,7 +95,8 @@ namespace ProjectManagement.Pages.Projects
                 HodUserId,
                 ProjectLifecycleFilter.All,
                 CompletedYear,
-                TotStatus);
+                TotStatus,
+                IncludeArchived);
 
             var lifecycleCounts = await CountProjectsByLifecycleAsync(baseFilters);
             LifecycleTabs = BuildLifecycleTabs(lifecycleCounts);

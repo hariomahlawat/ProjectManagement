@@ -266,6 +266,42 @@ namespace ProjectManagement.Tests
             Assert.Equal(ProjectTotStatus.Completed, results[0].Tot!.Status);
         }
 
+        [Fact]
+        public async Task Archived_Projects_Are_Excluded_By_Default()
+        {
+            await using var context = CreateContext();
+
+            var active = new Project
+            {
+                Name = "Active",
+                CreatedByUserId = "creator",
+                CreatedAt = DateTime.UtcNow,
+                IsArchived = false
+            };
+
+            var archived = new Project
+            {
+                Name = "Archived",
+                CreatedByUserId = "creator",
+                CreatedAt = DateTime.UtcNow.AddDays(-1),
+                IsArchived = true
+            };
+
+            context.Projects.AddRange(active, archived);
+            await context.SaveChangesAsync();
+
+            var defaultFilters = new ProjectSearchFilters(null, null, null, null);
+            var defaultResults = await context.Projects.ApplyProjectSearch(defaultFilters).ToListAsync();
+
+            Assert.Single(defaultResults);
+            Assert.Equal(active.Name, defaultResults[0].Name);
+
+            var includeFilters = new ProjectSearchFilters(null, null, null, null, ProjectLifecycleFilter.All, null, null, true);
+            var includedResults = await context.Projects.ApplyProjectSearch(includeFilters).ToListAsync();
+
+            Assert.Equal(2, includedResults.Count);
+        }
+
         private static ApplicationDbContext CreateContext()
         {
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()

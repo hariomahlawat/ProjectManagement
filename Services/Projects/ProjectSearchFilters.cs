@@ -21,7 +21,8 @@ namespace ProjectManagement.Services.Projects
         string? HodUserId,
         ProjectLifecycleFilter Lifecycle = ProjectLifecycleFilter.All,
         int? CompletedYear = null,
-        ProjectTotStatus? TotStatus = null);
+        ProjectTotStatus? TotStatus = null,
+        bool IncludeArchived = false);
 
     public static class ProjectSearchQueryExtensions
     {
@@ -77,6 +78,11 @@ namespace ProjectManagement.Services.Projects
             {
                 var year = filters.CompletedYear.Value;
                 source = source.Where(p => p.CompletedYear.HasValue && p.CompletedYear == year);
+            }
+
+            if (!filters.IncludeArchived)
+            {
+                source = source.Where(p => !p.IsArchived);
             }
 
             if (filters.TotStatus.HasValue)

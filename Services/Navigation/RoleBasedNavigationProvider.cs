@@ -117,6 +117,13 @@ public class RoleBasedNavigationProvider : INavigationProvider
                     },
                     new NavigationItem
                     {
+                        Text = "Project trash",
+                        Area = "Admin",
+                        Page = "/Projects/Trash",
+                        RequiredRoles = new[] { "Admin" }
+                    },
+                    new NavigationItem
+                    {
                         Text = "Manage holidays",
                         Page = "/Settings/Holidays/Index",
                         RequiredRoles = new[] { "Admin" }
