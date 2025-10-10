@@ -39,10 +39,14 @@
             }
 
             const fileType = (file.type || '').toLowerCase();
-            const extension = file.name.toLowerCase().endsWith('.pdf');
+            const extensionAllowed = file.name.toLowerCase().endsWith('.pdf');
             const mimeAllowed = allowed.length === 0 || allowed.includes(fileType) || fileType === 'application/pdf';
+            const mimeIsTrusted = !!fileType && fileType !== 'application/octet-stream';
 
-            if (!mimeAllowed || !extension) {
+            const failsMimeCheck = mimeIsTrusted && (!mimeAllowed || !extensionAllowed);
+            const failsExtensionFallback = !mimeIsTrusted && !extensionAllowed;
+
+            if (failsMimeCheck || failsExtensionFallback) {
                 const error = 'Only PDF files are allowed.';
                 input.setCustomValidity(error);
                 setFileFeedback(error, true);
