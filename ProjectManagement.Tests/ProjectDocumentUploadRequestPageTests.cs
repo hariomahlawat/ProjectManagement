@@ -59,6 +59,37 @@ public sealed class ProjectDocumentUploadRequestPageTests
         Assert.Null(requestService.LastStageId);
     }
 
+    [Fact]
+    public async Task OnPost_ReturnsValidationError_WhenNomenclatureWhitespace()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 1, leadPoUserId: "po-1");
+
+        var userContext = new FakeUserContext("po-1", "Project Officer");
+        var documentService = new StubDocumentService();
+        var requestService = new RecordingDocumentRequestService();
+        var options = Options.Create(new ProjectDocumentOptions());
+
+        var page = new UploadRequestModel(db, userContext, documentService, requestService, options, NullLogger<UploadRequestModel>.Instance)
+        {
+            Input = new UploadRequestModel.UploadInputModel
+            {
+                ProjectId = 1,
+                StageId = null,
+                Nomenclature = "   ",
+                File = CreateFormFile()
+            }
+        };
+
+        ConfigurePageContext(page, userContext.User);
+
+        var result = await page.OnPostAsync(1, CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        var nomenclatureState = page.ModelState["Input.Nomenclature"] ?? throw new Xunit.Sdk.XunitException("Expected model state entry for nomenclature.");
+        Assert.Contains(nomenclatureState.Errors, error => error.ErrorMessage == "Enter a nomenclature.");
+    }
+
     private static void ConfigurePageContext(PageModel page, ClaimsPrincipal user)
     {
         var httpContext = new DefaultHttpContext

@@ -131,6 +131,10 @@ public class UploadRequestModel : PageModel
         }
 
         Input.Nomenclature = Input.Nomenclature?.Trim() ?? string.Empty;
+        if (Input.Nomenclature.Length == 0)
+        {
+            ModelState.AddModelError("Input.Nomenclature", "Enter a nomenclature.");
+        }
 
         var tot = Project?.Tot;
         var canLinkTot = tot is not null && tot.Status != ProjectTotStatus.NotRequired;
