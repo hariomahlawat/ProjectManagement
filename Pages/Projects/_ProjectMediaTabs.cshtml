@@ -487,12 +487,37 @@
                     }
                     else if (tab.Key == ProjectMediaTabViewModel.VideosKey && tab.Videos is { } videosTab)
                     {
+                        var canManageVideos = isAdmin || isThisProjectsPo || isThisProjectsHod;
+
                         if (videosTab.Items.Count == 0)
                         {
-                            <p class="text-muted mb-0">No videos available yet.</p>
+                            <div class="border rounded p-4 text-center text-muted bg-light-subtle">
+                                <p class="mb-2">No videos are available yet for this project.</p>
+                                @if (canManageVideos)
+                                {
+                                    <a class="btn btn-sm btn-primary"
+                                       asp-page="/Projects/Videos/Upload"
+                                       asp-route-id="@projectId"
+                                       aria-label="Upload the first project video">Upload video</a>
+                                }
+                            </div>
                         }
                         else
                         {
+                            if (canManageVideos)
+                            {
+                                <div class="d-flex justify-content-end gap-2 mb-3">
+                                    <a class="btn btn-sm btn-outline-secondary"
+                                       asp-page="/Projects/Videos/Index"
+                                       asp-route-id="@projectId"
+                                       aria-label="Manage project videos">Manage videos</a>
+                                    <a class="btn btn-sm btn-primary"
+                                       asp-page="/Projects/Videos/Upload"
+                                       asp-route-id="@projectId"
+                                       aria-label="Upload a new project video">Upload video</a>
+                                </div>
+                            }
+
                             <div class="row g-3">
                                 @foreach (var video in videosTab.Items)
                                 {
