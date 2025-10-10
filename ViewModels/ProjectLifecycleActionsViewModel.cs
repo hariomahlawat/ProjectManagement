@@ -9,6 +9,8 @@ public sealed class ProjectLifecycleActionsViewModel
 
     public ProjectLifecycleStatus Status { get; init; } = ProjectLifecycleStatus.Active;
 
+    public bool CanManageLifecycle { get; init; }
+
     public bool CanMarkCompleted { get; init; }
 
     public bool CanEndorseCompletedDate { get; init; }

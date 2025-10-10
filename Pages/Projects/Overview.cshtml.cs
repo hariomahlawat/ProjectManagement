@@ -723,6 +723,7 @@ namespace ProjectManagement.Pages.Projects
             return new ProjectLifecycleActionsViewModel
             {
                 Status = project.LifecycleStatus,
+                CanManageLifecycle = canManage,
                 CanMarkCompleted = canMarkCompleted,
                 CanEndorseCompletedDate = canEndorse,
                 CanCancel = canCancel,

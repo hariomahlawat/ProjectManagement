@@ -98,6 +98,26 @@ public sealed class ProjectOverviewLifecycleTests
         Assert.False(overview.LifecycleActions.CanEndorseCompletedDate);
         Assert.False(overview.LifecycleActions.CanCancel);
         Assert.False(overview.LifecycleActions.HasActions);
+        Assert.False(overview.LifecycleActions.CanManageLifecycle);
+    }
+
+    [Fact]
+    public async Task Overview_WhenProjectCancelled_ShowsLifecycleMenuForManagers()
+    {
+        await using var db = CreateContext();
+        await SeedCancelledProjectAsync(db, projectId: 7, hodUserId: "hod-7");
+
+        var clock = new FixedClock(DateTimeOffset.UtcNow);
+        var overview = CreateOverviewPage(db, clock);
+        var user = CreateUser("hod-7", "HoD");
+        ConfigurePageContext(overview, user);
+
+        var result = await overview.OnGetAsync(7, CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.True(overview.LifecycleActions.CanManageLifecycle);
+        Assert.False(overview.LifecycleActions.HasActions);
+        Assert.Equal(ProjectLifecycleStatus.Cancelled, overview.LifecycleActions.Status);
     }
 
     [Fact]
@@ -289,6 +309,24 @@ public sealed class ProjectOverviewLifecycleTests
             HodUserId = hodUserId,
             LeadPoUserId = poUserId,
             RowVersion = new byte[] { 3 }
+        });
+
+        await db.SaveChangesAsync();
+    }
+
+    private static async Task SeedCancelledProjectAsync(ApplicationDbContext db, int projectId, string? hodUserId)
+    {
+        db.Projects.Add(new Project
+        {
+            Id = projectId,
+            Name = $"Cancelled Project {projectId}",
+            CreatedByUserId = "creator",
+            CreatedAt = new DateTime(2024, 2, 1),
+            LifecycleStatus = ProjectLifecycleStatus.Cancelled,
+            CancelledOn = new DateOnly(2024, 3, 15),
+            CancelReason = "Funding withdrawn",
+            HodUserId = hodUserId,
+            RowVersion = new byte[] { 4 }
         });
 
         await db.SaveChangesAsync();
