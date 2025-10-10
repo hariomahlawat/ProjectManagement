@@ -618,9 +618,14 @@
                                         <div class="d-flex flex-wrap align-items-center gap-2 ms-lg-2 mt-2 mt-lg-0">
                                             @if (!string.IsNullOrEmpty(viewerRole))
                                             {
-                                                <span class="text-muted small" data-role-indicator title="Current permissions for timeline actions">Viewing as @viewerRole</span>
-                                            }
-                                            @if (pendingOwnedByCurrentUser)
+                                                    <span class="text-muted small" data-role-indicator title="Current permissions for timeline actions">Viewing as @viewerRole</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted small" data-role-indicator title="Current permissions for timeline actions">Viewing as read-only member</span>
+
+                                                }
+                                                @if (pendingOwnedByCurrentUser)
                                             {
                                                 <span class="badge text-bg-warning">Submitted for approval</span>
                                             }
