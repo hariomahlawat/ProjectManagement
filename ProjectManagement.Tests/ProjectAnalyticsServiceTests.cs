@@ -119,6 +119,110 @@ public class ProjectAnalyticsServiceTests : IDisposable
         Assert.Equal(5, result.Projects[1].SlipDays);
     }
 
+    [Fact]
+    public async Task AnalyticsEndpoints_IncludeDescendantCategories()
+    {
+        var parent = new ProjectCategory { Name = "Parent" };
+        var childA = new ProjectCategory { Name = "Child A", Parent = parent };
+        var childB = new ProjectCategory { Name = "Child B", Parent = parent };
+        var other = new ProjectCategory { Name = "Other" };
+
+        _db.ProjectCategories.AddRange(parent, childA, childB, other);
+        await _db.SaveChangesAsync();
+
+        var today = new DateOnly(2024, 6, 15);
+
+        var descendantProject = new Project
+        {
+            Name = "Descendant",
+            CategoryId = childA.Id,
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            CreatedByUserId = "u",
+            CreatedAt = DateTime.UtcNow,
+            ProjectStages = new[]
+            {
+                new ProjectStage
+                {
+                    StageCode = "FS",
+                    SortOrder = 1,
+                    Status = StageStatus.Completed,
+                    PlannedDue = today.AddDays(-20),
+                    CompletedOn = today.AddDays(-14)
+                },
+                new ProjectStage
+                {
+                    StageCode = "DD",
+                    SortOrder = 2,
+                    Status = StageStatus.InProgress,
+                    PlannedDue = today.AddDays(-5)
+                }
+            }
+        };
+
+        var otherProject = new Project
+        {
+            Name = "Other",
+            CategoryId = other.Id,
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            CreatedByUserId = "u",
+            CreatedAt = DateTime.UtcNow,
+            ProjectStages = new[]
+            {
+                new ProjectStage
+                {
+                    StageCode = "FS",
+                    SortOrder = 1,
+                    Status = StageStatus.Completed,
+                    PlannedDue = today.AddDays(-10),
+                    CompletedOn = today.AddDays(-9)
+                },
+                new ProjectStage
+                {
+                    StageCode = "DD",
+                    SortOrder = 2,
+                    Status = StageStatus.InProgress,
+                    PlannedDue = today.AddDays(5)
+                }
+            }
+        };
+
+        _db.Projects.AddRange(descendantProject, otherProject);
+        await _db.SaveChangesAsync();
+
+        var stageDistribution = await _service.GetStageDistributionAsync(ProjectLifecycleFilter.All, parent.Id);
+        var lifecycle = await _service.GetLifecycleBreakdownAsync(parent.Id);
+        var monthly = await _service.GetMonthlyStageCompletionsAsync(
+            ProjectLifecycleFilter.All,
+            parent.Id,
+            new DateOnly(2024, 6, 1),
+            new DateOnly(2024, 6, 1));
+        var slipBuckets = await _service.GetSlipBucketsAsync(ProjectLifecycleFilter.All, parent.Id);
+        var slipBucketProjectIds = await _service.GetProjectIdsForSlipBucketAsync(
+            ProjectLifecycleFilter.All,
+            parent.Id,
+            "1-7");
+        var topOverdue = await _service.GetTopOverdueProjectsAsync(ProjectLifecycleFilter.All, parent.Id, 5);
+
+        var stageItem = Assert.Single(stageDistribution.Items, i => i.StageCode == "DD");
+        Assert.Equal(1, stageItem.Count);
+
+        var activeLifecycle = lifecycle.Items.Single(i => i.Status == ProjectLifecycleStatus.Active);
+        Assert.Equal(1, activeLifecycle.Count);
+
+        var fsSeries = Assert.Single(monthly.Series, s => s.StageCode == "FS");
+        Assert.Single(fsSeries.Counts);
+        Assert.Equal(1, fsSeries.Counts[0]);
+        Assert.Equal(1, monthly.Kpis.TotalCompletionsThisMonth);
+
+        var bucket = Assert.Single(slipBuckets.Buckets, b => b.Key == "1-7");
+        Assert.Equal(1, bucket.Count);
+        Assert.Equal(new[] { descendantProject.Id }, slipBucketProjectIds.OrderBy(id => id).ToArray());
+
+        var overdue = Assert.Single(topOverdue.Projects);
+        Assert.Equal(descendantProject.Id, overdue.ProjectId);
+        Assert.Equal("DD", overdue.StageCode);
+    }
+
     public void Dispose()
     {
         _db.Dispose();
