@@ -1,12 +1,14 @@
 /* ---------- Base tokens ---------- */
 :root {
-    --pm-primary: #2d6cdf;
-    --pm-primary-hover: #2558c6;
-    --pm-text: #0b1220;
+    --pm-primary: #5f6ef6;
+    --pm-primary-hover: #4f5de4;
+    --pm-text: #111827;
     --pm-text-secondary: #4b5563;
     --pm-muted: #6b7280;
-    --pm-border: #e5e7eb;
-    --pm-surface: #f5f7fb;
+    --pm-border: #e2e8f6;
+    --pm-surface: #f8f9ff;
+    --pm-hero-gradient-start: rgba(95, 110, 246, 0.16);
+    --pm-hero-gradient-end: rgba(200, 210, 255, 0.45);
     --pm-card: #ffffff;
     --pm-shadow: 0 8px 20px rgba(0,0,0,.06);
     --pm-font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
@@ -429,20 +431,106 @@ body {
 
 /* --- Landing hero --- */
 .hero {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(420px, 1.1fr) minmax(360px, 0.9fr);
-  gap: 2.25rem;
+  gap: 2.5rem;
   align-items: center;
-  padding-block: clamp(1.5rem, 4vw, 3rem);
+  padding: clamp(2.25rem, 5vw, 3.5rem);
+  background: linear-gradient(135deg, var(--pm-hero-gradient-start), rgba(255, 255, 255, 0.9));
+  border-radius: clamp(1.5rem, 5vw, 2.5rem);
+  box-shadow: 0 28px 60px -40px rgba(64, 76, 125, 0.35);
+  overflow: hidden;
 }
 
-.hero-left { /* text column */ }
+.hero::after {
+  content: "";
+  position: absolute;
+  inset: auto -5% -25% auto;
+  width: clamp(220px, 28vw, 360px);
+  height: clamp(220px, 28vw, 360px);
+  background: radial-gradient(circle at center, var(--pm-hero-gradient-end) 0%, rgba(95, 110, 246, 0) 70%);
+  filter: blur(0.5px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.hero-left {
+  position: relative;
+  z-index: 1;
+  max-width: 32rem;
+}
+
+.hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(95, 110, 246, 0.25);
+  color: var(--pm-primary);
+  font-size: var(--pm-font-size-tight);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.hero-title {
+  font-size: clamp(2.2rem, 4vw, 3.2rem);
+  line-height: 1.1;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--pm-text);
+}
+
+.hero-description {
+  font-size: var(--pm-font-size-comfortable);
+  color: var(--pm-text-secondary);
+  max-width: 28rem;
+}
+
+.hero-highlights {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.hero-highlights li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  font-size: var(--pm-font-size-tight);
+  color: var(--pm-text-secondary);
+  line-height: 1.5;
+}
+
+.hero-highlights li::before {
+  content: "\2713";
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: rgba(95, 110, 246, 0.12);
+  color: var(--pm-primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  flex-shrink: 0;
+  border: 1px solid rgba(95, 110, 246, 0.25);
+  transform: translateY(0.1rem);
+}
 
 .hero-right {
   display: grid;
   justify-items: end;
   align-content: center;
   gap: 1rem;
+  position: relative;
+  z-index: 1;
 }
 
 .hero-art {
@@ -453,6 +541,10 @@ body {
 
 .hero-card {
   width: min(420px, 100%);
+  background-color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(95, 110, 246, 0.18);
+  box-shadow: 0 20px 50px -30px rgba(64, 76, 125, 0.45);
 }
 
 /* The login partial outer wrapper should not be absolutely positioned.
@@ -1070,7 +1162,8 @@ body {
   .hero {
     grid-template-columns: 1fr;
     gap: 1.5rem;
-    padding-block: clamp(1.25rem, 6vw, 2.5rem);
+    padding: clamp(1.75rem, 7vw, 2.75rem);
+    border-radius: clamp(1.25rem, 6vw, 2rem);
   }
   .hero-right {
     justify-items: center;
