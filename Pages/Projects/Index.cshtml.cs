@@ -18,12 +18,12 @@ namespace ProjectManagement.Pages.Projects
     public class IndexModel : PageModel
     {
         private readonly ApplicationDbContext _db;
-        private readonly ProjectAnalyticsService _analytics;
+        private readonly IProjectAnalyticsService _analytics;
         private readonly ProjectCategoryHierarchyService _categoryHierarchy;
 
         public IndexModel(
             ApplicationDbContext db,
-            ProjectAnalyticsService analytics,
+            IProjectAnalyticsService analytics,
             ProjectCategoryHierarchyService categoryHierarchy)
         {
             _db = db;

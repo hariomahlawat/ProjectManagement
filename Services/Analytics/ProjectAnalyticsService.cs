@@ -15,7 +15,7 @@ using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Services.Analytics;
 
-public sealed class ProjectAnalyticsService
+public sealed class ProjectAnalyticsService : IProjectAnalyticsService
 {
     private static readonly string[] StageOrder = StageCodes.All;
 
