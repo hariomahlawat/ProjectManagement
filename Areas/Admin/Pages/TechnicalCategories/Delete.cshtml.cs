@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 
-namespace ProjectManagement.Areas.Admin.Pages.Categories
+namespace ProjectManagement.Areas.Admin.Pages.TechnicalCategories
 {
     public class DeleteModel : PageModel
     {
@@ -17,14 +17,14 @@ namespace ProjectManagement.Areas.Admin.Pages.Categories
         }
 
         [BindProperty]
-        public ProjectCategory? Category { get; set; }
+        public TechnicalCategory? Category { get; set; }
 
         [TempData]
         public string? StatusMessage { get; set; }
 
         public async Task<IActionResult> OnGetAsync(int id)
         {
-            var category = await _db.ProjectCategories
+            var category = await _db.TechnicalCategories
                 .Include(c => c.Parent)
                 .AsNoTracking()
                 .SingleOrDefaultAsync(c => c.Id == id);
@@ -40,33 +40,33 @@ namespace ProjectManagement.Areas.Admin.Pages.Categories
 
         public async Task<IActionResult> OnPostAsync(int id)
         {
-            var category = await _db.ProjectCategories.SingleOrDefaultAsync(c => c.Id == id);
+            var category = await _db.TechnicalCategories.SingleOrDefaultAsync(c => c.Id == id);
             if (category is null)
             {
                 return NotFound();
             }
 
-            var childCount = await _db.ProjectCategories.CountAsync(c => c.ParentId == id);
+            var childCount = await _db.TechnicalCategories.CountAsync(c => c.ParentId == id);
             if (childCount > 0)
             {
                 await _db.Entry(category).Reference(c => c.Parent).LoadAsync();
                 var childLabel = childCount == 1 ? "child category" : "child categories";
-                ModelState.AddModelError(string.Empty, $"This project category has {childCount} {childLabel}. Reassign or delete them first.");
+                ModelState.AddModelError(string.Empty, $"This technical category has {childCount} {childLabel}. Reassign or delete them first.");
                 Category = category;
                 return Page();
             }
 
-            var projectCount = await _db.Projects.CountAsync(p => p.CategoryId == id);
+            var projectCount = await _db.Projects.CountAsync(p => p.TechnicalCategoryId == id);
             if (projectCount > 0)
             {
                 await _db.Entry(category).Reference(c => c.Parent).LoadAsync();
                 var projectLabel = projectCount == 1 ? "project" : "projects";
-                ModelState.AddModelError(string.Empty, $"Cannot delete yet. {projectCount} {projectLabel} currently use this project category. Reassign them before deleting.");
+                ModelState.AddModelError(string.Empty, $"Cannot delete yet. {projectCount} {projectLabel} currently use this technical category. Reassign them before deleting.");
                 Category = category;
                 return Page();
             }
 
-            _db.ProjectCategories.Remove(category);
+            _db.TechnicalCategories.Remove(category);
             await _db.SaveChangesAsync();
 
             TempData["StatusMessage"] = $"Deleted '{category.Name}'.";

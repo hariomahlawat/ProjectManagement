@@ -129,6 +129,13 @@ public class RoleBasedNavigationProvider : INavigationProvider
                     },
                     new NavigationItem
                     {
+                        Text = "Technical categories",
+                        Area = "Admin",
+                        Page = "/TechnicalCategories/Index",
+                        RequiredRoles = new[] { "Admin" }
+                    },
+                    new NavigationItem
+                    {
                         Text = "Project trash",
                         Area = "Admin",
                         Page = "/Projects/Trash",

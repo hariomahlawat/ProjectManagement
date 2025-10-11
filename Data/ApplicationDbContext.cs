@@ -26,6 +26,7 @@ namespace ProjectManagement.Data
 
         public DbSet<Project> Projects { get; set; } = default!;
         public DbSet<ProjectCategory> ProjectCategories => Set<ProjectCategory>();
+        public DbSet<TechnicalCategory> TechnicalCategories => Set<TechnicalCategory>();
         public DbSet<ProjectIpaFact> ProjectIpaFacts => Set<ProjectIpaFact>();
         public DbSet<TechnicalCategory> TechnicalCategories => Set<TechnicalCategory>();
         public DbSet<ProjectSowFact> ProjectSowFacts => Set<ProjectSowFact>();
