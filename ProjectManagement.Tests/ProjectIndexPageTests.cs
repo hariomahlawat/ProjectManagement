@@ -210,6 +210,45 @@ namespace ProjectManagement.Tests
         }
 
         [Fact]
+        public async Task OnGet_FiltersProjectsByTechnicalCategory()
+        {
+            await using var context = CreateContext();
+
+            var techA = new TechnicalCategory { Name = "Infrastructure" };
+            var techB = new TechnicalCategory { Name = "Applications" };
+
+            context.TechnicalCategories.AddRange(techA, techB);
+            await context.SaveChangesAsync();
+
+            var projectA = new Project
+            {
+                Name = "Tech A",
+                TechnicalCategoryId = techA.Id,
+                CreatedByUserId = "creator",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var projectB = new Project
+            {
+                Name = "Tech B",
+                TechnicalCategoryId = techB.Id,
+                CreatedByUserId = "creator",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            context.Projects.AddRange(projectA, projectB);
+            await context.SaveChangesAsync();
+
+            var model = CreateModel(context);
+            model.TechnicalCategoryId = techA.Id;
+
+            await model.OnGetAsync();
+
+            Assert.Single(model.Projects);
+            Assert.Equal(projectA.Id, model.Projects[0].Id);
+        }
+
+        [Fact]
         public async Task OnGet_ExcludesTrashedProjects()
         {
             await using var context = CreateContext();

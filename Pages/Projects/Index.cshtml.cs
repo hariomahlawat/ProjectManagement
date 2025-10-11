@@ -40,6 +40,9 @@ namespace ProjectManagement.Pages.Projects
         public int? CategoryId { get; set; }
 
         [BindProperty(SupportsGet = true)]
+        public int? TechnicalCategoryId { get; set; }
+
+        [BindProperty(SupportsGet = true)]
         public string? LeadPoUserId { get; set; }
 
         [BindProperty(SupportsGet = true)]
@@ -83,9 +86,10 @@ namespace ProjectManagement.Pages.Projects
 
         public int ResultsEnd { get; private set; }
 
-            public bool HasActiveFilters =>
+        public bool HasActiveFilters =>
             !string.IsNullOrWhiteSpace(Query) ||
             CategoryId.HasValue ||
+            TechnicalCategoryId.HasValue ||
             !string.IsNullOrWhiteSpace(LeadPoUserId) ||
             !string.IsNullOrWhiteSpace(HodUserId) ||
             Lifecycle != ProjectLifecycleFilter.All ||
@@ -97,6 +101,8 @@ namespace ProjectManagement.Pages.Projects
             !string.IsNullOrWhiteSpace(SlipBucket);
 
         public IEnumerable<SelectListItem> CategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
+
+        public IEnumerable<SelectListItem> TechnicalCategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
 
         public IEnumerable<SelectListItem> LeadPoOptions { get; private set; } = Array.Empty<SelectListItem>();
 
@@ -124,6 +130,7 @@ namespace ProjectManagement.Pages.Projects
             var baseFilters = new ProjectSearchFilters(
                 Query,
                 CategoryId,
+                TechnicalCategoryId,
                 LeadPoUserId,
                 HodUserId,
                 ProjectLifecycleFilter.All,
@@ -157,6 +164,7 @@ namespace ProjectManagement.Pages.Projects
                     .GetProjectIdsForSlipBucketAsync(
                         filters.Lifecycle,
                         filters.CategoryId,
+                        filters.TechnicalCategoryId,
                         SlipBucket!,
                         cancellationToken: HttpContext.RequestAborted,
                         expandedCategoryIds: filters.CategoryIds);
@@ -236,6 +244,15 @@ namespace ProjectManagement.Pages.Projects
 
             CategoryOptions = BuildCategoryOptions(categories, CategoryId);
 
+            var technicalCategories = await _db.TechnicalCategories
+                .AsNoTracking()
+                .OrderBy(c => c.SortOrder)
+                .ThenBy(c => c.Name)
+                .Select(c => new TechnicalCategoryOption(c.Id, c.Name, c.ParentId, c.IsActive))
+                .ToListAsync();
+
+            TechnicalCategoryOptions = BuildTechnicalCategoryOptions(technicalCategories, TechnicalCategoryId);
+
             var hodUsers = await _db.Projects
                 .AsNoTracking()
                 .Where(p => !p.IsDeleted && p.HodUserId != null)
@@ -283,6 +300,48 @@ namespace ProjectManagement.Pages.Projects
             {
                 Selected = selectedValue is not null && string.Equals(selectedValue, c.Id.ToString(), StringComparison.Ordinal)
             }));
+
+            return options;
+        }
+
+        private static IEnumerable<SelectListItem> BuildTechnicalCategoryOptions(
+            IEnumerable<TechnicalCategoryOption> categories,
+            int? selectedId)
+        {
+            var lookup = categories
+                .Where(c => c.IsActive)
+                .ToLookup(c => c.ParentId);
+
+            var options = new List<SelectListItem>
+            {
+                new("All technical categories", string.Empty, !selectedId.HasValue)
+            };
+
+            void AddOptions(int? parentId, string prefix)
+            {
+                foreach (var category in lookup[parentId])
+                {
+                    var text = string.IsNullOrEmpty(prefix) ? category.Name : $"{prefix}{category.Name}";
+                    var isSelected = selectedId.HasValue && selectedId.Value == category.Id;
+                    options.Add(new SelectListItem(text, category.Id.ToString(), isSelected));
+                    AddOptions(category.Id, string.Concat(prefix, "— "));
+                }
+            }
+
+            AddOptions(null, string.Empty);
+
+            if (selectedId.HasValue)
+            {
+                var selectedValue = selectedId.Value.ToString();
+                if (options.All(option => !string.Equals(option.Value, selectedValue, StringComparison.Ordinal)))
+                {
+                    var selected = categories.FirstOrDefault(c => c.Id == selectedId.Value);
+                    if (selected is not null)
+                    {
+                        options.Add(new SelectListItem($"{selected.Name} (inactive)", selected.Id.ToString(), true));
+                    }
+                }
+            }
 
             return options;
         }
@@ -348,6 +407,7 @@ namespace ProjectManagement.Pages.Projects
                     var slipIds = await _analytics.GetProjectIdsForSlipBucketAsync(
                         countFilters.Lifecycle,
                         countFilters.CategoryId,
+                        countFilters.TechnicalCategoryId,
                         baseFilters.SlipBucket!,
                         cancellationToken: HttpContext.RequestAborted,
                         expandedCategoryIds: countFilters.CategoryIds);
@@ -437,5 +497,7 @@ namespace ProjectManagement.Pages.Projects
         private sealed record UserOption(string Id, string? FullName, string? UserName);
 
         private sealed record CategoryOption(int Id, string Name);
+
+        private sealed record TechnicalCategoryOption(int Id, string Name, int? ParentId, bool IsActive);
     }
 }

@@ -77,6 +77,9 @@ if (root) {
     const categorySelect = card.querySelector('select[data-filter="category"]');
     filters.categoryId = categorySelect ? categorySelect.value : '';
 
+    const technicalCategorySelect = card.querySelector('select[data-filter="technical-category"]');
+    filters.technicalCategoryId = technicalCategorySelect ? technicalCategorySelect.value : '';
+
     const fromInput = card.querySelector('input[data-filter="from-month"]');
     if (fromInput) {
       filters.fromMonth = fromInput.value;
@@ -199,7 +202,8 @@ if (root) {
           const slice = newChart.data.datasets[point.datasetIndex].meta[point.index];
           const params = {
             Lifecycle: activeFilters.lifecycle === 'All' ? undefined : activeFilters.lifecycle,
-            CategoryId: slice.categoryId || undefined
+            CategoryId: slice.categoryId || undefined,
+            TechnicalCategoryId: activeFilters.technicalCategoryId || undefined
           };
           navigateToProjects(params);
         };
@@ -273,6 +277,7 @@ if (root) {
           const params = {
             Lifecycle: activeFilters.lifecycle === 'All' ? undefined : activeFilters.lifecycle,
             CategoryId: activeFilters.categoryId || undefined,
+            TechnicalCategoryId: activeFilters.technicalCategoryId || undefined,
             StageCode: stage.stageCode
           };
           navigateToProjects(params);
@@ -340,7 +345,8 @@ if (root) {
           const status = newChart.data.labels[point.index];
           const params = {
             Lifecycle: status,
-            CategoryId: activeFilters.categoryId || undefined
+            CategoryId: activeFilters.categoryId || undefined,
+            TechnicalCategoryId: activeFilters.technicalCategoryId || undefined
           };
           navigateToProjects(params);
         };
@@ -439,6 +445,7 @@ if (root) {
           const params = {
             Lifecycle: activeFilters.lifecycle === 'All' ? undefined : activeFilters.lifecycle,
             CategoryId: activeFilters.categoryId || undefined,
+            TechnicalCategoryId: activeFilters.technicalCategoryId || undefined,
             StageCode: dataset.stageCode,
             StageCompletedMonth: monthBucket.key
           };
@@ -463,7 +470,8 @@ if (root) {
     try {
       const url = buildUrl('/api/analytics/projects/slip-buckets', {
         lifecycle: filters.lifecycle,
-        categoryId: filters.categoryId
+        categoryId: filters.categoryId,
+        technicalCategoryId: filters.technicalCategoryId
       });
       const data = await fetchJson(url, { signal: controller.signal });
       if (!isActiveRequest(card, controller)) {
@@ -507,6 +515,7 @@ if (root) {
           const params = {
             Lifecycle: activeFilters.lifecycle === 'All' ? undefined : activeFilters.lifecycle,
             CategoryId: activeFilters.categoryId || undefined,
+            TechnicalCategoryId: activeFilters.technicalCategoryId || undefined,
             SlipBucket: bucket.key
           };
           navigateToProjects(params);
@@ -532,6 +541,7 @@ if (root) {
       const url = buildUrl('/api/analytics/projects/top-overdue', {
         lifecycle: filters.lifecycle,
         categoryId: filters.categoryId,
+        technicalCategoryId: filters.technicalCategoryId,
         take: 5
       });
       const data = await fetchJson(url, { signal: controller.signal });

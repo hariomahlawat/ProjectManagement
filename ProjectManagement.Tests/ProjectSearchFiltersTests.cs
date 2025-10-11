@@ -34,7 +34,7 @@ namespace ProjectManagement.Tests
             await context.SaveChangesAsync();
 
             var query = context.Projects.AsQueryable();
-            var filters = new ProjectSearchFilters("alpha", null, null, null);
+            var filters = new ProjectSearchFilters("alpha", null, null, null, null);
 
             var results = await query.ApplyProjectSearch(filters).ToListAsync();
 
@@ -65,7 +65,7 @@ namespace ProjectManagement.Tests
             await context.SaveChangesAsync();
 
             var query = context.Projects.AsQueryable();
-            var filters = new ProjectSearchFilters("bridge", null, null, null);
+            var filters = new ProjectSearchFilters("bridge", null, null, null, null);
 
             var results = await query.ApplyProjectSearch(filters).ToListAsync();
 
@@ -117,7 +117,7 @@ namespace ProjectManagement.Tests
                 .Include(p => p.LeadPoUser)
                 .AsQueryable();
 
-            var filters = new ProjectSearchFilters("pat officer", null, null, null);
+            var filters = new ProjectSearchFilters("pat officer", null, null, null, null);
 
             var results = await query.ApplyProjectSearch(filters).ToListAsync();
 
@@ -149,7 +149,7 @@ namespace ProjectManagement.Tests
             context.Projects.AddRange(active, completed);
             await context.SaveChangesAsync();
 
-            var filters = new ProjectSearchFilters(null, null, null, null, ProjectLifecycleFilter.Completed);
+            var filters = new ProjectSearchFilters(null, null, null, null, null, ProjectLifecycleFilter.Completed);
 
             var results = await context.Projects.ApplyProjectSearch(filters).ToListAsync();
 
@@ -182,7 +182,7 @@ namespace ProjectManagement.Tests
             context.Projects.AddRange(modern, legacy);
             await context.SaveChangesAsync();
 
-            var filters = new ProjectSearchFilters(null, null, null, null, ProjectLifecycleFilter.Legacy);
+            var filters = new ProjectSearchFilters(null, null, null, null, null, ProjectLifecycleFilter.Legacy);
 
             var results = await context.Projects.ApplyProjectSearch(filters).ToListAsync();
 
@@ -216,12 +216,102 @@ namespace ProjectManagement.Tests
             context.Projects.AddRange(project2023, project2024);
             await context.SaveChangesAsync();
 
-            var filters = new ProjectSearchFilters(null, null, null, null, ProjectLifecycleFilter.All, 2024);
+            var filters = new ProjectSearchFilters(null, null, null, null, null, ProjectLifecycleFilter.All, 2024);
 
             var results = await context.Projects.ApplyProjectSearch(filters).ToListAsync();
 
             Assert.Single(results);
             Assert.Equal(2024, results[0].CompletedYear);
+        }
+
+        [Fact]
+        public async Task TechnicalCategory_Filter_ReturnsMatchingProjects()
+        {
+            await using var context = CreateContext();
+
+            var techA = new TechnicalCategory { Name = "Digital" };
+            var techB = new TechnicalCategory { Name = "Mechanical" };
+
+            context.TechnicalCategories.AddRange(techA, techB);
+            await context.SaveChangesAsync();
+
+            var matching = new Project
+            {
+                Name = "Digital Project",
+                TechnicalCategoryId = techA.Id,
+                CreatedAt = DateTime.UtcNow,
+                CreatedByUserId = "creator"
+            };
+
+            var other = new Project
+            {
+                Name = "Mechanical Project",
+                TechnicalCategoryId = techB.Id,
+                CreatedAt = DateTime.UtcNow,
+                CreatedByUserId = "creator"
+            };
+
+            context.Projects.AddRange(matching, other);
+            await context.SaveChangesAsync();
+
+            var filters = new ProjectSearchFilters(null, null, techA.Id, null, null);
+
+            var results = await context.Projects.ApplyProjectSearch(filters).ToListAsync();
+
+            Assert.Single(results);
+            Assert.Equal(matching.Id, results[0].Id);
+        }
+
+        [Fact]
+        public async Task Category_And_TechnicalCategory_FiltersIntersect()
+        {
+            await using var context = CreateContext();
+
+            var category = new ProjectCategory { Name = "Category" };
+            var otherCategory = new ProjectCategory { Name = "Other" };
+            var tech = new TechnicalCategory { Name = "Tech" };
+            var otherTech = new TechnicalCategory { Name = "Other Tech" };
+
+            context.ProjectCategories.AddRange(category, otherCategory);
+            context.TechnicalCategories.AddRange(tech, otherTech);
+            await context.SaveChangesAsync();
+
+            var matching = new Project
+            {
+                Name = "Matching",
+                CategoryId = category.Id,
+                TechnicalCategoryId = tech.Id,
+                CreatedAt = DateTime.UtcNow,
+                CreatedByUserId = "creator"
+            };
+
+            var wrongCategory = new Project
+            {
+                Name = "Wrong Category",
+                CategoryId = otherCategory.Id,
+                TechnicalCategoryId = tech.Id,
+                CreatedAt = DateTime.UtcNow,
+                CreatedByUserId = "creator"
+            };
+
+            var wrongTech = new Project
+            {
+                Name = "Wrong Tech",
+                CategoryId = category.Id,
+                TechnicalCategoryId = otherTech.Id,
+                CreatedAt = DateTime.UtcNow,
+                CreatedByUserId = "creator"
+            };
+
+            context.Projects.AddRange(matching, wrongCategory, wrongTech);
+            await context.SaveChangesAsync();
+
+            var filters = new ProjectSearchFilters(null, category.Id, tech.Id, null, null);
+
+            var results = await context.Projects.ApplyProjectSearch(filters).ToListAsync();
+
+            Assert.Single(results);
+            Assert.Equal(matching.Id, results[0].Id);
         }
 
         [Fact]
@@ -258,7 +348,7 @@ namespace ProjectManagement.Tests
             context.Projects.AddRange(withTot, withoutTot);
             await context.SaveChangesAsync();
 
-            var filters = new ProjectSearchFilters(null, null, null, null, ProjectLifecycleFilter.All, null, ProjectTotStatus.Completed);
+            var filters = new ProjectSearchFilters(null, null, null, null, null, ProjectLifecycleFilter.All, null, ProjectTotStatus.Completed);
 
             var results = await context.Projects.Include(p => p.Tot).ApplyProjectSearch(filters).ToListAsync();
 
@@ -290,13 +380,13 @@ namespace ProjectManagement.Tests
             context.Projects.AddRange(active, archived);
             await context.SaveChangesAsync();
 
-            var defaultFilters = new ProjectSearchFilters(null, null, null, null);
+            var defaultFilters = new ProjectSearchFilters(null, null, null, null, null);
             var defaultResults = await context.Projects.ApplyProjectSearch(defaultFilters).ToListAsync();
 
             Assert.Single(defaultResults);
             Assert.Equal(active.Name, defaultResults[0].Name);
 
-            var includeFilters = new ProjectSearchFilters(null, null, null, null, ProjectLifecycleFilter.All, null, null, true);
+            var includeFilters = new ProjectSearchFilters(null, null, null, null, null, ProjectLifecycleFilter.All, null, null, true);
             var includedResults = await context.Projects.ApplyProjectSearch(includeFilters).ToListAsync();
 
             Assert.Equal(2, includedResults.Count);
@@ -328,13 +418,13 @@ namespace ProjectManagement.Tests
             context.Projects.AddRange(active, trashed);
             await context.SaveChangesAsync();
 
-            var defaultFilters = new ProjectSearchFilters(null, null, null, null);
+            var defaultFilters = new ProjectSearchFilters(null, null, null, null, null);
             var defaultResults = await context.Projects.ApplyProjectSearch(defaultFilters).ToListAsync();
 
             Assert.Single(defaultResults);
             Assert.Equal(active.Name, defaultResults[0].Name);
 
-            var includeFilters = new ProjectSearchFilters(null, null, null, null, ProjectLifecycleFilter.All, null, null, true);
+            var includeFilters = new ProjectSearchFilters(null, null, null, null, null, ProjectLifecycleFilter.All, null, null, true);
             var includedResults = await context.Projects.ApplyProjectSearch(includeFilters).ToListAsync();
 
             Assert.Single(includedResults);

@@ -19,6 +19,7 @@ namespace ProjectManagement.Services.Projects
     public record ProjectSearchFilters(
         string? Query,
         int? CategoryId,
+        int? TechnicalCategoryId = null,
         string? LeadPoUserId,
         string? HodUserId,
         ProjectLifecycleFilter Lifecycle = ProjectLifecycleFilter.All,
@@ -78,6 +79,11 @@ namespace ProjectManagement.Services.Projects
             else if (filters.CategoryId.HasValue)
             {
                 source = source.Where(p => p.CategoryId == filters.CategoryId);
+            }
+
+            if (filters.TechnicalCategoryId.HasValue)
+            {
+                source = source.Where(p => p.TechnicalCategoryId == filters.TechnicalCategoryId);
             }
 
             source = filters.Lifecycle switch

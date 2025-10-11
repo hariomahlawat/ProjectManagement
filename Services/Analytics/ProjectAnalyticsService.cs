@@ -285,9 +285,10 @@ public sealed class ProjectAnalyticsService
     public async Task<SlipBucketResult> GetSlipBucketsAsync(
         ProjectLifecycleFilter lifecycle,
         int? categoryId,
+        int? technicalCategoryId,
         CancellationToken cancellationToken = default)
     {
-        var projects = await LoadProjectsForHealthAsync(lifecycle, categoryId, null, cancellationToken);
+        var projects = await LoadProjectsForHealthAsync(lifecycle, categoryId, technicalCategoryId, null, cancellationToken);
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst()));
 
         var buckets = SlipBucketDefinitions.CreateBuckets();
@@ -306,6 +307,7 @@ public sealed class ProjectAnalyticsService
     public async Task<IReadOnlyCollection<int>> GetProjectIdsForSlipBucketAsync(
         ProjectLifecycleFilter lifecycle,
         int? categoryId,
+        int? technicalCategoryId,
         string bucketKey,
         CancellationToken cancellationToken = default,
         IReadOnlyCollection<int>? expandedCategoryIds = null)
@@ -315,7 +317,12 @@ public sealed class ProjectAnalyticsService
             return Array.Empty<int>();
         }
 
-        var projects = await LoadProjectsForHealthAsync(lifecycle, categoryId, expandedCategoryIds, cancellationToken);
+        var projects = await LoadProjectsForHealthAsync(
+            lifecycle,
+            categoryId,
+            technicalCategoryId,
+            expandedCategoryIds,
+            cancellationToken);
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst()));
 
         var bucket = SlipBucketDefinitions.CreateBuckets()
@@ -343,6 +350,7 @@ public sealed class ProjectAnalyticsService
     public async Task<TopOverdueProjectsResult> GetTopOverdueProjectsAsync(
         ProjectLifecycleFilter lifecycle,
         int? categoryId,
+        int? technicalCategoryId,
         int take,
         CancellationToken cancellationToken = default)
     {
@@ -351,7 +359,7 @@ public sealed class ProjectAnalyticsService
             take = 5;
         }
 
-        var projects = await LoadProjectsForHealthAsync(lifecycle, categoryId, null, cancellationToken);
+        var projects = await LoadProjectsForHealthAsync(lifecycle, categoryId, technicalCategoryId, null, cancellationToken);
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst()));
 
         var ranked = new List<TopOverdueProject>();
@@ -396,6 +404,7 @@ public sealed class ProjectAnalyticsService
     private async Task<List<ProjectHealthSnapshot>> LoadProjectsForHealthAsync(
         ProjectLifecycleFilter lifecycle,
         int? categoryId,
+        int? technicalCategoryId,
         IReadOnlyCollection<int>? resolvedCategoryIds,
         CancellationToken cancellationToken)
     {
@@ -413,6 +422,11 @@ public sealed class ProjectAnalyticsService
         {
             var categoryIds = await _categoryHierarchy.GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
             query = query.Where(p => p.CategoryId.HasValue && categoryIds.Contains(p.CategoryId.Value));
+        }
+
+        if (technicalCategoryId.HasValue)
+        {
+            query = query.Where(p => p.TechnicalCategoryId == technicalCategoryId);
         }
 
         var projects = await query

@@ -75,24 +75,26 @@ internal static class ProjectAnalyticsApi
         group.MapGet("/slip-buckets", async (
             [FromQuery] ProjectLifecycleFilter lifecycle,
             [FromQuery] int? categoryId,
+            [FromQuery] int? technicalCategoryId,
             ProjectAnalyticsService service,
             CancellationToken cancellationToken) =>
         {
             var normalized = NormalizeLifecycle(lifecycle);
-            var result = await service.GetSlipBucketsAsync(normalized, categoryId, cancellationToken);
+            var result = await service.GetSlipBucketsAsync(normalized, categoryId, technicalCategoryId, cancellationToken);
             return Results.Ok(result);
         });
 
         group.MapGet("/top-overdue", async (
             [FromQuery] ProjectLifecycleFilter lifecycle,
             [FromQuery] int? categoryId,
+            [FromQuery] int? technicalCategoryId,
             [FromQuery] int? take,
             ProjectAnalyticsService service,
             CancellationToken cancellationToken) =>
         {
             var normalized = NormalizeLifecycle(lifecycle);
             var size = take.GetValueOrDefault(5);
-            var result = await service.GetTopOverdueProjectsAsync(normalized, categoryId, size, cancellationToken);
+            var result = await service.GetTopOverdueProjectsAsync(normalized, categoryId, technicalCategoryId, size, cancellationToken);
             return Results.Ok(result);
         });
     }
