@@ -74,6 +74,16 @@
               }
             </select>
           </label>
+          <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
+            <span class="text-secondary">Technical</span>
+            <select class="form-select form-select-sm" data-filter="technical-category">
+              <option value="">All technical categories</option>
+              @foreach (var technical in Model.TechnicalCategories)
+              {
+                <option value="@technical.Id">@technical.Name</option>
+              }
+            </select>
+          </label>
           <div class="btn-group btn-group-sm" role="group" aria-label="Lifecycle">
             @foreach (var option in lifecycleOptions)
             {
@@ -115,6 +125,16 @@
               }
             </select>
           </label>
+          <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
+            <span class="text-secondary">Technical</span>
+            <select class="form-select form-select-sm" data-filter="technical-category">
+              <option value="">All technical categories</option>
+              @foreach (var technical in Model.TechnicalCategories)
+              {
+                <option value="@technical.Id">@technical.Name</option>
+              }
+            </select>
+          </label>
         </div>
         <div class="chart-container-320">
           <canvas data-chart="lifecycle-status"></canvas>
@@ -142,6 +162,16 @@
               @foreach (var category in Model.Categories)
               {
                 <option value="@category.Id">@category.Name</option>
+              }
+            </select>
+          </label>
+          <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
+            <span class="text-secondary">Technical</span>
+            <select class="form-select form-select-sm" data-filter="technical-category">
+              <option value="">All technical categories</option>
+              @foreach (var technical in Model.TechnicalCategories)
+              {
+                <option value="@technical.Id">@technical.Name</option>
               }
             </select>
           </label>
@@ -210,6 +240,16 @@
               }
             </select>
           </label>
+          <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
+            <span class="text-secondary">Technical</span>
+            <select class="form-select form-select-sm" data-filter="technical-category">
+              <option value="">All technical categories</option>
+              @foreach (var technical in Model.TechnicalCategories)
+              {
+                <option value="@technical.Id">@technical.Name</option>
+              }
+            </select>
+          </label>
           <div class="btn-group btn-group-sm" role="group" aria-label="Lifecycle">
             @foreach (var option in lifecycleOptions)
             {
@@ -248,6 +288,16 @@
               @foreach (var category in Model.Categories)
               {
                 <option value="@category.Id">@category.Name</option>
+              }
+            </select>
+          </label>
+          <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
+            <span class="text-secondary">Technical</span>
+            <select class="form-select form-select-sm" data-filter="technical-category">
+              <option value="">All technical categories</option>
+              @foreach (var technical in Model.TechnicalCategories)
+              {
+                <option value="@technical.Id">@technical.Name</option>
               }
             </select>
           </label>

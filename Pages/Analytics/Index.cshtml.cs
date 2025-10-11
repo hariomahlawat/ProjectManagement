@@ -21,6 +21,7 @@ namespace ProjectManagement.Pages.Analytics
         }
 
         public IReadOnlyList<CategoryOption> Categories { get; private set; } = Array.Empty<CategoryOption>();
+        public IReadOnlyList<TechnicalCategoryOption> TechnicalCategories { get; private set; } = Array.Empty<TechnicalCategoryOption>();
 
         public ProjectLifecycleFilter DefaultLifecycle => ProjectLifecycleFilter.Active;
 
@@ -31,8 +32,16 @@ namespace ProjectManagement.Pages.Analytics
                 .OrderBy(c => c.Name)
                 .Select(c => new CategoryOption(c.Id, c.Name))
                 .ToListAsync();
+
+            TechnicalCategories = await _db.TechnicalCategories
+                .AsNoTracking()
+                .Where(c => c.IsActive)
+                .OrderBy(c => c.Name)
+                .Select(c => new TechnicalCategoryOption(c.Id, c.Name))
+                .ToListAsync();
         }
 
         public sealed record CategoryOption(int Id, string Name);
+        public sealed record TechnicalCategoryOption(int Id, string Name);
     }
 }

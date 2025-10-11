@@ -32,6 +32,8 @@ public sealed class ProjectAnalyticsService
 
     public async Task<CategoryShareResult> GetCategoryShareAsync(
         ProjectLifecycleFilter lifecycle,
+        int? categoryId = null,
+        int? technicalCategoryId = null,
         CancellationToken cancellationToken = default)
     {
         var query = _db.Projects
@@ -39,6 +41,17 @@ public sealed class ProjectAnalyticsService
             .Where(p => !p.IsDeleted && !p.IsArchived);
 
         query = ApplyLifecycleFilter(query, lifecycle);
+
+        if (categoryId.HasValue)
+        {
+            var categoryIds = await _categoryHierarchy.GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
+            query = query.Where(p => p.CategoryId.HasValue && categoryIds.Contains(p.CategoryId.Value));
+        }
+
+        if (technicalCategoryId.HasValue)
+        {
+            query = query.Where(p => p.TechnicalCategoryId == technicalCategoryId.Value);
+        }
 
         var grouped = await query
             .GroupBy(p => p.CategoryId)
@@ -66,13 +79,25 @@ public sealed class ProjectAnalyticsService
             .Where(c => categoryIds.Contains(c.Id))
             .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
 
+        string? technicalCategoryName = null;
+        if (technicalCategoryId.HasValue)
+        {
+            technicalCategoryName = await _db.TechnicalCategories
+                .AsNoTracking()
+                .Where(c => c.Id == technicalCategoryId.Value)
+                .Select(c => c.Name)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
         var slices = grouped
             .Select(g => new CategoryShareSlice(
                 g.CategoryId,
                 g.CategoryId.HasValue && categoryNames.TryGetValue(g.CategoryId.Value, out var name)
                     ? name
                     : "Unassigned",
-                g.Count))
+                g.Count,
+                technicalCategoryId,
+                technicalCategoryName))
             .ToList();
 
         var total = slices.Sum(s => s.Count);
@@ -82,6 +107,7 @@ public sealed class ProjectAnalyticsService
     public async Task<StageDistributionResult> GetStageDistributionAsync(
         ProjectLifecycleFilter lifecycle,
         int? categoryId,
+        int? technicalCategoryId,
         CancellationToken cancellationToken = default)
     {
         var query = _db.Projects
@@ -94,6 +120,11 @@ public sealed class ProjectAnalyticsService
         {
             var categoryIds = await _categoryHierarchy.GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
             query = query.Where(p => p.CategoryId.HasValue && categoryIds.Contains(p.CategoryId.Value));
+        }
+
+        if (technicalCategoryId.HasValue)
+        {
+            query = query.Where(p => p.TechnicalCategoryId == technicalCategoryId.Value);
         }
 
         var projects = await query
@@ -142,6 +173,7 @@ public sealed class ProjectAnalyticsService
 
     public async Task<LifecycleBreakdownResult> GetLifecycleBreakdownAsync(
         int? categoryId,
+        int? technicalCategoryId,
         CancellationToken cancellationToken = default)
     {
         var query = _db.Projects
@@ -152,6 +184,11 @@ public sealed class ProjectAnalyticsService
         {
             var categoryIds = await _categoryHierarchy.GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
             query = query.Where(p => p.CategoryId.HasValue && categoryIds.Contains(p.CategoryId.Value));
+        }
+
+        if (technicalCategoryId.HasValue)
+        {
+            query = query.Where(p => p.TechnicalCategoryId == technicalCategoryId.Value);
         }
 
         var raw = await query
@@ -170,6 +207,7 @@ public sealed class ProjectAnalyticsService
     public async Task<MonthlyStageCompletionsResult> GetMonthlyStageCompletionsAsync(
         ProjectLifecycleFilter lifecycle,
         int? categoryId,
+        int? technicalCategoryId,
         DateOnly fromMonth,
         DateOnly toMonth,
         CancellationToken cancellationToken = default)
@@ -200,6 +238,11 @@ public sealed class ProjectAnalyticsService
         {
             var categoryIds = await _categoryHierarchy.GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
             query = query.Where(s => s.Project!.CategoryId.HasValue && categoryIds.Contains(s.Project!.CategoryId.Value));
+        }
+
+        if (technicalCategoryId.HasValue)
+        {
+            query = query.Where(s => s.Project!.TechnicalCategoryId == technicalCategoryId.Value);
         }
 
         query = ApplyLifecycleFilter(query, lifecycle);
@@ -387,6 +430,7 @@ public sealed class ProjectAnalyticsService
                 project.Id,
                 project.Name,
                 project.CategoryName ?? "Unassigned",
+                project.TechnicalCategoryName,
                 worst.Key,
                 StageCodes.DisplayNameOf(worst.Key),
                 slipDays));
@@ -436,6 +480,7 @@ public sealed class ProjectAnalyticsService
                 p.Name,
                 p.LifecycleStatus,
                 p.Category != null ? p.Category.Name : null,
+                p.TechnicalCategory != null ? p.TechnicalCategory.Name : null,
                 p.ProjectStages
                     .OrderBy(s => s.SortOrder)
                     .ThenBy(s => s.StageCode)
@@ -544,6 +589,7 @@ public sealed class ProjectAnalyticsService
         string Name,
         ProjectLifecycleStatus Status,
         string? CategoryName,
+        string? TechnicalCategoryName,
         IReadOnlyList<StageSnapshot> Stages)
     {
         public IEnumerable<ProjectStage> ToStages() => Stages.Select(s => new ProjectStage
@@ -589,7 +635,12 @@ public sealed class ProjectAnalyticsService
 
 public sealed record CategoryShareResult(IReadOnlyList<CategoryShareSlice> Slices, int Total);
 
-public sealed record CategoryShareSlice(int? CategoryId, string CategoryName, int Count);
+public sealed record CategoryShareSlice(
+    int? CategoryId,
+    string CategoryName,
+    int Count,
+    int? TechnicalCategoryId,
+    string? TechnicalCategoryName);
 
 public sealed record StageDistributionResult(IReadOnlyList<StageDistributionItem> Items, ProjectLifecycleFilter Lifecycle);
 
@@ -625,6 +676,7 @@ public sealed record TopOverdueProject(
     int ProjectId,
     string Name,
     string Category,
+    string? TechnicalCategory,
     string StageCode,
     string StageName,
     int SlipDays);
