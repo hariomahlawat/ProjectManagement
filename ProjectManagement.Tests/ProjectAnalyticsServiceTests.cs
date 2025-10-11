@@ -44,14 +44,17 @@ public class ProjectAnalyticsServiceTests : IDisposable
     {
         var catA = new ProjectCategory { Name = "A" };
         var catB = new ProjectCategory { Name = "B" };
+        var techA = new TechnicalCategory { Name = "Digital" };
+        var techB = new TechnicalCategory { Name = "Mechanical" };
 
         _db.ProjectCategories.AddRange(catA, catB);
+        await _db.TechnicalCategories.AddRangeAsync(techA, techB);
         await _db.SaveChangesAsync();
 
         _db.Projects.AddRange(
-            new Project { Name = "One", CategoryId = catA.Id, LifecycleStatus = ProjectLifecycleStatus.Active, CreatedByUserId = "u", CreatedAt = DateTime.UtcNow },
-            new Project { Name = "Two", CategoryId = catA.Id, LifecycleStatus = ProjectLifecycleStatus.Active, CreatedByUserId = "u", CreatedAt = DateTime.UtcNow },
-            new Project { Name = "Three", CategoryId = catB.Id, LifecycleStatus = ProjectLifecycleStatus.Active, CreatedByUserId = "u", CreatedAt = DateTime.UtcNow }
+            new Project { Name = "One", CategoryId = catA.Id, TechnicalCategoryId = techA.Id, LifecycleStatus = ProjectLifecycleStatus.Active, CreatedByUserId = "u", CreatedAt = DateTime.UtcNow },
+            new Project { Name = "Two", CategoryId = catA.Id, TechnicalCategoryId = techB.Id, LifecycleStatus = ProjectLifecycleStatus.Active, CreatedByUserId = "u", CreatedAt = DateTime.UtcNow },
+            new Project { Name = "Three", CategoryId = catB.Id, TechnicalCategoryId = techA.Id, LifecycleStatus = ProjectLifecycleStatus.Active, CreatedByUserId = "u", CreatedAt = DateTime.UtcNow }
         );
         await _db.SaveChangesAsync();
 
@@ -62,6 +65,16 @@ public class ProjectAnalyticsServiceTests : IDisposable
         Assert.Equal(2, sliceA.Count);
         var sliceB = Assert.Single(result.Slices.Where(s => s.CategoryId == catB.Id));
         Assert.Equal(1, sliceB.Count);
+
+        var filtered = await _service.GetCategoryShareAsync(ProjectLifecycleFilter.Active, null, techA.Id);
+        Assert.Equal(2, filtered.Total);
+        Assert.All(filtered.Slices, s =>
+        {
+            Assert.Equal(techA.Id, s.TechnicalCategoryId);
+            Assert.Equal(techA.Name, s.TechnicalCategoryName);
+        });
+        var filteredSlice = Assert.Single(filtered.Slices.Where(s => s.CategoryId == catA.Id));
+        Assert.Equal(1, filteredSlice.Count);
     }
 
     [Fact]
@@ -118,8 +131,10 @@ public class ProjectAnalyticsServiceTests : IDisposable
         Assert.Equal(2, result.Projects.Count);
         Assert.Equal("Late A", result.Projects[0].Name);
         Assert.Equal(10, result.Projects[0].SlipDays);
+        Assert.Null(result.Projects[0].TechnicalCategory);
         Assert.Equal("Late B", result.Projects[1].Name);
         Assert.Equal(5, result.Projects[1].SlipDays);
+        Assert.Null(result.Projects[1].TechnicalCategory);
     }
 
     [Fact]
@@ -192,11 +207,12 @@ public class ProjectAnalyticsServiceTests : IDisposable
         _db.Projects.AddRange(descendantProject, otherProject);
         await _db.SaveChangesAsync();
 
-        var stageDistribution = await _service.GetStageDistributionAsync(ProjectLifecycleFilter.All, parent.Id);
-        var lifecycle = await _service.GetLifecycleBreakdownAsync(parent.Id);
+        var stageDistribution = await _service.GetStageDistributionAsync(ProjectLifecycleFilter.All, parent.Id, null);
+        var lifecycle = await _service.GetLifecycleBreakdownAsync(parent.Id, null);
         var monthly = await _service.GetMonthlyStageCompletionsAsync(
             ProjectLifecycleFilter.All,
             parent.Id,
+            null,
             new DateOnly(2024, 6, 1),
             new DateOnly(2024, 6, 1));
         var slipBuckets = await _service.GetSlipBucketsAsync(ProjectLifecycleFilter.All, parent.Id, null);
@@ -294,6 +310,64 @@ public class ProjectAnalyticsServiceTests : IDisposable
         var topOverdue = await _service.GetTopOverdueProjectsAsync(ProjectLifecycleFilter.All, null, techA.Id, 5);
         var overdue = Assert.Single(topOverdue.Projects);
         Assert.Equal(projectA.Id, overdue.ProjectId);
+        Assert.Equal(techA.Name, overdue.TechnicalCategory);
+    }
+
+    [Fact]
+    public async Task StageDistribution_FiltersByTechnicalCategory()
+    {
+        var techA = new TechnicalCategory { Name = "Platform" };
+        var techB = new TechnicalCategory { Name = "Network" };
+
+        await _db.TechnicalCategories.AddRangeAsync(techA, techB);
+        await _db.SaveChangesAsync();
+
+        var projectA = new Project
+        {
+            Name = "Tech A",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            CreatedByUserId = "creator",
+            CreatedAt = DateTime.UtcNow,
+            TechnicalCategoryId = techA.Id,
+            ProjectStages =
+            {
+                new ProjectStage
+                {
+                    StageCode = "DD",
+                    SortOrder = 1,
+                    Status = StageStatus.InProgress
+                }
+            }
+        };
+
+        var projectB = new Project
+        {
+            Name = "Tech B",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            CreatedByUserId = "creator",
+            CreatedAt = DateTime.UtcNow,
+            TechnicalCategoryId = techB.Id,
+            ProjectStages =
+            {
+                new ProjectStage
+                {
+                    StageCode = "DD",
+                    SortOrder = 1,
+                    Status = StageStatus.InProgress
+                }
+            }
+        };
+
+        _db.Projects.AddRange(projectA, projectB);
+        await _db.SaveChangesAsync();
+
+        var all = await _service.GetStageDistributionAsync(ProjectLifecycleFilter.All, null, null);
+        var ddAll = Assert.Single(all.Items, i => i.StageCode == "DD");
+        Assert.Equal(2, ddAll.Count);
+
+        var filtered = await _service.GetStageDistributionAsync(ProjectLifecycleFilter.All, null, techA.Id);
+        var ddFiltered = Assert.Single(filtered.Items, i => i.StageCode == "DD");
+        Assert.Equal(1, ddFiltered.Count);
     }
 
     public void Dispose()

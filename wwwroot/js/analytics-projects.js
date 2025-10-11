@@ -157,7 +157,9 @@ if (root) {
     const filters = getFilters(card);
     try {
       const url = buildUrl('/api/analytics/projects/category-share', {
-        lifecycle: filters.lifecycle
+        lifecycle: filters.lifecycle,
+        categoryId: filters.categoryId,
+        technicalCategoryId: filters.technicalCategoryId
       });
       const data = await fetchJson(url, { signal: controller.signal });
       if (!isActiveRequest(card, controller)) {
@@ -226,7 +228,8 @@ if (root) {
     try {
       const url = buildUrl('/api/analytics/projects/stage-distribution', {
         lifecycle: filters.lifecycle,
-        categoryId: filters.categoryId
+        categoryId: filters.categoryId,
+        technicalCategoryId: filters.technicalCategoryId
       });
       const data = await fetchJson(url, { signal: controller.signal });
       if (!isActiveRequest(card, controller)) {
@@ -300,7 +303,8 @@ if (root) {
     const filters = getFilters(card);
     try {
       const url = buildUrl('/api/analytics/projects/lifecycle-breakdown', {
-        categoryId: filters.categoryId
+        categoryId: filters.categoryId,
+        technicalCategoryId: filters.technicalCategoryId
       });
       const data = await fetchJson(url, { signal: controller.signal });
       if (!isActiveRequest(card, controller)) {
@@ -388,6 +392,7 @@ if (root) {
       const url = buildUrl('/api/analytics/projects/monthly-stage-completions', {
         lifecycle: filters.lifecycle,
         categoryId: filters.categoryId,
+        technicalCategoryId: filters.technicalCategoryId,
         fromMonth: filters.fromMonth,
         toMonth: filters.toMonth
       });
@@ -556,10 +561,15 @@ if (root) {
       list.className = 'analytics-top-overdue-list';
       data.projects.forEach((project) => {
         const item = document.createElement('li');
+        const metaParts = [project.category];
+        if (project.technicalCategory) {
+          metaParts.push(project.technicalCategory);
+        }
+        const meta = metaParts.join(' · ');
         item.innerHTML = `
           <button type="button" class="analytics-top-link">
             <span class="analytics-top-name">${project.name}</span>
-            <span class="analytics-top-meta">${project.category}</span>
+            <span class="analytics-top-meta">${meta}</span>
             <span class="analytics-top-stage">${project.stageName}</span>
             <span class="analytics-top-slip">${project.slipDays}d</span>
           </button>

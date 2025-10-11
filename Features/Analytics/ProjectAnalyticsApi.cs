@@ -22,31 +22,43 @@ internal static class ProjectAnalyticsApi
 
         group.MapGet("/category-share", async (
             [FromQuery] ProjectLifecycleFilter lifecycle,
+            [FromQuery] int? categoryId,
+            [FromQuery] int? technicalCategoryId,
             ProjectAnalyticsService service,
             CancellationToken cancellationToken) =>
         {
             var normalized = NormalizeLifecycle(lifecycle);
-            var result = await service.GetCategoryShareAsync(normalized, cancellationToken);
+            var result = await service.GetCategoryShareAsync(
+                normalized,
+                categoryId,
+                technicalCategoryId,
+                cancellationToken: cancellationToken);
             return Results.Ok(result);
         });
 
         group.MapGet("/stage-distribution", async (
             [FromQuery] ProjectLifecycleFilter lifecycle,
             [FromQuery] int? categoryId,
+            [FromQuery] int? technicalCategoryId,
             ProjectAnalyticsService service,
             CancellationToken cancellationToken) =>
         {
             var normalized = NormalizeLifecycle(lifecycle);
-            var result = await service.GetStageDistributionAsync(normalized, categoryId, cancellationToken);
+            var result = await service.GetStageDistributionAsync(
+                normalized,
+                categoryId,
+                technicalCategoryId,
+                cancellationToken);
             return Results.Ok(result);
         });
 
         group.MapGet("/lifecycle-breakdown", async (
             [FromQuery] int? categoryId,
+            [FromQuery] int? technicalCategoryId,
             ProjectAnalyticsService service,
             CancellationToken cancellationToken) =>
         {
-            var result = await service.GetLifecycleBreakdownAsync(categoryId, cancellationToken);
+            var result = await service.GetLifecycleBreakdownAsync(categoryId, technicalCategoryId, cancellationToken);
             return Results.Ok(result);
         });
 
@@ -55,6 +67,7 @@ internal static class ProjectAnalyticsApi
             [FromQuery] string? toMonth,
             [FromQuery] ProjectLifecycleFilter lifecycle,
             [FromQuery] int? categoryId,
+            [FromQuery] int? technicalCategoryId,
             ProjectAnalyticsService service,
             IClock clock,
             CancellationToken cancellationToken) =>
@@ -68,7 +81,13 @@ internal static class ProjectAnalyticsApi
             var endMonth = ParseMonthOrDefault(toMonth, defaultEnd);
             var normalized = NormalizeLifecycle(lifecycle);
 
-            var result = await service.GetMonthlyStageCompletionsAsync(normalized, categoryId, startMonth, endMonth, cancellationToken);
+            var result = await service.GetMonthlyStageCompletionsAsync(
+                normalized,
+                categoryId,
+                technicalCategoryId,
+                startMonth,
+                endMonth,
+                cancellationToken);
             return Results.Ok(result);
         });
 
