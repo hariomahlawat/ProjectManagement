@@ -1,7 +1,7 @@
 .projects-hero {
     position: relative;
     border-radius: 1.25rem;
-    background: linear-gradient(115deg, #3247ff 0%, #7a3cff 60%, #b03cff 100%);
+    background: linear-gradient(115deg, #2a388f 0%, #4b2c8f 55%, #6a2c8f 100%);
     color: #ffffff;
     padding: clamp(1rem, 2vw + 0.75rem, 1.75rem) clamp(1.25rem, 5vw, 2.75rem);
     margin-bottom: 1.5rem;
@@ -15,9 +15,9 @@
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(120deg, rgba(255, 255, 255, 0.12), transparent 55%),
-        radial-gradient(circle at 25% 15%, rgba(255, 255, 255, 0.35), transparent 60%);
-    opacity: 0.9;
+    background: linear-gradient(120deg, rgba(255, 255, 255, 0.08), transparent 55%),
+        radial-gradient(circle at 25% 15%, rgba(255, 255, 255, 0.28), transparent 60%);
+    opacity: 0.8;
     pointer-events: none;
 }
 
@@ -128,7 +128,7 @@
     gap: 0.5rem;
     border-radius: 999px;
     padding: 0.5rem 1.1rem;
-    background-color: rgba(44, 91, 255, 0.08);
+    background-color: rgba(45, 63, 143, 0.08);
     color: #1b1f3b;
     border: 1px solid transparent;
     transition: all 0.2s ease-in-out;
@@ -136,18 +136,18 @@
 
 .projects-tabs__link:hover,
 .projects-tabs__link:focus {
-    background-color: rgba(44, 91, 255, 0.18);
+    background-color: rgba(45, 63, 143, 0.16);
     color: #11132a;
 }
 
 .projects-tabs__link.active {
-    background: linear-gradient(120deg, #2c5bff 0%, #5f2cff 100%);
+    background: linear-gradient(120deg, #3848c2 0%, #572c9d 100%);
     color: #ffffff;
     box-shadow: 0 0.5rem 1.25rem rgba(53, 72, 255, 0.3);
 }
 
 .projects-tabs__link.active .projects-tabs__count {
-    background-color: rgba(255, 255, 255, 0.25);
+    background-color: rgba(255, 255, 255, 0.22);
     color: #ffffff;
 }
 
@@ -163,10 +163,10 @@
     min-width: 2.25rem;
     padding: 0.2rem 0.65rem;
     border-radius: 999px;
-    background-color: rgba(44, 91, 255, 0.18);
+    background-color: rgba(45, 63, 143, 0.16);
     font-size: 0.85rem;
     font-weight: 600;
-    color: #2c3a8c;
+    color: #2a3477;
 }
 
 .projects-filter {
