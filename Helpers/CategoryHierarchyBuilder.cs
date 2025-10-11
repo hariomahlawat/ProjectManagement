@@ -19,6 +19,7 @@ public static class CategoryHierarchyBuilder
         Func<TCategory, int> sortOrderSelector,
         Func<TCategory, string> nameSelector,
         CancellationToken cancellationToken = default)
+        where TCategory : class
     {
         var categories = await query
             .AsNoTracking()
@@ -61,6 +62,7 @@ public static class CategoryHierarchyBuilder
         Func<TCategory, int> sortOrderSelector,
         Func<TCategory, string> nameSelector,
         CancellationToken cancellationToken = default)
+        where TCategory : class
     {
         var categories = await query
             .AsNoTracking()
