@@ -126,9 +126,9 @@ if (root) {
         lifecycle: filters.lifecycle
       });
       const data = await fetchJson(url);
-      const labels = data.Slices.map((slice) => slice.CategoryName);
-      const values = data.Slices.map((slice) => slice.Count);
-      const meta = data.Slices;
+      const labels = data.slices.map((slice) => slice.categoryName);
+      const values = data.slices.map((slice) => slice.count);
+      const meta = data.slices;
       const chart = getChart(card, canvas);
       const dataset = {
         label: 'Projects',
@@ -165,7 +165,7 @@ if (root) {
           const slice = newChart.data.datasets[point.datasetIndex].meta[point.index];
           const params = {
             Lifecycle: activeFilters.lifecycle === 'All' ? undefined : activeFilters.lifecycle,
-            CategoryId: slice.CategoryId || undefined
+            CategoryId: slice.categoryId || undefined
           };
           navigateToProjects(params);
         };
@@ -189,9 +189,9 @@ if (root) {
         categoryId: filters.categoryId
       });
       const data = await fetchJson(url);
-      const labels = data.Items.map((item) => item.StageName);
-      const values = data.Items.map((item) => item.Count);
-      const meta = data.Items;
+      const labels = data.items.map((item) => item.stageName);
+      const values = data.items.map((item) => item.count);
+      const meta = data.items;
       const chart = getChart(card, canvas);
       const dataset = {
         label: 'Projects',
@@ -234,7 +234,7 @@ if (root) {
           const params = {
             Lifecycle: activeFilters.lifecycle === 'All' ? undefined : activeFilters.lifecycle,
             CategoryId: activeFilters.categoryId || undefined,
-            StageCode: stage.StageCode
+            StageCode: stage.stageCode
           };
           navigateToProjects(params);
         };
@@ -257,8 +257,8 @@ if (root) {
         categoryId: filters.categoryId
       });
       const data = await fetchJson(url);
-      const labels = data.Items.map((item) => item.Status);
-      const values = data.Items.map((item) => item.Count);
+      const labels = data.items.map((item) => item.status);
+      const values = data.items.map((item) => item.count);
       const colors = ['#1a73e8', '#34a853', '#ea4335'];
       const chart = getChart(card, canvas);
       const dataset = {
@@ -315,11 +315,11 @@ if (root) {
     const total = container.querySelector('[data-kpi="total"]');
     const adv = container.querySelector('[data-kpi="advancements"]');
     const top = container.querySelector('[data-kpi="top-stage"]');
-    if (total) total.textContent = kpis.TotalCompletionsThisMonth ?? '0';
-    if (adv) adv.textContent = kpis.ProjectsAdvancedTwoOrMoreStages ?? '0';
+    if (total) total.textContent = kpis.totalCompletionsThisMonth ?? '0';
+    if (adv) adv.textContent = kpis.projectsAdvancedTwoOrMoreStages ?? '0';
     if (top) {
-      if (kpis.TopStageName) {
-        top.textContent = `${kpis.TopStageName} (${kpis.TopStageCount})`;
+      if (kpis.topStageName) {
+        top.textContent = `${kpis.topStageName} (${kpis.topStageCount})`;
       } else {
         top.textContent = '—';
       }
@@ -340,20 +340,20 @@ if (root) {
         toMonth: filters.toMonth
       });
       const data = await fetchJson(url);
-      renderStageCompletionKpis(card, data.Kpis);
-      const labels = data.Months.map((month) => month.Label);
-      const datasets = data.Series.map((serie, idx) => ({
-        label: serie.StageName,
-        data: serie.Counts,
+      renderStageCompletionKpis(card, data.kpis);
+      const labels = data.months.map((month) => month.label);
+      const datasets = data.series.map((serie, idx) => ({
+        label: serie.stageName,
+        data: serie.counts,
         backgroundColor: palette[idx % palette.length],
-        stageCode: serie.StageCode,
+        stageCode: serie.stageCode,
         stack: 'stages'
       }));
       const chart = getChart(card, canvas);
       if (chart) {
         chart.data.labels = labels;
         chart.data.datasets = datasets;
-        chart.$months = data.Months;
+        chart.$months = data.months;
         chart.update();
       } else {
         const newChart = new window.Chart(canvas.getContext('2d'), {
@@ -375,7 +375,7 @@ if (root) {
             }
           }
         });
-        newChart.$months = data.Months;
+        newChart.$months = data.months;
         canvas.onclick = (evt) => {
           const activeFilters = getFilters(card);
           const points = newChart.getElementsAtEventForMode(evt, 'nearest', { intersect: true }, true);
@@ -391,7 +391,7 @@ if (root) {
             Lifecycle: activeFilters.lifecycle === 'All' ? undefined : activeFilters.lifecycle,
             CategoryId: activeFilters.categoryId || undefined,
             StageCode: dataset.stageCode,
-            StageCompletedMonth: monthBucket.Key
+            StageCompletedMonth: monthBucket.key
           };
           navigateToProjects(params);
         };
@@ -415,16 +415,16 @@ if (root) {
         categoryId: filters.categoryId
       });
       const data = await fetchJson(url);
-      const labels = data.Buckets.map((bucket) => bucket.Label);
-      const values = data.Buckets.map((bucket) => bucket.Count);
+      const labels = data.buckets.map((bucket) => bucket.label);
+      const values = data.buckets.map((bucket) => bucket.count);
       const chart = getChart(card, canvas);
-        const dataset = {
-          label: 'Projects',
-          data: values,
-          backgroundColor: '#1a73e8',
-          borderRadius: 4,
-          meta: data.Buckets
-        };
+      const dataset = {
+        label: 'Projects',
+        data: values,
+        backgroundColor: '#1a73e8',
+        borderRadius: 4,
+        meta: data.buckets
+      };
       if (chart) {
         chart.data.labels = labels;
         chart.data.datasets = [dataset];
@@ -453,7 +453,7 @@ if (root) {
           const params = {
             Lifecycle: activeFilters.lifecycle === 'All' ? undefined : activeFilters.lifecycle,
             CategoryId: activeFilters.categoryId || undefined,
-            SlipBucket: bucket.Key
+            SlipBucket: bucket.key
           };
           navigateToProjects(params);
         };
@@ -479,24 +479,24 @@ if (root) {
         take: 5
       });
       const data = await fetchJson(url);
-      if (!data.Projects || data.Projects.length === 0) {
+      if (!data.projects || data.projects.length === 0) {
         container.innerHTML = '<p class="text-secondary mb-0">No overdue projects for this view.</p>';
         return;
       }
       const list = document.createElement('ul');
       list.className = 'analytics-top-overdue-list';
-      data.Projects.forEach((project) => {
+      data.projects.forEach((project) => {
         const item = document.createElement('li');
         item.innerHTML = `
           <button type="button" class="analytics-top-link">
-            <span class="analytics-top-name">${project.Name}</span>
-            <span class="analytics-top-meta">${project.Category}</span>
-            <span class="analytics-top-stage">${project.StageName}</span>
-            <span class="analytics-top-slip">${project.SlipDays}d</span>
+            <span class="analytics-top-name">${project.name}</span>
+            <span class="analytics-top-meta">${project.category}</span>
+            <span class="analytics-top-stage">${project.stageName}</span>
+            <span class="analytics-top-slip">${project.slipDays}d</span>
           </button>
         `;
         const button = item.querySelector('button');
-        button.addEventListener('click', () => navigateToOverview(project.ProjectId));
+        button.addEventListener('click', () => navigateToOverview(project.projectId));
         list.appendChild(item);
       });
       container.innerHTML = '';
