@@ -1,4 +1,4 @@
-@model IReadOnlyList<CategoryHierarchyBuilder.CategoryNode<ProjectCategory>>
+@model IReadOnlyList<ProjectManagement.Areas.Admin.Pages.TechnicalCategories.IndexModel.CategoryNode>
 @using System.Linq
 
 <ul class="list-unstyled ms-0">
@@ -25,7 +25,13 @@
                     <span class="btn btn-sm btn-outline-secondary disabled opacity-50" aria-hidden="true">·</span>
                 }
                 <div>
-                    <div class="fw-semibold">@category.Name</div>
+                    <div class="fw-semibold d-flex flex-wrap align-items-center gap-2">
+                        <span>@category.Name</span>
+                        @if (node.ProjectCount > 0)
+                        {
+                            <span class="badge bg-info text-dark">Used by @node.ProjectCount project@(node.ProjectCount == 1 ? string.Empty : "s")</span>
+                        }
+                    </div>
                     <div class="text-muted small">
                         Sort: @category.SortOrder · @(category.IsActive ? "Active" : "Inactive")
                     </div>

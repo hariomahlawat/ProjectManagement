@@ -6,10 +6,10 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
-using ProjectManagement.Models;
 using ProjectManagement.Helpers;
+using ProjectManagement.Models;
 
-namespace ProjectManagement.Areas.Admin.Pages.Categories
+namespace ProjectManagement.Areas.Admin.Pages.TechnicalCategories
 {
     public class IndexModel : PageModel
     {
@@ -23,8 +23,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Categories
         [TempData]
         public string? StatusMessage { get; set; }
 
-        public IReadOnlyList<CategoryHierarchyBuilder.CategoryNode<ProjectCategory>> Nodes { get; private set; }
-            = Array.Empty<CategoryHierarchyBuilder.CategoryNode<ProjectCategory>>();
+        public IReadOnlyList<CategoryNode> Nodes { get; private set; } = Array.Empty<CategoryNode>();
 
         public async Task OnGetAsync()
         {
@@ -33,7 +32,7 @@ namespace ProjectManagement.Areas.Admin.Pages.Categories
 
         public async Task<IActionResult> OnPostToggleAsync(int id)
         {
-            var category = await _db.ProjectCategories.SingleOrDefaultAsync(c => c.Id == id);
+            var category = await _db.TechnicalCategories.SingleOrDefaultAsync(c => c.Id == id);
             if (category is null)
             {
                 return NotFound();
@@ -56,13 +55,13 @@ namespace ProjectManagement.Areas.Admin.Pages.Categories
                 return RedirectToPage();
             }
 
-            var category = await _db.ProjectCategories.SingleOrDefaultAsync(c => c.Id == id);
+            var category = await _db.TechnicalCategories.SingleOrDefaultAsync(c => c.Id == id);
             if (category is null)
             {
                 return NotFound();
             }
 
-            var siblings = await _db.ProjectCategories
+            var siblings = await _db.TechnicalCategories
                 .Where(c => c.ParentId == category.ParentId)
                 .OrderBy(c => c.SortOrder)
                 .ThenBy(c => c.Name)
@@ -96,14 +95,30 @@ namespace ProjectManagement.Areas.Admin.Pages.Categories
             return RedirectToPage();
         }
 
-        private async Task<IReadOnlyList<CategoryHierarchyBuilder.CategoryNode<ProjectCategory>>> LoadTreeAsync()
+        private async Task<IReadOnlyList<CategoryNode>> LoadTreeAsync()
         {
-            return await CategoryHierarchyBuilder.LoadHierarchyAsync(
-                _db.ProjectCategories,
+            var nodes = await CategoryHierarchyBuilder.LoadHierarchyAsync(
+                _db.TechnicalCategories,
                 c => c.Id,
                 c => c.ParentId,
                 c => c.SortOrder,
                 c => c.Name);
+
+            var usageCounts = await _db.Projects
+                .Where(p => p.TechnicalCategoryId != null)
+                .GroupBy(p => p.TechnicalCategoryId!.Value)
+                .Select(g => new { g.Key, Count = g.Count() })
+                .ToDictionaryAsync(g => g.Key, g => g.Count);
+
+            CategoryNode Map(CategoryHierarchyBuilder.CategoryNode<TechnicalCategory> node)
+            {
+                var count = usageCounts.TryGetValue(node.Category.Id, out var value) ? value : 0;
+                return new CategoryNode(node.Category, count, node.Children.Select(Map).ToList());
+            }
+
+            return nodes.Select(Map).ToList();
         }
+
+        public sealed record CategoryNode(TechnicalCategory Category, int ProjectCount, IReadOnlyList<CategoryNode> Children);
     }
 }
