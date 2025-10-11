@@ -51,10 +51,22 @@
         <article class="pm-card pm-shadow chart-card analytics-card" data-analytics-card="category-share">
           <div class="chart-card__header">
             <h2 class="h6 mb-0">Active projects by category</h2>
-            <button type="button" class="analytics-help" title="Shows the share of projects in each category for the selected lifecycle.">
-              <i class="bi bi-question-circle" aria-hidden="true"></i>
-              <span class="visually-hidden">Help</span>
-            </button>
+            <div class="chart-card__actions">
+              <button
+                type="button"
+                class="analytics-action"
+                data-download-chart="category-share"
+                title="Download chart as PNG"
+                aria-label="Download Active projects by category chart as PNG"
+                disabled
+              >
+                <i class="bi bi-download" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="analytics-help" title="Shows the share of projects in each category for the selected lifecycle.">
+                <i class="bi bi-question-circle" aria-hidden="true"></i>
+                <span class="visually-hidden">Help</span>
+              </button>
+            </div>
           </div>
           <div class="analytics-card__filters" data-filter-strip>
             <div class="btn-group btn-group-sm" role="group" aria-label="Lifecycle">
@@ -82,10 +94,22 @@
         <article class="pm-card pm-shadow chart-card analytics-card" data-analytics-card="stage-distribution">
           <div class="chart-card__header">
             <h2 class="h6 mb-0">Running projects by current stage</h2>
-            <button type="button" class="analytics-help" title="Shows how many projects are currently in each stage for the selected lifecycle and category.">
-              <i class="bi bi-question-circle" aria-hidden="true"></i>
-              <span class="visually-hidden">Help</span>
-            </button>
+            <div class="chart-card__actions">
+              <button
+                type="button"
+                class="analytics-action"
+                data-download-chart="stage-distribution"
+                title="Download chart as PNG"
+                aria-label="Download Running projects by current stage chart as PNG"
+                disabled
+              >
+                <i class="bi bi-download" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="analytics-help" title="Shows how many projects are currently in each stage for the selected lifecycle and category.">
+                <i class="bi bi-question-circle" aria-hidden="true"></i>
+                <span class="visually-hidden">Help</span>
+              </button>
+            </div>
           </div>
           <div class="analytics-card__filters" data-filter-strip>
             <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
@@ -133,10 +157,22 @@
         <article class="pm-card pm-shadow chart-card analytics-card" data-analytics-card="lifecycle-status">
           <div class="chart-card__header">
             <h2 class="h6 mb-0">Projects by lifecycle status</h2>
-            <button type="button" class="analytics-help" title="Displays counts of projects in Active, Completed, and Cancelled states for the selected category.">
-              <i class="bi bi-question-circle" aria-hidden="true"></i>
-              <span class="visually-hidden">Help</span>
-            </button>
+            <div class="chart-card__actions">
+              <button
+                type="button"
+                class="analytics-action"
+                data-download-chart="lifecycle-status"
+                title="Download chart as PNG"
+                aria-label="Download Projects by lifecycle status chart as PNG"
+                disabled
+              >
+                <i class="bi bi-download" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="analytics-help" title="Displays counts of projects in Active, Completed, and Cancelled states for the selected category.">
+                <i class="bi bi-question-circle" aria-hidden="true"></i>
+                <span class="visually-hidden">Help</span>
+              </button>
+            </div>
           </div>
           <div class="analytics-card__filters" data-filter-strip>
             <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
@@ -173,10 +209,22 @@
               <h2 class="h6 mb-0">Monthly stage completions</h2>
               <small>Completed stages per month, split by stage code.</small>
             </div>
-            <button type="button" class="analytics-help" title="Tracks how many stage completions occurred each month, with KPIs for the current month.">
-              <i class="bi bi-question-circle" aria-hidden="true"></i>
-              <span class="visually-hidden">Help</span>
-            </button>
+            <div class="chart-card__actions">
+              <button
+                type="button"
+                class="analytics-action"
+                data-download-chart="stage-completions"
+                title="Download chart as PNG"
+                aria-label="Download Monthly stage completions chart as PNG"
+                disabled
+              >
+                <i class="bi bi-download" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="analytics-help" title="Tracks how many stage completions occurred each month, with KPIs for the current month.">
+                <i class="bi bi-question-circle" aria-hidden="true"></i>
+                <span class="visually-hidden">Help</span>
+              </button>
+            </div>
           </div>
           <div class="analytics-card__filters" data-filter-strip>
             <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
@@ -248,10 +296,22 @@
         <article class="pm-card pm-shadow chart-card analytics-card" data-analytics-card="slip-buckets">
           <div class="chart-card__header">
             <h2 class="h6 mb-0">Overdue slip buckets</h2>
-            <button type="button" class="analytics-help" title="Groups projects by slip days using the overdue logic for the selected lifecycle and category.">
-              <i class="bi bi-question-circle" aria-hidden="true"></i>
-              <span class="visually-hidden">Help</span>
-            </button>
+            <div class="chart-card__actions">
+              <button
+                type="button"
+                class="analytics-action"
+                data-download-chart="slip-buckets"
+                title="Download chart as PNG"
+                aria-label="Download Overdue slip buckets chart as PNG"
+                disabled
+              >
+                <i class="bi bi-download" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="analytics-help" title="Groups projects by slip days using the overdue logic for the selected lifecycle and category.">
+                <i class="bi bi-question-circle" aria-hidden="true"></i>
+                <span class="visually-hidden">Help</span>
+              </button>
+            </div>
           </div>
           <div class="analytics-card__filters" data-filter-strip>
             <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">

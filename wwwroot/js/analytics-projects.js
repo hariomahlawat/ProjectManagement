@@ -12,6 +12,39 @@ if (root) {
   const charts = new Map();
   const requestControllers = new WeakMap();
 
+  function setDownloadReady(card, ready) {
+    card.querySelectorAll('button[data-download-chart]').forEach((button) => {
+      button.disabled = !ready;
+      if (ready) {
+        button.removeAttribute('aria-disabled');
+      } else {
+        button.setAttribute('aria-disabled', 'true');
+      }
+    });
+  }
+
+  function triggerDownload(card, canvas) {
+    if (!canvas) return;
+    const chart = charts.get(canvas);
+    let url = '';
+    if (chart && typeof chart.toBase64Image === 'function') {
+      url = chart.toBase64Image('image/png', 1);
+    }
+    if (!url && canvas.toDataURL) {
+      url = canvas.toDataURL('image/png', 1);
+    }
+    if (!url) return;
+
+    const slug = card.dataset.analyticsCard || 'chart';
+    const date = new Date().toISOString().slice(0, 10);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${slug}-${date}.png`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
   const monthInputDefaults = (() => {
     const now = new Date();
     now.setDate(1);
@@ -118,6 +151,7 @@ if (root) {
     const controller = new AbortController();
     requestControllers.set(card, controller);
     showLoading(card);
+    setDownloadReady(card, false);
     return controller;
   }
 
@@ -148,11 +182,14 @@ if (root) {
   function setChart(card, canvas, chart) {
     charts.set(canvas, chart);
     card.dataset.hasChart = 'true';
+    setDownloadReady(card, true);
   }
 
   async function loadCategoryShare(card) {
     const canvas = card.querySelector('canvas[data-chart="category-share"]');
     if (!canvas) return;
+    const existingChart = getChart(card, canvas);
+    const hadChart = Boolean(existingChart);
     const controller = beginCardRequest(card);
     const filters = getFilters(card);
     try {
@@ -168,7 +205,7 @@ if (root) {
       const labels = data.slices.map((slice) => slice.categoryName);
       const values = data.slices.map((slice) => slice.count);
       const meta = data.slices;
-      const chart = getChart(card, canvas);
+      let chart = existingChart;
       const dataset = {
         label: 'Projects',
         data: values,
@@ -180,6 +217,7 @@ if (root) {
         chart.data.labels = labels;
         chart.data.datasets = [dataset];
         chart.update();
+        setDownloadReady(card, true);
       } else {
         const newChart = new window.Chart(canvas.getContext('2d'), {
           type: 'doughnut',
@@ -215,6 +253,9 @@ if (root) {
       if (!isAbortError(err)) {
         console.error(err);
       }
+      if (hadChart) {
+        setDownloadReady(card, true);
+      }
     } finally {
       endCardRequest(card, controller);
     }
@@ -223,6 +264,8 @@ if (root) {
   async function loadStageDistribution(card) {
     const canvas = card.querySelector('canvas[data-chart="stage-distribution"]');
     if (!canvas) return;
+    const existingChart = getChart(card, canvas);
+    const hadChart = Boolean(existingChart);
     const controller = beginCardRequest(card);
     const filters = getFilters(card);
     try {
@@ -238,7 +281,7 @@ if (root) {
       const labels = data.items.map((item) => item.stageName);
       const values = data.items.map((item) => item.count);
       const meta = data.items;
-      const chart = getChart(card, canvas);
+      let chart = existingChart;
       const dataset = {
         label: 'Projects',
         backgroundColor: '#1a73e8',
@@ -250,6 +293,7 @@ if (root) {
         chart.data.labels = labels;
         chart.data.datasets = [dataset];
         chart.update();
+        setDownloadReady(card, true);
       } else {
         const newChart = new window.Chart(canvas.getContext('2d'), {
           type: 'bar',
@@ -291,6 +335,9 @@ if (root) {
       if (!isAbortError(err)) {
         console.error(err);
       }
+      if (hadChart) {
+        setDownloadReady(card, true);
+      }
     } finally {
       endCardRequest(card, controller);
     }
@@ -299,6 +346,8 @@ if (root) {
   async function loadLifecycleStatus(card) {
     const canvas = card.querySelector('canvas[data-chart="lifecycle-status"]');
     if (!canvas) return;
+    const existingChart = getChart(card, canvas);
+    const hadChart = Boolean(existingChart);
     const controller = beginCardRequest(card);
     const filters = getFilters(card);
     try {
@@ -313,7 +362,7 @@ if (root) {
       const labels = data.items.map((item) => item.status);
       const values = data.items.map((item) => item.count);
       const colors = ['#1a73e8', '#34a853', '#ea4335'];
-      const chart = getChart(card, canvas);
+      let chart = existingChart;
       const dataset = {
         label: 'Projects',
         data: values,
@@ -324,6 +373,7 @@ if (root) {
         chart.data.labels = labels;
         chart.data.datasets = [dataset];
         chart.update();
+        setDownloadReady(card, true);
       } else {
         const newChart = new window.Chart(canvas.getContext('2d'), {
           type: 'bar',
@@ -360,6 +410,9 @@ if (root) {
       if (!isAbortError(err)) {
         console.error(err);
       }
+      if (hadChart) {
+        setDownloadReady(card, true);
+      }
     } finally {
       endCardRequest(card, controller);
     }
@@ -386,6 +439,8 @@ if (root) {
     const canvas = card.querySelector('canvas[data-chart="stage-completions"]');
     if (!canvas) return;
     setInitialMonthInputs(card);
+    const existingChart = getChart(card, canvas);
+    const hadChart = Boolean(existingChart);
     const controller = beginCardRequest(card);
     const filters = getFilters(card);
     try {
@@ -409,12 +464,13 @@ if (root) {
         stageCode: serie.stageCode,
         stack: 'stages'
       }));
-      const chart = getChart(card, canvas);
+      let chart = existingChart;
       if (chart) {
         chart.data.labels = labels;
         chart.data.datasets = datasets;
         chart.$months = data.months;
         chart.update();
+        setDownloadReady(card, true);
       } else {
         const newChart = new window.Chart(canvas.getContext('2d'), {
           type: 'bar',
@@ -462,6 +518,9 @@ if (root) {
       if (!isAbortError(err)) {
         console.error(err);
       }
+      if (hadChart) {
+        setDownloadReady(card, true);
+      }
     } finally {
       endCardRequest(card, controller);
     }
@@ -470,6 +529,8 @@ if (root) {
   async function loadSlipBuckets(card) {
     const canvas = card.querySelector('canvas[data-chart="slip-buckets"]');
     if (!canvas) return;
+    const existingChart = getChart(card, canvas);
+    const hadChart = Boolean(existingChart);
     const controller = beginCardRequest(card);
     const filters = getFilters(card);
     try {
@@ -484,7 +545,7 @@ if (root) {
       }
       const labels = data.buckets.map((bucket) => bucket.label);
       const values = data.buckets.map((bucket) => bucket.count);
-      const chart = getChart(card, canvas);
+      let chart = existingChart;
       const dataset = {
         label: 'Projects',
         data: values,
@@ -496,6 +557,7 @@ if (root) {
         chart.data.labels = labels;
         chart.data.datasets = [dataset];
         chart.update();
+        setDownloadReady(card, true);
       } else {
         const newChart = new window.Chart(canvas.getContext('2d'), {
           type: 'bar',
@@ -530,6 +592,9 @@ if (root) {
     } catch (err) {
       if (!isAbortError(err)) {
         console.error(err);
+      }
+      if (hadChart) {
+        setDownloadReady(card, true);
       }
     } finally {
       endCardRequest(card, controller);
@@ -602,6 +667,25 @@ if (root) {
       input.addEventListener('change', () => loader(card));
     });
   }
+
+  root.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-download-chart]');
+    if (!button || button.disabled) {
+      return;
+    }
+    const card = button.closest('[data-analytics-card]');
+    if (!card) {
+      return;
+    }
+    const target = button.dataset.downloadChart;
+    const selector = target ? `canvas[data-chart="${target}"]` : 'canvas';
+    const canvas = card.querySelector(selector);
+    if (!canvas) {
+      return;
+    }
+    event.preventDefault();
+    triggerDownload(card, canvas);
+  });
 
   function init() {
     const cards = root.querySelectorAll('[data-analytics-card]');
