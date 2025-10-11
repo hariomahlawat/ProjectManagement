@@ -70,6 +70,16 @@ namespace ProjectManagement.Areas.Admin.Pages.TechnicalCategories
                 return Page();
             }
 
+            if (Input.ParentId.HasValue)
+            {
+                var descendants = await GetDescendantIdsAsync(category.Id);
+                if (descendants.Contains(Input.ParentId.Value))
+                {
+                    ModelState.AddModelError("Input.ParentId", "A category cannot move under one of its descendants.");
+                    return Page();
+                }
+            }
+
             var trimmedName = Input.Name.Trim();
             var duplicateExists = await _db.TechnicalCategories
                 .AnyAsync(c => c.ParentId == Input.ParentId && c.Name == trimmedName && c.Id != Input.Id);
@@ -89,6 +99,31 @@ namespace ProjectManagement.Areas.Admin.Pages.TechnicalCategories
             TempData["StatusMessage"] = $"Updated '{category.Name}'.";
 
             return RedirectToPage("Index");
+        }
+
+        private async Task<HashSet<int>> GetDescendantIdsAsync(int categoryId)
+        {
+            var relationships = await _db.TechnicalCategories
+                .AsNoTracking()
+                .Select(c => new { c.Id, c.ParentId })
+                .ToListAsync();
+
+            var lookup = relationships.ToLookup(x => x.ParentId);
+            var results = new HashSet<int>();
+
+            void Visit(int parentId)
+            {
+                foreach (var child in lookup[parentId])
+                {
+                    if (results.Add(child.Id))
+                    {
+                        Visit(child.Id);
+                    }
+                }
+            }
+
+            Visit(categoryId);
+            return results;
         }
 
         private Task<List<SelectListItem>> LoadParentOptionsAsync(int? selectedId, int? excludeId)
