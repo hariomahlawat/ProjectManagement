@@ -90,7 +90,8 @@ public sealed class ProjectAnalyticsService
 
         if (categoryId.HasValue)
         {
-            query = query.Where(p => p.CategoryId == categoryId);
+            var categoryIds = await GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
+            query = query.Where(p => p.CategoryId.HasValue && categoryIds.Contains(p.CategoryId.Value));
         }
 
         var projects = await query
@@ -147,7 +148,8 @@ public sealed class ProjectAnalyticsService
 
         if (categoryId.HasValue)
         {
-            query = query.Where(p => p.CategoryId == categoryId);
+            var categoryIds = await GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
+            query = query.Where(p => p.CategoryId.HasValue && categoryIds.Contains(p.CategoryId.Value));
         }
 
         var raw = await query
@@ -194,7 +196,8 @@ public sealed class ProjectAnalyticsService
 
         if (categoryId.HasValue)
         {
-            query = query.Where(s => s.Project!.CategoryId == categoryId);
+            var categoryIds = await GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
+            query = query.Where(s => s.Project!.CategoryId.HasValue && categoryIds.Contains(s.Project!.CategoryId.Value));
         }
 
         query = ApplyLifecycleFilter(query, lifecycle);
@@ -400,7 +403,8 @@ public sealed class ProjectAnalyticsService
 
         if (categoryId.HasValue)
         {
-            query = query.Where(p => p.CategoryId == categoryId);
+            var categoryIds = await GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
+            query = query.Where(p => p.CategoryId.HasValue && categoryIds.Contains(p.CategoryId.Value));
         }
 
         var projects = await query
@@ -423,6 +427,41 @@ public sealed class ProjectAnalyticsService
             .ToListAsync(cancellationToken);
 
         return projects;
+    }
+
+    private async Task<List<int>> GetCategoryAndDescendantIdsAsync(int categoryId, CancellationToken cancellationToken)
+    {
+        var categories = await _db.ProjectCategories
+            .AsNoTracking()
+            .Select(c => new { c.Id, c.ParentId })
+            .ToListAsync(cancellationToken);
+
+        var childrenLookup = categories
+            .GroupBy(c => c.ParentId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Id).ToList());
+
+        var resolved = new HashSet<int> { categoryId };
+        var stack = new Stack<int>();
+        stack.Push(categoryId);
+
+        while (stack.Count > 0)
+        {
+            var current = stack.Pop();
+            if (!childrenLookup.TryGetValue(current, out var children))
+            {
+                continue;
+            }
+
+            foreach (var child in children)
+            {
+                if (resolved.Add(child))
+                {
+                    stack.Push(child);
+                }
+            }
+        }
+
+        return resolved.ToList();
     }
 
     private static IQueryable<Project> ApplyLifecycleFilter(
