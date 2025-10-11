@@ -27,6 +27,7 @@ namespace ProjectManagement.Data
         public DbSet<Project> Projects { get; set; } = default!;
         public DbSet<ProjectCategory> ProjectCategories => Set<ProjectCategory>();
         public DbSet<ProjectIpaFact> ProjectIpaFacts => Set<ProjectIpaFact>();
+        public DbSet<TechnicalCategory> TechnicalCategories => Set<TechnicalCategory>();
         public DbSet<ProjectSowFact> ProjectSowFacts => Set<ProjectSowFact>();
         public DbSet<ProjectAonFact> ProjectAonFacts => Set<ProjectAonFact>();
         public DbSet<ProjectBenchmarkFact> ProjectBenchmarkFacts => Set<ProjectBenchmarkFact>();
@@ -128,6 +129,10 @@ namespace ProjectManagement.Data
                 e.HasOne(x => x.Category)
                     .WithMany(x => x.Projects)
                     .HasForeignKey(x => x.CategoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.TechnicalCategory)
+                    .WithMany(x => x.Projects)
+                    .HasForeignKey(x => x.TechnicalCategoryId)
                     .OnDelete(DeleteBehavior.Restrict);
                 e.HasOne(x => x.SponsoringUnit)
                     .WithMany(x => x.Projects)
@@ -607,6 +612,18 @@ namespace ProjectManagement.Data
                     .OnDelete(DeleteBehavior.Restrict);
             });
 
+            builder.Entity<TechnicalCategory>(e =>
+            {
+                e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+                e.HasIndex(x => new { x.ParentId, x.Name }).IsUnique();
+                e.Property(x => x.SortOrder).HasDefaultValue(0);
+                e.Property(x => x.IsActive).HasDefaultValue(true);
+                e.HasOne(x => x.Parent)
+                    .WithMany(x => x.Children)
+                    .HasForeignKey(x => x.ParentId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
             builder.Entity<SponsoringUnit>(e =>
             {
                 e.Property(x => x.Name).HasMaxLength(200).IsRequired();
@@ -673,6 +690,11 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.ProjectId)
                     .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne<TechnicalCategory>()
+                    .WithMany()
+                    .HasForeignKey(x => x.TechnicalCategoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasIndex(x => x.TechnicalCategoryId);
 
                 if (Database.IsSqlServer())
                 {

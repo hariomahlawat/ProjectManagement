@@ -95,8 +95,14 @@ public sealed class ProjectMetaChangeDecisionServiceTests
             Name = "Infrastructure",
             IsActive = true
         });
+        await db.TechnicalCategories.AddAsync(new TechnicalCategory
+        {
+            Id = 15,
+            Name = "Networks",
+            IsActive = true
+        });
         await db.SaveChangesAsync();
-        await SeedRequestAsync(db, 1, payloadName: "Updated", payloadDescription: "New", payloadCaseFile: "CF-100", payloadCategoryId: 5);
+        await SeedRequestAsync(db, 1, payloadName: "Updated", payloadDescription: "New", payloadCaseFile: "CF-100", payloadCategoryId: 5, payloadTechnicalCategoryId: 15);
 
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 3, 9, 0, 0, TimeSpan.Zero));
         var audit = new RecordingAudit();
@@ -113,6 +119,7 @@ public sealed class ProjectMetaChangeDecisionServiceTests
         Assert.Equal("New", project.Description);
         Assert.Equal("CF-100", project.CaseFileNumber);
         Assert.Equal(5, project.CategoryId);
+        Assert.Equal(15, project.TechnicalCategoryId);
 
         var header = audit.Entries.Single(e => e.Action == "Projects.MetaChangeApproved");
         Assert.Equal("false", header.Data.TryGetValue("DriftDetected", out var detected) ? detected : null);
@@ -120,6 +127,7 @@ public sealed class ProjectMetaChangeDecisionServiceTests
 
         var request = await db.ProjectMetaChangeRequests.SingleAsync();
         Assert.Equal(ProjectMetaDecisionStatuses.Approved, request.DecisionStatus);
+        Assert.Equal(15, request.TechnicalCategoryId);
     }
 
     [Fact]
@@ -216,6 +224,32 @@ public sealed class ProjectMetaChangeDecisionServiceTests
     }
 
     [Fact]
+    public async Task DecideAsync_ApproveInactiveTechnicalCategory_ReturnsValidationError()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, "hod-owner");
+        await db.TechnicalCategories.AddAsync(new TechnicalCategory
+        {
+            Id = 25,
+            Name = "Legacy",
+            IsActive = false
+        });
+        await db.SaveChangesAsync();
+        await SeedRequestAsync(db, 1, payloadName: "Updated", payloadTechnicalCategoryId: 25);
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 4, 9, 0, 0, TimeSpan.Zero));
+        var audit = new RecordingAudit();
+        var service = new ProjectMetaChangeDecisionService(db, clock, NullLogger<ProjectMetaChangeDecisionService>.Instance, audit);
+
+        var result = await service.DecideAsync(
+            new ProjectMetaDecisionInput(1, ProjectMetaDecisionAction.Approve, null),
+            new ProjectMetaDecisionUser("hod-owner", IsAdmin: false, IsHoD: true));
+
+        Assert.Equal(ProjectMetaDecisionOutcome.ValidationFailed, result.Outcome);
+        Assert.Equal(ProjectValidationMessages.InactiveTechnicalCategory, result.Error);
+    }
+
+    [Fact]
     public async Task DecideAsync_ApproveDuplicateCaseFile_ReturnsValidationError()
     {
         await using var db = CreateContext();
@@ -242,14 +276,15 @@ public sealed class ProjectMetaChangeDecisionServiceTests
         Assert.Equal(ProjectValidationMessages.DuplicateCaseFileNumber, result.Error);
     }
 
-    private static async Task SeedProjectAsync(ApplicationDbContext db, string hodUserId)
+    private static async Task SeedProjectAsync(ApplicationDbContext db, string hodUserId, int? technicalCategoryId = null)
     {
         await db.Projects.AddAsync(new Project
         {
             Id = 1,
             Name = "Project",
             CreatedByUserId = "creator",
-            HodUserId = hodUserId
+            HodUserId = hodUserId,
+            TechnicalCategoryId = technicalCategoryId
         });
 
         await db.SaveChangesAsync();
@@ -262,18 +297,22 @@ public sealed class ProjectMetaChangeDecisionServiceTests
         string? payloadDescription = null,
         string? payloadCaseFile = null,
         int? payloadCategoryId = null,
+        int? payloadTechnicalCategoryId = null,
         string? originalName = null,
         string? originalDescription = null,
         string? originalCaseFile = null,
         int? originalCategoryId = null,
-        byte[]? originalRowVersion = null)
+        int? originalTechnicalCategoryId = null,
+        byte[]? originalRowVersion = null,
+        int? requestTechnicalCategoryId = null)
     {
         var payload = JsonSerializer.Serialize(new ProjectMetaChangeRequestPayload
         {
             Name = payloadName,
             Description = payloadDescription,
             CaseFileNumber = payloadCaseFile,
-            CategoryId = payloadCategoryId
+            CategoryId = payloadCategoryId,
+            TechnicalCategoryId = payloadTechnicalCategoryId
         });
 
         originalName ??= "Project";
@@ -291,7 +330,9 @@ public sealed class ProjectMetaChangeDecisionServiceTests
             OriginalDescription = originalDescription,
             OriginalCaseFileNumber = originalCaseFile,
             OriginalCategoryId = originalCategoryId,
-            OriginalRowVersion = originalRowVersion
+            OriginalTechnicalCategoryId = originalTechnicalCategoryId,
+            OriginalRowVersion = originalRowVersion,
+            TechnicalCategoryId = requestTechnicalCategoryId ?? payloadTechnicalCategoryId
         });
 
         await db.SaveChangesAsync();

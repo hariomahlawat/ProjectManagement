@@ -34,6 +34,10 @@ namespace ProjectManagement.Models
 
         public int? OriginalCategoryId { get; set; }
 
+        public int? OriginalTechnicalCategoryId { get; set; }
+
+        public int? TechnicalCategoryId { get; set; }
+
         public string? OriginalCaseFileNumber { get; set; }
 
         public byte[]? OriginalRowVersion { get; set; }

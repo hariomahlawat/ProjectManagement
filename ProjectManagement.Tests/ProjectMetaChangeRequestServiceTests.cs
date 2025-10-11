@@ -63,6 +63,12 @@ public sealed class ProjectMetaChangeRequestServiceTests
             Name = "Training",
             IsActive = true
         });
+        await db.TechnicalCategories.AddAsync(new TechnicalCategory
+        {
+            Id = 55,
+            Name = "Networks",
+            IsActive = true
+        });
 
         var project = new Project
         {
@@ -71,6 +77,7 @@ public sealed class ProjectMetaChangeRequestServiceTests
             Description = "Snapshot Description",
             CaseFileNumber = "CF-777",
             CategoryId = 99,
+            TechnicalCategoryId = 55,
             CreatedByUserId = "creator",
             LeadPoUserId = "po-user",
             RowVersion = new byte[] { 1, 2, 3, 4 }
@@ -88,7 +95,8 @@ public sealed class ProjectMetaChangeRequestServiceTests
             Name = "Snapshot Project",
             Description = "Snapshot Description",
             CaseFileNumber = "CF-777",
-            CategoryId = 99
+            CategoryId = 99,
+            TechnicalCategoryId = 55
         };
 
         var result = await service.SubmitAsync(submission, "po-user", CancellationToken.None);
@@ -99,9 +107,15 @@ public sealed class ProjectMetaChangeRequestServiceTests
         Assert.Equal("Snapshot Description", request.OriginalDescription);
         Assert.Equal("CF-777", request.OriginalCaseFileNumber);
         Assert.Equal(99, request.OriginalCategoryId);
+        Assert.Equal(55, request.OriginalTechnicalCategoryId);
         Assert.NotNull(request.OriginalRowVersion);
         Assert.NotSame(project.RowVersion, request.OriginalRowVersion);
         Assert.Equal(project.RowVersion, request.OriginalRowVersion);
+        Assert.Equal(55, request.TechnicalCategoryId);
+
+        var payload = System.Text.Json.JsonSerializer.Deserialize<ProjectMetaChangeRequestPayload>(request.Payload);
+        Assert.NotNull(payload);
+        Assert.Equal(55, payload!.TechnicalCategoryId);
     }
 
     [Fact]
@@ -144,6 +158,45 @@ public sealed class ProjectMetaChangeRequestServiceTests
     }
 
     [Fact]
+    public async Task SubmitAsync_InactiveTechnicalCategory_ReturnsValidationError()
+    {
+        await using var db = CreateContext();
+        await db.TechnicalCategories.AddAsync(new TechnicalCategory
+        {
+            Id = 44,
+            Name = "Legacy",
+            IsActive = false
+        });
+
+        await db.Projects.AddAsync(new Project
+        {
+            Id = 31,
+            Name = "Tech Project",
+            CreatedByUserId = "creator",
+            LeadPoUserId = "po-user"
+        });
+        await db.SaveChangesAsync();
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 1, 0, 0, 0, TimeSpan.Zero));
+        var service = new ProjectMetaChangeRequestService(db, clock);
+
+        var submission = new ProjectMetaChangeRequestSubmission
+        {
+            ProjectId = 31,
+            Name = "Tech Project",
+            TechnicalCategoryId = 44
+        };
+
+        var result = await service.SubmitAsync(submission, "po-user", CancellationToken.None);
+
+        Assert.Equal(ProjectMetaChangeRequestSubmissionOutcome.ValidationFailed, result.Outcome);
+        Assert.True(result.Errors.TryGetValue("TechnicalCategoryId", out var errors));
+        var message = Assert.Single(errors);
+        Assert.Equal(ProjectValidationMessages.InactiveTechnicalCategory, message);
+        Assert.Equal(0, await db.ProjectMetaChangeRequests.CountAsync());
+    }
+
+    [Fact]
     public async Task SubmitAsync_ReplacesExistingPendingRequest()
     {
         await using var db = CreateContext();
@@ -153,6 +206,12 @@ public sealed class ProjectMetaChangeRequestServiceTests
             Name = "Active",
             IsActive = true
         });
+        await db.TechnicalCategories.AddAsync(new TechnicalCategory
+        {
+            Id = 30,
+            Name = "Active Tech",
+            IsActive = true
+        });
 
         await db.Projects.AddAsync(new Project
         {
@@ -160,7 +219,8 @@ public sealed class ProjectMetaChangeRequestServiceTests
             Name = "Project",
             Description = "Old",
             CreatedByUserId = "creator",
-            LeadPoUserId = "po-user"
+            LeadPoUserId = "po-user",
+            TechnicalCategoryId = null
         });
 
         await db.ProjectMetaChangeRequests.AddAsync(new ProjectMetaChangeRequest
@@ -184,6 +244,7 @@ public sealed class ProjectMetaChangeRequestServiceTests
             Name = "Updated",
             Description = "New description",
             CategoryId = 20,
+            TechnicalCategoryId = 30,
             Reason = "Need to update details"
         };
 
@@ -200,12 +261,15 @@ public sealed class ProjectMetaChangeRequestServiceTests
         Assert.Equal("Old", request.OriginalDescription);
         Assert.Null(request.OriginalCaseFileNumber);
         Assert.Null(request.OriginalCategoryId);
+        Assert.Null(request.OriginalTechnicalCategoryId);
+        Assert.Equal(30, request.TechnicalCategoryId);
 
         var payload = System.Text.Json.JsonSerializer.Deserialize<ProjectMetaChangeRequestPayload>(request.Payload);
         Assert.NotNull(payload);
         Assert.Equal("Updated", payload!.Name);
         Assert.Equal("New description", payload.Description);
         Assert.Equal(20, payload.CategoryId);
+        Assert.Equal(30, payload.TechnicalCategoryId);
     }
 
     private static ApplicationDbContext CreateContext()
