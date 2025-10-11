@@ -20,6 +20,7 @@
         radial-gradient(circle at 25% 15%, rgba(255, 192, 203, 0.2), transparent 60%);
     opacity: 0.6;
     pointer-events: none;
+    z-index: 0;
 }
 
 .projects-hero__eyebrow {
@@ -47,6 +48,7 @@
     flex-direction: column;
     gap: 1rem;
     align-items: flex-start;
+    z-index: 1;
 }
 
 @media (min-width: 992px) {
