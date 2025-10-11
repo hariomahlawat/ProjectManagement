@@ -48,6 +48,9 @@ namespace ProjectManagement.Models
         public int? CategoryId { get; set; }
         public ProjectCategory? Category { get; set; }
 
+        public int? TechnicalCategoryId { get; set; }
+        public TechnicalCategory? TechnicalCategory { get; set; }
+
         public bool IsArchived { get; set; }
 
         public DateTimeOffset? ArchivedAt { get; set; }

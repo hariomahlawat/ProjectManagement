@@ -34,6 +34,7 @@ public class EditModel : PageModel
     public MetaEditInput Input { get; set; } = new();
 
     public IReadOnlyList<SelectListItem> CategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
+    public IReadOnlyList<SelectListItem> TechnicalCategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
     public IReadOnlyList<SelectListItem> SponsoringUnitOptions { get; private set; } = Array.Empty<SelectListItem>();
     public IReadOnlyList<SelectListItem> LineDirectorateOptions { get; private set; } = Array.Empty<SelectListItem>();
 
@@ -49,6 +50,7 @@ public class EditModel : PageModel
         }
 
         await LoadCategoryOptionsAsync(project.CategoryId, cancellationToken);
+        await LoadTechnicalCategoryOptionsAsync(project.TechnicalCategoryId, cancellationToken);
         await LoadLookupOptionsAsync(project.SponsoringUnitId, project.SponsoringLineDirectorateId, cancellationToken);
 
         Input = new MetaEditInput
@@ -58,6 +60,7 @@ public class EditModel : PageModel
             Description = project.Description,
             CaseFileNumber = project.CaseFileNumber,
             CategoryId = project.CategoryId,
+            TechnicalCategoryId = project.TechnicalCategoryId,
             SponsoringUnitId = project.SponsoringUnitId,
             SponsoringLineDirectorateId = project.SponsoringLineDirectorateId,
             RowVersion = Convert.ToBase64String(project.RowVersion)
@@ -74,6 +77,7 @@ public class EditModel : PageModel
         }
 
         await LoadCategoryOptionsAsync(Input.CategoryId, cancellationToken);
+        await LoadTechnicalCategoryOptionsAsync(Input.TechnicalCategoryId, cancellationToken);
         await LoadLookupOptionsAsync(Input.SponsoringUnitId, Input.SponsoringLineDirectorateId, cancellationToken);
 
         byte[] rowVersionBytes = Array.Empty<byte>();
@@ -128,6 +132,7 @@ public class EditModel : PageModel
             ? null
             : Input.CaseFileNumber.Trim();
         var selectedCategoryId = Input.CategoryId;
+        var selectedTechnicalCategoryId = Input.TechnicalCategoryId;
 
         if (selectedCategoryId.HasValue)
         {
@@ -138,6 +143,19 @@ public class EditModel : PageModel
             if (!categoryExists)
             {
                 ModelState.AddModelError("Input.CategoryId", ProjectValidationMessages.InactiveCategory);
+                return Page();
+            }
+        }
+
+        if (selectedTechnicalCategoryId.HasValue)
+        {
+            var technicalCategoryExists = await _db.TechnicalCategories
+                .AsNoTracking()
+                .AnyAsync(c => c.Id == selectedTechnicalCategoryId.Value && c.IsActive, cancellationToken);
+
+            if (!technicalCategoryExists)
+            {
+                ModelState.AddModelError("Input.TechnicalCategoryId", ProjectValidationMessages.InactiveTechnicalCategory);
                 return Page();
             }
         }
@@ -189,6 +207,7 @@ public class EditModel : PageModel
         var previousDescription = project.Description;
         var previousCaseFileNumber = project.CaseFileNumber;
         var previousCategoryId = project.CategoryId;
+        var previousTechnicalCategoryId = project.TechnicalCategoryId;
         var previousSponsoringUnitId = project.SponsoringUnitId;
         var previousSponsoringLineDirectorateId = project.SponsoringLineDirectorateId;
 
@@ -196,6 +215,7 @@ public class EditModel : PageModel
         project.Description = trimmedDescription;
         project.CaseFileNumber = trimmedCaseFileNumber;
         project.CategoryId = selectedCategoryId;
+        project.TechnicalCategoryId = selectedTechnicalCategoryId;
         project.SponsoringUnitId = Input.SponsoringUnitId;
         project.SponsoringLineDirectorateId = Input.SponsoringLineDirectorateId;
 
@@ -210,6 +230,7 @@ public class EditModel : PageModel
             ModelState.AddModelError(string.Empty, "The project was modified by someone else. Please reload and try again.");
             await _db.Entry(project).ReloadAsync(cancellationToken);
             await LoadCategoryOptionsAsync(project.CategoryId, cancellationToken);
+            await LoadTechnicalCategoryOptionsAsync(project.TechnicalCategoryId, cancellationToken);
             await LoadLookupOptionsAsync(project.SponsoringUnitId, project.SponsoringLineDirectorateId, cancellationToken);
 
             Input = new MetaEditInput
@@ -219,6 +240,7 @@ public class EditModel : PageModel
                 Description = project.Description,
                 CaseFileNumber = project.CaseFileNumber,
                 CategoryId = project.CategoryId,
+                TechnicalCategoryId = project.TechnicalCategoryId,
                 SponsoringUnitId = project.SponsoringUnitId,
                 SponsoringLineDirectorateId = project.SponsoringLineDirectorateId,
                 RowVersion = Convert.ToBase64String(project.RowVersion)
@@ -240,6 +262,8 @@ public class EditModel : PageModel
                 ["CaseFileNumberAfter"] = project.CaseFileNumber,
                 ["CategoryIdBefore"] = previousCategoryId?.ToString(),
                 ["CategoryIdAfter"] = project.CategoryId?.ToString(),
+                ["TechnicalCategoryIdBefore"] = previousTechnicalCategoryId?.ToString(),
+                ["TechnicalCategoryIdAfter"] = project.TechnicalCategoryId?.ToString(),
                 ["SponsoringUnitIdBefore"] = previousSponsoringUnitId?.ToString(),
                 ["SponsoringUnitIdAfter"] = project.SponsoringUnitId?.ToString(),
                 ["SponsoringLineDirectorateIdBefore"] = previousSponsoringLineDirectorateId?.ToString(),
@@ -268,6 +292,9 @@ public class EditModel : PageModel
         public string? CaseFileNumber { get; set; }
 
         public int? CategoryId { get; set; }
+
+        [Display(Name = "Technical Category")]
+        public int? TechnicalCategoryId { get; set; }
 
         [Display(Name = "Sponsoring Unit")]
         public int? SponsoringUnitId { get; set; }
@@ -307,6 +334,36 @@ public class EditModel : PageModel
 
         AddOptions(null, string.Empty);
         CategoryOptions = options;
+    }
+
+    private async Task LoadTechnicalCategoryOptionsAsync(int? selectedTechnicalCategoryId, CancellationToken cancellationToken)
+    {
+        var categories = await _db.TechnicalCategories
+            .AsNoTracking()
+            .Where(c => c.IsActive)
+            .OrderBy(c => c.SortOrder)
+            .ThenBy(c => c.Name)
+            .ToListAsync(cancellationToken);
+
+        var children = categories.ToLookup(c => c.ParentId);
+
+        var options = new List<SelectListItem>
+        {
+            new("— (none) —", string.Empty, selectedTechnicalCategoryId is null)
+        };
+
+        void AddOptions(int? parentId, string prefix)
+        {
+            foreach (var category in children[parentId])
+            {
+                var text = string.IsNullOrEmpty(prefix) ? category.Name : $"{prefix}{category.Name}";
+                options.Add(new SelectListItem(text, category.Id.ToString(), category.Id == selectedTechnicalCategoryId));
+                AddOptions(category.Id, string.Concat(prefix, "— "));
+            }
+        }
+
+        AddOptions(null, string.Empty);
+        TechnicalCategoryOptions = options;
     }
 
     private async Task LoadLookupOptionsAsync(int? sponsoringUnitId, int? sponsoringLineDirectorateId, CancellationToken cancellationToken)

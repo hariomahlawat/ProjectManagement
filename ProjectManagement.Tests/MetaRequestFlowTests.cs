@@ -24,6 +24,12 @@ public sealed class MetaRequestFlowTests
             Name = "Simulation",
             IsActive = true
         });
+        await db.TechnicalCategories.AddAsync(new TechnicalCategory
+        {
+            Id = 50,
+            Name = "Networks",
+            IsActive = true
+        });
 
         await db.Projects.AddAsync(new Project
         {
@@ -32,6 +38,7 @@ public sealed class MetaRequestFlowTests
             Description = "Original",
             CaseFileNumber = "CF-101",
             CategoryId = 10,
+            TechnicalCategoryId = 50,
             CreatedByUserId = "creator",
             LeadPoUserId = "po-user",
             HodUserId = "hod-user",
@@ -49,6 +56,7 @@ public sealed class MetaRequestFlowTests
             Description = "Original",
             CaseFileNumber = "CF-101",
             CategoryId = 10,
+            TechnicalCategoryId = 50,
             Reason = "Routine refresh"
         };
 
@@ -60,6 +68,8 @@ public sealed class MetaRequestFlowTests
         Assert.Equal("Original", request.OriginalDescription);
         Assert.Equal("CF-101", request.OriginalCaseFileNumber);
         Assert.Equal(10, request.OriginalCategoryId);
+        Assert.Equal(50, request.OriginalTechnicalCategoryId);
+        Assert.Equal(50, request.TechnicalCategoryId);
 
         clock.Set(clock.UtcNow.AddHours(2));
         var audit = new RecordingAudit();
@@ -76,6 +86,7 @@ public sealed class MetaRequestFlowTests
         Assert.Equal("Original", project.Description);
         Assert.Equal("CF-101", project.CaseFileNumber);
         Assert.Equal(10, project.CategoryId);
+        Assert.Equal(50, project.TechnicalCategoryId);
 
         var approvalHeader = audit.Entries.Single(e => e.Action == "Projects.MetaChangeApproved");
         Assert.Equal("false", approvalHeader.Data.TryGetValue("DriftDetected", out var detected) ? detected : null);
@@ -91,12 +102,26 @@ public sealed class MetaRequestFlowTests
             Name = "Training",
             IsActive = true
         });
+        await db.TechnicalCategories.AddRangeAsync(
+            new TechnicalCategory
+            {
+                Id = 60,
+                Name = "Design",
+                IsActive = true
+            },
+            new TechnicalCategory
+            {
+                Id = 61,
+                Name = "Development",
+                IsActive = true
+            });
 
         await db.Projects.AddAsync(new Project
         {
             Id = 2,
             Name = "Bravo",
             Description = "Baseline",
+            TechnicalCategoryId = 60,
             CreatedByUserId = "creator",
             LeadPoUserId = "po-user",
             HodUserId = "hod-user",
@@ -113,7 +138,8 @@ public sealed class MetaRequestFlowTests
             Name = "Bravo",
             Description = "Baseline",
             CaseFileNumber = null,
-            CategoryId = null
+            CategoryId = null,
+            TechnicalCategoryId = 60
         };
 
         var result = await requestService.SubmitAsync(submission, "po-user", CancellationToken.None);
@@ -121,6 +147,7 @@ public sealed class MetaRequestFlowTests
 
         var project = await db.Projects.SingleAsync(p => p.Id == 2);
         project.Name = "Bravo v2";
+        project.TechnicalCategoryId = 61;
         project.RowVersion = new byte[] { 2, 2, 2 };
         await db.SaveChangesAsync();
 
@@ -139,6 +166,7 @@ public sealed class MetaRequestFlowTests
         var driftFields = (header.Data.TryGetValue("DriftFields", out var fields) ? fields : string.Empty) ?? string.Empty;
         Assert.Contains("Name", driftFields.Split(',', StringSplitOptions.RemoveEmptyEntries));
         Assert.Contains("ProjectRecord", driftFields.Split(',', StringSplitOptions.RemoveEmptyEntries));
+        Assert.Contains(ProjectMetaChangeDriftFields.TechnicalCategory, driftFields.Split(',', StringSplitOptions.RemoveEmptyEntries));
     }
 
     [Fact]
@@ -149,6 +177,7 @@ public sealed class MetaRequestFlowTests
         {
             Id = 3,
             Name = "Charlie",
+            Description = "Baseline",
             CreatedByUserId = "creator",
             LeadPoUserId = "po-user",
             HodUserId = "hod-user"
@@ -231,6 +260,55 @@ public sealed class MetaRequestFlowTests
 
         Assert.Equal(ProjectMetaDecisionOutcome.ValidationFailed, decision.Outcome);
         Assert.Equal(ProjectValidationMessages.InactiveCategory, decision.Error);
+    }
+
+    [Fact]
+    public async Task TechnicalCategoryDeactivatesBetweenRequestAndApproveBlocksDecision()
+    {
+        await using var db = CreateContext();
+        await db.TechnicalCategories.AddAsync(new TechnicalCategory
+        {
+            Id = 70,
+            Name = "Legacy",
+            IsActive = true
+        });
+
+        await db.Projects.AddAsync(new Project
+        {
+            Id = 5,
+            Name = "Echo",
+            CreatedByUserId = "creator",
+            LeadPoUserId = "po-user",
+            HodUserId = "hod-user"
+        });
+        await db.SaveChangesAsync();
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 10, 5, 9, 0, 0, TimeSpan.Zero));
+        var requestService = new ProjectMetaChangeRequestService(db, clock);
+
+        var submission = await requestService.SubmitAsync(new ProjectMetaChangeRequestSubmission
+        {
+            ProjectId = 5,
+            Name = "Echo",
+            TechnicalCategoryId = 70
+        }, "po-user", CancellationToken.None);
+
+        Assert.Equal(ProjectMetaChangeRequestSubmissionOutcome.Success, submission.Outcome);
+
+        var techCategory = await db.TechnicalCategories.SingleAsync(c => c.Id == 70);
+        techCategory.IsActive = false;
+        await db.SaveChangesAsync();
+
+        clock.Set(clock.UtcNow.AddHours(3));
+        var audit = new RecordingAudit();
+        var decisionService = new ProjectMetaChangeDecisionService(db, clock, NullLogger<ProjectMetaChangeDecisionService>.Instance, audit);
+
+        var decision = await decisionService.DecideAsync(
+            new ProjectMetaDecisionInput(submission.RequestId!.Value, ProjectMetaDecisionAction.Approve, null),
+            new ProjectMetaDecisionUser("hod-user", IsAdmin: false, IsHoD: true));
+
+        Assert.Equal(ProjectMetaDecisionOutcome.ValidationFailed, decision.Outcome);
+        Assert.Equal(ProjectValidationMessages.InactiveTechnicalCategory, decision.Error);
     }
 
     private static ApplicationDbContext CreateContext()

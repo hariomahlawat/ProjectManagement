@@ -5,6 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Pages.Projects;
+using ProjectManagement.Services;
+using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Projects;
 using Xunit;
 
@@ -30,29 +32,23 @@ namespace ProjectManagement.Tests
 
             await context.SaveChangesAsync();
 
-            var firstPage = new IndexModel(context)
-            {
-                CurrentPage = 1,
-                PageSize = 10
-            };
+            var firstPage = CreateModel(context);
+            firstPage.CurrentPage = 1;
+            firstPage.PageSize = 10;
             await firstPage.OnGetAsync();
 
-            var secondPage = new IndexModel(context)
-            {
-                CurrentPage = 2,
-                PageSize = 10
-            };
+            var secondPage = CreateModel(context);
+            secondPage.CurrentPage = 2;
+            secondPage.PageSize = 10;
             await secondPage.OnGetAsync();
 
             Assert.Equal(10, firstPage.Projects.Count);
             Assert.Equal(10, secondPage.Projects.Count);
             Assert.True(firstPage.Projects.First().CreatedAt > secondPage.Projects.First().CreatedAt);
 
-            var thirdPage = new IndexModel(context)
-            {
-                CurrentPage = 3,
-                PageSize = 10
-            };
+            var thirdPage = CreateModel(context);
+            thirdPage.CurrentPage = 3;
+            thirdPage.PageSize = 10;
             await thirdPage.OnGetAsync();
 
             Assert.Equal(5, thirdPage.Projects.Count);
@@ -94,11 +90,9 @@ namespace ProjectManagement.Tests
             context.Projects.AddRange(caseMatch, nameOlder, nameNewer, unrelated);
             await context.SaveChangesAsync();
 
-            var model = new IndexModel(context)
-            {
-                Query = "alpha100",
-                PageSize = 10
-            };
+            var model = CreateModel(context);
+            model.Query = "alpha100";
+            model.PageSize = 10;
 
             await model.OnGetAsync();
 
@@ -132,10 +126,8 @@ namespace ProjectManagement.Tests
             context.Projects.AddRange(active, completed);
             await context.SaveChangesAsync();
 
-            var model = new IndexModel(context)
-            {
-                Lifecycle = ProjectLifecycleFilter.Completed
-            };
+            var model = CreateModel(context);
+            model.Lifecycle = ProjectLifecycleFilter.Completed;
 
             await model.OnGetAsync();
 
@@ -157,10 +149,8 @@ namespace ProjectManagement.Tests
             });
             await context.SaveChangesAsync();
 
-            var model = new IndexModel(context)
-            {
-                Lifecycle = ProjectLifecycleFilter.Cancelled
-            };
+            var model = CreateModel(context);
+            model.Lifecycle = ProjectLifecycleFilter.Cancelled;
 
             await model.OnGetAsync();
 
@@ -208,7 +198,7 @@ namespace ProjectManagement.Tests
 
             await context.SaveChangesAsync();
 
-            var model = new IndexModel(context);
+            var model = CreateModel(context);
 
             await model.OnGetAsync();
 
@@ -251,21 +241,17 @@ namespace ProjectManagement.Tests
 
             await context.SaveChangesAsync();
 
-            var defaultModel = new IndexModel(context)
-            {
-                PageSize = 10
-            };
+            var defaultModel = CreateModel(context);
+            defaultModel.PageSize = 10;
 
             await defaultModel.OnGetAsync();
 
             Assert.Single(defaultModel.Projects);
             Assert.All(defaultModel.Projects, p => Assert.False(p.IsDeleted));
 
-            var includeArchivedModel = new IndexModel(context)
-            {
-                PageSize = 10,
-                IncludeArchived = true
-            };
+            var includeArchivedModel = CreateModel(context);
+            includeArchivedModel.PageSize = 10;
+            includeArchivedModel.IncludeArchived = true;
 
             await includeArchivedModel.OnGetAsync();
 
@@ -277,6 +263,12 @@ namespace ProjectManagement.Tests
             Assert.Equal(2, lifecycleTab.Count);
         }
 
+        private static IndexModel CreateModel(ApplicationDbContext context)
+        {
+            var analytics = new ProjectAnalyticsService(context, new TestClock());
+            return new IndexModel(context, analytics);
+        }
+
         private static ApplicationDbContext CreateContext()
         {
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -284,6 +276,11 @@ namespace ProjectManagement.Tests
                 .Options;
 
             return new ApplicationDbContext(options);
+        }
+
+        private sealed class TestClock : IClock
+        {
+            public DateTimeOffset UtcNow { get; } = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero);
         }
     }
 }

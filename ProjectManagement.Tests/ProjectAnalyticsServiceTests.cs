@@ -8,6 +8,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Analytics;
+using ProjectManagement.Services.Projects;
 using ProjectManagement.Utilities;
 using Xunit;
 
