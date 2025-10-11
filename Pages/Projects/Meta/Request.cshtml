@@ -26,6 +26,11 @@
         <span asp-validation-for="Input.CategoryId" class="text-danger"></span>
     </div>
     <div class="mb-3">
+        <label asp-for="Input.TechnicalCategoryId" class="form-label">Technical Category</label>
+        <select asp-for="Input.TechnicalCategoryId" class="form-select" asp-items="Model.TechnicalCategoryOptions"></select>
+        <span asp-validation-for="Input.TechnicalCategoryId" class="text-danger"></span>
+    </div>
+    <div class="mb-3">
         <label asp-for="Input.SponsoringUnitId" class="form-label">Sponsoring Unit</label>
         <select asp-for="Input.SponsoringUnitId" class="form-select js-async-select" asp-items="Model.SponsoringUnitOptions" data-source="/api/lookups/sponsoring-units" data-search-placeholder="Search sponsoring units"></select>
         <span asp-validation-for="Input.SponsoringUnitId" class="text-danger"></span>

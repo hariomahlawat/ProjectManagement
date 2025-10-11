@@ -18,6 +18,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Pages.Projects;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Projects;
 using Xunit;
 
 namespace ProjectManagement.Tests
@@ -132,6 +133,76 @@ namespace ProjectManagement.Tests
             Assert.True(page.ModelState.TryGetValue("Input.CaseFileNumber", out var entry));
             Assert.Single(entry!.Errors);
             Assert.Equal(1, context.Projects.Count());
+        }
+
+        [Fact]
+        public async Task CreateModel_WithTechnicalCategory_PersistsSelection()
+        {
+            var (context, userManager) = CreateContextWithIdentity();
+            await userManager.CreateAsync(new ApplicationUser { Id = "creator", UserName = "creator" });
+
+            await context.TechnicalCategories.AddAsync(new TechnicalCategory
+            {
+                Id = 200,
+                Name = "Systems",
+                IsActive = true
+            });
+            await context.SaveChangesAsync();
+
+            var clock = new FixedClock(DateTimeOffset.UtcNow);
+            var audit = new NoOpAuditService();
+            var page = new CreateModel(context, userManager, clock, audit)
+            {
+                Input = new CreateModel.InputModel
+                {
+                    Name = "Project Beta",
+                    TechnicalCategoryId = 200
+                },
+                PageContext = BuildPageContext("creator")
+            };
+
+            var result = await page.OnPostAsync();
+
+            var redirect = Assert.IsType<RedirectToPageResult>(result);
+            Assert.Equal("/Projects/Overview", redirect.PageName);
+
+            var project = await context.Projects.SingleAsync();
+            Assert.Equal(200, project.TechnicalCategoryId);
+        }
+
+        [Fact]
+        public async Task CreateModel_InactiveTechnicalCategory_AddsValidationError()
+        {
+            var (context, userManager) = CreateContextWithIdentity();
+            await userManager.CreateAsync(new ApplicationUser { Id = "creator", UserName = "creator" });
+
+            await context.TechnicalCategories.AddAsync(new TechnicalCategory
+            {
+                Id = 201,
+                Name = "Legacy",
+                IsActive = false
+            });
+            await context.SaveChangesAsync();
+
+            var clock = new FixedClock(DateTimeOffset.UtcNow);
+            var audit = new NoOpAuditService();
+            var page = new CreateModel(context, userManager, clock, audit)
+            {
+                Input = new CreateModel.InputModel
+                {
+                    Name = "Project Gamma",
+                    TechnicalCategoryId = 201
+                },
+                PageContext = BuildPageContext("creator")
+            };
+
+            var result = await page.OnPostAsync();
+
+            Assert.IsType<PageResult>(result);
+            Assert.True(page.ModelState.TryGetValue("Input.TechnicalCategoryId", out var entry));
+            var error = Assert.Single(entry!.Errors);
+            Assert.Equal(ProjectValidationMessages.InactiveTechnicalCategory, error.ErrorMessage);
+            Assert.Empty(context.Projects);
         }
 
         [Fact]

@@ -467,6 +467,19 @@
                                     </div>
                                 </div>
                                 <div>
+                                    <div class="fw-semibold">Technical category</div>
+                                    <div class="text-muted small">Current</div>
+                                    <div>@metaRequest.TechnicalCategory.CurrentValue</div>
+                                    <div class="text-muted small mt-1">Proposed</div>
+                                    <div>
+                                        <span class="fw-semibold">@metaRequest.TechnicalCategory.ProposedValue</span>
+                                        @if (metaRequest.TechnicalCategory.HasChanged)
+                                        {
+                                            <span class="badge text-bg-warning ms-1">Changed</span>
+                                        }
+                                    </div>
+                                </div>
+                                <div>
                                     <div class="fw-semibold">Sponsoring Unit</div>
                                     <div class="text-muted small">Current</div>
                                     <div>@metaRequest.SponsoringUnit.CurrentValue</div>

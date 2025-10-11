@@ -28,6 +28,7 @@ public sealed class ProjectMetaChangeRequestVm
     public string OriginalCaseFileNumber { get; init; } = "—";
 
     public string OriginalCategory { get; init; } = "—";
+    public string OriginalTechnicalCategory { get; init; } = "—";
 
     public ProjectMetaChangeFieldVm Name { get; init; } = new("", "", false);
 
@@ -36,6 +37,7 @@ public sealed class ProjectMetaChangeRequestVm
     public ProjectMetaChangeFieldVm CaseFileNumber { get; init; } = new("", "", false);
 
     public ProjectMetaChangeFieldVm Category { get; init; } = new("", "", false);
+    public ProjectMetaChangeFieldVm TechnicalCategory { get; init; } = new("", "", false);
 
     public ProjectMetaChangeFieldVm SponsoringUnit { get; init; } = new("", "", false);
 

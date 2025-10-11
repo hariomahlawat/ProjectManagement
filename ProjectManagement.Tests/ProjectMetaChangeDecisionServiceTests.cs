@@ -124,6 +124,8 @@ public sealed class ProjectMetaChangeDecisionServiceTests
         var header = audit.Entries.Single(e => e.Action == "Projects.MetaChangeApproved");
         Assert.Equal("false", header.Data.TryGetValue("DriftDetected", out var detected) ? detected : null);
         Assert.True(string.IsNullOrEmpty(header.Data.TryGetValue("DriftFields", out var fields) ? fields : null));
+        Assert.Null(header.Data.TryGetValue("TechnicalCategoryIdBefore", out var techBefore) ? techBefore : null);
+        Assert.Equal("15", header.Data.TryGetValue("TechnicalCategoryIdAfter", out var techAfter) ? techAfter : null);
 
         var request = await db.ProjectMetaChangeRequests.SingleAsync();
         Assert.Equal(ProjectMetaDecisionStatuses.Approved, request.DecisionStatus);
