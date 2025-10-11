@@ -3,16 +3,14 @@ const root = document.getElementById('analytics-root');
 if (root) {
   const defaultLifecycle = root.dataset.defaultLifecycle || 'Active';
   const projectsIndexUrl = root.dataset.projectsIndexUrl || '/Projects/Index';
-  const projectOverviewTemplate = root.dataset.projectOverviewUrl || '/Projects/Overview/0';
-  const projectOverviewBase = projectOverviewTemplate.endsWith('/0')
-    ? projectOverviewTemplate.slice(0, -1)
-    : projectOverviewTemplate;
+  const projectOverviewUrl = root.dataset.projectOverviewUrl || '/Projects/Overview';
 
   const palette = [
     '#1a73e8', '#fbbc04', '#34a853', '#ea4335', '#9c27b0', '#fb8c00', '#00acc1', '#8d6e63', '#5c6bc0', '#43a047'
   ];
 
   const charts = new Map();
+  const requestControllers = new WeakMap();
 
   const monthInputDefaults = (() => {
     const now = new Date();
@@ -55,7 +53,7 @@ if (root) {
   }
 
   function navigateToOverview(id) {
-    window.location.href = `${projectOverviewBase}${id}`;
+    window.location.href = buildUrl(projectOverviewUrl, { id });
   }
 
   function activateLifecycleButton(button, activeValue) {
@@ -87,8 +85,11 @@ if (root) {
     return filters;
   }
 
-  async function fetchJson(url) {
-    const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+  async function fetchJson(url, { signal } = {}) {
+    const response = await fetch(url, {
+      headers: { 'Accept': 'application/json' },
+      signal
+    });
     if (!response.ok) {
       throw new Error(`Request failed with ${response.status}`);
     }
@@ -101,6 +102,33 @@ if (root) {
 
   function hideLoading(card) {
     card.classList.remove('is-loading');
+  }
+
+  function beginCardRequest(card) {
+    const previous = requestControllers.get(card);
+    if (previous) {
+      previous.abort();
+    }
+    const controller = new AbortController();
+    requestControllers.set(card, controller);
+    showLoading(card);
+    return controller;
+  }
+
+  function endCardRequest(card, controller) {
+    const active = requestControllers.get(card);
+    if (active === controller) {
+      hideLoading(card);
+      requestControllers.delete(card);
+    }
+  }
+
+  function isActiveRequest(card, controller) {
+    return requestControllers.get(card) === controller;
+  }
+
+  function isAbortError(error) {
+    return error && typeof error === 'object' && error.name === 'AbortError';
   }
 
   function getChart(card, canvas) {
@@ -119,13 +147,16 @@ if (root) {
   async function loadCategoryShare(card) {
     const canvas = card.querySelector('canvas[data-chart="category-share"]');
     if (!canvas) return;
-    showLoading(card);
+    const controller = beginCardRequest(card);
     const filters = getFilters(card);
     try {
       const url = buildUrl('/api/analytics/projects/category-share', {
         lifecycle: filters.lifecycle
       });
-      const data = await fetchJson(url);
+      const data = await fetchJson(url, { signal: controller.signal });
+      if (!isActiveRequest(card, controller)) {
+        return;
+      }
       const labels = data.slices.map((slice) => slice.categoryName);
       const values = data.slices.map((slice) => slice.count);
       const meta = data.slices;
@@ -172,23 +203,28 @@ if (root) {
         setChart(card, canvas, newChart);
       }
     } catch (err) {
-      console.error(err);
+      if (!isAbortError(err)) {
+        console.error(err);
+      }
     } finally {
-      hideLoading(card);
+      endCardRequest(card, controller);
     }
   }
 
   async function loadStageDistribution(card) {
     const canvas = card.querySelector('canvas[data-chart="stage-distribution"]');
     if (!canvas) return;
-    showLoading(card);
+    const controller = beginCardRequest(card);
     const filters = getFilters(card);
     try {
       const url = buildUrl('/api/analytics/projects/stage-distribution', {
         lifecycle: filters.lifecycle,
         categoryId: filters.categoryId
       });
-      const data = await fetchJson(url);
+      const data = await fetchJson(url, { signal: controller.signal });
+      if (!isActiveRequest(card, controller)) {
+        return;
+      }
       const labels = data.items.map((item) => item.stageName);
       const values = data.items.map((item) => item.count);
       const meta = data.items;
@@ -241,22 +277,27 @@ if (root) {
         setChart(card, canvas, newChart);
       }
     } catch (err) {
-      console.error(err);
+      if (!isAbortError(err)) {
+        console.error(err);
+      }
     } finally {
-      hideLoading(card);
+      endCardRequest(card, controller);
     }
   }
 
   async function loadLifecycleStatus(card) {
     const canvas = card.querySelector('canvas[data-chart="lifecycle-status"]');
     if (!canvas) return;
-    showLoading(card);
+    const controller = beginCardRequest(card);
     const filters = getFilters(card);
     try {
       const url = buildUrl('/api/analytics/projects/lifecycle-breakdown', {
         categoryId: filters.categoryId
       });
-      const data = await fetchJson(url);
+      const data = await fetchJson(url, { signal: controller.signal });
+      if (!isActiveRequest(card, controller)) {
+        return;
+      }
       const labels = data.items.map((item) => item.status);
       const values = data.items.map((item) => item.count);
       const colors = ['#1a73e8', '#34a853', '#ea4335'];
@@ -303,9 +344,11 @@ if (root) {
         setChart(card, canvas, newChart);
       }
     } catch (err) {
-      console.error(err);
+      if (!isAbortError(err)) {
+        console.error(err);
+      }
     } finally {
-      hideLoading(card);
+      endCardRequest(card, controller);
     }
   }
 
@@ -330,7 +373,7 @@ if (root) {
     const canvas = card.querySelector('canvas[data-chart="stage-completions"]');
     if (!canvas) return;
     setInitialMonthInputs(card);
-    showLoading(card);
+    const controller = beginCardRequest(card);
     const filters = getFilters(card);
     try {
       const url = buildUrl('/api/analytics/projects/monthly-stage-completions', {
@@ -339,7 +382,10 @@ if (root) {
         fromMonth: filters.fromMonth,
         toMonth: filters.toMonth
       });
-      const data = await fetchJson(url);
+      const data = await fetchJson(url, { signal: controller.signal });
+      if (!isActiveRequest(card, controller)) {
+        return;
+      }
       renderStageCompletionKpis(card, data.kpis);
       const labels = data.months.map((month) => month.label);
       const datasets = data.series.map((serie, idx) => ({
@@ -398,23 +444,28 @@ if (root) {
         setChart(card, canvas, newChart);
       }
     } catch (err) {
-      console.error(err);
+      if (!isAbortError(err)) {
+        console.error(err);
+      }
     } finally {
-      hideLoading(card);
+      endCardRequest(card, controller);
     }
   }
 
   async function loadSlipBuckets(card) {
     const canvas = card.querySelector('canvas[data-chart="slip-buckets"]');
     if (!canvas) return;
-    showLoading(card);
+    const controller = beginCardRequest(card);
     const filters = getFilters(card);
     try {
       const url = buildUrl('/api/analytics/projects/slip-buckets', {
         lifecycle: filters.lifecycle,
         categoryId: filters.categoryId
       });
-      const data = await fetchJson(url);
+      const data = await fetchJson(url, { signal: controller.signal });
+      if (!isActiveRequest(card, controller)) {
+        return;
+      }
       const labels = data.buckets.map((bucket) => bucket.label);
       const values = data.buckets.map((bucket) => bucket.count);
       const chart = getChart(card, canvas);
@@ -460,16 +511,18 @@ if (root) {
         setChart(card, canvas, newChart);
       }
     } catch (err) {
-      console.error(err);
+      if (!isAbortError(err)) {
+        console.error(err);
+      }
     } finally {
-      hideLoading(card);
+      endCardRequest(card, controller);
     }
   }
 
   async function loadTopOverdue(card) {
     const container = card.querySelector('[data-top-overdue]');
     if (!container) return;
-    showLoading(card);
+    const controller = beginCardRequest(card);
     container.innerHTML = '<p class="text-secondary mb-0">Loading…</p>';
     const filters = getFilters(card);
     try {
@@ -478,7 +531,10 @@ if (root) {
         categoryId: filters.categoryId,
         take: 5
       });
-      const data = await fetchJson(url);
+      const data = await fetchJson(url, { signal: controller.signal });
+      if (!isActiveRequest(card, controller)) {
+        return;
+      }
       if (!data.projects || data.projects.length === 0) {
         container.innerHTML = '<p class="text-secondary mb-0">No overdue projects for this view.</p>';
         return;
@@ -502,10 +558,12 @@ if (root) {
       container.innerHTML = '';
       container.appendChild(list);
     } catch (err) {
-      console.error(err);
+      if (!isAbortError(err)) {
+        console.error(err);
+      }
       container.innerHTML = '<p class="text-danger mb-0">Unable to load data.</p>';
     } finally {
-      hideLoading(card);
+      endCardRequest(card, controller);
     }
   }
 
