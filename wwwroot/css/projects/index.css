@@ -1,23 +1,24 @@
 .projects-hero {
     position: relative;
     border-radius: 1.25rem;
-    background: linear-gradient(115deg, #2a388f 0%, #4b2c8f 55%, #6a2c8f 100%);
-    color: #ffffff;
-    padding: clamp(1rem, 2vw + 0.75rem, 1.75rem) clamp(1.25rem, 5vw, 2.75rem);
+    background: linear-gradient(120deg, #f6e9ff 0%, #e8f5ff 60%, #fff5e5 100%);
+    color: #2d2a44;
+    padding: clamp(0.75rem, 1.5vw + 0.65rem, 1.5rem) clamp(1.25rem, 4vw, 2.5rem);
     margin-bottom: 1.5rem;
     overflow: hidden;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+    box-shadow: 0 1rem 2.5rem rgba(116, 128, 196, 0.15);
 }
 
 .projects-hero::after {
     content: "";
     position: absolute;
     inset: 0;
-    background: linear-gradient(120deg, rgba(255, 255, 255, 0.08), transparent 55%),
-        radial-gradient(circle at 25% 15%, rgba(255, 255, 255, 0.28), transparent 60%);
-    opacity: 0.8;
+    background: linear-gradient(120deg, rgba(255, 255, 255, 0.8), transparent 55%),
+        radial-gradient(circle at 25% 15%, rgba(255, 192, 203, 0.2), transparent 60%);
+    opacity: 0.6;
     pointer-events: none;
 }
 
@@ -44,7 +45,7 @@
     position: relative;
     display: flex;
     flex-direction: column;
-    gap: 1.25rem;
+    gap: 1rem;
     align-items: flex-start;
 }
 
@@ -73,44 +74,45 @@
 .projects-hero__subtitle {
     margin: 0;
     font-size: clamp(0.9rem, 0.8vw + 0.75rem, 1rem);
-    opacity: 0.85;
-    line-height: 1.4;
+    opacity: 0.75;
+    line-height: 1.5;
 }
 
 .projects-hero__stats {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem;
+    gap: 0.65rem;
 }
 
 .projects-stat {
     position: relative;
     display: grid;
-    gap: 0.15rem;
-    background: rgba(255, 255, 255, 0.16);
+    gap: 0.25rem;
+    background: rgba(255, 255, 255, 0.85);
     border-radius: 1rem;
-    padding: 0.65rem 1rem 0.7rem;
-    backdrop-filter: blur(4px);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
-    min-width: 11rem;
+    padding: 0.55rem 0.9rem 0.65rem;
+    backdrop-filter: blur(0px);
+    box-shadow: inset 0 0 0 1px rgba(45, 42, 68, 0.05);
+    min-width: 10.5rem;
 }
 
 .projects-stat__label {
     font-size: 0.7rem;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    opacity: 0.7;
+    opacity: 0.6;
 }
 
 .projects-stat__value {
-    font-size: 1.3rem;
+    font-size: 1.25rem;
     font-weight: 700;
     line-height: 1.1;
+    color: #1f1b38;
 }
 
 .projects-stat__hint {
     font-size: 0.75rem;
-    opacity: 0.82;
+    opacity: 0.7;
 }
 
 .projects-tabs {
@@ -128,27 +130,28 @@
     gap: 0.5rem;
     border-radius: 999px;
     padding: 0.5rem 1.1rem;
-    background-color: rgba(45, 63, 143, 0.08);
-    color: #1b1f3b;
-    border: 1px solid transparent;
+    background-color: rgba(198, 211, 255, 0.35);
+    color: #2c2a42;
+    border: 1px solid rgba(156, 171, 228, 0.4);
     transition: all 0.2s ease-in-out;
 }
 
 .projects-tabs__link:hover,
 .projects-tabs__link:focus {
-    background-color: rgba(45, 63, 143, 0.16);
-    color: #11132a;
+    background-color: rgba(198, 211, 255, 0.6);
+    color: #1f1b38;
 }
 
 .projects-tabs__link.active {
-    background: linear-gradient(120deg, #3848c2 0%, #572c9d 100%);
-    color: #ffffff;
-    box-shadow: 0 0.5rem 1.25rem rgba(53, 72, 255, 0.3);
+    background: linear-gradient(120deg, #c8d5ff 0%, #f5d4ff 100%);
+    color: #2d2a44;
+    box-shadow: 0 0.5rem 1.25rem rgba(198, 213, 255, 0.35);
+    border-color: transparent;
 }
 
 .projects-tabs__link.active .projects-tabs__count {
-    background-color: rgba(255, 255, 255, 0.22);
-    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.65);
+    color: #2d2a44;
 }
 
 .projects-tabs__label {
@@ -163,10 +166,10 @@
     min-width: 2.25rem;
     padding: 0.2rem 0.65rem;
     border-radius: 999px;
-    background-color: rgba(45, 63, 143, 0.16);
+    background-color: rgba(198, 211, 255, 0.5);
     font-size: 0.85rem;
     font-weight: 600;
-    color: #2a3477;
+    color: #2b2a55;
 }
 
 .projects-filter {
