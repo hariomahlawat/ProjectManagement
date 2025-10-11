@@ -6,11 +6,11 @@ if (root) {
   const projectOverviewUrl = root.dataset.projectOverviewUrl || '/Projects/Overview';
 
   const palette = [
-    '#4f8ff7', '#f7b267', '#6bc5b2', '#f57a9a', '#9a8cf7', '#f5a15d', '#6ab0e6', '#d89a7b', '#8498f9', '#7fd3b1'
+    '#7aaef7', '#f9d29d', '#9bdac8', '#f5a2b8', '#c6b7f2', '#f7c69f', '#9cd3f0', '#d7bba9', '#b7c2ff', '#b4e3cc'
   ];
-  const primaryBarColor = '#4f8ff7';
-  const positiveBarColor = '#5ec08f';
-  const alertBarColor = '#ee6c73';
+  const primaryBarColor = '#7aaef7';
+  const positiveBarColor = '#83d2a2';
+  const alertBarColor = '#f4a7a4';
 
   const charts = new Map();
   const requestControllers = new WeakMap();
