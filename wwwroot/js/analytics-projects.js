@@ -6,8 +6,11 @@ if (root) {
   const projectOverviewUrl = root.dataset.projectOverviewUrl || '/Projects/Overview';
 
   const palette = [
-    '#1a73e8', '#fbbc04', '#34a853', '#ea4335', '#9c27b0', '#fb8c00', '#00acc1', '#8d6e63', '#5c6bc0', '#43a047'
+    '#4f8ff7', '#f7b267', '#6bc5b2', '#f57a9a', '#9a8cf7', '#f5a15d', '#6ab0e6', '#d89a7b', '#8498f9', '#7fd3b1'
   ];
+  const primaryBarColor = '#4f8ff7';
+  const positiveBarColor = '#5ec08f';
+  const alertBarColor = '#ee6c73';
 
   const charts = new Map();
   const requestControllers = new WeakMap();
@@ -284,7 +287,7 @@ if (root) {
       let chart = existingChart;
       const dataset = {
         label: 'Projects',
-        backgroundColor: '#1a73e8',
+        backgroundColor: primaryBarColor,
         borderRadius: 4,
         data: values,
         meta
@@ -361,7 +364,7 @@ if (root) {
       }
       const labels = data.items.map((item) => item.status);
       const values = data.items.map((item) => item.count);
-      const colors = ['#1a73e8', '#34a853', '#ea4335'];
+      const colors = [primaryBarColor, positiveBarColor, alertBarColor];
       let chart = existingChart;
       const dataset = {
         label: 'Projects',
@@ -549,7 +552,7 @@ if (root) {
       const dataset = {
         label: 'Projects',
         data: values,
-        backgroundColor: '#1a73e8',
+        backgroundColor: primaryBarColor,
         borderRadius: 4,
         meta: data.buckets
       };
