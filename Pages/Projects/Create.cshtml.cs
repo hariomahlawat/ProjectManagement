@@ -43,6 +43,7 @@ namespace ProjectManagement.Pages.Projects
         public IEnumerable<SelectListItem> StageOptions { get; private set; } = Array.Empty<SelectListItem>();
         public IEnumerable<SelectListItem> SponsoringUnitOptions { get; private set; } = Array.Empty<SelectListItem>();
         public IEnumerable<SelectListItem> LineDirectorateOptions { get; private set; } = Array.Empty<SelectListItem>();
+        public IEnumerable<SelectListItem> TechnicalCategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
 
         public class InputModel
         {
@@ -59,6 +60,9 @@ namespace ProjectManagement.Pages.Projects
             public int? CategoryId { get; set; }
 
             public int? SubCategoryId { get; set; }
+
+            [Display(Name = "Technical Category")]
+            public int? TechnicalCategoryId { get; set; }
 
             public string? HodUserId { get; set; }
 
@@ -148,6 +152,17 @@ namespace ProjectManagement.Pages.Projects
                 }
             }
 
+            if (Input.TechnicalCategoryId.HasValue)
+            {
+                var technicalCategoryIsActive = await _db.TechnicalCategories
+                    .AnyAsync(c => c.Id == Input.TechnicalCategoryId.Value && c.IsActive);
+
+                if (!technicalCategoryIsActive)
+                {
+                    ModelState.AddModelError("Input.TechnicalCategoryId", ProjectValidationMessages.InactiveTechnicalCategory);
+                }
+            }
+
             if (Input.SponsoringUnitId.HasValue)
             {
                 var unitIsActive = await _db.SponsoringUnits
@@ -210,6 +225,7 @@ namespace ProjectManagement.Pages.Projects
                 CaseFileNumber = caseFileNumber,
                 Description = string.IsNullOrWhiteSpace(Input.Description) ? null : Input.Description.Trim(),
                 CategoryId = categoryId,
+                TechnicalCategoryId = Input.TechnicalCategoryId,
                 HodUserId = string.IsNullOrWhiteSpace(Input.HodUserId) ? null : Input.HodUserId,
                 LeadPoUserId = string.IsNullOrWhiteSpace(Input.PoUserId) ? null : Input.PoUserId,
                 SponsoringUnitId = Input.SponsoringUnitId,
@@ -277,6 +293,7 @@ namespace ProjectManagement.Pages.Projects
                     ["Name"] = project.Name,
                     ["CaseFileNumber"] = project.CaseFileNumber,
                     ["CategoryId"] = project.CategoryId?.ToString(),
+                    ["TechnicalCategoryId"] = project.TechnicalCategoryId?.ToString(),
                     ["HodUserId"] = project.HodUserId,
                     ["LeadPoUserId"] = project.LeadPoUserId,
                     ["SponsoringUnitId"] = project.SponsoringUnitId?.ToString(),
@@ -425,6 +442,54 @@ namespace ProjectManagement.Pages.Projects
                 .ToList();
 
             await LoadSponsoringLookupsAsync();
+            await LoadTechnicalCategoryOptionsAsync();
+        }
+
+        private async Task LoadTechnicalCategoryOptionsAsync()
+        {
+            var categories = await _db.TechnicalCategories
+                .AsNoTracking()
+                .Where(c => c.IsActive)
+                .OrderBy(c => c.SortOrder)
+                .ThenBy(c => c.Name)
+                .ToListAsync();
+
+            var children = categories.ToLookup(c => c.ParentId);
+
+            var options = new List<SelectListItem>
+            {
+                new("— (none) —", string.Empty, Input.TechnicalCategoryId is null)
+            };
+
+            void AddOptions(int? parentId, string prefix)
+            {
+                foreach (var category in children[parentId])
+                {
+                    var text = string.IsNullOrEmpty(prefix) ? category.Name : $"{prefix}{category.Name}";
+                    options.Add(new SelectListItem(text, category.Id.ToString(), category.Id == Input.TechnicalCategoryId));
+                    AddOptions(category.Id, string.Concat(prefix, "— "));
+                }
+            }
+
+            AddOptions(null, string.Empty);
+
+            if (Input.TechnicalCategoryId.HasValue)
+            {
+                var selectedValue = Input.TechnicalCategoryId.Value.ToString();
+                if (options.All(option => !string.Equals(option.Value, selectedValue, StringComparison.Ordinal)))
+                {
+                    var selected = await _db.TechnicalCategories
+                        .AsNoTracking()
+                        .FirstOrDefaultAsync(c => c.Id == Input.TechnicalCategoryId.Value);
+
+                    if (selected is not null)
+                    {
+                        options.Add(new SelectListItem($"{selected.Name} (inactive)", selected.Id.ToString(), true));
+                    }
+                }
+            }
+
+            TechnicalCategoryOptions = options;
         }
 
         private async Task LoadSponsoringLookupsAsync()

@@ -128,6 +128,17 @@
                             <span>—</span>
                         }
                     </dd>
+                    <dt class="col-sm-4">Technical Category</dt>
+                    <dd class="col-sm-8">
+                        @if (Model.TechnicalCategoryPath.Any())
+                        {
+                            <span class="badge text-bg-primary-subtle text-primary-emphasis">@string.Join(" › ", Model.TechnicalCategoryPath.Select(c => c.Name))</span>
+                        }
+                        else
+                        {
+                            <span>—</span>
+                        }
+                    </dd>
 
                     <dt class="col-sm-4">Sponsoring Unit</dt>
                     <dd class="col-sm-8">@(Model.Project?.SponsoringUnit?.Name ?? "—")</dd>

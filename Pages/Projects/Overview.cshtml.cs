@@ -62,6 +62,7 @@ namespace ProjectManagement.Pages.Projects
         public Project Project { get; private set; } = default!;
         public IList<ProjectStage> Stages { get; private set; } = new List<ProjectStage>();
         public IReadOnlyList<ProjectCategory> CategoryPath { get; private set; } = Array.Empty<ProjectCategory>();
+        public IReadOnlyList<TechnicalCategory> TechnicalCategoryPath { get; private set; } = Array.Empty<TechnicalCategory>();
         public ProcurementAtAGlanceVm Procurement { get; private set; } = default!;
         public ProcurementEditVm ProcurementEdit { get; private set; } = default!;
         public AssignRolesVm AssignRoles { get; private set; } = default!;
@@ -163,6 +164,7 @@ namespace ProjectManagement.Pages.Projects
                 .Include(p => p.PlanApprovedByUser)
                 .Include(p => p.SponsoringUnit)
                 .Include(p => p.SponsoringLineDirectorate)
+                .Include(p => p.TechnicalCategory)
                 .Include(p => p.Photos)
                 .Include(p => p.Videos)
                 .Include(p => p.Tot)
@@ -280,6 +282,11 @@ namespace ProjectManagement.Pages.Projects
             if (project.CategoryId.HasValue)
             {
                 CategoryPath = await BuildCategoryPathAsync(project.CategoryId.Value, ct);
+            }
+
+            if (project.TechnicalCategoryId.HasValue)
+            {
+                TechnicalCategoryPath = await BuildTechnicalCategoryPathAsync(project.TechnicalCategoryId.Value, ct);
             }
 
             Procurement = await _procureRead.GetAsync(id, ct);
@@ -1427,11 +1434,26 @@ namespace ProjectManagement.Pages.Projects
             var proposedCaseFileNumber = string.IsNullOrWhiteSpace(payload.CaseFileNumber) ? null : payload.CaseFileNumber.Trim();
             var proposedCaseFileDisplay = Format(proposedCaseFileNumber);
             var proposedCategoryId = payload.CategoryId;
+            var proposedTechnicalCategoryId = payload.TechnicalCategoryId;
             var proposedUnitId = payload.SponsoringUnitId;
             var proposedLineDirectorateId = payload.SponsoringLineDirectorateId;
 
             var currentUnitDisplay = Format(project.SponsoringUnit?.Name);
             var currentLineDirectorateDisplay = Format(project.SponsoringLineDirectorate?.Name);
+
+            var originalTechnicalCategoryDisplay = "—";
+            if (request.OriginalTechnicalCategoryId.HasValue)
+            {
+                var originalTechnicalPath = await BuildTechnicalCategoryPathAsync(request.OriginalTechnicalCategoryId.Value, ct);
+                if (originalTechnicalPath.Any())
+                {
+                    originalTechnicalCategoryDisplay = string.Join(" › ", originalTechnicalPath.Select(c => c.Name));
+                }
+            }
+
+            var currentTechnicalCategoryDisplay = TechnicalCategoryPath.Any()
+                ? string.Join(" › ", TechnicalCategoryPath.Select(c => c.Name))
+                : "—";
 
             var originalUnitName = request.OriginalSponsoringUnitId.HasValue
                 ? await _db.SponsoringUnits.AsNoTracking()
@@ -1505,6 +1527,16 @@ namespace ProjectManagement.Pages.Projects
                 }
             }
 
+            string proposedTechnicalCategoryDisplay = "—";
+            if (proposedTechnicalCategoryId.HasValue)
+            {
+                var proposedTechnicalPath = await BuildTechnicalCategoryPathAsync(proposedTechnicalCategoryId.Value, ct);
+                if (proposedTechnicalPath.Any())
+                {
+                    proposedTechnicalCategoryDisplay = string.Join(" › ", proposedTechnicalPath.Select(c => c.Name));
+                }
+            }
+
             var requestedBy = await GetDisplayNameAsync(request.RequestedByUserId);
 
             var driftFields = ProjectMetaChangeDriftDetector.Detect(project, request);
@@ -1525,6 +1557,9 @@ namespace ProjectManagement.Pages.Projects
                         break;
                     case ProjectMetaChangeDriftFields.Category:
                         drift.Add(new ProjectMetaChangeDriftVm("Category", originalCategoryDisplay, currentCategoryDisplay, false));
+                        break;
+                    case ProjectMetaChangeDriftFields.TechnicalCategory:
+                        drift.Add(new ProjectMetaChangeDriftVm("Technical category", originalTechnicalCategoryDisplay, currentTechnicalCategoryDisplay, false));
                         break;
                     case ProjectMetaChangeDriftFields.SponsoringUnit:
                         drift.Add(new ProjectMetaChangeDriftVm("Sponsoring Unit", originalUnitDisplay, currentUnitDisplay, false));
@@ -1554,6 +1589,10 @@ namespace ProjectManagement.Pages.Projects
                 currentCategoryDisplay,
                 proposedCategoryDisplay,
                 project.CategoryId != proposedCategoryId);
+            var technicalCategoryField = new ProjectMetaChangeFieldVm(
+                currentTechnicalCategoryDisplay,
+                proposedTechnicalCategoryDisplay,
+                project.TechnicalCategoryId != proposedTechnicalCategoryId);
             var unitField = new ProjectMetaChangeFieldVm(
                 currentUnitDisplay,
                 proposedUnitDisplay,
@@ -1577,6 +1616,7 @@ namespace ProjectManagement.Pages.Projects
             AddSummary(descriptionField, "description");
             AddSummary(caseFileField, "case file number");
             AddSummary(categoryField, "category");
+            AddSummary(technicalCategoryField, "technical category");
             AddSummary(unitField, "sponsoring unit");
             AddSummary(lineDirectorateField, "sponsoring line directorate");
 
@@ -1610,10 +1650,12 @@ namespace ProjectManagement.Pages.Projects
                 OriginalDescription = originalDescriptionDisplay,
                 OriginalCaseFileNumber = originalCaseFileDisplay,
                 OriginalCategory = originalCategoryDisplay,
+                OriginalTechnicalCategory = originalTechnicalCategoryDisplay,
                 Name = nameField,
                 Description = descriptionField,
                 CaseFileNumber = caseFileField,
                 Category = categoryField,
+                TechnicalCategory = technicalCategoryField,
                 SponsoringUnit = unitField,
                 SponsoringLineDirectorate = lineDirectorateField,
                 HasDrift = drift.Count > 0,
@@ -1703,6 +1745,38 @@ namespace ProjectManagement.Pages.Projects
                 }
 
                 var category = await _db.ProjectCategories.AsNoTracking().FirstOrDefaultAsync(c => c.Id == currentId, ct);
+                if (category is null)
+                {
+                    break;
+                }
+
+                path.Insert(0, category);
+
+                if (category.ParentId is null)
+                {
+                    break;
+                }
+
+                currentId = category.ParentId.Value;
+            }
+
+            return path;
+        }
+
+        private async Task<IReadOnlyList<TechnicalCategory>> BuildTechnicalCategoryPathAsync(int technicalCategoryId, CancellationToken ct)
+        {
+            var path = new List<TechnicalCategory>();
+            var visited = new HashSet<int>();
+            var currentId = technicalCategoryId;
+
+            while (true)
+            {
+                if (!visited.Add(currentId))
+                {
+                    break;
+                }
+
+                var category = await _db.TechnicalCategories.AsNoTracking().FirstOrDefaultAsync(c => c.Id == currentId, ct);
                 if (category is null)
                 {
                     break;

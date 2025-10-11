@@ -363,6 +363,21 @@ public class EditModel : PageModel
         }
 
         AddOptions(null, string.Empty);
+        if (selectedTechnicalCategoryId.HasValue)
+        {
+            var selectedValue = selectedTechnicalCategoryId.Value.ToString();
+            if (options.All(option => !string.Equals(option.Value, selectedValue, StringComparison.Ordinal)))
+            {
+                var selected = await _db.TechnicalCategories
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(c => c.Id == selectedTechnicalCategoryId.Value, cancellationToken);
+
+                if (selected is not null)
+                {
+                    options.Add(new SelectListItem($"{selected.Name} (inactive)", selected.Id.ToString(), true));
+                }
+            }
+        }
         TechnicalCategoryOptions = options;
     }
 

@@ -60,6 +60,13 @@
                 </div>
                 <div class="row g-3 mt-0">
                     <div class="col-md-6">
+                        <label asp-for="Input.TechnicalCategoryId" class="form-label">Technical Category (optional)</label>
+                        <select asp-for="Input.TechnicalCategoryId" class="form-select" asp-items="Model.TechnicalCategoryOptions"></select>
+                        <span asp-validation-for="Input.TechnicalCategoryId" class="text-danger"></span>
+                    </div>
+                </div>
+                <div class="row g-3 mt-0">
+                    <div class="col-md-6">
                         <label asp-for="Input.SponsoringUnitId" class="form-label">Sponsoring Unit</label>
                         <select asp-for="Input.SponsoringUnitId" class="form-select js-async-select" asp-items="Model.SponsoringUnitOptions" data-source="/api/lookups/sponsoring-units" data-search-placeholder="Search sponsoring units"></select>
                         <div class="form-text">Optional; can be set later.</div>
