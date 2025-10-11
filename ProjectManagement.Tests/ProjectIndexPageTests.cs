@@ -263,10 +263,68 @@ namespace ProjectManagement.Tests
             Assert.Equal(2, lifecycleTab.Count);
         }
 
+        [Fact]
+        public async Task AnalyticsDrilldown_IncludesCategoryDescendants_WhenFlagged()
+        {
+            await using var context = CreateContext();
+
+            var parent = new ProjectCategory { Name = "Parent" };
+            var child = new ProjectCategory { Name = "Child", Parent = parent };
+            var sibling = new ProjectCategory { Name = "Sibling" };
+
+            context.ProjectCategories.AddRange(parent, child, sibling);
+            await context.SaveChangesAsync();
+
+            var now = DateTime.UtcNow;
+
+            context.Projects.AddRange(
+                new Project
+                {
+                    Name = "Parent Project",
+                    CategoryId = parent.Id,
+                    CreatedByUserId = "creator",
+                    CreatedAt = now
+                },
+                new Project
+                {
+                    Name = "Child Project",
+                    CategoryId = child.Id,
+                    CreatedByUserId = "creator",
+                    CreatedAt = now
+                },
+                new Project
+                {
+                    Name = "Sibling Project",
+                    CategoryId = sibling.Id,
+                    CreatedByUserId = "creator",
+                    CreatedAt = now
+                });
+
+            await context.SaveChangesAsync();
+
+            var withDescendants = CreateModel(context);
+            withDescendants.CategoryId = parent.Id;
+            withDescendants.IncludeCategoryDescendants = true;
+            await withDescendants.OnGetAsync();
+
+            Assert.Equal(2, withDescendants.Projects.Count);
+            Assert.Contains(withDescendants.Projects, p => p.Name == "Parent Project");
+            Assert.Contains(withDescendants.Projects, p => p.Name == "Child Project");
+
+            var directOnly = CreateModel(context);
+            directOnly.CategoryId = parent.Id;
+            directOnly.IncludeCategoryDescendants = false;
+            await directOnly.OnGetAsync();
+
+            Assert.Single(directOnly.Projects);
+            Assert.Equal("Parent Project", directOnly.Projects.Single().Name);
+        }
+
         private static IndexModel CreateModel(ApplicationDbContext context)
         {
-            var analytics = new ProjectAnalyticsService(context, new TestClock());
-            return new IndexModel(context, analytics);
+            var categories = new ProjectCategoryHierarchyService(context);
+            var analytics = new ProjectAnalyticsService(context, new TestClock(), categories);
+            return new IndexModel(context, analytics, categories);
         }
 
         private static ApplicationDbContext CreateContext()

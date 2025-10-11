@@ -21,11 +21,13 @@ public sealed class ProjectAnalyticsService
 
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
+    private readonly ProjectCategoryHierarchyService _categoryHierarchy;
 
-    public ProjectAnalyticsService(ApplicationDbContext db, IClock clock)
+    public ProjectAnalyticsService(ApplicationDbContext db, IClock clock, ProjectCategoryHierarchyService categoryHierarchy)
     {
         _db = db;
         _clock = clock;
+        _categoryHierarchy = categoryHierarchy;
     }
 
     public async Task<CategoryShareResult> GetCategoryShareAsync(
@@ -90,7 +92,7 @@ public sealed class ProjectAnalyticsService
 
         if (categoryId.HasValue)
         {
-            var categoryIds = await GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
+            var categoryIds = await _categoryHierarchy.GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
             query = query.Where(p => p.CategoryId.HasValue && categoryIds.Contains(p.CategoryId.Value));
         }
 
@@ -148,7 +150,7 @@ public sealed class ProjectAnalyticsService
 
         if (categoryId.HasValue)
         {
-            var categoryIds = await GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
+            var categoryIds = await _categoryHierarchy.GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
             query = query.Where(p => p.CategoryId.HasValue && categoryIds.Contains(p.CategoryId.Value));
         }
 
@@ -196,7 +198,7 @@ public sealed class ProjectAnalyticsService
 
         if (categoryId.HasValue)
         {
-            var categoryIds = await GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
+            var categoryIds = await _categoryHierarchy.GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
             query = query.Where(s => s.Project!.CategoryId.HasValue && categoryIds.Contains(s.Project!.CategoryId.Value));
         }
 
@@ -285,7 +287,7 @@ public sealed class ProjectAnalyticsService
         int? categoryId,
         CancellationToken cancellationToken = default)
     {
-        var projects = await LoadProjectsForHealthAsync(lifecycle, categoryId, cancellationToken);
+        var projects = await LoadProjectsForHealthAsync(lifecycle, categoryId, null, cancellationToken);
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst()));
 
         var buckets = SlipBucketDefinitions.CreateBuckets();
@@ -305,14 +307,15 @@ public sealed class ProjectAnalyticsService
         ProjectLifecycleFilter lifecycle,
         int? categoryId,
         string bucketKey,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyCollection<int>? expandedCategoryIds = null)
     {
         if (string.IsNullOrWhiteSpace(bucketKey))
         {
             return Array.Empty<int>();
         }
 
-        var projects = await LoadProjectsForHealthAsync(lifecycle, categoryId, cancellationToken);
+        var projects = await LoadProjectsForHealthAsync(lifecycle, categoryId, expandedCategoryIds, cancellationToken);
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst()));
 
         var bucket = SlipBucketDefinitions.CreateBuckets()
@@ -348,7 +351,7 @@ public sealed class ProjectAnalyticsService
             take = 5;
         }
 
-        var projects = await LoadProjectsForHealthAsync(lifecycle, categoryId, cancellationToken);
+        var projects = await LoadProjectsForHealthAsync(lifecycle, categoryId, null, cancellationToken);
         var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst()));
 
         var ranked = new List<TopOverdueProject>();
@@ -393,6 +396,7 @@ public sealed class ProjectAnalyticsService
     private async Task<List<ProjectHealthSnapshot>> LoadProjectsForHealthAsync(
         ProjectLifecycleFilter lifecycle,
         int? categoryId,
+        IReadOnlyCollection<int>? resolvedCategoryIds,
         CancellationToken cancellationToken)
     {
         var query = _db.Projects
@@ -401,9 +405,13 @@ public sealed class ProjectAnalyticsService
 
         query = ApplyLifecycleFilter(query, lifecycle);
 
-        if (categoryId.HasValue)
+        if (resolvedCategoryIds is { Count: > 0 })
         {
-            var categoryIds = await GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
+            query = query.Where(p => p.CategoryId.HasValue && resolvedCategoryIds.Contains(p.CategoryId.Value));
+        }
+        else if (categoryId.HasValue)
+        {
+            var categoryIds = await _categoryHierarchy.GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
             query = query.Where(p => p.CategoryId.HasValue && categoryIds.Contains(p.CategoryId.Value));
         }
 
@@ -427,41 +435,6 @@ public sealed class ProjectAnalyticsService
             .ToListAsync(cancellationToken);
 
         return projects;
-    }
-
-    private async Task<List<int>> GetCategoryAndDescendantIdsAsync(int categoryId, CancellationToken cancellationToken)
-    {
-        var categories = await _db.ProjectCategories
-            .AsNoTracking()
-            .Select(c => new { c.Id, c.ParentId })
-            .ToListAsync(cancellationToken);
-
-        var childrenLookup = categories
-            .GroupBy(c => c.ParentId)
-            .ToDictionary(g => g.Key, g => g.Select(x => x.Id).ToList());
-
-        var resolved = new HashSet<int> { categoryId };
-        var stack = new Stack<int>();
-        stack.Push(categoryId);
-
-        while (stack.Count > 0)
-        {
-            var current = stack.Pop();
-            if (!childrenLookup.TryGetValue(current, out var children))
-            {
-                continue;
-            }
-
-            foreach (var child in children)
-            {
-                if (resolved.Add(child))
-                {
-                    stack.Push(child);
-                }
-            }
-        }
-
-        return resolved.ToList();
     }
 
     private static IQueryable<Project> ApplyLifecycleFilter(
