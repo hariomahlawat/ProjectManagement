@@ -26,7 +26,8 @@ public sealed class ProjectCategoryHierarchyService
             .ToListAsync(cancellationToken);
 
         var childrenLookup = categories
-            .GroupBy(c => c.ParentId)
+            .Where(c => c.ParentId.HasValue)
+            .GroupBy(c => c.ParentId!.Value)
             .ToDictionary(g => g.Key, g => g.Select(x => x.Id).ToList());
 
         var resolved = new HashSet<int> { categoryId };
