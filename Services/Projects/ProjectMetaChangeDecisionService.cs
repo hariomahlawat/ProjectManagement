@@ -346,6 +346,10 @@ public sealed class ProjectMetaChangeDecisionService
             ["DecisionNote"] = request.DecisionNote,
             ["RequestedByUserId"] = request.RequestedByUserId,
             ["RequestNote"] = request.RequestNote,
+            ["TechnicalCategoryIdBefore"] = before.TryGetValue("TechnicalCategoryIdBefore", out var technicalCategoryIdBefore)
+                ? technicalCategoryIdBefore
+                : null,
+            ["TechnicalCategoryIdAfter"] = payload.TechnicalCategoryId?.ToString(),
             ["DriftDetected"] = driftDetected ? "true" : "false",
             ["DriftFields"] = driftDetected ? string.Join(',', driftFields) : null
         };
