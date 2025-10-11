@@ -4,6 +4,7 @@
 @using ProjectManagement.Services.Projects
 @{
     ViewData["Title"] = "Analytics";
+    ViewData["UseFullWidth"] = true;
     var lifecycleOptions = new[]
     {
         ProjectLifecycleFilter.Active,
@@ -11,318 +12,342 @@
         ProjectLifecycleFilter.Cancelled,
         ProjectLifecycleFilter.All
     };
+    var categoryCount = Model.Categories?.Count ?? 0;
+    var technicalCount = Model.TechnicalCategories?.Count ?? 0;
 }
 
-<h1 class="h3 fw-semibold mb-3">Project analytics</h1>
-<p class="text-secondary mb-4">Explore project trends and health at a glance. Use the in-chart filters to adjust each view without affecting the others.</p>
-
-<div
-  id="analytics-root"
-  data-default-lifecycle="@Model.DefaultLifecycle"
-  data-projects-index-url="@Url.Page("/Projects/Index")"
-  data-project-overview-url="@Url.Page("/Projects/Overview")"
->
-  <div class="row g-3 analytics-grid">
-    <div class="col-12 col-md-6 col-xxl-4">
-      <div class="pm-card pm-shadow chart-card analytics-card" data-analytics-card="category-share">
-        <div class="chart-card__header">
-          <h2 class="h6 mb-0">Active projects by category</h2>
-          <button type="button" class="analytics-help" title="Shows the share of projects in each category for the selected lifecycle.">
-            <i class="bi bi-question-circle" aria-hidden="true"></i>
-            <span class="visually-hidden">Help</span>
-          </button>
-        </div>
-        <div class="analytics-card__filters" data-filter-strip>
-          <div class="btn-group btn-group-sm" role="group" aria-label="Lifecycle">
-            @foreach (var option in lifecycleOptions)
-            {
-              var label = option.ToString();
-              var isActive = option == Model.DefaultLifecycle;
-              <button
-                type="button"
-                class="btn btn-outline-secondary@(isActive ? " active" : string.Empty)"
-                data-filter="lifecycle"
-                data-value="@option"
-                aria-pressed="@(isActive ? "true" : "false")"
-              >@label</button>
-            }
-          </div>
-        </div>
-        <div class="chart-container-320">
-          <canvas data-chart="category-share"></canvas>
-        </div>
-      </div>
+<section class="analytics-page">
+  <header class="analytics-hero pm-shadow">
+    <div class="analytics-hero__text">
+      <h1 class="analytics-title">Project analytics</h1>
+      <p class="analytics-subtitle">
+        Explore project trends and delivery health at a glance. Each visualization can be filtered independently to uncover the next best action.
+      </p>
     </div>
-
-    <div class="col-12 col-xl-8">
-      <div class="pm-card pm-shadow chart-card analytics-card" data-analytics-card="stage-distribution">
-        <div class="chart-card__header">
-          <h2 class="h6 mb-0">Running projects by current stage</h2>
-          <button type="button" class="analytics-help" title="Shows how many projects are currently in each stage for the selected lifecycle and category.">
-            <i class="bi bi-question-circle" aria-hidden="true"></i>
-            <span class="visually-hidden">Help</span>
-          </button>
-        </div>
-        <div class="analytics-card__filters" data-filter-strip>
-          <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
-            <span class="text-secondary">Category</span>
-            <select class="form-select form-select-sm" data-filter="category">
-              <option value="">All categories</option>
-              @foreach (var category in Model.Categories)
-              {
-                <option value="@category.Id">@category.Name</option>
-              }
-            </select>
-          </label>
-          <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
-            <span class="text-secondary">Technical</span>
-            <select class="form-select form-select-sm" data-filter="technical-category">
-              <option value="">All technical categories</option>
-              @foreach (var technical in Model.TechnicalCategories)
-              {
-                <option value="@technical.Id">@technical.Name</option>
-              }
-            </select>
-          </label>
-          <div class="btn-group btn-group-sm" role="group" aria-label="Lifecycle">
-            @foreach (var option in lifecycleOptions)
-            {
-              var label = option.ToString();
-              var isActive = option == Model.DefaultLifecycle;
-              <button
-                type="button"
-                class="btn btn-outline-secondary@(isActive ? " active" : string.Empty)"
-                data-filter="lifecycle"
-                data-value="@option"
-                aria-pressed="@(isActive ? "true" : "false")"
-              >@label</button>
-            }
-          </div>
-        </div>
-        <div class="chart-container-320">
-          <canvas data-chart="stage-distribution"></canvas>
-        </div>
+    <dl class="analytics-hero__stats">
+      <div class="analytics-hero__stat">
+        <dt class="analytics-hero__stat-label">Lifecycle views</dt>
+        <dd class="analytics-hero__stat-value">@lifecycleOptions.Length</dd>
       </div>
-    </div>
-
-    <div class="col-12 col-md-6 col-xxl-4">
-      <div class="pm-card pm-shadow chart-card analytics-card" data-analytics-card="lifecycle-status">
-        <div class="chart-card__header">
-          <h2 class="h6 mb-0">Projects by lifecycle status</h2>
-          <button type="button" class="analytics-help" title="Displays counts of projects in Active, Completed, and Cancelled states for the selected category.">
-            <i class="bi bi-question-circle" aria-hidden="true"></i>
-            <span class="visually-hidden">Help</span>
-          </button>
-        </div>
-        <div class="analytics-card__filters" data-filter-strip>
-          <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
-            <span class="text-secondary">Category</span>
-            <select class="form-select form-select-sm" data-filter="category">
-              <option value="">All categories</option>
-              @foreach (var category in Model.Categories)
-              {
-                <option value="@category.Id">@category.Name</option>
-              }
-            </select>
-          </label>
-          <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
-            <span class="text-secondary">Technical</span>
-            <select class="form-select form-select-sm" data-filter="technical-category">
-              <option value="">All technical categories</option>
-              @foreach (var technical in Model.TechnicalCategories)
-              {
-                <option value="@technical.Id">@technical.Name</option>
-              }
-            </select>
-          </label>
-        </div>
-        <div class="chart-container-320">
-          <canvas data-chart="lifecycle-status"></canvas>
-        </div>
+      <div class="analytics-hero__stat">
+        <dt class="analytics-hero__stat-label">Categories tracked</dt>
+        <dd class="analytics-hero__stat-value">@categoryCount</dd>
       </div>
-    </div>
+      <div class="analytics-hero__stat">
+        <dt class="analytics-hero__stat-label">Technical groups</dt>
+        <dd class="analytics-hero__stat-value">@technicalCount</dd>
+      </div>
+    </dl>
+  </header>
 
-    <div class="col-12">
-      <div class="pm-card pm-shadow chart-card analytics-card" data-analytics-card="stage-completions">
-        <div class="chart-card__header">
-          <div>
-            <h2 class="h6 mb-0">Monthly stage completions</h2>
-            <small>Completed stages per month, split by stage code.</small>
+  <div
+    id="analytics-root"
+    data-default-lifecycle="@Model.DefaultLifecycle"
+    data-projects-index-url="@Url.Page("/Projects/Index")"
+    data-project-overview-url="@Url.Page("/Projects/Overview")"
+  >
+    <div class="row g-4 g-xl-5 analytics-grid">
+      <div class="col-12 col-lg-6 col-xxl-4">
+        <article class="pm-card pm-shadow chart-card analytics-card" data-analytics-card="category-share">
+          <div class="chart-card__header">
+            <h2 class="h6 mb-0">Active projects by category</h2>
+            <button type="button" class="analytics-help" title="Shows the share of projects in each category for the selected lifecycle.">
+              <i class="bi bi-question-circle" aria-hidden="true"></i>
+              <span class="visually-hidden">Help</span>
+            </button>
           </div>
-          <button type="button" class="analytics-help" title="Tracks how many stage completions occurred each month, with KPIs for the current month.">
-            <i class="bi bi-question-circle" aria-hidden="true"></i>
-            <span class="visually-hidden">Help</span>
-          </button>
-        </div>
-        <div class="analytics-card__filters" data-filter-strip>
-          <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
-            <span class="text-secondary">Category</span>
-            <select class="form-select form-select-sm" data-filter="category">
-              <option value="">All categories</option>
-              @foreach (var category in Model.Categories)
+          <div class="analytics-card__filters" data-filter-strip>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Lifecycle">
+              @foreach (var option in lifecycleOptions)
               {
-                <option value="@category.Id">@category.Name</option>
+                var label = option.ToString();
+                var isActive = option == Model.DefaultLifecycle;
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary@(isActive ? " active" : string.Empty)"
+                  data-filter="lifecycle"
+                  data-value="@option"
+                  aria-pressed="@(isActive ? "true" : "false")"
+                >@label</button>
               }
-            </select>
-          </label>
-          <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
-            <span class="text-secondary">Technical</span>
-            <select class="form-select form-select-sm" data-filter="technical-category">
-              <option value="">All technical categories</option>
-              @foreach (var technical in Model.TechnicalCategories)
-              {
-                <option value="@technical.Id">@technical.Name</option>
-              }
-            </select>
-          </label>
-          <div class="btn-group btn-group-sm" role="group" aria-label="Lifecycle">
-            @foreach (var option in lifecycleOptions)
-            {
-              var label = option.ToString();
-              var isActive = option == Model.DefaultLifecycle;
-              <button
-                type="button"
-                class="btn btn-outline-secondary@(isActive ? " active" : string.Empty)"
-                data-filter="lifecycle"
-                data-value="@option"
-                aria-pressed="@(isActive ? "true" : "false")"
-              >@label</button>
-            }
+            </div>
           </div>
-          <div class="analytics-range-group">
+          <div class="chart-container-320">
+            <canvas data-chart="category-share"></canvas>
+          </div>
+        </article>
+      </div>
+
+      <div class="col-12 col-xl-8">
+        <article class="pm-card pm-shadow chart-card analytics-card" data-analytics-card="stage-distribution">
+          <div class="chart-card__header">
+            <h2 class="h6 mb-0">Running projects by current stage</h2>
+            <button type="button" class="analytics-help" title="Shows how many projects are currently in each stage for the selected lifecycle and category.">
+              <i class="bi bi-question-circle" aria-hidden="true"></i>
+              <span class="visually-hidden">Help</span>
+            </button>
+          </div>
+          <div class="analytics-card__filters" data-filter-strip>
             <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
-              <span class="text-secondary">From</span>
-              <input type="month" class="form-control form-control-sm" data-filter="from-month" />
+              <span class="text-secondary">Category</span>
+              <select class="form-select form-select-sm" data-filter="category">
+                <option value="">All categories</option>
+                @foreach (var category in Model.Categories)
+                {
+                  <option value="@category.Id">@category.Name</option>
+                }
+              </select>
             </label>
             <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
-              <span class="text-secondary">To</span>
-              <input type="month" class="form-control form-control-sm" data-filter="to-month" />
+              <span class="text-secondary">Technical</span>
+              <select class="form-select form-select-sm" data-filter="technical-category">
+                <option value="">All technical categories</option>
+                @foreach (var technical in Model.TechnicalCategories)
+                {
+                  <option value="@technical.Id">@technical.Name</option>
+                }
+              </select>
+            </label>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Lifecycle">
+              @foreach (var option in lifecycleOptions)
+              {
+                var label = option.ToString();
+                var isActive = option == Model.DefaultLifecycle;
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary@(isActive ? " active" : string.Empty)"
+                  data-filter="lifecycle"
+                  data-value="@option"
+                  aria-pressed="@(isActive ? "true" : "false")"
+                >@label</button>
+              }
+            </div>
+          </div>
+          <div class="chart-container-320">
+            <canvas data-chart="stage-distribution"></canvas>
+          </div>
+        </article>
+      </div>
+
+      <div class="col-12 col-lg-6 col-xxl-4">
+        <article class="pm-card pm-shadow chart-card analytics-card" data-analytics-card="lifecycle-status">
+          <div class="chart-card__header">
+            <h2 class="h6 mb-0">Projects by lifecycle status</h2>
+            <button type="button" class="analytics-help" title="Displays counts of projects in Active, Completed, and Cancelled states for the selected category.">
+              <i class="bi bi-question-circle" aria-hidden="true"></i>
+              <span class="visually-hidden">Help</span>
+            </button>
+          </div>
+          <div class="analytics-card__filters" data-filter-strip>
+            <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
+              <span class="text-secondary">Category</span>
+              <select class="form-select form-select-sm" data-filter="category">
+                <option value="">All categories</option>
+                @foreach (var category in Model.Categories)
+                {
+                  <option value="@category.Id">@category.Name</option>
+                }
+              </select>
+            </label>
+            <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
+              <span class="text-secondary">Technical</span>
+              <select class="form-select form-select-sm" data-filter="technical-category">
+                <option value="">All technical categories</option>
+                @foreach (var technical in Model.TechnicalCategories)
+                {
+                  <option value="@technical.Id">@technical.Name</option>
+                }
+              </select>
             </label>
           </div>
-        </div>
-        <dl class="analytics-kpis" data-kpis>
-          <div>
-            <dt>Total completions this month</dt>
-            <dd data-kpi="total"></dd>
+          <div class="chart-container-320">
+            <canvas data-chart="lifecycle-status"></canvas>
           </div>
-          <div>
-            <dt>Projects advanced 2+ stages</dt>
-            <dd data-kpi="advancements"></dd>
-          </div>
-          <div>
-            <dt>Most completed stage</dt>
-            <dd data-kpi="top-stage"></dd>
-          </div>
-        </dl>
-        <div class="chart-container-320">
-          <canvas data-chart="stage-completions"></canvas>
-        </div>
+        </article>
       </div>
-    </div>
 
-    <div class="col-12 col-md-6 col-xxl-4">
-      <div class="pm-card pm-shadow chart-card analytics-card" data-analytics-card="slip-buckets">
-        <div class="chart-card__header">
-          <h2 class="h6 mb-0">Overdue slip buckets</h2>
-          <button type="button" class="analytics-help" title="Groups projects by slip days using the overdue logic for the selected lifecycle and category.">
-            <i class="bi bi-question-circle" aria-hidden="true"></i>
-            <span class="visually-hidden">Help</span>
-          </button>
-        </div>
-        <div class="analytics-card__filters" data-filter-strip>
-          <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
-            <span class="text-secondary">Category</span>
-            <select class="form-select form-select-sm" data-filter="category">
-              <option value="">All categories</option>
-              @foreach (var category in Model.Categories)
-              {
-                <option value="@category.Id">@category.Name</option>
-              }
-            </select>
-          </label>
-          <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
-            <span class="text-secondary">Technical</span>
-            <select class="form-select form-select-sm" data-filter="technical-category">
-              <option value="">All technical categories</option>
-              @foreach (var technical in Model.TechnicalCategories)
-              {
-                <option value="@technical.Id">@technical.Name</option>
-              }
-            </select>
-          </label>
-          <div class="btn-group btn-group-sm" role="group" aria-label="Lifecycle">
-            @foreach (var option in lifecycleOptions)
-            {
-              var label = option.ToString();
-              var isActive = option == Model.DefaultLifecycle;
-              <button
-                type="button"
-                class="btn btn-outline-secondary@(isActive ? " active" : string.Empty)"
-                data-filter="lifecycle"
-                data-value="@option"
-                aria-pressed="@(isActive ? "true" : "false")"
-              >@label</button>
-            }
+      <div class="col-12">
+        <article class="pm-card pm-shadow chart-card analytics-card" data-analytics-card="stage-completions">
+          <div class="chart-card__header">
+            <div>
+              <h2 class="h6 mb-0">Monthly stage completions</h2>
+              <small>Completed stages per month, split by stage code.</small>
+            </div>
+            <button type="button" class="analytics-help" title="Tracks how many stage completions occurred each month, with KPIs for the current month.">
+              <i class="bi bi-question-circle" aria-hidden="true"></i>
+              <span class="visually-hidden">Help</span>
+            </button>
           </div>
-        </div>
-        <div class="chart-container-320">
-          <canvas data-chart="slip-buckets"></canvas>
-        </div>
+          <div class="analytics-card__filters" data-filter-strip>
+            <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
+              <span class="text-secondary">Category</span>
+              <select class="form-select form-select-sm" data-filter="category">
+                <option value="">All categories</option>
+                @foreach (var category in Model.Categories)
+                {
+                  <option value="@category.Id">@category.Name</option>
+                }
+              </select>
+            </label>
+            <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
+              <span class="text-secondary">Technical</span>
+              <select class="form-select form-select-sm" data-filter="technical-category">
+                <option value="">All technical categories</option>
+                @foreach (var technical in Model.TechnicalCategories)
+                {
+                  <option value="@technical.Id">@technical.Name</option>
+                }
+              </select>
+            </label>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Lifecycle">
+              @foreach (var option in lifecycleOptions)
+              {
+                var label = option.ToString();
+                var isActive = option == Model.DefaultLifecycle;
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary@(isActive ? " active" : string.Empty)"
+                  data-filter="lifecycle"
+                  data-value="@option"
+                  aria-pressed="@(isActive ? "true" : "false")"
+                >@label</button>
+              }
+            </div>
+            <div class="analytics-range-group">
+              <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
+                <span class="text-secondary">From</span>
+                <input type="month" class="form-control form-control-sm" data-filter="from-month" />
+              </label>
+              <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
+                <span class="text-secondary">To</span>
+                <input type="month" class="form-control form-control-sm" data-filter="to-month" />
+              </label>
+            </div>
+          </div>
+          <dl class="analytics-kpis" data-kpis>
+            <div>
+              <dt>Total completions this month</dt>
+              <dd data-kpi="total"></dd>
+            </div>
+            <div>
+              <dt>Projects advanced 2+ stages</dt>
+              <dd data-kpi="advancements"></dd>
+            </div>
+            <div>
+              <dt>Most completed stage</dt>
+              <dd data-kpi="top-stage"></dd>
+            </div>
+          </dl>
+          <div class="chart-container-320">
+            <canvas data-chart="stage-completions"></canvas>
+          </div>
+        </article>
       </div>
-    </div>
 
-    <div class="col-12 col-md-6 col-xxl-4">
-      <div class="pm-card pm-shadow analytics-card" data-analytics-card="top-overdue">
-        <div class="chart-card__header">
-          <h2 class="h6 mb-0">Top 5 overdue projects</h2>
-          <button type="button" class="analytics-help" title="Lists the projects with the highest overdue slip days for the selected lifecycle and category.">
-            <i class="bi bi-question-circle" aria-hidden="true"></i>
-            <span class="visually-hidden">Help</span>
-          </button>
-        </div>
-        <div class="analytics-card__filters" data-filter-strip>
-          <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
-            <span class="text-secondary">Category</span>
-            <select class="form-select form-select-sm" data-filter="category">
-              <option value="">All categories</option>
-              @foreach (var category in Model.Categories)
-              {
-                <option value="@category.Id">@category.Name</option>
-              }
-            </select>
-          </label>
-          <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
-            <span class="text-secondary">Technical</span>
-            <select class="form-select form-select-sm" data-filter="technical-category">
-              <option value="">All technical categories</option>
-              @foreach (var technical in Model.TechnicalCategories)
-              {
-                <option value="@technical.Id">@technical.Name</option>
-              }
-            </select>
-          </label>
-          <div class="btn-group btn-group-sm" role="group" aria-label="Lifecycle">
-            @foreach (var option in lifecycleOptions)
-            {
-              var label = option.ToString();
-              var isActive = option == Model.DefaultLifecycle;
-              <button
-                type="button"
-                class="btn btn-outline-secondary@(isActive ? " active" : string.Empty)"
-                data-filter="lifecycle"
-                data-value="@option"
-                aria-pressed="@(isActive ? "true" : "false")"
-              >@label</button>
-            }
+      <div class="col-12 col-lg-6 col-xxl-4">
+        <article class="pm-card pm-shadow chart-card analytics-card" data-analytics-card="slip-buckets">
+          <div class="chart-card__header">
+            <h2 class="h6 mb-0">Overdue slip buckets</h2>
+            <button type="button" class="analytics-help" title="Groups projects by slip days using the overdue logic for the selected lifecycle and category.">
+              <i class="bi bi-question-circle" aria-hidden="true"></i>
+              <span class="visually-hidden">Help</span>
+            </button>
           </div>
-        </div>
-        <div class="analytics-top-list" data-top-overdue>
-          <p class="text-secondary mb-0">Loading…</p>
-        </div>
+          <div class="analytics-card__filters" data-filter-strip>
+            <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
+              <span class="text-secondary">Category</span>
+              <select class="form-select form-select-sm" data-filter="category">
+                <option value="">All categories</option>
+                @foreach (var category in Model.Categories)
+                {
+                  <option value="@category.Id">@category.Name</option>
+                }
+              </select>
+            </label>
+            <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
+              <span class="text-secondary">Technical</span>
+              <select class="form-select form-select-sm" data-filter="technical-category">
+                <option value="">All technical categories</option>
+                @foreach (var technical in Model.TechnicalCategories)
+                {
+                  <option value="@technical.Id">@technical.Name</option>
+                }
+              </select>
+            </label>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Lifecycle">
+              @foreach (var option in lifecycleOptions)
+              {
+                var label = option.ToString();
+                var isActive = option == Model.DefaultLifecycle;
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary@(isActive ? " active" : string.Empty)"
+                  data-filter="lifecycle"
+                  data-value="@option"
+                  aria-pressed="@(isActive ? "true" : "false")"
+                >@label</button>
+              }
+            </div>
+          </div>
+          <div class="chart-container-320">
+            <canvas data-chart="slip-buckets"></canvas>
+          </div>
+        </article>
+      </div>
+
+      <div class="col-12 col-lg-6 col-xxl-4">
+        <article class="pm-card pm-shadow analytics-card" data-analytics-card="top-overdue">
+          <div class="chart-card__header">
+            <h2 class="h6 mb-0">Top 5 overdue projects</h2>
+            <button type="button" class="analytics-help" title="Lists the projects with the highest overdue slip days for the selected lifecycle and category.">
+              <i class="bi bi-question-circle" aria-hidden="true"></i>
+              <span class="visually-hidden">Help</span>
+            </button>
+          </div>
+          <div class="analytics-card__filters" data-filter-strip>
+            <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
+              <span class="text-secondary">Category</span>
+              <select class="form-select form-select-sm" data-filter="category">
+                <option value="">All categories</option>
+                @foreach (var category in Model.Categories)
+                {
+                  <option value="@category.Id">@category.Name</option>
+                }
+              </select>
+            </label>
+            <label class="form-label form-label-sm mb-0 d-flex align-items-center gap-2">
+              <span class="text-secondary">Technical</span>
+              <select class="form-select form-select-sm" data-filter="technical-category">
+                <option value="">All technical categories</option>
+                @foreach (var technical in Model.TechnicalCategories)
+                {
+                  <option value="@technical.Id">@technical.Name</option>
+                }
+              </select>
+            </label>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Lifecycle">
+              @foreach (var option in lifecycleOptions)
+              {
+                var label = option.ToString();
+                var isActive = option == Model.DefaultLifecycle;
+                <button
+                  type="button"
+                  class="btn btn-outline-secondary@(isActive ? " active" : string.Empty)"
+                  data-filter="lifecycle"
+                  data-value="@option"
+                  aria-pressed="@(isActive ? "true" : "false")"
+                >@label</button>
+              }
+            </div>
+          </div>
+          <div class="analytics-top-overdue-list" data-top-overdue>
+            <p class="text-secondary mb-0">Loading…</p>
+          </div>
+        </article>
       </div>
     </div>
   </div>
-</div>
+</section>
 
 @section Scripts {
   <script src="~/lib/chart.js/chart.umd.js" asp-append-version="true"></script>

@@ -15,8 +15,12 @@
     @await RenderSectionAsync("Styles", required: false)
 </head>
 <body>
-    @{
+    @{ 
         var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
+        var useFullWidth = (ViewData["UseFullWidth"] as bool?) == true;
+        var mainContainerClass = useFullWidth
+            ? "container-fluid analytics-shell px-3 px-lg-4 px-xxl-5"
+            : "container";
     }
     <header class="pm-header border-bottom">
         <nav class="navbar navbar-expand-lg navbar-light bg-light shadow-sm">
@@ -39,8 +43,8 @@
         </nav>
     </header>
 
-    <main role="main" class="pb-5">
-        <div class="container">
+    <main role="main" class="pb-5@(useFullWidth ? " analytics-main" : string.Empty)">
+        <div class="@mainContainerClass">
             @RenderBody()
         </div>
     </main>
