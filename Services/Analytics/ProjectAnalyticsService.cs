@@ -44,8 +44,8 @@ public sealed class ProjectAnalyticsService
 
         if (categoryId.HasValue)
         {
-            var categoryIds = await _categoryHierarchy.GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
-            query = query.Where(p => p.CategoryId.HasValue && categoryIds.Contains(p.CategoryId.Value));
+            var descendantCategoryIds = await _categoryHierarchy.GetCategoryAndDescendantIdsAsync(categoryId.Value, cancellationToken);
+            query = query.Where(p => p.CategoryId.HasValue && descendantCategoryIds.Contains(p.CategoryId.Value));
         }
 
         if (technicalCategoryId.HasValue)
