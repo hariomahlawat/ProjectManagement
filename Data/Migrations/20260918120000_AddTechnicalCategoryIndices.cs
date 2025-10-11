@@ -5,7 +5,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 namespace ProjectManagement.Data.Migrations
 {
-    public partial class AddTechnicalCategories : Migration
+    public partial class AddTechnicalCategoryIndices : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
         {
