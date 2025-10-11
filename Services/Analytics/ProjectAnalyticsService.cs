@@ -38,14 +38,40 @@ public sealed class ProjectAnalyticsService
 
         query = ApplyLifecycleFilter(query, lifecycle);
 
-        var slices = await query
-            .GroupBy(p => new { p.CategoryId, Name = p.Category != null ? p.Category.Name : null })
-            .Select(g => new CategoryShareSlice(
-                g.Key.CategoryId,
-                g.Key.Name ?? "Unassigned",
-                g.Count()))
-            .OrderByDescending(s => s.Count)
+        var grouped = await query
+            .GroupBy(p => p.CategoryId)
+            .Select(g => new
+            {
+                CategoryId = g.Key,
+                Count = g.Count()
+            })
+            .OrderByDescending(g => g.Count)
             .ToListAsync(cancellationToken);
+
+        if (grouped.Count == 0)
+        {
+            return new CategoryShareResult(Array.Empty<CategoryShareSlice>(), 0);
+        }
+
+        var categoryIds = grouped
+            .Where(g => g.CategoryId.HasValue)
+            .Select(g => g.CategoryId!.Value)
+            .Distinct()
+            .ToList();
+
+        var categoryNames = await _db.ProjectCategories
+            .AsNoTracking()
+            .Where(c => categoryIds.Contains(c.Id))
+            .ToDictionaryAsync(c => c.Id, c => c.Name, cancellationToken);
+
+        var slices = grouped
+            .Select(g => new CategoryShareSlice(
+                g.CategoryId,
+                g.CategoryId.HasValue && categoryNames.TryGetValue(g.CategoryId.Value, out var name)
+                    ? name
+                    : "Unassigned",
+                g.Count))
+            .ToList();
 
         var total = slices.Sum(s => s.Count);
         return new CategoryShareResult(slices, total);
