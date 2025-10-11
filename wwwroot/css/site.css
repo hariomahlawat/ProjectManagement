@@ -1104,6 +1104,39 @@ body {
   margin-bottom: 0.5rem;
 }
 
+.chart-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  align-self: center;
+}
+
+.analytics-action {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--pm-muted);
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.analytics-action:hover,
+.analytics-action:focus-visible {
+  color: var(--pm-primary);
+}
+
+.analytics-action:focus-visible {
+  outline: 2px solid var(--pm-primary);
+  outline-offset: 2px;
+}
+
+.analytics-action[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .chart-card__header > * {
   margin-bottom: 0;
 }
