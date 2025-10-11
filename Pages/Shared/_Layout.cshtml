@@ -25,10 +25,10 @@
                 <a class="navbar-brand fw-semibold" asp-area="" asp-page="/Index">ProjectManagement</a>
                 <ul class="navbar-nav flex-row align-items-center gap-2 ms-4">
                     <li class="nav-item">
-                        <a class="nav-link@(string.Equals(currentPage, "/Dashboard/Index", StringComparison.OrdinalIgnoreCase) ? " active" : string.Empty)" asp-page="/Dashboard/Index">Dashboard</a>
+                        <a class="nav-link@(string.Equals(currentPage, "/Dashboard/Index", StringComparison.OrdinalIgnoreCase) ? " active" : string.Empty)" asp-area="" asp-page="/Dashboard/Index">Dashboard</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link@(string.Equals(currentPage, "/Analytics/Index", StringComparison.OrdinalIgnoreCase) ? " active" : string.Empty)" asp-page="/Analytics/Index">Analytics</a>
+                        <a class="nav-link@(string.Equals(currentPage, "/Analytics/Index", StringComparison.OrdinalIgnoreCase) ? " active" : string.Empty)" asp-area="" asp-page="/Analytics/Index">Analytics</a>
                     </li>
                 </ul>
                 <div class="ms-auto d-flex align-items-center gap-3">
