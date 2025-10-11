@@ -113,7 +113,7 @@ public class ProjectAnalyticsServiceTests : IDisposable
         );
         await _db.SaveChangesAsync();
 
-        var result = await _service.GetTopOverdueProjectsAsync(ProjectLifecycleFilter.Active, null, 5);
+        var result = await _service.GetTopOverdueProjectsAsync(ProjectLifecycleFilter.Active, null, null, 5);
 
         Assert.Equal(2, result.Projects.Count);
         Assert.Equal("Late A", result.Projects[0].Name);
@@ -199,12 +199,13 @@ public class ProjectAnalyticsServiceTests : IDisposable
             parent.Id,
             new DateOnly(2024, 6, 1),
             new DateOnly(2024, 6, 1));
-        var slipBuckets = await _service.GetSlipBucketsAsync(ProjectLifecycleFilter.All, parent.Id);
+        var slipBuckets = await _service.GetSlipBucketsAsync(ProjectLifecycleFilter.All, parent.Id, null);
         var slipBucketProjectIds = await _service.GetProjectIdsForSlipBucketAsync(
             ProjectLifecycleFilter.All,
             parent.Id,
+            null,
             "1-7");
-        var topOverdue = await _service.GetTopOverdueProjectsAsync(ProjectLifecycleFilter.All, parent.Id, 5);
+        var topOverdue = await _service.GetTopOverdueProjectsAsync(ProjectLifecycleFilter.All, parent.Id, null, 5);
 
         var stageItem = Assert.Single(stageDistribution.Items, i => i.StageCode == "DD");
         Assert.Equal(1, stageItem.Count);
@@ -224,6 +225,75 @@ public class ProjectAnalyticsServiceTests : IDisposable
         var overdue = Assert.Single(topOverdue.Projects);
         Assert.Equal(descendantProject.Id, overdue.ProjectId);
         Assert.Equal("DD", overdue.StageCode);
+    }
+
+    [Fact]
+    public async Task SlipBucketAnalytics_FiltersByTechnicalCategory()
+    {
+        var techA = new TechnicalCategory { Name = "Digital" };
+        var techB = new TechnicalCategory { Name = "Mechanical" };
+
+        await _db.TechnicalCategories.AddRangeAsync(techA, techB);
+        await _db.SaveChangesAsync();
+
+        var today = new DateOnly(2024, 6, 15);
+
+        var projectA = new Project
+        {
+            Name = "Tech Project A",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            CreatedByUserId = "creator",
+            CreatedAt = DateTime.UtcNow,
+            TechnicalCategoryId = techA.Id,
+            ProjectStages =
+            {
+                new ProjectStage
+                {
+                    StageCode = "DD",
+                    SortOrder = 1,
+                    Status = StageStatus.InProgress,
+                    PlannedDue = today.AddDays(-5)
+                }
+            }
+        };
+
+        var projectB = new Project
+        {
+            Name = "Tech Project B",
+            LifecycleStatus = ProjectLifecycleStatus.Active,
+            CreatedByUserId = "creator",
+            CreatedAt = DateTime.UtcNow,
+            TechnicalCategoryId = techB.Id,
+            ProjectStages =
+            {
+                new ProjectStage
+                {
+                    StageCode = "DD",
+                    SortOrder = 1,
+                    Status = StageStatus.InProgress,
+                    PlannedDue = today.AddDays(-5)
+                }
+            }
+        };
+
+        _db.Projects.AddRange(projectA, projectB);
+        await _db.SaveChangesAsync();
+
+        var slipBuckets = await _service.GetSlipBucketsAsync(ProjectLifecycleFilter.All, null, techA.Id);
+        var bucket = slipBuckets.Buckets.Single(b => b.Key == "1-7");
+        Assert.Equal(1, bucket.Count);
+
+        var slipProjectIds = await _service.GetProjectIdsForSlipBucketAsync(
+            ProjectLifecycleFilter.All,
+            null,
+            techA.Id,
+            "1-7");
+
+        Assert.Equal(new[] { projectA.Id }, slipProjectIds.ToArray());
+
+        var topOverdue = await _service.GetTopOverdueProjectsAsync(ProjectLifecycleFilter.All, null, techA.Id, 5);
+        var overdue = Assert.Single(topOverdue.Projects);
+        Assert.Equal(projectA.Id, overdue.ProjectId);
     }
 
     public void Dispose()

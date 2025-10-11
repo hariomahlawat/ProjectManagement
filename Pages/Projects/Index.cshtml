@@ -23,6 +23,7 @@
                            asp-route-Lifecycle="@lifecycle.RouteValue"
                            asp-route-Query="@Model.Query"
                            asp-route-CategoryId="@Model.CategoryId"
+                           asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
                            asp-route-LeadPoUserId="@Model.LeadPoUserId"
                            asp-route-HodUserId="@Model.HodUserId"
                            asp-route-CompletedYear="@Model.CompletedYear"
@@ -44,6 +45,10 @@
                 <div class="col">
                     <label asp-for="CategoryId" class="form-label">Category</label>
                     <select asp-for="CategoryId" class="form-select" asp-items="Model.CategoryOptions"></select>
+                </div>
+                <div class="col">
+                    <label asp-for="TechnicalCategoryId" class="form-label">Technical category</label>
+                    <select asp-for="TechnicalCategoryId" class="form-select" asp-items="Model.TechnicalCategoryOptions"></select>
                 </div>
                 <div class="col">
                     <label asp-for="HodUserId" class="form-label">Head of Department</label>
@@ -125,7 +130,7 @@
                                     </div>
                                 </td>
                                 <td>
-                                    <a asp-page="/Projects/Overview" asp-route-id="@project.Id" class="fw-semibold text-decoration-none">
+                                    <a asp-page="/Projects/Overview" asp-route-id="@project.Id" asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId" class="fw-semibold text-decoration-none">
                                         @project.Name
                                     </a>
                                     @if (project.IsArchived)
@@ -155,6 +160,7 @@
                                    asp-route-PageSize="@Model.PageSize"
                                    asp-route-Query="@Model.Query"
                                    asp-route-CategoryId="@Model.CategoryId"
+                                   asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
                                    asp-route-LeadPoUserId="@Model.LeadPoUserId"
                                    asp-route-HodUserId="@Model.HodUserId"
                                    asp-route-Lifecycle="@((Model.Lifecycle == ProjectLifecycleFilter.All) ? null : Model.Lifecycle.ToString())"
@@ -173,6 +179,7 @@
                                asp-route-PageSize="@Model.PageSize"
                                asp-route-Query="@Model.Query"
                                asp-route-CategoryId="@Model.CategoryId"
+                               asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
                                asp-route-LeadPoUserId="@Model.LeadPoUserId"
                                asp-route-HodUserId="@Model.HodUserId"
                                asp-route-Lifecycle="@((Model.Lifecycle == ProjectLifecycleFilter.All) ? null : Model.Lifecycle.ToString())"
@@ -188,6 +195,7 @@
                            asp-route-PageSize="@Model.PageSize"
                            asp-route-Query="@Model.Query"
                            asp-route-CategoryId="@Model.CategoryId"
+                           asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId"
                            asp-route-LeadPoUserId="@Model.LeadPoUserId"
                            asp-route-HodUserId="@Model.HodUserId"
                            asp-route-Lifecycle="@((Model.Lifecycle == ProjectLifecycleFilter.All) ? null : Model.Lifecycle.ToString())"
