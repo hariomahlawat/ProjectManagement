@@ -19,11 +19,16 @@ namespace ProjectManagement.Pages.Projects
     {
         private readonly ApplicationDbContext _db;
         private readonly ProjectAnalyticsService _analytics;
+        private readonly ProjectCategoryHierarchyService _categoryHierarchy;
 
-        public IndexModel(ApplicationDbContext db, ProjectAnalyticsService analytics)
+        public IndexModel(
+            ApplicationDbContext db,
+            ProjectAnalyticsService analytics,
+            ProjectCategoryHierarchyService categoryHierarchy)
         {
             _db = db;
             _analytics = analytics;
+            _categoryHierarchy = categoryHierarchy;
         }
 
         public IList<Project> Projects { get; private set; } = new List<Project>();
@@ -67,6 +72,9 @@ namespace ProjectManagement.Pages.Projects
         [BindProperty(SupportsGet = true)]
         public string? SlipBucket { get; set; }
 
+        [BindProperty(SupportsGet = true)]
+        public bool IncludeCategoryDescendants { get; set; }
+
         public int TotalCount { get; private set; }
 
         public int TotalPages { get; private set; }
@@ -106,6 +114,13 @@ namespace ProjectManagement.Pages.Projects
 
             var stageMonth = ParseStageMonth(StageCompletedMonth);
 
+            IReadOnlyCollection<int>? resolvedCategoryIds = null;
+            if (IncludeCategoryDescendants && CategoryId.HasValue)
+            {
+                resolvedCategoryIds = await _categoryHierarchy
+                    .GetCategoryAndDescendantIdsAsync(CategoryId.Value, HttpContext.RequestAborted);
+            }
+
             var baseFilters = new ProjectSearchFilters(
                 Query,
                 CategoryId,
@@ -117,7 +132,9 @@ namespace ProjectManagement.Pages.Projects
                 IncludeArchived,
                 StageCode,
                 stageMonth,
-                SlipBucket);
+                SlipBucket,
+                IncludeCategoryDescendants,
+                resolvedCategoryIds);
 
             var lifecycleCounts = await CountProjectsByLifecycleAsync(baseFilters);
             LifecycleTabs = BuildLifecycleTabs(lifecycleCounts);
@@ -141,7 +158,8 @@ namespace ProjectManagement.Pages.Projects
                         filters.Lifecycle,
                         filters.CategoryId,
                         SlipBucket!,
-                        HttpContext.RequestAborted);
+                        cancellationToken: HttpContext.RequestAborted,
+                        expandedCategoryIds: filters.CategoryIds);
 
                 if (slipIds.Count == 0)
                 {
@@ -331,7 +349,8 @@ namespace ProjectManagement.Pages.Projects
                         countFilters.Lifecycle,
                         countFilters.CategoryId,
                         baseFilters.SlipBucket!,
-                        HttpContext.RequestAborted);
+                        cancellationToken: HttpContext.RequestAborted,
+                        expandedCategoryIds: countFilters.CategoryIds);
 
                     if (slipIds.Count == 0)
                     {

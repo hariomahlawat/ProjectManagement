@@ -341,6 +341,69 @@ namespace ProjectManagement.Tests
             Assert.All(includedResults, p => Assert.False(p.IsDeleted));
         }
 
+        [Fact]
+        public async Task CategoryDescendants_Are_Included_WhenProvided()
+        {
+            await using var context = CreateContext();
+
+            var parent = new ProjectCategory { Name = "Parent" };
+            var child = new ProjectCategory { Name = "Child", Parent = parent };
+            var other = new ProjectCategory { Name = "Other" };
+
+            context.ProjectCategories.AddRange(parent, child, other);
+            await context.SaveChangesAsync();
+
+            context.Projects.AddRange(
+                new Project
+                {
+                    Name = "Parent Project",
+                    CategoryId = parent.Id,
+                    CreatedByUserId = "creator",
+                    CreatedAt = DateTime.UtcNow
+                },
+                new Project
+                {
+                    Name = "Child Project",
+                    CategoryId = child.Id,
+                    CreatedByUserId = "creator",
+                    CreatedAt = DateTime.UtcNow
+                },
+                new Project
+                {
+                    Name = "Other Project",
+                    CategoryId = other.Id,
+                    CreatedByUserId = "creator",
+                    CreatedAt = DateTime.UtcNow
+                });
+
+            await context.SaveChangesAsync();
+
+            var hierarchy = new ProjectCategoryHierarchyService(context);
+            var categoryIds = await hierarchy.GetCategoryAndDescendantIdsAsync(parent.Id);
+
+            var filters = new ProjectSearchFilters(
+                null,
+                parent.Id,
+                null,
+                null,
+                ProjectLifecycleFilter.All,
+                null,
+                null,
+                false,
+                null,
+                null,
+                null,
+                true,
+                categoryIds);
+
+            var results = await context.Projects.ApplyProjectSearch(filters).ToListAsync();
+
+            Assert.Equal(2, results.Count);
+            Assert.Contains(results, p => p.Name == "Parent Project");
+            Assert.Contains(results, p => p.Name == "Child Project");
+            Assert.DoesNotContain(results, p => p.Name == "Other Project");
+        }
+
         private static ApplicationDbContext CreateContext()
         {
             var options = new DbContextOptionsBuilder<ApplicationDbContext>()

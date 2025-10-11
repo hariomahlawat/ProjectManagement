@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Models;
@@ -26,7 +27,9 @@ namespace ProjectManagement.Services.Projects
         bool IncludeArchived = false,
         string? StageCode = null,
         DateOnly? StageCompletedMonth = null,
-        string? SlipBucket = null);
+        string? SlipBucket = null,
+        bool IncludeCategoryDescendants = false,
+        IReadOnlyCollection<int>? CategoryIds = null);
 
     public static class ProjectSearchQueryExtensions
     {
@@ -66,7 +69,13 @@ namespace ProjectManagement.Services.Projects
                             (EF.Functions.ILike(p.LeadPoUser.UserName!, like) || p.LeadPoUser.UserName!.ToLower().Contains(normalized))))));
             }
 
-            if (filters.CategoryId.HasValue)
+            var resolvedCategoryIds = filters.CategoryIds;
+            if (resolvedCategoryIds is not null && resolvedCategoryIds.Count > 0)
+            {
+                var ids = resolvedCategoryIds as int[] ?? resolvedCategoryIds.ToArray();
+                source = source.Where(p => p.CategoryId.HasValue && ids.Contains(p.CategoryId.Value));
+            }
+            else if (filters.CategoryId.HasValue)
             {
                 source = source.Where(p => p.CategoryId == filters.CategoryId);
             }

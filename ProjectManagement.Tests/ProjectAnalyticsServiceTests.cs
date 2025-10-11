@@ -19,6 +19,7 @@ public class ProjectAnalyticsServiceTests : IDisposable
     private readonly SqliteConnection _connection;
     private readonly ApplicationDbContext _db;
     private readonly TestClock _clock;
+    private readonly ProjectCategoryHierarchyService _categories;
     private readonly ProjectAnalyticsService _service;
 
     public ProjectAnalyticsServiceTests()
@@ -34,7 +35,8 @@ public class ProjectAnalyticsServiceTests : IDisposable
         _db.Database.EnsureCreated();
 
         _clock = new TestClock(new DateTimeOffset(2024, 6, 15, 0, 0, 0, TimeSpan.Zero));
-        _service = new ProjectAnalyticsService(_db, _clock);
+        _categories = new ProjectCategoryHierarchyService(_db);
+        _service = new ProjectAnalyticsService(_db, _clock, _categories);
     }
 
     [Fact]

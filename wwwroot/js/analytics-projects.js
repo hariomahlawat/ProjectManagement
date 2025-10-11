@@ -49,6 +49,9 @@ if (root) {
   }
 
   function navigateToProjects(params) {
+    if (params && params.CategoryId !== undefined && params.CategoryId !== null && params.CategoryId !== '') {
+      params.IncludeCategoryDescendants = 'true';
+    }
     window.location.href = buildUrl(projectsIndexUrl, params);
   }
 
