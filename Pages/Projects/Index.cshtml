@@ -76,7 +76,12 @@
                         <div class="projects-stat">
                             <span class="projects-stat__label">Total projects</span>
                             <span class="projects-stat__value">@Model.TotalCount</span>
-                            <span class="projects-stat__hint">@(activeLifecycle?.Label ?? "All projects")</span>
+                            @{
+                                var lifecycleHint = string.IsNullOrWhiteSpace(activeLifecycle?.Label)
+                                    ? "All projects"
+                                    : activeLifecycle!.Label;
+                            }
+                            <span class="projects-stat__hint">@lifecycleHint</span>
                         </div>
                         <div class="projects-stat">
                             <span class="projects-stat__label">Showing</span>
