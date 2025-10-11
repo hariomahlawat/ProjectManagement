@@ -16,6 +16,9 @@ public sealed class ProjectMetaChangeRequestPayload
     [JsonPropertyName("categoryId")]
     public int? CategoryId { get; set; }
 
+    [JsonPropertyName("technicalCategoryId")]
+    public int? TechnicalCategoryId { get; set; }
+
     [JsonPropertyName("sponsoringUnitId")]
     public int? SponsoringUnitId { get; set; }
 

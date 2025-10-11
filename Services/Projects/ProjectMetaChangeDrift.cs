@@ -11,6 +11,7 @@ public static class ProjectMetaChangeDriftFields
     public const string Description = nameof(Project.Description);
     public const string CaseFileNumber = nameof(Project.CaseFileNumber);
     public const string Category = nameof(Project.CategoryId);
+    public const string TechnicalCategory = nameof(Project.TechnicalCategoryId);
     public const string SponsoringUnit = nameof(Project.SponsoringUnitId);
     public const string SponsoringLineDirectorate = nameof(Project.SponsoringLineDirectorateId);
     public const string ProjectRecord = "ProjectRecord";
@@ -54,6 +55,11 @@ public static class ProjectMetaChangeDriftDetector
         if (request.OriginalCategoryId != project.CategoryId)
         {
             fields.Add(ProjectMetaChangeDriftFields.Category);
+        }
+
+        if (request.OriginalTechnicalCategoryId != project.TechnicalCategoryId)
+        {
+            fields.Add(ProjectMetaChangeDriftFields.TechnicalCategory);
         }
 
         if (request.OriginalSponsoringUnitId != project.SponsoringUnitId)

@@ -58,6 +58,12 @@ public sealed class ProjectMetaEditPageTests
             Name = "Infrastructure",
             IsActive = true
         });
+        await db.TechnicalCategories.AddAsync(new TechnicalCategory
+        {
+            Id = 75,
+            Name = "Networks",
+            IsActive = true
+        });
 
         await db.Projects.AddAsync(new Project
         {
@@ -77,6 +83,7 @@ public sealed class ProjectMetaEditPageTests
             Name = "Updated Name",
             Description = "Desc",
             CategoryId = 50,
+            TechnicalCategoryId = 75,
             RowVersion = Convert.ToBase64String(project.RowVersion)
         };
 
@@ -89,6 +96,7 @@ public sealed class ProjectMetaEditPageTests
         Assert.Equal("Updated Name", project.Name);
         Assert.Equal("Desc", project.Description);
         Assert.Equal(50, project.CategoryId);
+        Assert.Equal(75, project.TechnicalCategoryId);
     }
 
     [Fact]
@@ -101,6 +109,19 @@ public sealed class ProjectMetaEditPageTests
             Name = "Operations",
             IsActive = true
         });
+        await db.TechnicalCategories.AddRangeAsync(
+            new TechnicalCategory
+            {
+                Id = 85,
+                Name = "Infrastructure",
+                IsActive = true
+            },
+            new TechnicalCategory
+            {
+                Id = 86,
+                Name = "Applications",
+                IsActive = true
+            });
 
         await db.Projects.AddAsync(new Project
         {
@@ -108,7 +129,8 @@ public sealed class ProjectMetaEditPageTests
             Name = "Project",
             CreatedByUserId = "creator",
             HodUserId = "hod-8",
-            CategoryId = 25
+            CategoryId = 25,
+            TechnicalCategoryId = 85
         });
         await db.SaveChangesAsync();
 
@@ -120,6 +142,7 @@ public sealed class ProjectMetaEditPageTests
             ProjectId = 8,
             Name = "Admin Updated",
             CategoryId = 25,
+            TechnicalCategoryId = 86,
             RowVersion = Convert.ToBase64String(project.RowVersion)
         };
 
@@ -128,6 +151,7 @@ public sealed class ProjectMetaEditPageTests
         Assert.IsType<RedirectToPageResult>(result);
         project = await db.Projects.SingleAsync(p => p.Id == 8);
         Assert.Equal("Admin Updated", project.Name);
+        Assert.Equal(86, project.TechnicalCategoryId);
     }
 
     [Fact]
@@ -212,6 +236,45 @@ public sealed class ProjectMetaEditPageTests
         Assert.True(page.ModelState.TryGetValue("Input.CategoryId", out var entry));
         var error = Assert.Single(entry!.Errors);
         Assert.Equal(ProjectValidationMessages.InactiveCategory, error.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task OnPostAsync_InactiveTechnicalCategory_ReturnsError()
+    {
+        await using var db = CreateContext();
+        await db.TechnicalCategories.AddAsync(new TechnicalCategory
+        {
+            Id = 95,
+            Name = "Legacy",
+            IsActive = false
+        });
+
+        await db.Projects.AddAsync(new Project
+        {
+            Id = 22,
+            Name = "Needs Tech Category",
+            CreatedByUserId = "creator",
+            HodUserId = "hod-22"
+        });
+        await db.SaveChangesAsync();
+
+        var project = await db.Projects.SingleAsync(p => p.Id == 22);
+        var userContext = new FakeUserContext("hod-22", isHoD: true);
+        var page = CreatePage(db, userContext);
+        page.Input = new EditModel.MetaEditInput
+        {
+            ProjectId = 22,
+            Name = "Needs Tech Category",
+            TechnicalCategoryId = 95,
+            RowVersion = Convert.ToBase64String(project.RowVersion)
+        };
+
+        var result = await page.OnPostAsync(22, CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.True(page.ModelState.TryGetValue("Input.TechnicalCategoryId", out var entry));
+        var error = Assert.Single(entry!.Errors);
+        Assert.Equal(ProjectValidationMessages.InactiveTechnicalCategory, error.ErrorMessage);
     }
 
     [Fact]

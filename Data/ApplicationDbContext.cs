@@ -28,6 +28,7 @@ namespace ProjectManagement.Data
         public DbSet<ProjectCategory> ProjectCategories => Set<ProjectCategory>();
         public DbSet<TechnicalCategory> TechnicalCategories => Set<TechnicalCategory>();
         public DbSet<ProjectIpaFact> ProjectIpaFacts => Set<ProjectIpaFact>();
+        public DbSet<TechnicalCategory> TechnicalCategories => Set<TechnicalCategory>();
         public DbSet<ProjectSowFact> ProjectSowFacts => Set<ProjectSowFact>();
         public DbSet<ProjectAonFact> ProjectAonFacts => Set<ProjectAonFact>();
         public DbSet<ProjectBenchmarkFact> ProjectBenchmarkFacts => Set<ProjectBenchmarkFact>();
@@ -690,6 +691,11 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.ProjectId)
                     .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne<TechnicalCategory>()
+                    .WithMany()
+                    .HasForeignKey(x => x.TechnicalCategoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasIndex(x => x.TechnicalCategoryId);
 
                 if (Database.IsSqlServer())
                 {

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ProjectManagement.Data;
@@ -11,9 +12,11 @@ using ProjectManagement.Data;
 namespace ProjectManagement.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251011015931_AddTechnicalCategories")]
+    partial class AddTechnicalCategories
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1068,9 +1071,6 @@ namespace ProjectManagement.Data.Migrations
                     b.Property<int?>("CategoryId")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("TechnicalCategoryId")
-                        .HasColumnType("integer");
-
                     b.Property<DateOnly?>("CompletedOn")
                         .HasColumnType("date");
 
@@ -1188,8 +1188,6 @@ namespace ProjectManagement.Data.Migrations
                         .HasFilter("\"CaseFileNumber\" IS NOT NULL");
 
                     b.HasIndex("CategoryId");
-
-                    b.HasIndex("TechnicalCategoryId");
 
                     b.HasIndex("CompletedYear");
 
@@ -1375,40 +1373,6 @@ namespace ProjectManagement.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("ProjectCategories");
-                });
-
-            modelBuilder.Entity("ProjectManagement.Models.TechnicalCategory", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true);
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(120)
-                        .HasColumnType("character varying(120)");
-
-                    b.Property<int?>("ParentId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("SortOrder")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0);
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ParentId", "Name")
-                        .IsUnique();
-
-                    b.ToTable("TechnicalCategories");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectComment", b =>
@@ -3331,11 +3295,6 @@ namespace ProjectManagement.Data.Migrations
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("ProjectManagement.Models.TechnicalCategory", "TechnicalCategory")
-                        .WithMany("Projects")
-                        .HasForeignKey("TechnicalCategoryId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("ProjectManagement.Models.ProjectPhoto", null)
                         .WithMany()
                         .HasForeignKey("CoverPhotoId")
@@ -3375,8 +3334,6 @@ namespace ProjectManagement.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Category");
-
-                    b.Navigation("TechnicalCategory");
 
                     b.Navigation("HodUser");
 
@@ -3431,16 +3388,6 @@ namespace ProjectManagement.Data.Migrations
             modelBuilder.Entity("ProjectManagement.Models.ProjectCategory", b =>
                 {
                     b.HasOne("ProjectManagement.Models.ProjectCategory", "Parent")
-                        .WithMany("Children")
-                        .HasForeignKey("ParentId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Parent");
-                });
-
-            modelBuilder.Entity("ProjectManagement.Models.TechnicalCategory", b =>
-                {
-                    b.HasOne("ProjectManagement.Models.TechnicalCategory", "Parent")
                         .WithMany("Children")
                         .HasForeignKey("ParentId")
                         .OnDelete(DeleteBehavior.Restrict);
@@ -3877,13 +3824,6 @@ namespace ProjectManagement.Data.Migrations
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectCategory", b =>
-                {
-                    b.Navigation("Children");
-
-                    b.Navigation("Projects");
-                });
-
-            modelBuilder.Entity("ProjectManagement.Models.TechnicalCategory", b =>
                 {
                     b.Navigation("Children");
 
