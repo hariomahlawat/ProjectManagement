@@ -431,9 +431,9 @@ body {
 .hero {
   display: grid;
   grid-template-columns: minmax(420px, 1.1fr) minmax(360px, 0.9fr);
-  gap: 3rem;
+  gap: 2.25rem;
   align-items: center;
-  padding-block: clamp(2rem, 5vw, 4rem);
+  padding-block: clamp(1.5rem, 4vw, 3rem);
 }
 
 .hero-left { /* text column */ }
@@ -442,7 +442,7 @@ body {
   display: grid;
   justify-items: end;
   align-content: center;
-  gap: 1.25rem;
+  gap: 1rem;
 }
 
 .hero-art {
@@ -1069,7 +1069,8 @@ body {
 @media (max-width: 992px) {
   .hero {
     grid-template-columns: 1fr;
-    gap: 2rem;
+    gap: 1.5rem;
+    padding-block: clamp(1.25rem, 6vw, 2.5rem);
   }
   .hero-right {
     justify-items: center;
