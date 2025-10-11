@@ -53,7 +53,10 @@ if (root) {
   }
 
   function navigateToOverview(id) {
-    window.location.href = buildUrl(projectOverviewUrl, { id });
+    const url = new URL(projectOverviewUrl, window.location.origin);
+    const basePath = url.pathname.replace(/\/$/, '');
+    url.pathname = `${basePath}/${encodeURIComponent(id)}`;
+    window.location.href = url.toString();
   }
 
   function activateLifecycleButton(button, activeValue) {
