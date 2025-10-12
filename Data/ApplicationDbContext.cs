@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
@@ -79,6 +80,9 @@ namespace ProjectManagement.Data
         public DbSet<SponsoringUnit> SponsoringUnits => Set<SponsoringUnit>();
         public DbSet<LineDirectorate> LineDirectorates => Set<LineDirectorate>();
         public DbSet<ProjectAudit> ProjectAudits => Set<ProjectAudit>();
+        public DbSet<VisitType> VisitTypes => Set<VisitType>();
+        public DbSet<Visit> Visits => Set<Visit>();
+        public DbSet<VisitPhoto> VisitPhotos => Set<VisitPhoto>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -260,6 +264,86 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.TotId)
                     .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            builder.Entity<VisitType>(e =>
+            {
+                ConfigureRowVersion(e);
+                e.Property(x => x.Name).HasMaxLength(128).IsRequired();
+                e.HasIndex(x => x.Name).IsUnique();
+                e.Property(x => x.Description).HasMaxLength(512);
+                e.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.LastModifiedByUserId).HasMaxLength(450);
+                e.Property(x => x.IsActive).HasDefaultValue(true);
+                e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+
+                if (Database.IsSqlServer())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else if (!Database.IsNpgsql())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+            });
+
+            builder.Entity<Visit>(e =>
+            {
+                ConfigureRowVersion(e);
+                e.Property(x => x.DateOfVisit).HasColumnType("date").IsRequired();
+                e.Property(x => x.Strength).IsRequired();
+                e.Property(x => x.Remarks).HasMaxLength(2000);
+                e.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.LastModifiedByUserId).HasMaxLength(450);
+                e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                e.Property(x => x.LastModifiedAtUtc);
+
+                e.HasIndex(x => x.DateOfVisit).HasDatabaseName("IX_Visits_DateOfVisit");
+                e.HasIndex(x => x.VisitTypeId).HasDatabaseName("IX_Visits_VisitTypeId");
+
+                e.HasOne(x => x.VisitType)
+                    .WithMany(x => x.Visits)
+                    .HasForeignKey(x => x.VisitTypeId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                e.HasOne(x => x.CoverPhoto)
+                    .WithMany()
+                    .HasForeignKey(x => x.CoverPhotoId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                if (Database.IsSqlServer())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else if (!Database.IsNpgsql())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+            });
+
+            builder.Entity<VisitPhoto>(e =>
+            {
+                e.Property(x => x.StorageKey).HasMaxLength(260).IsRequired();
+                e.Property(x => x.ContentType).HasMaxLength(128).IsRequired();
+                e.Property(x => x.Caption).HasMaxLength(512);
+                e.Property(x => x.VersionStamp).HasMaxLength(64).IsRequired();
+                e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+
+                e.HasIndex(x => new { x.VisitId, x.CreatedAtUtc }).HasDatabaseName("IX_VisitPhotos_VisitId_CreatedAtUtc");
+
+                e.HasOne(x => x.Visit)
+                    .WithMany(x => x.Photos)
+                    .HasForeignKey(x => x.VisitId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                if (Database.IsSqlServer())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else if (!Database.IsNpgsql())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
             });
 
             builder.Entity<ProjectVideo>(e =>

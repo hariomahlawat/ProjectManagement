@@ -1,0 +1,106 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.IndexModel
+@{
+    ViewData["Title"] = "Visits";
+    string fromValue = Model.From;
+    if (!string.IsNullOrWhiteSpace(fromValue) && DateOnly.TryParse(fromValue, out var parsedFrom))
+    {
+        fromValue = parsedFrom.ToString("yyyy-MM-dd");
+    }
+    string toValue = Model.To;
+    if (!string.IsNullOrWhiteSpace(toValue) && DateOnly.TryParse(toValue, out var parsedTo))
+    {
+        toValue = parsedTo.ToString("yyyy-MM-dd");
+    }
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-1">Visits</h1>
+        <p class="text-muted mb-0">Review and manage visits recorded by the Project Office.</p>
+    </div>
+    @if (Model.CanManage)
+    {
+        <a asp-page="New" class="btn btn-primary">New Visit</a>
+    }
+</div>
+
+<form method="get" class="row g-3 align-items-end mb-4">
+    <div class="col-sm-6 col-md-3">
+        <label asp-for="VisitTypeId" class="form-label">Visit type</label>
+        <select asp-for="VisitTypeId" asp-items="Model.VisitTypeOptions" class="form-select">
+        </select>
+    </div>
+    <div class="col-sm-6 col-md-2">
+        <label class="form-label" for="from-date">From</label>
+        <input id="from-date" name="From" type="date" value="@fromValue" class="form-control" />
+    </div>
+    <div class="col-sm-6 col-md-2">
+        <label class="form-label" for="to-date">To</label>
+        <input id="to-date" name="To" type="date" value="@toValue" class="form-control" />
+    </div>
+    <div class="col-sm-6 col-md-3">
+        <label class="form-label" for="remarks-filter">Remarks</label>
+        <input id="remarks-filter" name="Q" value="@Model.Q" class="form-control" placeholder="Search remarks" />
+    </div>
+    <div class="col-md-2 d-flex gap-2">
+        <button type="submit" class="btn btn-outline-primary w-100">Filter</button>
+        <a asp-page="Index" class="btn btn-outline-secondary" title="Clear filters">Reset</a>
+    </div>
+</form>
+
+@if (Model.Items.Count == 0)
+{
+    <div class="alert alert-info">No visits found for the selected criteria.</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Visit Type</th>
+                    <th scope="col">Strength</th>
+                    <th scope="col">Photos</th>
+                    <th scope="col" class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var item in Model.Items)
+            {
+                <tr>
+                    <td>@item.DateOfVisit.ToString("dd MMM yyyy")</td>
+                    <td>
+                        <div class="fw-semibold">@item.VisitTypeName</div>
+                        @if (!item.VisitTypeIsActive)
+                        {
+                            <span class="badge bg-warning text-dark">Type inactive</span>
+                        }
+                    </td>
+                    <td>@item.Strength</td>
+                    <td>@item.PhotoCount</td>
+                    <td class="text-end">
+                        <div class="btn-group" role="group">
+                            <a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-secondary btn-sm">View</a>
+                            @if (Model.CanManage)
+                            {
+                                <a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-primary btn-sm">Edit</a>
+                                <form method="post" asp-page-handler="Delete" class="d-inline ms-1">
+                                    <input type="hidden" name="id" value="@item.Id" />
+                                    <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(item.RowVersion)" />
+                                    <input type="hidden" name="VisitTypeId" value="@(Model.VisitTypeId.HasValue ? Model.VisitTypeId.ToString() : string.Empty)" />
+                                    <input type="hidden" name="From" value="@Model.From" />
+                                    <input type="hidden" name="To" value="@Model.To" />
+                                    <input type="hidden" name="Q" value="@Model.Q" />
+                                    <button type="submit" class="btn btn-outline-danger btn-sm" data-confirm="Delete this visit?">Delete</button>
+                                </form>
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}

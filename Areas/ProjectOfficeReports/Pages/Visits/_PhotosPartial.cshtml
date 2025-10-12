@@ -1,0 +1,53 @@
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.VisitPhotosViewModel
+
+@if (Model.Photos.Count == 0)
+{
+    <div class="alert alert-info">No photos uploaded yet.</div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var photo in Model.Photos)
+        {
+            var thumbnail = Url.Page("./ViewPhoto", new { id = Model.VisitId, photoId = photo.Id, size = "sm" });
+            var full = Url.Page("./ViewPhoto", new { id = Model.VisitId, photoId = photo.Id, size = "xl" });
+            var versionSuffix = string.IsNullOrWhiteSpace(photo.VersionStamp) ? string.Empty : $"?v={photo.VersionStamp}";
+            <div class="col-sm-6 col-lg-4">
+                <div class="card h-100">
+                    <a href="@full@versionSuffix" target="_blank" rel="noopener" class="position-relative">
+                        <img src="@thumbnail@versionSuffix" class="card-img-top" alt="Visit photo" />
+                        @if (Model.CoverPhotoId == photo.Id)
+                        {
+                            <span class="badge bg-success position-absolute top-0 start-0 m-2">Cover</span>
+                        }
+                    </a>
+                    <div class="card-body">
+                        @if (!string.IsNullOrWhiteSpace(photo.Caption))
+                        {
+                            <div>@photo.Caption</div>
+                        }
+                        else
+                        {
+                            <div class="text-muted">No caption</div>
+                        }
+                    </div>
+                    @if (Model.CanManage)
+                    {
+                        <div class="card-footer d-flex justify-content-between">
+                            <form method="post" asp-page-handler="SetCover" class="d-inline">
+                                <input type="hidden" name="id" value="@Model.VisitId" />
+                                <input type="hidden" name="photoId" value="@photo.Id" />
+                                <button type="submit" class="btn btn-sm btn-outline-primary" @(Model.CoverPhotoId == photo.Id ? "disabled" : null)>Set cover</button>
+                            </form>
+                            <form method="post" asp-page-handler="DeletePhoto" class="d-inline">
+                                <input type="hidden" name="id" value="@Model.VisitId" />
+                                <input type="hidden" name="photoId" value="@photo.Id" />
+                                <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="Delete this photo?">Delete</button>
+                            </form>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
