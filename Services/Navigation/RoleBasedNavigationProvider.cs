@@ -68,6 +68,35 @@ public class RoleBasedNavigationProvider : INavigationProvider
             }
         };
 
+        var projectOfficeReportsChildren = new List<NavigationItem>
+        {
+            new()
+            {
+                Text = "Visits",
+                Area = "ProjectOfficeReports",
+                Page = "/Visits/Index"
+            }
+        };
+
+        if (roleSet.Contains("Admin"))
+        {
+            projectOfficeReportsChildren.Add(new NavigationItem
+            {
+                Text = "Visit types",
+                Area = "ProjectOfficeReports",
+                Page = "/VisitTypes/Index",
+                RequiredRoles = new[] { "Admin" }
+            });
+        }
+
+        items.Add(new NavigationItem
+        {
+            Text = "Project office reports",
+            Area = "ProjectOfficeReports",
+            Page = "/Index",
+            Children = projectOfficeReportsChildren
+        });
+
         if (roleSet.Contains("Admin"))
         {
             items.Add(new NavigationItem
