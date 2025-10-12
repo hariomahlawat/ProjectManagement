@@ -459,6 +459,8 @@
 
         static bool IsSkipped(ProjectStage stage) => stage.Status == StageStatus.Skipped;
 
+        static bool IsFinished(ProjectStage stage) => IsCompleted(stage) || IsSkipped(stage);
+
         var lastCompleted = ordered
             .Where(IsCompleted)
             .OrderByDescending(s => s.SortOrder)
@@ -482,8 +484,7 @@
         current ??= ordered.FirstOrDefault(IsNotStarted)
             ?? ordered.FirstOrDefault(IsSkipped);
 
-        var paymentStage = ordered.FirstOrDefault(s => s.StageCode == StageCodes.PAYMENT);
-        var allStagesCompleted = paymentStage is not null && IsCompleted(paymentStage);
+        var allStagesCompleted = ordered.All(IsFinished);
 
         current ??= lastCompleted ?? ordered.Last();
 
