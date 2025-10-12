@@ -1,5 +1,6 @@
 @page
 @model ProjectManagement.Pages.Projects.IndexModel
+@using System
 @using System.Linq
 @using ProjectManagement.Models
 @using ProjectManagement.Models.Execution
@@ -484,7 +485,11 @@
         current ??= ordered.FirstOrDefault(IsNotStarted)
             ?? ordered.FirstOrDefault(IsSkipped);
 
-        var allStagesCompleted = ordered.All(IsFinished);
+        var paymentStage = ordered
+            .FirstOrDefault(stage => string.Equals(stage.StageCode, StageCodes.PAYMENT, StringComparison.OrdinalIgnoreCase));
+        var paymentCompleted = paymentStage?.Status == StageStatus.Completed;
+
+        var allStagesCompleted = ordered.All(IsFinished) && paymentCompleted;
 
         current ??= lastCompleted ?? ordered.Last();
 
