@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Storage;
 using SixLabors.ImageSharp;
@@ -160,22 +161,31 @@ public sealed class VisitPhotoService : IVisitPhotoService
             CreatedAtUtc = now
         };
 
-        visit.Photos.Add(photo);
-        if (!visit.CoverPhotoId.HasValue)
-        {
-            visit.CoverPhotoId = photoId;
-        }
+        var shouldSetCover = !visit.CoverPhotoId.HasValue;
 
+        visit.Photos.Add(photo);
         visit.LastModifiedAtUtc = now;
         visit.LastModifiedByUserId = userId;
+
+        await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
+
+            if (shouldSetCover)
+            {
+                visit.CoverPhotoId = photoId;
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateException ex)
         {
+            await transaction.RollbackAsync(cancellationToken);
             _logger.LogError(ex, "Failed to persist visit photo metadata for visit {VisitId}", visitId);
+            await DeletePhysicalAssetsAsync(storageKey, cancellationToken);
             return VisitPhotoUploadResult.Invalid("Unable to save photo metadata.");
         }
 
