@@ -439,6 +439,16 @@
             .ThenBy(s => s.Id)
             .ToList();
 
+        static bool ComesAfter(ProjectStage candidate, ProjectStage reference)
+        {
+            if (candidate.SortOrder != reference.SortOrder)
+            {
+                return candidate.SortOrder > reference.SortOrder;
+            }
+
+            return candidate.Id > reference.Id;
+        }
+
         var lastCompleted = ordered
             .Where(s => s.Status == StageStatus.Completed)
             .OrderByDescending(s => s.SortOrder)
@@ -447,15 +457,28 @@
             .FirstOrDefault();
 
         var current = ordered.FirstOrDefault(s => s.Status == StageStatus.InProgress)
-            ?? ordered.FirstOrDefault(s => s.Status == StageStatus.Blocked)
-            ?? ordered.FirstOrDefault(s => s.Status == StageStatus.NotStarted)
-            ?? ordered.FirstOrDefault(s => s.Status == StageStatus.Skipped)
-            ?? lastCompleted
-            ?? ordered.Last();
+            ?? ordered.FirstOrDefault(s => s.Status == StageStatus.Blocked);
+
+        if (current is null && lastCompleted is not null)
+        {
+            current = ordered
+                .Where(s => ComesAfter(s, lastCompleted))
+                .FirstOrDefault(s => s.Status == StageStatus.NotStarted)
+                ?? ordered
+                    .Where(s => ComesAfter(s, lastCompleted))
+                    .FirstOrDefault(s => s.Status == StageStatus.Skipped);
+        }
+
+        current ??= ordered.FirstOrDefault(s => s.Status == StageStatus.NotStarted)
+            ?? ordered.FirstOrDefault(s => s.Status == StageStatus.Skipped);
+
+        var allStagesCompleted = current is null && lastCompleted is not null;
+
+        current ??= lastCompleted ?? ordered.Last();
 
         return new StageSummary(
             FormatLastCompletedStage(lastCompleted),
-            FormatCurrentStage(current));
+            allStagesCompleted ? "All stages completed" : FormatCurrentStage(current));
     }
 
     private static string FormatLastCompletedStage(ProjectStage? stage)
