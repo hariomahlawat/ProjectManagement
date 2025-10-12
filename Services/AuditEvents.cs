@@ -220,6 +220,105 @@ public static class Audit
 
             return new AuditEvent("Project.DocumentHardDeletedBulk", userId, data);
         }
+
+        public static AuditEvent VisitTypeAdded(Guid visitTypeId, string name, string userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["VisitTypeId"] = visitTypeId.ToString(),
+                ["Name"] = name
+            };
+
+            return new AuditEvent("ProjectOfficeReports.VisitTypeAdded", userId, data);
+        }
+
+        public static AuditEvent VisitTypeUpdated(Guid visitTypeId, string name, bool isActive, string userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["VisitTypeId"] = visitTypeId.ToString(),
+                ["Name"] = name,
+                ["IsActive"] = isActive ? "true" : "false"
+            };
+
+            return new AuditEvent("ProjectOfficeReports.VisitTypeUpdated", userId, data);
+        }
+
+        public static AuditEvent VisitTypeDeleted(Guid visitTypeId, string userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["VisitTypeId"] = visitTypeId.ToString()
+            };
+
+            return new AuditEvent("ProjectOfficeReports.VisitTypeDeleted", userId, data);
+        }
+
+        public static AuditEvent VisitCreated(Guid visitId, Guid visitTypeId, string userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["VisitId"] = visitId.ToString(),
+                ["VisitTypeId"] = visitTypeId.ToString()
+            };
+
+            return new AuditEvent("ProjectOfficeReports.VisitCreated", userId, data);
+        }
+
+        public static AuditEvent VisitUpdated(Guid visitId, Guid visitTypeId, string userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["VisitId"] = visitId.ToString(),
+                ["VisitTypeId"] = visitTypeId.ToString()
+            };
+
+            return new AuditEvent("ProjectOfficeReports.VisitUpdated", userId, data);
+        }
+
+        public static AuditEvent VisitDeleted(Guid visitId, string userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["VisitId"] = visitId.ToString()
+            };
+
+            return new AuditEvent("ProjectOfficeReports.VisitDeleted", userId, data);
+        }
+
+        public static AuditEvent VisitPhotoAdded(Guid visitId, Guid photoId, string userId, bool isCover)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["VisitId"] = visitId.ToString(),
+                ["PhotoId"] = photoId.ToString(),
+                ["IsCover"] = isCover ? "true" : "false"
+            };
+
+            return new AuditEvent("ProjectOfficeReports.VisitPhotoAdded", userId, data);
+        }
+
+        public static AuditEvent VisitPhotoDeleted(Guid visitId, Guid photoId, string userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["VisitId"] = visitId.ToString(),
+                ["PhotoId"] = photoId.ToString()
+            };
+
+            return new AuditEvent("ProjectOfficeReports.VisitPhotoDeleted", userId, data);
+        }
+
+        public static AuditEvent VisitCoverPhotoChanged(Guid visitId, Guid photoId, string userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["VisitId"] = visitId.ToString(),
+                ["PhotoId"] = photoId.ToString()
+            };
+
+            return new AuditEvent("ProjectOfficeReports.VisitCoverPhotoChanged", userId, data);
+        }
     }
 }
 

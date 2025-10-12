@@ -18,6 +18,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Scheduling;
@@ -229,8 +230,13 @@ builder.Services.AddScoped<ProjectMetaChangeRequestService>();
 builder.Services.AddScoped<ProjectMetaChangeDecisionService>();
 builder.Services.AddScoped<ProjectCategoryHierarchyService>();
 builder.Services.AddScoped<IProjectAnalyticsService, ProjectAnalyticsService>();
+builder.Services.AddScoped<VisitTypeService>();
+builder.Services.AddScoped<VisitService>();
+builder.Services.AddScoped<IVisitPhotoService, VisitPhotoService>();
 builder.Services.AddOptions<ProjectPhotoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectPhotos"));
+builder.Services.AddOptions<VisitPhotoOptions>()
+    .Bind(builder.Configuration.GetSection("ProjectOfficeReports:VisitPhotos"));
 builder.Services.AddOptions<ProjectDocumentOptions>()
     .Bind(builder.Configuration.GetSection("ProjectDocuments"));
 builder.Services.AddOptions<ProjectVideoOptions>()

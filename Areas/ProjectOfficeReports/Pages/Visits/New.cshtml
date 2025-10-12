@@ -1,0 +1,50 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.NewModel
+@{
+    ViewData["Title"] = "New Visit";
+}
+
+@if (!Model.CanManage)
+{
+    <div class="alert alert-danger">You do not have permission to create visits.</div>
+}
+else
+{
+    <div class="row justify-content-center">
+        <div class="col-xl-8">
+            <h1 class="h3 mb-3">New Visit</h1>
+            <form method="post" novalidate>
+                <div class="mb-3">
+                    <label asp-for="Input.VisitTypeId" class="form-label"></label>
+                    <select asp-for="Input.VisitTypeId" asp-items="Model.VisitTypeOptions" class="form-select"></select>
+                    <span asp-validation-for="Input.VisitTypeId" class="text-danger"></span>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label asp-for="Input.DateOfVisit" class="form-label"></label>
+                        <input asp-for="Input.DateOfVisit" class="form-control" type="date" />
+                        <span asp-validation-for="Input.DateOfVisit" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <label asp-for="Input.Strength" class="form-label"></label>
+                        <input asp-for="Input.Strength" class="form-control" type="number" min="1" step="1" />
+                        <span asp-validation-for="Input.Strength" class="text-danger"></span>
+                    </div>
+                </div>
+                <div class="mb-3 mt-3">
+                    <label asp-for="Input.Remarks" class="form-label"></label>
+                    <textarea asp-for="Input.Remarks" class="form-control" rows="4" placeholder="Optional remarks"></textarea>
+                    <span asp-validation-for="Input.Remarks" class="text-danger"></span>
+                </div>
+                <div class="d-flex justify-content-between">
+                    <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary">Create visit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
