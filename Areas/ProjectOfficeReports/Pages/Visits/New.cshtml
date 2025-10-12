@@ -35,7 +35,8 @@ else
                 </div>
             </div>
             <div class="pm-card-body">
-                <form method="post" novalidate class="visit-form">
+                <form method="post" enctype="multipart/form-data" novalidate class="visit-form">
+                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
                     <div class="row g-4">
                         <div class="col-md-6">
                             <label asp-for="Input.VisitTypeId" class="form-label"></label>
@@ -61,6 +62,21 @@ else
                             <label asp-for="Input.Remarks" class="form-label"></label>
                             <textarea asp-for="Input.Remarks" class="form-control" rows="4" placeholder="Optional remarks or key observations"></textarea>
                             <span asp-validation-for="Input.Remarks" class="text-danger"></span>
+                        </div>
+                        <div class="col-12">
+                            <hr class="my-2" />
+                            <h2 class="h6 mb-3">Optional photo</h2>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="visit-photo">Photo</label>
+                            <input id="visit-photo" class="form-control" type="file" asp-for="Upload" accept="image/*" />
+                            <span asp-validation-for="Upload" class="text-danger"></span>
+                            <div class="form-text">JPEG, PNG or WebP up to 5 MB.</div>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="UploadCaption" class="form-label">Caption (optional)</label>
+                            <input asp-for="UploadCaption" class="form-control" placeholder="What does this photo show?" />
+                            <span asp-validation-for="UploadCaption" class="text-danger"></span>
                         </div>
                     </div>
                     <div class="visit-form__footer">
