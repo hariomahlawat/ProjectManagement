@@ -40,8 +40,8 @@
         <input id="to-date" name="To" type="date" value="@toValue" class="form-control" />
     </div>
     <div class="col-sm-6 col-md-3">
-        <label class="form-label" for="remarks-filter">Remarks</label>
-        <input id="remarks-filter" name="Q" value="@Model.Q" class="form-control" placeholder="Search remarks" />
+        <label class="form-label" for="search-filter">Visitor or remarks</label>
+        <input id="search-filter" name="Q" value="@Model.Q" class="form-control" placeholder="Search visitor or remarks" />
     </div>
     <div class="col-md-2 d-flex gap-2">
         <button type="submit" class="btn btn-outline-primary w-100">Filter</button>
@@ -61,6 +61,7 @@ else
                 <tr>
                     <th scope="col">Date</th>
                     <th scope="col">Visit Type</th>
+                    <th scope="col">Visitor</th>
                     <th scope="col">Strength</th>
                     <th scope="col">Photos</th>
                     <th scope="col" class="text-end">Actions</th>
@@ -78,6 +79,7 @@ else
                             <span class="badge bg-warning text-dark">Type inactive</span>
                         }
                     </td>
+                    <td>@item.VisitorName</td>
                     <td>@item.Strength</td>
                     <td>@item.PhotoCount</td>
                     <td class="text-end">

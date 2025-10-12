@@ -58,7 +58,7 @@ public class NewModel : PageModel
             return Page();
         }
 
-        var result = await _visitService.CreateAsync(Input.VisitTypeId!.Value, Input.DateOfVisit!.Value, Input.Strength, Input.Remarks, _userManager.GetUserId(User) ?? string.Empty, cancellationToken);
+        var result = await _visitService.CreateAsync(Input.VisitTypeId!.Value, Input.DateOfVisit!.Value, Input.VisitorName, Input.Strength, Input.Remarks, _userManager.GetUserId(User) ?? string.Empty, cancellationToken);
         if (result.Outcome == VisitMutationOutcome.Success && result.Entity != null)
         {
             TempData["ToastMessage"] = "Visit created.";
@@ -109,6 +109,11 @@ public class NewModel : PageModel
         [Required]
         [DataType(DataType.Date)]
         public DateOnly? DateOfVisit { get; set; }
+
+        [Required]
+        [StringLength(200)]
+        [Display(Name = "Visitor name")]
+        public string VisitorName { get; set; } = string.Empty;
 
         [Range(1, int.MaxValue, ErrorMessage = "Strength must be greater than zero.")]
         public int Strength { get; set; } = 1;
