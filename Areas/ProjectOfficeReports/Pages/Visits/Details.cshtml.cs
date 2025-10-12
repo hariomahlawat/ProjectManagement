@@ -29,7 +29,7 @@ public class DetailsModel : PageModel
     [BindProperty]
     public string RowVersion { get; set; } = string.Empty;
 
-    public bool CanManage => User.IsInRole("Admin") || User.IsInRole("HoD") || User.IsInRole("ProjectOffice");
+    public bool CanManage => User.IsInRole("Admin") || User.IsInRole("HoD") || IsProjectOfficeMember();
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -73,6 +73,11 @@ public class DetailsModel : PageModel
         }
 
         return RedirectToPage(new { id });
+    }
+
+    private bool IsProjectOfficeMember()
+    {
+        return User.IsInRole("ProjectOffice") || User.IsInRole("Project Office");
     }
 
     private static byte[]? DecodeRowVersion(string value)

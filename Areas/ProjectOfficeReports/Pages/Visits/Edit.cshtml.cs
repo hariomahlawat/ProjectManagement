@@ -54,7 +54,7 @@ public class EditModel : PageModel
 
     public VisitPhotosViewModel PhotoGallery => new(VisitId, Photos, CoverPhotoId, CanManage);
 
-    public bool CanManage => User.IsInRole("Admin") || User.IsInRole("HoD") || User.IsInRole("ProjectOffice");
+    public bool CanManage => User.IsInRole("Admin") || User.IsInRole("HoD") || IsProjectOfficeMember();
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -244,6 +244,11 @@ public class EditModel : PageModel
 
         VisitTypeOptions = list;
         return true;
+    }
+
+    private bool IsProjectOfficeMember()
+    {
+        return User.IsInRole("ProjectOffice") || User.IsInRole("Project Office");
     }
 
     private static byte[]? DecodeRowVersion(string value)

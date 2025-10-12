@@ -32,7 +32,7 @@ public class NewModel : PageModel
 
     public IReadOnlyList<SelectListItem> VisitTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
 
-    public bool CanManage => User.IsInRole("Admin") || User.IsInRole("HoD") || User.IsInRole("ProjectOffice");
+    public bool CanManage => User.IsInRole("Admin") || User.IsInRole("HoD") || IsProjectOfficeMember();
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -99,6 +99,11 @@ public class NewModel : PageModel
         }
 
         VisitTypeOptions = list;
+    }
+
+    private bool IsProjectOfficeMember()
+    {
+        return User.IsInRole("ProjectOffice") || User.IsInRole("Project Office");
     }
 
     public class InputModel
