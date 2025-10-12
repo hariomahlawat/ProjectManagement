@@ -449,8 +449,18 @@
             return candidate.Id > reference.Id;
         }
 
+        static bool IsNotStarted(ProjectStage stage)
+        {
+            return stage.Status == StageStatus.NotStarted
+                || !System.Enum.IsDefined(typeof(StageStatus), stage.Status);
+        }
+
+        static bool IsCompleted(ProjectStage stage) => stage.Status == StageStatus.Completed;
+
+        static bool IsSkipped(ProjectStage stage) => stage.Status == StageStatus.Skipped;
+
         var lastCompleted = ordered
-            .Where(s => s.Status == StageStatus.Completed)
+            .Where(IsCompleted)
             .OrderByDescending(s => s.SortOrder)
             .ThenByDescending(s => s.CompletedOn ?? DateOnly.MinValue)
             .ThenByDescending(s => s.Id)
@@ -463,16 +473,17 @@
         {
             current = ordered
                 .Where(s => ComesAfter(s, lastCompleted))
-                .FirstOrDefault(s => s.Status == StageStatus.NotStarted)
+                .FirstOrDefault(IsNotStarted)
                 ?? ordered
                     .Where(s => ComesAfter(s, lastCompleted))
-                    .FirstOrDefault(s => s.Status == StageStatus.Skipped);
+                    .FirstOrDefault(IsSkipped);
         }
 
-        current ??= ordered.FirstOrDefault(s => s.Status == StageStatus.NotStarted)
-            ?? ordered.FirstOrDefault(s => s.Status == StageStatus.Skipped);
+        current ??= ordered.FirstOrDefault(IsNotStarted)
+            ?? ordered.FirstOrDefault(IsSkipped);
 
-        var allStagesCompleted = current is null && lastCompleted is not null;
+        var paymentStage = ordered.FirstOrDefault(s => s.StageCode == StageCodes.PAYMENT);
+        var allStagesCompleted = paymentStage is not null && IsCompleted(paymentStage);
 
         current ??= lastCompleted ?? ordered.Last();
 
@@ -509,7 +520,7 @@
             StageStatus.Completed => $"{name} — Completed",
             StageStatus.Blocked => $"{name} — Blocked",
             StageStatus.Skipped => $"{name} — Skipped",
-            _ => name
+            _ => $"{name} — Not started"
         };
     }
 
