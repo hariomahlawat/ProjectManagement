@@ -54,6 +54,51 @@ public class RoleBasedNavigationProviderTests
         Assert.Equal(true, archivedProjects.RouteValues?["IncludeArchived"]);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Navigation_IncludesProjectOfficeReportsVisitsNode(bool isAdmin)
+    {
+        var user = new ApplicationUser
+        {
+            Id = isAdmin ? "admin-2" : "user-1",
+            UserName = isAdmin ? "admin" : "user"
+        };
+
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var roles = isAdmin ? new[] { "Admin" } : Array.Empty<string>();
+        var userManager = new StubUserManager(user, services, roles);
+        var httpContextAccessor = new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
+                }, "Test"))
+            }
+        };
+
+        var provider = new RoleBasedNavigationProvider(userManager, httpContextAccessor);
+        var navigation = await provider.GetNavigationAsync();
+
+        var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
+        var children = projectOfficeReports.Children.ToList();
+
+        Assert.Contains(children, c => c.Text == "Visits" && c.Page == "/Visits/Index");
+
+        if (isAdmin)
+        {
+            var visitTypes = Assert.Single(children.Where(c => c.Text == "Visit types"));
+            Assert.Equal("/VisitTypes/Index", visitTypes.Page);
+            Assert.Equal(new[] { "Admin" }, visitTypes.RequiredRoles);
+        }
+        else
+        {
+            Assert.DoesNotContain(children, c => c.Text == "Visit types");
+        }
+    }
+
     private sealed class StubUserManager : UserManager<ApplicationUser>
     {
         private readonly ApplicationUser _user;
