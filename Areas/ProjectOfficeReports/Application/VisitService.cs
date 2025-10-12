@@ -27,7 +27,7 @@ public sealed class VisitService
 
     public async Task<IReadOnlyList<VisitListItem>> SearchAsync(VisitQueryOptions options, CancellationToken cancellationToken)
     {
-        var query = _db.Visits.AsNoTracking()
+        IQueryable<Visit> query = _db.Visits.AsNoTracking()
             .Include(x => x.VisitType)
             .Include(x => x.Photos);
 
