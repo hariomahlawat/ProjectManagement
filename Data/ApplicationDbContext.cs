@@ -277,6 +277,12 @@ namespace ProjectManagement.Data
                 e.Property(x => x.IsActive).HasDefaultValue(true);
                 e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
 
+                if (Database.IsNpgsql())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone");
+                    e.Property(x => x.LastModifiedAtUtc).HasColumnType("timestamp with time zone");
+                }
+
                 if (Database.IsSqlServer())
                 {
                     e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
@@ -297,6 +303,12 @@ namespace ProjectManagement.Data
                 e.Property(x => x.LastModifiedByUserId).HasMaxLength(450);
                 e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
                 e.Property(x => x.LastModifiedAtUtc);
+
+                if (Database.IsNpgsql())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone");
+                    e.Property(x => x.LastModifiedAtUtc).HasColumnType("timestamp with time zone");
+                }
 
                 e.HasIndex(x => x.DateOfVisit).HasDatabaseName("IX_Visits_DateOfVisit");
                 e.HasIndex(x => x.VisitTypeId).HasDatabaseName("IX_Visits_VisitTypeId");
@@ -328,6 +340,11 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Caption).HasMaxLength(512);
                 e.Property(x => x.VersionStamp).HasMaxLength(64).IsRequired();
                 e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+
+                if (Database.IsNpgsql())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone");
+                }
 
                 e.HasIndex(x => new { x.VisitId, x.CreatedAtUtc }).HasDatabaseName("IX_VisitPhotos_VisitId_CreatedAtUtc");
 
