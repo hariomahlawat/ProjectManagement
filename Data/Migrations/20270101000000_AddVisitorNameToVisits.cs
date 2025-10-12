@@ -1,13 +1,9 @@
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
-using ProjectManagement.Data;
 
 #nullable disable
 
 namespace ProjectManagement.Data.Migrations
 {
-    [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20270101000000_AddVisitorNameToVisits")]
     public partial class AddVisitorNameToVisits : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
