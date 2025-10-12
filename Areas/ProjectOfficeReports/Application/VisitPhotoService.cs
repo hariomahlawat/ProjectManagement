@@ -392,9 +392,10 @@ public sealed class VisitPhotoService : IVisitPhotoService
 
     private static string GetExtension(IImageFormat format)
     {
-        if (format.FileExtensions.Count > 0)
+        var extension = format.FileExtensions.FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(extension))
         {
-            return $".{format.FileExtensions[0]}";
+            return $".{extension}";
         }
 
         return ".bin";
