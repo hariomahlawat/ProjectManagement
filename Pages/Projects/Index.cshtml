@@ -2,6 +2,8 @@
 @model ProjectManagement.Pages.Projects.IndexModel
 @using System.Linq
 @using ProjectManagement.Models
+@using ProjectManagement.Models.Execution
+@using ProjectManagement.Models.Stages
 @using ProjectManagement.Services.Projects
 @{
     ViewData["Title"] = "Projects";
@@ -233,6 +235,18 @@
                             })
                             : null;
 
+                        StageSummary? stageSummary = null;
+                        string? totDetail = null;
+
+                        if (project.LifecycleStatus == ProjectLifecycleStatus.Active)
+                        {
+                            stageSummary = BuildStageSummary(project);
+                        }
+                        else if (project.LifecycleStatus == ProjectLifecycleStatus.Completed)
+                        {
+                            totDetail = FormatTotDetail(project);
+                        }
+
                         <article class="projects-card shadow-sm">
                             <div class="projects-card__media">
                                 @if (!string.IsNullOrEmpty(coverThumb))
@@ -275,22 +289,33 @@
                                         <span>@(project.Category?.Name ?? "Uncategorised")</span>
                                     </div>
                                     <div class="projects-card__meta-item">
-                                        <i class="bi bi-person-badge"></i>
-                                        <span>@(project.HodUser?.FullName ?? project.HodUser?.UserName ?? "HoD not assigned")</span>
+                                        <i class="bi bi-cpu"></i>
+                                        <span>@(project.TechnicalCategory?.Name ?? "No technical category")</span>
                                     </div>
                                     <div class="projects-card__meta-item">
                                         <i class="bi bi-person-workspace"></i>
                                         <span>@(project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Project officer not assigned")</span>
                                     </div>
                                     <div class="projects-card__meta-item">
-                                        <i class="bi bi-calendar"></i>
-                                        <span>@project.CreatedAt.ToString("dd MMM yyyy")</span>
+                                        <i class="bi bi-person-badge"></i>
+                                        <span>@(project.HodUser?.FullName ?? project.HodUser?.UserName ?? "HoD not assigned")</span>
                                     </div>
-                                    @if (project.Tot is not null)
+                                    @if (stageSummary is not null)
                                     {
                                         <div class="projects-card__meta-item">
                                             <i class="bi bi-flag"></i>
-                                            <span>@FormatTotStatus(project.Tot.Status)</span>
+                                            <span>@stageSummary.LastCompleted</span>
+                                        </div>
+                                        <div class="projects-card__meta-item">
+                                            <i class="bi bi-compass"></i>
+                                            <span>@stageSummary.Current</span>
+                                        </div>
+                                    }
+                                    else if (!string.IsNullOrWhiteSpace(totDetail))
+                                    {
+                                        <div class="projects-card__meta-item">
+                                            <i class="bi bi-shuffle"></i>
+                                            <span>@totDetail</span>
                                         </div>
                                     }
                                 </div>
@@ -377,6 +402,8 @@
 
 @functions
 {
+    private sealed record StageSummary(string LastCompleted, string Current);
+
     private static string FormatLifecycleStatus(ProjectLifecycleStatus status)
     {
         return status switch
@@ -397,6 +424,88 @@
             ProjectTotStatus.InProgress => "ToT in progress",
             ProjectTotStatus.Completed => "ToT completed",
             _ => status.ToString()
+        };
+    }
+
+    private static StageSummary BuildStageSummary(Project project)
+    {
+        if (project.ProjectStages is not { Count: > 0 })
+        {
+            return new StageSummary("No completed stages yet", "Stages not scheduled");
+        }
+
+        var ordered = project.ProjectStages
+            .OrderBy(s => s.SortOrder)
+            .ThenBy(s => s.Id)
+            .ToList();
+
+        var lastCompleted = ordered
+            .Where(s => s.Status == StageStatus.Completed)
+            .OrderByDescending(s => s.SortOrder)
+            .ThenByDescending(s => s.CompletedOn ?? DateOnly.MinValue)
+            .ThenByDescending(s => s.Id)
+            .FirstOrDefault();
+
+        var current = ordered.FirstOrDefault(s => s.Status == StageStatus.InProgress)
+            ?? ordered.FirstOrDefault(s => s.Status == StageStatus.Blocked)
+            ?? ordered.FirstOrDefault(s => s.Status == StageStatus.NotStarted)
+            ?? ordered.FirstOrDefault(s => s.Status == StageStatus.Skipped)
+            ?? lastCompleted
+            ?? ordered.Last();
+
+        return new StageSummary(
+            FormatLastCompletedStage(lastCompleted),
+            FormatCurrentStage(current));
+    }
+
+    private static string FormatLastCompletedStage(ProjectStage? stage)
+    {
+        if (stage is null)
+        {
+            return "No completed stages yet";
+        }
+
+        var name = StageCodes.DisplayNameOf(stage.StageCode);
+        return stage.CompletedOn is { } completed
+            ? $"{name} — {completed:dd MMM yyyy}"
+            : $"{name} — Date not recorded";
+    }
+
+    private static string FormatCurrentStage(ProjectStage? stage)
+    {
+        if (stage is null)
+        {
+            return "Stages not scheduled";
+        }
+
+        var name = StageCodes.DisplayNameOf(stage.StageCode);
+        return stage.Status switch
+        {
+            StageStatus.InProgress => $"{name} — In progress",
+            StageStatus.NotStarted => $"{name} — Not started",
+            StageStatus.Completed => $"{name} — Completed",
+            StageStatus.Blocked => $"{name} — Blocked",
+            StageStatus.Skipped => $"{name} — Skipped",
+            _ => name
+        };
+    }
+
+    private static string FormatTotDetail(Project project)
+    {
+        if (project.Tot is not { } tot)
+        {
+            return "ToT details not recorded";
+        }
+
+        return tot.Status switch
+        {
+            ProjectTotStatus.Completed when tot.CompletedOn is { } completed => $"ToT completed on {completed:dd MMM yyyy}",
+            ProjectTotStatus.Completed => "ToT completed (date not recorded)",
+            ProjectTotStatus.InProgress when tot.StartedOn is { } started => $"ToT in progress since {started:dd MMM yyyy}",
+            ProjectTotStatus.InProgress => "ToT in progress",
+            ProjectTotStatus.NotStarted => "ToT not started",
+            ProjectTotStatus.NotRequired => "ToT not required",
+            _ => FormatTotStatus(tot.Status)
         };
     }
 }
