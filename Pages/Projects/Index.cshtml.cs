@@ -150,9 +150,11 @@ namespace ProjectManagement.Pages.Projects
                 .AsNoTracking()
                 .Where(p => !p.IsDeleted)
                 .Include(p => p.Category)
+                .Include(p => p.TechnicalCategory)
                 .Include(p => p.HodUser)
                 .Include(p => p.LeadPoUser)
                 .Include(p => p.Tot)
+                .Include(p => p.ProjectStages)
                 .AsQueryable();
 
             var filters = baseFilters with { Lifecycle = Lifecycle };
