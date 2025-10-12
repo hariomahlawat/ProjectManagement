@@ -11,6 +11,8 @@ namespace ProjectManagement.Data.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql("SET TIME ZONE 'UTC';");
+
             migrationBuilder.AlterColumn<DateTimeOffset>(
                 name: "LastModifiedAtUtc",
                 table: "VisitTypes",
@@ -63,11 +65,15 @@ namespace ProjectManagement.Data.Migrations
                 name: "IX_Visits_CoverPhotoId",
                 table: "Visits",
                 column: "CoverPhotoId");
+
+            migrationBuilder.Sql("RESET TIME ZONE;");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql("SET TIME ZONE 'UTC';");
+
             migrationBuilder.DropIndex(
                 name: "IX_Visits_CoverPhotoId",
                 table: "Visits");
@@ -119,6 +125,8 @@ namespace ProjectManagement.Data.Migrations
                 oldClrType: typeof(DateTimeOffset),
                 oldType: "timestamp with time zone",
                 oldDefaultValueSql: "now() at time zone 'utc'");
+
+            migrationBuilder.Sql("RESET TIME ZONE;");
         }
     }
 }
