@@ -297,6 +297,7 @@ namespace ProjectManagement.Data
             {
                 ConfigureRowVersion(e);
                 e.Property(x => x.DateOfVisit).HasColumnType("date").IsRequired();
+                e.Property(x => x.VisitorName).HasMaxLength(200).IsRequired();
                 e.Property(x => x.Strength).IsRequired();
                 e.Property(x => x.Remarks).HasMaxLength(2000);
                 e.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();

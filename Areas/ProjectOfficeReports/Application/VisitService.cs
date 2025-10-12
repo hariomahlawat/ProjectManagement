@@ -51,11 +51,15 @@ public sealed class VisitService
             var text = options.RemarksQuery.Trim();
             if (_db.Database.IsNpgsql())
             {
-                query = query.Where(x => EF.Functions.ILike(x.Remarks!, $"%{text}%"));
+                query = query.Where(x =>
+                    EF.Functions.ILike(x.VisitorName, $"%{text}%") ||
+                    (x.Remarks != null && EF.Functions.ILike(x.Remarks, $"%{text}%")));
             }
             else
             {
-                query = query.Where(x => x.Remarks != null && x.Remarks.Contains(text));
+                query = query.Where(x =>
+                    x.VisitorName.Contains(text) ||
+                    (x.Remarks != null && x.Remarks.Contains(text)));
             }
         }
 
@@ -67,6 +71,7 @@ public sealed class VisitService
                 x.DateOfVisit,
                 x.VisitTypeId,
                 x.VisitType!.Name,
+                x.VisitorName,
                 x.Strength,
                 x.Photos.Count,
                 x.VisitType.IsActive,
@@ -95,8 +100,15 @@ public sealed class VisitService
         return new VisitDetails(visit, visit.VisitType!, photos);
     }
 
-    public async Task<VisitMutationResult> CreateAsync(Guid visitTypeId, DateOnly dateOfVisit, int strength, string? remarks, string createdByUserId, CancellationToken cancellationToken)
+    public async Task<VisitMutationResult> CreateAsync(Guid visitTypeId, DateOnly dateOfVisit, string visitorName, int strength, string? remarks, string createdByUserId, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(visitorName))
+        {
+            return VisitMutationResult.Invalid("Visitor name is required.");
+        }
+
+        var trimmedName = visitorName.Trim();
+
         if (strength <= 0)
         {
             return VisitMutationResult.Invalid("Strength must be greater than zero.");
@@ -119,6 +131,7 @@ public sealed class VisitService
             Id = Guid.NewGuid(),
             VisitTypeId = visitTypeId,
             DateOfVisit = dateOfVisit,
+            VisitorName = trimmedName,
             Strength = strength,
             Remarks = string.IsNullOrWhiteSpace(remarks) ? null : remarks.Trim(),
             CreatedAtUtc = now,
@@ -134,8 +147,15 @@ public sealed class VisitService
         return VisitMutationResult.Success(entity);
     }
 
-    public async Task<VisitMutationResult> UpdateAsync(Guid id, Guid visitTypeId, DateOnly dateOfVisit, int strength, string? remarks, byte[] rowVersion, string modifiedByUserId, CancellationToken cancellationToken)
+    public async Task<VisitMutationResult> UpdateAsync(Guid id, Guid visitTypeId, DateOnly dateOfVisit, string visitorName, int strength, string? remarks, byte[] rowVersion, string modifiedByUserId, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(visitorName))
+        {
+            return VisitMutationResult.Invalid("Visitor name is required.");
+        }
+
+        var trimmedName = visitorName.Trim();
+
         if (strength <= 0)
         {
             return VisitMutationResult.Invalid("Strength must be greater than zero.");
@@ -162,6 +182,7 @@ public sealed class VisitService
 
         visit.VisitTypeId = visitTypeId;
         visit.DateOfVisit = dateOfVisit;
+        visit.VisitorName = trimmedName;
         visit.Strength = strength;
         visit.Remarks = string.IsNullOrWhiteSpace(remarks) ? null : remarks.Trim();
         visit.LastModifiedAtUtc = _clock.UtcNow;
@@ -231,7 +252,7 @@ public sealed class VisitService
 
 public sealed record VisitQueryOptions(Guid? VisitTypeId, DateOnly? StartDate, DateOnly? EndDate, string? RemarksQuery);
 
-public sealed record VisitListItem(Guid Id, DateOnly DateOfVisit, Guid VisitTypeId, string VisitTypeName, int Strength, int PhotoCount, bool VisitTypeIsActive, byte[] RowVersion);
+public sealed record VisitListItem(Guid Id, DateOnly DateOfVisit, Guid VisitTypeId, string VisitTypeName, string VisitorName, int Strength, int PhotoCount, bool VisitTypeIsActive, byte[] RowVersion);
 
 public sealed record VisitDetails(Visit Visit, VisitType VisitType, IReadOnlyList<VisitPhoto> Photos);
 

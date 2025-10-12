@@ -16,6 +16,10 @@ public class Visit
     [Required]
     public DateOnly DateOfVisit { get; set; }
 
+    [Required]
+    [MaxLength(200)]
+    public string VisitorName { get; set; } = string.Empty;
+
     [Range(1, int.MaxValue)]
     public int Strength { get; set; }
 
