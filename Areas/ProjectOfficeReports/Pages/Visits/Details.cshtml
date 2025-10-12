@@ -6,64 +6,100 @@
 
 @if (Model.Visit is null)
 {
-    <div class="alert alert-danger">Visit not found.</div>
+    <div class="visit-tracker">
+        <div class="pm-card">
+            <div class="pm-card-body">
+                <div class="visit-empty text-center py-5">
+                    <div class="visit-empty__icon" aria-hidden="true"><i class="bi bi-emoji-frown"></i></div>
+                    <h2 class="visit-empty__title">Visit not found</h2>
+                    <p class="visit-empty__subtitle">It may have been removed or you might not have access to it anymore.</p>
+                </div>
+            </div>
+        </div>
+    </div>
 }
 else
 {
     var visit = Model.Visit.Visit;
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h1 class="h3 mb-1">Visit Details</h1>
-            <div class="text-muted">Recorded on @visit.DateOfVisit.ToString("dd MMM yyyy")</div>
-        </div>
-        <div class="d-flex gap-2">
-            @if (Model.CanManage)
-            {
-                <a asp-page="Edit" asp-route-id="@visit.Id" class="btn btn-outline-primary">Edit</a>
-                <form method="post" asp-page-handler="Delete" class="d-inline">
-                    <input type="hidden" name="rowVersion" value="@Model.RowVersion" />
-                    <button type="submit" class="btn btn-outline-danger">Delete</button>
-                </form>
-            }
-        </div>
-    </div>
-
-    <div class="row g-4 mb-4">
-        <div class="col-md-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <div class="mb-3">
-                        <div class="text-muted text-uppercase small">Visit type</div>
-                        <div class="fw-semibold">@Model.Visit.VisitType.Name</div>
-                    </div>
-                    <div class="mb-3">
-                        <div class="text-muted text-uppercase small">Date</div>
-                        <div>@visit.DateOfVisit.ToString("dddd, dd MMMM yyyy")</div>
-                    </div>
-                    <div class="mb-3">
-                        <div class="text-muted text-uppercase small">Visitor</div>
-                        <div>@visit.VisitorName</div>
-                    </div>
-                    <div class="mb-3">
-                        <div class="text-muted text-uppercase small">Strength</div>
-                        <div>@visit.Strength</div>
-                    </div>
+    var photoCount = Model.PhotoGallery?.Photos.Count ?? 0;
+    <div class="visit-tracker">
+        <div class="pm-card mb-4">
+            <div class="pm-card-header">
+                <div class="pm-card-heading">
+                    <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-geo-alt"></i></span>
                     <div>
-                        <div class="text-muted text-uppercase small">Remarks</div>
-                        @if (string.IsNullOrWhiteSpace(visit.Remarks))
-                        {
-                            <div class="text-muted">No remarks recorded.</div>
-                        }
-                        else
-                        {
-                            <div>@visit.Remarks</div>
-                        }
+                        <h1 class="pm-card-title">Visit details</h1>
+                        <p class="pm-card-subtitle mb-0">Recorded on @visit.DateOfVisit.ToString("dddd, dd MMMM yyyy")</p>
                     </div>
+                </div>
+                <div class="pm-card-actions">
+                    <a asp-page="Index" class="btn btn-outline-secondary">Back to visits</a>
+                    @if (Model.CanManage)
+                    {
+                        <a asp-page="Edit" asp-route-id="@visit.Id" class="btn btn-outline-primary">Edit</a>
+                        <form method="post" asp-page-handler="Delete" class="visit-row-actions__form">
+                            <input type="hidden" name="rowVersion" value="@Model.RowVersion" />
+                            <button type="submit" class="btn btn-outline-danger" data-confirm="Delete this visit?">Delete</button>
+                        </form>
+                    }
+                </div>
+            </div>
+            <div class="pm-card-body">
+                <div class="visit-summary-grid">
+                    <div class="visit-summary-grid__item">
+                        <span class="visit-summary__label">Visit type</span>
+                        <span class="visit-summary__value">@Model.Visit.VisitType.Name</span>
+                    </div>
+                    <div class="visit-summary-grid__item">
+                        <span class="visit-summary__label">Visitor</span>
+                        <span class="visit-summary__value">@visit.VisitorName</span>
+                    </div>
+                    <div class="visit-summary-grid__item">
+                        <span class="visit-summary__label">Date of visit</span>
+                        <span class="visit-summary__value">@visit.DateOfVisit.ToString("dd MMM yyyy") (@visit.DateOfVisit.ToString("dddd"))</span>
+                    </div>
+                    <div class="visit-summary-grid__item">
+                        <span class="visit-summary__label">Report created on</span>
+                        <span class="visit-summary__value">@visit.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</span>
+                    </div>
+                </div>
+                <div class="visit-summary-metrics">
+                    <div class="visit-metric">
+                        <span class="visit-metric__value">@visit.Strength</span>
+                        <span class="visit-metric__label">People present</span>
+                    </div>
+                    <div class="visit-metric visit-metric--subtle">
+                        <span class="visit-metric__value">@photoCount</span>
+                        <span class="visit-metric__label">Photos captured</span>
+                    </div>
+                </div>
+                <div class="visit-remarks mt-4">
+                    <span class="visit-summary__label text-uppercase">Remarks</span>
+                    @if (string.IsNullOrWhiteSpace(visit.Remarks))
+                    {
+                        <div class="visit-remarks__body visit-remarks__body--empty">No remarks recorded.</div>
+                    }
+                    else
+                    {
+                        <div class="visit-remarks__body">@visit.Remarks</div>
+                    }
                 </div>
             </div>
         </div>
-        <div class="col-md-8">
-            <partial name="_PhotosPartial" model="Model.PhotoGallery" />
+
+        <div class="pm-card">
+            <div class="pm-card-header">
+                <div class="pm-card-heading">
+                    <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-images"></i></span>
+                    <div>
+                        <h2 class="pm-card-title h4 mb-0">Photo gallery</h2>
+                        <p class="pm-card-subtitle mb-0">Field evidence captured during the visit.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="pm-card-body">
+                <partial name="_PhotosPartial" model="Model.PhotoGallery" />
+            </div>
         </div>
     </div>
 }

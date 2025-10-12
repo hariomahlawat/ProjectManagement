@@ -4,30 +4,43 @@
     ViewData["Title"] = "Edit Visit Type";
 }
 
-<div class="row justify-content-center">
-    <div class="col-lg-8 col-xl-6">
-        <h1 class="h3 mb-3">Edit Visit Type</h1>
-        <form method="post" novalidate>
-            <input type="hidden" asp-for="RowVersion" />
-            <div class="mb-3">
-                <label asp-for="Input.Name" class="form-label"></label>
-                <input asp-for="Input.Name" class="form-control" autocomplete="off" />
-                <span asp-validation-for="Input.Name" class="text-danger"></span>
+<div class="visit-tracker">
+    <div class="pm-card">
+        <div class="pm-card-header">
+            <div class="pm-card-heading">
+                <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-pencil-square"></i></span>
+                <div>
+                    <h1 class="pm-card-title">Edit visit type</h1>
+                    <p class="pm-card-subtitle mb-0">Keep your visit categories up to date.</p>
+                </div>
             </div>
-            <div class="mb-3">
-                <label asp-for="Input.Description" class="form-label"></label>
-                <textarea asp-for="Input.Description" class="form-control" rows="3"></textarea>
-                <span asp-validation-for="Input.Description" class="text-danger"></span>
+            <div class="pm-card-actions">
+                <a asp-page="Index" class="btn btn-outline-secondary">Back to visit types</a>
             </div>
-            <div class="form-check form-switch mb-4">
-                <input asp-for="Input.IsActive" class="form-check-input" />
-                <label asp-for="Input.IsActive" class="form-check-label">Active</label>
-            </div>
-            <div class="d-flex justify-content-between">
-                <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
-                <button type="submit" class="btn btn-primary">Save changes</button>
-            </div>
-        </form>
+        </div>
+        <div class="pm-card-body">
+            <form method="post" novalidate class="visit-form visit-form--narrow">
+                <input type="hidden" asp-for="RowVersion" />
+                <div class="mb-3">
+                    <label asp-for="Input.Name" class="form-label"></label>
+                    <input asp-for="Input.Name" class="form-control" autocomplete="off" />
+                    <span asp-validation-for="Input.Name" class="text-danger"></span>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="Input.Description" class="form-label"></label>
+                    <textarea asp-for="Input.Description" class="form-control" rows="3"></textarea>
+                    <span asp-validation-for="Input.Description" class="text-danger"></span>
+                </div>
+                <div class="form-check form-switch visit-form__switch mb-4">
+                    <input asp-for="Input.IsActive" class="form-check-input" />
+                    <label asp-for="Input.IsActive" class="form-check-label">Active</label>
+                </div>
+                <div class="visit-form__footer">
+                    <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary">Save changes</button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 

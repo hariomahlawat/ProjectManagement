@@ -1,108 +1,205 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.IndexModel
+@using System.Linq
 @{
     ViewData["Title"] = "Visits";
     string fromValue = Model.From;
-    if (!string.IsNullOrWhiteSpace(fromValue) && DateOnly.TryParse(fromValue, out var parsedFrom))
+    DateOnly? parsedFrom = null;
+    if (!string.IsNullOrWhiteSpace(fromValue) && DateOnly.TryParse(fromValue, out var parsed))
     {
-        fromValue = parsedFrom.ToString("yyyy-MM-dd");
+        parsedFrom = parsed;
+        fromValue = parsedFrom.Value.ToString("yyyy-MM-dd");
     }
+
     string toValue = Model.To;
-    if (!string.IsNullOrWhiteSpace(toValue) && DateOnly.TryParse(toValue, out var parsedTo))
+    DateOnly? parsedTo = null;
+    if (!string.IsNullOrWhiteSpace(toValue) && DateOnly.TryParse(toValue, out var parsedEnd))
     {
-        toValue = parsedTo.ToString("yyyy-MM-dd");
+        parsedTo = parsedEnd;
+        toValue = parsedTo.Value.ToString("yyyy-MM-dd");
+    }
+
+    var totalVisits = Model.Items.Count;
+    var totalPeople = Model.Items.Sum(item => item.Strength);
+    var totalPhotos = Model.Items.Sum(item => item.PhotoCount);
+
+    var hasFilters = Model.VisitTypeId.HasValue || !string.IsNullOrWhiteSpace(Model.From) || !string.IsNullOrWhiteSpace(Model.To) || !string.IsNullOrWhiteSpace(Model.Q);
+    string? selectedTypeLabel = null;
+    if (Model.VisitTypeId.HasValue)
+    {
+        selectedTypeLabel = Model.VisitTypeOptions.FirstOrDefault(option => option.Value == Model.VisitTypeId.Value.ToString())?.Text;
     }
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h1 class="h3 mb-1">Visits</h1>
-        <p class="text-muted mb-0">Review and manage visits recorded by the Project Office.</p>
+<div class="visit-tracker">
+    <div class="pm-card mb-4">
+        <div class="pm-card-header">
+            <div class="pm-card-heading">
+                <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-geo-alt"></i></span>
+                <div>
+                    <h1 class="pm-card-title">Visit tracker</h1>
+                    <p class="pm-card-subtitle mb-0">Monitor oversight visits and capture on-ground insights.</p>
+                </div>
+            </div>
+            @if (Model.CanManage)
+            {
+                <div class="pm-card-actions">
+                    <a asp-page="New" class="btn btn-primary d-inline-flex align-items-center gap-2">
+                        <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                        <span>New visit</span>
+                    </a>
+                </div>
+            }
+        </div>
+        <div class="pm-card-body">
+            <div class="visit-insights mb-4">
+                <div class="visit-insight">
+                    <span class="visit-insight__label">Visits in view</span>
+                    <span class="visit-insight__value">@totalVisits</span>
+                </div>
+                <div class="visit-insight">
+                    <span class="visit-insight__label">People engaged</span>
+                    <span class="visit-insight__value">@totalPeople</span>
+                </div>
+                <div class="visit-insight">
+                    <span class="visit-insight__label">Photos captured</span>
+                    <span class="visit-insight__value">@totalPhotos</span>
+                </div>
+            </div>
+
+            @if (hasFilters)
+            {
+                <div class="visit-filter-chips mb-3">
+                    @if (!string.IsNullOrWhiteSpace(selectedTypeLabel))
+                    {
+                        <span class="visit-pill"><i class="bi bi-funnel" aria-hidden="true"></i> Type: @selectedTypeLabel</span>
+                    }
+                    @if (parsedFrom.HasValue)
+                    {
+                        <span class="visit-pill"><i class="bi bi-calendar-event" aria-hidden="true"></i> From: @parsedFrom.Value.ToString("dd MMM yyyy")</span>
+                    }
+                    @if (parsedTo.HasValue)
+                    {
+                        <span class="visit-pill"><i class="bi bi-calendar2-event" aria-hidden="true"></i> To: @parsedTo.Value.ToString("dd MMM yyyy")</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.Q))
+                    {
+                        <span class="visit-pill"><i class="bi bi-search" aria-hidden="true"></i> "@Model.Q"</span>
+                    }
+                    <a asp-page="Index" class="visit-pill visit-pill--action"><i class="bi bi-x-circle" aria-hidden="true"></i> Clear filters</a>
+                </div>
+            }
+
+            <form method="get" class="visit-filter-grid">
+                <div class="visit-filter-grid__item">
+                    <label asp-for="VisitTypeId" class="form-label">Visit type</label>
+                    <select asp-for="VisitTypeId" asp-items="Model.VisitTypeOptions" class="form-select"></select>
+                </div>
+                <div class="visit-filter-grid__item">
+                    <label class="form-label" for="from-date">From</label>
+                    <input id="from-date" name="From" type="date" value="@fromValue" class="form-control" />
+                </div>
+                <div class="visit-filter-grid__item">
+                    <label class="form-label" for="to-date">To</label>
+                    <input id="to-date" name="To" type="date" value="@toValue" class="form-control" />
+                </div>
+                <div class="visit-filter-grid__item">
+                    <label class="form-label" for="search-filter">Visitor or remarks</label>
+                    <input id="search-filter" name="Q" value="@Model.Q" class="form-control" placeholder="Search visitor or remarks" />
+                </div>
+                <div class="visit-filter-actions">
+                    <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2">
+                        <i class="bi bi-funnel" aria-hidden="true"></i>
+                        <span>Apply filters</span>
+                    </button>
+                    <a asp-page="Index" class="btn btn-outline-secondary">Reset</a>
+                </div>
+            </form>
+        </div>
     </div>
-    @if (Model.CanManage)
+
+    @if (Model.Items.Count == 0)
     {
-        <a asp-page="New" class="btn btn-primary">New Visit</a>
+        <div class="pm-card">
+            <div class="pm-card-body">
+                <div class="visit-empty text-center py-5">
+                    <div class="visit-empty__icon" aria-hidden="true"><i class="bi bi-emoji-smile"></i></div>
+                    <h2 class="visit-empty__title">No visits @((hasFilters ? "match your filters" : "recorded yet"))</h2>
+                    <p class="visit-empty__subtitle">@((hasFilters ? "Try adjusting the filters to widen your search." : "Start logging field visits to build your oversight history."))</p>
+                </div>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="pm-card">
+            <div class="pm-card-body p-0">
+                <div class="table-responsive">
+                    <table class="table align-middle visit-table mb-0">
+                        <thead>
+                            <tr>
+                                <th scope="col">Date</th>
+                                <th scope="col">Visit type</th>
+                                <th scope="col">Visitor</th>
+                                <th scope="col">Strength</th>
+                                <th scope="col">Photos</th>
+                                <th scope="col" class="text-end">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var item in Model.Items)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="visit-table__primary">@item.DateOfVisit.ToString("dd MMM yyyy")</div>
+                                    <div class="visit-table__meta">@item.DateOfVisit.ToString("dddd")</div>
+                                </td>
+                                <td>
+                                    <div class="visit-table__primary">@item.VisitTypeName</div>
+                                    @if (!item.VisitTypeIsActive)
+                                    {
+                                        <span class="visit-pill visit-pill--warning">Type inactive</span>
+                                    }
+                                </td>
+                                <td>
+                                    <div class="visit-table__primary">@item.VisitorName</div>
+                                </td>
+                                <td>
+                                    <div class="visit-metric">
+                                        <span class="visit-metric__value">@item.Strength</span>
+                                        <span class="visit-metric__label">People</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="visit-metric visit-metric--subtle">
+                                        <span class="visit-metric__value">@item.PhotoCount</span>
+                                        <span class="visit-metric__label">Photos</span>
+                                    </div>
+                                </td>
+                                <td class="text-end">
+                                    <div class="visit-row-actions">
+                                        <a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-secondary btn-sm">View</a>
+                                        @if (Model.CanManage)
+                                        {
+                                            <a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-primary btn-sm">Edit</a>
+                                            <form method="post" asp-page-handler="Delete" class="visit-row-actions__form">
+                                                <input type="hidden" name="id" value="@item.Id" />
+                                                <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(item.RowVersion)" />
+                                                <input type="hidden" name="VisitTypeId" value="@(Model.VisitTypeId.HasValue ? Model.VisitTypeId.ToString() : string.Empty)" />
+                                                <input type="hidden" name="From" value="@Model.From" />
+                                                <input type="hidden" name="To" value="@Model.To" />
+                                                <input type="hidden" name="Q" value="@Model.Q" />
+                                                <button type="submit" class="btn btn-outline-danger btn-sm" data-confirm="Delete this visit?">Delete</button>
+                                            </form>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     }
 </div>
-
-<form method="get" class="row g-3 align-items-end mb-4">
-    <div class="col-sm-6 col-md-3">
-        <label asp-for="VisitTypeId" class="form-label">Visit type</label>
-        <select asp-for="VisitTypeId" asp-items="Model.VisitTypeOptions" class="form-select">
-        </select>
-    </div>
-    <div class="col-sm-6 col-md-2">
-        <label class="form-label" for="from-date">From</label>
-        <input id="from-date" name="From" type="date" value="@fromValue" class="form-control" />
-    </div>
-    <div class="col-sm-6 col-md-2">
-        <label class="form-label" for="to-date">To</label>
-        <input id="to-date" name="To" type="date" value="@toValue" class="form-control" />
-    </div>
-    <div class="col-sm-6 col-md-3">
-        <label class="form-label" for="search-filter">Visitor or remarks</label>
-        <input id="search-filter" name="Q" value="@Model.Q" class="form-control" placeholder="Search visitor or remarks" />
-    </div>
-    <div class="col-md-2 d-flex gap-2">
-        <button type="submit" class="btn btn-outline-primary w-100">Filter</button>
-        <a asp-page="Index" class="btn btn-outline-secondary" title="Clear filters">Reset</a>
-    </div>
-</form>
-
-@if (Model.Items.Count == 0)
-{
-    <div class="alert alert-info">No visits found for the selected criteria.</div>
-}
-else
-{
-    <div class="table-responsive">
-        <table class="table table-hover align-middle">
-            <thead>
-                <tr>
-                    <th scope="col">Date</th>
-                    <th scope="col">Visit Type</th>
-                    <th scope="col">Visitor</th>
-                    <th scope="col">Strength</th>
-                    <th scope="col">Photos</th>
-                    <th scope="col" class="text-end">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-            @foreach (var item in Model.Items)
-            {
-                <tr>
-                    <td>@item.DateOfVisit.ToString("dd MMM yyyy")</td>
-                    <td>
-                        <div class="fw-semibold">@item.VisitTypeName</div>
-                        @if (!item.VisitTypeIsActive)
-                        {
-                            <span class="badge bg-warning text-dark">Type inactive</span>
-                        }
-                    </td>
-                    <td>@item.VisitorName</td>
-                    <td>@item.Strength</td>
-                    <td>@item.PhotoCount</td>
-                    <td class="text-end">
-                        <div class="btn-group" role="group">
-                            <a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-secondary btn-sm">View</a>
-                            @if (Model.CanManage)
-                            {
-                                <a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-primary btn-sm">Edit</a>
-                                <form method="post" asp-page-handler="Delete" class="d-inline ms-1">
-                                    <input type="hidden" name="id" value="@item.Id" />
-                                    <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(item.RowVersion)" />
-                                    <input type="hidden" name="VisitTypeId" value="@(Model.VisitTypeId.HasValue ? Model.VisitTypeId.ToString() : string.Empty)" />
-                                    <input type="hidden" name="From" value="@Model.From" />
-                                    <input type="hidden" name="To" value="@Model.To" />
-                                    <input type="hidden" name="Q" value="@Model.Q" />
-                                    <button type="submit" class="btn btn-outline-danger btn-sm" data-confirm="Delete this visit?">Delete</button>
-                                </form>
-                            }
-                        </div>
-                    </td>
-                </tr>
-            }
-            </tbody>
-        </table>
-    </div>
-}
