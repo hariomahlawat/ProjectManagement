@@ -97,6 +97,7 @@ else
                     <div class="pm-card-body">
                         <form method="post" enctype="multipart/form-data" asp-page-handler="Upload" class="visit-upload-form">
                             <input type="hidden" name="id" value="@Model.PhotoGallery.VisitId" />
+                            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
                             <div class="mb-3">
                                 <label class="form-label" for="visit-photo">Photo</label>
                                 <input id="visit-photo" class="form-control" type="file" asp-for="Upload" accept="image/*" />

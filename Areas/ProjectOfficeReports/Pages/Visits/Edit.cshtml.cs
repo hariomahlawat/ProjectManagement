@@ -39,6 +39,7 @@ public class EditModel : PageModel
     public string RowVersion { get; set; } = string.Empty;
 
     [BindProperty]
+    [StringLength(512)]
     public string? UploadCaption { get; set; }
 
     [BindProperty]
@@ -129,7 +130,7 @@ public class EditModel : PageModel
 
         if (Upload == null || Upload.Length == 0)
         {
-            ModelState.AddModelError(string.Empty, "Please select a photo to upload.");
+            ModelState.AddModelError(nameof(Upload), "Please select a photo to upload.");
             await LoadAsync(id, cancellationToken);
             return Page();
         }

@@ -4,6 +4,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -18,17 +19,26 @@ public class NewModel : PageModel
 {
     private readonly VisitService _visitService;
     private readonly VisitTypeService _visitTypeService;
+    private readonly IVisitPhotoService _photoService;
     private readonly UserManager<ApplicationUser> _userManager;
 
-    public NewModel(VisitService visitService, VisitTypeService visitTypeService, UserManager<ApplicationUser> userManager)
+    public NewModel(VisitService visitService, VisitTypeService visitTypeService, IVisitPhotoService photoService, UserManager<ApplicationUser> userManager)
     {
         _visitService = visitService;
         _visitTypeService = visitTypeService;
+        _photoService = photoService;
         _userManager = userManager;
     }
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
+
+    [BindProperty]
+    [StringLength(512)]
+    public string? UploadCaption { get; set; }
+
+    [BindProperty]
+    public IFormFile? Upload { get; set; }
 
     public IReadOnlyList<SelectListItem> VisitTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
 
@@ -52,16 +62,42 @@ public class NewModel : PageModel
             return Forbid();
         }
 
+        if (Upload is { Length: 0 })
+        {
+            ModelState.AddModelError(nameof(Upload), "Please select a photo to upload.");
+        }
+
         if (!ModelState.IsValid)
         {
             await LoadVisitTypesAsync(cancellationToken);
             return Page();
         }
 
-        var result = await _visitService.CreateAsync(Input.VisitTypeId!.Value, Input.DateOfVisit!.Value, Input.VisitorName, Input.Strength, Input.Remarks, _userManager.GetUserId(User) ?? string.Empty, cancellationToken);
+        var userId = _userManager.GetUserId(User) ?? string.Empty;
+        var result = await _visitService.CreateAsync(Input.VisitTypeId!.Value, Input.DateOfVisit!.Value, Input.VisitorName, Input.Strength, Input.Remarks, userId, cancellationToken);
         if (result.Outcome == VisitMutationOutcome.Success && result.Entity != null)
         {
-            TempData["ToastMessage"] = "Visit created.";
+            var toastMessage = "Visit created.";
+
+            if (Upload != null)
+            {
+                await using var stream = Upload.OpenReadStream();
+                var uploadResult = await _photoService.UploadAsync(result.Entity.Id, stream, Upload.FileName, Upload.ContentType, UploadCaption, userId, cancellationToken);
+                if (uploadResult.Outcome == VisitPhotoUploadOutcome.Success)
+                {
+                    toastMessage = "Visit created and photo uploaded.";
+                }
+                else if (uploadResult.Errors.Count > 0)
+                {
+                    TempData["ToastError"] = uploadResult.Errors[0];
+                }
+                else
+                {
+                    TempData["ToastError"] = "Unable to upload the photo. Please try again from the edit page.";
+                }
+            }
+
+            TempData["ToastMessage"] = toastMessage;
             return RedirectToPage("Edit", new { id = result.Entity.Id });
         }
 
