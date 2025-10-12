@@ -155,6 +155,7 @@ namespace ProjectManagement.Pages.Projects
                 .Include(p => p.LeadPoUser)
                 .Include(p => p.Tot)
                 .Include(p => p.ProjectStages)
+                .AsSplitQuery()
                 .AsQueryable();
 
             var filters = baseFilters with { Lifecycle = Lifecycle };
