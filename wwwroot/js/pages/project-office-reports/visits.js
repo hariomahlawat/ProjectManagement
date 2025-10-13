@@ -121,8 +121,27 @@ function initDisableOnSubmit() {
   forms.forEach(disableFormOnSubmit);
 }
 
+function attachConfirmDialog(form) {
+  const message = form.getAttribute('data-confirm');
+  if (!message) {
+    return;
+  }
+
+  form.addEventListener('submit', event => {
+    if (!window.confirm(message)) {
+      event.preventDefault();
+    }
+  });
+}
+
+function initConfirmations() {
+  const forms = document.querySelectorAll('form[data-confirm]');
+  forms.forEach(attachConfirmDialog);
+}
+
 function init() {
   initToasts();
+  initConfirmations();
   initDisableOnSubmit();
 }
 

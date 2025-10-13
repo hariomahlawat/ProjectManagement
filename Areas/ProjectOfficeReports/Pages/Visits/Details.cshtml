@@ -73,9 +73,9 @@ else
                             <i class="bi bi-pencil-square" aria-hidden="true"></i>
                             <span>Edit</span>
                         </a>
-                        <form method="post" asp-page-handler="Delete" class="visit-hero__delete" data-visits-disable-on-submit>
+                        <form method="post" asp-page-handler="Delete" class="visit-hero__delete" data-visits-disable-on-submit data-confirm="Delete this visit?">
                             <input type="hidden" name="rowVersion" value="@Model.RowVersion" />
-                            <button type="submit" class="btn btn-outline-danger d-inline-flex align-items-center gap-2" data-confirm="Delete this visit?" data-visits-busy-label="Deleting…">
+                            <button type="submit" class="btn btn-outline-danger d-inline-flex align-items-center gap-2" data-visits-busy-label="Deleting…">
                                 <i class="bi bi-trash" aria-hidden="true"></i>
                                 <span>Delete</span>
                             </button>
