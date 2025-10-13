@@ -3,7 +3,7 @@
 @using System.Linq
 @{
     ViewData["Title"] = "Visits";
-    string fromValue = Model.From;
+    string? fromValue = Model.From;
     DateOnly? parsedFrom = null;
     if (!string.IsNullOrWhiteSpace(fromValue) && DateOnly.TryParse(fromValue, out var parsed))
     {
@@ -11,7 +11,7 @@
         fromValue = parsedFrom.Value.ToString("yyyy-MM-dd");
     }
 
-    string toValue = Model.To;
+    string? toValue = Model.To;
     DateOnly? parsedTo = null;
     if (!string.IsNullOrWhiteSpace(toValue) && DateOnly.TryParse(toValue, out var parsedEnd))
     {
@@ -166,11 +166,11 @@
             </div>
             <div class="visit-filters__group">
                 <label class="form-label" for="from-date">From</label>
-                <input id="from-date" name="From" type="date" value="@fromValue" class="form-control" />
+                <input id="from-date" name="From" type="date" value="@(fromValue ?? string.Empty)" class="form-control" />
             </div>
             <div class="visit-filters__group">
                 <label class="form-label" for="to-date">To</label>
-                <input id="to-date" name="To" type="date" value="@toValue" class="form-control" />
+                <input id="to-date" name="To" type="date" value="@(toValue ?? string.Empty)" class="form-control" />
             </div>
             <div class="visit-filters__group visit-filters__group--wide">
                 <label class="form-label" for="search-filter">Visitor or remarks</label>
