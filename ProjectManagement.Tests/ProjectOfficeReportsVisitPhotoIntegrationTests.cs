@@ -144,6 +144,106 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
         }
     }
 
+    [Theory]
+    [InlineData("image/jpeg", "image/png")]
+    [InlineData("image/png", "image/jpeg")]
+    public async Task UploadingMultiplePhotosFromEditPageSucceeds(string firstContentType, string secondContentType)
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        var now = new DateTimeOffset(2024, 7, 1, 9, 0, 0, TimeSpan.Zero);
+        var visitType = new VisitType
+        {
+            Id = Guid.NewGuid(),
+            Name = "Site Visit",
+            CreatedAtUtc = now,
+            CreatedByUserId = "creator",
+            IsActive = true
+        };
+
+        var visit = new Visit
+        {
+            Id = Guid.NewGuid(),
+            VisitTypeId = visitType.Id,
+            DateOfVisit = new DateOnly(2024, 6, 30),
+            VisitorName = "Integration Tester",
+            Strength = 5,
+            CreatedAtUtc = now,
+            CreatedByUserId = "creator",
+            LastModifiedAtUtc = now,
+            LastModifiedByUserId = "creator"
+        };
+
+        db.VisitTypes.Add(visitType);
+        db.Visits.Add(visit);
+        await db.SaveChangesAsync();
+
+        var tempRoot = Path.Combine(Path.GetTempPath(), "pm-visit-photos-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var photoOptions = Options.Create(new VisitPhotoOptions
+            {
+                Derivatives = new Dictionary<string, VisitPhotoDerivativeOptions>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["sm"] = new VisitPhotoDerivativeOptions { Width = 800, Height = 600, Quality = 80 }
+                }
+            });
+
+            var uploadRoot = new StubUploadRootProvider(tempRoot);
+            var clock = new TestClock(now.AddMinutes(5));
+            var audit = new RecordingAudit();
+            var photoService = new VisitPhotoService(db, clock, audit, photoOptions, uploadRoot, NullLogger<VisitPhotoService>.Instance);
+            var userManager = CreateUserManager(db);
+            var page = new EditModel(null!, null!, photoService, userManager);
+
+            ConfigurePageContext(page, CreatePrincipal("creator", "Admin"));
+
+            await using var firstImageStream = await CreateImageStreamAsync(1024, 768);
+            var firstFile = new FormFile(firstImageStream, 0, firstImageStream.Length, "upload", "first-photo.jpg")
+            {
+                Headers = new HeaderDictionary(),
+                ContentType = firstContentType
+            };
+
+            page.Upload = firstFile;
+            page.UploadCaption = "First";
+
+            var firstResult = await page.OnPostUploadAsync(visit.Id, CancellationToken.None);
+            Assert.IsType<RedirectToPageResult>(firstResult);
+
+            page.TempData.Clear();
+
+            await using var secondImageStream = await CreateImageStreamAsync(1024, 768);
+            var secondFile = new FormFile(secondImageStream, 0, secondImageStream.Length, "upload", "second-photo.jpg")
+            {
+                Headers = new HeaderDictionary(),
+                ContentType = secondContentType
+            };
+
+            page.Upload = secondFile;
+            page.UploadCaption = "Second";
+
+            var secondResult = await page.OnPostUploadAsync(visit.Id, CancellationToken.None);
+            Assert.IsType<RedirectToPageResult>(secondResult);
+
+            var persistedVisit = await db.Visits.Include(x => x.Photos).SingleAsync(x => x.Id == visit.Id);
+            Assert.Equal(2, persistedVisit.Photos.Count);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, true);
+            }
+        }
+    }
+
     private static void ConfigurePageContext(PageModel page, ClaimsPrincipal user)
     {
         var httpContext = new DefaultHttpContext();
