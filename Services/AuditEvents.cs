@@ -286,6 +286,26 @@ public static class Audit
             return new AuditEvent("ProjectOfficeReports.VisitDeleted", userId, data);
         }
 
+        public static AuditEvent VisitExported(
+            string userId,
+            Guid? visitTypeId,
+            DateOnly? startDate,
+            DateOnly? endDate,
+            string? query,
+            int count)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["VisitTypeId"] = visitTypeId?.ToString(),
+                ["StartDate"] = startDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                ["EndDate"] = endDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                ["Query"] = query,
+                ["Count"] = count.ToString(CultureInfo.InvariantCulture)
+            };
+
+            return new AuditEvent("ProjectOfficeReports.VisitExported", userId, data);
+        }
+
         public static AuditEvent VisitPhotoAdded(Guid visitId, Guid photoId, string userId, bool isCover)
         {
             var data = new Dictionary<string, string?>

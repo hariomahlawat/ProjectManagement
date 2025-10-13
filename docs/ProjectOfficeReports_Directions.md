@@ -145,6 +145,8 @@ Follow the same upload service logic already used in ProjectPhotoService. Use ve
   - Date range (from–to)
   - Text search in Remarks
 - “New Visit” button visible only to Admin, HoD, and ProjectOffice.
+- “Export visits” button is available to the same roles when at least one visit matches the current filters. Selecting it opens an offline-friendly modal where the user can choose visit type, optional search text, and a date range before downloading an Excel workbook.
+- The workbook contains a tidy header row (serial number, visit type, date, visitor, strength, photo count, cover photo flag, remarks, created/modified audit fields) and a summary footer noting the applied date range and generation timestamp.
 
 ### 7.2 Create/Edit Visit Page
 
