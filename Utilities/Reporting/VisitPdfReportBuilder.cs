@@ -144,14 +144,15 @@ public sealed class VisitPdfReportBuilder : IVisitPdfReportBuilder
                                 .FontColor("#1E3A8A");
                         });
 
-                        title.Item().Text(text =>
-                        {
-                            text.Span(section.DateOfVisit.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture))
-                                .FontColor("#475569");
-                            text.Span("  •  ");
-                            text.Span(section.VisitorName)
-                                .SemiBold();
-                        }).FontSize(11);
+                    title.Item().Text(text =>
+                    {
+                        text.DefaultTextStyle(style => style.FontSize(11));
+                        text.Span(section.DateOfVisit.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture))
+                            .FontColor("#475569");
+                        text.Span("  •  ");
+                        text.Span(section.VisitorName)
+                            .SemiBold();
+                    });
                     });
 
                     if (section.CoverPhoto is not null && section.CoverPhoto.Length > 0)
