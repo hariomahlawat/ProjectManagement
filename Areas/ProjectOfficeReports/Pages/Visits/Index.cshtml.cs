@@ -133,6 +133,50 @@ public class IndexModel : PageModel
         return File(result.File.Content, result.File.ContentType, result.File.FileName);
     }
 
+    public async Task<IActionResult> OnPostExportPdfAsync(CancellationToken cancellationToken)
+    {
+        CanManage = IsManager();
+        if (!CanManage)
+        {
+            return Forbid();
+        }
+
+        await PopulateVisitTypesAsync(cancellationToken);
+        Items = await _visitService.SearchAsync(BuildQuery(), cancellationToken);
+
+        var userId = _userManager.GetUserId(User);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Challenge();
+        }
+
+        var options = BuildQuery();
+        var request = new VisitExportRequest(
+            options.VisitTypeId,
+            options.StartDate,
+            options.EndDate,
+            options.RemarksQuery,
+            userId);
+
+        var result = await _visitExportService.ExportPdfAsync(request, cancellationToken);
+        if (!result.Success || result.File is null)
+        {
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError(string.Empty, error);
+            }
+
+            if (result.Errors.Count > 0)
+            {
+                TempData["ToastError"] = result.Errors[0];
+            }
+
+            return Page();
+        }
+
+        return File(result.File.Content, result.File.ContentType, result.File.FileName);
+    }
+
     private VisitQueryOptions BuildQuery()
     {
         return new VisitQueryOptions(VisitTypeId, ParseDate(From), ParseDate(To), Q);

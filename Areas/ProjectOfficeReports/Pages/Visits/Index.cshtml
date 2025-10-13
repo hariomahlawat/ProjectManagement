@@ -297,14 +297,14 @@
 <div class="modal fade" id="exportVisitsModal" tabindex="-1" aria-labelledby="exportVisitsModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
-            <form method="post" asp-page-handler="Export" class="needs-validation" novalidate>
+            <form method="post" class="needs-validation" novalidate>
                 @Html.AntiForgeryToken()
                 <div class="modal-header">
-                    <h1 class="modal-title fs-5" id="exportVisitsModalLabel">Export visits to Excel</h1>
+                    <h1 class="modal-title fs-5" id="exportVisitsModalLabel">Export visits</h1>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="text-muted mb-3">Choose the filters for your offline report. The export includes every visit that matches the criteria below.</p>
+                    <p class="text-muted mb-3">Choose the filters for your offline report. Generate either the structured Excel workbook or a storytelling PDF with cover photos for each visit.</p>
                     <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
                     <div class="row g-3">
                         <div class="col-md-6">
@@ -333,8 +333,12 @@
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2">
-                        <i class="bi bi-download" aria-hidden="true"></i>
+                    <button type="submit" class="btn btn-outline-primary d-inline-flex align-items-center gap-2" asp-page-handler="ExportPdf">
+                        <i class="bi bi-filetype-pdf" aria-hidden="true"></i>
+                        <span>Export PDF report</span>
+                    </button>
+                    <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2" asp-page-handler="Export">
+                        <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
                         <span>Export Excel</span>
                     </button>
                 </div>

@@ -77,6 +77,32 @@ public sealed class VisitService
         return rows;
     }
 
+    public async Task<IReadOnlyList<VisitPdfExportRow>> ExportForPdfAsync(VisitQueryOptions options, CancellationToken cancellationToken)
+    {
+        if (options is null)
+        {
+            throw new ArgumentNullException(nameof(options));
+        }
+
+        var query = CreateFilteredQuery(options);
+
+        var rows = await query
+            .OrderBy(x => x.DateOfVisit)
+            .ThenBy(x => x.CreatedAtUtc)
+            .Select(x => new VisitPdfExportRow(
+                x.Id,
+                x.DateOfVisit,
+                x.VisitType!.Name,
+                x.VisitorName,
+                x.Strength,
+                x.Photos.Count,
+                x.Remarks,
+                x.CoverPhotoId))
+            .ToListAsync(cancellationToken);
+
+        return rows;
+    }
+
     private IQueryable<Visit> CreateFilteredQuery(VisitQueryOptions options)
     {
         IQueryable<Visit> query = _db.Visits.AsNoTracking();
@@ -297,6 +323,16 @@ public sealed record VisitExportRow(
     int PhotoCount,
     bool HasCoverPhoto,
     string? Remarks);
+
+public sealed record VisitPdfExportRow(
+    Guid VisitId,
+    DateOnly DateOfVisit,
+    string VisitTypeName,
+    string VisitorName,
+    int Strength,
+    int PhotoCount,
+    string? Remarks,
+    Guid? CoverPhotoId);
 
 public sealed record VisitDetails(Visit Visit, VisitType VisitType, IReadOnlyList<VisitPhoto> Photos);
 

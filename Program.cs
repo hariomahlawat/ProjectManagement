@@ -232,6 +232,7 @@ builder.Services.AddScoped<ProjectMetaChangeDecisionService>();
 builder.Services.AddScoped<ProjectCategoryHierarchyService>();
 builder.Services.AddScoped<IProjectAnalyticsService, ProjectAnalyticsService>();
 builder.Services.AddSingleton<IVisitExcelWorkbookBuilder, VisitExcelWorkbookBuilder>();
+builder.Services.AddSingleton<IVisitPdfReportBuilder, VisitPdfReportBuilder>();
 builder.Services.AddScoped<VisitTypeService>();
 builder.Services.AddScoped<VisitService>();
 builder.Services.AddScoped<IVisitExportService, VisitExportService>();
