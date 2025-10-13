@@ -107,7 +107,7 @@ else
                         </div>
                     </div>
                     <div class="pm-card-body">
-                        <form method="post" enctype="multipart/form-data" asp-page-handler="Upload" class="visit-upload-form" data-visits-disable-on-submit>
+                        <form method="post" enctype="multipart/form-data" asp-page-handler="Upload" asp-route-id="@Model.PhotoGallery.VisitId" class="visit-upload-form" data-visits-disable-on-submit>
                             <input type="hidden" name="id" value="@Model.PhotoGallery.VisitId" />
                             <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
                             <div class="mb-3">
