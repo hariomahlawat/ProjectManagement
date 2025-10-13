@@ -1,6 +1,6 @@
 @page "{id:guid}"
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.EditModel
-@{ 
+@{
     ViewData["Title"] = "Edit Visit";
     var toastMessages = new List<VisitToastMessage>();
     if (TempData.TryGetValue("ToastMessage", out var toastMessageValue) && toastMessageValue is string toastMessage && !string.IsNullOrWhiteSpace(toastMessage))
@@ -12,138 +12,199 @@
     {
         toastMessages.Add(new VisitToastMessage(toastError, "danger"));
     }
+
+    var visitDateDisplay = Model.Input.DateOfVisit?.ToString("dd MMM yyyy");
+    var visitDayDisplay = Model.Input.DateOfVisit?.ToString("dddd");
+    var totalPhotos = Model.PhotoGallery?.Photos.Count ?? 0;
 }
 
 <partial name="_ToastMessages" model="toastMessages" />
 
 @if (!Model.CanManage)
 {
-    <div class="visit-tracker">
-        <div class="pm-card">
-            <div class="pm-card-body">
-                <div class="visit-empty text-center py-5">
-                    <div class="visit-empty__icon" aria-hidden="true"><i class="bi bi-shield-lock"></i></div>
-                    <h2 class="visit-empty__title">Access restricted</h2>
-                    <p class="visit-empty__subtitle">You do not have permission to edit visits.</p>
-                </div>
+    <div class="visit-shell visit-tracker">
+        <nav aria-label="Breadcrumb" class="visit-breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+                <li class="breadcrumb-item"><a asp-page="Index">Visit tracker</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Edit visit</li>
+            </ol>
+        </nav>
+        <div class="visit-access-card">
+            <div class="visit-empty text-center py-5">
+                <div class="visit-empty__icon" aria-hidden="true"><i class="bi bi-shield-lock"></i></div>
+                <h2 class="visit-empty__title">Access restricted</h2>
+                <p class="visit-empty__subtitle">You do not have permission to edit visits.</p>
             </div>
         </div>
     </div>
 }
 else if (Model.PhotoGallery is null)
 {
-    <div class="visit-tracker">
-        <div class="pm-card">
-            <div class="pm-card-body">
-                <div class="visit-empty text-center py-5">
-                    <div class="visit-empty__icon" aria-hidden="true"><i class="bi bi-emoji-frown"></i></div>
-                    <h2 class="visit-empty__title">Visit not found</h2>
-                    <p class="visit-empty__subtitle">It may have been deleted or is no longer accessible.</p>
-                </div>
+    <div class="visit-shell visit-tracker">
+        <nav aria-label="Breadcrumb" class="visit-breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+                <li class="breadcrumb-item"><a asp-page="Index">Visit tracker</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Edit visit</li>
+            </ol>
+        </nav>
+        <div class="visit-access-card">
+            <div class="visit-empty text-center py-5">
+                <div class="visit-empty__icon" aria-hidden="true"><i class="bi bi-emoji-frown"></i></div>
+                <h2 class="visit-empty__title">Visit not found</h2>
+                <p class="visit-empty__subtitle">It may have been deleted or is no longer accessible.</p>
             </div>
         </div>
     </div>
 }
 else
 {
-    <div class="visit-tracker">
-        <div class="row g-4 align-items-start">
-            <div class="col-xxl-5">
-                <div class="pm-card h-100">
-                    <div class="pm-card-header">
-                        <div class="pm-card-heading">
-                            <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-pencil-square"></i></span>
-                            <div>
-                                <h1 class="pm-card-title">Edit visit</h1>
-                                <p class="pm-card-subtitle mb-0">Update the record with the latest information.</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="pm-card-body">
-                        <form method="post" novalidate class="visit-form" data-visits-disable-on-submit>
-                            <input type="hidden" asp-for="RowVersion" />
-                            <div class="row g-4">
-                                <div class="col-md-6">
-                                    <label asp-for="Input.VisitTypeId" class="form-label"></label>
-                                    <select asp-for="Input.VisitTypeId" asp-items="Model.VisitTypeOptions" class="form-select"></select>
-                                    <span asp-validation-for="Input.VisitTypeId" class="text-danger"></span>
-                                </div>
-                                <div class="col-md-6">
-                                    <label asp-for="Input.DateOfVisit" class="form-label"></label>
-                                    <input asp-for="Input.DateOfVisit" class="form-control" type="date" />
-                                    <span asp-validation-for="Input.DateOfVisit" class="text-danger"></span>
-                                </div>
-                                <div class="col-md-6">
-                                    <label asp-for="Input.VisitorName" class="form-label"></label>
-                                    <input asp-for="Input.VisitorName" class="form-control" />
-                                    <span asp-validation-for="Input.VisitorName" class="text-danger"></span>
-                                </div>
-                                <div class="col-md-6">
-                                    <label asp-for="Input.Strength" class="form-label"></label>
-                                    <input asp-for="Input.Strength" class="form-control" type="number" min="1" step="1" />
-                                    <span asp-validation-for="Input.Strength" class="text-danger"></span>
-                                </div>
-                                <div class="col-12">
-                                    <label asp-for="Input.Remarks" class="form-label"></label>
-                                    <textarea asp-for="Input.Remarks" class="form-control" rows="4" placeholder="Optional remarks"></textarea>
-                                    <span asp-validation-for="Input.Remarks" class="text-danger"></span>
-                                </div>
-                            </div>
-                            <div class="visit-form__footer">
-                                <a asp-page="Index" class="btn btn-outline-secondary">Back to visits</a>
-                                <button type="submit" class="btn btn-primary" data-visits-busy-label="Saving…">Save changes</button>
-                            </div>
-                        </form>
-                    </div>
+    <div class="visit-shell visit-tracker">
+        <nav aria-label="Breadcrumb" class="visit-breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+                <li class="breadcrumb-item"><a asp-page="Index">Visit tracker</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Edit visit</li>
+            </ol>
+        </nav>
+
+        <section class="visit-hero visit-hero--form">
+            <div class="visit-hero__content">
+                <span class="visit-hero__eyebrow">Update oversight</span>
+                <h1 class="visit-hero__title">Edit visit record</h1>
+                <p class="visit-hero__subtitle">Refine the narrative, adjust team details, and enrich the media collection for this visit.</p>
+                <div class="visit-hero__meta">
+                    @if (!string.IsNullOrWhiteSpace(visitDateDisplay))
+                    {
+                        <span class="visit-hero__meta-item"><i class="bi bi-calendar-event" aria-hidden="true"></i> @visitDateDisplay (@visitDayDisplay).</span>
+                    }
+                    <span class="visit-hero__meta-item"><i class="bi bi-person" aria-hidden="true"></i> Visitor: @Model.Input.VisitorName</span>
+                    <span class="visit-hero__meta-item"><i class="bi bi-images" aria-hidden="true"></i> @totalPhotos photo@(totalPhotos == 1 ? string.Empty : "s") attached.</span>
                 </div>
-                <div class="pm-card mt-4">
-                    <div class="pm-card-header">
-                        <div class="pm-card-heading">
-                            <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-cloud-upload"></i></span>
-                            <div>
-                                <h2 class="pm-card-title h5 mb-0">Upload photo</h2>
-                                <p class="pm-card-subtitle mb-0">Add visual evidence for this visit.</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="pm-card-body">
-                        <form method="post" enctype="multipart/form-data" asp-page-handler="Upload" asp-route-id="@Model.PhotoGallery.VisitId" class="visit-upload-form" data-visits-disable-on-submit>
-                            <input type="hidden" name="id" value="@Model.PhotoGallery.VisitId" />
-                            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-                            <div class="mb-3">
-                                <label class="form-label" for="visit-photo">Photo</label>
-                                <input id="visit-photo" class="form-control" type="file" asp-for="Upload" accept="image/*" />
-                                <span asp-validation-for="Upload" class="text-danger"></span>
-                            </div>
-                            <div class="mb-3">
-                                <label asp-for="UploadCaption" class="form-label">Caption (optional)</label>
-                                <input asp-for="UploadCaption" class="form-control" placeholder="What does this photo show?" />
-                                <span asp-validation-for="UploadCaption" class="text-danger"></span>
-                            </div>
-                            <div class="d-flex justify-content-end">
-                                <button type="submit" class="btn btn-outline-primary" data-visits-busy-label="Uploading…">Upload</button>
-                            </div>
-                        </form>
-                    </div>
+                <div class="visit-hero__actions">
+                    <a asp-page="Details" asp-route-id="@Model.PhotoGallery.VisitId" class="btn btn-outline-light d-inline-flex align-items-center gap-2">
+                        <i class="bi bi-eye" aria-hidden="true"></i>
+                        <span>View visit details</span>
+                    </a>
                 </div>
             </div>
-            <div class="col-xxl-7">
-                <div class="pm-card h-100">
-                    <div class="pm-card-header">
-                        <div class="pm-card-heading">
-                            <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-images"></i></span>
-                            <div>
-                                <h2 class="pm-card-title h4 mb-0">Photo gallery</h2>
-                                <p class="pm-card-subtitle mb-0">Manage the images associated with this visit.</p>
+        </section>
+
+        <div class="visit-form-layout">
+            <div class="visit-form-layout__primary">
+                <div class="visit-form-card">
+                    <div class="visit-form-card__header">
+                        <h2 class="visit-form-card__title">Core information</h2>
+                        <p class="visit-form-card__subtitle">Keep the foundational visit details accurate to maintain reporting fidelity.</p>
+                    </div>
+                    <form method="post" novalidate class="visit-form" data-visits-disable-on-submit>
+                        <input type="hidden" asp-for="RowVersion" />
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                        <div class="visit-form-grid">
+                            <div class="visit-form-grid__field">
+                                <label asp-for="Input.VisitTypeId" class="form-label"></label>
+                                <select asp-for="Input.VisitTypeId" asp-items="Model.VisitTypeOptions" class="form-select"></select>
+                                <span asp-validation-for="Input.VisitTypeId" class="text-danger"></span>
+                            </div>
+                            <div class="visit-form-grid__field">
+                                <label asp-for="Input.DateOfVisit" class="form-label"></label>
+                                <input asp-for="Input.DateOfVisit" class="form-control" type="date" />
+                                <span asp-validation-for="Input.DateOfVisit" class="text-danger"></span>
+                            </div>
+                            <div class="visit-form-grid__field">
+                                <label asp-for="Input.VisitorName" class="form-label"></label>
+                                <input asp-for="Input.VisitorName" class="form-control" />
+                                <span asp-validation-for="Input.VisitorName" class="text-danger"></span>
+                            </div>
+                            <div class="visit-form-grid__field">
+                                <label asp-for="Input.Strength" class="form-label"></label>
+                                <input asp-for="Input.Strength" class="form-control" type="number" min="1" step="1" />
+                                <span asp-validation-for="Input.Strength" class="text-danger"></span>
+                            </div>
+                            <div class="visit-form-grid__field visit-form-grid__field--full">
+                                <label asp-for="Input.Remarks" class="form-label"></label>
+                                <textarea asp-for="Input.Remarks" class="form-control" rows="5" placeholder="Optional remarks"></textarea>
+                                <span asp-validation-for="Input.Remarks" class="text-danger"></span>
                             </div>
                         </div>
+                        <div class="visit-form__footer">
+                            <a asp-page="Index" class="btn btn-outline-secondary">Back to visits</a>
+                            <button type="submit" class="btn btn-primary" data-visits-busy-label="Saving…">Save changes</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <aside class="visit-form-layout__sidebar">
+                <div class="visit-intel-card">
+                    <h2 class="visit-intel-card__title">Quick summary</h2>
+                    <dl class="visit-intel-card__meta">
+                        <div>
+                            <dt>Visit type</dt>
+                            <dd>@Model.VisitTypeOptions.FirstOrDefault(option => option.Selected)?.Text</dd>
+                        </div>
+                        <div>
+                            <dt>Team strength</dt>
+                            <dd>@Model.Input.Strength</dd>
+                        </div>
+                        <div>
+                            <dt>Photos linked</dt>
+                            <dd>@totalPhotos</dd>
+                        </div>
+                    </dl>
+                </div>
+                <div class="visit-intel-card">
+                    <h2 class="visit-intel-card__title">Tips while editing</h2>
+                    <ul class="visit-intel-card__list">
+                        <li>Keep remarks action-oriented for quick follow-up.</li>
+                        <li>Use the gallery below to refresh cover photos.</li>
+                        <li>Upload new media in batches for faster documentation.</li>
+                    </ul>
+                </div>
+            </aside>
+        </div>
+
+        <section class="visit-media">
+            <div class="visit-media__upload">
+                <div class="visit-form-card">
+                    <div class="visit-form-card__header">
+                        <h2 class="visit-form-card__title">Upload additional photos</h2>
+                        <p class="visit-form-card__subtitle">Drop in multiple images at once. Captions will apply to the entire batch.</p>
                     </div>
-                    <div class="pm-card-body">
+                    <form method="post" enctype="multipart/form-data" asp-page-handler="Upload" asp-route-id="@Model.PhotoGallery.VisitId" class="visit-form" data-visits-disable-on-submit>
+                        <input type="hidden" name="id" value="@Model.PhotoGallery.VisitId" />
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                        <div class="visit-form-grid visit-form-grid--single">
+                            <div class="visit-form-grid__field">
+                                <label class="form-label" for="visit-edit-photo">Photos</label>
+                                <input id="visit-edit-photo" class="form-control" type="file" asp-for="Uploads" accept="image/*" multiple />
+                                <span asp-validation-for="Uploads" class="text-danger"></span>
+                                <div class="form-text">JPEG, PNG or WebP up to 5 MB each. Select multiple files to upload together.</div>
+                            </div>
+                            <div class="visit-form-grid__field">
+                                <label asp-for="UploadCaption" class="form-label">Caption for uploaded photos</label>
+                                <input asp-for="UploadCaption" class="form-control" placeholder="Optional batch caption" />
+                                <span asp-validation-for="UploadCaption" class="text-danger"></span>
+                            </div>
+                        </div>
+                        <div class="visit-form__footer visit-form__footer--compact">
+                            <button type="submit" class="btn btn-outline-primary" data-visits-busy-label="Uploading…">Upload photos</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="visit-media__gallery">
+                <div class="visit-form-card visit-form-card--gallery">
+                    <div class="visit-form-card__header">
+                        <h2 class="visit-form-card__title">Photo gallery</h2>
+                        <p class="visit-form-card__subtitle">Manage the visual narrative linked to this visit.</p>
+                    </div>
+                    <div class="visit-form-card__body">
                         <partial name="_PhotosPartial" model="Model.PhotoGallery" />
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
     </div>
 }
 

@@ -22,6 +22,16 @@
     var totalVisits = Model.Items.Count;
     var totalPeople = Model.Items.Sum(item => item.Strength);
     var totalPhotos = Model.Items.Sum(item => item.PhotoCount);
+    var averageTeamSize = Model.Items.Count > 0 ? Model.Items.Average(item => item.Strength) : 0;
+    var distinctVisitors = Model.Items
+        .Select(item => item.VisitorName)
+        .Where(name => !string.IsNullOrWhiteSpace(name))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .Count();
+    var latestVisitItem = Model.Items
+        .OrderByDescending(item => item.DateOfVisit)
+        .ThenByDescending(item => item.PhotoCount)
+        .FirstOrDefault();
 
     var hasFilters = Model.VisitTypeId.HasValue || !string.IsNullOrWhiteSpace(Model.From) || !string.IsNullOrWhiteSpace(Model.To) || !string.IsNullOrWhiteSpace(Model.Q);
     string? selectedTypeLabel = null;
@@ -44,109 +54,159 @@
 
 <partial name="_ToastMessages" model="toastMessages" />
 
-<div class="visit-tracker">
-    <div class="pm-card mb-4">
-        <div class="pm-card-header">
-            <div class="pm-card-heading">
-                <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-geo-alt"></i></span>
-                <div>
-                    <h1 class="pm-card-title">Visit tracker</h1>
-                    <p class="pm-card-subtitle mb-0">Monitor oversight visits and capture on-ground insights.</p>
-                </div>
-            </div>
-            @if (Model.CanManage)
-            {
-                <div class="pm-card-actions">
-                    <a asp-page="New" class="btn btn-primary d-inline-flex align-items-center gap-2">
-                        <i class="bi bi-plus-lg" aria-hidden="true"></i>
-                        <span>New visit</span>
-                    </a>
-                </div>
-            }
-        </div>
-        <div class="pm-card-body">
-            <div class="visit-insights mb-4">
-                <div class="visit-insight">
-                    <span class="visit-insight__label">Visits in view</span>
-                    <span class="visit-insight__value">@totalVisits</span>
-                </div>
-                <div class="visit-insight">
-                    <span class="visit-insight__label">People engaged</span>
-                    <span class="visit-insight__value">@totalPeople</span>
-                </div>
-                <div class="visit-insight">
-                    <span class="visit-insight__label">Photos captured</span>
-                    <span class="visit-insight__value">@totalPhotos</span>
-                </div>
-            </div>
+<div class="visit-shell visit-tracker">
+    <nav aria-label="Breadcrumb" class="visit-breadcrumb">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Visit tracker</li>
+        </ol>
+    </nav>
 
+    <section class="visit-hero">
+        <div class="visit-hero__content">
+            <span class="visit-hero__eyebrow">Project office reports</span>
+            <h1 class="visit-hero__title">Visit tracker</h1>
+            <p class="visit-hero__subtitle">Monitor on-ground engagements, surface insights instantly, and keep your stakeholders aligned.</p>
+            <div class="visit-hero__meta">
+                @if (latestVisitItem is not null)
+                {
+                    <span class="visit-hero__meta-item"><i class="bi bi-clock-history" aria-hidden="true"></i> Latest visit on @latestVisitItem.DateOfVisit.ToString("dd MMM yyyy") led by @latestVisitItem.VisitorName.</span>
+                }
+                else
+                {
+                    <span class="visit-hero__meta-item"><i class="bi bi-lightning" aria-hidden="true"></i> Log your first visit to unlock analytics and photo storytelling.</span>
+                }
+                @if (distinctVisitors > 0)
+                {
+                    <span class="visit-hero__meta-item"><i class="bi bi-people" aria-hidden="true"></i> @distinctVisitors distinct visitor@(distinctVisitors == 1 ? string.Empty : "s") recorded.</span>
+                }
+            </div>
+            <div class="visit-hero__actions">
+                @if (Model.CanManage)
+                {
+                    <a asp-page="New" class="btn btn-primary btn-lg d-inline-flex align-items-center gap-2">
+                        <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                        <span>Record a visit</span>
+                    </a>
+                }
+                @if (latestVisitItem is not null)
+                {
+                    <a asp-page="Details" asp-route-id="@latestVisitItem.Id" class="btn btn-outline-light d-inline-flex align-items-center gap-2">
+                        <i class="bi bi-eye" aria-hidden="true"></i>
+                        <span>Preview latest visit</span>
+                    </a>
+                }
+                else
+                {
+                    <span class="btn btn-outline-light disabled d-inline-flex align-items-center gap-2" aria-disabled="true">
+                        <i class="bi bi-eye" aria-hidden="true"></i>
+                        <span>Preview latest visit</span>
+                    </span>
+                }
+            </div>
+        </div>
+        <div class="visit-hero__stats">
+            <div class="visit-stat-card">
+                <span class="visit-stat-card__label">Visits in view</span>
+                <span class="visit-stat-card__value">@totalVisits</span>
+            </div>
+            <div class="visit-stat-card">
+                <span class="visit-stat-card__label">People engaged</span>
+                <span class="visit-stat-card__value">@totalPeople</span>
+            </div>
+            <div class="visit-stat-card">
+                <span class="visit-stat-card__label">Photos captured</span>
+                <span class="visit-stat-card__value">@totalPhotos</span>
+            </div>
+            <div class="visit-stat-card">
+                <span class="visit-stat-card__label">Average team size</span>
+                <span class="visit-stat-card__value">@(Model.Items.Count > 0 ? averageTeamSize.ToString("0.0") : "-")</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="visit-section">
+        <header class="visit-section__header">
+            <div>
+                <h2 class="visit-section__title">Filter &amp; focus</h2>
+                <p class="visit-section__subtitle">Pinpoint visits by type, time range, or narrative keywords to tailor your review.</p>
+            </div>
             @if (hasFilters)
             {
-                <div class="visit-filter-chips mb-3">
-                    @if (!string.IsNullOrWhiteSpace(selectedTypeLabel))
-                    {
-                        <span class="visit-pill"><i class="bi bi-funnel" aria-hidden="true"></i> Type: @selectedTypeLabel</span>
-                    }
-                    @if (parsedFrom.HasValue)
-                    {
-                        <span class="visit-pill"><i class="bi bi-calendar-event" aria-hidden="true"></i> From: @parsedFrom.Value.ToString("dd MMM yyyy")</span>
-                    }
-                    @if (parsedTo.HasValue)
-                    {
-                        <span class="visit-pill"><i class="bi bi-calendar2-event" aria-hidden="true"></i> To: @parsedTo.Value.ToString("dd MMM yyyy")</span>
-                    }
-                    @if (!string.IsNullOrWhiteSpace(Model.Q))
-                    {
-                        <span class="visit-pill"><i class="bi bi-search" aria-hidden="true"></i> "@Model.Q"</span>
-                    }
-                    <a asp-page="Index" class="visit-pill visit-pill--action"><i class="bi bi-x-circle" aria-hidden="true"></i> Clear filters</a>
-                </div>
+                <a asp-page="Index" class="btn btn-link visit-section__reset"><i class="bi bi-x-circle" aria-hidden="true"></i> Clear filters</a>
             }
+        </header>
 
-            <form method="get" class="visit-filter-grid">
-                <div class="visit-filter-grid__item">
-                    <label asp-for="VisitTypeId" class="form-label">Visit type</label>
-                    <select asp-for="VisitTypeId" asp-items="Model.VisitTypeOptions" class="form-select"></select>
-                </div>
-                <div class="visit-filter-grid__item">
-                    <label class="form-label" for="from-date">From</label>
-                    <input id="from-date" name="From" type="date" value="@fromValue" class="form-control" />
-                </div>
-                <div class="visit-filter-grid__item">
-                    <label class="form-label" for="to-date">To</label>
-                    <input id="to-date" name="To" type="date" value="@toValue" class="form-control" />
-                </div>
-                <div class="visit-filter-grid__item">
-                    <label class="form-label" for="search-filter">Visitor or remarks</label>
-                    <input id="search-filter" name="Q" value="@Model.Q" class="form-control" placeholder="Search visitor or remarks" />
-                </div>
-                <div class="visit-filter-actions">
-                    <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2">
-                        <i class="bi bi-funnel" aria-hidden="true"></i>
-                        <span>Apply filters</span>
-                    </button>
-                    <a asp-page="Index" class="btn btn-outline-secondary">Reset</a>
-                </div>
-            </form>
-        </div>
-    </div>
+        @if (hasFilters)
+        {
+            <div class="visit-filter-chips mb-3">
+                @if (!string.IsNullOrWhiteSpace(selectedTypeLabel))
+                {
+                    <span class="visit-pill"><i class="bi bi-funnel" aria-hidden="true"></i> Type: @selectedTypeLabel</span>
+                }
+                @if (parsedFrom.HasValue)
+                {
+                    <span class="visit-pill"><i class="bi bi-calendar-event" aria-hidden="true"></i> From: @parsedFrom.Value.ToString("dd MMM yyyy")</span>
+                }
+                @if (parsedTo.HasValue)
+                {
+                    <span class="visit-pill"><i class="bi bi-calendar2-event" aria-hidden="true"></i> To: @parsedTo.Value.ToString("dd MMM yyyy")</span>
+                }
+                @if (!string.IsNullOrWhiteSpace(Model.Q))
+                {
+                    <span class="visit-pill"><i class="bi bi-search" aria-hidden="true"></i> "@Model.Q"</span>
+                }
+            </div>
+        }
 
-    @if (Model.Items.Count == 0)
-    {
-        <div class="pm-card">
-            <div class="pm-card-body">
-                <div class="visit-empty text-center py-5">
+        <form method="get" class="visit-filters">
+            <div class="visit-filters__group">
+                <label asp-for="VisitTypeId" class="form-label">Visit type</label>
+                <select asp-for="VisitTypeId" asp-items="Model.VisitTypeOptions" class="form-select"></select>
+            </div>
+            <div class="visit-filters__group">
+                <label class="form-label" for="from-date">From</label>
+                <input id="from-date" name="From" type="date" value="@fromValue" class="form-control" />
+            </div>
+            <div class="visit-filters__group">
+                <label class="form-label" for="to-date">To</label>
+                <input id="to-date" name="To" type="date" value="@toValue" class="form-control" />
+            </div>
+            <div class="visit-filters__group visit-filters__group--wide">
+                <label class="form-label" for="search-filter">Visitor or remarks</label>
+                <input id="search-filter" name="Q" value="@Model.Q" class="form-control" placeholder="Search visitor or remarks" />
+            </div>
+            <div class="visit-filters__actions">
+                <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2">
+                    <i class="bi bi-funnel" aria-hidden="true"></i>
+                    <span>Apply filters</span>
+                </button>
+                <a asp-page="Index" class="btn btn-outline-secondary">Reset</a>
+            </div>
+        </form>
+    </section>
+
+    <section class="visit-section">
+        <header class="visit-section__header">
+            <div>
+                <h2 class="visit-section__title">Visit log</h2>
+                <p class="visit-section__subtitle">A chronological snapshot of every engagement and the media captured on-site.</p>
+            </div>
+        </header>
+
+        @if (Model.Items.Count == 0)
+        {
+            <div class="visit-section__body">
+                <div class="visit-empty visit-empty--subtle text-center py-5">
                     <div class="visit-empty__icon" aria-hidden="true"><i class="bi bi-emoji-smile"></i></div>
                     <h2 class="visit-empty__title">No visits @((hasFilters ? "match your filters" : "recorded yet"))</h2>
                     <p class="visit-empty__subtitle">@((hasFilters ? "Try adjusting the filters to widen your search." : "Start logging field visits to build your oversight history."))</p>
                 </div>
             </div>
-        </div>
-    }
-    else
-    {
-        <div class="pm-card">
-            <div class="pm-card-body p-0">
+        }
+        else
+        {
+            <div class="visit-table-card">
                 <div class="table-responsive">
                     <table class="table align-middle visit-table mb-0">
                         <thead>
@@ -213,8 +273,8 @@
                     </table>
                 </div>
             </div>
-        </div>
-    }
+        }
+    </section>
 </div>
 
 @section Scripts {

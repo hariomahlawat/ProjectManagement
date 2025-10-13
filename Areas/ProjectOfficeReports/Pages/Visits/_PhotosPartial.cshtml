@@ -3,7 +3,7 @@
 
 @if (Model.Photos.Count == 0)
 {
-    <div class="visit-empty visit-empty--subtle text-center py-5">
+    <div class="visit-gallery-empty text-center py-5">
         <div class="visit-empty__icon" aria-hidden="true"><i class="bi bi-images"></i></div>
         <h3 class="visit-empty__title">No photos yet</h3>
         <p class="visit-empty__subtitle">Upload images to document this visit visually.</p>
@@ -11,7 +11,7 @@
 }
 else
 {
-    <div class="visit-photo-gallery pm-photo-grid">
+    <div class="visit-gallery" data-visit-gallery>
         @foreach (var photo in Model.Photos)
         {
             var thumbnail = Url.Page("./ViewPhoto", new { id = Model.VisitId, photoId = photo.Id, size = "sm" });
@@ -22,42 +22,42 @@ else
             var versionedFull = string.IsNullOrWhiteSpace(photo.VersionStamp)
                 ? full ?? string.Empty
                 : (full is null ? string.Empty : QueryHelpers.AddQueryString(full, "v", photo.VersionStamp));
-            <article class="pm-photo-grid-item visit-photo-card">
-                <a href="@versionedFull" target="_blank" rel="noopener" class="visit-photo-card__preview">
+            <article class="visit-gallery-card">
+                <a href="@versionedFull" target="_blank" rel="noopener" class="visit-gallery-card__image">
                     <span class="visually-hidden">Open full-size photo in new tab</span>
-                    <div class="pm-photo-frame">
+                    <div class="visit-gallery-card__frame">
                         <img src="@versionedThumbnail" alt="Visit photo" />
                         @if (Model.CoverPhotoId == photo.Id)
                         {
-                            <span class="pm-photo-cover-badge">Cover photo</span>
+                            <span class="visit-gallery-card__badge">Cover photo</span>
                         }
                     </div>
                 </a>
-                <div class="visit-photo-card__body">
+                <div class="visit-gallery-card__info">
                     @if (!string.IsNullOrWhiteSpace(photo.Caption))
                     {
-                        <p class="visit-photo-card__caption mb-0">@photo.Caption</p>
+                        <p class="visit-gallery-card__caption mb-0">@photo.Caption</p>
                     }
                     else
                     {
-                        <p class="visit-photo-card__caption visit-photo-card__caption--muted mb-0">No caption provided</p>
+                        <p class="visit-gallery-card__caption visit-gallery-card__caption--muted mb-0">No caption provided</p>
+                    }
+                    @if (Model.CanManage)
+                    {
+                        <div class="visit-gallery-card__actions">
+                            <form method="post" asp-page-handler="SetCover" asp-route-id="@Model.VisitId" class="visit-gallery-card__form" data-visits-disable-on-submit>
+                                <input type="hidden" name="id" value="@Model.VisitId" />
+                                <input type="hidden" name="photoId" value="@photo.Id" />
+                                <button type="submit" class="btn btn-sm btn-outline-primary" @(Model.CoverPhotoId == photo.Id ? "disabled" : null) data-visits-busy-label="Setting cover…">Set cover</button>
+                            </form>
+                            <form method="post" asp-page-handler="DeletePhoto" asp-route-id="@Model.VisitId" class="visit-gallery-card__form" data-visits-disable-on-submit>
+                                <input type="hidden" name="id" value="@Model.VisitId" />
+                                <input type="hidden" name="photoId" value="@photo.Id" />
+                                <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="Delete this photo?" data-visits-busy-label="Deleting…">Delete</button>
+                            </form>
+                        </div>
                     }
                 </div>
-                @if (Model.CanManage)
-                {
-                    <div class="visit-photo-card__actions">
-                        <form method="post" asp-page-handler="SetCover" asp-route-id="@Model.VisitId" class="visit-photo-card__form" data-visits-disable-on-submit>
-                            <input type="hidden" name="id" value="@Model.VisitId" />
-                            <input type="hidden" name="photoId" value="@photo.Id" />
-                            <button type="submit" class="btn btn-sm btn-outline-primary" @(Model.CoverPhotoId == photo.Id ? "disabled" : null) data-visits-busy-label="Setting cover…">Set cover</button>
-                        </form>
-                        <form method="post" asp-page-handler="DeletePhoto" asp-route-id="@Model.VisitId" class="visit-photo-card__form" data-visits-disable-on-submit>
-                            <input type="hidden" name="id" value="@Model.VisitId" />
-                            <input type="hidden" name="photoId" value="@photo.Id" />
-                            <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="Delete this photo?" data-visits-busy-label="Deleting…">Delete</button>
-                        </form>
-                    </div>
-                }
             </article>
         }
     </div>

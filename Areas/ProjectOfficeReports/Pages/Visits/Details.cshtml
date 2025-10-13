@@ -1,6 +1,6 @@
 @page "{id:guid}"
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.DetailsModel
-@{ 
+@{
     ViewData["Title"] = "Visit Details";
     var toastMessages = new List<VisitToastMessage>();
     if (TempData.TryGetValue("ToastMessage", out var toastMessageValue) && toastMessageValue is string toastMessage && !string.IsNullOrWhiteSpace(toastMessage))
@@ -12,108 +12,188 @@
     {
         toastMessages.Add(new VisitToastMessage(toastError, "danger"));
     }
+
+    var visit = Model.Visit?.Visit;
+    var visitTypeName = Model.Visit?.VisitType.Name;
+    var photoCount = Model.PhotoGallery?.Photos.Count ?? 0;
+    var createdOn = visit?.CreatedAtUtc.ToLocalTime();
+    var updatedOn = visit?.LastModifiedAtUtc?.ToLocalTime();
 }
 
 <partial name="_ToastMessages" model="toastMessages" />
 
 @if (Model.Visit is null)
 {
-    <div class="visit-tracker">
-        <div class="pm-card">
-            <div class="pm-card-body">
-                <div class="visit-empty text-center py-5">
-                    <div class="visit-empty__icon" aria-hidden="true"><i class="bi bi-emoji-frown"></i></div>
-                    <h2 class="visit-empty__title">Visit not found</h2>
-                    <p class="visit-empty__subtitle">It may have been removed or you might not have access to it anymore.</p>
-                </div>
+    <div class="visit-shell visit-tracker">
+        <nav aria-label="Breadcrumb" class="visit-breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+                <li class="breadcrumb-item"><a asp-page="Index">Visit tracker</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Visit details</li>
+            </ol>
+        </nav>
+        <div class="visit-access-card">
+            <div class="visit-empty text-center py-5">
+                <div class="visit-empty__icon" aria-hidden="true"><i class="bi bi-emoji-frown"></i></div>
+                <h2 class="visit-empty__title">Visit not found</h2>
+                <p class="visit-empty__subtitle">It may have been removed or you might not have access to it anymore.</p>
             </div>
         </div>
     </div>
 }
-
 else
 {
-    var visit = Model.Visit.Visit;
-    var photoCount = Model.PhotoGallery?.Photos.Count ?? 0;
-    <div class="visit-tracker">
-        <div class="pm-card mb-4">
-            <div class="pm-card-header">
-                <div class="pm-card-heading">
-                    <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-geo-alt"></i></span>
-                    <div>
-                        <h1 class="pm-card-title">Visit details</h1>
-                        <p class="pm-card-subtitle mb-0">Recorded on @visit.DateOfVisit.ToString("dddd, dd MMMM yyyy")</p>
-                    </div>
+    <div class="visit-shell visit-tracker">
+        <nav aria-label="Breadcrumb" class="visit-breadcrumb">
+            <ol class="breadcrumb mb-0">
+                <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+                <li class="breadcrumb-item"><a asp-page="Index">Visit tracker</a></li>
+                <li class="breadcrumb-item active" aria-current="page">Visit details</li>
+            </ol>
+        </nav>
+
+        <section class="visit-hero visit-hero--details">
+            <div class="visit-hero__content">
+                <span class="visit-hero__eyebrow">Visit summary</span>
+                <h1 class="visit-hero__title">@visit?.VisitorName&rsquo;s visit</h1>
+                <p class="visit-hero__subtitle">Recorded on @visit?.DateOfVisit.ToString("dddd, dd MMMM yyyy")</p>
+                <div class="visit-hero__meta">
+                    <span class="visit-hero__meta-item"><i class="bi bi-geo-alt" aria-hidden="true"></i> Type: @visitTypeName</span>
+                    <span class="visit-hero__meta-item"><i class="bi bi-people" aria-hidden="true"></i> Team size: @visit?.Strength</span>
+                    <span class="visit-hero__meta-item"><i class="bi bi-images" aria-hidden="true"></i> @photoCount photo@(photoCount == 1 ? string.Empty : "s") captured</span>
                 </div>
-                <div class="pm-card-actions">
-                    <a asp-page="Index" class="btn btn-outline-secondary">Back to visits</a>
+                <div class="visit-hero__actions visit-hero__actions--wrap">
+                    <a asp-page="Index" class="btn btn-outline-light d-inline-flex align-items-center gap-2">
+                        <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                        <span>Back to visits</span>
+                    </a>
                     @if (Model.CanManage)
                     {
-                        <a asp-page="Edit" asp-route-id="@visit.Id" class="btn btn-outline-primary">Edit</a>
-                        <form method="post" asp-page-handler="Delete" class="visit-row-actions__form" data-visits-disable-on-submit>
+                        <a asp-page="Edit" asp-route-id="@visit?.Id" class="btn btn-light d-inline-flex align-items-center gap-2">
+                            <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                            <span>Edit</span>
+                        </a>
+                        <form method="post" asp-page-handler="Delete" class="visit-hero__delete" data-visits-disable-on-submit>
                             <input type="hidden" name="rowVersion" value="@Model.RowVersion" />
-                            <button type="submit" class="btn btn-outline-danger" data-confirm="Delete this visit?" data-visits-busy-label="Deleting…">Delete</button>
+                            <button type="submit" class="btn btn-outline-danger d-inline-flex align-items-center gap-2" data-confirm="Delete this visit?" data-visits-busy-label="Deleting…">
+                                <i class="bi bi-trash" aria-hidden="true"></i>
+                                <span>Delete</span>
+                            </button>
                         </form>
                     }
                 </div>
             </div>
-            <div class="pm-card-body">
-                <div class="visit-summary-grid">
-                    <div class="visit-summary-grid__item">
-                        <span class="visit-summary__label">Visit type</span>
-                        <span class="visit-summary__value">@Model.Visit.VisitType.Name</span>
-                    </div>
-                    <div class="visit-summary-grid__item">
-                        <span class="visit-summary__label">Visitor</span>
-                        <span class="visit-summary__value">@visit.VisitorName</span>
-                    </div>
-                    <div class="visit-summary-grid__item">
-                        <span class="visit-summary__label">Date of visit</span>
-                        <span class="visit-summary__value">@visit.DateOfVisit.ToString("dd MMM yyyy") (@visit.DateOfVisit.ToString("dddd"))</span>
-                    </div>
-                    <div class="visit-summary-grid__item">
-                        <span class="visit-summary__label">Report created on</span>
-                        <span class="visit-summary__value">@visit.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</span>
-                    </div>
-                </div>
-                <div class="visit-summary-metrics">
-                    <div class="visit-metric">
-                        <span class="visit-metric__value">@visit.Strength</span>
-                        <span class="visit-metric__label">People present</span>
-                    </div>
-                    <div class="visit-metric visit-metric--subtle">
-                        <span class="visit-metric__value">@photoCount</span>
-                        <span class="visit-metric__label">Photos captured</span>
-                    </div>
-                </div>
-                <div class="visit-remarks mt-4">
-                    <span class="visit-summary__label text-uppercase">Remarks</span>
-                    @if (string.IsNullOrWhiteSpace(visit.Remarks))
-                    {
-                        <div class="visit-remarks__body visit-remarks__body--empty">No remarks recorded.</div>
-                    }
-                    else
-                    {
-                        <div class="visit-remarks__body">@visit.Remarks</div>
-                    }
-                </div>
-            </div>
-        </div>
+        </section>
 
-        <div class="pm-card">
-            <div class="pm-card-header">
-                <div class="pm-card-heading">
-                    <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-images"></i></span>
-                    <div>
-                        <h2 class="pm-card-title h4 mb-0">Photo gallery</h2>
-                        <p class="pm-card-subtitle mb-0">Field evidence captured during the visit.</p>
+        <section class="visit-details">
+            <div class="visit-details__primary">
+                <div class="visit-form-card visit-form-card--surface">
+                    <div class="visit-form-card__header">
+                        <h2 class="visit-form-card__title">Key facts</h2>
+                        <p class="visit-form-card__subtitle">The essentials of this visit at a glance.</p>
+                    </div>
+                    <div class="visit-summary-grid">
+                        <div class="visit-summary-grid__item">
+                            <span class="visit-summary__label">Visit type</span>
+                            <span class="visit-summary__value">@visitTypeName</span>
+                        </div>
+                        <div class="visit-summary-grid__item">
+                            <span class="visit-summary__label">Visitor</span>
+                            <span class="visit-summary__value">@visit?.VisitorName</span>
+                        </div>
+                        <div class="visit-summary-grid__item">
+                            <span class="visit-summary__label">Date of visit</span>
+                            <span class="visit-summary__value">@visit?.DateOfVisit.ToString("dd MMM yyyy") (@visit?.DateOfVisit.ToString("dddd"))</span>
+                        </div>
+                        <div class="visit-summary-grid__item">
+                            <span class="visit-summary__label">Report created on</span>
+                            <span class="visit-summary__value">@createdOn?.ToString("dd MMM yyyy, HH:mm")</span>
+                        </div>
+                    </div>
+                    <div class="visit-summary-metrics">
+                        <div class="visit-metric">
+                            <span class="visit-metric__value">@visit?.Strength</span>
+                            <span class="visit-metric__label">People present</span>
+                        </div>
+                        <div class="visit-metric visit-metric--subtle">
+                            <span class="visit-metric__value">@photoCount</span>
+                            <span class="visit-metric__label">Photos captured</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="visit-form-card visit-form-card--surface">
+                    <div class="visit-form-card__header">
+                        <h2 class="visit-form-card__title">Remarks</h2>
+                        <p class="visit-form-card__subtitle">Context, observations, and follow-up notes from the field.</p>
+                    </div>
+                    <div class="visit-remarks">
+                        @if (string.IsNullOrWhiteSpace(visit?.Remarks))
+                        {
+                            <div class="visit-remarks__body visit-remarks__body--empty">No remarks recorded.</div>
+                        }
+                        else
+                        {
+                            <div class="visit-remarks__body">@visit?.Remarks</div>
+                        }
                     </div>
                 </div>
             </div>
-            <div class="pm-card-body">
-                <partial name="_PhotosPartial" model="Model.PhotoGallery" />
+            <aside class="visit-details__aside">
+                <div class="visit-form-card visit-form-card--surface">
+                    <div class="visit-form-card__header">
+                        <h2 class="visit-form-card__title">Timeline</h2>
+                        <p class="visit-form-card__subtitle">Audit-friendly milestones for this record.</p>
+                    </div>
+                    <ul class="visit-timeline">
+                        @if (createdOn.HasValue)
+                        {
+                            <li>
+                                <span class="visit-timeline__dot" aria-hidden="true"></span>
+                                <div class="visit-timeline__content">
+                                    <span class="visit-timeline__label">Created</span>
+                                    <span class="visit-timeline__value">@createdOn.Value.ToString("dd MMM yyyy, HH:mm")</span>
+                                </div>
+                            </li>
+                        }
+                        @if (updatedOn.HasValue)
+                        {
+                            <li>
+                                <span class="visit-timeline__dot" aria-hidden="true"></span>
+                                <div class="visit-timeline__content">
+                                    <span class="visit-timeline__label">Last updated</span>
+                                    <span class="visit-timeline__value">@updatedOn.Value.ToString("dd MMM yyyy, HH:mm")</span>
+                                </div>
+                            </li>
+                        }
+                        else if (createdOn.HasValue)
+                        {
+                            <li>
+                                <span class="visit-timeline__dot" aria-hidden="true"></span>
+                                <div class="visit-timeline__content">
+                                    <span class="visit-timeline__label">Last updated</span>
+                                    <span class="visit-timeline__value">No edits since creation</span>
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            </aside>
+        </section>
+
+        <section class="visit-media">
+            <div class="visit-media__gallery visit-media__gallery--full">
+                <div class="visit-form-card visit-form-card--gallery">
+                    <div class="visit-form-card__header">
+                        <h2 class="visit-form-card__title">Photo gallery</h2>
+                        <p class="visit-form-card__subtitle">Field evidence captured during the visit.</p>
+                    </div>
+                    <div class="visit-form-card__body">
+                        <partial name="_PhotosPartial" model="Model.PhotoGallery" />
+                    </div>
+                </div>
             </div>
-        </div>
+        </section>
     </div>
 }
 

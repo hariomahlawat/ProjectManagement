@@ -43,7 +43,7 @@ public class EditModel : PageModel
     public string? UploadCaption { get; set; }
 
     [BindProperty]
-    public IFormFile? Upload { get; set; }
+    public List<IFormFile> Uploads { get; set; } = new();
 
     public IReadOnlyList<SelectListItem> VisitTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
 
@@ -135,9 +135,17 @@ public class EditModel : PageModel
             return RedirectToPage("Index");
         }
 
-        if (Upload == null || Upload.Length == 0)
+        var uploads = Uploads?.Where(file => file != null).ToList() ?? new List<IFormFile>();
+        if (uploads.Count == 0)
         {
-            ModelState.AddModelError(nameof(Upload), "Please select a photo to upload.");
+            ModelState.AddModelError(nameof(Uploads), "Please select at least one photo to upload.");
+            await LoadAsync(visitId, cancellationToken);
+            return Page();
+        }
+
+        if (uploads.Any(file => file.Length == 0))
+        {
+            ModelState.AddModelError(nameof(Uploads), "One or more selected photos were empty. Please choose valid images.");
             await LoadAsync(visitId, cancellationToken);
             return Page();
         }
@@ -150,27 +158,62 @@ public class EditModel : PageModel
             return Page();
         }
 
-        await using var stream = Upload.OpenReadStream();
-        var result = await _photoService.UploadAsync(visitId, stream, Upload.FileName, Upload.ContentType, UploadCaption, _userManager.GetUserId(User) ?? string.Empty, cancellationToken);
-        if (result.Outcome == VisitPhotoUploadOutcome.Success)
+        var caption = string.IsNullOrWhiteSpace(UploadCaption) ? null : UploadCaption!.Trim();
+        var userId = _userManager.GetUserId(User) ?? string.Empty;
+        var successfulUploads = 0;
+        var errors = new List<string>();
+
+        foreach (var file in uploads)
         {
-            TempData["ToastMessage"] = "Photo uploaded.";
-            return RedirectToPage(new { id = visitId });
+            await using var stream = file.OpenReadStream();
+            var result = await _photoService.UploadAsync(visitId, stream, file.FileName, file.ContentType, caption, userId, cancellationToken);
+
+            if (result.Outcome == VisitPhotoUploadOutcome.Success)
+            {
+                successfulUploads++;
+                continue;
+            }
+
+            if (result.Outcome == VisitPhotoUploadOutcome.NotFound)
+            {
+                TempData["ToastError"] = "Visit not found.";
+                return RedirectToPage("Index");
+            }
+
+            if (result.Errors.Count > 0)
+            {
+                errors.AddRange(result.Errors);
+            }
+            else
+            {
+                errors.Add("Unable to upload one of the selected photos. Please try again.");
+            }
         }
 
-        if (result.Outcome == VisitPhotoUploadOutcome.NotFound)
+        if (successfulUploads > 0)
         {
-            TempData["ToastError"] = "Visit not found.";
-            return RedirectToPage("Index");
+            var suffix = successfulUploads == 1 ? "photo" : "photos";
+            TempData["ToastMessage"] = $"{successfulUploads} {suffix} uploaded.";
         }
 
-        foreach (var error in result.Errors)
+        if (errors.Count > 0)
         {
-            ModelState.AddModelError(string.Empty, error);
+            if (successfulUploads > 0)
+            {
+                TempData["ToastError"] = string.Join(" ", errors);
+                return RedirectToPage(new { id = visitId });
+            }
+
+            foreach (var error in errors)
+            {
+                ModelState.AddModelError(string.Empty, error);
+            }
+
+            await LoadAsync(visitId, cancellationToken);
+            return Page();
         }
 
-        await LoadAsync(visitId, cancellationToken);
-        return Page();
+        return RedirectToPage(new { id = visitId });
     }
 
     public async Task<IActionResult> OnPostDeletePhotoAsync(Guid id, Guid photoId, CancellationToken cancellationToken)
