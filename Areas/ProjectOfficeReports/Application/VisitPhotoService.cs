@@ -163,23 +163,20 @@ public sealed class VisitPhotoService : IVisitPhotoService
             CreatedAtUtc = now
         };
 
-        var shouldSetCover = !visit.CoverPhotoId.HasValue;
-
         visit.Photos.Add(photo);
         visit.LastModifiedAtUtc = now;
         visit.LastModifiedByUserId = userId;
+
+        if (!visit.CoverPhotoId.HasValue)
+        {
+            visit.CoverPhotoId = photoId;
+        }
 
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
 
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
-
-            if (shouldSetCover)
-            {
-                visit.CoverPhotoId = photoId;
-                await _db.SaveChangesAsync(cancellationToken);
-            }
 
             await transaction.CommitAsync(cancellationToken);
         }
