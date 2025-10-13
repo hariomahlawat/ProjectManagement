@@ -140,6 +140,11 @@ public class NewModel : PageModel
         VisitTypeOptions = list;
     }
 
+    private bool IsProjectOfficeMember()
+    {
+        return User.IsInRole("ProjectOffice") || User.IsInRole("Project Office");
+    }
+
     public class InputModel
     {
         [Required]

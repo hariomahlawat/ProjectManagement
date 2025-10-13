@@ -109,7 +109,12 @@ public class IndexModel : PageModel
 
     private bool IsManager()
     {
-        return User.IsInRole("Admin") || User.IsInRole("HoD") || User.IsInRole("ProjectOffice");
+        return User.IsInRole("Admin") || User.IsInRole("HoD") || IsProjectOfficeMember();
+    }
+
+    private bool IsProjectOfficeMember()
+    {
+        return User.IsInRole("ProjectOffice") || User.IsInRole("Project Office");
     }
 
     private static DateOnly? ParseDate(string? value)
