@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using QuestPDF.Drawing;
 using QuestPDF.Fluent;
+using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 
 namespace ProjectManagement.Utilities.Reporting;
@@ -53,7 +55,7 @@ public sealed class VisitPdfReportBuilder : IVisitPdfReportBuilder
                 page.Margin(35);
                 page.Size(PageSizes.A4);
                 page.DefaultTextStyle(x => x.FontSize(11).FontColor("#1F2933"));
-                page.Background("#FFFFFF");
+                page.PageColor("#FFFFFF");
 
                 page.Header().Column(header =>
                 {
@@ -122,7 +124,6 @@ public sealed class VisitPdfReportBuilder : IVisitPdfReportBuilder
             .BorderColor("#E2E8F0")
             .Background("#F8FAFC")
             .Padding(20)
-            .RoundedRectangle(8)
             .Column(column =>
             {
                 column.Spacing(12);
@@ -153,15 +154,15 @@ public sealed class VisitPdfReportBuilder : IVisitPdfReportBuilder
                     {
                         row.ConstantItem(190).Height(120).PaddingLeft(10).Element(imageContainer =>
                         {
-                            var source = ImageSource.FromBinary(section.CoverPhoto);
-                            imageContainer
+                            var framedImage = imageContainer
                                 .Border(1)
                                 .BorderColor("#CBD5F5")
                                 .Background("#FFFFFF")
                                 .Padding(4)
                                 .AlignCenter()
-                                .AlignMiddle()
-                                .Image(source, ImageScaling.FitArea);
+                                .AlignMiddle();
+
+                            framedImage.Image(section.CoverPhoto!, ImageScaling.FitArea);
                         });
                     }
                 });
@@ -186,7 +187,6 @@ public sealed class VisitPdfReportBuilder : IVisitPdfReportBuilder
                         .Border(1)
                         .BorderColor("#E2E8F0")
                         .Padding(12)
-                        .RoundedRectangle(6)
                         .Column(remarks =>
                         {
                             remarks.Spacing(6);
