@@ -118,6 +118,7 @@ else
                             <div class="mb-3">
                                 <label asp-for="UploadCaption" class="form-label">Caption (optional)</label>
                                 <input asp-for="UploadCaption" class="form-control" placeholder="What does this photo show?" />
+                                <span asp-validation-for="UploadCaption" class="text-danger"></span>
                             </div>
                             <div class="d-flex justify-content-end">
                                 <button type="submit" class="btn btn-outline-primary" data-visits-busy-label="Uploading…">Upload</button>
