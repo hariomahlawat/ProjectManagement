@@ -71,11 +71,7 @@ public sealed class VisitService
                 x.Strength,
                 x.Photos.Count,
                 x.CoverPhotoId.HasValue,
-                x.Remarks,
-                x.CreatedByUserId,
-                x.CreatedAtUtc,
-                x.LastModifiedByUserId,
-                x.LastModifiedAtUtc))
+                x.Remarks))
             .ToListAsync(cancellationToken);
 
         return rows;
@@ -300,11 +296,7 @@ public sealed record VisitExportRow(
     int Strength,
     int PhotoCount,
     bool HasCoverPhoto,
-    string? Remarks,
-    string CreatedByUserId,
-    DateTimeOffset CreatedAtUtc,
-    string? LastModifiedByUserId,
-    DateTimeOffset? LastModifiedAtUtc);
+    string? Remarks);
 
 public sealed record VisitDetails(Visit Visit, VisitType VisitType, IReadOnlyList<VisitPhoto> Photos);
 

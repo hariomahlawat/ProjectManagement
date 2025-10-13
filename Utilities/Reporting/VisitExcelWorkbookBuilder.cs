@@ -49,11 +49,7 @@ public sealed class VisitExcelWorkbookBuilder : IVisitExcelWorkbookBuilder
             "Strength",
             "Photo count",
             "Has cover photo",
-            "Remarks",
-            "Created by",
-            "Created at (UTC)",
-            "Last modified by",
-            "Last modified at (UTC)"
+            "Remarks"
         };
 
         for (var column = 0; column < headers.Length; column++)
@@ -85,19 +81,6 @@ public sealed class VisitExcelWorkbookBuilder : IVisitExcelWorkbookBuilder
             worksheet.Cell(rowNumber, 6).Value = row.PhotoCount;
             worksheet.Cell(rowNumber, 7).Value = row.HasCoverPhoto ? "Yes" : "No";
             worksheet.Cell(rowNumber, 8).Value = row.Remarks ?? string.Empty;
-            worksheet.Cell(rowNumber, 9).Value = row.CreatedByUserId;
-            worksheet.Cell(rowNumber, 10).Value = row.CreatedAtUtc.UtcDateTime;
-            worksheet.Cell(rowNumber, 10).Style.DateFormat.Format = "yyyy-MM-dd HH:mm";
-            worksheet.Cell(rowNumber, 11).Value = row.LastModifiedByUserId ?? string.Empty;
-            if (row.LastModifiedAtUtc.HasValue)
-            {
-                worksheet.Cell(rowNumber, 12).Value = row.LastModifiedAtUtc.Value.UtcDateTime;
-                worksheet.Cell(rowNumber, 12).Style.DateFormat.Format = "yyyy-MM-dd HH:mm";
-            }
-            else
-            {
-                worksheet.Cell(rowNumber, 12).Value = string.Empty;
-            }
         }
 
         worksheet.Column(8).Style.Alignment.WrapText = true;
@@ -107,9 +90,9 @@ public sealed class VisitExcelWorkbookBuilder : IVisitExcelWorkbookBuilder
     private static void ApplyMetadata(IXLWorksheet worksheet, VisitExcelWorkbookContext context)
     {
         var lastRow = Math.Max(2, context.Rows.Count + 1);
-        worksheet.Columns(1, 12).AdjustToContents(1, lastRow);
+        worksheet.Columns(1, 8).AdjustToContents(1, lastRow);
 
-        foreach (var column in worksheet.Columns(1, 12))
+        foreach (var column in worksheet.Columns(1, 8))
         {
             if (column.Width > 60)
             {
