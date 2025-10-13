@@ -1,8 +1,20 @@
 @page "{id:guid}"
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.DetailsModel
-@{
+@{ 
     ViewData["Title"] = "Visit Details";
+    var toastMessages = new List<VisitToastMessage>();
+    if (TempData.TryGetValue("ToastMessage", out var toastMessageValue) && toastMessageValue is string toastMessage && !string.IsNullOrWhiteSpace(toastMessage))
+    {
+        toastMessages.Add(new VisitToastMessage(toastMessage, "success"));
+    }
+
+    if (TempData.TryGetValue("ToastError", out var toastErrorValue) && toastErrorValue is string toastError && !string.IsNullOrWhiteSpace(toastError))
+    {
+        toastMessages.Add(new VisitToastMessage(toastError, "danger"));
+    }
 }
+
+<partial name="_ToastMessages" model="toastMessages" />
 
 @if (Model.Visit is null)
 {
@@ -18,6 +30,7 @@
         </div>
     </div>
 }
+
 else
 {
     var visit = Model.Visit.Visit;
@@ -37,9 +50,9 @@ else
                     @if (Model.CanManage)
                     {
                         <a asp-page="Edit" asp-route-id="@visit.Id" class="btn btn-outline-primary">Edit</a>
-                        <form method="post" asp-page-handler="Delete" class="visit-row-actions__form">
+                        <form method="post" asp-page-handler="Delete" class="visit-row-actions__form" data-visits-disable-on-submit>
                             <input type="hidden" name="rowVersion" value="@Model.RowVersion" />
-                            <button type="submit" class="btn btn-outline-danger" data-confirm="Delete this visit?">Delete</button>
+                            <button type="submit" class="btn btn-outline-danger" data-confirm="Delete this visit?" data-visits-busy-label="Deleting…">Delete</button>
                         </form>
                     }
                 </div>
@@ -102,4 +115,8 @@ else
             </div>
         </div>
     </div>
+}
+
+@section Scripts {
+    <script type="module" src="~/js/pages/project-office-reports/visits.js" asp-append-version="true"></script>
 }

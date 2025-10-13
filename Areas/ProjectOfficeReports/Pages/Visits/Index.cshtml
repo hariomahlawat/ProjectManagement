@@ -29,7 +29,20 @@
     {
         selectedTypeLabel = Model.VisitTypeOptions.FirstOrDefault(option => option.Value == Model.VisitTypeId.Value.ToString())?.Text;
     }
+
+    var toastMessages = new List<VisitToastMessage>();
+    if (TempData.TryGetValue("ToastMessage", out var toastMessageValue) && toastMessageValue is string toastMessage && !string.IsNullOrWhiteSpace(toastMessage))
+    {
+        toastMessages.Add(new VisitToastMessage(toastMessage, "success"));
+    }
+
+    if (TempData.TryGetValue("ToastError", out var toastErrorValue) && toastErrorValue is string toastError && !string.IsNullOrWhiteSpace(toastError))
+    {
+        toastMessages.Add(new VisitToastMessage(toastError, "danger"));
+    }
 }
+
+<partial name="_ToastMessages" model="toastMessages" />
 
 <div class="visit-tracker">
     <div class="pm-card mb-4">
@@ -182,14 +195,14 @@
                                         @if (Model.CanManage)
                                         {
                                             <a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-primary btn-sm">Edit</a>
-                                            <form method="post" asp-page-handler="Delete" class="visit-row-actions__form">
+                                            <form method="post" asp-page-handler="Delete" class="visit-row-actions__form" data-visits-disable-on-submit>
                                                 <input type="hidden" name="id" value="@item.Id" />
                                                 <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(item.RowVersion)" />
                                                 <input type="hidden" name="VisitTypeId" value="@(Model.VisitTypeId.HasValue ? Model.VisitTypeId.ToString() : string.Empty)" />
                                                 <input type="hidden" name="From" value="@Model.From" />
                                                 <input type="hidden" name="To" value="@Model.To" />
                                                 <input type="hidden" name="Q" value="@Model.Q" />
-                                                <button type="submit" class="btn btn-outline-danger btn-sm" data-confirm="Delete this visit?">Delete</button>
+                                                <button type="submit" class="btn btn-outline-danger btn-sm" data-confirm="Delete this visit?" data-visits-busy-label="Deleting…">Delete</button>
                                             </form>
                                         }
                                     </div>
@@ -203,3 +216,7 @@
         </div>
     }
 </div>
+
+@section Scripts {
+    <script type="module" src="~/js/pages/project-office-reports/visits.js" asp-append-version="true"></script>
+}
