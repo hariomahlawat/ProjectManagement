@@ -264,12 +264,24 @@ public class EditModel : PageModel
     private void ClearInputValidationErrors()
     {
         var prefix = nameof(Input);
-        ModelState.Remove(prefix);
-        ModelState.Remove($"{prefix}.{nameof(InputModel.VisitTypeId)}");
-        ModelState.Remove($"{prefix}.{nameof(InputModel.DateOfVisit)}");
-        ModelState.Remove($"{prefix}.{nameof(InputModel.VisitorName)}");
-        ModelState.Remove($"{prefix}.{nameof(InputModel.Strength)}");
-        ModelState.Remove($"{prefix}.{nameof(InputModel.Remarks)}");
+        var keysToRemove = new List<string>();
+
+        foreach (var entry in ModelState)
+        {
+            if (entry.Key.Equals(prefix, StringComparison.Ordinal) ||
+                entry.Key.StartsWith(prefix + '.', StringComparison.Ordinal))
+            {
+                keysToRemove.Add(entry.Key);
+            }
+        }
+
+        foreach (var key in keysToRemove)
+        {
+            ModelState.Remove(key);
+        }
+
+        ModelState.ClearValidationState(prefix);
+        ModelState.ClearValidationState(string.Empty);
     }
 
     private static byte[]? DecodeRowVersion(string value)
