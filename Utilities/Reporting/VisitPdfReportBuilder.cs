@@ -158,15 +158,14 @@ public sealed class VisitPdfReportBuilder : IVisitPdfReportBuilder
                     {
                         row.ConstantItem(190).Height(120).PaddingLeft(10).Element(imageContainer =>
                         {
-                            var framedImage = imageContainer
-                                .Border(1)
-                                .BorderColor("#CBD5F5")
-                                .Background("#FFFFFF")
-                                .Padding(4);
+                            imageContainer.Border(1);
+                            imageContainer.BorderColor("#CBD5F5");
+                            imageContainer.Background("#FFFFFF");
+                            imageContainer.Padding(4);
 
-                            framedImage.AlignCenter();
-                            framedImage.AlignMiddle();
-                            framedImage.Image(section.CoverPhoto!).FitArea();
+                            imageContainer.AlignCenter();
+                            imageContainer.AlignMiddle();
+                            imageContainer.Image(section.CoverPhoto!).FitArea();
                         });
                     }
                 });
