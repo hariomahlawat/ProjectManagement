@@ -34,10 +34,13 @@ namespace ProjectManagement.Tests;
 public class ProjectOfficeReportsVisitPhotoIntegrationTests
 {
     [Theory]
-    [InlineData("image/jpeg")]
-    [InlineData("image/jpg")]
-    [InlineData("image/pjpeg")]
-    public async Task UploadingPhotoImmediatelyAfterCreatingVisitSucceeds(string reportedContentType)
+    [InlineData("image/jpeg", false)]
+    [InlineData("image/jpg", false)]
+    [InlineData("image/pjpeg", false)]
+    [InlineData("image/jpeg", true)]
+    [InlineData("image/jpg", true)]
+    [InlineData("image/pjpeg", true)]
+    public async Task UploadingPhotoImmediatelyAfterCreatingVisitSucceeds(string reportedContentType, bool withEditValidationErrors)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -104,6 +107,15 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
 
             page.Upload = formFile;
             page.UploadCaption = "Entrance";
+
+            if (withEditValidationErrors)
+            {
+                page.ModelState.AddModelError("Input.VisitTypeId", "Visit type required");
+                page.ModelState.AddModelError("Input.DateOfVisit", "Date required");
+                page.ModelState.AddModelError("Input.VisitorName", "Visitor required");
+                page.ModelState.AddModelError("Input.Strength", "Strength required");
+                page.ModelState.AddModelError("Input.Remarks", "Remarks invalid");
+            }
 
             var result = await page.OnPostUploadAsync(visit.Id, CancellationToken.None);
 
