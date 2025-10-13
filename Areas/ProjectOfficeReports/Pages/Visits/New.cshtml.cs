@@ -101,7 +101,7 @@ public class NewModel : PageModel
             }
 
             TempData["ToastMessage"] = toastMessage;
-            return RedirectToPage("Edit", new { id = result.Entity.Id });
+            return RedirectToPage("Index");
         }
 
         if (result.Outcome == VisitMutationOutcome.VisitTypeInactive || result.Outcome == VisitMutationOutcome.VisitTypeNotFound)
