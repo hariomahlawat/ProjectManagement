@@ -82,6 +82,8 @@ public sealed class VisitPhotoService : IVisitPhotoService
             return VisitPhotoUploadResult.NotFound();
         }
 
+        _db.Entry(visit).Property(x => x.RowVersion).OriginalValue = visit.RowVersion;
+
         await using var buffer = new MemoryStream();
         await content.CopyToAsync(buffer, cancellationToken);
 
@@ -180,6 +182,14 @@ public sealed class VisitPhotoService : IVisitPhotoService
             }
 
             await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            _logger.LogWarning(ex, "Concurrency conflict while saving photo metadata for visit {VisitId}", visitId);
+            _db.Entry(photo).State = EntityState.Detached;
+            await DeletePhysicalAssetsAsync(storageKey, cancellationToken);
+            return VisitPhotoUploadResult.Invalid("The visit was modified. Please refresh the page and try again.");
         }
         catch (DbUpdateException ex)
         {
