@@ -1,3 +1,4 @@
+@using Microsoft.AspNetCore.WebUtilities
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.VisitPhotosViewModel
 
 @if (Model.Photos.Count == 0)
@@ -15,12 +16,17 @@ else
         {
             var thumbnail = Url.Page("./ViewPhoto", new { id = Model.VisitId, photoId = photo.Id, size = "sm" });
             var full = Url.Page("./ViewPhoto", new { id = Model.VisitId, photoId = photo.Id, size = "xl" });
-            var versionSuffix = string.IsNullOrWhiteSpace(photo.VersionStamp) ? string.Empty : $"?v={photo.VersionStamp}";
+            var versionedThumbnail = string.IsNullOrWhiteSpace(photo.VersionStamp)
+                ? thumbnail ?? string.Empty
+                : (thumbnail is null ? string.Empty : QueryHelpers.AddQueryString(thumbnail, "v", photo.VersionStamp));
+            var versionedFull = string.IsNullOrWhiteSpace(photo.VersionStamp)
+                ? full ?? string.Empty
+                : (full is null ? string.Empty : QueryHelpers.AddQueryString(full, "v", photo.VersionStamp));
             <article class="pm-photo-grid-item visit-photo-card">
-                <a href="@full@versionSuffix" target="_blank" rel="noopener" class="visit-photo-card__preview">
+                <a href="@versionedFull" target="_blank" rel="noopener" class="visit-photo-card__preview">
                     <span class="visually-hidden">Open full-size photo in new tab</span>
                     <div class="pm-photo-frame">
-                        <img src="@thumbnail@versionSuffix" alt="Visit photo" />
+                        <img src="@versionedThumbnail" alt="Visit photo" />
                         @if (Model.CoverPhotoId == photo.Id)
                         {
                             <span class="pm-photo-cover-badge">Cover photo</span>
