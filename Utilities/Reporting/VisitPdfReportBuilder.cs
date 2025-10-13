@@ -104,7 +104,10 @@ public sealed class VisitPdfReportBuilder : IVisitPdfReportBuilder
                     for (var index = 0; index < context.Sections.Count; index++)
                     {
                         var section = context.Sections[index];
-                        content.Item().Element(container => ComposeVisit(container, section, index + 1));
+                        var sectionCopy = section;
+                        var sequenceNumber = index + 1;
+
+                        content.Item().Element(container => ComposeVisit(container, sectionCopy, sequenceNumber));
                     }
                 });
 
