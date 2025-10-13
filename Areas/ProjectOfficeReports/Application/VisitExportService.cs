@@ -186,14 +186,14 @@ public sealed class VisitExportService : IVisitExportService
             : request.RemarksQuery.Trim();
 
         var options = new VisitQueryOptions(request.VisitTypeId, request.StartDate, request.EndDate, normalizedQuery);
-        return ValidationResult.Success(options, normalizedQuery);
+        return ValidationResult.CreateSuccess(options, normalizedQuery);
     }
 
     private sealed record ValidationResult(bool Success, string? Error, VisitQueryOptions? Options, string? NormalizedQuery)
     {
         public static ValidationResult Fail(string error) => new(false, error, null, null);
 
-        public static ValidationResult Success(VisitQueryOptions options, string? normalizedQuery)
+        public static ValidationResult CreateSuccess(VisitQueryOptions options, string? normalizedQuery)
             => new(true, null, options, normalizedQuery);
     }
 }
