@@ -50,10 +50,10 @@ else
                                 <input type="hidden" name="photoId" value="@photo.Id" />
                                 <button type="submit" class="btn btn-sm btn-outline-primary" @(Model.CoverPhotoId == photo.Id ? "disabled" : null) data-visits-busy-label="Setting cover…">Set cover</button>
                             </form>
-                            <form method="post" asp-page-handler="DeletePhoto" asp-route-id="@Model.VisitId" class="visit-gallery-card__form" data-visits-disable-on-submit>
+                            <form method="post" asp-page-handler="DeletePhoto" asp-route-id="@Model.VisitId" class="visit-gallery-card__form" data-visits-disable-on-submit data-confirm="Delete this photo?">
                                 <input type="hidden" name="id" value="@Model.VisitId" />
                                 <input type="hidden" name="photoId" value="@photo.Id" />
-                                <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="Delete this photo?" data-visits-busy-label="Deleting…">Delete</button>
+                                <button type="submit" class="btn btn-sm btn-outline-danger" data-visits-busy-label="Deleting…">Delete</button>
                             </form>
                         </div>
                     }
