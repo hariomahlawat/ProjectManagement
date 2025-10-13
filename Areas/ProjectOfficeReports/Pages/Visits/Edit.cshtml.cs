@@ -128,10 +128,17 @@ public class EditModel : PageModel
             return Forbid();
         }
 
+        var visitId = ResolveVisitId(id);
+        if (visitId == Guid.Empty)
+        {
+            TempData["ToastError"] = "Visit not found.";
+            return RedirectToPage("Index");
+        }
+
         if (Upload == null || Upload.Length == 0)
         {
             ModelState.AddModelError(nameof(Upload), "Please select a photo to upload.");
-            await LoadAsync(id, cancellationToken);
+            await LoadAsync(visitId, cancellationToken);
             return Page();
         }
 
@@ -139,16 +146,22 @@ public class EditModel : PageModel
 
         if (!ModelState.IsValid)
         {
-            await LoadAsync(id, cancellationToken);
+            await LoadAsync(visitId, cancellationToken);
             return Page();
         }
 
         await using var stream = Upload.OpenReadStream();
-        var result = await _photoService.UploadAsync(id, stream, Upload.FileName, Upload.ContentType, UploadCaption, _userManager.GetUserId(User) ?? string.Empty, cancellationToken);
+        var result = await _photoService.UploadAsync(visitId, stream, Upload.FileName, Upload.ContentType, UploadCaption, _userManager.GetUserId(User) ?? string.Empty, cancellationToken);
         if (result.Outcome == VisitPhotoUploadOutcome.Success)
         {
             TempData["ToastMessage"] = "Photo uploaded.";
-            return RedirectToPage(new { id });
+            return RedirectToPage(new { id = visitId });
+        }
+
+        if (result.Outcome == VisitPhotoUploadOutcome.NotFound)
+        {
+            TempData["ToastError"] = "Visit not found.";
+            return RedirectToPage("Index");
         }
 
         foreach (var error in result.Errors)
@@ -156,7 +169,7 @@ public class EditModel : PageModel
             ModelState.AddModelError(string.Empty, error);
         }
 
-        await LoadAsync(id, cancellationToken);
+        await LoadAsync(visitId, cancellationToken);
         return Page();
     }
 
@@ -167,7 +180,14 @@ public class EditModel : PageModel
             return Forbid();
         }
 
-        var result = await _photoService.RemoveAsync(id, photoId, _userManager.GetUserId(User) ?? string.Empty, cancellationToken);
+        var visitId = ResolveVisitId(id);
+        if (visitId == Guid.Empty)
+        {
+            TempData["ToastError"] = "Visit not found.";
+            return RedirectToPage("Index");
+        }
+
+        var result = await _photoService.RemoveAsync(visitId, photoId, _userManager.GetUserId(User) ?? string.Empty, cancellationToken);
         if (result.Outcome == VisitPhotoDeletionOutcome.Success)
         {
             TempData["ToastMessage"] = "Photo deleted.";
@@ -181,7 +201,7 @@ public class EditModel : PageModel
             TempData["ToastError"] = "Unable to delete the photo.";
         }
 
-        return RedirectToPage(new { id });
+        return RedirectToPage(new { id = visitId });
     }
 
     public async Task<IActionResult> OnPostSetCoverAsync(Guid id, Guid photoId, CancellationToken cancellationToken)
@@ -191,7 +211,14 @@ public class EditModel : PageModel
             return Forbid();
         }
 
-        var result = await _photoService.SetCoverAsync(id, photoId, _userManager.GetUserId(User) ?? string.Empty, cancellationToken);
+        var visitId = ResolveVisitId(id);
+        if (visitId == Guid.Empty)
+        {
+            TempData["ToastError"] = "Visit not found.";
+            return RedirectToPage("Index");
+        }
+
+        var result = await _photoService.SetCoverAsync(visitId, photoId, _userManager.GetUserId(User) ?? string.Empty, cancellationToken);
         if (result.Outcome == VisitPhotoSetCoverOutcome.Success)
         {
             TempData["ToastMessage"] = "Cover photo updated.";
@@ -205,7 +232,31 @@ public class EditModel : PageModel
             TempData["ToastError"] = "Unable to set cover photo.";
         }
 
-        return RedirectToPage(new { id });
+        return RedirectToPage(new { id = visitId });
+    }
+
+    private Guid ResolveVisitId(Guid id)
+    {
+        if (id != Guid.Empty)
+        {
+            return id;
+        }
+
+        if (RouteData.Values.TryGetValue("id", out var routeValue) &&
+            Guid.TryParse(routeValue?.ToString(), out var routeId) &&
+            routeId != Guid.Empty)
+        {
+            return routeId;
+        }
+
+        if (Request?.Form.TryGetValue("id", out var formValue) == true &&
+            Guid.TryParse(formValue.ToString(), out var formId) &&
+            formId != Guid.Empty)
+        {
+            return formId;
+        }
+
+        return Guid.Empty;
     }
 
     private async Task<bool> LoadAsync(Guid id, CancellationToken cancellationToken)
