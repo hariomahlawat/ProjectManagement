@@ -69,17 +69,20 @@ public sealed class VisitPdfReportBuilder : IVisitPdfReportBuilder
 
                     header.Item().Text(text =>
                     {
+                        text.DefaultTextStyle(style => style.FontSize(10).FontColor("#64748B"));
                         text.Span("Generated on ");
                         text.Span(context.GeneratedAtUtc.ToString("MMMM d, yyyy 'at' HH:mm 'UTC'", CultureInfo.InvariantCulture))
                             .SemiBold();
-                    }).FontSize(10).FontColor("#64748B");
+                    });
 
                     var rangeText = BuildRangeText(context.StartDate, context.EndDate);
                     if (!string.IsNullOrEmpty(rangeText))
                     {
-                        header.Item().Text(rangeText)
-                            .FontSize(10)
-                            .FontColor("#2563EB");
+                        header.Item().Text(text =>
+                        {
+                            text.DefaultTextStyle(style => style.FontSize(10).FontColor("#2563EB"));
+                            text.Span(rangeText);
+                        });
                     }
                 });
 
@@ -107,10 +110,11 @@ public sealed class VisitPdfReportBuilder : IVisitPdfReportBuilder
 
                 page.Footer().AlignCenter().Text(text =>
                 {
+                    text.DefaultTextStyle(style => style.FontSize(9).FontColor("#94A3B8"));
                     text.CurrentPageNumber();
                     text.Span(" / ");
                     text.TotalPages();
-                }).FontSize(9).FontColor("#94A3B8");
+                });
             });
         });
 
