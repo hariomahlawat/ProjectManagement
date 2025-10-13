@@ -1,8 +1,20 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.NewModel
-@{
+@{ 
     ViewData["Title"] = "New Visit";
+    var toastMessages = new List<VisitToastMessage>();
+    if (TempData.TryGetValue("ToastMessage", out var toastMessageValue) && toastMessageValue is string toastMessage && !string.IsNullOrWhiteSpace(toastMessage))
+    {
+        toastMessages.Add(new VisitToastMessage(toastMessage, "success"));
+    }
+
+    if (TempData.TryGetValue("ToastError", out var toastErrorValue) && toastErrorValue is string toastError && !string.IsNullOrWhiteSpace(toastError))
+    {
+        toastMessages.Add(new VisitToastMessage(toastError, "danger"));
+    }
 }
+
+<partial name="_ToastMessages" model="toastMessages" />
 
 @if (!Model.CanManage)
 {
@@ -23,7 +35,7 @@ else
     <div class="visit-tracker">
         <div class="row g-4 align-items-start">
             <div class="col-xxl-5">
-                <form method="post" enctype="multipart/form-data" novalidate class="visit-form">
+                <form method="post" enctype="multipart/form-data" novalidate class="visit-form" data-visits-disable-on-submit>
                     <div class="pm-card h-100">
                         <div class="pm-card-header">
                             <div class="pm-card-heading">
@@ -95,7 +107,7 @@ else
                     </div>
                     <div class="visit-form__footer mt-4">
                         <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
-                        <button type="submit" class="btn btn-primary">Create visit</button>
+                        <button type="submit" class="btn btn-primary" data-visits-busy-label="Saving…">Create visit</button>
                     </div>
                 </form>
             </div>
@@ -121,4 +133,5 @@ else
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script type="module" src="~/js/pages/project-office-reports/visits.js" asp-append-version="true"></script>
 }

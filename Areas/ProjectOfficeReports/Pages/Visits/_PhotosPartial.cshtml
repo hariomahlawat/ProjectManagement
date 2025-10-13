@@ -40,15 +40,15 @@ else
                 @if (Model.CanManage)
                 {
                     <div class="visit-photo-card__actions">
-                        <form method="post" asp-page-handler="SetCover" class="visit-photo-card__form">
+                        <form method="post" asp-page-handler="SetCover" class="visit-photo-card__form" data-visits-disable-on-submit>
                             <input type="hidden" name="id" value="@Model.VisitId" />
                             <input type="hidden" name="photoId" value="@photo.Id" />
-                            <button type="submit" class="btn btn-sm btn-outline-primary" @(Model.CoverPhotoId == photo.Id ? "disabled" : null)>Set cover</button>
+                            <button type="submit" class="btn btn-sm btn-outline-primary" @(Model.CoverPhotoId == photo.Id ? "disabled" : null) data-visits-busy-label="Setting cover…">Set cover</button>
                         </form>
-                        <form method="post" asp-page-handler="DeletePhoto" class="visit-photo-card__form">
+                        <form method="post" asp-page-handler="DeletePhoto" class="visit-photo-card__form" data-visits-disable-on-submit>
                             <input type="hidden" name="id" value="@Model.VisitId" />
                             <input type="hidden" name="photoId" value="@photo.Id" />
-                            <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="Delete this photo?">Delete</button>
+                            <button type="submit" class="btn btn-sm btn-outline-danger" data-confirm="Delete this photo?" data-visits-busy-label="Deleting…">Delete</button>
                         </form>
                     </div>
                 }

@@ -1,0 +1,11 @@
+@model IReadOnlyList<ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.VisitToastMessage>
+
+@if (Model.Count > 0)
+{
+    <div class="visually-hidden" data-visits-toast-container>
+        @foreach (var toast in Model)
+        {
+            <span data-visits-toast data-variant="@toast.Variant">@toast.Message</span>
+        }
+    </div>
+}
