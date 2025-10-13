@@ -38,6 +38,7 @@ using ProjectManagement.Helpers;
 using ProjectManagement.Configuration;
 using ProjectManagement.Contracts;
 using ProjectManagement.Contracts.Stages;
+using ProjectManagement.Utilities.Reporting;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Mvc;
@@ -230,8 +231,10 @@ builder.Services.AddScoped<ProjectMetaChangeRequestService>();
 builder.Services.AddScoped<ProjectMetaChangeDecisionService>();
 builder.Services.AddScoped<ProjectCategoryHierarchyService>();
 builder.Services.AddScoped<IProjectAnalyticsService, ProjectAnalyticsService>();
+builder.Services.AddSingleton<IVisitExcelWorkbookBuilder, VisitExcelWorkbookBuilder>();
 builder.Services.AddScoped<VisitTypeService>();
 builder.Services.AddScoped<VisitService>();
+builder.Services.AddScoped<IVisitExportService, VisitExportService>();
 builder.Services.AddScoped<IVisitPhotoService, VisitPhotoService>();
 builder.Services.AddOptions<ProjectPhotoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectPhotos"));

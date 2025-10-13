@@ -27,9 +27,63 @@ public sealed class VisitService
 
     public async Task<IReadOnlyList<VisitListItem>> SearchAsync(VisitQueryOptions options, CancellationToken cancellationToken)
     {
-        IQueryable<Visit> query = _db.Visits.AsNoTracking()
-            .Include(x => x.VisitType)
-            .Include(x => x.Photos);
+        if (options is null)
+        {
+            throw new ArgumentNullException(nameof(options));
+        }
+
+        var query = CreateFilteredQuery(options);
+
+        var list = await query
+            .OrderByDescending(x => x.DateOfVisit)
+            .ThenByDescending(x => x.CreatedAtUtc)
+            .Select(x => new VisitListItem(
+                x.Id,
+                x.DateOfVisit,
+                x.VisitTypeId,
+                x.VisitType!.Name,
+                x.VisitorName,
+                x.Strength,
+                x.Photos.Count,
+                x.VisitType.IsActive,
+                x.RowVersion))
+            .ToListAsync(cancellationToken);
+
+        return list;
+    }
+
+    public async Task<IReadOnlyList<VisitExportRow>> ExportAsync(VisitQueryOptions options, CancellationToken cancellationToken)
+    {
+        if (options is null)
+        {
+            throw new ArgumentNullException(nameof(options));
+        }
+
+        var query = CreateFilteredQuery(options);
+
+        var rows = await query
+            .OrderBy(x => x.DateOfVisit)
+            .ThenBy(x => x.CreatedAtUtc)
+            .Select(x => new VisitExportRow(
+                x.DateOfVisit,
+                x.VisitType!.Name,
+                x.VisitorName,
+                x.Strength,
+                x.Photos.Count,
+                x.CoverPhotoId.HasValue,
+                x.Remarks,
+                x.CreatedByUserId,
+                x.CreatedAtUtc,
+                x.LastModifiedByUserId,
+                x.LastModifiedAtUtc))
+            .ToListAsync(cancellationToken);
+
+        return rows;
+    }
+
+    private IQueryable<Visit> CreateFilteredQuery(VisitQueryOptions options)
+    {
+        IQueryable<Visit> query = _db.Visits.AsNoTracking();
 
         if (options.VisitTypeId.HasValue)
         {
@@ -63,22 +117,7 @@ public sealed class VisitService
             }
         }
 
-        var list = await query
-            .OrderByDescending(x => x.DateOfVisit)
-            .ThenByDescending(x => x.CreatedAtUtc)
-            .Select(x => new VisitListItem(
-                x.Id,
-                x.DateOfVisit,
-                x.VisitTypeId,
-                x.VisitType!.Name,
-                x.VisitorName,
-                x.Strength,
-                x.Photos.Count,
-                x.VisitType.IsActive,
-                x.RowVersion))
-            .ToListAsync(cancellationToken);
-
-        return list;
+        return query;
     }
 
     public async Task<VisitDetails?> GetDetailsAsync(Guid id, CancellationToken cancellationToken)
@@ -253,6 +292,19 @@ public sealed class VisitService
 public sealed record VisitQueryOptions(Guid? VisitTypeId, DateOnly? StartDate, DateOnly? EndDate, string? RemarksQuery);
 
 public sealed record VisitListItem(Guid Id, DateOnly DateOfVisit, Guid VisitTypeId, string VisitTypeName, string VisitorName, int Strength, int PhotoCount, bool VisitTypeIsActive, byte[] RowVersion);
+
+public sealed record VisitExportRow(
+    DateOnly DateOfVisit,
+    string VisitTypeName,
+    string VisitorName,
+    int Strength,
+    int PhotoCount,
+    bool HasCoverPhoto,
+    string? Remarks,
+    string CreatedByUserId,
+    DateTimeOffset CreatedAtUtc,
+    string? LastModifiedByUserId,
+    DateTimeOffset? LastModifiedAtUtc);
 
 public sealed record VisitDetails(Visit Visit, VisitType VisitType, IReadOnlyList<VisitPhoto> Photos);
 
