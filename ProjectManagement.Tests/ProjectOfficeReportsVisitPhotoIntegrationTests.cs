@@ -33,8 +33,11 @@ namespace ProjectManagement.Tests;
 
 public class ProjectOfficeReportsVisitPhotoIntegrationTests
 {
-    [Fact]
-    public async Task UploadingPhotoImmediatelyAfterCreatingVisitSucceeds()
+    [Theory]
+    [InlineData("image/jpeg")]
+    [InlineData("image/jpg")]
+    [InlineData("image/pjpeg")]
+    public async Task UploadingPhotoImmediatelyAfterCreatingVisitSucceeds(string reportedContentType)
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -96,7 +99,7 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
             var formFile = new FormFile(imageStream, 0, imageStream.Length, "upload", "visit-photo.jpg")
             {
                 Headers = new HeaderDictionary(),
-                ContentType = "image/jpeg"
+                ContentType = reportedContentType
             };
 
             page.Upload = formFile;
@@ -116,6 +119,9 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
             Assert.DoesNotContain(
                 page.ModelState.Values.SelectMany(v => v.Errors),
                 error => string.Equals(error.ErrorMessage, "Unable to save photo metadata.", StringComparison.Ordinal));
+
+            var photo = Assert.Single(persistedVisit.Photos);
+            Assert.Equal("image/jpeg", photo.ContentType);
         }
         finally
         {

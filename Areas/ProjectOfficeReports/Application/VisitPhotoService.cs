@@ -402,12 +402,23 @@ public sealed class VisitPhotoService : IVisitPhotoService
 
     private static string NormalizeContentType(string? contentType, IImageFormat format)
     {
+        if (!string.IsNullOrWhiteSpace(format?.DefaultMimeType))
+        {
+            return format.DefaultMimeType;
+        }
+
+        var firstMime = format?.MimeTypes?.FirstOrDefault(x => !string.IsNullOrWhiteSpace(x));
+        if (!string.IsNullOrWhiteSpace(firstMime))
+        {
+            return firstMime!;
+        }
+
         if (!string.IsNullOrWhiteSpace(contentType))
         {
             return contentType.Trim();
         }
 
-        return format.DefaultMimeType ?? "image/jpeg";
+        return "application/octet-stream";
     }
 
     private static string GetExtension(IImageFormat format)
