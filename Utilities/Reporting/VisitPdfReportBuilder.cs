@@ -164,9 +164,11 @@ public sealed class VisitPdfReportBuilder : IVisitPdfReportBuilder
                             imageContainer.Background("#FFFFFF");
                             imageContainer.Padding(4);
 
-                            imageContainer.AlignCenter();
-                            imageContainer.AlignMiddle();
-                            imageContainer.Image(section.CoverPhoto!).FitArea();
+                            imageContainer
+                                .AlignCenter()
+                                .AlignMiddle()
+                                .Image(section.CoverPhoto!)
+                                .FitArea();
                         });
                     }
                 });
