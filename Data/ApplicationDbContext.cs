@@ -322,7 +322,7 @@ namespace ProjectManagement.Data
                 e.HasOne(x => x.CoverPhoto)
                     .WithMany()
                     .HasForeignKey(x => x.CoverPhotoId)
-                    .OnDelete(DeleteBehavior.SetNull);
+                    .OnDelete(DeleteBehavior.ClientSetNull); // avoid circular cascade when deleting a visit with a cover photo
 
                 if (Database.IsSqlServer())
                 {
