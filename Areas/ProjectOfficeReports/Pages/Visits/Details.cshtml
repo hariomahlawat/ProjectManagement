@@ -89,8 +89,7 @@ else
             <div class="visit-details__primary">
                 <div class="visit-form-card visit-form-card--surface">
                     <div class="visit-form-card__header">
-                        <h2 class="visit-form-card__title">Key facts</h2>
-                        <p class="visit-form-card__subtitle">The essentials of this visit at a glance.</p>
+                        <h2 class="visit-form-card__title">About the visit</h2>
                     </div>
                     <div class="visit-summary-grid">
                         <div class="visit-summary-grid__item">
@@ -125,7 +124,7 @@ else
                 <div class="visit-form-card visit-form-card--surface">
                     <div class="visit-form-card__header">
                         <h2 class="visit-form-card__title">Remarks</h2>
-                        <p class="visit-form-card__subtitle">Context, observations, and follow-up notes from the field.</p>
+                        <p class="visit-form-card__subtitle">Context, directions, and follow-up notes from the visit.</p>
                     </div>
                     <div class="visit-remarks">
                         @if (string.IsNullOrWhiteSpace(visit?.Remarks))
@@ -186,7 +185,7 @@ else
                 <div class="visit-form-card visit-form-card--gallery">
                     <div class="visit-form-card__header">
                         <h2 class="visit-form-card__title">Photo gallery</h2>
-                        <p class="visit-form-card__subtitle">Field evidence captured during the visit.</p>
+                        <p class="visit-form-card__subtitle">Photos taken during the visit.</p>
                     </div>
                     <div class="visit-form-card__body">
                         <partial name="_PhotosPartial" model="Model.PhotoGallery" />
