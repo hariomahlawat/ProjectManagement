@@ -126,6 +126,14 @@ public sealed class VisitPdfReportBuilder : IVisitPdfReportBuilder
 
     private static void ComposeVisit(IContainer container, VisitPdfReportSection section, int sequenceNumber)
     {
+        var visitTypeName = section.VisitTypeName;
+        var dateOfVisit = section.DateOfVisit;
+        var visitorName = section.VisitorName;
+        var strengthText = section.Strength.ToString(CultureInfo.InvariantCulture);
+        var photoCountText = section.PhotoCount.ToString(CultureInfo.InvariantCulture);
+        var remarksText = section.Remarks;
+        var coverPhoto = section.CoverPhoto;
+
         container
             .Border(1)
             .BorderColor("#E2E8F0")
@@ -141,24 +149,24 @@ public sealed class VisitPdfReportBuilder : IVisitPdfReportBuilder
                     {
                         title.Item().Text(text =>
                         {
-                            text.Span($"Visit {sequenceNumber:00} · {section.VisitTypeName}")
+                            text.Span($"Visit {sequenceNumber:00} · {visitTypeName}")
                                 .FontSize(16)
                                 .SemiBold()
                                 .FontColor("#1E3A8A");
                         });
 
-                    title.Item().Text(text =>
-                    {
-                        text.DefaultTextStyle(style => style.FontSize(11));
-                        text.Span(section.DateOfVisit.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture))
-                            .FontColor("#475569");
-                        text.Span("  •  ");
-                        text.Span(section.VisitorName)
-                            .SemiBold();
-                    });
+                        title.Item().Text(text =>
+                        {
+                            text.DefaultTextStyle(style => style.FontSize(11));
+                            text.Span(dateOfVisit.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture))
+                                .FontColor("#475569");
+                            text.Span("  •  ");
+                            text.Span(visitorName)
+                                .SemiBold();
+                        });
                     });
 
-                    if (section.CoverPhoto is not null && section.CoverPhoto.Length > 0)
+                    if (coverPhoto is not null && coverPhoto.Length > 0)
                     {
                         row.ConstantItem(190).Height(120).PaddingLeft(10).Element(imageContainer =>
                         {
@@ -170,7 +178,7 @@ public sealed class VisitPdfReportBuilder : IVisitPdfReportBuilder
                             imageContainer
                                 .AlignCenter()
                                 .AlignMiddle()
-                                .Image(section.CoverPhoto!)
+                                .Image(coverPhoto!)
                                 .FitArea();
                         });
                     }
@@ -184,13 +192,13 @@ public sealed class VisitPdfReportBuilder : IVisitPdfReportBuilder
                     {
                         details.Spacing(6);
 
-                        details.Item().Element(c => ComposeMetric(c, "Visitor", section.VisitorName));
-                        details.Item().Element(c => ComposeMetric(c, "Team strength", section.Strength.ToString(CultureInfo.InvariantCulture)));
-                        details.Item().Element(c => ComposeMetric(c, "Photos captured", section.PhotoCount.ToString(CultureInfo.InvariantCulture)));
+                        details.Item().Element(c => ComposeMetric(c, "Visitor", visitorName));
+                        details.Item().Element(c => ComposeMetric(c, "Team strength", strengthText));
+                        details.Item().Element(c => ComposeMetric(c, "Photos captured", photoCountText));
                     });
                 });
 
-                if (!string.IsNullOrWhiteSpace(section.Remarks))
+                if (!string.IsNullOrWhiteSpace(remarksText))
                 {
                     column.Item().Background("#FFFFFF")
                         .Border(1)
@@ -203,7 +211,7 @@ public sealed class VisitPdfReportBuilder : IVisitPdfReportBuilder
                                 .FontSize(12)
                                 .SemiBold()
                                 .FontColor("#1D4ED8");
-                            remarks.Item().Text(section.Remarks)
+                            remarks.Item().Text(remarksText)
                                 .FontSize(11)
                                 .FontColor("#475569");
                         });
