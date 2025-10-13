@@ -158,11 +158,11 @@ public sealed class VisitPdfReportBuilder : IVisitPdfReportBuilder
                                 .Border(1)
                                 .BorderColor("#CBD5F5")
                                 .Background("#FFFFFF")
-                                .Padding(4)
-                                .AlignCenter()
-                                .AlignMiddle();
+                                .Padding(4);
 
-                            framedImage.Image(section.CoverPhoto!, ImageScaling.FitArea);
+                            framedImage.AlignCenter();
+                            framedImage.AlignMiddle();
+                            framedImage.Image(section.CoverPhoto!).FitArea();
                         });
                     }
                 });
