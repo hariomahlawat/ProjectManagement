@@ -105,7 +105,7 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
                 ContentType = reportedContentType
             };
 
-            page.Upload = formFile;
+            page.Uploads = new List<IFormFile> { formFile };
             page.UploadCaption = "Entrance";
 
             if (withEditValidationErrors)
@@ -211,7 +211,7 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
                 ContentType = firstContentType
             };
 
-            page.Upload = firstFile;
+            page.Uploads = new List<IFormFile> { firstFile };
             page.UploadCaption = "First";
 
             var firstResult = await page.OnPostUploadAsync(visit.Id, CancellationToken.None);
@@ -226,7 +226,7 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
                 ContentType = secondContentType
             };
 
-            page.Upload = secondFile;
+            page.Uploads = new List<IFormFile> { secondFile };
             page.UploadCaption = "Second";
 
             var secondResult = await page.OnPostUploadAsync(visit.Id, CancellationToken.None);
