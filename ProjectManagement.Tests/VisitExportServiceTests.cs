@@ -120,8 +120,7 @@ public sealed class VisitExportServiceTests
         Assert.Equal("12", worksheet.Cell(2, 5).GetString());
         Assert.Equal("Yes", worksheet.Cell(2, 7).GetString());
         Assert.Equal("Focus on labs", worksheet.Cell(2, 8).GetString());
-        Assert.Equal("seed", worksheet.Cell(2, 9).GetString());
-        Assert.Equal("editor", worksheet.Cell(2, 11).GetString());
+        Assert.Equal(8, worksheet.LastColumnUsed().ColumnNumber());
         Assert.Equal("Export generated", worksheet.Cell(4, 1).GetString());
         Assert.Equal("2024-04-01", worksheet.Cell(5, 2).GetString());
         Assert.Equal("2024-04-30", worksheet.Cell(6, 2).GetString());
