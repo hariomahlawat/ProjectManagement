@@ -163,6 +163,7 @@ public sealed class VisitPhotoService : IVisitPhotoService
             CreatedAtUtc = now
         };
 
+        _db.VisitPhotos.Add(photo);
         visit.Photos.Add(photo);
         visit.LastModifiedAtUtc = now;
         visit.LastModifiedByUserId = userId;
