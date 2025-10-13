@@ -204,7 +204,6 @@ public sealed class VisitService
     public async Task<VisitDeletionResult> DeleteAsync(Guid id, byte[] rowVersion, string deletedByUserId, CancellationToken cancellationToken)
     {
         var visit = await _db.Visits
-            .Include(x => x.Photos)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
         if (visit == null)
@@ -214,7 +213,8 @@ public sealed class VisitService
 
         _db.Entry(visit).Property(x => x.RowVersion).OriginalValue = rowVersion;
 
-        var photoSnapshots = visit.Photos
+        var photoSnapshots = await _db.VisitPhotos.AsNoTracking()
+            .Where(x => x.VisitId == id)
             .Select(x => new VisitPhoto
             {
                 Id = x.Id,
@@ -227,7 +227,7 @@ public sealed class VisitService
                 VersionStamp = x.VersionStamp,
                 CreatedAtUtc = x.CreatedAtUtc
             })
-            .ToList();
+            .ToListAsync(cancellationToken);
 
         _db.Visits.Remove(visit);
 
