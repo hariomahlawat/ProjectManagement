@@ -196,7 +196,8 @@ public sealed class VisitPhotoService : IVisitPhotoService
             await transaction.RollbackAsync(cancellationToken);
             _logger.LogError(ex, "Failed to persist visit photo metadata for visit {VisitId}", visitId);
             await DeletePhysicalAssetsAsync(storageKey, cancellationToken);
-            return VisitPhotoUploadResult.Invalid("Unable to save photo metadata.");
+            var userMessage = VisitPhotoErrorTranslator.GetUserFacingMessage(ex);
+            return VisitPhotoUploadResult.Invalid(userMessage);
         }
 
         await Audit.Events.VisitPhotoAdded(visitId, photoId, userId, visit.CoverPhotoId == photoId).WriteAsync(_audit);
