@@ -135,6 +135,8 @@ public class EditModel : PageModel
             return Page();
         }
 
+        ClearInputValidationErrors();
+
         if (!ModelState.IsValid)
         {
             await LoadAsync(id, cancellationToken);
@@ -257,6 +259,17 @@ public class EditModel : PageModel
     private bool IsProjectOfficeMember()
     {
         return User.IsInRole("ProjectOffice") || User.IsInRole("Project Office");
+    }
+
+    private void ClearInputValidationErrors()
+    {
+        var prefix = nameof(Input);
+        ModelState.Remove(prefix);
+        ModelState.Remove($"{prefix}.{nameof(InputModel.VisitTypeId)}");
+        ModelState.Remove($"{prefix}.{nameof(InputModel.DateOfVisit)}");
+        ModelState.Remove($"{prefix}.{nameof(InputModel.VisitorName)}");
+        ModelState.Remove($"{prefix}.{nameof(InputModel.Strength)}");
+        ModelState.Remove($"{prefix}.{nameof(InputModel.Remarks)}");
     }
 
     private static byte[]? DecodeRowVersion(string value)
