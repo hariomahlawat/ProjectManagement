@@ -135,6 +135,12 @@ public class EditModel : PageModel
             return Page();
         }
 
+        if (!ModelState.IsValid)
+        {
+            await LoadAsync(id, cancellationToken);
+            return Page();
+        }
+
         await using var stream = Upload.OpenReadStream();
         var result = await _photoService.UploadAsync(id, stream, Upload.FileName, Upload.ContentType, UploadCaption, _userManager.GetUserId(User) ?? string.Empty, cancellationToken);
         if (result.Outcome == VisitPhotoUploadOutcome.Success)
