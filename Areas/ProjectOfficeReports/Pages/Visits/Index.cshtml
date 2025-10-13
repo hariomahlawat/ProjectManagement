@@ -312,7 +312,7 @@
                             <select id="export-visit-type" name="VisitTypeId" class="form-select">
                                 @foreach (var option in Model.VisitTypeOptions)
                                 {
-                                    <option value="@option.Value" @(option.Selected ? "selected" : null)>@option.Text</option>
+                                    <option value="@option.Value" selected="@option.Selected">@option.Text</option>
                                 }
                             </select>
                         </div>
