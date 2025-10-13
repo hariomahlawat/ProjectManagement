@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -39,7 +40,7 @@ public class NewModel : PageModel
     public string? UploadCaption { get; set; }
 
     [BindProperty]
-    public IFormFile? Upload { get; set; }
+    public List<IFormFile> Uploads { get; set; } = new();
 
     public IReadOnlyList<SelectListItem> VisitTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
 
@@ -65,9 +66,10 @@ public class NewModel : PageModel
             return Forbid();
         }
 
-        if (Upload is { Length: 0 })
+        var uploads = Uploads?.Where(file => file != null).ToList() ?? new List<IFormFile>();
+        if (uploads.Any(file => file.Length == 0))
         {
-            ModelState.AddModelError(nameof(Upload), "Please select a photo to upload.");
+            ModelState.AddModelError(nameof(Uploads), "One or more selected photos were empty. Please choose valid images.");
         }
 
         if (!ModelState.IsValid)
@@ -82,21 +84,53 @@ public class NewModel : PageModel
         {
             var toastMessage = "Visit created.";
 
-            if (Upload != null)
+            if (uploads.Count > 0)
             {
-                await using var stream = Upload.OpenReadStream();
-                var uploadResult = await _photoService.UploadAsync(result.Entity.Id, stream, Upload.FileName, Upload.ContentType, UploadCaption, userId, cancellationToken);
-                if (uploadResult.Outcome == VisitPhotoUploadOutcome.Success)
+                var caption = string.IsNullOrWhiteSpace(UploadCaption) ? null : UploadCaption!.Trim();
+                var successfulUploads = 0;
+                var errors = new List<string>();
+
+                foreach (var file in uploads)
                 {
-                    toastMessage = "Visit created and photo uploaded.";
+                    if (file.Length == 0)
+                    {
+                        errors.Add("One of the selected photos was empty. Please try uploading it again.");
+                        continue;
+                    }
+
+                    await using var stream = file.OpenReadStream();
+                    var uploadResult = await _photoService.UploadAsync(result.Entity.Id, stream, file.FileName, file.ContentType, caption, userId, cancellationToken);
+                    if (uploadResult.Outcome == VisitPhotoUploadOutcome.Success)
+                    {
+                        successfulUploads++;
+                        continue;
+                    }
+
+                    if (uploadResult.Outcome == VisitPhotoUploadOutcome.NotFound)
+                    {
+                        errors.Add("The visit was created but could not be found for photo upload.");
+                        break;
+                    }
+
+                    if (uploadResult.Errors.Count > 0)
+                    {
+                        errors.AddRange(uploadResult.Errors);
+                    }
+                    else
+                    {
+                        errors.Add("Unable to upload one of the selected photos. Please try again from the edit page.");
+                    }
                 }
-                else if (uploadResult.Errors.Count > 0)
+
+                if (successfulUploads > 0)
                 {
-                    TempData["ToastError"] = uploadResult.Errors[0];
+                    var suffix = successfulUploads == 1 ? "photo" : "photos";
+                    toastMessage = $"Visit created and {successfulUploads} {suffix} uploaded.";
                 }
-                else
+
+                if (errors.Count > 0)
                 {
-                    TempData["ToastError"] = "Unable to upload the photo. Please try again from the edit page.";
+                    TempData["ToastError"] = string.Join(" ", errors);
                 }
             }
 
