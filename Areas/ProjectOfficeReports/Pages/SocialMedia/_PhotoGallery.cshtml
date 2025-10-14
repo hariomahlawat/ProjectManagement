@@ -14,8 +14,8 @@ else
     <div class="social-gallery" data-social-gallery>
         @foreach (var photo in Model.Photos)
         {
-            var thumbnail = Url.Page("./ViewPhoto", new { id = Model.EventId, photoId = photo.Id, size = "sm" });
-            var full = Url.Page("./ViewPhoto", new { id = Model.EventId, photoId = photo.Id, size = "xl" });
+            var thumbnail = Url.Page("./ViewPhoto", new { id = Model.EventId, photoId = photo.Id, size = "thumb" });
+            var full = Url.Page("./ViewPhoto", new { id = Model.EventId, photoId = photo.Id, size = "feed" });
             var versionedThumbnail = string.IsNullOrWhiteSpace(photo.VersionStamp)
                 ? thumbnail ?? string.Empty
                 : (thumbnail is null ? string.Empty : QueryHelpers.AddQueryString(thumbnail, "v", photo.VersionStamp));
