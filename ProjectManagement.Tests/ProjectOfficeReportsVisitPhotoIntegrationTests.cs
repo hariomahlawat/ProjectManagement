@@ -24,6 +24,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Storage;
+using ProjectManagement.Tests.Fakes;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Jpeg;
 using SixLabors.ImageSharp.PixelFormats;
@@ -88,7 +89,7 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
                 }
             });
 
-            var uploadRoot = new StubUploadRootProvider(tempRoot);
+            var uploadRoot = new TestUploadRootProvider(tempRoot);
             var clock = new TestClock(now.AddMinutes(5));
             var audit = new RecordingAudit();
             var photoService = new VisitPhotoService(db, clock, audit, photoOptions, uploadRoot, NullLogger<VisitPhotoService>.Instance);
@@ -195,7 +196,7 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
                 }
             });
 
-            var uploadRoot = new StubUploadRootProvider(tempRoot);
+            var uploadRoot = new TestUploadRootProvider(tempRoot);
             var clock = new TestClock(now.AddMinutes(5));
             var audit = new RecordingAudit();
             var photoService = new VisitPhotoService(db, clock, audit, photoOptions, uploadRoot, NullLogger<VisitPhotoService>.Instance);
@@ -297,26 +298,6 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
         await image.SaveAsync(stream, new JpegEncoder { Quality = 90 });
         stream.Position = 0;
         return stream;
-    }
-
-    private sealed class StubUploadRootProvider : IUploadRootProvider
-    {
-        public StubUploadRootProvider(string rootPath)
-        {
-            RootPath = rootPath;
-        }
-
-        public string RootPath { get; }
-
-        public string GetProjectRoot(int projectId) => RootPath;
-
-        public string GetProjectPhotosRoot(int projectId) => RootPath;
-
-        public string GetProjectDocumentsRoot(int projectId) => RootPath;
-
-        public string GetProjectCommentsRoot(int projectId) => RootPath;
-
-        public string GetProjectVideosRoot(int projectId) => RootPath;
     }
 
     private sealed class RecordingAudit : IAuditService
