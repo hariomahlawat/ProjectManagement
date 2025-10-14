@@ -87,6 +87,13 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Page = "/VisitTypes/Index",
                 RequiredRoles = new[] { "Admin" }
             });
+            projectOfficeReportsChildren.Add(new NavigationItem
+            {
+                Text = "Social media event types",
+                Area = "ProjectOfficeReports",
+                Page = "/Admin/SocialMediaTypes/Index",
+                RequiredRoles = new[] { "Admin" }
+            });
         }
 
         items.Add(new NavigationItem

@@ -1,0 +1,45 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes.NewModel
+@{
+    ViewData["Title"] = "New Social Media Event Type";
+}
+
+<div class="visit-tracker">
+    <div class="pm-card">
+        <div class="pm-card-header">
+            <div class="pm-card-heading">
+                <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-collection-play"></i></span>
+                <div>
+                    <h1 class="pm-card-title">New social media event type</h1>
+                    <p class="pm-card-subtitle mb-0">Create a reusable category for upcoming social media coverage.</p>
+                </div>
+            </div>
+            <div class="pm-card-actions">
+                <a asp-page="Index" class="btn btn-outline-secondary">Back to event types</a>
+            </div>
+        </div>
+        <div class="pm-card-body">
+            <form method="post" novalidate class="visit-form visit-form--narrow">
+                <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                <div class="mb-3">
+                    <label asp-for="Input.Name" class="form-label"></label>
+                    <input asp-for="Input.Name" class="form-control" autocomplete="off" placeholder="e.g. Product launch" />
+                    <span asp-validation-for="Input.Name" class="text-danger"></span>
+                </div>
+                <div class="mb-4">
+                    <label asp-for="Input.Description" class="form-label"></label>
+                    <textarea asp-for="Input.Description" class="form-control" rows="3" placeholder="Optional description for collaborators"></textarea>
+                    <span asp-validation-for="Input.Description" class="text-danger"></span>
+                </div>
+                <div class="visit-form__footer">
+                    <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-primary">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
