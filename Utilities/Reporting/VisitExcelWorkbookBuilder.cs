@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using ClosedXML.Excel;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Utilities.Reporting;
 
@@ -104,9 +105,11 @@ public sealed class VisitExcelWorkbookBuilder : IVisitExcelWorkbookBuilder
         worksheet.Column(8).Width = Math.Min(worksheet.Column(8).Width, 60);
 
         var metadataRow = context.Rows.Count + 3;
+        var generatedAtIst = TimeZoneInfo.ConvertTime(context.GeneratedAtUtc, TimeZoneHelper.GetIst());
+
         worksheet.Cell(metadataRow, 1).Value = "Export generated";
-        worksheet.Cell(metadataRow, 2).Value = context.GeneratedAtUtc.UtcDateTime;
-        worksheet.Cell(metadataRow, 2).Style.DateFormat.Format = "yyyy-MM-dd HH:mm";
+        worksheet.Cell(metadataRow, 2).Value = generatedAtIst.DateTime;
+        worksheet.Cell(metadataRow, 2).Style.DateFormat.Format = "yyyy-MM-dd HH:mm\" IST\"";
 
         worksheet.Cell(metadataRow + 1, 1).Value = "From";
         worksheet.Cell(metadataRow + 1, 2).Value = context.StartDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "(not set)";
