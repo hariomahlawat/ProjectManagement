@@ -25,6 +25,19 @@ public sealed class SocialMediaEventService
         _photoService = photoService ?? throw new ArgumentNullException(nameof(photoService));
     }
 
+    public async Task<IReadOnlyList<SocialMediaEventType>> GetEventTypesAsync(bool includeInactive, CancellationToken cancellationToken)
+    {
+        var query = _db.SocialMediaEventTypes.AsNoTracking();
+        if (!includeInactive)
+        {
+            query = query.Where(x => x.IsActive);
+        }
+
+        return await query
+            .OrderBy(x => x.Name)
+            .ToListAsync(cancellationToken);
+    }
+
     public IQueryable<SocialMediaEventListItem> CreateListQuery(SocialMediaEventQueryOptions options)
     {
         if (options is null)

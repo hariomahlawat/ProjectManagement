@@ -1,0 +1,220 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.SocialMedia.IndexModel
+@using System.Linq
+@{
+    ViewData["Title"] = "Social media storytelling";
+
+    var toastMessages = new List<ProjectManagement.Areas.ProjectOfficeReports.SocialMedia.ViewModels.SocialMediaToastMessage>();
+    if (TempData.TryGetValue("ToastMessage", out var toastValue) && toastValue is string toast && !string.IsNullOrWhiteSpace(toast))
+    {
+        toastMessages.Add(new ProjectManagement.Areas.ProjectOfficeReports.SocialMedia.ViewModels.SocialMediaToastMessage(toast, "success"));
+    }
+
+    if (TempData.TryGetValue("ToastError", out var toastErrorValue) && toastErrorValue is string toastError && !string.IsNullOrWhiteSpace(toastError))
+    {
+        toastMessages.Add(new ProjectManagement.Areas.ProjectOfficeReports.SocialMedia.ViewModels.SocialMediaToastMessage(toastError, "danger"));
+    }
+
+    var totalEvents = Model.Events.Count;
+    var totalReach = Model.Events.Sum(e => e.Reach);
+    var coveredEvents = Model.Events.Count(e => e.CoverPhotoId.HasValue);
+    var photoCount = Model.Events.Sum(e => e.PhotoCount);
+}
+
+<partial name="_ToastMessages" model="toastMessages" />
+
+<div class="social-shell">
+    <nav aria-label="Breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Social media</li>
+        </ol>
+    </nav>
+
+    <section class="social-hero">
+        <div class="social-hero__content">
+            <span class="social-hero__eyebrow">Project office reports</span>
+            <h1 class="social-hero__title">Social media storytelling</h1>
+            <p class="social-hero__subtitle">Track events amplified on social media, capture reach, and curate gallery-ready imagery for rapid exports.</p>
+            <div class="social-hero__actions">
+                @if (Model.CanManage)
+                {
+                    <a asp-page="Create" class="btn btn-primary d-inline-flex align-items-center gap-2">
+                        <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                        <span>Create event</span>
+                    </a>
+
+                    if (Model.Events.Count > 0)
+                    {
+                        <div class="btn-group" role="group" aria-label="Export events">
+                            <form method="post" asp-page-handler="Export" class="d-inline" data-social-disable-on-submit>
+                                <input type="hidden" asp-for="EventTypeId" />
+                                <input type="hidden" asp-for="From" />
+                                <input type="hidden" asp-for="To" />
+                                <input type="hidden" asp-for="Q" />
+                                <input type="hidden" asp-for="Platform" />
+                                <input type="hidden" asp-for="OnlyActiveEventTypes" />
+                                <button type="submit" class="btn btn-outline-light d-inline-flex align-items-center gap-2" data-social-busy-label="Exporting…">
+                                    <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
+                                    <span>Excel</span>
+                                </button>
+                            </form>
+                            <form method="post" asp-page-handler="ExportPdf" class="d-inline" data-social-disable-on-submit>
+                                <input type="hidden" asp-for="EventTypeId" />
+                                <input type="hidden" asp-for="From" />
+                                <input type="hidden" asp-for="To" />
+                                <input type="hidden" asp-for="Q" />
+                                <input type="hidden" asp-for="Platform" />
+                                <input type="hidden" asp-for="OnlyActiveEventTypes" />
+                                <button type="submit" class="btn btn-outline-light d-inline-flex align-items-center gap-2" data-social-busy-label="Generating…">
+                                    <i class="bi bi-filetype-pdf" aria-hidden="true"></i>
+                                    <span>PDF</span>
+                                </button>
+                            </form>
+                        </div>
+                    }
+                    else
+                    {
+                        <button type="button" class="btn btn-outline-light d-inline-flex align-items-center gap-2" disabled aria-disabled="true">
+                            <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
+                            <span>Export events</span>
+                        </button>
+                    }
+                }
+            </div>
+        </div>
+        <div class="social-hero__stats">
+            <div class="social-stat-card">
+                <span class="social-stat-card__label">Events in view</span>
+                <span class="social-stat-card__value">@totalEvents</span>
+            </div>
+            <div class="social-stat-card">
+                <span class="social-stat-card__label">Total reach</span>
+                <span class="social-stat-card__value">@totalReach</span>
+            </div>
+            <div class="social-stat-card">
+                <span class="social-stat-card__label">Cover-ready stories</span>
+                <span class="social-stat-card__value">@coveredEvents</span>
+            </div>
+            <div class="social-stat-card">
+                <span class="social-stat-card__label">Photos captured</span>
+                <span class="social-stat-card__value">@photoCount</span>
+            </div>
+        </div>
+    </section>
+
+    <section class="social-section">
+        <header class="social-section__header">
+            <div>
+                <h2 class="social-section__title">Filter events</h2>
+                <p class="social-section__subtitle">Slice by type, platform, or time range to focus on campaigns that matter.</p>
+            </div>
+            @if (Model.Filter.EventTypeId.HasValue || Model.Filter.StartDate.HasValue || Model.Filter.EndDate.HasValue || !string.IsNullOrWhiteSpace(Model.Filter.SearchQuery) || !string.IsNullOrWhiteSpace(Model.Filter.Platform) || Model.Filter.OnlyActiveEventTypes)
+            {
+                <a asp-page="Index" class="btn btn-link social-section__reset"><i class="bi bi-x-circle" aria-hidden="true"></i>Clear filters</a>
+            }
+        </header>
+
+        <form method="get" class="row gy-3">
+            <div class="col-12 col-md-3">
+                <label asp-for="EventTypeId" class="form-label">Event type</label>
+                <select asp-for="EventTypeId" asp-items="Model.Filter.EventTypeOptions" class="form-select"></select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="from-date">From</label>
+                <input id="from-date" name="From" type="date" value="@(Model.Filter.StartDateValue ?? string.Empty)" class="form-control" />
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" for="to-date">To</label>
+                <input id="to-date" name="To" type="date" value="@(Model.Filter.EndDateValue ?? string.Empty)" class="form-control" />
+            </div>
+            <div class="col-12 col-md-2">
+                <label asp-for="Platform" class="form-label">Platform</label>
+                <input asp-for="Platform" class="form-control" placeholder="Instagram, X…" />
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label" for="search-query">Search</label>
+                <input id="search-query" name="Q" value="@Model.Filter.SearchQuery" class="form-control" placeholder="Title or description" />
+            </div>
+            <div class="col-12 col-md-3 d-flex align-items-center">
+                <div class="form-check mt-4">
+                    <input class="form-check-input" type="checkbox" asp-for="OnlyActiveEventTypes" />
+                    <label class="form-check-label" asp-for="OnlyActiveEventTypes">Only active event types</label>
+                </div>
+            </div>
+            <div class="col-12 col-md-auto align-self-end">
+                <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2">
+                    <i class="bi bi-funnel" aria-hidden="true"></i>
+                    <span>Apply filters</span>
+                </button>
+            </div>
+        </form>
+    </section>
+
+    <section class="social-section">
+        <header class="social-section__header">
+            <div>
+                <h2 class="social-section__title">Events</h2>
+                <p class="social-section__subtitle mb-0">Browse social stories and jump into details for galleries and exports.</p>
+            </div>
+        </header>
+
+        @if (Model.Events.Count == 0)
+        {
+            <div class="alert alert-info" role="status">
+                No events match the current filters. Adjust filters or add a new event to get started.
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table table-striped align-middle">
+                    <thead>
+                        <tr>
+                            <th scope="col">Date</th>
+                            <th scope="col">Title</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Platform</th>
+                            <th scope="col" class="text-end">Reach</th>
+                            <th scope="col" class="text-end">Photos</th>
+                            <th scope="col" class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.Events)
+                        {
+                            <tr>
+                                <td data-title="Date">@item.DateOfEvent.ToString("dd MMM yyyy")</td>
+                                <td data-title="Title">
+                                    <a asp-page="Details" asp-route-id="@item.Id" class="fw-semibold">@item.Title</a>
+                                    @if (!item.EventTypeIsActive)
+                                    {
+                                        <span class="badge bg-warning-subtle text-warning-emphasis ms-2">Type inactive</span>
+                                    }
+                                </td>
+                                <td data-title="Type">@item.EventTypeName</td>
+                                <td data-title="Platform">@(string.IsNullOrWhiteSpace(item.Platform) ? "-" : item.Platform)</td>
+                                <td data-title="Reach" class="text-end">@item.Reach</td>
+                                <td data-title="Photos" class="text-end">@item.PhotoCount</td>
+                                <td class="text-end">
+                                    <div class="btn-group" role="group">
+                                        <a asp-page="Details" asp-route-id="@item.Id" class="btn btn-sm btn-outline-secondary">View</a>
+                                        @if (Model.CanManage)
+                                        {
+                                            <a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-sm btn-outline-primary">Edit</a>
+                                            <a asp-page="Delete" asp-route-id="@item.Id" class="btn btn-sm btn-outline-danger">Delete</a>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>
+
+@section Scripts {
+    <script type="module" src="~/js/pages/project-office-reports/social-media.js" asp-append-version="true"></script>
+}
