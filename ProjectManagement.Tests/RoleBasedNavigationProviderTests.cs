@@ -89,6 +89,15 @@ public class RoleBasedNavigationProviderTests
 
         if (isAdmin)
         {
+            Assert.Contains(children, c => c.Text == "Social media tracker" && c.Page == "/SocialMedia/Index");
+        }
+        else
+        {
+            Assert.DoesNotContain(children, c => c.Text == "Social media tracker");
+        }
+
+        if (isAdmin)
+        {
             var visitTypes = Assert.Single(children.Where(c => c.Text == "Visit types"));
             Assert.Equal("/VisitTypes/Index", visitTypes.Page);
             Assert.Equal(new[] { "Admin" }, visitTypes.RequiredRoles);
@@ -102,6 +111,40 @@ public class RoleBasedNavigationProviderTests
             Assert.DoesNotContain(children, c => c.Text == "Visit types");
             Assert.DoesNotContain(children, c => c.Text == "Social media event types");
         }
+    }
+
+    [Theory]
+    [InlineData("HoD")]
+    [InlineData("ProjectOffice")]
+    [InlineData("Project Office")]
+    public async Task Navigation_IncludesSocialMediaTrackerForProjectOfficeManagers(string role)
+    {
+        var user = new ApplicationUser
+        {
+            Id = $"user-{role}",
+            UserName = role.ToLowerInvariant()
+        };
+
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var userManager = new StubUserManager(user, services, role);
+        var httpContextAccessor = new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
+                }, "Test"))
+            }
+        };
+
+        var provider = new RoleBasedNavigationProvider(userManager, httpContextAccessor);
+        var navigation = await provider.GetNavigationAsync();
+
+        var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
+        var children = projectOfficeReports.Children.ToList();
+
+        Assert.Contains(children, c => c.Text == "Social media tracker" && c.Page == "/SocialMedia/Index");
     }
 
     private sealed class StubUserManager : UserManager<ApplicationUser>

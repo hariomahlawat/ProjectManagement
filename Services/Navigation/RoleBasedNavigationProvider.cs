@@ -68,6 +68,11 @@ public class RoleBasedNavigationProvider : INavigationProvider
             }
         };
 
+        var canManageProjectOfficeReports = roleSet.Contains("Admin")
+            || roleSet.Contains("HoD")
+            || roleSet.Contains("ProjectOffice")
+            || roleSet.Contains("Project Office");
+
         var projectOfficeReportsChildren = new List<NavigationItem>
         {
             new()
@@ -77,6 +82,16 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Page = "/Visits/Index"
             }
         };
+
+        if (canManageProjectOfficeReports)
+        {
+            projectOfficeReportsChildren.Add(new NavigationItem
+            {
+                Text = "Social media tracker",
+                Area = "ProjectOfficeReports",
+                Page = "/SocialMedia/Index"
+            });
+        }
 
         if (roleSet.Contains("Admin"))
         {
