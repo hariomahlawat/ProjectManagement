@@ -82,6 +82,29 @@ public sealed class SocialMediaEventService
         return await CreateExportQuery(options).ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<SocialMediaEventPdfExportRow>> ExportForPdfAsync(SocialMediaEventQueryOptions options, CancellationToken cancellationToken)
+    {
+        if (options is null)
+        {
+            throw new ArgumentNullException(nameof(options));
+        }
+
+        return await CreateFilteredQuery(options)
+            .OrderBy(x => x.DateOfEvent)
+            .ThenBy(x => x.CreatedAtUtc.Add(IstOffset))
+            .Select(x => new SocialMediaEventPdfExportRow(
+                x.Id,
+                x.DateOfEvent,
+                x.SocialMediaEventType!.Name,
+                x.Title,
+                x.Platform,
+                x.Reach,
+                x.Photos.Count,
+                x.Description,
+                x.CoverPhotoId))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<SocialMediaEventDetails?> GetDetailsAsync(Guid id, CancellationToken cancellationToken)
     {
         var socialEvent = await _db.SocialMediaEvents.AsNoTracking()
@@ -384,6 +407,17 @@ public sealed record SocialMediaEventExportRow(
     int PhotoCount,
     bool HasCoverPhoto,
     string? Description);
+
+public sealed record SocialMediaEventPdfExportRow(
+    Guid EventId,
+    DateOnly DateOfEvent,
+    string EventTypeName,
+    string Title,
+    string? Platform,
+    int Reach,
+    int PhotoCount,
+    string? Description,
+    Guid? CoverPhotoId);
 
 public sealed record SocialMediaEventDetails(
     SocialMediaEvent Event,

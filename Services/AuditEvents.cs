@@ -306,6 +306,30 @@ public static class Audit
             return new AuditEvent("ProjectOfficeReports.VisitExported", userId, data);
         }
 
+        public static AuditEvent SocialMediaEventExported(
+            string userId,
+            Guid? socialMediaEventTypeId,
+            DateOnly? startDate,
+            DateOnly? endDate,
+            string? query,
+            string? platform,
+            bool onlyActiveEventTypes,
+            int count)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["SocialMediaEventTypeId"] = socialMediaEventTypeId?.ToString(),
+                ["StartDate"] = startDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                ["EndDate"] = endDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                ["Query"] = query,
+                ["Platform"] = platform,
+                ["OnlyActiveEventTypes"] = onlyActiveEventTypes ? "true" : "false",
+                ["Count"] = count.ToString(CultureInfo.InvariantCulture)
+            };
+
+            return new AuditEvent("ProjectOfficeReports.SocialMediaEventExported", userId, data);
+        }
+
         public static AuditEvent VisitPhotoAdded(Guid visitId, Guid photoId, string userId, bool isCover)
         {
             var data = new Dictionary<string, string?>

@@ -237,10 +237,13 @@ builder.Services.AddScoped<ProjectCategoryHierarchyService>();
 builder.Services.AddScoped<IProjectAnalyticsService, ProjectAnalyticsService>();
 builder.Services.AddSingleton<IVisitExcelWorkbookBuilder, VisitExcelWorkbookBuilder>();
 builder.Services.AddSingleton<IVisitPdfReportBuilder, VisitPdfReportBuilder>();
+builder.Services.AddSingleton<ISocialMediaExcelWorkbookBuilder, SocialMediaExcelWorkbookBuilder>();
+builder.Services.AddSingleton<ISocialMediaPdfReportBuilder, SocialMediaPdfReportBuilder>();
 builder.Services.AddScoped<VisitTypeService>();
 builder.Services.AddScoped<VisitService>();
 builder.Services.AddScoped<SocialMediaEventService>();
 builder.Services.AddScoped<IVisitExportService, VisitExportService>();
+builder.Services.AddScoped<ISocialMediaExportService, SocialMediaExportService>();
 builder.Services.AddScoped<IVisitPhotoService, VisitPhotoService>();
 builder.Services.AddScoped<ISocialMediaEventPhotoService, SocialMediaEventPhotoService>();
 builder.Services.AddOptions<ProjectPhotoOptions>()
