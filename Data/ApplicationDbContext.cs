@@ -83,6 +83,9 @@ namespace ProjectManagement.Data
         public DbSet<VisitType> VisitTypes => Set<VisitType>();
         public DbSet<Visit> Visits => Set<Visit>();
         public DbSet<VisitPhoto> VisitPhotos => Set<VisitPhoto>();
+        public DbSet<SocialMediaEventType> SocialMediaEventTypes => Set<SocialMediaEventType>();
+        public DbSet<SocialMediaEvent> SocialMediaEvents => Set<SocialMediaEvent>();
+        public DbSet<SocialMediaEventPhoto> SocialMediaEventPhotos => Set<SocialMediaEventPhoto>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -362,6 +365,156 @@ namespace ProjectManagement.Data
                 {
                     e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
                 }
+            });
+
+            builder.Entity<SocialMediaEventType>(e =>
+            {
+                ConfigureRowVersion(e);
+                e.ToTable("SocialMediaEventTypes");
+                e.Property(x => x.Name).HasMaxLength(128).IsRequired();
+                e.HasIndex(x => x.Name).IsUnique();
+                e.Property(x => x.Description).HasMaxLength(512);
+                e.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.LastModifiedByUserId).HasMaxLength(450);
+                e.Property(x => x.IsActive).HasDefaultValue(true);
+                e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+
+                if (Database.IsNpgsql())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone");
+                    e.Property(x => x.LastModifiedAtUtc).HasColumnType("timestamp with time zone");
+                }
+
+                if (Database.IsSqlServer())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else if (!Database.IsNpgsql())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+
+                var typeSeedCreatedAt = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero);
+                e.HasData(
+                    new SocialMediaEventType
+                    {
+                        Id = new Guid("9ddf8646-7070-4f7a-9fa0-8cb19f4a0d5b"),
+                        Name = "Campaign Launch",
+                        Description = "Coverage for new campaign announcements and kick-off posts.",
+                        IsActive = true,
+                        CreatedAtUtc = typeSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("6f9c44f5-99f2-47f6-9473-d0b6a324b825").ToByteArray()
+                    },
+                    new SocialMediaEventType
+                    {
+                        Id = new Guid("fa2f60fa-7d4f-4f60-a84b-e8f64dce0b73"),
+                        Name = "Milestone Update",
+                        Description = "Highlights of major delivery milestones shared online.",
+                        IsActive = true,
+                        CreatedAtUtc = typeSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("0bb8e628-9d48-47da-9305-2b6e6f8da5c6").ToByteArray()
+                    },
+                    new SocialMediaEventType
+                    {
+                        Id = new Guid("0b35f77a-4ef6-4a0a-85f9-9fa0b1b0c353"),
+                        Name = "Community Engagement",
+                        Description = "Stories focused on community outreach and engagement.",
+                        IsActive = true,
+                        CreatedAtUtc = typeSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("6b1a659c-f4cb-4c90-8a36-8ff6b9355e7d").ToByteArray()
+                    });
+            });
+
+            builder.Entity<SocialMediaEvent>(e =>
+            {
+                ConfigureRowVersion(e);
+                e.ToTable("SocialMediaEvents");
+                e.Property(x => x.DateOfEvent).HasColumnType("date").IsRequired();
+                e.Property(x => x.Title).HasMaxLength(200).IsRequired();
+                e.Property(x => x.Platform).HasMaxLength(128);
+                e.Property(x => x.Reach).IsRequired();
+                e.Property(x => x.Description).HasMaxLength(2000);
+                e.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.LastModifiedByUserId).HasMaxLength(450);
+                e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+
+                if (Database.IsNpgsql())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone");
+                    e.Property(x => x.LastModifiedAtUtc).HasColumnType("timestamp with time zone");
+                }
+
+                e.HasIndex(x => x.DateOfEvent).HasDatabaseName("IX_SocialMediaEvents_DateOfEvent");
+                e.HasIndex(x => x.SocialMediaEventTypeId).HasDatabaseName("IX_SocialMediaEvents_SocialMediaEventTypeId");
+
+                e.HasOne(x => x.SocialMediaEventType)
+                    .WithMany(x => x.Events)
+                    .HasForeignKey(x => x.SocialMediaEventTypeId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                e.HasOne(x => x.CoverPhoto)
+                    .WithMany()
+                    .HasForeignKey(x => x.CoverPhotoId)
+                    .OnDelete(DeleteBehavior.ClientSetNull);
+
+                if (Database.IsSqlServer())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else if (!Database.IsNpgsql())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+            });
+
+            builder.Entity<SocialMediaEventPhoto>(e =>
+            {
+                ConfigureRowVersion(e);
+                e.ToTable("SocialMediaEventPhotos");
+                e.Property(x => x.StorageKey).HasMaxLength(260).IsRequired();
+                e.Property(x => x.StoragePath).HasMaxLength(512).HasDefaultValue(string.Empty).IsRequired();
+                e.Property(x => x.ContentType).HasMaxLength(128).IsRequired();
+                e.Property(x => x.Caption).HasMaxLength(512);
+                e.Property(x => x.VersionStamp).HasMaxLength(64).IsRequired();
+                e.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.LastModifiedByUserId).HasMaxLength(450);
+                e.Property(x => x.IsCover).HasDefaultValue(false);
+                e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+
+                if (Database.IsNpgsql())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone");
+                    e.Property(x => x.LastModifiedAtUtc).HasColumnType("timestamp with time zone");
+                }
+
+                e.HasIndex(x => new { x.SocialMediaEventId, x.CreatedAtUtc })
+                    .HasDatabaseName("IX_SocialMediaEventPhotos_EventId_CreatedAtUtc");
+
+                var coverIndex = e.HasIndex(x => new { x.SocialMediaEventId, x.IsCover })
+                    .IsUnique()
+                    .HasDatabaseName("UX_SocialMediaEventPhotos_IsCover");
+
+                if (Database.IsSqlServer())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                    coverIndex.HasFilter("[IsCover] = 1");
+                }
+                else if (Database.IsNpgsql())
+                {
+                    coverIndex.HasFilter("\"IsCover\" = TRUE");
+                }
+                else
+                {
+                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+
+                e.HasOne(x => x.SocialMediaEvent)
+                    .WithMany(x => x.Photos)
+                    .HasForeignKey(x => x.SocialMediaEventId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<ProjectVideo>(e =>
