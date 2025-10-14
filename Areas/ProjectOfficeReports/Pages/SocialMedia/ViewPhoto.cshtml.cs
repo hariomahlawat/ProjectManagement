@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.Net.Http.Headers;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Data;
@@ -17,11 +18,16 @@ public sealed class ViewPhotoModel : PageModel
 {
     private readonly ApplicationDbContext _db;
     private readonly ISocialMediaEventPhotoService _photoService;
+    private readonly SocialMediaPhotoOptions _photoOptions;
 
-    public ViewPhotoModel(ApplicationDbContext db, ISocialMediaEventPhotoService photoService)
+    public ViewPhotoModel(
+        ApplicationDbContext db,
+        ISocialMediaEventPhotoService photoService,
+        IOptions<SocialMediaPhotoOptions> photoOptions)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _photoService = photoService ?? throw new ArgumentNullException(nameof(photoService));
+        _photoOptions = photoOptions?.Value ?? throw new ArgumentNullException(nameof(photoOptions));
     }
 
     public async Task<IActionResult> OnGetAsync(Guid id, Guid photoId, string? size, CancellationToken cancellationToken)
@@ -70,18 +76,39 @@ public sealed class ViewPhotoModel : PageModel
         return result;
     }
 
-    private static string? NormalizeSize(string? size)
+    private string? NormalizeSize(string? size)
     {
         if (string.IsNullOrWhiteSpace(size))
         {
-            return "sm";
+            return TryResolveDefaultDerivative();
         }
 
         var normalized = size.Trim().ToLowerInvariant();
         return normalized switch
         {
-            "xs" or "sm" or "md" or "xl" or "original" => normalized,
+            "original" => normalized,
+            _ when _photoOptions.Derivatives.ContainsKey(normalized) => normalized,
             _ => null
         };
+    }
+
+    private string? TryResolveDefaultDerivative()
+    {
+        if (_photoOptions.Derivatives.ContainsKey("thumb"))
+        {
+            return "thumb";
+        }
+
+        if (_photoOptions.Derivatives.ContainsKey("feed"))
+        {
+            return "feed";
+        }
+
+        if (_photoOptions.Derivatives.ContainsKey("story"))
+        {
+            return "story";
+        }
+
+        return _photoOptions.Derivatives.Keys.FirstOrDefault();
     }
 }
