@@ -125,6 +125,10 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAuthenticatedUser());
     options.AddPolicy("Checklist.Edit", policy =>
         policy.RequireRole("MCO", "HoD"));
+    options.AddPolicy(ProjectOfficeReportsPolicies.ManageVisits, policy =>
+        policy.RequireProjectOfficeManager());
+    options.AddPolicy(ProjectOfficeReportsPolicies.ManageSocialMediaEvents, policy =>
+        policy.RequireProjectOfficeManager());
 });
 
 builder.Services.ConfigureApplicationCookie(opt =>
@@ -235,6 +239,7 @@ builder.Services.AddSingleton<IVisitExcelWorkbookBuilder, VisitExcelWorkbookBuil
 builder.Services.AddSingleton<IVisitPdfReportBuilder, VisitPdfReportBuilder>();
 builder.Services.AddScoped<VisitTypeService>();
 builder.Services.AddScoped<VisitService>();
+builder.Services.AddScoped<SocialMediaEventService>();
 builder.Services.AddScoped<IVisitExportService, VisitExportService>();
 builder.Services.AddScoped<IVisitPhotoService, VisitPhotoService>();
 builder.Services.AddOptions<ProjectPhotoOptions>()
