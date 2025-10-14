@@ -284,6 +284,14 @@ builder.Services.AddRazorPages(options =>
 {
     options.Conventions.AuthorizeFolder("/Dashboard");
     options.Conventions.AuthorizeAreaFolder("Admin", "/");
+    options.Conventions.AuthorizeAreaFolder(
+        "ProjectOfficeReports",
+        "/Visits",
+        ProjectOfficeReportsPolicies.ManageVisits);
+    options.Conventions.AuthorizeAreaFolder(
+        "ProjectOfficeReports",
+        "/SocialMedia",
+        ProjectOfficeReportsPolicies.ManageSocialMediaEvents);
     options.Conventions.AllowAnonymousToPage("/Index");
     options.Conventions.AllowAnonymousToPage("/Privacy");
     options.Conventions.AllowAnonymousToAreaPage("Identity", "/Account/Login");
