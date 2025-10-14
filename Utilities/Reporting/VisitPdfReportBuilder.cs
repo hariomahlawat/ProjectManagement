@@ -149,24 +149,38 @@ public sealed class VisitPdfReportBuilder : IVisitPdfReportBuilder
 
                 column.Item().Row(row =>
                 {
-                    row.RelativeItem().Column(title =>
+                    row.RelativeItem().Column(content =>
                     {
-                        title.Item().Text(text =>
+                        content.Spacing(16);
+
+                        content.Item().Column(title =>
                         {
-                            text.Span($"Visit {sequenceNumber:00} · {visitTypeName}")
-                                .FontSize(16)
-                                .SemiBold()
-                                .FontColor("#1E3A8A");
+                            title.Item().Text(text =>
+                            {
+                                text.Span($"Visit {sequenceNumber:00} · {visitTypeName}")
+                                    .FontSize(16)
+                                    .SemiBold()
+                                    .FontColor("#1E3A8A");
+                            });
+
+                            title.Item().Text(text =>
+                            {
+                                text.DefaultTextStyle(style => style.FontSize(11));
+                                text.Span(dateOfVisit.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture))
+                                    .FontColor("#475569");
+                                text.Span("  •  ");
+                                text.Span(visitorName)
+                                    .SemiBold();
+                            });
                         });
 
-                        title.Item().Text(text =>
+                        content.Item().Column(details =>
                         {
-                            text.DefaultTextStyle(style => style.FontSize(11));
-                            text.Span(dateOfVisit.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture))
-                                .FontColor("#475569");
-                            text.Span("  •  ");
-                            text.Span(visitorName)
-                                .SemiBold();
+                            details.Spacing(6);
+
+                            details.Item().Element(c => ComposeMetric(c, "Visitor", visitorName));
+                            details.Item().Element(c => ComposeMetric(c, "Team strength", strengthText));
+                            details.Item().Element(c => ComposeMetric(c, "Photos captured", photoCountText));
                         });
                     });
 
@@ -185,20 +199,6 @@ public sealed class VisitPdfReportBuilder : IVisitPdfReportBuilder
                                 .FitArea();
                         });
                     }
-                });
-
-                column.Item().Row(row =>
-                {
-                    row.Spacing(12);
-
-                    row.RelativeItem().Column(details =>
-                    {
-                        details.Spacing(6);
-
-                        details.Item().Element(c => ComposeMetric(c, "Visitor", visitorName));
-                        details.Item().Element(c => ComposeMetric(c, "Team strength", strengthText));
-                        details.Item().Element(c => ComposeMetric(c, "Photos captured", photoCountText));
-                    });
                 });
 
                 if (!string.IsNullOrWhiteSpace(remarksText))
