@@ -12,8 +12,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
 
 public sealed class SocialMediaEventService
 {
-    private static readonly TimeSpan IstOffset = TimeSpan.FromHours(5) + TimeSpan.FromMinutes(30);
-
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly ISocialMediaEventPhotoService _photoService;
@@ -47,7 +45,7 @@ public sealed class SocialMediaEventService
 
         return CreateFilteredQuery(options)
             .OrderByDescending(x => x.DateOfEvent)
-            .ThenByDescending(x => x.CreatedAtUtc.Add(IstOffset))
+            .ThenByDescending(x => x.CreatedAtUtc)
             .Select(x => new SocialMediaEventListItem(
                 x.Id,
                 x.DateOfEvent,
@@ -78,7 +76,7 @@ public sealed class SocialMediaEventService
 
         return CreateFilteredQuery(options)
             .OrderBy(x => x.DateOfEvent)
-            .ThenBy(x => x.CreatedAtUtc.Add(IstOffset))
+            .ThenBy(x => x.CreatedAtUtc)
             .Select(x => new SocialMediaEventExportRow(
                 x.DateOfEvent,
                 x.SocialMediaEventType!.Name,
@@ -104,7 +102,7 @@ public sealed class SocialMediaEventService
 
         return await CreateFilteredQuery(options)
             .OrderBy(x => x.DateOfEvent)
-            .ThenBy(x => x.CreatedAtUtc.Add(IstOffset))
+            .ThenBy(x => x.CreatedAtUtc)
             .Select(x => new SocialMediaEventPdfExportRow(
                 x.Id,
                 x.DateOfEvent,
@@ -136,7 +134,7 @@ public sealed class SocialMediaEventService
 
         var photos = await _photoService.GetPhotosAsync(id, cancellationToken);
         var ordered = photos
-            .OrderBy(x => x.CreatedAtUtc.Add(IstOffset))
+            .OrderBy(x => x.CreatedAtUtc)
             .ToList();
 
         return new SocialMediaEventDetails(socialEvent, socialEvent.SocialMediaEventType, ordered);
@@ -290,7 +288,7 @@ public sealed class SocialMediaEventService
 
         var photoSnapshots = await _db.SocialMediaEventPhotos.AsNoTracking()
             .Where(x => x.SocialMediaEventId == id)
-            .OrderBy(x => x.CreatedAtUtc.Add(IstOffset))
+            .OrderBy(x => x.CreatedAtUtc)
             .Select(x => new SocialMediaEventPhoto
             {
                 Id = x.Id,
