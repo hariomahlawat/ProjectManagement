@@ -1,0 +1,123 @@
+@page "{id:guid}"
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.SocialMedia.EditModel
+@using System.Linq
+@{
+    ViewData["Title"] = "Edit social media event";
+
+    var toastMessages = new List<ProjectManagement.Areas.ProjectOfficeReports.SocialMedia.ViewModels.SocialMediaToastMessage>();
+    if (TempData.TryGetValue("ToastMessage", out var toastValue) && toastValue is string toast && !string.IsNullOrWhiteSpace(toast))
+    {
+        toastMessages.Add(new ProjectManagement.Areas.ProjectOfficeReports.SocialMedia.ViewModels.SocialMediaToastMessage(toast, "success"));
+    }
+
+    if (TempData.TryGetValue("ToastError", out var toastErrorValue) && toastErrorValue is string toastError && !string.IsNullOrWhiteSpace(toastError))
+    {
+        toastMessages.Add(new ProjectManagement.Areas.ProjectOfficeReports.SocialMedia.ViewModels.SocialMediaToastMessage(toastError, "danger"));
+    }
+}
+
+<partial name="_ToastMessages" model="toastMessages" />
+
+<div class="social-shell">
+    <nav aria-label="Breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+            <li class="breadcrumb-item"><a asp-page="Index">Social media</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Edit</li>
+        </ol>
+    </nav>
+
+    <section class="social-hero">
+        <div class="social-hero__content">
+            <span class="social-hero__eyebrow">Project office reports</span>
+            <h1 class="social-hero__title">Refine @Model.Input.Title</h1>
+            <p class="social-hero__subtitle">Update event details, maintain reach metrics, and curate the photo gallery.</p>
+        </div>
+    </section>
+
+    <section class="social-section">
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <form method="post" novalidate class="row g-4" data-social-disable-on-submit>
+                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                    <input type="hidden" asp-for="Input.Id" />
+                    <input type="hidden" asp-for="Input.RowVersion" />
+                    <div class="col-12 col-md-6">
+                        <label asp-for="Input.EventTypeId" class="form-label"></label>
+                        <select asp-for="Input.EventTypeId" asp-items="Model.EventTypeOptions" class="form-select"></select>
+                        <span asp-validation-for="Input.EventTypeId" class="text-danger"></span>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label asp-for="Input.DateOfEvent" class="form-label"></label>
+                        <input asp-for="Input.DateOfEvent" class="form-control" type="date" />
+                        <span asp-validation-for="Input.DateOfEvent" class="text-danger"></span>
+                    </div>
+                    <div class="col-12">
+                        <label asp-for="Input.Title" class="form-label"></label>
+                        <input asp-for="Input.Title" class="form-control" />
+                        <span asp-validation-for="Input.Title" class="text-danger"></span>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label asp-for="Input.Platform" class="form-label"></label>
+                        <input asp-for="Input.Platform" class="form-control" placeholder="Instagram, LinkedIn, X…" />
+                        <span asp-validation-for="Input.Platform" class="text-danger"></span>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label asp-for="Input.Reach" class="form-label"></label>
+                        <input asp-for="Input.Reach" class="form-control" />
+                        <span asp-validation-for="Input.Reach" class="text-danger"></span>
+                    </div>
+                    <div class="col-12">
+                        <label asp-for="Input.Description" class="form-label"></label>
+                        <textarea asp-for="Input.Description" class="form-control" rows="4"></textarea>
+                        <span asp-validation-for="Input.Description" class="text-danger"></span>
+                    </div>
+                    <div class="col-12 d-flex gap-3">
+                        <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2" data-social-busy-label="Saving…">
+                            <i class="bi bi-check-circle" aria-hidden="true"></i>
+                            <span>Save changes</span>
+                        </button>
+                        <a asp-page="Details" asp-route-id="@Model.Input.Id" class="btn btn-outline-secondary">Preview event</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <header class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+                    <div>
+                        <h2 class="h4 mb-1">Photo gallery</h2>
+                        <p class="text-muted mb-0">Upload highlights, set a cover, and keep visuals fresh for exports.</p>
+                    </div>
+                </header>
+
+                <partial name="_PhotoGallery" model="Model.PhotoGallery" />
+
+                <hr class="my-4" />
+
+                <form method="post" enctype="multipart/form-data" asp-page-handler="Upload" asp-route-id="@Model.Input.Id" class="row g-3" data-social-disable-on-submit>
+                    <div class="col-12">
+                        <label asp-for="Uploads" class="form-label">Add photos</label>
+                        <input asp-for="Uploads" class="form-control" type="file" accept="image/*" multiple />
+                        <span asp-validation-for="Uploads" class="text-danger"></span>
+                        <div class="form-text">JPEG, PNG, or WebP images recommended. Upload multiple files to save time.</div>
+                    </div>
+                    <div class="col-12">
+                        <label asp-for="UploadCaption" class="form-label">Caption for uploaded photos</label>
+                        <input asp-for="UploadCaption" class="form-control" placeholder="Optional batch caption" />
+                        <span asp-validation-for="UploadCaption" class="text-danger"></span>
+                    </div>
+                    <div class="col-12">
+                        <button type="submit" class="btn btn-outline-primary" data-social-busy-label="Uploading…">Upload photos</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <partial name="~/Pages/Shared/_ValidationScriptsPartial.cshtml" />
+    <script type="module" src="~/js/pages/project-office-reports/social-media.js" asp-append-version="true"></script>
+}

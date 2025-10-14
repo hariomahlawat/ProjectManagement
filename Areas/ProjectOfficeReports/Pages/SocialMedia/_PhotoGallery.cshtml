@@ -1,0 +1,64 @@
+@using Microsoft.AspNetCore.WebUtilities
+@model ProjectManagement.Areas.ProjectOfficeReports.SocialMedia.ViewModels.SocialMediaEventPhotoGalleryModel
+
+@if (Model.Photos.Count == 0)
+{
+    <div class="social-gallery-empty text-center py-5">
+        <div class="social-empty__icon" aria-hidden="true"><i class="bi bi-images"></i></div>
+        <h3 class="social-empty__title">No photos yet</h3>
+        <p class="social-empty__subtitle">Upload images to showcase this event.</p>
+    </div>
+}
+else
+{
+    <div class="social-gallery" data-social-gallery>
+        @foreach (var photo in Model.Photos)
+        {
+            var thumbnail = Url.Page("./ViewPhoto", new { id = Model.EventId, photoId = photo.Id, size = "sm" });
+            var full = Url.Page("./ViewPhoto", new { id = Model.EventId, photoId = photo.Id, size = "xl" });
+            var versionedThumbnail = string.IsNullOrWhiteSpace(photo.VersionStamp)
+                ? thumbnail ?? string.Empty
+                : (thumbnail is null ? string.Empty : QueryHelpers.AddQueryString(thumbnail, "v", photo.VersionStamp));
+            var versionedFull = string.IsNullOrWhiteSpace(photo.VersionStamp)
+                ? full ?? string.Empty
+                : (full is null ? string.Empty : QueryHelpers.AddQueryString(full, "v", photo.VersionStamp));
+            <article class="social-gallery-card">
+                <a href="@versionedFull" target="_blank" rel="noopener" class="social-gallery-card__image">
+                    <span class="visually-hidden">Open full-size photo in new tab</span>
+                    <div class="social-gallery-card__frame">
+                        <img src="@versionedThumbnail" alt="Event photo" />
+                        @if (photo.IsCover)
+                        {
+                            <span class="social-gallery-card__badge">Cover photo</span>
+                        }
+                    </div>
+                </a>
+                <div class="social-gallery-card__info">
+                    @if (!string.IsNullOrWhiteSpace(photo.Caption))
+                    {
+                        <p class="social-gallery-card__caption mb-0">@photo.Caption</p>
+                    }
+                    else
+                    {
+                        <p class="social-gallery-card__caption social-gallery-card__caption--muted mb-0">No caption provided</p>
+                    }
+                    @if (Model.CanManage)
+                    {
+                        <div class="social-gallery-card__actions">
+                            <form method="post" asp-page-handler="SetCover" asp-route-id="@Model.EventId" class="social-gallery-card__form" data-social-disable-on-submit>
+                                <input type="hidden" name="photoId" value="@photo.Id" />
+                                <input type="hidden" name="rowVersion" value="@photo.RowVersion" />
+                                <button type="submit" class="btn btn-sm btn-outline-primary" @(photo.IsCover ? "disabled" : null) data-social-busy-label="Setting cover…">Set cover</button>
+                            </form>
+                            <form method="post" asp-page-handler="DeletePhoto" asp-route-id="@Model.EventId" class="social-gallery-card__form" data-social-disable-on-submit data-confirm="Delete this photo?">
+                                <input type="hidden" name="photoId" value="@photo.Id" />
+                                <input type="hidden" name="rowVersion" value="@photo.RowVersion" />
+                                <button type="submit" class="btn btn-sm btn-outline-danger" data-social-busy-label="Deleting…">Delete</button>
+                            </form>
+                        </div>
+                    }
+                </div>
+            </article>
+        }
+    </div>
+}

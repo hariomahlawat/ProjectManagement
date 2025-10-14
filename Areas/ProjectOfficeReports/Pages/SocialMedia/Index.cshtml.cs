@@ -7,13 +7,15 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Areas.ProjectOfficeReports.SocialMedia.ViewModels;
 using ProjectManagement.Models;
 
-namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.SocialMediaEvents;
+namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.SocialMedia;
 
 [Authorize]
-public class IndexModel : PageModel
+public sealed class IndexModel : PageModel
 {
     private readonly SocialMediaEventService _eventService;
     private readonly ISocialMediaExportService _exportService;
@@ -50,25 +52,27 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public bool OnlyActiveEventTypes { get; set; }
 
-    public IReadOnlyList<SocialMediaEventListItem> Items { get; private set; } = Array.Empty<SocialMediaEventListItem>();
+    public IReadOnlyList<SocialMediaEventListItem> Events { get; private set; } = Array.Empty<SocialMediaEventListItem>();
+
+    public SocialMediaEventListFilter Filter { get; private set; } = new();
 
     public bool CanManage { get; private set; }
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        CanManage = await EvaluateManagePolicyAsync();
-        Items = await _eventService.SearchAsync(BuildQuery(), cancellationToken);
+        await PopulateAsync(cancellationToken);
     }
 
     public async Task<IActionResult> OnPostExportAsync(CancellationToken cancellationToken)
     {
-        CanManage = await EvaluateManagePolicyAsync();
+        await PopulatePermissionsAsync();
         if (!CanManage)
         {
             return Forbid();
         }
 
-        Items = await _eventService.SearchAsync(BuildQuery(), cancellationToken);
+        await PopulateFilterAsync(cancellationToken);
+        Events = await _eventService.SearchAsync(BuildQuery(), cancellationToken);
 
         var userId = _userManager.GetUserId(User);
         if (string.IsNullOrWhiteSpace(userId))
@@ -76,16 +80,7 @@ public class IndexModel : PageModel
             return Challenge();
         }
 
-        var options = BuildQuery();
-        var request = new SocialMediaExportRequest(
-            options.EventTypeId,
-            options.StartDate,
-            options.EndDate,
-            options.SearchQuery,
-            options.Platform,
-            options.OnlyActiveEventTypes,
-            userId);
-
+        var request = BuildExportRequest(userId);
         var result = await _exportService.ExportAsync(request, cancellationToken);
         if (!result.Success || result.File is null)
         {
@@ -107,13 +102,14 @@ public class IndexModel : PageModel
 
     public async Task<IActionResult> OnPostExportPdfAsync(CancellationToken cancellationToken)
     {
-        CanManage = await EvaluateManagePolicyAsync();
+        await PopulatePermissionsAsync();
         if (!CanManage)
         {
             return Forbid();
         }
 
-        Items = await _eventService.SearchAsync(BuildQuery(), cancellationToken);
+        await PopulateFilterAsync(cancellationToken);
+        Events = await _eventService.SearchAsync(BuildQuery(), cancellationToken);
 
         var userId = _userManager.GetUserId(User);
         if (string.IsNullOrWhiteSpace(userId))
@@ -121,16 +117,7 @@ public class IndexModel : PageModel
             return Challenge();
         }
 
-        var options = BuildQuery();
-        var request = new SocialMediaExportRequest(
-            options.EventTypeId,
-            options.StartDate,
-            options.EndDate,
-            options.SearchQuery,
-            options.Platform,
-            options.OnlyActiveEventTypes,
-            userId);
-
+        var request = BuildExportRequest(userId);
         var result = await _exportService.ExportPdfAsync(request, cancellationToken);
         if (!result.Success || result.File is null)
         {
@@ -150,6 +137,51 @@ public class IndexModel : PageModel
         return File(result.File.Content, result.File.ContentType, result.File.FileName);
     }
 
+    private async Task PopulateAsync(CancellationToken cancellationToken)
+    {
+        await PopulatePermissionsAsync();
+        await PopulateFilterAsync(cancellationToken);
+        Events = await _eventService.SearchAsync(BuildQuery(), cancellationToken);
+    }
+
+    private async Task PopulatePermissionsAsync()
+    {
+        var authorizationResult = await _authorizationService.AuthorizeAsync(
+            User,
+            null,
+            ProjectOfficeReportsPolicies.ManageSocialMediaEvents);
+
+        CanManage = authorizationResult.Succeeded;
+    }
+
+    private async Task PopulateFilterAsync(CancellationToken cancellationToken)
+    {
+        var eventTypes = await _eventService.GetEventTypesAsync(includeInactive: true, cancellationToken);
+        var options = new List<SelectListItem>
+        {
+            new("All event types", string.Empty)
+        };
+
+        foreach (var type in eventTypes)
+        {
+            options.Add(new SelectListItem(type.Name, type.Id.ToString())
+            {
+                Selected = EventTypeId.HasValue && EventTypeId.Value == type.Id
+            });
+        }
+
+        Filter = new SocialMediaEventListFilter
+        {
+            EventTypeId = EventTypeId,
+            StartDate = ParseDate(From),
+            EndDate = ParseDate(To),
+            SearchQuery = Q,
+            Platform = Platform,
+            OnlyActiveEventTypes = OnlyActiveEventTypes,
+            EventTypeOptions = options
+        };
+    }
+
     private SocialMediaEventQueryOptions BuildQuery()
     {
         return new SocialMediaEventQueryOptions(
@@ -161,14 +193,17 @@ public class IndexModel : PageModel
             OnlyActiveEventTypes);
     }
 
-    private async Task<bool> EvaluateManagePolicyAsync()
+    private SocialMediaExportRequest BuildExportRequest(string userId)
     {
-        var result = await _authorizationService.AuthorizeAsync(
-            User,
-            null,
-            ProjectOfficeReportsPolicies.ManageSocialMediaEvents);
-
-        return result.Succeeded;
+        var options = BuildQuery();
+        return new SocialMediaExportRequest(
+            options.EventTypeId,
+            options.StartDate,
+            options.EndDate,
+            options.SearchQuery,
+            options.Platform,
+            options.OnlyActiveEventTypes,
+            userId);
     }
 
     private static DateOnly? ParseDate(string? value)

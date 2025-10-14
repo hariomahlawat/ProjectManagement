@@ -1,0 +1,42 @@
+@page "{id:guid}"
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.SocialMedia.DeleteModel
+@{
+    ViewData["Title"] = "Delete social media event";
+}
+
+<div class="social-shell">
+    <nav aria-label="Breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+            <li class="breadcrumb-item"><a asp-page="Index">Social media</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Delete</li>
+        </ol>
+    </nav>
+
+    <section class="social-section">
+        <div class="card border-danger shadow-sm">
+            <div class="card-body">
+                <h1 class="h4 text-danger">Delete social media event</h1>
+                <p class="mb-4">You're about to permanently remove <strong>@Model.Event?.Title</strong> (@Model.EventType?.Name) captured on @Model.Event?.DateOfEvent.ToString("dd MMM yyyy").</p>
+                @if (Model.PhotoCount > 0)
+                {
+                    <div class="alert alert-warning" role="status">
+                        This event has @Model.PhotoCount photo@(Model.PhotoCount == 1 ? string.Empty : "s"). All photos will be deleted.
+                    </div>
+                }
+                <form method="post" data-social-disable-on-submit class="d-flex flex-column flex-md-row gap-3">
+                    <input type="hidden" asp-for="RowVersion" />
+                    <button type="submit" class="btn btn-danger d-inline-flex align-items-center gap-2" data-social-busy-label="Deleting…">
+                        <i class="bi bi-trash" aria-hidden="true"></i>
+                        <span>Delete event</span>
+                    </button>
+                    <a asp-page="Details" asp-route-id="@Model.Event?.Id" class="btn btn-outline-secondary">Cancel</a>
+                </form>
+            </div>
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script type="module" src="~/js/pages/project-office-reports/social-media.js" asp-append-version="true"></script>
+}

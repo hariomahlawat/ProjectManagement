@@ -1,0 +1,71 @@
+@page "{id:guid}"
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.SocialMedia.DetailsModel
+@{
+    ViewData["Title"] = "Social media event";
+
+    var toastMessages = new List<ProjectManagement.Areas.ProjectOfficeReports.SocialMedia.ViewModels.SocialMediaToastMessage>();
+    if (TempData.TryGetValue("ToastMessage", out var toastValue) && toastValue is string toast && !string.IsNullOrWhiteSpace(toast))
+    {
+        toastMessages.Add(new ProjectManagement.Areas.ProjectOfficeReports.SocialMedia.ViewModels.SocialMediaToastMessage(toast, "success"));
+    }
+
+    if (TempData.TryGetValue("ToastError", out var toastErrorValue) && toastErrorValue is string toastError && !string.IsNullOrWhiteSpace(toastError))
+    {
+        toastMessages.Add(new ProjectManagement.Areas.ProjectOfficeReports.SocialMedia.ViewModels.SocialMediaToastMessage(toastError, "danger"));
+    }
+}
+
+<partial name="_ToastMessages" model="toastMessages" />
+
+<div class="social-shell">
+    <nav aria-label="Breadcrumb" class="mb-3">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+            <li class="breadcrumb-item"><a asp-page="Index">Social media</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Details</li>
+        </ol>
+    </nav>
+
+    <section class="social-hero">
+        <div class="social-hero__content">
+            <span class="social-hero__eyebrow">Project office reports</span>
+            <h1 class="social-hero__title">@Model.Event?.Title</h1>
+            <p class="social-hero__subtitle">@Model.Event?.Description ?? "No description available."</p>
+            <div class="social-hero__meta">
+                <span class="social-hero__meta-item"><i class="bi bi-calendar-event" aria-hidden="true"></i> @Model.Event?.DateOfEvent.ToString("dd MMM yyyy")</span>
+                <span class="social-hero__meta-item"><i class="bi bi-megaphone" aria-hidden="true"></i> @Model.EventType?.Name</span>
+                <span class="social-hero__meta-item"><i class="bi bi-people" aria-hidden="true"></i> Reach: @Model.Event?.Reach</span>
+                @if (!string.IsNullOrWhiteSpace(Model.Event?.Platform))
+                {
+                    <span class="social-hero__meta-item"><i class="bi bi-hash" aria-hidden="true"></i> @Model.Event?.Platform</span>
+                }
+            </div>
+            @if (Model.CanManage && Model.Event is not null)
+            {
+                <div class="social-hero__actions">
+                    <a asp-page="Edit" asp-route-id="@Model.Event.Id" class="btn btn-primary d-inline-flex align-items-center gap-2">
+                        <i class="bi bi-pencil" aria-hidden="true"></i>
+                        <span>Edit event</span>
+                    </a>
+                    <a asp-page="Delete" asp-route-id="@Model.Event.Id" class="btn btn-outline-danger d-inline-flex align-items-center gap-2">
+                        <i class="bi bi-trash" aria-hidden="true"></i>
+                        <span>Delete event</span>
+                    </a>
+                </div>
+            }
+        </div>
+    </section>
+
+    <section class="social-section">
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h2 class="h4 mb-3">Photo gallery</h2>
+                <partial name="_PhotoGallery" model="Model.PhotoGallery" />
+            </div>
+        </div>
+    </section>
+</div>
+
+@section Scripts {
+    <script type="module" src="~/js/pages/project-office-reports/social-media.js" asp-append-version="true"></script>
+}
