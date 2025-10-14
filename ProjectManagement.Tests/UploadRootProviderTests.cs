@@ -84,4 +84,49 @@ public sealed class UploadRootProviderTests
         Assert.StartsWith(projectRoot, videosRoot, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(Path.Combine(projectRoot, "videos"), videosRoot);
     }
+
+    [Fact]
+    public void ResolvesSocialMediaRootUnderUploadRoot()
+    {
+        var options = Options.Create(new ProjectPhotoOptions());
+        var documentOptions = Options.Create(new ProjectDocumentOptions());
+        var environment = new TestWebHostEnvironment
+        {
+            ContentRootPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"))
+        };
+
+        var provider = new UploadRootProvider(
+            options,
+            documentOptions,
+            environment,
+            NullLogger<UploadRootProvider>.Instance);
+
+        var eventId = Guid.NewGuid();
+        var socialRoot = provider.GetSocialMediaRoot("org/social/{eventId}", eventId);
+
+        Assert.True(Directory.Exists(socialRoot));
+        Assert.StartsWith(provider.RootPath, socialRoot);
+        Assert.True(socialRoot.EndsWith(Path.Combine("org", "social", eventId.ToString("D")), StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void GetSocialMediaRootThrowsWhenTokenMissing()
+    {
+        var options = Options.Create(new ProjectPhotoOptions());
+        var documentOptions = Options.Create(new ProjectDocumentOptions());
+        var environment = new TestWebHostEnvironment
+        {
+            ContentRootPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"))
+        };
+
+        var provider = new UploadRootProvider(
+            options,
+            documentOptions,
+            environment,
+            NullLogger<UploadRootProvider>.Instance);
+
+        var eventId = Guid.NewGuid();
+
+        Assert.Throws<ArgumentException>(() => provider.GetSocialMediaRoot("org/social", eventId));
+    }
 }

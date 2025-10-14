@@ -93,6 +93,32 @@ public sealed class UploadRootProvider : IUploadRootProvider
         return EnsureDirectory(CombineOptional(projectRoot, _documentOptions.VideosSubpath));
     }
 
+    public string GetSocialMediaRoot(string storagePrefix, Guid eventId)
+    {
+        if (eventId == Guid.Empty)
+        {
+            throw new ArgumentException("Event identifier cannot be empty.", nameof(eventId));
+        }
+
+        const string token = "{eventId}";
+        var normalizedPrefix = string.IsNullOrWhiteSpace(storagePrefix)
+            ? "org/social/{eventId}"
+            : storagePrefix.Trim();
+
+        normalizedPrefix = normalizedPrefix.TrimStart('/', '\\').TrimEnd('/', '\\');
+
+        var tokenIndex = normalizedPrefix.IndexOf(token, StringComparison.OrdinalIgnoreCase);
+        if (tokenIndex < 0)
+        {
+            throw new ArgumentException($"Storage prefix must contain the token '{token}'.", nameof(storagePrefix));
+        }
+
+        var resolvedPrefix = normalizedPrefix.Replace(token, eventId.ToString("D"), StringComparison.OrdinalIgnoreCase);
+        var relativePath = resolvedPrefix.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+
+        return EnsureDirectory(Path.Combine(RootPath, relativePath));
+    }
+
     private static string CombineOptional(string root, string? subpath)
     {
         return string.IsNullOrWhiteSpace(subpath) ? root : Path.Combine(root, subpath);

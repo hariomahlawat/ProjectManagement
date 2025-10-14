@@ -70,6 +70,10 @@ This document lists every supported configuration value, its default, and how th
 | `ProjectDocuments:MaxSizeMb` | `25` | Maximum upload size for project documents. |
 | `ProjectDocuments:AllowedMimeTypes` | `application/pdf` | Whitelist of acceptable document MIME types. |
 | `ProjectDocuments:EnableVirusScan` | `false` | When true, `DocumentService` expects an `IVirusScanner` to be registered to scan uploads.【F:appsettings.json†L55-L65】【F:Services/ProjectCommentService.cs†L174-L238】 |
+| `ProjectOfficeReports:VisitPhotos:StoragePrefix` | `project-office-reports/visits` | Prefix used when constructing visit photo storage keys. Override to relocate visit assets within the upload root.【F:appsettings.json†L80-L94】【F:Areas/ProjectOfficeReports/Application/VisitPhotoService.cs†L363-L368】 |
+| `ProjectOfficeReports:SocialMediaPhotos:StoragePrefix` | `org/social/{eventId}` | Folder template for event-specific social media assets. `{eventId}` is replaced with the event identifier, allowing per-event isolation under the shared upload root.【F:appsettings.json†L94-L107】【F:Areas/ProjectOfficeReports/Application/SocialMediaPhotoOptions.cs†L20-L31】 |
+
+`ProjectOfficeReports:SocialMediaPhotos` mirrors the `VisitPhotos` block: override `MaxFileSizeBytes`, `MinWidth`, `MinHeight`, `AllowedContentTypes`, and individual `Derivatives` entries when tailoring social media exports for a specific campaign. Keep the key names stable so generated assets continue to resolve even if you tweak dimensions or JPEG quality. The `StoragePrefix` placeholder can be replaced with nested folder names, but must retain an `{eventId}` token so uploads remain segregated per event.【F:appsettings.json†L94-L107】【F:Areas/ProjectOfficeReports/Application/SocialMediaPhotoOptions.cs†L6-L31】
 
 ## Security headers & networking
 
