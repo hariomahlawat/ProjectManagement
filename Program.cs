@@ -242,6 +242,7 @@ builder.Services.AddScoped<VisitService>();
 builder.Services.AddScoped<SocialMediaEventService>();
 builder.Services.AddScoped<IVisitExportService, VisitExportService>();
 builder.Services.AddScoped<IVisitPhotoService, VisitPhotoService>();
+builder.Services.AddScoped<ISocialMediaEventPhotoService, SocialMediaEventPhotoService>();
 builder.Services.AddOptions<ProjectPhotoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectPhotos"));
 builder.Services.AddOptions<VisitPhotoOptions>()

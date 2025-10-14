@@ -16,11 +16,13 @@ public sealed class SocialMediaEventService
 
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
+    private readonly ISocialMediaEventPhotoService _photoService;
 
-    public SocialMediaEventService(ApplicationDbContext db, IClock clock)
+    public SocialMediaEventService(ApplicationDbContext db, IClock clock, ISocialMediaEventPhotoService photoService)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _photoService = photoService ?? throw new ArgumentNullException(nameof(photoService));
     }
 
     public IQueryable<SocialMediaEventListItem> CreateListQuery(SocialMediaEventQueryOptions options)
@@ -96,12 +98,12 @@ public sealed class SocialMediaEventService
             return null;
         }
 
-        var photos = await _db.SocialMediaEventPhotos.AsNoTracking()
-            .Where(x => x.SocialMediaEventId == id)
+        var photos = await _photoService.GetPhotosAsync(id, cancellationToken);
+        var ordered = photos
             .OrderBy(x => x.CreatedAtUtc.Add(IstOffset))
-            .ToListAsync(cancellationToken);
+            .ToList();
 
-        return new SocialMediaEventDetails(socialEvent, socialEvent.SocialMediaEventType, photos);
+        return new SocialMediaEventDetails(socialEvent, socialEvent.SocialMediaEventType, ordered);
     }
 
     public async Task<SocialMediaEventMutationResult> CreateAsync(
@@ -281,6 +283,11 @@ public sealed class SocialMediaEventService
         catch (DbUpdateConcurrencyException)
         {
             return SocialMediaEventDeletionResult.Concurrency();
+        }
+
+        if (photoSnapshots.Count > 0)
+        {
+            await _photoService.RemoveAllAsync(id, photoSnapshots, cancellationToken);
         }
 
         return SocialMediaEventDeletionResult.Success(photoSnapshots);
