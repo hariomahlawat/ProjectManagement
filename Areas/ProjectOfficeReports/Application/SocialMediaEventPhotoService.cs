@@ -156,8 +156,8 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
 
         buffer.Position = 0;
         var originalExtension = GetExtension(detectedFormat);
-        var originalFileName = $"original{originalExtension}";
-        var originalPath = Path.Combine(photoFolder, originalFileName);
+        var generatedOriginalFileName = $"original{originalExtension}";
+        var originalPath = Path.Combine(photoFolder, generatedOriginalFileName);
 
         await using (var fileStream = File.Create(originalPath))
         {
@@ -192,7 +192,7 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
             Id = photoId,
             SocialMediaEventId = eventId,
             StorageKey = storageKey,
-            StoragePath = CombineStoragePath(storageKey, originalFileName),
+            StoragePath = CombineStoragePath(storageKey, generatedOriginalFileName),
             ContentType = normalizedContentType,
             Width = sourceImage.Width,
             Height = sourceImage.Height,
