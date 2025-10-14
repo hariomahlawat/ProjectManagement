@@ -1,3 +1,5 @@
+using System;
+
 namespace ProjectManagement.Services.Storage;
 
 public interface IUploadRootProvider
@@ -13,4 +15,6 @@ public interface IUploadRootProvider
     string GetProjectCommentsRoot(int projectId);
 
     string GetProjectVideosRoot(int projectId);
+
+    string GetSocialMediaRoot(string storagePrefix, Guid eventId);
 }

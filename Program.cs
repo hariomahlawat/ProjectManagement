@@ -241,6 +241,8 @@ builder.Services.AddOptions<ProjectPhotoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectPhotos"));
 builder.Services.AddOptions<VisitPhotoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectOfficeReports:VisitPhotos"));
+builder.Services.AddOptions<SocialMediaPhotoOptions>()
+    .Bind(builder.Configuration.GetSection("ProjectOfficeReports:SocialMediaPhotos"));
 builder.Services.AddOptions<ProjectDocumentOptions>()
     .Bind(builder.Configuration.GetSection("ProjectDocuments"));
 builder.Services.AddOptions<ProjectVideoOptions>()
