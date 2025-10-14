@@ -5,6 +5,7 @@ using QuestPDF.Drawing;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
+using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Utilities.Reporting;
 
@@ -48,6 +49,9 @@ public sealed class VisitPdfReportBuilder : IVisitPdfReportBuilder
             throw new ArgumentNullException(nameof(context.Sections));
         }
 
+        var generatedAtIst = TimeZoneInfo.ConvertTime(context.GeneratedAtUtc, TimeZoneHelper.GetIst());
+        var generatedAtText = generatedAtIst.ToString("MMMM d, yyyy 'at' HH:mm 'IST'", CultureInfo.InvariantCulture);
+
         var document = Document.Create(container =>
         {
             container.Page(page =>
@@ -71,7 +75,7 @@ public sealed class VisitPdfReportBuilder : IVisitPdfReportBuilder
                     {
                         text.DefaultTextStyle(style => style.FontSize(10).FontColor("#64748B"));
                         text.Span("Generated on ");
-                        text.Span(context.GeneratedAtUtc.ToString("MMMM d, yyyy 'at' HH:mm 'UTC'", CultureInfo.InvariantCulture))
+                        text.Span(generatedAtText)
                             .SemiBold();
                     });
 
