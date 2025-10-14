@@ -121,6 +121,109 @@ function initDisableOnSubmit() {
   forms.forEach(disableFormOnSubmit);
 }
 
+const confirmModalId = 'visitsConfirmModal';
+
+function ensureBootstrapModal() {
+  const bootstrap = ensureBootstrap();
+  return bootstrap && typeof bootstrap.Modal === 'function' ? bootstrap : null;
+}
+
+function ensureConfirmModalElement() {
+  let modal = document.getElementById(confirmModalId);
+  if (modal) {
+    return modal;
+  }
+
+  modal = document.createElement('div');
+  modal.id = confirmModalId;
+  modal.className = 'modal fade visits-confirm-modal';
+  modal.tabIndex = -1;
+  modal.setAttribute('aria-hidden', 'true');
+  modal.innerHTML = `
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow-lg">
+        <button type="button" class="btn-close visits-confirm-modal__close" data-bs-dismiss="modal" aria-label="Cancel"></button>
+        <div class="modal-body p-4">
+          <div class="d-flex align-items-start gap-3">
+            <div class="visits-confirm-modal__icon" aria-hidden="true">!</div>
+            <div class="flex-grow-1">
+              <h5 class="visits-confirm-modal__title mb-1">Review before deleting</h5>
+              <p class="visits-confirm-modal__message mb-3" data-visits-confirm-message></p>
+              <p class="visits-confirm-modal__subtitle mb-0">This action can't be undone.</p>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer border-0 pt-0">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-visits-confirm-cancel>Keep record</button>
+          <button type="button" class="btn btn-danger" data-visits-confirm-accept>Delete</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+  return modal;
+}
+
+function showConfirmModal(message) {
+  const bootstrap = ensureBootstrapModal();
+  if (!bootstrap) {
+    return Promise.resolve(window.confirm(message));
+  }
+
+  const modalEl = ensureConfirmModalElement();
+  const instance = bootstrap.Modal.getOrCreateInstance(modalEl, {
+    backdrop: 'static',
+    keyboard: true,
+    focus: true
+  });
+
+  const messageEl = modalEl.querySelector('[data-visits-confirm-message]');
+  if (messageEl) {
+    messageEl.textContent = message;
+  }
+
+  const confirmButton = modalEl.querySelector('[data-visits-confirm-accept]');
+  const cancelButton = modalEl.querySelector('[data-visits-confirm-cancel]');
+
+  return new Promise(resolve => {
+    let handled = false;
+
+    const cleanup = () => {
+      confirmButton?.removeEventListener('click', handleConfirm);
+      cancelButton?.removeEventListener('click', handleCancel);
+      modalEl.removeEventListener('hidden.bs.modal', handleHidden);
+    };
+
+    const handleConfirm = () => {
+      handled = true;
+      cleanup();
+      resolve(true);
+      instance.hide();
+    };
+
+    const handleCancel = () => {
+      handled = true;
+      cleanup();
+      resolve(false);
+      instance.hide();
+    };
+
+    const handleHidden = () => {
+      if (!handled) {
+        resolve(false);
+      }
+      cleanup();
+    };
+
+    confirmButton?.addEventListener('click', handleConfirm);
+    cancelButton?.addEventListener('click', handleCancel);
+    modalEl.addEventListener('hidden.bs.modal', handleHidden, { once: true });
+
+    instance.show();
+  });
+}
+
 function attachConfirmDialog(form) {
   const message = form.getAttribute('data-confirm');
   if (!message) {
@@ -128,9 +231,34 @@ function attachConfirmDialog(form) {
   }
 
   form.addEventListener('submit', event => {
-    if (!window.confirm(message)) {
-      event.preventDefault();
+    if (form.dataset.visitsConfirmBypassed === 'true') {
+      delete form.dataset.visitsConfirmBypassed;
+      return;
     }
+
+    event.preventDefault();
+
+    const submitter = event.submitter;
+
+    showConfirmModal(message).then(confirmed => {
+      if (!confirmed) {
+        return;
+      }
+
+      form.dataset.visitsConfirmBypassed = 'true';
+
+      if (typeof form.requestSubmit === 'function') {
+        form.requestSubmit(submitter);
+        return;
+      }
+
+      if (submitter && typeof submitter.click === 'function') {
+        submitter.click();
+        return;
+      }
+
+      form.submit();
+    });
   });
 }
 
