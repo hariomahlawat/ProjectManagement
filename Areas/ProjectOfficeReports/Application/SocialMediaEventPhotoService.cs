@@ -151,7 +151,7 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
         var now = _clock.UtcNow;
         var photoId = Guid.NewGuid();
         var storageKey = BuildStorageKey(_options.StoragePrefix, eventId, photoId);
-        var photoFolder = GetPhotoFolder(eventId, photoId);
+        var photoFolder = GetPhysicalFolder(storageKey);
         Directory.CreateDirectory(photoFolder);
 
         buffer.Position = 0;
@@ -231,7 +231,7 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
                 eventId);
             _db.Entry(photo).State = EntityState.Detached;
             socialEvent.Photos.Remove(photo);
-            await DeletePhysicalAssetsAsync(eventId, photoId, cancellationToken);
+            await DeletePhysicalAssetsAsync(storageKey, cancellationToken);
             return SocialMediaEventPhotoUploadResult.Concurrency();
         }
         catch (DbUpdateException ex)
@@ -240,7 +240,7 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
             _logger.LogError(ex, "Failed to persist social media event photo metadata for event {EventId}", eventId);
             _db.Entry(photo).State = EntityState.Detached;
             socialEvent.Photos.Remove(photo);
-            await DeletePhysicalAssetsAsync(eventId, photoId, cancellationToken);
+            await DeletePhysicalAssetsAsync(storageKey, cancellationToken);
             var userMessage = SocialMediaEventPhotoErrorTranslator.GetUserFacingMessage(ex);
             return SocialMediaEventPhotoUploadResult.Invalid(userMessage);
         }
@@ -328,7 +328,7 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
             return SocialMediaEventPhotoDeletionResult.Failed(userMessage);
         }
 
-        await DeletePhysicalAssetsAsync(eventId, photoId, cancellationToken);
+        await DeletePhysicalAssetsAsync(photo.StorageKey, cancellationToken);
         return SocialMediaEventPhotoDeletionResult.Success();
     }
 
@@ -422,7 +422,7 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                await DeletePhysicalAssetsAsync(eventId, photo.Id, cancellationToken);
+                await DeletePhysicalAssetsAsync(photo.StorageKey, cancellationToken);
             }
             catch (Exception ex)
             {
@@ -451,7 +451,7 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
             return null;
         }
 
-        var path = GetAssetPath(eventId, photo.Id, normalizedSize);
+        var path = GetAssetPath(photo.StorageKey, normalizedSize);
         if (path is null || !File.Exists(path))
         {
             return null;
@@ -476,21 +476,20 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
         }
     }
 
-    private async Task DeletePhysicalAssetsAsync(Guid eventId, Guid photoId, CancellationToken cancellationToken)
+    private async Task DeletePhysicalAssetsAsync(string storageKey, CancellationToken cancellationToken)
     {
-        var photoFolder = GetPhotoFolder(eventId, photoId);
+        if (string.IsNullOrWhiteSpace(storageKey))
+        {
+            return;
+        }
+
+        var photoFolder = GetPhysicalFolder(storageKey);
         if (!Directory.Exists(photoFolder))
         {
             return;
         }
 
         await Task.Run(() => Directory.Delete(photoFolder, true), cancellationToken);
-    }
-
-    private string GetPhotoFolder(Guid eventId, Guid photoId)
-    {
-        var eventRoot = _uploadRootProvider.GetSocialMediaRoot(_options.StoragePrefix, eventId);
-        return Path.Combine(eventRoot, "photos", photoId.ToString("D"));
     }
 
     private static string BuildStorageKey(string prefix, Guid eventId, Guid photoId)
@@ -559,9 +558,14 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
         return _options.Derivatives.Keys.FirstOrDefault();
     }
 
-    private string? GetAssetPath(Guid eventId, Guid photoId, string size)
+    private string? GetAssetPath(string storageKey, string size)
     {
-        var folder = GetPhotoFolder(eventId, photoId);
+        if (string.IsNullOrWhiteSpace(storageKey))
+        {
+            return null;
+        }
+
+        var folder = GetPhysicalFolder(storageKey);
         if (!Directory.Exists(folder))
         {
             return null;
@@ -579,6 +583,13 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
 
         var derivativeName = $"{NormalizeDerivativeKey(size)}.jpg";
         return Path.Combine(folder, derivativeName);
+    }
+
+    private string GetPhysicalFolder(string storageKey)
+    {
+        var trimmed = storageKey.Trim('/', '\\');
+        var relative = trimmed.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+        return Path.Combine(_uploadRootProvider.RootPath, relative);
     }
 
     private static string NormalizeContentType(string? contentType, IImageFormat format)

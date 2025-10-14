@@ -124,7 +124,7 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
             Assert.True(photo.IsCover);
             Assert.Equal("creator", photo.CreatedByUserId);
 
-            var photoFolder = Path.Combine(tempRoot, "photos", photo.Id.ToString("D"));
+            var photoFolder = Path.Combine(tempRoot, photo.StorageKey.Replace('/', Path.DirectorySeparatorChar));
             Assert.True(File.Exists(Path.Combine(photoFolder, "feed.jpg")));
 
             Assert.Equal(1, page.PhotoGallery.Photos.Count);
@@ -224,13 +224,126 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
             Assert.True(ordered[0].IsCover);
             Assert.False(ordered[1].IsCover);
 
-            var firstFolder = Path.Combine(tempRoot, "photos", ordered[0].Id.ToString("D"));
-            var secondFolder = Path.Combine(tempRoot, "photos", ordered[1].Id.ToString("D"));
+            var firstFolder = Path.Combine(tempRoot, ordered[0].StorageKey.Replace('/', Path.DirectorySeparatorChar));
+            var secondFolder = Path.Combine(tempRoot, ordered[1].StorageKey.Replace('/', Path.DirectorySeparatorChar));
 
             Assert.True(File.Exists(Path.Combine(firstFolder, "feed.jpg")));
             Assert.True(File.Exists(Path.Combine(secondFolder, "feed.jpg")));
 
             Assert.Equal(2, page.PhotoGallery.Photos.Count);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task ExistingPhotoAssetsRemainAccessibleWhenStoragePrefixChanges()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        var now = new DateTimeOffset(2024, 8, 5, 14, 0, 0, TimeSpan.Zero);
+        var eventType = SocialMediaTestData.CreateEventType(name: "Prefix change", createdByUserId: "creator", createdAtUtc: now);
+        var socialEvent = SocialMediaTestData.CreateEvent(
+            eventType.Id,
+            id: Guid.NewGuid(),
+            dateOfEvent: new DateOnly(2024, 8, 4),
+            title: "Prefix regression",
+            platform: "Threads",
+            reach: 123,
+            description: "Verifies stored keys",
+            timestamp: now,
+            createdByUserId: "creator");
+
+        db.SocialMediaEventTypes.Add(eventType);
+        db.SocialMediaEvents.Add(socialEvent);
+        await db.SaveChangesAsync();
+
+        var tempRoot = Path.Combine(Path.GetTempPath(), "pm-social-media-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var derivatives = new Dictionary<string, SocialMediaPhotoDerivativeOptions>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["feed"] = new SocialMediaPhotoDerivativeOptions { Width = 1200, Height = 1200, Quality = 85 },
+                ["thumb"] = new SocialMediaPhotoDerivativeOptions { Width = 600, Height = 600, Quality = 80 }
+            };
+
+            var initialOptions = Options.Create(new SocialMediaPhotoOptions
+            {
+                MinWidth = 800,
+                MinHeight = 600,
+                Derivatives = derivatives,
+                StoragePrefix = "org/social/{eventId}"
+            });
+
+            var uploadRoot = new TestUploadRootProvider(tempRoot);
+            var initialClock = new TestClock(now.AddMinutes(1));
+            var initialService = new SocialMediaEventPhotoService(
+                db,
+                initialClock,
+                initialOptions,
+                uploadRoot,
+                NullLogger<SocialMediaEventPhotoService>.Instance);
+
+            await using var stream = await CreateImageStreamAsync(1600, 1200);
+            var uploadResult = await initialService.UploadAsync(
+                socialEvent.Id,
+                stream,
+                "prefix.jpg",
+                "image/jpeg",
+                "Stage",
+                "creator",
+                CancellationToken.None);
+
+            Assert.Equal(SocialMediaEventPhotoUploadOutcome.Success, uploadResult.Outcome);
+            var uploadedPhoto = Assert.NotNull(uploadResult.Photo);
+
+            var persistedPhoto = await db.SocialMediaEventPhotos.AsNoTracking().SingleAsync(x => x.Id == uploadedPhoto.Id);
+            var physicalFolder = Path.Combine(tempRoot, persistedPhoto.StorageKey.Replace('/', Path.DirectorySeparatorChar));
+            Assert.True(Directory.Exists(physicalFolder));
+
+            var refreshedOptions = Options.Create(new SocialMediaPhotoOptions
+            {
+                MinWidth = 800,
+                MinHeight = 600,
+                Derivatives = new Dictionary<string, SocialMediaPhotoDerivativeOptions>(derivatives, StringComparer.OrdinalIgnoreCase),
+                StoragePrefix = "alternate/social/{eventId}"
+            });
+
+            db.ChangeTracker.Clear();
+
+            var refreshedClock = new TestClock(now.AddMinutes(2));
+            var refreshedService = new SocialMediaEventPhotoService(
+                db,
+                refreshedClock,
+                refreshedOptions,
+                uploadRoot,
+                NullLogger<SocialMediaEventPhotoService>.Instance);
+
+            var asset = await refreshedService.OpenAsync(socialEvent.Id, persistedPhoto.Id, "original", CancellationToken.None);
+            Assert.NotNull(asset);
+            Assert.Equal("image/jpeg", asset!.ContentType);
+            asset.Stream.Dispose();
+
+            var deleteResult = await refreshedService.RemoveAsync(
+                socialEvent.Id,
+                persistedPhoto.Id,
+                persistedPhoto.RowVersion,
+                "deleter",
+                CancellationToken.None);
+
+            Assert.Equal(SocialMediaEventPhotoDeletionOutcome.Success, deleteResult.Outcome);
+            Assert.False(Directory.Exists(physicalFolder));
         }
         finally
         {
