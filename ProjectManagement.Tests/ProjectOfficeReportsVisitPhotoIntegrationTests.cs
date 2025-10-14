@@ -317,6 +317,13 @@ public class ProjectOfficeReportsVisitPhotoIntegrationTests
         public string GetProjectCommentsRoot(int projectId) => RootPath;
 
         public string GetProjectVideosRoot(int projectId) => RootPath;
+
+        public string GetSocialMediaRoot(string storagePrefix, Guid eventId)
+        {
+            _ = storagePrefix;
+            _ = eventId;
+            return RootPath;
+        }
     }
 
     private sealed class RecordingAudit : IAuditService

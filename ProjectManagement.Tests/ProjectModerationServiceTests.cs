@@ -208,6 +208,17 @@ public sealed class ProjectModerationServiceTests
         public string GetProjectCommentsRoot(int projectId) => Path.Combine(GetProjectRoot(projectId), "comments");
 
         public string GetProjectVideosRoot(int projectId) => Path.Combine(GetProjectRoot(projectId), "videos");
+
+        public string GetSocialMediaRoot(string storagePrefix, Guid eventId)
+        {
+            var normalizedPrefix = string.IsNullOrWhiteSpace(storagePrefix)
+                ? eventId.ToString("D")
+                : storagePrefix.Replace("{eventId}", eventId.ToString("D"), StringComparison.OrdinalIgnoreCase);
+
+            normalizedPrefix = normalizedPrefix.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+
+            return Path.Combine(_root, normalizedPrefix);
+        }
     }
 
     private sealed class TempDirectory : IDisposable
