@@ -1,0 +1,67 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes.IndexModel
+@{
+    ViewData["Title"] = "Social Media Event Types";
+}
+
+<div class="visit-tracker">
+    <div class="pm-card">
+        <div class="pm-card-header">
+            <div class="pm-card-heading">
+                <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-collection-play"></i></span>
+                <div>
+                    <h1 class="pm-card-title">Social media event types</h1>
+                    <p class="pm-card-subtitle mb-0">Manage the categories available when logging social media events.</p>
+                </div>
+            </div>
+            <div class="pm-card-actions">
+                <a asp-page="New" class="btn btn-primary d-inline-flex align-items-center gap-2">
+                    <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                    <span>Add event type</span>
+                </a>
+            </div>
+        </div>
+        <div class="pm-card-body">
+            @if (Model.Items.Count == 0)
+            {
+                <div class="visit-empty text-center py-5">
+                    <div class="visit-empty__icon" aria-hidden="true"><i class="bi bi-collection"></i></div>
+                    <h2 class="visit-empty__title">No social media event types yet</h2>
+                    <p class="visit-empty__subtitle">Create your first category to organise event reporting.</p>
+                </div>
+            }
+            else
+            {
+                <div class="visit-type-grid">
+                    @foreach (var item in Model.Items)
+                    {
+                        <article class="visit-type-card">
+                            <div class="visit-type-card__header">
+                                <div>
+                                    <h2 class="visit-type-card__title">@item.Name</h2>
+                                    <p class="visit-type-card__meta">@item.EventCount @("event" + (item.EventCount == 1 ? string.Empty : "s")) logged</p>
+                                </div>
+                                <span class="visit-pill @(item.IsActive ? string.Empty : "visit-pill--warning")">@(item.IsActive ? "Active" : "Inactive")</span>
+                            </div>
+                            <p class="visit-type-card__description mb-0">@(string.IsNullOrWhiteSpace(item.Description) ? "No description provided yet." : item.Description)</p>
+                            <div class="visit-type-card__actions">
+                                <a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-primary btn-sm">Edit</a>
+                                <form method="post" asp-page-handler="Toggle" class="visit-type-card__form">
+                                    <input type="hidden" name="id" value="@item.Id" />
+                                    <input type="hidden" name="enable" value="@(item.IsActive ? "false" : "true")" />
+                                    <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(item.RowVersion)" />
+                                    <button type="submit" class="btn btn-outline-secondary btn-sm">@(item.IsActive ? "Disable" : "Enable")</button>
+                                </form>
+                                <form method="post" asp-page-handler="Delete" class="visit-type-card__form">
+                                    <input type="hidden" name="id" value="@item.Id" />
+                                    <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(item.RowVersion)" />
+                                    <button type="submit" class="btn btn-outline-danger btn-sm" @(item.EventCount > 0 ? "disabled" : null) title="@(item.EventCount > 0 ? "Cannot delete while events use this type." : "Delete event type")" data-confirm="Delete this social media event type?">Delete</button>
+                                </form>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>

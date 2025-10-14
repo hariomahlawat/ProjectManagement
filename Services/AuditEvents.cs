@@ -254,6 +254,39 @@ public static class Audit
             return new AuditEvent("ProjectOfficeReports.VisitTypeDeleted", userId, data);
         }
 
+        public static AuditEvent SocialMediaEventTypeAdded(Guid eventTypeId, string name, string userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["SocialMediaEventTypeId"] = eventTypeId.ToString(),
+                ["Name"] = name
+            };
+
+            return new AuditEvent("ProjectOfficeReports.SocialMediaEventTypeAdded", userId, data);
+        }
+
+        public static AuditEvent SocialMediaEventTypeUpdated(Guid eventTypeId, string name, bool isActive, string userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["SocialMediaEventTypeId"] = eventTypeId.ToString(),
+                ["Name"] = name,
+                ["IsActive"] = isActive ? "true" : "false"
+            };
+
+            return new AuditEvent("ProjectOfficeReports.SocialMediaEventTypeUpdated", userId, data);
+        }
+
+        public static AuditEvent SocialMediaEventTypeDeleted(Guid eventTypeId, string userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["SocialMediaEventTypeId"] = eventTypeId.ToString()
+            };
+
+            return new AuditEvent("ProjectOfficeReports.SocialMediaEventTypeDeleted", userId, data);
+        }
+
         public static AuditEvent VisitCreated(Guid visitId, Guid visitTypeId, string userId)
         {
             var data = new Dictionary<string, string?>

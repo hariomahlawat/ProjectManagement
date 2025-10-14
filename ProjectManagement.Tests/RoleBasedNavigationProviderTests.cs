@@ -92,10 +92,15 @@ public class RoleBasedNavigationProviderTests
             var visitTypes = Assert.Single(children.Where(c => c.Text == "Visit types"));
             Assert.Equal("/VisitTypes/Index", visitTypes.Page);
             Assert.Equal(new[] { "Admin" }, visitTypes.RequiredRoles);
+
+            var socialMediaTypes = Assert.Single(children.Where(c => c.Text == "Social media event types"));
+            Assert.Equal("/Admin/SocialMediaTypes/Index", socialMediaTypes.Page);
+            Assert.Equal(new[] { "Admin" }, socialMediaTypes.RequiredRoles);
         }
         else
         {
             Assert.DoesNotContain(children, c => c.Text == "Visit types");
+            Assert.DoesNotContain(children, c => c.Text == "Social media event types");
         }
     }
 
