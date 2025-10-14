@@ -65,7 +65,7 @@ public sealed class SocialMediaExportServiceTests
             eventType.Id,
             dateOfEvent: new DateOnly(2024, 4, 18),
             title: "Robotics showcase",
-            platform: " Instagram ",
+            platform: "Instagram",
             reach: 820,
             description: "Student innovations highlighted.",
             coverPhotoId: photoId,
