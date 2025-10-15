@@ -241,6 +241,7 @@ builder.Services.AddSingleton<ISocialMediaExcelWorkbookBuilder, SocialMediaExcel
 builder.Services.AddSingleton<ISocialMediaPdfReportBuilder, SocialMediaPdfReportBuilder>();
 builder.Services.AddScoped<VisitTypeService>();
 builder.Services.AddScoped<SocialMediaEventTypeService>();
+builder.Services.AddScoped<SocialMediaPlatformService>();
 builder.Services.AddScoped<VisitService>();
 builder.Services.AddScoped<SocialMediaEventService>();
 builder.Services.AddScoped<IVisitExportService, VisitExportService>();

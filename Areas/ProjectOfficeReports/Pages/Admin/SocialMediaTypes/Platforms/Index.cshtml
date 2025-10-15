@@ -1,0 +1,66 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes.Platforms.IndexModel
+@{
+    ViewData["Title"] = "Social Media Platforms";
+}
+
+<div class="visit-tracker">
+    <div class="pm-card">
+        <div class="pm-card-header">
+            <div class="pm-card-heading">
+                <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-hash"></i></span>
+                <div>
+                    <h1 class="pm-card-title">Social media platforms</h1>
+                    <p class="pm-card-subtitle mb-0">Manage the platforms that appear when logging social media coverage.</p>
+                </div>
+            </div>
+            <div class="pm-card-actions">
+                <a asp-page="New" class="btn btn-primary d-inline-flex align-items-center gap-2">
+                    <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                    <span>Add platform</span>
+                </a>
+            </div>
+        </div>
+        <div class="pm-card-body">
+            @if (Model.Platforms.Count == 0)
+            {
+                <div class="visit-empty text-center py-5">
+                    <div class="visit-empty__icon" aria-hidden="true"><i class="bi bi-upc-scan"></i></div>
+                    <h2 class="visit-empty__title">No social media platforms yet</h2>
+                    <p class="visit-empty__subtitle">Add platforms to standardise where coverage is published.</p>
+                </div>
+            }
+            else
+            {
+                <div class="visit-type-grid">
+                    @foreach (var platform in Model.Platforms)
+                    {
+                        <article class="visit-type-card">
+                            <div class="visit-type-card__header">
+                                <div>
+                                    <h2 class="visit-type-card__title">@platform.Name</h2>
+                                </div>
+                                <span class="visit-pill @(platform.IsActive ? string.Empty : "visit-pill--warning")">@(platform.IsActive ? "Active" : "Inactive")</span>
+                            </div>
+                            <p class="visit-type-card__description mb-0">@(string.IsNullOrWhiteSpace(platform.Description) ? "No description provided yet." : platform.Description)</p>
+                            <div class="visit-type-card__actions">
+                                <a asp-page="Edit" asp-route-id="@platform.Id" class="btn btn-outline-primary btn-sm">Edit</a>
+                                <form method="post" asp-page-handler="Toggle" class="visit-type-card__form">
+                                    <input type="hidden" name="id" value="@platform.Id" />
+                                    <input type="hidden" name="enable" value="@(platform.IsActive ? "false" : "true")" />
+                                    <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(platform.RowVersion)" />
+                                    <button type="submit" class="btn btn-outline-secondary btn-sm">@(platform.IsActive ? "Disable" : "Enable")</button>
+                                </form>
+                                <form method="post" asp-page-handler="Delete" class="visit-type-card__form">
+                                    <input type="hidden" name="id" value="@platform.Id" />
+                                    <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(platform.RowVersion)" />
+                                    <button type="submit" class="btn btn-outline-danger btn-sm" data-confirm="Delete this social media platform?">Delete</button>
+                                </form>
+                            </div>
+                        </article>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>

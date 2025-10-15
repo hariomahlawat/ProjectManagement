@@ -84,6 +84,7 @@ namespace ProjectManagement.Data
         public DbSet<Visit> Visits => Set<Visit>();
         public DbSet<VisitPhoto> VisitPhotos => Set<VisitPhoto>();
         public DbSet<SocialMediaEventType> SocialMediaEventTypes => Set<SocialMediaEventType>();
+        public DbSet<SocialMediaPlatform> SocialMediaPlatforms => Set<SocialMediaPlatform>();
         public DbSet<SocialMediaEvent> SocialMediaEvents => Set<SocialMediaEvent>();
         public DbSet<SocialMediaEventPhoto> SocialMediaEventPhotos => Set<SocialMediaEventPhoto>();
 
@@ -426,6 +427,34 @@ namespace ProjectManagement.Data
                         CreatedByUserId = "system",
                         RowVersion = new Guid("6b1a659c-f4cb-4c90-8a36-8ff6b9355e7d").ToByteArray()
                     });
+            });
+
+            builder.Entity<SocialMediaPlatform>(e =>
+            {
+                ConfigureRowVersion(e);
+                e.ToTable("SocialMediaPlatforms");
+                e.Property(x => x.Name).HasMaxLength(128).IsRequired();
+                e.HasIndex(x => x.Name).IsUnique();
+                e.Property(x => x.Description).HasMaxLength(512);
+                e.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.LastModifiedByUserId).HasMaxLength(450);
+                e.Property(x => x.IsActive).HasDefaultValue(true);
+                e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+
+                if (Database.IsNpgsql())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone");
+                    e.Property(x => x.LastModifiedAtUtc).HasColumnType("timestamp with time zone");
+                }
+
+                if (Database.IsSqlServer())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else if (!Database.IsNpgsql())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
             });
 
             builder.Entity<SocialMediaEvent>(e =>
