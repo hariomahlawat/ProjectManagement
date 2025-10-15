@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace ProjectManagement.Data.Migrations
 {
     /// <inheritdoc />
-    public partial class UpdateProjectTotRequestSubmittedBy : Migration
+    public partial class TotTrackerSubmittedByRequired : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
