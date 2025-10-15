@@ -1745,7 +1745,7 @@ using (var scope = app.Services.CreateScope())
                 await maintenanceConnection.OpenAsync();
                 await using (var maintenanceCommand = maintenanceConnection.CreateCommand())
                 {
-                    maintenanceCommand.CommandText = "select to_regclass('""ProjectStages""') is not null";
+                    maintenanceCommand.CommandText = @"select to_regclass('""ProjectStages""') is not null";
                     var maintenanceResult = await maintenanceCommand.ExecuteScalarAsync();
                     projectStagesExists = maintenanceResult is bool exists && exists;
                 }
@@ -1760,74 +1760,74 @@ using (var scope = app.Services.CreateScope())
 
         if (projectStagesExists)
         {
-            await db.Database.ExecuteSqlRawAsync("""
-                ALTER TABLE "ProjectStages"
-                ADD COLUMN IF NOT EXISTS "AutoCompletedFromCode" character varying(16);
-            """);
-            await db.Database.ExecuteSqlRawAsync("""
-                ALTER TABLE "ProjectStages"
-                ADD COLUMN IF NOT EXISTS "IsAutoCompleted" boolean NOT NULL DEFAULT FALSE;
-            """);
-            await db.Database.ExecuteSqlRawAsync("""
-                ALTER TABLE "ProjectStages"
-                ADD COLUMN IF NOT EXISTS "RequiresBackfill" boolean NOT NULL DEFAULT FALSE;
-            """);
-            await db.Database.ExecuteSqlRawAsync("""
-                UPDATE "ProjectStages"
-                SET "IsAutoCompleted" = FALSE
-                WHERE "IsAutoCompleted" IS NULL;
-            """);
-            await db.Database.ExecuteSqlRawAsync("""
-                UPDATE "ProjectStages"
-                SET "RequiresBackfill" = FALSE
-                WHERE "RequiresBackfill" IS NULL;
-            """);
-            await db.Database.ExecuteSqlRawAsync("""
-                ALTER TABLE "ProjectStages"
-                ALTER COLUMN "IsAutoCompleted" SET DEFAULT FALSE;
-            """);
-            await db.Database.ExecuteSqlRawAsync("""
-                ALTER TABLE "ProjectStages"
-                ALTER COLUMN "RequiresBackfill" SET DEFAULT FALSE;
-            """);
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE ""ProjectStages""
+                ADD COLUMN IF NOT EXISTS ""AutoCompletedFromCode"" character varying(16);
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE ""ProjectStages""
+                ADD COLUMN IF NOT EXISTS ""IsAutoCompleted"" boolean NOT NULL DEFAULT FALSE;
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE ""ProjectStages""
+                ADD COLUMN IF NOT EXISTS ""RequiresBackfill"" boolean NOT NULL DEFAULT FALSE;
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                UPDATE ""ProjectStages""
+                SET ""IsAutoCompleted"" = FALSE
+                WHERE ""IsAutoCompleted"" IS NULL;
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                UPDATE ""ProjectStages""
+                SET ""RequiresBackfill"" = FALSE
+                WHERE ""RequiresBackfill"" IS NULL;
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE ""ProjectStages""
+                ALTER COLUMN ""IsAutoCompleted"" SET DEFAULT FALSE;
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE ""ProjectStages""
+                ALTER COLUMN ""RequiresBackfill"" SET DEFAULT FALSE;
+            ");
         }
 
         if (db.Database.IsNpgsql())
         {
-            await db.Database.ExecuteSqlRawAsync("""
-                ALTER TABLE "SocialMediaEvents"
-                DROP COLUMN IF EXISTS "Reach";
-            """);
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE ""SocialMediaEvents""
+                DROP COLUMN IF EXISTS ""Reach"";
+            ");
         }
         else if (db.Database.IsSqlServer())
         {
-            await db.Database.ExecuteSqlRawAsync("""
+            await db.Database.ExecuteSqlRawAsync(@"
                 IF COL_LENGTH(N'dbo.SocialMediaEvents', 'Reach') IS NOT NULL
                 BEGIN
                     ALTER TABLE [dbo].[SocialMediaEvents] DROP COLUMN [Reach];
                 END
-            """);
+            ");
         }
 
         if (projectStagesExists)
         {
-            await db.Database.ExecuteSqlRawAsync("""
-                ALTER TABLE "ProjectStages"
-                ALTER COLUMN "ActualStart" DROP NOT NULL;
-            """);
-            await db.Database.ExecuteSqlRawAsync("""
-                ALTER TABLE "ProjectStages"
-                ALTER COLUMN "CompletedOn" DROP NOT NULL;
-            """);
-            await db.Database.ExecuteSqlRawAsync("""
-                ALTER TABLE "ProjectStages"
-                DROP CONSTRAINT IF EXISTS "CK_ProjectStages_CompletedHasDate";
-            """);
-            await db.Database.ExecuteSqlRawAsync("""
-                ALTER TABLE "ProjectStages"
-                ADD CONSTRAINT "CK_ProjectStages_CompletedHasDate"
-                CHECK ("Status" <> 'Completed' OR ("CompletedOn" IS NOT NULL AND "ActualStart" IS NOT NULL) OR "RequiresBackfill" IS TRUE);
-            """);
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE ""ProjectStages""
+                ALTER COLUMN ""ActualStart"" DROP NOT NULL;
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE ""ProjectStages""
+                ALTER COLUMN ""CompletedOn"" DROP NOT NULL;
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE ""ProjectStages""
+                DROP CONSTRAINT IF EXISTS ""CK_ProjectStages_CompletedHasDate"";
+            ");
+            await db.Database.ExecuteSqlRawAsync(@"
+                ALTER TABLE ""ProjectStages""
+                ADD CONSTRAINT ""CK_ProjectStages_CompletedHasDate""
+                CHECK (""Status"" <> 'Completed' OR (""CompletedOn"" IS NOT NULL AND ""ActualStart"" IS NOT NULL) OR ""RequiresBackfill"" IS TRUE);
+            ");
         }
         var migrations = await db.Database.GetAppliedMigrationsAsync();
         if (!migrations.Contains("20250909153316_UseXminForTodoItem"))
