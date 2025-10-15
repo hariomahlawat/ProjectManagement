@@ -18,10 +18,10 @@
 }
 
 .social-hero--compact {
-  padding: 2rem clamp(1.25rem, 2vw + 1rem, 3rem);
+  padding: 1.375rem clamp(1.25rem, 2vw + 1rem, 3rem);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1.75rem;
+  gap: 1.25rem;
 }
 
 .social-hero--compact .social-hero__stats {
@@ -29,14 +29,14 @@
 }
 
 .social-hero--compact .social-stat-card {
-  padding: 1rem 1.25rem;
+  padding: 1rem;
 }
 
 @media (min-width: 768px) {
   .social-hero--compact {
     grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
     align-items: center;
-    gap: 2.5rem;
+    gap: 2rem;
   }
 
   .social-hero--compact .social-hero__stats {
@@ -120,7 +120,7 @@
   background: rgba(19, 28, 63, 0.45);
   backdrop-filter: blur(6px);
   border-radius: 1rem;
-  padding: 1.25rem 1.5rem;
+  padding: 1rem;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
   display: flex;
   flex-direction: column;
@@ -135,7 +135,7 @@
 }
 
 .social-stat-card__value {
-  font-size: 1.75rem;
+  font-size: var(--pm-font-size-2xl);
   font-weight: 700;
 }
 
