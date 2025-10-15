@@ -5,11 +5,22 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
 
 public sealed class SocialMediaPhotoOptions
 {
+    private int? _minWidth;
+    private int? _minHeight;
+
     public long MaxFileSizeBytes { get; set; } = 5 * 1024 * 1024;
 
-    public int MinWidth { get; set; } = 1080;
+    public int? MinWidth
+    {
+        get => _minWidth;
+        set => _minWidth = NormalizeMinimum(value);
+    }
 
-    public int MinHeight { get; set; } = 1080;
+    public int? MinHeight
+    {
+        get => _minHeight;
+        set => _minHeight = NormalizeMinimum(value);
+    }
 
     public HashSet<string> AllowedContentTypes { get; set; } = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -26,6 +37,16 @@ public sealed class SocialMediaPhotoOptions
     };
 
     public string StoragePrefix { get; set; } = "org/social/{eventId}";
+
+    private static int? NormalizeMinimum(int? value)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        return value > 0 ? value : null;
+    }
 }
 
 public sealed class SocialMediaPhotoDerivativeOptions
