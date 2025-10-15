@@ -1342,6 +1342,7 @@ namespace ProjectManagement.Data.Migrations
                         .HasColumnType("character varying(32)");
 
                     b.Property<string>("SubmittedByUserId")
+                        .IsRequired()
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
 
@@ -2539,6 +2540,13 @@ namespace ProjectManagement.Data.Migrations
                     b.Property<DateOnly?>("CompletedOn")
                         .HasColumnType("date");
 
+                    b.Property<string>("LastApprovedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTime?>("LastApprovedOnUtc")
+                        .HasColumnType("timestamp without time zone");
+
                     b.Property<int>("ProjectId")
                         .HasColumnType("integer");
 
@@ -2560,6 +2568,72 @@ namespace ProjectManagement.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("ProjectTots");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectTotRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("DecidedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTime?>("DecidedOnUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("DecisionRemarks")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("DecisionState")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateOnly?>("ProposedCompletedOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ProposedRemarks")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateOnly?>("ProposedStartedOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ProposedStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("SubmittedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTime>("SubmittedOnUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DecidedByUserId");
+
+                    b.HasIndex("ProjectId")
+                        .IsUnique();
+
+                    b.HasIndex("SubmittedByUserId");
+
+                    b.ToTable("ProjectTotRequests");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectVideo", b =>
@@ -4142,7 +4216,37 @@ namespace ProjectManagement.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "LastApprovedByUser")
+                        .WithMany()
+                        .HasForeignKey("LastApprovedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Project");
+                    b.Navigation("LastApprovedByUser");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectTotRequest", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "DecidedByUser")
+                        .WithMany()
+                        .HasForeignKey("DecidedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ProjectManagement.Models.Project", "Project")
+                        .WithOne("TotRequest")
+                        .HasForeignKey("ProjectManagement.Models.ProjectTotRequest", "ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "SubmittedByUser")
+                        .WithMany()
+                        .HasForeignKey("SubmittedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DecidedByUser");
+                    b.Navigation("Project");
+                    b.Navigation("SubmittedByUser");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectVideo", b =>
@@ -4335,6 +4439,8 @@ namespace ProjectManagement.Data.Migrations
                     b.Navigation("ProjectStages");
 
                     b.Navigation("Tot");
+
+                    b.Navigation("TotRequest");
 
                     b.Navigation("Videos");
                 });

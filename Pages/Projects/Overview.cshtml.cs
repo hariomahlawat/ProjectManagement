@@ -168,6 +168,11 @@ namespace ProjectManagement.Pages.Projects
                 .Include(p => p.Photos)
                 .Include(p => p.Videos)
                 .Include(p => p.Tot)
+                    .ThenInclude(t => t.LastApprovedByUser)
+                .Include(p => p.TotRequest)
+                    .ThenInclude(r => r.SubmittedByUser)
+                .Include(p => p.TotRequest)
+                    .ThenInclude(r => r.DecidedByUser)
                 .FirstOrDefaultAsync(p => p.Id == id, ct);
 
             if (project is null)
@@ -346,7 +351,7 @@ namespace ProjectManagement.Pages.Projects
 
             LifecycleSummary = BuildLifecycleSummary(project);
             RemarkSummary = await LoadRemarkSummaryAsync(project.Id, ct);
-            TotSummary = BuildTotSummary(project.Tot);
+            TotSummary = BuildTotSummary(project);
             MediaSummary = BuildMediaSummary();
 
             AvailableMediaTotIds = availableTotIds.ToArray();
@@ -979,8 +984,9 @@ namespace ProjectManagement.Pages.Projects
             return string.Concat(trimmed.AsSpan(0, limit), "…");
         }
 
-        private ProjectTotSummaryViewModel BuildTotSummary(ProjectTot? tot)
+        private ProjectTotSummaryViewModel BuildTotSummary(Project project)
         {
+            var tot = project.Tot;
             if (tot is null)
             {
                 return new ProjectTotSummaryViewModel
@@ -988,7 +994,8 @@ namespace ProjectManagement.Pages.Projects
                     HasTotRecord = false,
                     Status = ProjectTotStatus.NotStarted,
                     StatusLabel = "Not tracked",
-                    Summary = "Transfer of Technology tracking has not been configured for this project."
+                    Summary = "Transfer of Technology tracking has not been configured for this project.",
+                    PendingRequest = BuildTotRequestSummary(project.TotRequest)
                 };
             }
 
@@ -1004,6 +1011,18 @@ namespace ProjectManagement.Pages.Projects
             {
                 var completed = tot.CompletedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
                 facts.Add(new ProjectTotSummaryViewModel.TotFact("Completed on", completed));
+            }
+
+            if (tot.LastApprovedOnUtc.HasValue && !string.IsNullOrWhiteSpace(tot.LastApprovedByUserId))
+            {
+                var approver = tot.LastApprovedByUser?.FullName;
+                var approverDisplay = string.IsNullOrWhiteSpace(approver) ? tot.LastApprovedByUserId : approver;
+                var approvedOn = TimeZoneInfo.ConvertTimeFromUtc(
+                    DateTime.SpecifyKind(tot.LastApprovedOnUtc.Value, DateTimeKind.Utc),
+                    TimeZoneHelper.GetIst());
+                facts.Add(new ProjectTotSummaryViewModel.TotFact(
+                    "Approved",
+                    string.Format(CultureInfo.InvariantCulture, "{0} on {1:dd MMM yyyy HH:mm}", approverDisplay, approvedOn)));
             }
 
             var summary = tot.Status switch
@@ -1033,8 +1052,60 @@ namespace ProjectManagement.Pages.Projects
                 },
                 Summary = summary,
                 Remarks = string.IsNullOrWhiteSpace(tot.Remarks) ? null : tot.Remarks,
-                Facts = facts
+                Facts = facts,
+                LastApprovedBy = string.IsNullOrWhiteSpace(tot.LastApprovedByUser?.FullName)
+                    ? tot.LastApprovedByUserId
+                    : tot.LastApprovedByUser!.FullName,
+                LastApprovedOnUtc = tot.LastApprovedOnUtc,
+                PendingRequest = BuildTotRequestSummary(project.TotRequest)
             };
+        }
+
+        private static ProjectTotSummaryViewModel.TotRequestSummary? BuildTotRequestSummary(ProjectTotRequest? request)
+        {
+            if (request is null)
+            {
+                return null;
+            }
+
+            var stateLabel = request.DecisionState switch
+            {
+                ProjectTotRequestDecisionState.Pending => "Pending approval",
+                ProjectTotRequestDecisionState.Approved => "Approved",
+                ProjectTotRequestDecisionState.Rejected => "Rejected",
+                _ => request.DecisionState.ToString()
+            };
+
+            var proposedStatusLabel = request.ProposedStatus switch
+            {
+                ProjectTotStatus.NotRequired => "Not required",
+                ProjectTotStatus.NotStarted => "Not started",
+                ProjectTotStatus.InProgress => "In progress",
+                ProjectTotStatus.Completed => "Completed",
+                _ => request.ProposedStatus.ToString()
+            };
+
+            var submittedBy = string.IsNullOrWhiteSpace(request.SubmittedByUser?.FullName)
+                ? request.SubmittedByUserId
+                : request.SubmittedByUser!.FullName;
+
+            var decidedBy = string.IsNullOrWhiteSpace(request.DecidedByUser?.FullName)
+                ? request.DecidedByUserId
+                : request.DecidedByUser!.FullName;
+
+            return new ProjectTotSummaryViewModel.TotRequestSummary(
+                request.DecisionState,
+                stateLabel,
+                request.ProposedStatus,
+                proposedStatusLabel,
+                request.ProposedStartedOn,
+                request.ProposedCompletedOn,
+                string.IsNullOrWhiteSpace(request.ProposedRemarks) ? null : request.ProposedRemarks,
+                submittedBy ?? string.Empty,
+                request.SubmittedOnUtc,
+                decidedBy,
+                request.DecidedOnUtc,
+                string.IsNullOrWhiteSpace(request.DecisionRemarks) ? null : request.DecisionRemarks);
         }
 
         private IReadOnlyList<ProjectDocumentFilterOptionViewModel> BuildStageFilters(

@@ -131,6 +131,8 @@ namespace ProjectManagement.Models
 
         public ProjectTot? Tot { get; set; }
 
+        public ProjectTotRequest? TotRequest { get; set; }
+
         [NotMapped]
         public ProjectPhoto? CoverPhoto => CoverPhotoId.HasValue
             ? Photos.FirstOrDefault(p => p.Id == CoverPhotoId.Value)

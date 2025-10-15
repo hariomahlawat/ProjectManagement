@@ -129,6 +129,12 @@ builder.Services.AddAuthorization(options =>
         policy.RequireProjectOfficeManager());
     options.AddPolicy(ProjectOfficeReportsPolicies.ManageSocialMediaEvents, policy =>
         policy.RequireProjectOfficeManager());
+    options.AddPolicy(ProjectOfficeReportsPolicies.ViewTotTracker, policy =>
+        policy.RequireProjectOfficeManager());
+    options.AddPolicy(ProjectOfficeReportsPolicies.ManageTotTracker, policy =>
+        policy.RequireTotTrackerSubmitter());
+    options.AddPolicy(ProjectOfficeReportsPolicies.ApproveTotTracker, policy =>
+        policy.RequireTotTrackerApprover());
 });
 
 builder.Services.ConfigureApplicationCookie(opt =>
@@ -203,6 +209,7 @@ builder.Services.AddScoped<ProjectProcurementReadService>();
 builder.Services.AddScoped<ProjectTimelineReadService>();
 builder.Services.AddScoped<ProjectLifecycleService>();
 builder.Services.AddScoped<ProjectTotService>();
+builder.Services.AddScoped<ProjectTotTrackerReadService>();
 builder.Services.AddScoped<ProjectCommentService>();
 builder.Services.AddScoped<ProjectRemarksPanelService>();
 builder.Services.AddScoped<ProjectMediaAggregator>();

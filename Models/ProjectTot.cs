@@ -29,5 +29,12 @@ namespace ProjectManagement.Models
 
         [MaxLength(2000)]
         public string? Remarks { get; set; }
+
+        [MaxLength(450)]
+        public string? LastApprovedByUserId { get; set; }
+
+        public ApplicationUser? LastApprovedByUser { get; set; }
+
+        public DateTime? LastApprovedOnUtc { get; set; }
     }
 }
