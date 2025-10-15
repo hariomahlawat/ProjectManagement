@@ -146,7 +146,7 @@ public sealed class SocialMediaPdfReportBuilder : ISocialMediaPdfReportBuilder
         var description = section.Description;
         var coverPhoto = section.CoverPhoto;
         var typeName = section.EventTypeName;
-        var title = section.Title;
+        var sectionTitle = section.Title;
 
         container
             .Border(1)
@@ -178,7 +178,7 @@ public sealed class SocialMediaPdfReportBuilder : ISocialMediaPdfReportBuilder
                                 text.DefaultTextStyle(style => style.FontSize(11));
                                 text.Span(dateText).FontColor("#475569");
                                 text.Span("  •  ");
-                                text.Span(title).SemiBold();
+                                text.Span(sectionTitle).SemiBold();
                             });
                         });
 
