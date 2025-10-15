@@ -1,4 +1,5 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -6,6 +7,8 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace ProjectManagement.Data.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(ProjectManagement.Data.ApplicationDbContext))]
+    [Migration("20251101090000_AddSocialMediaPlatforms")]
     public partial class AddSocialMediaPlatforms : Migration
     {
         /// <inheritdoc />
