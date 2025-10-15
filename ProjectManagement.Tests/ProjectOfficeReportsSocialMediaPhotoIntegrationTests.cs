@@ -55,7 +55,6 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
             dateOfEvent: new DateOnly(2024, 6, 14),
             title: "Integration test",
             platform: "Instagram",
-            reach: 400,
             description: "Test coverage.",
             timestamp: now,
             createdByUserId: "creator");
@@ -155,7 +154,6 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
             dateOfEvent: new DateOnly(2024, 7, 1),
             title: "Smaller asset upload",
             platform: "Instagram",
-            reach: 250,
             description: "Verifies relaxed size guard.",
             timestamp: now,
             createdByUserId: "creator");
@@ -242,9 +240,8 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
             eventType.Id,
             id: Guid.NewGuid(),
             dateOfEvent: new DateOnly(2024, 6, 30),
-            title: "Community meet", 
+            title: "Community meet",
             platform: "YouTube",
-            reach: 900,
             description: "Highlights",
             timestamp: now,
             createdByUserId: "creator");
@@ -345,7 +342,6 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
             dateOfEvent: new DateOnly(2024, 8, 4),
             title: "Prefix regression",
             platform: "Threads",
-            reach: 123,
             description: "Verifies stored keys",
             timestamp: now,
             createdByUserId: "creator");
@@ -458,7 +454,6 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
             dateOfEvent: new DateOnly(2024, 8, 31),
             title: "Delete from page",
             platform: "Instagram",
-            reach: 500,
             description: "Ensures deletion cleans up assets.",
             timestamp: now,
             createdByUserId: "creator");

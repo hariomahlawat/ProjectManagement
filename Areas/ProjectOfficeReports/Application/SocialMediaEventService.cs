@@ -56,7 +56,6 @@ public sealed class SocialMediaEventService
                 x.SocialMediaEventType!.Name,
                 x.SocialMediaEventType.IsActive,
                 x.Platform,
-                x.Reach,
                 x.Photos.Count,
                 x.CoverPhotoId,
                 x.CreatedAtUtc,
@@ -84,7 +83,6 @@ public sealed class SocialMediaEventService
                 x.SocialMediaEventType!.Name,
                 x.Title,
                 x.Platform,
-                x.Reach,
                 x.Photos.Count,
                 x.CoverPhotoId.HasValue,
                 x.Description));
@@ -111,7 +109,6 @@ public sealed class SocialMediaEventService
                 x.SocialMediaEventType!.Name,
                 x.Title,
                 x.Platform,
-                x.Reach,
                 x.Photos.Count,
                 x.Description,
                 x.CoverPhotoId))
@@ -147,7 +144,6 @@ public sealed class SocialMediaEventService
         DateOnly dateOfEvent,
         string title,
         string? platform,
-        int reach,
         string? description,
         string createdByUserId,
         CancellationToken cancellationToken)
@@ -155,11 +151,6 @@ public sealed class SocialMediaEventService
         if (string.IsNullOrWhiteSpace(title))
         {
             return SocialMediaEventMutationResult.Invalid("Title is required.");
-        }
-
-        if (reach < 0)
-        {
-            return SocialMediaEventMutationResult.Invalid("Reach cannot be negative.");
         }
 
         var trimmedTitle = title.Trim();
@@ -185,7 +176,6 @@ public sealed class SocialMediaEventService
             DateOfEvent = dateOfEvent,
             Title = trimmedTitle,
             Platform = trimmedPlatform,
-            Reach = reach,
             Description = trimmedDescription,
             CreatedAtUtc = now,
             CreatedByUserId = createdByUserId,
@@ -205,7 +195,6 @@ public sealed class SocialMediaEventService
         DateOnly dateOfEvent,
         string title,
         string? platform,
-        int reach,
         string? description,
         byte[] rowVersion,
         string modifiedByUserId,
@@ -216,11 +205,6 @@ public sealed class SocialMediaEventService
         if (string.IsNullOrWhiteSpace(title))
         {
             return SocialMediaEventMutationResult.Invalid("Title is required.");
-        }
-
-        if (reach < 0)
-        {
-            return SocialMediaEventMutationResult.Invalid("Reach cannot be negative.");
         }
 
         var trimmedTitle = title.Trim();
@@ -250,7 +234,6 @@ public sealed class SocialMediaEventService
         entity.DateOfEvent = dateOfEvent;
         entity.Title = trimmedTitle;
         entity.Platform = trimmedPlatform;
-        entity.Reach = reach;
         entity.Description = trimmedDescription;
         entity.LastModifiedAtUtc = _clock.UtcNow;
         entity.LastModifiedByUserId = modifiedByUserId;
@@ -408,7 +391,6 @@ public sealed record SocialMediaEventListItem(
     string EventTypeName,
     bool EventTypeIsActive,
     string? Platform,
-    int Reach,
     int PhotoCount,
     Guid? CoverPhotoId,
     DateTimeOffset CreatedAtUtc,
@@ -420,7 +402,6 @@ public sealed record SocialMediaEventExportRow(
     string EventTypeName,
     string Title,
     string? Platform,
-    int Reach,
     int PhotoCount,
     bool HasCoverPhoto,
     string? Description);
@@ -431,7 +412,6 @@ public sealed record SocialMediaEventPdfExportRow(
     string EventTypeName,
     string Title,
     string? Platform,
-    int Reach,
     int PhotoCount,
     string? Description,
     Guid? CoverPhotoId);

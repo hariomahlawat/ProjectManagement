@@ -16,7 +16,6 @@
     }
 
     var totalEvents = Model.Events.Count;
-    var totalReach = Model.Events.Sum(e => e.Reach);
     var coveredEvents = Model.Events.Count(e => e.CoverPhotoId.HasValue);
     var photoCount = Model.Events.Sum(e => e.PhotoCount);
 }
@@ -35,7 +34,7 @@
         <div class="social-hero__content">
             <span class="social-hero__eyebrow">Project office reports</span>
             <h1 class="social-hero__title">Social media storytelling</h1>
-            <p class="social-hero__subtitle">Track events amplified on social media, capture reach, and curate gallery-ready imagery for rapid exports.</p>
+            <p class="social-hero__subtitle">Track events amplified on social media and curate gallery-ready imagery for rapid exports.</p>
             <div class="social-hero__actions">
                 @if (Model.CanManage)
                 {
@@ -87,10 +86,6 @@
             <div class="social-stat-card">
                 <span class="social-stat-card__label">Events in view</span>
                 <span class="social-stat-card__value">@totalEvents</span>
-            </div>
-            <div class="social-stat-card">
-                <span class="social-stat-card__label">Total reach</span>
-                <span class="social-stat-card__value">@totalReach</span>
             </div>
             <div class="social-stat-card">
                 <span class="social-stat-card__label">Cover-ready stories</span>
@@ -175,7 +170,6 @@
                             <th scope="col">Title</th>
                             <th scope="col">Type</th>
                             <th scope="col">Platform</th>
-                            <th scope="col" class="text-end">Reach</th>
                             <th scope="col" class="text-end">Photos</th>
                             <th scope="col" class="text-end">Actions</th>
                         </tr>
@@ -194,7 +188,6 @@
                                 </td>
                                 <td data-title="Type">@item.EventTypeName</td>
                                 <td data-title="Platform">@(string.IsNullOrWhiteSpace(item.Platform) ? "-" : item.Platform)</td>
-                                <td data-title="Reach" class="text-end">@item.Reach</td>
                                 <td data-title="Photos" class="text-end">@item.PhotoCount</td>
                                 <td class="text-end">
                                     <div class="btn-group" role="group">

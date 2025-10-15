@@ -49,7 +49,6 @@ public sealed class SocialMediaExcelWorkbookBuilder : ISocialMediaExcelWorkbookB
             "Event type",
             "Campaign title",
             "Platform",
-            "Reach",
             "Photo count",
             "Has cover photo",
             "Description"
@@ -81,24 +80,23 @@ public sealed class SocialMediaExcelWorkbookBuilder : ISocialMediaExcelWorkbookB
             worksheet.Cell(rowNumber, 3).Value = row.EventTypeName;
             worksheet.Cell(rowNumber, 4).Value = row.Title;
             worksheet.Cell(rowNumber, 5).Value = row.Platform ?? string.Empty;
-            worksheet.Cell(rowNumber, 6).Value = row.Reach;
-            worksheet.Cell(rowNumber, 7).Value = row.PhotoCount;
-            worksheet.Cell(rowNumber, 8).Value = row.HasCoverPhoto ? "Yes" : "No";
-            worksheet.Cell(rowNumber, 9).Value = row.Description ?? string.Empty;
+            worksheet.Cell(rowNumber, 6).Value = row.PhotoCount;
+            worksheet.Cell(rowNumber, 7).Value = row.HasCoverPhoto ? "Yes" : "No";
+            worksheet.Cell(rowNumber, 8).Value = row.Description ?? string.Empty;
         }
 
         worksheet.Column(4).Style.Alignment.WrapText = true;
-        worksheet.Column(9).Style.Alignment.WrapText = true;
+        worksheet.Column(8).Style.Alignment.WrapText = true;
         worksheet.Columns(4, 5).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
-        worksheet.Column(9).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+        worksheet.Column(8).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
     }
 
     private static void ApplyMetadata(IXLWorksheet worksheet, SocialMediaExcelWorkbookContext context)
     {
         var lastRow = Math.Max(2, context.Rows.Count + 1);
-        worksheet.Columns(1, 9).AdjustToContents(1, lastRow);
+        worksheet.Columns(1, 8).AdjustToContents(1, lastRow);
 
-        foreach (var column in worksheet.Columns(1, 9))
+        foreach (var column in worksheet.Columns(1, 8))
         {
             if (column.Width > 60)
             {
@@ -107,7 +105,7 @@ public sealed class SocialMediaExcelWorkbookBuilder : ISocialMediaExcelWorkbookB
         }
 
         worksheet.Column(4).Width = Math.Min(worksheet.Column(4).Width, 50);
-        worksheet.Column(9).Width = Math.Min(worksheet.Column(9).Width, 70);
+        worksheet.Column(8).Width = Math.Min(worksheet.Column(8).Width, 70);
 
         var metadataRow = context.Rows.Count + 3;
         var generatedAtIst = TimeZoneInfo.ConvertTime(context.GeneratedAtUtc, TimeZoneHelper.GetIst());

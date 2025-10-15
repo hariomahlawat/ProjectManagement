@@ -27,7 +27,6 @@ public sealed record SocialMediaPdfReportSection(
     string EventTypeName,
     string Title,
     string? Platform,
-    int Reach,
     int PhotoCount,
     string? Description,
     byte[]? CoverPhoto);
@@ -144,7 +143,6 @@ public sealed class SocialMediaPdfReportBuilder : ISocialMediaPdfReportBuilder
     {
         var dateText = section.DateOfEvent.ToString("dd MMMM yyyy", CultureInfo.InvariantCulture);
         var platformText = string.IsNullOrWhiteSpace(section.Platform) ? "(not recorded)" : section.Platform;
-        var reachText = section.Reach.ToString(CultureInfo.InvariantCulture);
         var photoCountText = section.PhotoCount.ToString(CultureInfo.InvariantCulture);
         var description = section.Description;
         var coverPhoto = section.CoverPhoto;
@@ -189,7 +187,6 @@ public sealed class SocialMediaPdfReportBuilder : ISocialMediaPdfReportBuilder
                         {
                             details.Spacing(6);
                             details.Item().Element(c => ComposeMetric(c, "Platform", platformText));
-                            details.Item().Element(c => ComposeMetric(c, "Reach", reachText));
                             details.Item().Element(c => ComposeMetric(c, "Photos captured", photoCountText));
                         });
                     });

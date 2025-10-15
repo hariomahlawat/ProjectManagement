@@ -191,9 +191,6 @@ namespace ProjectManagement.Data.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
-                    b.Property<int>("Reach")
-                        .HasColumnType("integer");
-
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
                         .IsRequired()
