@@ -93,7 +93,9 @@
                     _ => "secondary"
                 };
                 var ist = TimeZoneHelper.GetIst();
-                var submittedOnLocal = TimeZoneInfo.ConvertTimeFromUtc(request.SubmittedOnUtc, ist);
+                var submittedOnLocal = TimeZoneInfo.ConvertTimeFromUtc(
+                    DateTime.SpecifyKind(request.SubmittedOnUtc, DateTimeKind.Utc),
+                    ist);
                 DateTime? decidedOnLocal = request.DecidedOnUtc.HasValue
                     ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(request.DecidedOnUtc.Value, DateTimeKind.Utc), ist)
                     : null;
