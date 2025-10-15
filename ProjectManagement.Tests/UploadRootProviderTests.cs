@@ -106,7 +106,7 @@ public sealed class UploadRootProviderTests
 
         Assert.True(Directory.Exists(socialRoot));
         Assert.StartsWith(provider.RootPath, socialRoot);
-        Assert.True(socialRoot.EndsWith(Path.Combine("org", "social", eventId.ToString("D")), StringComparison.OrdinalIgnoreCase));
+        Assert.EndsWith(Path.Combine("org", "social", eventId.ToString("D")), socialRoot, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

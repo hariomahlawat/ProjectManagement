@@ -1073,9 +1073,10 @@ namespace ProjectManagement.Data
                     static date => DateOnly.FromDayNumber(date.DayNumber));
 
                 var nullableDateOnlyComparer = new ValueComparer<DateOnly?>(
-                    static (left, right) =>
-                        left.HasValue == right.HasValue &&
-                        (!left.HasValue || left.Value.DayNumber == right.Value.DayNumber),
+                static (left, right) =>
+                    left.HasValue && right.HasValue
+                        ? left.Value.DayNumber == right.Value.DayNumber
+                        : left.HasValue == right.HasValue,
                     static date => date.HasValue ? date.Value.GetHashCode() : 0,
                     static date => date.HasValue ? DateOnly.FromDayNumber(date.Value.DayNumber) : (DateOnly?)null);
 

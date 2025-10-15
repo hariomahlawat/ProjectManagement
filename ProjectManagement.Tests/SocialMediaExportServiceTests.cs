@@ -110,7 +110,8 @@ public sealed class SocialMediaExportServiceTests
         var result = await exportService.ExportAsync(request, CancellationToken.None);
 
         Assert.True(result.Success);
-        var file = Assert.NotNull(result.File);
+        Assert.NotNull(result.File);
+        var file = result.File!;
         Assert.Equal("social-media-events-20240401-to-20240430-20240501T083000Z.xlsx", file.FileName);
         Assert.Equal(SocialMediaExportFile.ExcelContentType, file.ContentType);
         Assert.NotEmpty(file.Content);
@@ -120,8 +121,12 @@ public sealed class SocialMediaExportServiceTests
         var worksheet = workbook.Worksheet(1);
 
         Assert.Equal("Social Media Events", worksheet.Name);
-        Assert.Equal(8, worksheet.LastColumnUsed().ColumnNumber());
-        Assert.Equal(2, worksheet.LastRowUsed().RowNumber());
+        var lastColumn = worksheet.LastColumnUsed();
+        Assert.NotNull(lastColumn);
+        Assert.Equal(8, lastColumn!.ColumnNumber());
+        var lastRow = worksheet.LastRowUsed();
+        Assert.NotNull(lastRow);
+        Assert.Equal(2, lastRow!.RowNumber());
 
         Assert.Equal(1, worksheet.Cell(2, 1).GetValue<int>());
         Assert.Equal(new DateTime(2024, 4, 18), worksheet.Cell(2, 2).GetDateTime().Date);
@@ -210,12 +215,14 @@ public sealed class SocialMediaExportServiceTests
         var result = await exportService.ExportPdfAsync(request, CancellationToken.None);
 
         Assert.True(result.Success);
-        var file = Assert.NotNull(result.File);
+        Assert.NotNull(result.File);
+        var file = result.File!;
         Assert.Equal("social-media-events-20240401-to-20240430-20240501T094500Z.pdf", file.FileName);
         Assert.Equal(SocialMediaExportFile.PdfContentType, file.ContentType);
         Assert.NotEmpty(file.Content);
 
-        var contextSnapshot = Assert.NotNull(pdfBuilder.CapturedContext);
+        Assert.NotNull(pdfBuilder.CapturedContext);
+        var contextSnapshot = pdfBuilder.CapturedContext!;
         Assert.Single(contextSnapshot.Sections);
         var section = contextSnapshot.Sections[0];
         Assert.Equal(socialEvent.Id, section.EventId);
@@ -224,7 +231,7 @@ public sealed class SocialMediaExportServiceTests
         Assert.Equal("YouTube", section.Platform);
         Assert.Equal("Workshop recap and highlights.", section.Description);
         Assert.Equal(coverBytes, section.CoverPhoto);
-        Assert.Equal(1, photoService.OpenRequests.Count);
+        Assert.Single(photoService.OpenRequests);
         Assert.Equal((socialEvent.Id, photoId, "feed"), photoService.OpenRequests[0]);
 
         var entry = Assert.Single(audit.Entries);

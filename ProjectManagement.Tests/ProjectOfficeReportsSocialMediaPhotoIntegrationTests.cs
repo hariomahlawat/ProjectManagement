@@ -85,10 +85,12 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
 
             var uploadRoot = new TestUploadRootProvider(tempRoot);
             var clock = new TestClock(now.AddMinutes(5));
+            var audit = new RecordingAudit();
+            var platformService = new SocialMediaPlatformService(db, clock, audit);
             var photoService = new SocialMediaEventPhotoService(db, clock, photoOptions, uploadRoot, NullLogger<SocialMediaEventPhotoService>.Instance);
             var eventService = new SocialMediaEventService(db, clock, photoService);
             var userManager = CreateUserManager(db);
-            var page = new EditModel(eventService, photoService, userManager);
+            var page = new EditModel(eventService, platformService, photoService, userManager);
 
             ConfigurePageContext(page, CreatePrincipal("creator", "Admin"));
 
@@ -185,10 +187,12 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
 
             var uploadRoot = new TestUploadRootProvider(tempRoot);
             var clock = new TestClock(now.AddMinutes(10));
+            var audit = new RecordingAudit();
+            var platformService = new SocialMediaPlatformService(db, clock, audit);
             var photoService = new SocialMediaEventPhotoService(db, clock, photoOptions, uploadRoot, NullLogger<SocialMediaEventPhotoService>.Instance);
             var eventService = new SocialMediaEventService(db, clock, photoService);
             var userManager = CreateUserManager(db);
-            var page = new EditModel(eventService, photoService, userManager);
+            var page = new EditModel(eventService, platformService, photoService, userManager);
 
             ConfigurePageContext(page, CreatePrincipal("creator", "Admin"));
 
@@ -278,10 +282,12 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
 
             var uploadRoot = new TestUploadRootProvider(tempRoot);
             var clock = new TestClock(now.AddMinutes(5));
+            var audit = new RecordingAudit();
+            var platformService = new SocialMediaPlatformService(db, clock, audit);
             var photoService = new SocialMediaEventPhotoService(db, clock, photoOptions, uploadRoot, NullLogger<SocialMediaEventPhotoService>.Instance);
             var eventService = new SocialMediaEventService(db, clock, photoService);
             var userManager = CreateUserManager(db);
-            var page = new EditModel(eventService, photoService, userManager);
+            var page = new EditModel(eventService, platformService, photoService, userManager);
 
             ConfigurePageContext(page, CreatePrincipal("creator", "Admin"));
 
@@ -401,7 +407,8 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
                 CancellationToken.None);
 
             Assert.Equal(SocialMediaEventPhotoUploadOutcome.Success, uploadResult.Outcome);
-            var uploadedPhoto = Assert.NotNull(uploadResult.Photo);
+            Assert.NotNull(uploadResult.Photo);
+            var uploadedPhoto = uploadResult.Photo!;
 
             var persistedPhoto = await db.SocialMediaEventPhotos.AsNoTracking().SingleAsync(x => x.Id == uploadedPhoto.Id);
             var physicalFolder = Path.Combine(tempRoot, persistedPhoto.StorageKey.Replace('/', Path.DirectorySeparatorChar));
