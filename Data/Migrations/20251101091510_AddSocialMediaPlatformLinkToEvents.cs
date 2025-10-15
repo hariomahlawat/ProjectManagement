@@ -22,7 +22,7 @@ namespace ProjectManagement.Data.Migrations
                     type: "uuid",
                     nullable: true);
 
-                migrationBuilder.Sql(@"""
+                migrationBuilder.Sql("""
                     INSERT INTO "SocialMediaPlatforms" ("Id", "Name", "Description", "IsActive", "CreatedAtUtc", "CreatedByUserId", "RowVersion")
                     SELECT (
                             substring(md5('Unspecified') from 1 for 8) || '-' ||
@@ -42,7 +42,7 @@ namespace ProjectManagement.Data.Migrations
                     );
                 """);
 
-                migrationBuilder.Sql(@"""
+                migrationBuilder.Sql("""
                     INSERT INTO "SocialMediaPlatforms" ("Id", "Name", "Description", "IsActive", "CreatedAtUtc", "CreatedByUserId", "RowVersion")
                     SELECT platform_id, platform_name, NULL, TRUE, NOW() AT TIME ZONE 'utc', 'system-migration', decode(md5(random()::text), 'hex')
                     FROM (
@@ -68,7 +68,7 @@ namespace ProjectManagement.Data.Migrations
                     );
                 """);
 
-                migrationBuilder.Sql(@"""
+                migrationBuilder.Sql("""
                     UPDATE "SocialMediaEvents" e
                     SET "SocialMediaPlatformId" = p."Id"
                     FROM "SocialMediaPlatforms" p
@@ -76,7 +76,7 @@ namespace ProjectManagement.Data.Migrations
                         AND (e."SocialMediaPlatformId" IS NULL OR e."SocialMediaPlatformId" <> p."Id");
                 """);
 
-                migrationBuilder.Sql(@"""
+                migrationBuilder.Sql("""
                     UPDATE "SocialMediaEvents"
                     SET "SocialMediaPlatformId" = p."Id"
                     FROM "SocialMediaPlatforms" p
@@ -118,7 +118,7 @@ namespace ProjectManagement.Data.Migrations
                     type: "uniqueidentifier",
                     nullable: true);
 
-                migrationBuilder.Sql(@"""
+                migrationBuilder.Sql("""
                     IF NOT EXISTS (SELECT 1 FROM [SocialMediaPlatforms] WHERE [Name] = 'Unspecified')
                     BEGIN
                         INSERT INTO [SocialMediaPlatforms] ([Id], [Name], [Description], [IsActive], [CreatedAtUtc], [CreatedByUserId], [RowVersion])
@@ -126,7 +126,7 @@ namespace ProjectManagement.Data.Migrations
                     END;
                 """);
 
-                migrationBuilder.Sql(@"""
+                migrationBuilder.Sql("""
                     WITH DistinctPlatforms AS (
                         SELECT DISTINCT LTRIM(RTRIM([Platform])) AS [Name]
                         FROM [SocialMediaEvents]
@@ -137,7 +137,7 @@ namespace ProjectManagement.Data.Migrations
                     WHERE NOT EXISTS (SELECT 1 FROM [SocialMediaPlatforms] existing WHERE existing.[Name] = COALESCE(NULLIF(dp.[Name], ''), 'Unspecified'));
                 """);
 
-                migrationBuilder.Sql(@"""
+                migrationBuilder.Sql("""
                     UPDATE e
                     SET [SocialMediaPlatformId] = p.[Id]
                     FROM [SocialMediaEvents] e
@@ -178,7 +178,7 @@ namespace ProjectManagement.Data.Migrations
                     type: "TEXT",
                     nullable: true);
 
-                migrationBuilder.Sql(@"""
+                migrationBuilder.Sql("""
                     INSERT INTO "SocialMediaPlatforms" ("Id", "Name", "Description", "IsActive", "CreatedAtUtc", "CreatedByUserId", "RowVersion")
                     SELECT lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(6))), 'Unspecified', NULL, 1, CURRENT_TIMESTAMP, 'system-migration', randomblob(16)
                     WHERE NOT EXISTS (
@@ -186,7 +186,7 @@ namespace ProjectManagement.Data.Migrations
                     );
                 """);
 
-                migrationBuilder.Sql(@"""
+                migrationBuilder.Sql("""
                     INSERT INTO "SocialMediaPlatforms" ("Id", "Name", "Description", "IsActive", "CreatedAtUtc", "CreatedByUserId", "RowVersion")
                     SELECT
                         lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(6))),
@@ -205,7 +205,7 @@ namespace ProjectManagement.Data.Migrations
                     );
                 """);
 
-                migrationBuilder.Sql(@"""
+                migrationBuilder.Sql("""
                     UPDATE "SocialMediaEvents"
                     SET "SocialMediaPlatformId" = (
                         SELECT "Id"
@@ -255,7 +255,7 @@ namespace ProjectManagement.Data.Migrations
                     maxLength: 128,
                     nullable: true);
 
-                migrationBuilder.Sql(@"""
+                migrationBuilder.Sql("""
                     UPDATE "SocialMediaEvents" e
                     SET "Platform" = p."Name"
                     FROM "SocialMediaPlatforms" p
@@ -283,7 +283,7 @@ namespace ProjectManagement.Data.Migrations
                     maxLength: 128,
                     nullable: true);
 
-                migrationBuilder.Sql(@"""
+                migrationBuilder.Sql("""
                     UPDATE e
                     SET [Platform] = p.[Name]
                     FROM [SocialMediaEvents] e
@@ -310,7 +310,7 @@ namespace ProjectManagement.Data.Migrations
                     type: "TEXT",
                     nullable: true);
 
-                migrationBuilder.Sql(@"""
+                migrationBuilder.Sql("""
                     UPDATE "SocialMediaEvents"
                     SET "Platform" = (
                         SELECT "Name" FROM "SocialMediaPlatforms" WHERE "Id" = "SocialMediaPlatformId" LIMIT 1
