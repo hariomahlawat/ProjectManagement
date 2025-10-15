@@ -110,6 +110,7 @@ namespace ProjectManagement.Data
                     .HasConversion<string>()
                     .HasMaxLength(32)
                     .HasDefaultValue(ProjectLifecycleStatus.Active)
+                    .HasSentinel(ProjectLifecycleStatus.Active)
                     .IsRequired();
                 e.Property(x => x.IsLegacy).HasDefaultValue(false);
                 e.Property(x => x.CompletedOn).HasColumnType("date");
@@ -644,6 +645,7 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Status).HasConversion<string>()
                     .HasMaxLength(32)
                     .HasDefaultValue(ProjectDocumentStatus.Published)
+                    .HasSentinel(ProjectDocumentStatus.Published)
                     .IsRequired();
                 e.Property(x => x.FileStamp).HasDefaultValue(0).IsRequired();
                 e.Property(x => x.UploadedByUserId).HasMaxLength(450).IsRequired();
@@ -786,7 +788,12 @@ namespace ProjectManagement.Data
                 e.Property(x => x.Title).HasMaxLength(200).IsRequired();
                 e.Property(x => x.Description).HasMaxLength(2000);
                 e.Property(x => x.Status).HasConversion<string>().HasMaxLength(32).HasDefaultValue(ProjectDocumentRequestStatus.Draft).IsRequired();
-                e.Property(x => x.RequestType).HasConversion<string>().HasMaxLength(32).HasDefaultValue(ProjectDocumentRequestType.Upload).IsRequired();
+                e.Property(x => x.RequestType)
+                    .HasConversion<string>()
+                    .HasMaxLength(32)
+                    .HasDefaultValue(ProjectDocumentRequestType.Upload)
+                    .HasSentinel(ProjectDocumentRequestType.Upload)
+                    .IsRequired();
                 e.Property(x => x.TempStorageKey).HasMaxLength(260);
                 e.Property(x => x.OriginalFileName).HasMaxLength(260);
                 e.Property(x => x.ContentType).HasMaxLength(128);
