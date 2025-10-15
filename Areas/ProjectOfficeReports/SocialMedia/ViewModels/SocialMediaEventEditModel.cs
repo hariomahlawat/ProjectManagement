@@ -25,10 +25,6 @@ public sealed class SocialMediaEventEditModel
     [StringLength(128, ErrorMessage = "Platform must be 128 characters or fewer.")]
     public string? Platform { get; set; }
 
-    [Display(Name = "Reach")]
-    [Range(0, int.MaxValue, ErrorMessage = "Reach must be zero or greater.")]
-    public int Reach { get; set; }
-
     [Display(Name = "Description")]
     [StringLength(2000, ErrorMessage = "Description must be 2000 characters or fewer.")]
     [DataType(DataType.MultilineText)]

@@ -23,9 +23,6 @@ public class SocialMediaEvent
     [MaxLength(128)]
     public string? Platform { get; set; }
 
-    [Range(0, int.MaxValue)]
-    public int Reach { get; set; }
-
     [MaxLength(2000)]
     public string? Description { get; set; }
 

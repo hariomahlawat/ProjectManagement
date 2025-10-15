@@ -66,7 +66,6 @@ public sealed class CreateModel : PageModel
             Input.DateOfEvent.Value,
             Input.Title,
             Input.Platform,
-            Input.Reach,
             Input.Description,
             userId,
             cancellationToken);

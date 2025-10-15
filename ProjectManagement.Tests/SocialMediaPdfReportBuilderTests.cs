@@ -18,7 +18,6 @@ public sealed class SocialMediaPdfReportBuilderTests
                     "Campaign Launch",
                     "Launch day coverage",
                     "Instagram",
-                    1200,
                     4,
                     "Highlights from the launch.",
                     new byte[] { 0x01, 0x02, 0x03 })

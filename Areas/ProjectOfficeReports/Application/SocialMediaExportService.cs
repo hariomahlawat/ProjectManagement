@@ -128,7 +128,6 @@ public sealed class SocialMediaExportService : ISocialMediaExportService
                 row.EventTypeName,
                 row.Title,
                 row.Platform,
-                row.Reach,
                 row.PhotoCount,
                 row.Description,
                 coverPhoto));

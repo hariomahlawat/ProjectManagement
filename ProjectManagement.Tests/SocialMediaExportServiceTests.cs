@@ -66,7 +66,6 @@ public sealed class SocialMediaExportServiceTests
             dateOfEvent: new DateOnly(2024, 4, 18),
             title: "Robotics showcase",
             platform: " Instagram ",
-            reach: 820,
             description: "Student innovations highlighted.",
             coverPhotoId: photoId,
             timestamp: clock.UtcNow);
@@ -116,7 +115,7 @@ public sealed class SocialMediaExportServiceTests
         var worksheet = workbook.Worksheet(1);
 
         Assert.Equal("Social Media Events", worksheet.Name);
-        Assert.Equal(9, worksheet.LastColumnUsed().ColumnNumber());
+        Assert.Equal(8, worksheet.LastColumnUsed().ColumnNumber());
         Assert.Equal(2, worksheet.LastRowUsed().RowNumber());
 
         Assert.Equal(1, worksheet.Cell(2, 1).GetValue<int>());
@@ -124,10 +123,9 @@ public sealed class SocialMediaExportServiceTests
         Assert.Equal("Milestone Update", worksheet.Cell(2, 3).GetString());
         Assert.Equal("Robotics showcase", worksheet.Cell(2, 4).GetString());
         Assert.Equal("Instagram", worksheet.Cell(2, 5).GetString());
-        Assert.Equal(820, worksheet.Cell(2, 6).GetValue<int>());
-        Assert.Equal(1, worksheet.Cell(2, 7).GetValue<int>());
-        Assert.Equal("Yes", worksheet.Cell(2, 8).GetString());
-        Assert.Equal("Student innovations highlighted.", worksheet.Cell(2, 9).GetString());
+        Assert.Equal(1, worksheet.Cell(2, 6).GetValue<int>());
+        Assert.Equal("Yes", worksheet.Cell(2, 7).GetString());
+        Assert.Equal("Student innovations highlighted.", worksheet.Cell(2, 8).GetString());
 
         Assert.Equal("Export generated", worksheet.Cell(5, 1).GetString());
         Assert.Equal("2024-04-01", worksheet.Cell(6, 2).GetString());
@@ -158,7 +156,6 @@ public sealed class SocialMediaExportServiceTests
             dateOfEvent: new DateOnly(2024, 4, 12),
             title: "STEM workshop",
             platform: "YouTube",
-            reach: 1250,
             description: "Workshop recap and highlights.",
             coverPhotoId: photoId,
             timestamp: clock.UtcNow);
@@ -215,7 +212,6 @@ public sealed class SocialMediaExportServiceTests
         Assert.Equal("Community Engagement", section.EventTypeName);
         Assert.Equal("STEM workshop", section.Title);
         Assert.Equal("YouTube", section.Platform);
-        Assert.Equal(1250, section.Reach);
         Assert.Equal("Workshop recap and highlights.", section.Description);
         Assert.Equal(coverBytes, section.CoverPhoto);
         Assert.Equal(1, photoService.OpenRequests.Count);

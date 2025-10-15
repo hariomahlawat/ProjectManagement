@@ -98,7 +98,6 @@ public sealed class EditModel : PageModel
             Input.DateOfEvent.Value,
             Input.Title,
             Input.Platform,
-            Input.Reach,
             Input.Description,
             Input.RowVersion,
             userId,
@@ -283,7 +282,6 @@ public sealed class EditModel : PageModel
             DateOfEvent = details.Event.DateOfEvent,
             Title = details.Event.Title,
             Platform = details.Event.Platform,
-            Reach = details.Event.Reach,
             Description = details.Event.Description,
             RowVersion = details.Event.RowVersion
         };

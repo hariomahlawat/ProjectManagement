@@ -435,7 +435,6 @@ namespace ProjectManagement.Data
                 e.Property(x => x.DateOfEvent).HasColumnType("date").IsRequired();
                 e.Property(x => x.Title).HasMaxLength(200).IsRequired();
                 e.Property(x => x.Platform).HasMaxLength(128);
-                e.Property(x => x.Reach).IsRequired();
                 e.Property(x => x.Description).HasMaxLength(2000);
                 e.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
                 e.Property(x => x.LastModifiedByUserId).HasMaxLength(450);

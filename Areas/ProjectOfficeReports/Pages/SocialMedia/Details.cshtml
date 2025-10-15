@@ -34,7 +34,6 @@
             <div class="social-hero__meta">
                 <span class="social-hero__meta-item"><i class="bi bi-calendar-event" aria-hidden="true"></i> @Model.Event?.DateOfEvent.ToString("dd MMM yyyy")</span>
                 <span class="social-hero__meta-item"><i class="bi bi-megaphone" aria-hidden="true"></i> @Model.EventType?.Name</span>
-                <span class="social-hero__meta-item"><i class="bi bi-people" aria-hidden="true"></i> Reach: @Model.Event?.Reach</span>
                 @if (!string.IsNullOrWhiteSpace(Model.Event?.Platform))
                 {
                     <span class="social-hero__meta-item"><i class="bi bi-hash" aria-hidden="true"></i> @Model.Event?.Platform</span>
