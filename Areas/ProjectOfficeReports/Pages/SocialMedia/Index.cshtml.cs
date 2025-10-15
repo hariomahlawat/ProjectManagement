@@ -98,6 +98,7 @@ public sealed class IndexModel : PageModel
                 TempData["ToastError"] = result.Errors[0];
             }
 
+            ViewData["ShowExportModal"] = true;
             return Page();
         }
 
@@ -135,6 +136,7 @@ public sealed class IndexModel : PageModel
                 TempData["ToastError"] = result.Errors[0];
             }
 
+            ViewData["ShowExportModal"] = true;
             return Page();
         }
 
