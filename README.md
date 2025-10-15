@@ -52,7 +52,7 @@ A complete reference, including environment variable overrides, is available in 
    dotnet restore
    npm install
    ```
-3. **Database**: update `appsettings.Development.json` or export `DefaultConnection`. The app automatically applies migrations on startup.【F:Program.cs†L229-L244】
+3. **Database**: update `appsettings.Development.json` or export `DefaultConnection`. The app automatically applies migrations on startup, but if you are pointing at an existing database run `dotnet ef database update` (or `Update-Database` in Package Manager Console) to ensure tables such as `ProjectTotRequests` are created and the `__EFMigrationsHistory` table lists the latest entries.【F:Program.cs†L229-L244】
 4. **Run**:
    ```bash
    dotnet run --project ProjectManagement.csproj
