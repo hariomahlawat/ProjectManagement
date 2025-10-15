@@ -43,6 +43,9 @@ public class EditModel : PageModel
     public string? UploadCaption { get; set; }
 
     [BindProperty]
+    public IFormFile? Upload { get; set; }
+
+    [BindProperty]
     public List<IFormFile> Uploads { get; set; } = new();
 
     public IReadOnlyList<SelectListItem> VisitTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
@@ -135,7 +138,23 @@ public class EditModel : PageModel
             return RedirectToPage("Index");
         }
 
-        var uploads = Uploads?.Where(file => file != null).ToList() ?? new List<IFormFile>();
+        var uploads = new List<IFormFile>();
+
+        if (Upload is not null)
+        {
+            uploads.Add(Upload);
+        }
+
+        if (Uploads != null)
+        {
+            foreach (var file in Uploads)
+            {
+                if (file != null)
+                {
+                    uploads.Add(file);
+                }
+            }
+        }
         if (uploads.Count == 0)
         {
             ModelState.AddModelError(nameof(Uploads), "Please select at least one photo to upload.");
