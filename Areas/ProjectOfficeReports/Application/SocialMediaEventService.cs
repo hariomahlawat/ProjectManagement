@@ -290,7 +290,7 @@ public sealed class SocialMediaEventService
 
         var photoSnapshots = await _db.SocialMediaEventPhotos.AsNoTracking()
             .Where(x => x.SocialMediaEventId == id)
-            .OrderBy(x => x.CreatedAtUtc.Add(IstOffset))
+            .OrderBy(x => x.CreatedAtUtc)
             .Select(x => new SocialMediaEventPhoto
             {
                 Id = x.Id,
@@ -309,6 +309,10 @@ public sealed class SocialMediaEventService
                 LastModifiedByUserId = x.LastModifiedByUserId
             })
             .ToListAsync(cancellationToken);
+
+        photoSnapshots = photoSnapshots
+            .OrderBy(x => x.CreatedAtUtc.Add(IstOffset))
+            .ToList();
 
         _db.SocialMediaEvents.Remove(entity);
 

@@ -441,6 +441,153 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task DeletingEventFromDeletePageRemovesPhotos()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        var now = new DateTimeOffset(2024, 9, 1, 18, 0, 0, TimeSpan.Zero);
+        var eventType = SocialMediaTestData.CreateEventType(name: "Deletion flow", createdByUserId: "creator", createdAtUtc: now);
+        var socialEvent = SocialMediaTestData.CreateEvent(
+            eventType.Id,
+            id: Guid.NewGuid(),
+            dateOfEvent: new DateOnly(2024, 8, 31),
+            title: "Delete from page",
+            platform: "Instagram",
+            reach: 500,
+            description: "Ensures deletion cleans up assets.",
+            timestamp: now,
+            createdByUserId: "creator");
+
+        db.SocialMediaEventTypes.Add(eventType);
+        db.SocialMediaEvents.Add(socialEvent);
+        await db.SaveChangesAsync();
+
+        var tempRoot = Path.Combine(Path.GetTempPath(), "pm-social-media-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var photoOptions = Options.Create(new SocialMediaPhotoOptions
+            {
+                MinWidth = 800,
+                MinHeight = 600,
+                Derivatives = new Dictionary<string, SocialMediaPhotoDerivativeOptions>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["feed"] = new SocialMediaPhotoDerivativeOptions { Width = 1200, Height = 1200, Quality = 85 },
+                    ["thumb"] = new SocialMediaPhotoDerivativeOptions { Width = 600, Height = 600, Quality = 80 }
+                },
+                StoragePrefix = "org/social/{eventId}"
+            });
+
+            var uploadRoot = new TestUploadRootProvider(tempRoot);
+
+            var earlyClock = new TestClock(now.AddHours(-2));
+            var earlyPhotoService = new SocialMediaEventPhotoService(
+                db,
+                earlyClock,
+                photoOptions,
+                uploadRoot,
+                NullLogger<SocialMediaEventPhotoService>.Instance);
+
+            await using (var firstStream = await CreateImageStreamAsync(1600, 1200))
+            {
+                var firstUpload = await earlyPhotoService.UploadAsync(
+                    socialEvent.Id,
+                    firstStream,
+                    "early.jpg",
+                    "image/jpeg",
+                    "Early shot",
+                    "creator",
+                    CancellationToken.None);
+
+                Assert.Equal(SocialMediaEventPhotoUploadOutcome.Success, firstUpload.Outcome);
+            }
+
+            var lateClock = new TestClock(now.AddHours(-1));
+            var latePhotoService = new SocialMediaEventPhotoService(
+                db,
+                lateClock,
+                photoOptions,
+                uploadRoot,
+                NullLogger<SocialMediaEventPhotoService>.Instance);
+
+            await using (var secondStream = await CreateImageStreamAsync(1920, 1080))
+            {
+                var secondUpload = await latePhotoService.UploadAsync(
+                    socialEvent.Id,
+                    secondStream,
+                    "late.jpg",
+                    "image/jpeg",
+                    "Late shot",
+                    "creator",
+                    CancellationToken.None);
+
+                Assert.Equal(SocialMediaEventPhotoUploadOutcome.Success, secondUpload.Outcome);
+            }
+
+            var storageKeys = await db.SocialMediaEventPhotos.AsNoTracking()
+                .Where(x => x.SocialMediaEventId == socialEvent.Id)
+                .Select(x => x.StorageKey)
+                .ToListAsync();
+
+            Assert.Equal(2, storageKeys.Count);
+
+            var physicalFolders = storageKeys
+                .Select(key => Path.Combine(tempRoot, key.Replace('/', Path.DirectorySeparatorChar)))
+                .ToList();
+
+            foreach (var folder in physicalFolders)
+            {
+                Assert.True(Directory.Exists(folder));
+            }
+
+            var persistedEvent = await db.SocialMediaEvents.AsNoTracking().SingleAsync(x => x.Id == socialEvent.Id);
+            var rowVersion = Convert.ToBase64String(persistedEvent.RowVersion);
+
+            db.ChangeTracker.Clear();
+
+            var deletionClock = new TestClock(now.AddHours(1));
+            var deletionPhotoService = new SocialMediaEventPhotoService(
+                db,
+                deletionClock,
+                photoOptions,
+                uploadRoot,
+                NullLogger<SocialMediaEventPhotoService>.Instance);
+            var eventService = new SocialMediaEventService(db, deletionClock, deletionPhotoService);
+            var userManager = CreateUserManager(db);
+            var page = new DeleteModel(eventService, userManager);
+
+            ConfigurePageContext(page, CreatePrincipal("deleter", "Admin"));
+            page.RowVersion = rowVersion;
+
+            var result = await page.OnPostAsync(socialEvent.Id, CancellationToken.None);
+
+            var redirect = Assert.IsType<RedirectToPageResult>(result);
+            Assert.Equal("Index", redirect.PageName);
+            Assert.Equal("Social media event deleted.", page.TempData["ToastMessage"]);
+
+            Assert.False(await db.SocialMediaEvents.AnyAsync());
+            Assert.False(await db.SocialMediaEventPhotos.AnyAsync());
+
+            foreach (var folder in physicalFolders)
+            {
+                Assert.False(Directory.Exists(folder));
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, true);
+            }
+        }
+    }
+
     private static void ConfigurePageContext(PageModel page, ClaimsPrincipal user)
     {
         var httpContext = new DefaultHttpContext { User = user };
