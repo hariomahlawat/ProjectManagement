@@ -343,7 +343,10 @@ public sealed class SocialMediaEventService
 
     private IQueryable<SocialMediaEvent> CreateFilteredQuery(SocialMediaEventQueryOptions options)
     {
-        var query = _db.SocialMediaEvents.AsNoTracking();
+        var query = _db.SocialMediaEvents
+            .AsNoTracking()
+            .Include(x => x.SocialMediaEventType)
+            .Include(x => x.SocialMediaPlatform);
 
         if (options.EventTypeId.HasValue)
         {
