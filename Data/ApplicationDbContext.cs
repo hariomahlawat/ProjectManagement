@@ -57,6 +57,7 @@ namespace ProjectManagement.Data
         public DbSet<ProjectPhoto> ProjectPhotos => Set<ProjectPhoto>();
         public DbSet<ProjectVideo> ProjectVideos => Set<ProjectVideo>();
         public DbSet<ProjectTot> ProjectTots => Set<ProjectTot>();
+        public DbSet<ProjectTotRequest> ProjectTotRequests => Set<ProjectTotRequest>();
         public DbSet<ProjectMetaChangeRequest> ProjectMetaChangeRequests => Set<ProjectMetaChangeRequest>();
         public DbSet<ProjectComment> ProjectComments => Set<ProjectComment>();
         public DbSet<ProjectCommentAttachment> ProjectCommentAttachments => Set<ProjectCommentAttachment>();
@@ -587,11 +588,45 @@ namespace ProjectManagement.Data
                 e.Property(x => x.StartedOn).HasColumnType("date");
                 e.Property(x => x.CompletedOn).HasColumnType("date");
                 e.Property(x => x.Remarks).HasMaxLength(2000);
+                e.Property(x => x.LastApprovedByUserId).HasMaxLength(450);
                 e.HasIndex(x => x.ProjectId).IsUnique();
                 e.HasOne(x => x.Project)
                     .WithOne(x => x.Tot)
                     .HasForeignKey<ProjectTot>(x => x.ProjectId)
                     .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.LastApprovedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.LastApprovedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            builder.Entity<ProjectTotRequest>(e =>
+            {
+                ConfigureRowVersion(e);
+                e.Property(x => x.ProposedStatus)
+                    .HasConversion<string>()
+                    .HasMaxLength(32)
+                    .IsRequired();
+                e.Property(x => x.DecisionState)
+                    .HasConversion<string>()
+                    .HasMaxLength(32)
+                    .IsRequired();
+                e.Property(x => x.ProposedRemarks).HasMaxLength(2000);
+                e.Property(x => x.SubmittedByUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.DecisionRemarks).HasMaxLength(2000);
+                e.HasIndex(x => x.ProjectId).IsUnique();
+                e.HasOne(x => x.Project)
+                    .WithOne(x => x.TotRequest)
+                    .HasForeignKey<ProjectTotRequest>(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.SubmittedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.SubmittedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.DecidedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.DecidedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             builder.Entity<ProjectDocument>(e =>

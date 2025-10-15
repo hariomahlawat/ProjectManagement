@@ -1,0 +1,288 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel
+@using ProjectManagement.Models
+@using ProjectManagement.Utilities
+@{
+    ViewData["Title"] = "Transfer of Technology tracker";
+    string StatusLabel(ProjectTotStatus status) => status switch
+    {
+        ProjectTotStatus.NotRequired => "Not required",
+        ProjectTotStatus.NotStarted => "Not started",
+        ProjectTotStatus.InProgress => "In progress",
+        ProjectTotStatus.Completed => "Completed",
+        _ => status.ToString()
+    };
+
+    string RequestStateLabel(ProjectTotRequestDecisionState state) => state switch
+    {
+        ProjectTotRequestDecisionState.Pending => "Pending approval",
+        ProjectTotRequestDecisionState.Approved => "Approved",
+        ProjectTotRequestDecisionState.Rejected => "Rejected",
+        _ => state.ToString()
+    };
+
+    var istZone = TimeZoneHelper.GetIst();
+    DateTime? ToIst(DateTime? value) => value.HasValue
+        ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc), istZone)
+        : null;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h1 class="h3 mb-0">Transfer of Technology tracker</h1>
+        <p class="text-muted mb-0">Track project ToT progress, submit updates for approval, and record HoD decisions.</p>
+    </div>
+</div>
+
+<form method="get" class="row g-3 align-items-end">
+    <div class="col-md-3">
+        <label class="form-label" asp-for="TotStatusFilter">ToT status</label>
+        <select class="form-select" asp-for="TotStatusFilter">
+            <option value="">All statuses</option>
+            @foreach (ProjectTotStatus status in Enum.GetValues<ProjectTotStatus>())
+            {
+                <option value="@status" selected="@(Model.TotStatusFilter == status ? "selected" : null)">@StatusLabel(status)</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <label class="form-label" asp-for="RequestStateFilter">Request state</label>
+        <select class="form-select" asp-for="RequestStateFilter" @(Model.OnlyPending ? "disabled" : null)>
+            <option value="">All requests</option>
+            @foreach (ProjectTotRequestDecisionState state in Enum.GetValues<ProjectTotRequestDecisionState>())
+            {
+                <option value="@state" selected="@(Model.RequestStateFilter == state ? "selected" : null)">@RequestStateLabel(state)</option>
+            }
+        </select>
+    </div>
+    <div class="col-md-3">
+        <div class="form-check mt-4">
+            <input class="form-check-input" type="checkbox" asp-for="OnlyPending" id="onlyPending">
+            <label class="form-check-label" for="onlyPending">Only pending approvals</label>
+        </div>
+    </div>
+    <div class="col-md-3 text-md-end">
+        <input type="hidden" asp-for="SelectedProjectId" />
+        <button type="submit" class="btn btn-primary">Apply filters</button>
+        <a asp-page="./Index" class="btn btn-outline-secondary">Reset</a>
+    </div>
+</form>
+
+<div class="table-responsive mt-4">
+    <table class="table table-striped align-middle">
+        <thead>
+            <tr>
+                <th scope="col">Project</th>
+                <th scope="col">Sponsoring unit</th>
+                <th scope="col">ToT status</th>
+                <th scope="col">Request state</th>
+                <th scope="col" class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (!Model.Projects.Any())
+            {
+                <tr>
+                    <td colspan="5" class="text-center text-muted py-4">No completed projects match the selected filters.</td>
+                </tr>
+            }
+            else
+            {
+                foreach (var row in Model.Projects)
+                {
+                    var isSelected = Model.SelectedProjectId.HasValue && Model.SelectedProjectId.Value == row.ProjectId;
+                    <tr class="@(isSelected ? "table-primary" : string.Empty)">
+                        <th scope="row">
+                            <div class="fw-semibold">@row.ProjectName</div>
+                            @if (!string.IsNullOrWhiteSpace(row.TotRemarks))
+                            {
+                                <div class="text-muted small">@row.TotRemarks</div>
+                            }
+                        </th>
+                        <td>@row.SponsoringUnit</td>
+                        <td>
+                            @if (row.TotStatus is { } status)
+                            {
+                                <span class="badge text-bg-secondary">@StatusLabel(status)</span>
+                            }
+                            else
+                            {
+                                <span class="badge text-bg-secondary">Not started</span>
+                            }
+                        </td>
+                        <td>
+                            @if (row.RequestState is { } state)
+                            {
+                                <span class="badge text-bg-@(state == ProjectTotRequestDecisionState.Pending ? "info" : state == ProjectTotRequestDecisionState.Approved ? "success" : "warning")">@RequestStateLabel(state)</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">No request</span>
+                            }
+                        </td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-primary"
+                               asp-route-TotStatusFilter="@Model.TotStatusFilter"
+                               asp-route-RequestStateFilter="@Model.RequestStateFilter"
+                               asp-route-OnlyPending="@Model.OnlyPending"
+                               asp-route-SelectedProjectId="@row.ProjectId">
+                                View details
+                            </a>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</div>
+
+@if (Model.SelectedProject is { } selected)
+{
+    <div class="row g-4 mt-4">
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">@selected.ProjectName</h2>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-5">Current ToT status</dt>
+                        <dd class="col-sm-7">@StatusLabel(selected.TotStatus ?? ProjectTotStatus.NotStarted)</dd>
+                        <dt class="col-sm-5">Started on</dt>
+                        <dd class="col-sm-7">@(selected.TotStartedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
+                        <dt class="col-sm-5">Completed on</dt>
+                        <dd class="col-sm-7">@(selected.TotCompletedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
+                        <dt class="col-sm-5">Last approved by</dt>
+                        <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(selected.TotLastApprovedBy) ? "—" : selected.TotLastApprovedBy)</dd>
+                        <dt class="col-sm-5">Approved on</dt>
+                        <dd class="col-sm-7">@(ToIst(selected.TotLastApprovedOnUtc)?.ToString("dd MMM yyyy HH:mm") ?? "—")</dd>
+                    </dl>
+                    @if (!string.IsNullOrWhiteSpace(selected.TotRemarks))
+                    {
+                        <div class="alert alert-secondary mt-3 mb-0">@selected.TotRemarks</div>
+                    }
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h2 class="h5 mb-0">Latest ToT request</h2>
+                    @if (selected.RequestState is { } state)
+                    {
+                        <span class="badge text-bg-@(state == ProjectTotRequestDecisionState.Pending ? "info" : state == ProjectTotRequestDecisionState.Approved ? "success" : "warning")">@RequestStateLabel(state)</span>
+                    }
+                    else
+                    {
+                        <span class="badge text-bg-secondary">No request</span>
+                    }
+                </div>
+                <div class="card-body">
+                    @if (selected.RequestState is null)
+                    {
+                        <p class="text-muted mb-0">No ToT request has been submitted for this project yet.</p>
+                    }
+                    else
+                    {
+                        <dl class="row mb-0">
+                            <dt class="col-sm-5">Proposed status</dt>
+                            <dd class="col-sm-7">@StatusLabel(selected.RequestedStatus ?? selected.TotStatus ?? ProjectTotStatus.NotStarted)</dd>
+                            <dt class="col-sm-5">Proposed start</dt>
+                            <dd class="col-sm-7">@(selected.RequestedStartedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
+                            <dt class="col-sm-5">Proposed completion</dt>
+                            <dd class="col-sm-7">@(selected.RequestedCompletedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
+                            <dt class="col-sm-5">Submitted by</dt>
+                            <dd class="col-sm-7">@(selected.RequestedBy ?? "—") on @(ToIst(selected.RequestedOnUtc)?.ToString("dd MMM yyyy HH:mm") ?? "—")</dd>
+                            <dt class="col-sm-5">Decision by</dt>
+                            <dd class="col-sm-7">@(selected.DecidedBy ?? "—")</dd>
+                            <dt class="col-sm-5">Decision on</dt>
+                            <dd class="col-sm-7">@(ToIst(selected.DecidedOnUtc)?.ToString("dd MMM yyyy HH:mm") ?? "—")</dd>
+                        </dl>
+                        @if (!string.IsNullOrWhiteSpace(selected.RequestedRemarks))
+                        {
+                            <div class="alert alert-info mt-3">Proposal remarks: @selected.RequestedRemarks</div>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(selected.DecisionRemarks))
+                        {
+                            <div class="alert alert-warning mt-3">Decision remarks: @selected.DecisionRemarks</div>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4 mt-1">
+        @if (Model.CanSubmit)
+        {
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h2 class="h5 mb-0">Submit update for HoD approval</h2>
+                    </div>
+                    <div class="card-body">
+                        <form method="post" asp-page-handler="Submit">
+                            <input asp-for="SubmitInput.ProjectId" type="hidden" />
+                            <input type="hidden" asp-for="TotStatusFilter" />
+                            <input type="hidden" asp-for="RequestStateFilter" />
+                            <input type="hidden" asp-for="OnlyPending" />
+                            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                            <div class="mb-3">
+                                <label class="form-label" asp-for="SubmitInput.Status">Proposed status</label>
+                                <select class="form-select" asp-for="SubmitInput.Status">
+                                    @foreach (ProjectTotStatus status in Enum.GetValues<ProjectTotStatus>())
+                                    {
+                                        <option value="@status">@StatusLabel(status)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" asp-for="SubmitInput.StartedOn">Started on</label>
+                                    <input asp-for="SubmitInput.StartedOn" class="form-control" type="date" />
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" asp-for="SubmitInput.CompletedOn">Completed on</label>
+                                    <input asp-for="SubmitInput.CompletedOn" class="form-control" type="date" />
+                                </div>
+                            </div>
+                            <div class="mb-3 mt-3">
+                                <label class="form-label" asp-for="SubmitInput.Remarks">Remarks</label>
+                                <textarea asp-for="SubmitInput.Remarks" class="form-control" rows="3"></textarea>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Submit for approval</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        }
+        @if (Model.CanApprove && selected.RequestState == ProjectTotRequestDecisionState.Pending && selected.RequestRowVersion is not null)
+        {
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header">
+                        <h2 class="h5 mb-0">HoD decision</h2>
+                    </div>
+                    <div class="card-body">
+                        <form method="post" asp-page-handler="Decide">
+                            <input asp-for="DecideInput.ProjectId" type="hidden" />
+                            <input asp-for="DecideInput.RowVersion" type="hidden" />
+                            <input type="hidden" asp-for="TotStatusFilter" />
+                            <input type="hidden" asp-for="RequestStateFilter" />
+                            <input type="hidden" asp-for="OnlyPending" />
+                            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                            <div class="mb-3">
+                                <label class="form-label" asp-for="DecideInput.Remarks">Decision remarks</label>
+                                <textarea asp-for="DecideInput.Remarks" class="form-control" rows="3"></textarea>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="submit" name="DecideInput.Approve" value="true" class="btn btn-success">Approve</button>
+                                <button type="submit" name="DecideInput.Approve" value="false" class="btn btn-outline-danger">Reject</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}

@@ -1,5 +1,6 @@
 @using System.Linq
 @using ProjectManagement.Models
+@using ProjectManagement.Utilities
 @model ProjectManagement.Pages.Projects.OverviewModel
 
 @{
@@ -20,6 +21,8 @@
         }
         : "secondary";
     var canManageTot = Model.CanManageTot;
+    var pendingRequest = tot.PendingRequest;
+    var hasPending = tot.HasPendingRequest;
 
     <div class="card pm-card">
         <div class="card-header pm-card-header">
@@ -36,10 +39,30 @@
                 <span class="badge text-bg-@badgeVariant">@tot.StatusLabel</span>
                 @if (canManageTot && Model.Project is { } project)
                 {
-                    <a class="btn btn-sm btn-outline-secondary"
-                       asp-page="/Projects/Tot/Edit"
-                       asp-route-id="@project.Id">
-                        Update
+                    if (hasPending)
+                    {
+                        <a class="btn btn-sm btn-outline-secondary disabled"
+                           href="#"
+                           role="button"
+                           aria-disabled="true"
+                           tabindex="-1">
+                            Update
+                        </a>
+                    }
+                    else
+                    {
+                        <a class="btn btn-sm btn-outline-secondary"
+                           asp-page="/Projects/Tot/Edit"
+                           asp-route-id="@project.Id">
+                            Update
+                        </a>
+                    }
+
+                    <a class="btn btn-sm btn-primary"
+                       asp-area="ProjectOfficeReports"
+                       asp-page="/Tot/Index"
+                       asp-route-selectedProjectId="@project.Id">
+                        Open tracker
                     </a>
                 }
             </div>
@@ -59,6 +82,40 @@
             @if (!string.IsNullOrWhiteSpace(tot.Remarks))
             {
                 <div class="alert alert-secondary mb-0" role="status">@tot.Remarks</div>
+            }
+            @if (pendingRequest is { } request)
+            {
+                var alertVariant = request.State switch
+                {
+                    ProjectTotRequestDecisionState.Pending => "info",
+                    ProjectTotRequestDecisionState.Approved => "success",
+                    ProjectTotRequestDecisionState.Rejected => "warning",
+                    _ => "secondary"
+                };
+                var ist = TimeZoneHelper.GetIst();
+                var submittedOnLocal = TimeZoneInfo.ConvertTimeFromUtc(request.SubmittedOnUtc, ist);
+                DateTime? decidedOnLocal = request.DecidedOnUtc.HasValue
+                    ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(request.DecidedOnUtc.Value, DateTimeKind.Utc), ist)
+                    : null;
+                <div class="alert alert-@alertVariant mb-0" role="status">
+                    <div class="fw-semibold">@request.StateLabel</div>
+                    <ul class="mb-0">
+                        <li>Status proposed as <strong>@request.ProposedStatusLabel</strong>@(request.ProposedStartedOn.HasValue ? $" starting {request.ProposedStartedOn.Value:dd MMM yyyy}" : string.Empty)@(request.ProposedCompletedOn.HasValue ? $" completing {request.ProposedCompletedOn.Value:dd MMM yyyy}" : string.Empty).</li>
+                        <li>Submitted by @request.SubmittedBy on @submittedOnLocal:dd MMM yyyy HH:mm.</li>
+                        @if (request.State != ProjectTotRequestDecisionState.Pending && decidedOnLocal.HasValue && !string.IsNullOrWhiteSpace(request.DecidedBy))
+                        {
+                            <li>Decided by @request.DecidedBy on @decidedOnLocal.Value:dd MMM yyyy HH:mm.</li>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(request.ProposedRemarks))
+                        {
+                            <li>Proposal remarks: @request.ProposedRemarks</li>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(request.DecisionRemarks))
+                        {
+                            <li>Decision remarks: @request.DecisionRemarks</li>
+                        }
+                    </ul>
+                </div>
             }
             @if (!hasTot)
             {

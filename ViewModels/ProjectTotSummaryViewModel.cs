@@ -14,6 +14,25 @@ public sealed class ProjectTotSummaryViewModel
     public string Summary { get; init; } = string.Empty;
     public string? Remarks { get; init; }
     public IReadOnlyList<TotFact> Facts { get; init; } = Array.Empty<TotFact>();
+    public string? LastApprovedBy { get; init; }
+    public DateTime? LastApprovedOnUtc { get; init; }
+    public TotRequestSummary? PendingRequest { get; init; }
+
+    public bool HasPendingRequest => PendingRequest is { State: ProjectTotRequestDecisionState.Pending };
 
     public sealed record TotFact(string Label, string Value);
+
+    public sealed record TotRequestSummary(
+        ProjectTotRequestDecisionState State,
+        string StateLabel,
+        ProjectTotStatus ProposedStatus,
+        string ProposedStatusLabel,
+        DateOnly? ProposedStartedOn,
+        DateOnly? ProposedCompletedOn,
+        string? ProposedRemarks,
+        string SubmittedBy,
+        DateTime SubmittedOnUtc,
+        string? DecidedBy,
+        DateTime? DecidedOnUtc,
+        string? DecisionRemarks);
 }

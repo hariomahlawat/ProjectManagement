@@ -80,6 +80,12 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Text = "Visits",
                 Area = "ProjectOfficeReports",
                 Page = "/Visits/Index"
+            },
+            new()
+            {
+                Text = "ToT tracker",
+                Area = "ProjectOfficeReports",
+                Page = "/Tot/Index"
             }
         };
 
