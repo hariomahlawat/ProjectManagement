@@ -54,7 +54,7 @@ public sealed class SocialMediaExportService : ISocialMediaExportService
 
         var options = validation.Options!;
         var normalizedQuery = validation.NormalizedQuery;
-        var normalizedPlatform = validation.NormalizedPlatform;
+        var platformName = validation.PlatformName;
         var generatedAt = _clock.UtcNow;
 
         var rows = await _eventService.ExportAsync(options, cancellationToken);
@@ -63,7 +63,7 @@ public sealed class SocialMediaExportService : ISocialMediaExportService
             generatedAt,
             request.StartDate,
             request.EndDate,
-            normalizedPlatform));
+            platformName));
 
         var file = new SocialMediaExportFile(BuildFileName(request, generatedAt), content, SocialMediaExportFile.ExcelContentType);
 
@@ -73,7 +73,8 @@ public sealed class SocialMediaExportService : ISocialMediaExportService
                 request.StartDate,
                 request.EndDate,
                 normalizedQuery,
-                normalizedPlatform,
+                options.PlatformId,
+                platformName,
                 request.OnlyActiveEventTypes,
                 rows.Count)
             .WriteAsync(_audit);
@@ -96,7 +97,7 @@ public sealed class SocialMediaExportService : ISocialMediaExportService
 
         var options = validation.Options!;
         var normalizedQuery = validation.NormalizedQuery;
-        var normalizedPlatform = validation.NormalizedPlatform;
+        var platformName = validation.PlatformName;
         var generatedAt = _clock.UtcNow;
 
         var rows = await _eventService.ExportForPdfAsync(options, cancellationToken);
@@ -138,7 +139,7 @@ public sealed class SocialMediaExportService : ISocialMediaExportService
             generatedAt,
             request.StartDate,
             request.EndDate,
-            normalizedPlatform));
+            platformName));
 
         var file = new SocialMediaExportFile(BuildPdfFileName(request, generatedAt), content, SocialMediaExportFile.PdfContentType);
 
@@ -148,7 +149,8 @@ public sealed class SocialMediaExportService : ISocialMediaExportService
                 request.StartDate,
                 request.EndDate,
                 normalizedQuery,
-                normalizedPlatform,
+                options.PlatformId,
+                platformName,
                 request.OnlyActiveEventTypes,
                 rows.Count)
             .WriteAsync(_audit);
@@ -204,19 +206,19 @@ public sealed class SocialMediaExportService : ISocialMediaExportService
             ? null
             : request.SearchQuery.Trim();
 
-        var normalizedPlatform = string.IsNullOrWhiteSpace(request.Platform)
+        var platformName = string.IsNullOrWhiteSpace(request.PlatformName)
             ? null
-            : request.Platform.Trim();
+            : request.PlatformName.Trim();
 
         var options = new SocialMediaEventQueryOptions(
             request.EventTypeId,
             request.StartDate,
             request.EndDate,
             normalizedQuery,
-            normalizedPlatform,
+            request.PlatformId,
             request.OnlyActiveEventTypes);
 
-        return ValidationResult.CreateSuccess(options, normalizedQuery, normalizedPlatform);
+        return ValidationResult.CreateSuccess(options, normalizedQuery, platformName);
     }
 
     private sealed record ValidationResult(
@@ -224,15 +226,15 @@ public sealed class SocialMediaExportService : ISocialMediaExportService
         string? Error,
         SocialMediaEventQueryOptions? Options,
         string? NormalizedQuery,
-        string? NormalizedPlatform)
+        string? PlatformName)
     {
         public static ValidationResult Fail(string error) => new(false, error, null, null, null);
 
         public static ValidationResult CreateSuccess(
             SocialMediaEventQueryOptions options,
             string? normalizedQuery,
-            string? normalizedPlatform)
-            => new(true, null, options, normalizedQuery, normalizedPlatform);
+            string? platformName)
+            => new(true, null, options, normalizedQuery, platformName);
     }
 }
 
@@ -241,7 +243,8 @@ public sealed record SocialMediaExportRequest(
     DateOnly? StartDate,
     DateOnly? EndDate,
     string? SearchQuery,
-    string? Platform,
+    Guid? PlatformId,
+    string? PlatformName,
     bool OnlyActiveEventTypes,
     string RequestedByUserId);
 

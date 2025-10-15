@@ -19,17 +19,20 @@ public sealed class IndexModel : PageModel
 {
     private readonly SocialMediaEventService _eventService;
     private readonly ISocialMediaExportService _exportService;
+    private readonly SocialMediaPlatformService _platformService;
     private readonly IAuthorizationService _authorizationService;
     private readonly UserManager<ApplicationUser> _userManager;
 
     public IndexModel(
         SocialMediaEventService eventService,
         ISocialMediaExportService exportService,
+        SocialMediaPlatformService platformService,
         IAuthorizationService authorizationService,
         UserManager<ApplicationUser> userManager)
     {
         _eventService = eventService ?? throw new ArgumentNullException(nameof(eventService));
         _exportService = exportService ?? throw new ArgumentNullException(nameof(exportService));
+        _platformService = platformService ?? throw new ArgumentNullException(nameof(platformService));
         _authorizationService = authorizationService ?? throw new ArgumentNullException(nameof(authorizationService));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
     }
@@ -47,7 +50,7 @@ public sealed class IndexModel : PageModel
     public string? Q { get; set; }
 
     [BindProperty(SupportsGet = true)]
-    public string? Platform { get; set; }
+    public Guid? PlatformId { get; set; }
 
     [BindProperty(SupportsGet = true)]
     public bool OnlyActiveEventTypes { get; set; }
@@ -170,15 +173,33 @@ public sealed class IndexModel : PageModel
             });
         }
 
+        var platforms = await _platformService.GetAllAsync(includeInactive: true, cancellationToken);
+        var platformOptions = new List<SelectListItem>
+        {
+            new("All platforms", string.Empty)
+        };
+
+        foreach (var platform in platforms)
+        {
+            platformOptions.Add(new SelectListItem(platform.Name, platform.Id.ToString())
+            {
+                Selected = PlatformId.HasValue && PlatformId.Value == platform.Id
+            });
+        }
+
+        var selectedPlatform = platformOptions.FirstOrDefault(option => option.Selected);
+
         Filter = new SocialMediaEventListFilter
         {
             EventTypeId = EventTypeId,
             StartDate = ParseDate(From),
             EndDate = ParseDate(To),
             SearchQuery = Q,
-            Platform = Platform,
+            PlatformId = PlatformId,
+            PlatformName = selectedPlatform?.Text,
             OnlyActiveEventTypes = OnlyActiveEventTypes,
-            EventTypeOptions = options
+            EventTypeOptions = options,
+            PlatformOptions = platformOptions
         };
     }
 
@@ -189,7 +210,7 @@ public sealed class IndexModel : PageModel
             ParseDate(From),
             ParseDate(To),
             Q,
-            Platform,
+            PlatformId,
             OnlyActiveEventTypes);
     }
 
@@ -201,7 +222,8 @@ public sealed class IndexModel : PageModel
             options.StartDate,
             options.EndDate,
             options.SearchQuery,
-            options.Platform,
+            options.PlatformId,
+            Filter.PlatformName,
             options.OnlyActiveEventTypes,
             userId);
     }

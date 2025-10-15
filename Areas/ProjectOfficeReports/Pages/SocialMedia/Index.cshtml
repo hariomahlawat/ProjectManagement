@@ -51,7 +51,7 @@
                                 <input type="hidden" asp-for="From" />
                                 <input type="hidden" asp-for="To" />
                                 <input type="hidden" asp-for="Q" />
-                                <input type="hidden" asp-for="Platform" />
+                                <input type="hidden" asp-for="PlatformId" />
                                 <input type="hidden" asp-for="OnlyActiveEventTypes" />
                                 <button type="submit" class="btn btn-outline-light d-inline-flex align-items-center gap-2" data-social-busy-label="Exporting…">
                                     <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
@@ -63,7 +63,7 @@
                                 <input type="hidden" asp-for="From" />
                                 <input type="hidden" asp-for="To" />
                                 <input type="hidden" asp-for="Q" />
-                                <input type="hidden" asp-for="Platform" />
+                                <input type="hidden" asp-for="PlatformId" />
                                 <input type="hidden" asp-for="OnlyActiveEventTypes" />
                                 <button type="submit" class="btn btn-outline-light d-inline-flex align-items-center gap-2" data-social-busy-label="Generating…">
                                     <i class="bi bi-filetype-pdf" aria-hidden="true"></i>
@@ -104,7 +104,7 @@
                 <h2 class="social-section__title">Filter events</h2>
                 <p class="social-section__subtitle">Slice by type, platform, or time range to focus on campaigns that matter.</p>
             </div>
-            @if (Model.Filter.EventTypeId.HasValue || Model.Filter.StartDate.HasValue || Model.Filter.EndDate.HasValue || !string.IsNullOrWhiteSpace(Model.Filter.SearchQuery) || !string.IsNullOrWhiteSpace(Model.Filter.Platform) || Model.Filter.OnlyActiveEventTypes)
+            @if (Model.Filter.EventTypeId.HasValue || Model.Filter.StartDate.HasValue || Model.Filter.EndDate.HasValue || !string.IsNullOrWhiteSpace(Model.Filter.SearchQuery) || Model.Filter.PlatformId.HasValue || Model.Filter.OnlyActiveEventTypes)
             {
                 <a asp-page="Index" class="btn btn-link social-section__reset"><i class="bi bi-x-circle" aria-hidden="true"></i>Clear filters</a>
             }
@@ -124,8 +124,8 @@
                 <input id="to-date" name="To" type="date" value="@(Model.Filter.EndDateValue ?? string.Empty)" class="form-control" />
             </div>
             <div class="col-12 col-md-2">
-                <label asp-for="Platform" class="form-label">Platform</label>
-                <input asp-for="Platform" class="form-control" placeholder="Instagram, X…" />
+                <label asp-for="PlatformId" class="form-label">Platform</label>
+                <select asp-for="PlatformId" asp-items="Model.Filter.PlatformOptions" class="form-select"></select>
             </div>
             <div class="col-12 col-md-3">
                 <label class="form-label" for="search-query">Search</label>
@@ -187,7 +187,7 @@
                                     }
                                 </td>
                                 <td data-title="Type">@item.EventTypeName</td>
-                                <td data-title="Platform">@(string.IsNullOrWhiteSpace(item.Platform) ? "-" : item.Platform)</td>
+                                <td data-title="Platform">@(string.IsNullOrWhiteSpace(item.PlatformName) ? "-" : item.PlatformName)</td>
                                 <td data-title="Photos" class="text-end">@item.PhotoCount</td>
                                 <td class="text-end">
                                     <div class="btn-group" role="group">

@@ -378,7 +378,8 @@ public static class Audit
             DateOnly? startDate,
             DateOnly? endDate,
             string? query,
-            string? platform,
+            Guid? platformId,
+            string? platformName,
             bool onlyActiveEventTypes,
             int count)
         {
@@ -388,7 +389,8 @@ public static class Audit
                 ["StartDate"] = startDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 ["EndDate"] = endDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 ["Query"] = query,
-                ["Platform"] = platform,
+                ["PlatformId"] = platformId?.ToString(),
+                ["Platform"] = platformName,
                 ["OnlyActiveEventTypes"] = onlyActiveEventTypes ? "true" : "false",
                 ["Count"] = count.ToString(CultureInfo.InvariantCulture)
             };

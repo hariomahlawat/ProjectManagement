@@ -34,9 +34,9 @@
             <div class="social-hero__meta">
                 <span class="social-hero__meta-item"><i class="bi bi-calendar-event" aria-hidden="true"></i> @Model.Event?.DateOfEvent.ToString("dd MMM yyyy")</span>
                 <span class="social-hero__meta-item"><i class="bi bi-megaphone" aria-hidden="true"></i> @Model.EventType?.Name</span>
-                @if (!string.IsNullOrWhiteSpace(Model.Event?.Platform))
+                @if (!string.IsNullOrWhiteSpace(Model.Event?.SocialMediaPlatform?.Name))
                 {
-                    <span class="social-hero__meta-item"><i class="bi bi-hash" aria-hidden="true"></i> @Model.Event?.Platform</span>
+                    <span class="social-hero__meta-item"><i class="bi bi-hash" aria-hidden="true"></i> @Model.Event?.SocialMediaPlatform?.Name</span>
                 }
             </div>
             @if (Model.CanManage && Model.Event is not null)

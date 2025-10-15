@@ -49,17 +49,20 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
 
         var now = new DateTimeOffset(2024, 6, 15, 10, 30, 0, TimeSpan.Zero);
         var eventType = SocialMediaTestData.CreateEventType(name: "Campaign Launch", createdByUserId: "creator", createdAtUtc: now);
+        var platform = SocialMediaTestData.CreatePlatform(name: "Instagram", createdByUserId: "creator", timestamp: now);
         var socialEvent = SocialMediaTestData.CreateEvent(
             eventType.Id,
+            platform.Id,
             id: Guid.NewGuid(),
             dateOfEvent: new DateOnly(2024, 6, 14),
             title: "Integration test",
-            platform: "Instagram",
             description: "Test coverage.",
             timestamp: now,
-            createdByUserId: "creator");
+            createdByUserId: "creator",
+            platform: platform);
 
         db.SocialMediaEventTypes.Add(eventType);
+        db.SocialMediaPlatforms.Add(platform);
         db.SocialMediaEvents.Add(socialEvent);
         await db.SaveChangesAsync();
 
@@ -148,17 +151,20 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
 
         var now = new DateTimeOffset(2024, 7, 2, 8, 15, 0, TimeSpan.Zero);
         var eventType = SocialMediaTestData.CreateEventType(name: "Community Update", createdByUserId: "creator", createdAtUtc: now);
+        var platform = SocialMediaTestData.CreatePlatform(name: "Instagram", createdByUserId: "creator", timestamp: now);
         var socialEvent = SocialMediaTestData.CreateEvent(
             eventType.Id,
+            platform.Id,
             id: Guid.NewGuid(),
             dateOfEvent: new DateOnly(2024, 7, 1),
             title: "Smaller asset upload",
-            platform: "Instagram",
             description: "Verifies relaxed size guard.",
             timestamp: now,
-            createdByUserId: "creator");
+            createdByUserId: "creator",
+            platform: platform);
 
         db.SocialMediaEventTypes.Add(eventType);
+        db.SocialMediaPlatforms.Add(platform);
         db.SocialMediaEvents.Add(socialEvent);
         await db.SaveChangesAsync();
 
@@ -236,17 +242,20 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
 
         var now = new DateTimeOffset(2024, 7, 1, 9, 0, 0, TimeSpan.Zero);
         var eventType = SocialMediaTestData.CreateEventType(name: "Community Engagement", createdByUserId: "creator", createdAtUtc: now);
+        var platform = SocialMediaTestData.CreatePlatform(name: "YouTube", createdByUserId: "creator", timestamp: now);
         var socialEvent = SocialMediaTestData.CreateEvent(
             eventType.Id,
+            platform.Id,
             id: Guid.NewGuid(),
             dateOfEvent: new DateOnly(2024, 6, 30),
             title: "Community meet",
-            platform: "YouTube",
             description: "Highlights",
             timestamp: now,
-            createdByUserId: "creator");
+            createdByUserId: "creator",
+            platform: platform);
 
         db.SocialMediaEventTypes.Add(eventType);
+        db.SocialMediaPlatforms.Add(platform);
         db.SocialMediaEvents.Add(socialEvent);
         await db.SaveChangesAsync();
 
@@ -336,17 +345,20 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
 
         var now = new DateTimeOffset(2024, 8, 5, 14, 0, 0, TimeSpan.Zero);
         var eventType = SocialMediaTestData.CreateEventType(name: "Prefix change", createdByUserId: "creator", createdAtUtc: now);
+        var platform = SocialMediaTestData.CreatePlatform(name: "Threads", createdByUserId: "creator", timestamp: now);
         var socialEvent = SocialMediaTestData.CreateEvent(
             eventType.Id,
+            platform.Id,
             id: Guid.NewGuid(),
             dateOfEvent: new DateOnly(2024, 8, 4),
             title: "Prefix regression",
-            platform: "Threads",
             description: "Verifies stored keys",
             timestamp: now,
-            createdByUserId: "creator");
+            createdByUserId: "creator",
+            platform: platform);
 
         db.SocialMediaEventTypes.Add(eventType);
+        db.SocialMediaPlatforms.Add(platform);
         db.SocialMediaEvents.Add(socialEvent);
         await db.SaveChangesAsync();
 
@@ -448,17 +460,20 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
 
         var now = new DateTimeOffset(2024, 9, 1, 18, 0, 0, TimeSpan.Zero);
         var eventType = SocialMediaTestData.CreateEventType(name: "Deletion flow", createdByUserId: "creator", createdAtUtc: now);
+        var platform = SocialMediaTestData.CreatePlatform(name: "Instagram", createdByUserId: "creator", timestamp: now);
         var socialEvent = SocialMediaTestData.CreateEvent(
             eventType.Id,
+            platform.Id,
             id: Guid.NewGuid(),
             dateOfEvent: new DateOnly(2024, 8, 31),
             title: "Delete from page",
-            platform: "Instagram",
             description: "Ensures deletion cleans up assets.",
             timestamp: now,
-            createdByUserId: "creator");
+            createdByUserId: "creator",
+            platform: platform);
 
         db.SocialMediaEventTypes.Add(eventType);
+        db.SocialMediaPlatforms.Add(platform);
         db.SocialMediaEvents.Add(socialEvent);
         await db.SaveChangesAsync();
 

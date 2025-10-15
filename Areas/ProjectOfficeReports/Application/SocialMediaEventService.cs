@@ -55,7 +55,9 @@ public sealed class SocialMediaEventService
                 x.SocialMediaEventTypeId,
                 x.SocialMediaEventType!.Name,
                 x.SocialMediaEventType.IsActive,
-                x.Platform,
+                x.SocialMediaPlatformId,
+                x.SocialMediaPlatform != null ? x.SocialMediaPlatform.Name : null,
+                x.SocialMediaPlatform != null && x.SocialMediaPlatform.IsActive,
                 x.Photos.Count,
                 x.CoverPhotoId,
                 x.CreatedAtUtc,
@@ -82,7 +84,7 @@ public sealed class SocialMediaEventService
                 x.DateOfEvent,
                 x.SocialMediaEventType!.Name,
                 x.Title,
-                x.Platform,
+                x.SocialMediaPlatform != null ? x.SocialMediaPlatform.Name : null,
                 x.Photos.Count,
                 x.CoverPhotoId.HasValue,
                 x.Description));
@@ -108,7 +110,7 @@ public sealed class SocialMediaEventService
                 x.DateOfEvent,
                 x.SocialMediaEventType!.Name,
                 x.Title,
-                x.Platform,
+                x.SocialMediaPlatform != null ? x.SocialMediaPlatform.Name : null,
                 x.Photos.Count,
                 x.Description,
                 x.CoverPhotoId))
@@ -119,6 +121,7 @@ public sealed class SocialMediaEventService
     {
         var socialEvent = await _db.SocialMediaEvents.AsNoTracking()
             .Include(x => x.SocialMediaEventType)
+            .Include(x => x.SocialMediaPlatform)
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
 
         if (socialEvent == null)
@@ -141,9 +144,9 @@ public sealed class SocialMediaEventService
 
     public async Task<SocialMediaEventMutationResult> CreateAsync(
         Guid socialMediaEventTypeId,
+        Guid socialMediaPlatformId,
         DateOnly dateOfEvent,
         string title,
-        string? platform,
         string? description,
         string createdByUserId,
         CancellationToken cancellationToken)
@@ -154,7 +157,6 @@ public sealed class SocialMediaEventService
         }
 
         var trimmedTitle = title.Trim();
-        var trimmedPlatform = string.IsNullOrWhiteSpace(platform) ? null : platform.Trim();
         var trimmedDescription = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
 
         var eventType = await _db.SocialMediaEventTypes.FirstOrDefaultAsync(x => x.Id == socialMediaEventTypeId, cancellationToken);
@@ -168,14 +170,26 @@ public sealed class SocialMediaEventService
             return SocialMediaEventMutationResult.EventTypeInactive();
         }
 
+        var platform = await _db.SocialMediaPlatforms.FirstOrDefaultAsync(x => x.Id == socialMediaPlatformId, cancellationToken);
+        if (platform == null)
+        {
+            return SocialMediaEventMutationResult.PlatformNotFound();
+        }
+
+        if (!platform.IsActive)
+        {
+            return SocialMediaEventMutationResult.PlatformInactive();
+        }
+
         var now = _clock.UtcNow;
         var entity = new SocialMediaEvent
         {
             Id = Guid.NewGuid(),
             SocialMediaEventTypeId = socialMediaEventTypeId,
+            SocialMediaPlatformId = socialMediaPlatformId,
+            SocialMediaPlatform = platform,
             DateOfEvent = dateOfEvent,
             Title = trimmedTitle,
-            Platform = trimmedPlatform,
             Description = trimmedDescription,
             CreatedAtUtc = now,
             CreatedByUserId = createdByUserId,
@@ -192,9 +206,9 @@ public sealed class SocialMediaEventService
     public async Task<SocialMediaEventMutationResult> UpdateAsync(
         Guid id,
         Guid socialMediaEventTypeId,
+        Guid socialMediaPlatformId,
         DateOnly dateOfEvent,
         string title,
-        string? platform,
         string? description,
         byte[] rowVersion,
         string modifiedByUserId,
@@ -208,7 +222,6 @@ public sealed class SocialMediaEventService
         }
 
         var trimmedTitle = title.Trim();
-        var trimmedPlatform = string.IsNullOrWhiteSpace(platform) ? null : platform.Trim();
         var trimmedDescription = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
 
         var entity = await _db.SocialMediaEvents.Include(x => x.Photos).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
@@ -228,12 +241,24 @@ public sealed class SocialMediaEventService
             return SocialMediaEventMutationResult.EventTypeInactive();
         }
 
+        var platform = await _db.SocialMediaPlatforms.FirstOrDefaultAsync(x => x.Id == socialMediaPlatformId, cancellationToken);
+        if (platform == null)
+        {
+            return SocialMediaEventMutationResult.PlatformNotFound();
+        }
+
+        if (!platform.IsActive)
+        {
+            return SocialMediaEventMutationResult.PlatformInactive();
+        }
+
         _db.Entry(entity).Property(x => x.RowVersion).OriginalValue = rowVersion;
 
         entity.SocialMediaEventTypeId = socialMediaEventTypeId;
+        entity.SocialMediaPlatformId = socialMediaPlatformId;
+        entity.SocialMediaPlatform = platform;
         entity.DateOfEvent = dateOfEvent;
         entity.Title = trimmedTitle;
-        entity.Platform = trimmedPlatform;
         entity.Description = trimmedDescription;
         entity.LastModifiedAtUtc = _clock.UtcNow;
         entity.LastModifiedByUserId = modifiedByUserId;
@@ -335,18 +360,9 @@ public sealed class SocialMediaEventService
             query = query.Where(x => x.DateOfEvent <= options.EndDate.Value);
         }
 
-        if (!string.IsNullOrWhiteSpace(options.Platform))
+        if (options.PlatformId.HasValue)
         {
-            var platform = options.Platform.Trim();
-            if (_db.Database.IsNpgsql())
-            {
-                query = query.Where(x => x.Platform != null && EF.Functions.ILike(x.Platform, platform));
-            }
-            else
-            {
-                var normalized = platform.ToLowerInvariant();
-                query = query.Where(x => x.Platform != null && x.Platform.ToLower() == normalized);
-            }
+            query = query.Where(x => x.SocialMediaPlatformId == options.PlatformId.Value);
         }
 
         if (!string.IsNullOrWhiteSpace(options.SearchQuery))
@@ -380,7 +396,7 @@ public sealed record SocialMediaEventQueryOptions(
     DateOnly? StartDate,
     DateOnly? EndDate,
     string? SearchQuery,
-    string? Platform,
+    Guid? PlatformId,
     bool OnlyActiveEventTypes = false);
 
 public sealed record SocialMediaEventListItem(
@@ -390,7 +406,9 @@ public sealed record SocialMediaEventListItem(
     Guid EventTypeId,
     string EventTypeName,
     bool EventTypeIsActive,
-    string? Platform,
+    Guid SocialMediaPlatformId,
+    string? PlatformName,
+    bool PlatformIsActive,
     int PhotoCount,
     Guid? CoverPhotoId,
     DateTimeOffset CreatedAtUtc,
@@ -438,6 +456,12 @@ public sealed record SocialMediaEventMutationResult(
     public static SocialMediaEventMutationResult EventTypeInactive()
         => new(SocialMediaEventMutationOutcome.EventTypeInactive, null, new[] { "The selected event type is inactive." });
 
+    public static SocialMediaEventMutationResult PlatformNotFound()
+        => new(SocialMediaEventMutationOutcome.PlatformNotFound, null, new[] { "Selected platform could not be found." });
+
+    public static SocialMediaEventMutationResult PlatformInactive()
+        => new(SocialMediaEventMutationOutcome.PlatformInactive, null, new[] { "The selected platform is inactive." });
+
     public static SocialMediaEventMutationResult Invalid(string error)
         => new(SocialMediaEventMutationOutcome.Invalid, null, new[] { error });
 
@@ -451,6 +475,8 @@ public enum SocialMediaEventMutationOutcome
     NotFound,
     EventTypeNotFound,
     EventTypeInactive,
+    PlatformNotFound,
+    PlatformInactive,
     Invalid,
     ConcurrencyConflict
 }
