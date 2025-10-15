@@ -38,7 +38,7 @@ namespace ProjectManagement.Data.Migrations
                             FROM pg_indexes
                             WHERE schemaname = current_schema()
                               AND tablename = 'projecttots'
-                              AND indexname = 'ix_projecttots_lastapprovedbyuserid'
+                              AND LOWER(indexname) = 'ix_projecttots_lastapprovedbyuserid'
                         ) THEN
                             CREATE INDEX "IX_ProjectTots_LastApprovedByUserId" ON "ProjectTots" ("LastApprovedByUserId");
                         END IF;
@@ -52,7 +52,7 @@ namespace ProjectManagement.Data.Migrations
                         IF NOT EXISTS (
                             SELECT 1
                             FROM pg_constraint
-                            WHERE conname = 'fk_projecttots_aspnetusers_lastapprovedbyuserid'
+                            WHERE LOWER(conname) = 'fk_projecttots_aspnetusers_lastapprovedbyuserid'
                         ) THEN
                             ALTER TABLE "ProjectTots"
                             ADD CONSTRAINT "FK_ProjectTots_AspNetUsers_LastApprovedByUserId"
