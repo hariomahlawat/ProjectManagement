@@ -237,9 +237,8 @@ namespace ProjectManagement.Data.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
 
-                    b.Property<string>("Platform")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
+                    b.Property<Guid>("SocialMediaPlatformId")
+                        .HasColumnType("uuid");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -263,6 +262,9 @@ namespace ProjectManagement.Data.Migrations
 
                     b.HasIndex("SocialMediaEventTypeId")
                         .HasDatabaseName("IX_SocialMediaEvents_SocialMediaEventTypeId");
+
+                    b.HasIndex("SocialMediaPlatformId")
+                        .HasDatabaseName("IX_SocialMediaEvents_SocialMediaPlatformId");
 
                     b.ToTable("SocialMediaEvents", (string)null);
                 });
@@ -3592,6 +3594,12 @@ namespace ProjectManagement.Data.Migrations
                     b.HasOne("ProjectManagement.Areas.ProjectOfficeReports.Domain.SocialMediaEventType", "SocialMediaEventType")
                         .WithMany("Events")
                         .HasForeignKey("SocialMediaEventTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Areas.ProjectOfficeReports.Domain.SocialMediaPlatform", "SocialMediaPlatform")
+                        .WithMany()
+                        .HasForeignKey("SocialMediaPlatformId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 

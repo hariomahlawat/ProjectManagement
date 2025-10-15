@@ -28,16 +28,42 @@ internal static class SocialMediaTestData
         };
     }
 
+    public static SocialMediaPlatform CreatePlatform(
+        Guid? id = null,
+        string? name = null,
+        string? description = null,
+        bool isActive = true,
+        DateTimeOffset? timestamp = null,
+        string createdByUserId = "seed")
+    {
+        var platformId = id ?? Guid.NewGuid();
+        var createdAt = timestamp ?? new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+        return new SocialMediaPlatform
+        {
+            Id = platformId,
+            Name = name ?? "Instagram",
+            Description = description,
+            IsActive = isActive,
+            CreatedAtUtc = createdAt,
+            CreatedByUserId = createdByUserId,
+            LastModifiedAtUtc = createdAt,
+            LastModifiedByUserId = createdByUserId,
+            RowVersion = Guid.NewGuid().ToByteArray()
+        };
+    }
+
     public static SocialMediaEvent CreateEvent(
         Guid eventTypeId,
+        Guid platformId,
         Guid? id = null,
         DateOnly? dateOfEvent = null,
         string? title = null,
-        string? platform = "Instagram",
         string? description = null,
         Guid? coverPhotoId = null,
         DateTimeOffset? timestamp = null,
-        string createdByUserId = "seed")
+        string createdByUserId = "seed",
+        SocialMediaPlatform? platform = null)
     {
         var createdAt = timestamp ?? new DateTimeOffset(2024, 4, 1, 8, 0, 0, TimeSpan.Zero);
         var entityId = id ?? Guid.NewGuid();
@@ -45,9 +71,10 @@ internal static class SocialMediaTestData
         {
             Id = entityId,
             SocialMediaEventTypeId = eventTypeId,
+            SocialMediaPlatformId = platformId,
+            SocialMediaPlatform = platform,
             DateOfEvent = dateOfEvent ?? new DateOnly(2024, 4, 15),
             Title = title ?? "Launch Day",
-            Platform = platform,
             Description = description ?? "Highlights from the launch.",
             CoverPhotoId = coverPhotoId,
             CreatedAtUtc = createdAt,

@@ -463,7 +463,6 @@ namespace ProjectManagement.Data
                 e.ToTable("SocialMediaEvents");
                 e.Property(x => x.DateOfEvent).HasColumnType("date").IsRequired();
                 e.Property(x => x.Title).HasMaxLength(200).IsRequired();
-                e.Property(x => x.Platform).HasMaxLength(128);
                 e.Property(x => x.Description).HasMaxLength(2000);
                 e.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
                 e.Property(x => x.LastModifiedByUserId).HasMaxLength(450);
@@ -477,10 +476,16 @@ namespace ProjectManagement.Data
 
                 e.HasIndex(x => x.DateOfEvent).HasDatabaseName("IX_SocialMediaEvents_DateOfEvent");
                 e.HasIndex(x => x.SocialMediaEventTypeId).HasDatabaseName("IX_SocialMediaEvents_SocialMediaEventTypeId");
+                e.HasIndex(x => x.SocialMediaPlatformId).HasDatabaseName("IX_SocialMediaEvents_SocialMediaPlatformId");
 
                 e.HasOne(x => x.SocialMediaEventType)
                     .WithMany(x => x.Events)
                     .HasForeignKey(x => x.SocialMediaEventTypeId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                e.HasOne(x => x.SocialMediaPlatform)
+                    .WithMany()
+                    .HasForeignKey(x => x.SocialMediaPlatformId)
                     .OnDelete(DeleteBehavior.Restrict);
 
                 e.HasOne(x => x.CoverPhoto)

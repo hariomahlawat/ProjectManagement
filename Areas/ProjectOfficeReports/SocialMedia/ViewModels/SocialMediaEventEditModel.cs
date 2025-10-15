@@ -22,8 +22,8 @@ public sealed class SocialMediaEventEditModel
     public string Title { get; set; } = string.Empty;
 
     [Display(Name = "Platform")]
-    [StringLength(128, ErrorMessage = "Platform must be 128 characters or fewer.")]
-    public string? Platform { get; set; }
+    [Required(ErrorMessage = "Select a platform.")]
+    public Guid? PlatformId { get; set; }
 
     [Display(Name = "Description")]
     [StringLength(2000, ErrorMessage = "Description must be 2000 characters or fewer.")]

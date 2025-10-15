@@ -40,7 +40,8 @@ public sealed class SocialMediaExportServiceTests
             StartDate: new DateOnly(2024, 5, 2),
             EndDate: new DateOnly(2024, 5, 1),
             SearchQuery: null,
-            Platform: null,
+            PlatformId: null,
+            PlatformName: null,
             OnlyActiveEventTypes: true,
             RequestedByUserId: "user-1");
 
@@ -60,15 +61,17 @@ public sealed class SocialMediaExportServiceTests
         var audit = new RecordingAudit();
 
         var eventType = SocialMediaTestData.CreateEventType(name: "Milestone Update");
+        var platform = SocialMediaTestData.CreatePlatform(name: "Instagram");
         var photoId = Guid.NewGuid();
         var socialEvent = SocialMediaTestData.CreateEvent(
             eventType.Id,
+            platform.Id,
             dateOfEvent: new DateOnly(2024, 4, 18),
             title: "Robotics showcase",
-            platform: " Instagram ",
             description: "Student innovations highlighted.",
             coverPhotoId: photoId,
-            timestamp: clock.UtcNow);
+            timestamp: clock.UtcNow,
+            platform: platform);
 
         var photo = SocialMediaTestData.CreatePhoto(
             socialEvent.Id,
@@ -78,6 +81,7 @@ public sealed class SocialMediaExportServiceTests
             createdAtUtc: clock.UtcNow);
 
         context.SocialMediaEventTypes.Add(eventType);
+        context.SocialMediaPlatforms.Add(platform);
         context.SocialMediaEvents.Add(socialEvent);
         context.SocialMediaEventPhotos.Add(photo);
         await context.SaveChangesAsync();
@@ -98,7 +102,8 @@ public sealed class SocialMediaExportServiceTests
             StartDate: new DateOnly(2024, 4, 1),
             EndDate: new DateOnly(2024, 4, 30),
             SearchQuery: " innovation  ",
-            Platform: " instagram ",
+            PlatformId: platform.Id,
+            PlatformName: " instagram ",
             OnlyActiveEventTypes: true,
             RequestedByUserId: "user-99");
 
@@ -138,6 +143,7 @@ public sealed class SocialMediaExportServiceTests
         Assert.Equal("1", entry.Data["Count"]);
         Assert.Equal(eventType.Id.ToString(), entry.Data["SocialMediaEventTypeId"]);
         Assert.Equal("innovation", entry.Data["Query"]);
+        Assert.Equal(platform.Id.ToString(), entry.Data["PlatformId"]);
         Assert.Equal("Instagram", entry.Data["Platform"]);
         Assert.Equal("true", entry.Data["OnlyActiveEventTypes"]);
     }
@@ -150,15 +156,17 @@ public sealed class SocialMediaExportServiceTests
         var audit = new RecordingAudit();
 
         var eventType = SocialMediaTestData.CreateEventType(name: "Community Engagement");
+        var platform = SocialMediaTestData.CreatePlatform(name: "YouTube");
         var photoId = Guid.NewGuid();
         var socialEvent = SocialMediaTestData.CreateEvent(
             eventType.Id,
+            platform.Id,
             dateOfEvent: new DateOnly(2024, 4, 12),
             title: "STEM workshop",
-            platform: "YouTube",
             description: "Workshop recap and highlights.",
             coverPhotoId: photoId,
-            timestamp: clock.UtcNow);
+            timestamp: clock.UtcNow,
+            platform: platform);
 
         var photo = SocialMediaTestData.CreatePhoto(
             socialEvent.Id,
@@ -168,6 +176,7 @@ public sealed class SocialMediaExportServiceTests
             createdAtUtc: clock.UtcNow);
 
         context.SocialMediaEventTypes.Add(eventType);
+        context.SocialMediaPlatforms.Add(platform);
         context.SocialMediaEvents.Add(socialEvent);
         context.SocialMediaEventPhotos.Add(photo);
         await context.SaveChangesAsync();
@@ -193,7 +202,8 @@ public sealed class SocialMediaExportServiceTests
             StartDate: new DateOnly(2024, 4, 1),
             EndDate: new DateOnly(2024, 4, 30),
             SearchQuery: null,
-            Platform: null,
+            PlatformId: null,
+            PlatformName: null,
             OnlyActiveEventTypes: false,
             RequestedByUserId: "user-88");
 
@@ -222,6 +232,7 @@ public sealed class SocialMediaExportServiceTests
         Assert.Equal("user-88", entry.UserId);
         Assert.Equal("1", entry.Data["Count"]);
         Assert.Equal("false", entry.Data["OnlyActiveEventTypes"]);
+        Assert.Null(entry.Data["PlatformId"]);
         Assert.Null(entry.Data["Platform"]);
     }
 

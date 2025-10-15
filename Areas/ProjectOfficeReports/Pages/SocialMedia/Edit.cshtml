@@ -58,9 +58,9 @@
                         <span asp-validation-for="Input.Title" class="text-danger"></span>
                     </div>
                     <div class="col-12 col-md-6">
-                        <label asp-for="Input.Platform" class="form-label"></label>
-                        <input asp-for="Input.Platform" class="form-control" placeholder="Instagram, LinkedIn, X…" />
-                        <span asp-validation-for="Input.Platform" class="text-danger"></span>
+                        <label asp-for="Input.PlatformId" class="form-label"></label>
+                        <select asp-for="Input.PlatformId" asp-items="Model.PlatformOptions" class="form-select"></select>
+                        <span asp-validation-for="Input.PlatformId" class="text-danger"></span>
                     </div>
                     <div class="col-12">
                         <label asp-for="Input.Description" class="form-label"></label>

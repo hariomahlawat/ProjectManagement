@@ -33,9 +33,11 @@ public sealed class SocialMediaViewPhotoPageTests
         var eventType = SocialMediaTestData.CreateEventType();
         var eventId = Guid.NewGuid();
         var photoId = Guid.NewGuid();
-        var socialEvent = SocialMediaTestData.CreateEvent(eventType.Id, id: eventId);
+        var platform = SocialMediaTestData.CreatePlatform();
+        var socialEvent = SocialMediaTestData.CreateEvent(eventType.Id, platform.Id, id: eventId, platform: platform);
 
         db.SocialMediaEventTypes.Add(eventType);
+        db.SocialMediaPlatforms.Add(platform);
         db.SocialMediaEvents.Add(socialEvent);
         await db.SaveChangesAsync();
 

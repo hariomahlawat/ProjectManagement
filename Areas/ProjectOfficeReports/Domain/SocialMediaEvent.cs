@@ -20,8 +20,10 @@ public class SocialMediaEvent
     [MaxLength(200)]
     public string Title { get; set; } = string.Empty;
 
-    [MaxLength(128)]
-    public string? Platform { get; set; }
+    [Required]
+    public Guid SocialMediaPlatformId { get; set; }
+
+    public SocialMediaPlatform? SocialMediaPlatform { get; set; }
 
     [MaxLength(2000)]
     public string? Description { get; set; }

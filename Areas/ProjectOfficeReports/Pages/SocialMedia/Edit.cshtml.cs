@@ -22,15 +22,18 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.SocialMedia;
 public sealed class EditModel : PageModel
 {
     private readonly SocialMediaEventService _eventService;
+    private readonly SocialMediaPlatformService _platformService;
     private readonly ISocialMediaEventPhotoService _photoService;
     private readonly UserManager<ApplicationUser> _userManager;
 
     public EditModel(
         SocialMediaEventService eventService,
+        SocialMediaPlatformService platformService,
         ISocialMediaEventPhotoService photoService,
         UserManager<ApplicationUser> userManager)
     {
         _eventService = eventService ?? throw new ArgumentNullException(nameof(eventService));
+        _platformService = platformService ?? throw new ArgumentNullException(nameof(platformService));
         _photoService = photoService ?? throw new ArgumentNullException(nameof(photoService));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
     }
@@ -46,6 +49,8 @@ public sealed class EditModel : PageModel
     public List<IFormFile> Uploads { get; set; } = new();
 
     public IReadOnlyList<SelectListItem> EventTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
+
+    public IReadOnlyList<SelectListItem> PlatformOptions { get; private set; } = Array.Empty<SelectListItem>();
 
     public SocialMediaEventPhotoGalleryModel PhotoGallery { get; private set; } = new(Guid.Empty, Array.Empty<SocialMediaEventPhotoItem>(), true);
 
@@ -72,9 +77,23 @@ public sealed class EditModel : PageModel
             return Page();
         }
 
-        if (Input.EventTypeId is null || Input.DateOfEvent is null)
+        if (Input.EventTypeId is null || Input.DateOfEvent is null || Input.PlatformId is null)
         {
-            ModelState.AddModelError(nameof(Input.EventTypeId), "Please select an event type and date.");
+            if (Input.EventTypeId is null)
+            {
+                ModelState.AddModelError(nameof(Input.EventTypeId), "Please select an event type.");
+            }
+
+            if (Input.DateOfEvent is null)
+            {
+                ModelState.AddModelError(nameof(Input.DateOfEvent), "Please select a date.");
+            }
+
+            if (Input.PlatformId is null)
+            {
+                ModelState.AddModelError(nameof(Input.PlatformId), "Please select a platform.");
+            }
+
             await LoadAsync(id, cancellationToken);
             return Page();
         }
@@ -95,9 +114,9 @@ public sealed class EditModel : PageModel
         var result = await _eventService.UpdateAsync(
             id,
             Input.EventTypeId.Value,
+            Input.PlatformId.Value,
             Input.DateOfEvent.Value,
             Input.Title,
-            Input.Platform,
             Input.Description,
             Input.RowVersion,
             userId,
@@ -112,6 +131,10 @@ public sealed class EditModel : PageModel
         if (result.Outcome == SocialMediaEventMutationOutcome.EventTypeInactive || result.Outcome == SocialMediaEventMutationOutcome.EventTypeNotFound)
         {
             ModelState.AddModelError(nameof(Input.EventTypeId), "Please choose an active event type.");
+        }
+        else if (result.Outcome == SocialMediaEventMutationOutcome.PlatformInactive || result.Outcome == SocialMediaEventMutationOutcome.PlatformNotFound)
+        {
+            ModelState.AddModelError(nameof(Input.PlatformId), "Please choose an active platform.");
         }
         else if (result.Outcome == SocialMediaEventMutationOutcome.ConcurrencyConflict)
         {
@@ -281,7 +304,7 @@ public sealed class EditModel : PageModel
             EventTypeId = details.Event.SocialMediaEventTypeId,
             DateOfEvent = details.Event.DateOfEvent,
             Title = details.Event.Title,
-            Platform = details.Event.Platform,
+            PlatformId = details.Event.SocialMediaPlatformId,
             Description = details.Event.Description,
             RowVersion = details.Event.RowVersion
         };
@@ -298,6 +321,19 @@ public sealed class EditModel : PageModel
         }
 
         EventTypeOptions = options;
+
+        var platforms = await _platformService.GetAllAsync(includeInactive: true, cancellationToken);
+        var platformOptions = new List<SelectListItem>();
+        foreach (var platform in platforms)
+        {
+            platformOptions.Add(new SelectListItem(platform.Name, platform.Id.ToString())
+            {
+                Selected = platform.Id == details.Event.SocialMediaPlatformId,
+                Disabled = !platform.IsActive && platform.Id != details.Event.SocialMediaPlatformId
+            });
+        }
+
+        PlatformOptions = platformOptions;
 
         var photos = details.Photos
             .OrderBy(x => x.CreatedAtUtc)

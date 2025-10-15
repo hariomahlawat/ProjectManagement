@@ -14,11 +14,15 @@ public sealed class SocialMediaEventListFilter
 
     public string? SearchQuery { get; init; }
 
-    public string? Platform { get; init; }
+    public Guid? PlatformId { get; init; }
+
+    public string? PlatformName { get; init; }
 
     public bool OnlyActiveEventTypes { get; init; }
 
     public IReadOnlyList<SelectListItem> EventTypeOptions { get; init; } = Array.Empty<SelectListItem>();
+
+    public IReadOnlyList<SelectListItem> PlatformOptions { get; init; } = Array.Empty<SelectListItem>();
 
     public string? StartDateValue => StartDate?.ToString("yyyy-MM-dd");
 

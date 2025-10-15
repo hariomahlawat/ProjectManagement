@@ -17,11 +17,16 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.SocialMedia;
 public sealed class CreateModel : PageModel
 {
     private readonly SocialMediaEventService _eventService;
+    private readonly SocialMediaPlatformService _platformService;
     private readonly UserManager<ApplicationUser> _userManager;
 
-    public CreateModel(SocialMediaEventService eventService, UserManager<ApplicationUser> userManager)
+    public CreateModel(
+        SocialMediaEventService eventService,
+        SocialMediaPlatformService platformService,
+        UserManager<ApplicationUser> userManager)
     {
         _eventService = eventService ?? throw new ArgumentNullException(nameof(eventService));
+        _platformService = platformService ?? throw new ArgumentNullException(nameof(platformService));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
     }
 
@@ -30,9 +35,12 @@ public sealed class CreateModel : PageModel
 
     public IReadOnlyList<SelectListItem> EventTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
 
+    public IReadOnlyList<SelectListItem> PlatformOptions { get; private set; } = Array.Empty<SelectListItem>();
+
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         await PopulateEventTypesAsync(cancellationToken);
+        await PopulatePlatformsAsync(cancellationToken);
         if (Input.DateOfEvent is null)
         {
             Input.DateOfEvent = DateOnly.FromDateTime(DateTime.UtcNow.Date);
@@ -44,14 +52,29 @@ public sealed class CreateModel : PageModel
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
         await PopulateEventTypesAsync(cancellationToken);
+        await PopulatePlatformsAsync(cancellationToken);
         if (!ModelState.IsValid)
         {
             return Page();
         }
 
-        if (Input.EventTypeId is null || Input.DateOfEvent is null)
+        if (Input.EventTypeId is null || Input.DateOfEvent is null || Input.PlatformId is null)
         {
-            ModelState.AddModelError(nameof(Input.EventTypeId), "Please select an event type and date.");
+            if (Input.EventTypeId is null)
+            {
+                ModelState.AddModelError(nameof(Input.EventTypeId), "Please select an event type.");
+            }
+
+            if (Input.DateOfEvent is null)
+            {
+                ModelState.AddModelError(nameof(Input.DateOfEvent), "Please select a date.");
+            }
+
+            if (Input.PlatformId is null)
+            {
+                ModelState.AddModelError(nameof(Input.PlatformId), "Please select a platform.");
+            }
+
             return Page();
         }
 
@@ -63,9 +86,9 @@ public sealed class CreateModel : PageModel
 
         var result = await _eventService.CreateAsync(
             Input.EventTypeId.Value,
+            Input.PlatformId.Value,
             Input.DateOfEvent.Value,
             Input.Title,
-            Input.Platform,
             Input.Description,
             userId,
             cancellationToken);
@@ -79,6 +102,10 @@ public sealed class CreateModel : PageModel
         if (result.Outcome == SocialMediaEventMutationOutcome.EventTypeInactive || result.Outcome == SocialMediaEventMutationOutcome.EventTypeNotFound)
         {
             ModelState.AddModelError(nameof(Input.EventTypeId), "Please choose an active event type.");
+        }
+        else if (result.Outcome == SocialMediaEventMutationOutcome.PlatformInactive || result.Outcome == SocialMediaEventMutationOutcome.PlatformNotFound)
+        {
+            ModelState.AddModelError(nameof(Input.PlatformId), "Please choose an active platform.");
         }
         else if (result.Errors.Count > 0)
         {
@@ -109,5 +136,24 @@ public sealed class CreateModel : PageModel
         }
 
         EventTypeOptions = options;
+    }
+
+    private async Task PopulatePlatformsAsync(CancellationToken cancellationToken)
+    {
+        var platforms = await _platformService.GetAllAsync(includeInactive: false, cancellationToken);
+        var options = new List<SelectListItem>
+        {
+            new("Select platform", string.Empty)
+        };
+
+        foreach (var platform in platforms)
+        {
+            options.Add(new SelectListItem(platform.Name, platform.Id.ToString())
+            {
+                Selected = Input.PlatformId.HasValue && Input.PlatformId.Value == platform.Id
+            });
+        }
+
+        PlatformOptions = options;
     }
 }
