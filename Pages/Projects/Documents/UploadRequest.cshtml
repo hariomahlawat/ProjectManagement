@@ -115,7 +115,7 @@
                     <div class="fw-semibold" data-doc-drop-label>Drag &amp; drop a PDF or browse</div>
                     <div class="text-muted small" data-doc-drop-filename></div>
                 </div>
-                <input asp-for="Input.File" class="form-control visually-hidden" id="fileInput" data-doc-file data-max-size="@Model.MaxFileSizeBytes" data-allowed="@string.Join(',', Model.AllowedContentTypes)" />
+                <input asp-for="Input.File" class="form-control visually-hidden" id="fileInput" data-doc-file data-max-size="@Model.MaxFileSizeBytes" data-allowed="@string.Join(',', allowedTypes)" />
                 <span asp-validation-for="Input.File" class="text-danger"></span>
                 <div id="doc-upload-help" class="form-text">
                     @if (!string.IsNullOrEmpty(allowedTypesText))

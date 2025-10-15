@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
+using ProjectManagement.Utilities.Reporting;
 
 namespace ProjectManagement.Tests;
 
