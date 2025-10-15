@@ -47,7 +47,7 @@ public sealed class SocialMediaEventService
 
         return CreateFilteredQuery(options)
             .OrderByDescending(x => x.DateOfEvent)
-            .ThenByDescending(x => x.CreatedAtUtc.Add(IstOffset))
+            .ThenByDescending(x => x.CreatedAtUtc)
             .Select(x => new SocialMediaEventListItem(
                 x.Id,
                 x.DateOfEvent,
@@ -78,7 +78,7 @@ public sealed class SocialMediaEventService
 
         return CreateFilteredQuery(options)
             .OrderBy(x => x.DateOfEvent)
-            .ThenBy(x => x.CreatedAtUtc.Add(IstOffset))
+            .ThenBy(x => x.CreatedAtUtc)
             .Select(x => new SocialMediaEventExportRow(
                 x.DateOfEvent,
                 x.SocialMediaEventType!.Name,
@@ -104,7 +104,7 @@ public sealed class SocialMediaEventService
 
         return await CreateFilteredQuery(options)
             .OrderBy(x => x.DateOfEvent)
-            .ThenBy(x => x.CreatedAtUtc.Add(IstOffset))
+            .ThenBy(x => x.CreatedAtUtc)
             .Select(x => new SocialMediaEventPdfExportRow(
                 x.Id,
                 x.DateOfEvent,
