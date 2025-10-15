@@ -2618,6 +2618,7 @@ namespace ProjectManagement.Data.Migrations
                         .HasColumnType("bytea");
 
                     b.Property<string>("SubmittedByUserId")
+                        .IsRequired()
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
 
