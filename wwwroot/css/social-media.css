@@ -22,10 +22,12 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 1.25rem;
+  align-items: flex-start;
 }
 
 .social-hero--compact .social-hero__stats {
   margin-top: 0;
+  align-self: flex-start;
 }
 
 .social-hero--compact .social-stat-card {
@@ -35,12 +37,7 @@
 @media (min-width: 768px) {
   .social-hero--compact {
     grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
-    align-items: center;
     gap: 2rem;
-  }
-
-  .social-hero--compact .social-hero__stats {
-    align-self: stretch;
   }
 }
 

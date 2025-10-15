@@ -18,6 +18,9 @@
     var totalEvents = Model.Events.Count;
     var coveredEvents = Model.Events.Count(e => e.CoverPhotoId.HasValue);
     var photoCount = Model.Events.Sum(e => e.PhotoCount);
+    var showExportModal = ViewData["ShowExportModal"] as bool? ?? false;
+    var exportFromValue = Model.Filter.StartDateValue ?? Model.From;
+    var exportToValue = Model.Filter.EndDateValue ?? Model.To;
 }
 
 <partial name="_ToastMessages" model="toastMessages" />
@@ -45,32 +48,10 @@
 
                     if (Model.Events.Count > 0)
                     {
-                        <div class="btn-group" role="group" aria-label="Export events">
-                            <form method="post" asp-page-handler="Export" class="d-inline" data-social-disable-on-submit>
-                                <input type="hidden" asp-for="EventTypeId" />
-                                <input type="hidden" asp-for="From" />
-                                <input type="hidden" asp-for="To" />
-                                <input type="hidden" asp-for="Q" />
-                                <input type="hidden" asp-for="PlatformId" />
-                                <input type="hidden" asp-for="OnlyActiveEventTypes" />
-                                <button type="submit" class="btn btn-outline-light d-inline-flex align-items-center gap-2" data-social-busy-label="Exporting…">
-                                    <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
-                                    <span>Excel</span>
-                                </button>
-                            </form>
-                            <form method="post" asp-page-handler="ExportPdf" class="d-inline" data-social-disable-on-submit>
-                                <input type="hidden" asp-for="EventTypeId" />
-                                <input type="hidden" asp-for="From" />
-                                <input type="hidden" asp-for="To" />
-                                <input type="hidden" asp-for="Q" />
-                                <input type="hidden" asp-for="PlatformId" />
-                                <input type="hidden" asp-for="OnlyActiveEventTypes" />
-                                <button type="submit" class="btn btn-outline-light d-inline-flex align-items-center gap-2" data-social-busy-label="Generating…">
-                                    <i class="bi bi-filetype-pdf" aria-hidden="true"></i>
-                                    <span>PDF</span>
-                                </button>
-                            </form>
-                        </div>
+                        <button type="button" class="btn btn-outline-light d-inline-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#exportSocialEventsModal">
+                            <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
+                            <span>Export events</span>
+                        </button>
                     }
                     else
                     {
@@ -208,6 +189,84 @@
     </section>
 </div>
 
+<div class="modal fade" id="exportSocialEventsModal" tabindex="-1" aria-labelledby="exportSocialEventsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <form method="post" class="needs-validation" novalidate data-social-disable-on-submit>
+                @Html.AntiForgeryToken()
+                <div class="modal-header">
+                    <h1 class="modal-title fs-5" id="exportSocialEventsModalLabel">Export events</h1>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted mb-3">Choose the filters for your offline report. Generate either the structured Excel workbook or a storytelling PDF with hero images.</p>
+                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label asp-for="EventTypeId" class="form-label">Event type</label>
+                            <select asp-for="EventTypeId" asp-items="Model.Filter.EventTypeOptions" class="form-select"></select>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="PlatformId" class="form-label">Platform</label>
+                            <select asp-for="PlatformId" asp-items="Model.Filter.PlatformOptions" class="form-select"></select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="export-from-date">From</label>
+                            <input id="export-from-date" name="From" type="date" value="@(exportFromValue ?? string.Empty)" class="form-control" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="export-to-date">To</label>
+                            <input id="export-to-date" name="To" type="date" value="@(exportToValue ?? string.Empty)" class="form-control" />
+                        </div>
+                        <div class="col-md-12">
+                            <label asp-for="Q" class="form-label">Search</label>
+                            <input asp-for="Q" class="form-control" placeholder="Title or description" />
+                            <div class="form-text">Leave blank to include every story.</div>
+                        </div>
+                        <div class="col-12">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" asp-for="OnlyActiveEventTypes" />
+                                <label class="form-check-label" for="OnlyActiveEventTypes">Only active event types</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-outline-primary d-inline-flex align-items-center gap-2" asp-page-handler="ExportPdf" data-social-busy-label="Generating…">
+                        <i class="bi bi-filetype-pdf" aria-hidden="true"></i>
+                        <span>Export PDF report</span>
+                    </button>
+                    <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2" asp-page-handler="Export" data-social-busy-label="Exporting…">
+                        <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
+                        <span>Export Excel</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 @section Scripts {
+    @if (showExportModal)
+    {
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const modalEl = document.getElementById('exportSocialEventsModal');
+                if (!modalEl) {
+                    return;
+                }
+
+                const bootstrap = window.bootstrap;
+                if (bootstrap && bootstrap.Modal) {
+                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                } else {
+                    modalEl.classList.add('show');
+                    modalEl.style.display = 'block';
+                    modalEl.removeAttribute('aria-hidden');
+                }
+            });
+        </script>
+    }
     <script type="module" src="~/js/pages/project-office-reports/social-media.js" asp-append-version="true"></script>
 }
