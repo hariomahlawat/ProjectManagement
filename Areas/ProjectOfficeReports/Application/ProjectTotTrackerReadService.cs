@@ -29,11 +29,11 @@ public sealed class ProjectTotTrackerReadService
             .Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Completed)
             .Include(p => p.SponsoringUnit)
             .Include(p => p.Tot)
-                .ThenInclude(t => t.LastApprovedByUser)
+                .ThenInclude(t => t!.LastApprovedByUser)
             .Include(p => p.TotRequest)
-                .ThenInclude(r => r.SubmittedByUser)
+                .ThenInclude(r => r!.SubmittedByUser)
             .Include(p => p.TotRequest)
-                .ThenInclude(r => r.DecidedByUser)
+                .ThenInclude(r => r!.DecidedByUser)
             .OrderBy(p => p.Name)
             .AsQueryable();
 

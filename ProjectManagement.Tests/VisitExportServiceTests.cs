@@ -117,7 +117,8 @@ public sealed class VisitExportServiceTests
         var result = await exportService.ExportAsync(request, CancellationToken.None);
 
         Assert.True(result.Success);
-        var file = Assert.NotNull(result.File);
+        Assert.NotNull(result.File);
+        var file = result.File!;
         Assert.Equal("visits-20240401-to-20240430-20240501T083000Z.xlsx", file.FileName);
         Assert.Equal(VisitExportFile.ExcelContentType, file.ContentType);
         Assert.NotEmpty(file.Content);
@@ -134,7 +135,9 @@ public sealed class VisitExportServiceTests
         Assert.Equal("12", worksheet.Cell(2, 5).GetString());
         Assert.Equal("Yes", worksheet.Cell(2, 7).GetString());
         Assert.Equal("Focus on labs", worksheet.Cell(2, 8).GetString());
-        Assert.Equal(8, worksheet.LastColumnUsed().ColumnNumber());
+        var lastColumn = worksheet.LastColumnUsed();
+        Assert.NotNull(lastColumn);
+        Assert.Equal(8, lastColumn!.ColumnNumber());
         Assert.Equal("Export generated", worksheet.Cell(4, 1).GetString());
         Assert.Equal("2024-04-01", worksheet.Cell(5, 2).GetString());
         Assert.Equal("2024-04-30", worksheet.Cell(6, 2).GetString());
@@ -217,12 +220,14 @@ public sealed class VisitExportServiceTests
         var result = await exportService.ExportPdfAsync(request, CancellationToken.None);
 
         Assert.True(result.Success);
-        var file = Assert.NotNull(result.File);
+        Assert.NotNull(result.File);
+        var file = result.File!;
         Assert.Equal("visits-20240401-to-20240430-20240501T094500Z.pdf", file.FileName);
         Assert.Equal(VisitExportFile.PdfContentType, file.ContentType);
         Assert.NotEmpty(file.Content);
 
-        var contextSnapshot = Assert.NotNull(pdfBuilder.Context);
+        Assert.NotNull(pdfBuilder.Context);
+        var contextSnapshot = pdfBuilder.Context!;
         Assert.Single(contextSnapshot.Sections);
         var section = contextSnapshot.Sections[0];
         Assert.Equal(visitId, section.VisitId);

@@ -168,11 +168,11 @@ namespace ProjectManagement.Pages.Projects
                 .Include(p => p.Photos)
                 .Include(p => p.Videos)
                 .Include(p => p.Tot)
-                    .ThenInclude(t => t.LastApprovedByUser)
+                    .ThenInclude(t => t!.LastApprovedByUser)
                 .Include(p => p.TotRequest)
-                    .ThenInclude(r => r.SubmittedByUser)
+                    .ThenInclude(r => r!.SubmittedByUser)
                 .Include(p => p.TotRequest)
-                    .ThenInclude(r => r.DecidedByUser)
+                    .ThenInclude(r => r!.DecidedByUser)
                 .FirstOrDefaultAsync(p => p.Id == id, ct);
 
             if (project is null)
@@ -195,7 +195,7 @@ namespace ProjectManagement.Pages.Projects
             var availableTotIds = Photos
                 .Select(p => p.TotId)
                 .Where(id => id.HasValue)
-                .Select(id => id.Value)
+                .Select(id => id!.Value)
                 .ToHashSet();
 
             if (project.CoverPhotoId.HasValue)

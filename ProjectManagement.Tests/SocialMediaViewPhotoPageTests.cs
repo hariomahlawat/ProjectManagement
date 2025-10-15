@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Pages.SocialMedia;
 using ProjectManagement.Data;
 
@@ -42,6 +43,7 @@ public sealed class SocialMediaViewPhotoPageTests
         await db.SaveChangesAsync();
 
         var stubService = new StubSocialMediaEventPhotoService(
+            photos: new Dictionary<Guid, IReadOnlyList<SocialMediaEventPhoto>>(),
             assets: new Dictionary<(Guid, Guid), byte[]>
             {
                 [(eventId, photoId)] = new byte[] { 0x01, 0x02, 0x03 }
