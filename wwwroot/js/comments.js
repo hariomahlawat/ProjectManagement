@@ -17,10 +17,20 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  const confirmForms = document.querySelectorAll('form[data-comments-confirm]');
-  confirmForms.forEach(form => {
+  const commentConfirmForms = document.querySelectorAll('form[data-comments-confirm]');
+  commentConfirmForms.forEach(form => {
     form.addEventListener('submit', event => {
       const message = form.getAttribute('data-comments-confirm');
+      if (message && !window.confirm(message)) {
+        event.preventDefault();
+      }
+    });
+  });
+
+  const genericConfirmForms = document.querySelectorAll('form[data-confirm]:not([data-comments-confirm])');
+  genericConfirmForms.forEach(form => {
+    form.addEventListener('submit', event => {
+      const message = form.getAttribute('data-confirm');
       if (message && !window.confirm(message)) {
         event.preventDefault();
       }
