@@ -210,7 +210,7 @@ namespace ProjectManagement.Data.Migrations
                     SET "SocialMediaPlatformId" = (
                         SELECT "Id"
                         FROM "SocialMediaPlatforms"
-                        WHERE "Name" = COALESCE(NULLIF(TRIM("Platform"), ''), 'Unspecified')
+                        WHERE "Name" = COALESCE(NULLIF(TRIM("SocialMediaEvents"."Platform"), ''), 'Unspecified')
                         LIMIT 1
                     );
                 """);
@@ -313,7 +313,7 @@ namespace ProjectManagement.Data.Migrations
                 migrationBuilder.Sql(@"""
                     UPDATE "SocialMediaEvents"
                     SET "Platform" = (
-                        SELECT "Name" FROM "SocialMediaPlatforms" WHERE "Id" = "SocialMediaPlatformId" LIMIT 1
+                        SELECT "Name" FROM "SocialMediaPlatforms" WHERE "Id" = "SocialMediaEvents"."SocialMediaPlatformId" LIMIT 1
                     );
                 """);
 
