@@ -1756,6 +1756,22 @@ using (var scope = app.Services.CreateScope())
             ALTER TABLE "ProjectStages"
             ALTER COLUMN "RequiresBackfill" SET DEFAULT FALSE;
         """);
+        if (db.Database.IsNpgsql())
+        {
+            await db.Database.ExecuteSqlRawAsync("""
+                ALTER TABLE "SocialMediaEvents"
+                DROP COLUMN IF EXISTS "Reach";
+            """);
+        }
+        else if (db.Database.IsSqlServer())
+        {
+            await db.Database.ExecuteSqlRawAsync("""
+                IF COL_LENGTH(N'dbo.SocialMediaEvents', 'Reach') IS NOT NULL
+                BEGIN
+                    ALTER TABLE [dbo].[SocialMediaEvents] DROP COLUMN [Reach];
+                END
+            """);
+        }
         await db.Database.ExecuteSqlRawAsync("""
             ALTER TABLE "ProjectStages"
             ALTER COLUMN "ActualStart" DROP NOT NULL;
