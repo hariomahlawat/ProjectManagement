@@ -1745,7 +1745,7 @@ using (var scope = app.Services.CreateScope())
                 await maintenanceConnection.OpenAsync();
                 await using (var maintenanceCommand = maintenanceConnection.CreateCommand())
                 {
-                    maintenanceCommand.CommandText = "select to_regclass('""ProjectStages""') is not null";
+                    maintenanceCommand.CommandText = "select to_regclass('\"ProjectStages\"') is not null";
                     var maintenanceResult = await maintenanceCommand.ExecuteScalarAsync();
                     projectStagesExists = maintenanceResult is bool exists && exists;
                 }
