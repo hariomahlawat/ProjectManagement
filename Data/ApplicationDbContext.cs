@@ -1077,7 +1077,7 @@ namespace ProjectManagement.Data
                         left.HasValue == right.HasValue &&
                         (!left.HasValue || left.Value.DayNumber == right.Value.DayNumber),
                     static date => date.HasValue ? date.Value.GetHashCode() : 0,
-                    static date => date.HasValue ? DateOnly.FromDayNumber(date.Value.DayNumber) : null);
+                    static date => date.HasValue ? DateOnly.FromDayNumber(date.Value.DayNumber) : (DateOnly?)null);
 
                 foreach (var entityType in builder.Model.GetEntityTypes())
                 {

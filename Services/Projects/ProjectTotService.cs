@@ -123,7 +123,7 @@ public sealed class ProjectTotService
         totRequest.DecidedByUserId = null;
         totRequest.DecidedOnUtc = null;
         totRequest.DecisionRemarks = null;
-        totRequest.SubmittedByUser = null;
+        totRequest.SubmittedByUser = null!;
         totRequest.DecidedByUser = null;
         totRequest.RowVersion = Guid.NewGuid().ToByteArray();
 

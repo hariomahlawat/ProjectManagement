@@ -193,8 +193,9 @@ namespace ProjectManagement.Pages.Projects
                 .ToList();
 
             var availableTotIds = Photos
-                .Where(p => p.TotId.HasValue)
-                .Select(p => p.TotId!.Value)
+                .Select(p => p.TotId)
+                .Where(id => id.HasValue)
+                .Select(id => id.Value)
                 .ToHashSet();
 
             if (project.CoverPhotoId.HasValue)

@@ -61,6 +61,26 @@ public sealed class ProjectTotTrackerReadService
             var tot = project.Tot;
             var request = project.TotRequest;
 
+            var totRemarksValue = tot?.Remarks;
+            var totRemarks = string.IsNullOrWhiteSpace(totRemarksValue) ? null : totRemarksValue;
+            var totLastApprovedFullName = tot?.LastApprovedByUser?.FullName;
+            var totLastApprovedName = string.IsNullOrWhiteSpace(totLastApprovedFullName)
+                ? tot?.LastApprovedByUserId
+                : totLastApprovedFullName;
+
+            var requestProposedRemarks = request?.ProposedRemarks;
+            var requestRemarks = string.IsNullOrWhiteSpace(requestProposedRemarks) ? null : requestProposedRemarks;
+            var requestSubmittedFullName = request?.SubmittedByUser?.FullName;
+            var requestSubmittedBy = string.IsNullOrWhiteSpace(requestSubmittedFullName)
+                ? request?.SubmittedByUserId
+                : requestSubmittedFullName;
+            var requestDecidedFullName = request?.DecidedByUser?.FullName;
+            var requestDecidedBy = string.IsNullOrWhiteSpace(requestDecidedFullName)
+                ? request?.DecidedByUserId
+                : requestDecidedFullName;
+            var decisionRemarksValue = request?.DecisionRemarks;
+            var decisionRemarks = string.IsNullOrWhiteSpace(decisionRemarksValue) ? null : decisionRemarksValue;
+
             rows.Add(new ProjectTotTrackerRow(
                 project.Id,
                 project.Name,
@@ -68,19 +88,19 @@ public sealed class ProjectTotTrackerReadService
                 tot?.Status,
                 tot?.StartedOn,
                 tot?.CompletedOn,
-                string.IsNullOrWhiteSpace(tot?.Remarks) ? null : tot!.Remarks,
-                string.IsNullOrWhiteSpace(tot?.LastApprovedByUser?.FullName) ? tot?.LastApprovedByUserId : tot?.LastApprovedByUser!.FullName,
+                totRemarks,
+                totLastApprovedName,
                 tot?.LastApprovedOnUtc,
                 request?.DecisionState,
                 request?.ProposedStatus,
                 request?.ProposedStartedOn,
                 request?.ProposedCompletedOn,
-                string.IsNullOrWhiteSpace(request?.ProposedRemarks) ? null : request!.ProposedRemarks,
-                string.IsNullOrWhiteSpace(request?.SubmittedByUser?.FullName) ? request?.SubmittedByUserId : request?.SubmittedByUser!.FullName,
+                requestRemarks,
+                requestSubmittedBy,
                 request?.SubmittedOnUtc,
-                string.IsNullOrWhiteSpace(request?.DecidedByUser?.FullName) ? request?.DecidedByUserId : request?.DecidedByUser!.FullName,
+                requestDecidedBy,
                 request?.DecidedOnUtc,
-                string.IsNullOrWhiteSpace(request?.DecisionRemarks) ? null : request!.DecisionRemarks,
+                decisionRemarks,
                 request?.RowVersion));
         }
 

@@ -12,8 +12,10 @@
         ProjectLifecycleFilter.Cancelled,
         ProjectLifecycleFilter.All
     };
-    var categoryCount = Model.Categories?.Count ?? 0;
-    var technicalCount = Model.TechnicalCategories?.Count ?? 0;
+    var categories = Model.Categories ?? Array.Empty<ProjectManagement.Pages.Analytics.IndexModel.CategoryOption>();
+    var technicalCategories = Model.TechnicalCategories ?? Array.Empty<ProjectManagement.Pages.Analytics.IndexModel.TechnicalCategoryOption>();
+    var categoryCount = categories.Count;
+    var technicalCount = technicalCategories.Count;
 }
 
 <section class="analytics-page">
@@ -116,7 +118,7 @@
               <span class="text-secondary">Category</span>
               <select class="form-select form-select-sm" data-filter="category">
                 <option value="">All categories</option>
-                @foreach (var category in Model.Categories)
+                @foreach (var category in categories)
                 {
                   <option value="@category.Id">@category.Name</option>
                 }
@@ -126,7 +128,7 @@
               <span class="text-secondary">Technical</span>
               <select class="form-select form-select-sm" data-filter="technical-category">
                 <option value="">All technical categories</option>
-                @foreach (var technical in Model.TechnicalCategories)
+                @foreach (var technical in technicalCategories)
                 {
                   <option value="@technical.Id">@technical.Name</option>
                 }
@@ -179,7 +181,7 @@
               <span class="text-secondary">Category</span>
               <select class="form-select form-select-sm" data-filter="category">
                 <option value="">All categories</option>
-                @foreach (var category in Model.Categories)
+                @foreach (var category in categories)
                 {
                   <option value="@category.Id">@category.Name</option>
                 }
@@ -189,7 +191,7 @@
               <span class="text-secondary">Technical</span>
               <select class="form-select form-select-sm" data-filter="technical-category">
                 <option value="">All technical categories</option>
-                @foreach (var technical in Model.TechnicalCategories)
+                @foreach (var technical in technicalCategories)
                 {
                   <option value="@technical.Id">@technical.Name</option>
                 }
@@ -231,7 +233,7 @@
               <span class="text-secondary">Category</span>
               <select class="form-select form-select-sm" data-filter="category">
                 <option value="">All categories</option>
-                @foreach (var category in Model.Categories)
+                @foreach (var category in categories)
                 {
                   <option value="@category.Id">@category.Name</option>
                 }
@@ -241,7 +243,7 @@
               <span class="text-secondary">Technical</span>
               <select class="form-select form-select-sm" data-filter="technical-category">
                 <option value="">All technical categories</option>
-                @foreach (var technical in Model.TechnicalCategories)
+                @foreach (var technical in technicalCategories)
                 {
                   <option value="@technical.Id">@technical.Name</option>
                 }
@@ -318,7 +320,7 @@
               <span class="text-secondary">Category</span>
               <select class="form-select form-select-sm" data-filter="category">
                 <option value="">All categories</option>
-                @foreach (var category in Model.Categories)
+                @foreach (var category in categories)
                 {
                   <option value="@category.Id">@category.Name</option>
                 }
@@ -328,7 +330,7 @@
               <span class="text-secondary">Technical</span>
               <select class="form-select form-select-sm" data-filter="technical-category">
                 <option value="">All technical categories</option>
-                @foreach (var technical in Model.TechnicalCategories)
+                @foreach (var technical in technicalCategories)
                 {
                   <option value="@technical.Id">@technical.Name</option>
                 }
@@ -369,7 +371,7 @@
               <span class="text-secondary">Category</span>
               <select class="form-select form-select-sm" data-filter="category">
                 <option value="">All categories</option>
-                @foreach (var category in Model.Categories)
+                @foreach (var category in categories)
                 {
                   <option value="@category.Id">@category.Name</option>
                 }
@@ -379,7 +381,7 @@
               <span class="text-secondary">Technical</span>
               <select class="form-select form-select-sm" data-filter="technical-category">
                 <option value="">All technical categories</option>
-                @foreach (var technical in Model.TechnicalCategories)
+                @foreach (var technical in technicalCategories)
                 {
                   <option value="@technical.Id">@technical.Name</option>
                 }

@@ -208,6 +208,37 @@ public sealed class ProjectModerationServiceTests
         public string GetProjectCommentsRoot(int projectId) => Path.Combine(GetProjectRoot(projectId), "comments");
 
         public string GetProjectVideosRoot(int projectId) => Path.Combine(GetProjectRoot(projectId), "videos");
+
+        public string GetSocialMediaRoot(string storagePrefix, Guid eventId)
+        {
+            if (eventId == Guid.Empty)
+            {
+                throw new ArgumentException("Event identifier cannot be empty.", nameof(eventId));
+            }
+
+            if (string.IsNullOrWhiteSpace(storagePrefix))
+            {
+                storagePrefix = "org/social/{eventId}";
+            }
+
+            const string token = "{eventId}";
+            var trimmed = storagePrefix.Trim();
+            if (!trimmed.Contains(token, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException($"Storage prefix must contain the token '{token}'.", nameof(storagePrefix));
+            }
+
+            var sanitizedPrefix = trimmed
+                .TrimStart('/', '\\')
+                .TrimEnd('/', '\\')
+                .Replace(token, eventId.ToString("D"), StringComparison.OrdinalIgnoreCase);
+
+            var relativePath = sanitizedPrefix
+                .Replace('/', Path.DirectorySeparatorChar)
+                .Replace('\\', Path.DirectorySeparatorChar);
+
+            return Path.Combine(_root, relativePath);
+        }
     }
 
     private sealed class TempDirectory : IDisposable

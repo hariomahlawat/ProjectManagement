@@ -399,15 +399,16 @@ public sealed class ProjectModerationService
 
     private string BuildProjectRootPath(int projectId)
     {
-        var projectSegment = projectId.ToString(CultureInfo.InvariantCulture);
-        var segments = new[]
-        {
-            _uploadRootProvider.RootPath,
-            string.IsNullOrWhiteSpace(_documentOptions.ProjectsSubpath) ? null : _documentOptions.ProjectsSubpath,
-            projectSegment
-        };
+        var segments = new List<string> { _uploadRootProvider.RootPath };
 
-        return Path.GetFullPath(Path.Combine(segments.Where(s => !string.IsNullOrWhiteSpace(s)).ToArray()));
+        if (!string.IsNullOrWhiteSpace(_documentOptions.ProjectsSubpath))
+        {
+            segments.Add(_documentOptions.ProjectsSubpath);
+        }
+
+        segments.Add(projectId.ToString(CultureInfo.InvariantCulture));
+
+        return Path.GetFullPath(Path.Combine(segments.ToArray()));
     }
 
     private void TryDeleteParentIfEmpty(string path)
