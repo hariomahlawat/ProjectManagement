@@ -116,11 +116,14 @@ public sealed class SocialMediaPdfReportBuilder : ISocialMediaPdfReportBuilder
 
                     content.Spacing(20);
 
-                    for (var index = 0; index < context.Sections.Count; index++)
+                    var sequenceIndex = 0;
+
+                    foreach (var section in context.Sections)
                     {
-                        var section = context.Sections[index];
-                        var sequenceNumber = index + 1;
-                        content.Item().Element(container => ComposeSection(container, section, sequenceNumber));
+                        var sectionCopy = section;
+                        var sequenceNumber = ++sequenceIndex;
+
+                        content.Item().Element(container => ComposeSection(container, sectionCopy, sequenceNumber));
                     }
                 });
 
