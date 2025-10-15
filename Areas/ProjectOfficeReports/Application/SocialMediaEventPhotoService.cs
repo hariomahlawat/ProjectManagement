@@ -143,9 +143,13 @@ public sealed class SocialMediaEventPhotoService : ISocialMediaEventPhotoService
         using var sourceImage = await Image.LoadAsync<Rgba32>(buffer, cancellationToken);
         sourceImage.Mutate(x => x.AutoOrient());
 
-        if (sourceImage.Width < _options.MinWidth || sourceImage.Height < _options.MinHeight)
+        var minWidth = _options.MinWidth;
+        var minHeight = _options.MinHeight;
+
+        if ((minWidth.HasValue && sourceImage.Width < minWidth.Value) ||
+            (minHeight.HasValue && sourceImage.Height < minHeight.Value))
         {
-            return SocialMediaEventPhotoUploadResult.ImageTooSmall(_options.MinWidth, _options.MinHeight);
+            return SocialMediaEventPhotoUploadResult.ImageTooSmall(minWidth, minHeight);
         }
 
         var now = _clock.UtcNow;
@@ -642,11 +646,31 @@ public sealed record SocialMediaEventPhotoUploadResult(
             $"File exceeds the maximum size of {maxBytes / 1024 / 1024} MB."
         });
 
-    public static SocialMediaEventPhotoUploadResult ImageTooSmall(int minWidth, int minHeight)
-        => new(SocialMediaEventPhotoUploadOutcome.ImageTooSmall, null, new[]
+    public static SocialMediaEventPhotoUploadResult ImageTooSmall(int? minWidth, int? minHeight)
+        => new(
+            SocialMediaEventPhotoUploadOutcome.ImageTooSmall,
+            null,
+            new[] { BuildTooSmallMessage(minWidth, minHeight) });
+
+    private static string BuildTooSmallMessage(int? minWidth, int? minHeight)
+    {
+        if (minWidth.HasValue && minHeight.HasValue)
         {
-            $"Image must be at least {minWidth}x{minHeight} pixels."
-        });
+            return $"Image must be at least {minWidth}x{minHeight} pixels.";
+        }
+
+        if (minWidth.HasValue)
+        {
+            return $"Image width must be at least {minWidth} pixels.";
+        }
+
+        if (minHeight.HasValue)
+        {
+            return $"Image height must be at least {minHeight} pixels.";
+        }
+
+        return "Image is too small.";
+    }
 
     public static SocialMediaEventPhotoUploadResult Invalid(string message)
         => new(SocialMediaEventPhotoUploadOutcome.InvalidImage, null, new[] { message });

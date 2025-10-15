@@ -138,6 +138,93 @@ public sealed class ProjectOfficeReportsSocialMediaPhotoIntegrationTests
         }
     }
 
+    [Fact]
+    public async Task UploadingSmallPhotoSucceedsWhenNoMinimumDimensionsConfigured()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        var now = new DateTimeOffset(2024, 7, 2, 8, 15, 0, TimeSpan.Zero);
+        var eventType = SocialMediaTestData.CreateEventType(name: "Community Update", createdByUserId: "creator", createdAtUtc: now);
+        var socialEvent = SocialMediaTestData.CreateEvent(
+            eventType.Id,
+            id: Guid.NewGuid(),
+            dateOfEvent: new DateOnly(2024, 7, 1),
+            title: "Smaller asset upload",
+            platform: "Instagram",
+            reach: 250,
+            description: "Verifies relaxed size guard.",
+            timestamp: now,
+            createdByUserId: "creator");
+
+        db.SocialMediaEventTypes.Add(eventType);
+        db.SocialMediaEvents.Add(socialEvent);
+        await db.SaveChangesAsync();
+
+        var tempRoot = Path.Combine(Path.GetTempPath(), "pm-social-media-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempRoot);
+
+        try
+        {
+            var photoOptions = Options.Create(new SocialMediaPhotoOptions
+            {
+                Derivatives = new Dictionary<string, SocialMediaPhotoDerivativeOptions>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["feed"] = new SocialMediaPhotoDerivativeOptions { Width = 1200, Height = 1200, Quality = 85 },
+                    ["thumb"] = new SocialMediaPhotoDerivativeOptions { Width = 600, Height = 600, Quality = 80 }
+                },
+                StoragePrefix = "org/social/{eventId}"
+            });
+
+            var uploadRoot = new TestUploadRootProvider(tempRoot);
+            var clock = new TestClock(now.AddMinutes(10));
+            var photoService = new SocialMediaEventPhotoService(db, clock, photoOptions, uploadRoot, NullLogger<SocialMediaEventPhotoService>.Instance);
+            var eventService = new SocialMediaEventService(db, clock, photoService);
+            var userManager = CreateUserManager(db);
+            var page = new EditModel(eventService, photoService, userManager);
+
+            ConfigurePageContext(page, CreatePrincipal("creator", "Admin"));
+
+            await using var imageStream = await CreateImageStreamAsync(640, 640);
+            var formFile = new FormFile(imageStream, 0, imageStream.Length, "upload", "small-photo.jpg")
+            {
+                Headers = new HeaderDictionary(),
+                ContentType = "image/jpeg"
+            };
+
+            page.Uploads = new List<IFormFile> { formFile };
+            page.UploadCaption = "Smaller test";
+
+            var result = await page.OnPostUploadAsync(socialEvent.Id, CancellationToken.None);
+
+            Assert.IsType<PageResult>(result);
+            Assert.Equal("1 photo uploaded.", page.TempData["ToastMessage"]);
+            Assert.False(page.TempData.ContainsKey("ToastError"));
+
+            var persistedEvent = await db.SocialMediaEvents.Include(x => x.Photos).SingleAsync(x => x.Id == socialEvent.Id);
+            var photo = Assert.Single(persistedEvent.Photos);
+
+            var photoFolder = Path.Combine(tempRoot, photo.StorageKey.Replace('/', Path.DirectorySeparatorChar));
+            var feedDerivative = Path.Combine(photoFolder, "feed.jpg");
+            var thumbDerivative = Path.Combine(photoFolder, "thumb.jpg");
+
+            Assert.True(File.Exists(feedDerivative));
+            Assert.True(File.Exists(thumbDerivative));
+            Assert.True(new FileInfo(feedDerivative).Length > 0);
+            Assert.True(new FileInfo(thumbDerivative).Length > 0);
+        }
+        finally
+        {
+            if (Directory.Exists(tempRoot))
+            {
+                Directory.Delete(tempRoot, true);
+            }
+        }
+    }
+
     [Theory]
     [InlineData("image/jpeg", "image/png")]
     [InlineData("image/png", "image/jpeg")]
