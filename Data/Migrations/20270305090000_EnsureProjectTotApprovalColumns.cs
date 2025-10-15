@@ -1,11 +1,15 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using ProjectManagement.Data;
 
 #nullable disable
 
 namespace ProjectManagement.Data.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(ApplicationDbContext))]
+    [Migration("20270305090000_EnsureProjectTotApprovalColumns")]
     public partial class EnsureProjectTotApprovalColumns : Migration
     {
         /// <inheritdoc />
