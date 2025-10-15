@@ -145,6 +145,8 @@ public sealed class SocialMediaPdfReportBuilder : ISocialMediaPdfReportBuilder
         var photoCountText = section.PhotoCount.ToString(CultureInfo.InvariantCulture);
         var description = section.Description;
         var coverPhoto = section.CoverPhoto;
+        var typeName = section.EventTypeName;
+        var title = section.Title;
 
         container
             .Border(1)
@@ -165,7 +167,7 @@ public sealed class SocialMediaPdfReportBuilder : ISocialMediaPdfReportBuilder
                         {
                             title.Item().Text(text =>
                             {
-                                text.Span($"Story {sequenceNumber:00} · {section.EventTypeName}")
+                                text.Span($"Story {sequenceNumber:00} · {typeName}")
                                     .FontSize(16)
                                     .SemiBold()
                                     .FontColor("#1E3A8A");
@@ -176,7 +178,7 @@ public sealed class SocialMediaPdfReportBuilder : ISocialMediaPdfReportBuilder
                                 text.DefaultTextStyle(style => style.FontSize(11));
                                 text.Span(dateText).FontColor("#475569");
                                 text.Span("  •  ");
-                                text.Span(section.Title).SemiBold();
+                                text.Span(title).SemiBold();
                             });
                         });
 
