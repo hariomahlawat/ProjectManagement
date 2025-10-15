@@ -17,6 +17,39 @@
   box-shadow: 0 1.5rem 3rem -1.5rem rgba(37, 56, 88, 0.55);
 }
 
+.social-hero--compact {
+  padding: 2rem clamp(1.25rem, 2vw + 1rem, 3rem);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.75rem;
+}
+
+.social-hero--compact .social-hero__stats {
+  margin-top: 0;
+}
+
+.social-hero--compact .social-stat-card {
+  padding: 1rem 1.25rem;
+}
+
+@media (min-width: 768px) {
+  .social-hero--compact {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    align-items: center;
+    gap: 2.5rem;
+  }
+
+  .social-hero--compact .social-hero__stats {
+    align-self: stretch;
+  }
+}
+
+@media (min-width: 992px) {
+  .social-hero--compact .social-hero__stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 .social-hero::after {
   content: "";
   position: absolute;
