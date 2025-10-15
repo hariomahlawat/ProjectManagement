@@ -38,7 +38,7 @@ namespace ProjectManagement.Data.Migrations
                             FROM pg_indexes
                             WHERE schemaname = current_schema()
                               AND tablename = 'projecttots'
-                              AND indexname = 'ix_projecttots_lastapprovedbyuserid'
+                              AND indexname = 'IX_ProjectTots_LastApprovedByUserId'
                         ) THEN
                             CREATE INDEX "IX_ProjectTots_LastApprovedByUserId" ON "ProjectTots" ("LastApprovedByUserId");
                         END IF;
