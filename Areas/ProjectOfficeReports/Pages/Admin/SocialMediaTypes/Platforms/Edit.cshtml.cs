@@ -9,15 +9,15 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Models;
 
-namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes;
+namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes.Platforms;
 
 [Authorize(Roles = "Admin,HoD")]
 public class EditModel : PageModel
 {
-    private readonly SocialMediaEventTypeService _service;
+    private readonly SocialMediaPlatformService _service;
     private readonly UserManager<ApplicationUser> _userManager;
 
-    public EditModel(SocialMediaEventTypeService service, UserManager<ApplicationUser> userManager)
+    public EditModel(SocialMediaPlatformService service, UserManager<ApplicationUser> userManager)
     {
         _service = service;
         _userManager = userManager;
@@ -38,6 +38,7 @@ public class EditModel : PageModel
         [StringLength(512)]
         public string? Description { get; set; }
 
+        [Display(Name = "Active")]
         public bool IsActive { get; set; }
     }
 
@@ -74,19 +75,19 @@ public class EditModel : PageModel
         }
 
         var result = await _service.UpdateAsync(id, Input.Name, Input.Description, Input.IsActive, bytes, _userManager.GetUserId(User) ?? string.Empty, cancellationToken);
-        if (result.Outcome == SocialMediaEventTypeMutationOutcome.Success)
+        if (result.Outcome == SocialMediaPlatformMutationOutcome.Success)
         {
-            TempData["ToastMessage"] = "Social media event type updated.";
+            TempData["ToastMessage"] = "Social media platform updated.";
             return RedirectToPage("Index");
         }
 
-        if (result.Outcome == SocialMediaEventTypeMutationOutcome.DuplicateName)
+        if (result.Outcome == SocialMediaPlatformMutationOutcome.DuplicateName)
         {
-            ModelState.AddModelError(nameof(Input.Name), "A social media event type with this name already exists.");
+            ModelState.AddModelError(nameof(Input.Name), "A social media platform with this name already exists.");
         }
-        else if (result.Outcome == SocialMediaEventTypeMutationOutcome.ConcurrencyConflict)
+        else if (result.Outcome == SocialMediaPlatformMutationOutcome.ConcurrencyConflict)
         {
-            ModelState.AddModelError(string.Empty, "Someone else updated this social media event type. Please reload and try again.");
+            ModelState.AddModelError(string.Empty, "Someone else updated this social media platform. Please reload and try again.");
         }
         else if (result.Errors.Count > 0)
         {
@@ -94,7 +95,7 @@ public class EditModel : PageModel
         }
         else
         {
-            ModelState.AddModelError(string.Empty, "Unable to update the social media event type.");
+            ModelState.AddModelError(string.Empty, "Unable to update the social media platform.");
         }
 
         return Page();

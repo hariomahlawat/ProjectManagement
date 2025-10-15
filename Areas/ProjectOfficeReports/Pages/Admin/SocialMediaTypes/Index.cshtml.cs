@@ -11,23 +11,30 @@ using ProjectManagement.Models;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.SocialMediaTypes;
 
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = "Admin,HoD")]
 public class IndexModel : PageModel
 {
     private readonly SocialMediaEventTypeService _service;
+    private readonly SocialMediaPlatformService _platformService;
     private readonly UserManager<ApplicationUser> _userManager;
 
-    public IndexModel(SocialMediaEventTypeService service, UserManager<ApplicationUser> userManager)
+    public IndexModel(
+        SocialMediaEventTypeService service,
+        SocialMediaPlatformService platformService,
+        UserManager<ApplicationUser> userManager)
     {
         _service = service;
+        _platformService = platformService;
         _userManager = userManager;
     }
 
     public IReadOnlyList<SocialMediaEventTypeSummary> Items { get; private set; } = Array.Empty<SocialMediaEventTypeSummary>();
+    public IReadOnlyList<SocialMediaPlatformSummary> Platforms { get; private set; } = Array.Empty<SocialMediaPlatformSummary>();
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         Items = await _service.GetSummariesAsync(cancellationToken);
+        Platforms = await _platformService.GetSummariesAsync(cancellationToken);
     }
 
     public async Task<IActionResult> OnPostToggleAsync(Guid id, bool enable, string rowVersion, CancellationToken cancellationToken)
@@ -92,6 +99,63 @@ public class IndexModel : PageModel
                 break;
             default:
                 TempData["ToastError"] = "Social media event type not found.";
+                break;
+        }
+
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostTogglePlatformAsync(Guid id, bool enable, string rowVersion, CancellationToken cancellationToken)
+    {
+        var userId = _userManager.GetUserId(User) ?? string.Empty;
+        var bytes = DecodeRowVersion(rowVersion);
+        if (bytes == null)
+        {
+            TempData["ToastError"] = "Unable to process the request. Please try again.";
+            return RedirectToPage();
+        }
+
+        var result = await _platformService.ToggleAsync(id, enable, bytes, userId, cancellationToken);
+        switch (result.Outcome)
+        {
+            case SocialMediaPlatformMutationOutcome.Success:
+                TempData["ToastMessage"] = enable ? "Social media platform enabled." : "Social media platform disabled.";
+                break;
+            case SocialMediaPlatformMutationOutcome.ConcurrencyConflict:
+                TempData["ToastError"] = "The social media platform was updated by someone else. Please reload the page.";
+                break;
+            case SocialMediaPlatformMutationOutcome.NotFound:
+                TempData["ToastError"] = "Social media platform not found.";
+                break;
+            default:
+                TempData["ToastError"] = "Unable to update the social media platform.";
+                break;
+        }
+
+        return RedirectToPage();
+    }
+
+    public async Task<IActionResult> OnPostDeletePlatformAsync(Guid id, string rowVersion, CancellationToken cancellationToken)
+    {
+        var userId = _userManager.GetUserId(User) ?? string.Empty;
+        var bytes = DecodeRowVersion(rowVersion);
+        if (bytes == null)
+        {
+            TempData["ToastError"] = "Unable to process the request. Please try again.";
+            return RedirectToPage();
+        }
+
+        var result = await _platformService.DeleteAsync(id, bytes, userId, cancellationToken);
+        switch (result.Outcome)
+        {
+            case SocialMediaPlatformDeletionOutcome.Success:
+                TempData["ToastMessage"] = "Social media platform deleted.";
+                break;
+            case SocialMediaPlatformDeletionOutcome.ConcurrencyConflict:
+                TempData["ToastError"] = "The social media platform was changed by someone else. Please reload the page.";
+                break;
+            default:
+                TempData["ToastError"] = "Social media platform not found.";
                 break;
         }
 
