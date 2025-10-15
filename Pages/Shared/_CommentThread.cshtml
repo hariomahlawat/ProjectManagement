@@ -89,7 +89,7 @@ else
                             var editRoute = withRoute(editParam, comment.Id);
                             var deleteRoute = withRoute("commentId", comment.Id);
                             <a class="btn btn-sm btn-outline-secondary" asp-page="@pageName" asp-all-route-data="@(editRoute)">Edit</a>
-                            <form method="post" asp-page="@pageName" asp-page-handler="@deleteHandler" asp-all-route-data="@(deleteRoute)" data-confirm="Delete this remark?">
+                            <form method="post" asp-page="@pageName" asp-page-handler="@deleteHandler" asp-all-route-data="@(deleteRoute)" data-comments-confirm="Delete this remark?">
                                 <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
                             </form>
                         }
@@ -138,7 +138,7 @@ else
                                     {
                                         <div class="d-flex flex-column gap-2">
                                             <a class="btn btn-sm btn-outline-secondary" asp-page="@pageName" asp-all-route-data="@(replyEditRoute)">Edit</a>
-                                            <form method="post" asp-page="@pageName" asp-page-handler="@deleteHandler" asp-all-route-data="@(replyDeleteRoute)" data-confirm="Delete this remark?">
+                                            <form method="post" asp-page="@pageName" asp-page-handler="@deleteHandler" asp-all-route-data="@(replyDeleteRoute)" data-comments-confirm="Delete this remark?">
                                                 <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
                                             </form>
                                         </div>

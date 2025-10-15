@@ -17,10 +17,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  const confirmForms = document.querySelectorAll('form[data-confirm]');
+  const confirmForms = document.querySelectorAll('form[data-comments-confirm]');
   confirmForms.forEach(form => {
     form.addEventListener('submit', event => {
-      const message = form.getAttribute('data-confirm');
+      const message = form.getAttribute('data-comments-confirm');
       if (message && !window.confirm(message)) {
         event.preventDefault();
       }
