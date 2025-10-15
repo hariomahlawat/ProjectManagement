@@ -25,6 +25,8 @@
     DateTime? ToIst(DateTime? value) => value.HasValue
         ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc), istZone)
         : null;
+
+    var requestStateDisabled = Model.OnlyPending ? "disabled" : null;
 }
 
 <div class="d-flex justify-content-between align-items-center mb-4">
@@ -47,7 +49,7 @@
     </div>
     <div class="col-md-3">
         <label class="form-label" asp-for="RequestStateFilter">Request state</label>
-        <select class="form-select" asp-for="RequestStateFilter" @(Model.OnlyPending ? "disabled" : null)>
+        <select class="form-select" asp-for="RequestStateFilter" disabled="@requestStateDisabled">
             <option value="">All requests</option>
             @foreach (ProjectTotRequestDecisionState state in Enum.GetValues<ProjectTotRequestDecisionState>())
             {
