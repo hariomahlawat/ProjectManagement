@@ -49,6 +49,15 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public int? SelectedProjectId { get; set; }
 
+    private string? _searchTerm;
+
+    [BindProperty(SupportsGet = true)]
+    public string? SearchTerm
+    {
+        get => _searchTerm;
+        set => _searchTerm = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+    }
+
     public IReadOnlyList<ProjectTotTrackerRow> Projects { get; private set; } = Array.Empty<ProjectTotTrackerRow>();
 
     public ProjectTotTrackerRow? SelectedProject { get; private set; }
@@ -212,6 +221,7 @@ public sealed class IndexModel : PageModel
         {
             TotStatusFilter,
             RequestStateFilter,
+            SearchTerm,
             OnlyPending,
             SelectedProjectId = SubmitInput.ProjectId
         });
@@ -286,6 +296,7 @@ public sealed class IndexModel : PageModel
         {
             TotStatusFilter,
             RequestStateFilter,
+            SearchTerm,
             OnlyPending,
             SelectedProjectId = DecideInput.ProjectId
         });
@@ -362,6 +373,7 @@ public sealed class IndexModel : PageModel
         {
             TotStatusFilter,
             RequestStateFilter,
+            SearchTerm,
             OnlyPending,
             SelectedProjectId = selected.ProjectId
         });
@@ -454,6 +466,7 @@ public sealed class IndexModel : PageModel
         {
             TotStatusFilter,
             RequestStateFilter,
+            SearchTerm,
             OnlyPending,
             SelectedProjectId = selected.ProjectId
         });
@@ -467,7 +480,8 @@ public sealed class IndexModel : PageModel
         {
             TotStatus = TotStatusFilter,
             RequestState = OnlyPending ? null : RequestStateFilter,
-            OnlyPendingRequests = OnlyPending
+            OnlyPendingRequests = OnlyPending,
+            SearchTerm = SearchTerm
         };
 
         Projects = await _trackerService.GetAsync(filter, cancellationToken);
