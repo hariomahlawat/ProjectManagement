@@ -37,6 +37,8 @@
         ProjectTotProgressUpdateState.Approved => "success",
         ProjectTotProgressUpdateState.Rejected => "warning",
         _ => "secondary"
+    };
+
     string FoPmLabel(bool? value) => value switch
     {
         true => "Yes",
@@ -298,10 +300,10 @@
                                         var decidedLocal = ToIst(update.DecidedOnUtc);
                                         var publishedLocal = ToIst(update.PublishedOnUtc);
                                         var rowVersion = update.RowVersion is { Length: > 0 } ? Convert.ToBase64String(update.RowVersion) : string.Empty;
-                                        var remarksKey = $"DecideUpdateInput.{update.Id}";
+                                        var remarksKey = $"DecideUpdate.{update.Id}";
                                         ViewData.ModelState.TryGetValue(remarksKey, out var updateState);
                                         var errorMessage = updateState?.Errors.FirstOrDefault()?.ErrorMessage;
-                                        var remarksValue = Model.DecideUpdateInput.UpdateId == update.Id ? Model.DecideUpdateInput.Remarks : string.Empty;
+                                        var remarksValue = Model.DecideUpdate.UpdateId == update.Id ? Model.DecideUpdate.Remarks : string.Empty;
                                         var isPending = update.State == ProjectTotProgressUpdateState.Pending;
                                         var decidedByDisplay = string.IsNullOrWhiteSpace(update.DecidedByName) ? "—" : update.DecidedByName;
                                         <div class="list-group-item">
@@ -342,23 +344,23 @@
                                             @if (isPending && Model.CanApprove && !string.IsNullOrEmpty(rowVersion))
                                             {
                                                 <form method="post" asp-page-handler="DecideUpdate" class="mt-3">
-                                                    <input type="hidden" name="DecideUpdateInput.ProjectId" value="@selected.ProjectId" />
-                                                    <input type="hidden" name="DecideUpdateInput.UpdateId" value="@update.Id" />
-                                                    <input type="hidden" name="DecideUpdateInput.RowVersion" value="@rowVersion" />
+                                                    <input type="hidden" name="DecideUpdate.ProjectId" value="@selected.ProjectId" />
+                                                    <input type="hidden" name="DecideUpdate.UpdateId" value="@update.Id" />
+                                                    <input type="hidden" name="DecideUpdate.RowVersion" value="@rowVersion" />
                                                     <input type="hidden" name="TotStatusFilter" value="@(Model.TotStatusFilter?.ToString())" />
                                                     <input type="hidden" name="RequestStateFilter" value="@(Model.RequestStateFilter?.ToString())" />
                                                     <input type="hidden" name="OnlyPending" value="@(Model.OnlyPending ? "true" : "false")" />
                                                     <div class="mb-3">
                                                         <label class="form-label" for="decide-update-@update.Id-remarks">Decision remarks</label>
-                                                        <textarea class="form-control" id="decide-update-@update.Id-remarks" name="DecideUpdateInput.Remarks" rows="3">@remarksValue</textarea>
+                                                        <textarea class="form-control" id="decide-update-@update.Id-remarks" name="DecideUpdate.Remarks" rows="3">@remarksValue</textarea>
                                                     </div>
                                                     @if (!string.IsNullOrEmpty(errorMessage))
                                                     {
                                                         <div class="text-danger mb-2">@errorMessage</div>
                                                     }
                                                     <div class="d-flex gap-2">
-                                                        <button type="submit" name="DecideUpdateInput.Approve" value="true" class="btn btn-success btn-sm">Approve</button>
-                                                        <button type="submit" name="DecideUpdateInput.Approve" value="false" class="btn btn-outline-danger btn-sm">Reject</button>
+                                                        <button type="submit" name="DecideUpdate.Approve" value="true" class="btn btn-success btn-sm">Approve</button>
+                                                        <button type="submit" name="DecideUpdate.Approve" value="false" class="btn btn-outline-danger btn-sm">Reject</button>
                                                     </div>
                                                 </form>
                                             }
@@ -369,23 +371,23 @@
                         </div>
                         <div class="col-lg-5">
                             <h3 class="h6">Submit update</h3>
-                            @if (Model.CanSubmitUpdatesForSelectedProject && Model.SubmitUpdateInput.ProjectId == selected.ProjectId)
+                            @if (Model.CanSubmitUpdatesForSelectedProject && Model.SubmitUpdate.ProjectId == selected.ProjectId)
                             {
                                 <form method="post" asp-page-handler="SubmitUpdate">
-                                    <input type="hidden" asp-for="SubmitUpdateInput.ProjectId" />
+                                    <input type="hidden" asp-for="SubmitUpdate.ProjectId" />
                                     <input type="hidden" asp-for="TotStatusFilter" />
                                     <input type="hidden" asp-for="RequestStateFilter" />
                                     <input type="hidden" asp-for="OnlyPending" />
                                     <div asp-validation-summary="ModelOnly" class="text-danger"></div>
                                     <div class="mb-3">
-                                        <label class="form-label" asp-for="SubmitUpdateInput.Body">Update details</label>
-                                        <textarea asp-for="SubmitUpdateInput.Body" class="form-control" rows="4"></textarea>
-                                        <span asp-validation-for="SubmitUpdateInput.Body" class="text-danger"></span>
+                                        <label class="form-label" asp-for="SubmitUpdate.Body">Update details</label>
+                                        <textarea asp-for="SubmitUpdate.Body" class="form-control" rows="4"></textarea>
+                                        <span asp-validation-for="SubmitUpdate.Body" class="text-danger"></span>
                                     </div>
                                     <div class="mb-3">
-                                        <label class="form-label" asp-for="SubmitUpdateInput.EventDate">Event date (optional)</label>
-                                        <input asp-for="SubmitUpdateInput.EventDate" class="form-control" type="date" />
-                                        <span asp-validation-for="SubmitUpdateInput.EventDate" class="text-danger"></span>
+                                        <label class="form-label" asp-for="SubmitUpdate.EventDate">Event date (optional)</label>
+                                        <input asp-for="SubmitUpdate.EventDate" class="form-control" type="date" />
+                                        <span asp-validation-for="SubmitUpdate.EventDate" class="text-danger"></span>
                                     </div>
                                     <button type="submit" class="btn btn-primary">Submit update</button>
                                 </form>

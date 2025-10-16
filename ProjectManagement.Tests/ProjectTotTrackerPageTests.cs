@@ -61,7 +61,7 @@ public sealed class ProjectTotTrackerPageTests
             PageContext = BuildPageContext(CreatePrincipal(intruder.Id, "Project Officer"))
         };
 
-        page.SubmitUpdateInput = new IndexModel.SubmitUpdateInput
+        page.SubmitUpdate = new IndexModel.SubmitUpdateInput
         {
             ProjectId = 1,
             Body = "Attempted update"
@@ -106,7 +106,7 @@ public sealed class ProjectTotTrackerPageTests
             PageContext = BuildPageContext(CreatePrincipal(officer.Id, "Project Officer"))
         };
 
-        page.SubmitUpdateInput = new IndexModel.SubmitUpdateInput
+        page.SubmitUpdate = new IndexModel.SubmitUpdateInput
         {
             ProjectId = 2,
             Body = "Shared documentation",
@@ -165,7 +165,7 @@ public sealed class ProjectTotTrackerPageTests
         await totUpdateService.SubmitAsync(3, "Pending update", null, CreatePrincipal(officer.Id, "Project Officer"));
         var pending = await context.ProjectTotProgressUpdates.SingleAsync();
 
-        page.DecideUpdateInput = new IndexModel.DecideUpdateInput
+        page.DecideUpdate = new IndexModel.DecideUpdateInput
         {
             ProjectId = 3,
             UpdateId = pending.Id,

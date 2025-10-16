@@ -68,10 +68,10 @@ public sealed class IndexModel : PageModel
     public DecideRequestInput DecideInput { get; set; } = new();
 
     [BindProperty]
-    public SubmitUpdateInput SubmitUpdateInput { get; set; } = new();
+    public SubmitUpdateInput SubmitUpdate { get; set; } = new();
 
     [BindProperty]
-    public DecideUpdateInput DecideUpdateInput { get; set; } = new();
+    public DecideUpdateInput DecideUpdate { get; set; } = new();
 
     public sealed class SubmitRequestInput
     {
@@ -299,10 +299,10 @@ public sealed class IndexModel : PageModel
             return Forbid();
         }
 
-        SelectedProjectId = SubmitUpdateInput.ProjectId;
+        SelectedProjectId = SubmitUpdate.ProjectId;
 
-        var postedBody = SubmitUpdateInput.Body;
-        var postedEventDate = SubmitUpdateInput.EventDate;
+        var postedBody = SubmitUpdate.Body;
+        var postedEventDate = SubmitUpdate.EventDate;
 
         await PopulateAsync(cancellationToken);
 
@@ -312,9 +312,9 @@ public sealed class IndexModel : PageModel
             return NotFound();
         }
 
-        SubmitUpdateInput.Body = postedBody;
-        SubmitUpdateInput.EventDate = postedEventDate;
-        SubmitUpdateInput.ProjectId = selected.ProjectId;
+        SubmitUpdate.Body = postedBody;
+        SubmitUpdate.EventDate = postedEventDate;
+        SubmitUpdate.ProjectId = selected.ProjectId;
 
         if (!IsAuthorizedProjectOfficer(selected))
         {
@@ -328,8 +328,8 @@ public sealed class IndexModel : PageModel
 
         var result = await _totUpdateService.SubmitAsync(
             selected.ProjectId,
-            SubmitUpdateInput.Body,
-            SubmitUpdateInput.EventDate,
+            SubmitUpdate.Body,
+            SubmitUpdate.EventDate,
             User,
             cancellationToken);
 
@@ -347,9 +347,9 @@ public sealed class IndexModel : PageModel
         {
             ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "Unable to submit the Transfer of Technology update.");
             await PopulateAsync(cancellationToken);
-            SubmitUpdateInput.Body = postedBody;
-            SubmitUpdateInput.EventDate = postedEventDate;
-            SubmitUpdateInput.ProjectId = selected.ProjectId;
+            SubmitUpdate.Body = postedBody;
+            SubmitUpdate.EventDate = postedEventDate;
+            SubmitUpdate.ProjectId = selected.ProjectId;
             return Page();
         }
 
@@ -375,12 +375,12 @@ public sealed class IndexModel : PageModel
             return Forbid();
         }
 
-        SelectedProjectId = DecideUpdateInput.ProjectId;
+        SelectedProjectId = DecideUpdate.ProjectId;
 
-        var postedRemarks = DecideUpdateInput.Remarks;
-        var postedUpdateId = DecideUpdateInput.UpdateId;
-        var postedApprove = DecideUpdateInput.Approve;
-        var postedRowVersion = DecideUpdateInput.RowVersion;
+        var postedRemarks = DecideUpdate.Remarks;
+        var postedUpdateId = DecideUpdate.UpdateId;
+        var postedApprove = DecideUpdate.Approve;
+        var postedRowVersion = DecideUpdate.RowVersion;
 
         await PopulateAsync(cancellationToken);
 
@@ -390,11 +390,11 @@ public sealed class IndexModel : PageModel
             return NotFound();
         }
 
-        DecideUpdateInput.ProjectId = selected.ProjectId;
-        DecideUpdateInput.UpdateId = postedUpdateId;
-        DecideUpdateInput.Approve = postedApprove;
-        DecideUpdateInput.RowVersion = postedRowVersion;
-        DecideUpdateInput.Remarks = postedRemarks;
+        DecideUpdate.ProjectId = selected.ProjectId;
+        DecideUpdate.UpdateId = postedUpdateId;
+        DecideUpdate.Approve = postedApprove;
+        DecideUpdate.RowVersion = postedRowVersion;
+        DecideUpdate.Remarks = postedRemarks;
 
         if (!ModelState.IsValid)
         {
@@ -402,24 +402,24 @@ public sealed class IndexModel : PageModel
         }
 
         byte[]? rowVersion = null;
-        if (!string.IsNullOrEmpty(DecideUpdateInput.RowVersion))
+        if (!string.IsNullOrEmpty(DecideUpdate.RowVersion))
         {
             try
             {
-                rowVersion = Convert.FromBase64String(DecideUpdateInput.RowVersion);
+                rowVersion = Convert.FromBase64String(DecideUpdate.RowVersion);
             }
             catch (FormatException)
             {
-                ModelState.AddModelError($"DecideUpdateInput.{postedUpdateId}", "The update could not be processed because the version token was invalid.");
+                ModelState.AddModelError($"DecideUpdate.{postedUpdateId}", "The update could not be processed because the version token was invalid.");
                 return Page();
             }
         }
 
         var result = await _totUpdateService.DecideAsync(
             selected.ProjectId,
-            DecideUpdateInput.UpdateId,
-            DecideUpdateInput.Approve,
-            DecideUpdateInput.Remarks,
+            DecideUpdate.UpdateId,
+            DecideUpdate.Approve,
+            DecideUpdate.Remarks,
             rowVersion,
             User,
             cancellationToken);
@@ -436,17 +436,17 @@ public sealed class IndexModel : PageModel
 
         if (!result.IsSuccess)
         {
-            ModelState.AddModelError($"DecideUpdateInput.{postedUpdateId}", result.ErrorMessage ?? "Unable to complete the Transfer of Technology decision.");
+            ModelState.AddModelError($"DecideUpdate.{postedUpdateId}", result.ErrorMessage ?? "Unable to complete the Transfer of Technology decision.");
             await PopulateAsync(cancellationToken);
-            DecideUpdateInput.ProjectId = selected.ProjectId;
-            DecideUpdateInput.UpdateId = postedUpdateId;
-            DecideUpdateInput.Approve = postedApprove;
-            DecideUpdateInput.RowVersion = postedRowVersion;
-            DecideUpdateInput.Remarks = postedRemarks;
+            DecideUpdate.ProjectId = selected.ProjectId;
+            DecideUpdate.UpdateId = postedUpdateId;
+            DecideUpdate.Approve = postedApprove;
+            DecideUpdate.RowVersion = postedRowVersion;
+            DecideUpdate.Remarks = postedRemarks;
             return Page();
         }
 
-        TempData["Toast"] = DecideUpdateInput.Approve
+        TempData["Toast"] = DecideUpdate.Approve
             ? "Transfer of Technology update approved."
             : "Transfer of Technology update rejected.";
 
@@ -502,12 +502,12 @@ public sealed class IndexModel : PageModel
                     : Convert.ToBase64String(selected.RequestRowVersion)
             };
 
-            SubmitUpdateInput = new SubmitUpdateInput
+            SubmitUpdate = new SubmitUpdateInput
             {
                 ProjectId = selected.ProjectId
             };
 
-            DecideUpdateInput = new DecideUpdateInput
+            DecideUpdate = new DecideUpdateInput
             {
                 ProjectId = selected.ProjectId
             };
@@ -519,8 +519,8 @@ public sealed class IndexModel : PageModel
             SubmitInput = new SubmitRequestInput();
             DecideInput = new DecideRequestInput();
             TotUpdates = Array.Empty<ProjectTotProgressUpdateView>();
-            SubmitUpdateInput = new SubmitUpdateInput();
-            DecideUpdateInput = new DecideUpdateInput();
+            SubmitUpdate = new SubmitUpdateInput();
+            DecideUpdate = new DecideUpdateInput();
             CanSubmitUpdatesForSelectedProject = false;
         }
     }
