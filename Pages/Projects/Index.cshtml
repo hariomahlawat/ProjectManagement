@@ -277,6 +277,16 @@
                             var isActive = project.Id == initialProject.Id;
                             StageSummary? stageSummary = null;
                             string? totDetail = null;
+                            var detailPrefix = $"project-{project.Id}-detail";
+                            var overviewId = $"{detailPrefix}-overview";
+                            var requestsId = $"{detailPrefix}-requests";
+                            var updatesId = $"{detailPrefix}-updates";
+                            var approvalsId = $"{detailPrefix}-approvals";
+                            var submissionModalId = $"project-{project.Id}-submission-modal";
+                            var decisionModalId = $"project-{project.Id}-decision-modal";
+                            var submissionNoteId = $"submission-note-{project.Id}";
+                            var decisionNoteId = $"decision-note-{project.Id}";
+                            var decisionFilterId = $"decision-filter-{project.Id}";
 
                             if (project.LifecycleStatus == ProjectLifecycleStatus.Active)
                             {
@@ -310,7 +320,21 @@
                                         </div>
                                     </div>
                                     <div class="projects-detail-panel__actions">
-                                        <a class="btn btn-outline-primary"
+                                        <div class="projects-detail-panel__primary-actions">
+                                            <button type="button"
+                                                    class="btn btn-primary"
+                                                    data-bs-toggle="modal"
+                                                    data-bs-target="#@submissionModalId">
+                                                Log submission
+                                            </button>
+                                            <button type="button"
+                                                    class="btn btn-outline-primary"
+                                                    data-bs-toggle="modal"
+                                                    data-bs-target="#@decisionModalId">
+                                                Review decisions
+                                            </button>
+                                        </div>
+                                        <a class="btn btn-outline-secondary"
                                            asp-page="/Projects/Overview"
                                            asp-route-id="@project.Id"
                                            asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId">
@@ -318,64 +342,280 @@
                                         </a>
                                     </div>
                                 </header>
-                                <div class="projects-detail-panel__summary">
-                                    <dl class="projects-detail-panel__facts">
-                                        <div>
-                                            <dt>Case file</dt>
-                                            <dd>@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "No case file" : project.CaseFileNumber)</dd>
+                                <div class="projects-detail-panel__body">
+                                    <div class="projects-detail-tabs" data-project-detail-tabs>
+                                        <p class="projects-detail-tabs__helper">
+                                            Switch between overview, outstanding requests, progress updates, and approval notes without leaving the project list.
+                                        </p>
+                                        <div class="projects-detail-tabs__nav" role="tablist">
+                                            <button type="button"
+                                                    class="projects-detail-tabs__button is-active"
+                                                    id="@overviewId-tab"
+                                                    data-project-detail-target="@overviewId"
+                                                    aria-controls="@overviewId"
+                                                    aria-selected="true">
+                                                Overview
+                                            </button>
+                                            <button type="button"
+                                                    class="projects-detail-tabs__button"
+                                                    id="@requestsId-tab"
+                                                    data-project-detail-target="@requestsId"
+                                                    aria-controls="@requestsId"
+                                                    aria-selected="false">
+                                                Requests
+                                            </button>
+                                            <button type="button"
+                                                    class="projects-detail-tabs__button"
+                                                    id="@updatesId-tab"
+                                                    data-project-detail-target="@updatesId"
+                                                    aria-controls="@updatesId"
+                                                    aria-selected="false">
+                                                Updates
+                                            </button>
+                                            <button type="button"
+                                                    class="projects-detail-tabs__button"
+                                                    id="@approvalsId-tab"
+                                                    data-project-detail-target="@approvalsId"
+                                                    aria-controls="@approvalsId"
+                                                    aria-selected="false">
+                                                Approvals
+                                            </button>
                                         </div>
-                                        <div>
-                                            <dt>Category</dt>
-                                            <dd>@(project.Category?.Name ?? "Uncategorised")</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Technical category</dt>
-                                            <dd>@(project.TechnicalCategory?.Name ?? "No technical category")</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Project officer</dt>
-                                            <dd>@(project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Not assigned")</dd>
-                                        </div>
-                                        <div>
-                                            <dt>HoD</dt>
-                                            <dd>@(project.HodUser?.FullName ?? project.HodUser?.UserName ?? "Not assigned")</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Pending stages</dt>
-                                            <dd>@pendingCount</dd>
-                                        </div>
-                                    </dl>
-                                    @if (!string.IsNullOrWhiteSpace(project.Description))
-                                    {
-                                        <div class="projects-detail-panel__description">
-                                            <h3>Overview</h3>
-                                            <p>@project.Description</p>
-                                        </div>
-                                    }
+                                    </div>
+                                    <div class="projects-detail-panel__sections">
+                                        <section id="@overviewId"
+                                                 class="projects-detail-section is-active"
+                                                 role="tabpanel"
+                                                 aria-labelledby="@overviewId-tab"
+                                                 data-project-detail-pane>
+                                            <header class="projects-detail-section__header">
+                                                <h3 class="projects-detail-section__title">Project snapshot</h3>
+                                                <p class="projects-detail-section__helper">Key metadata to get oriented quickly.</p>
+                                            </header>
+                                            <div class="projects-detail-section__content">
+                                                <dl class="projects-detail-panel__facts">
+                                                    <div>
+                                                        <dt>Case file</dt>
+                                                        <dd>@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "No case file" : project.CaseFileNumber)</dd>
+                                                    </div>
+                                                    <div>
+                                                        <dt>Category</dt>
+                                                        <dd>@(project.Category?.Name ?? "Uncategorised")</dd>
+                                                    </div>
+                                                    <div>
+                                                        <dt>Technical category</dt>
+                                                        <dd>@(project.TechnicalCategory?.Name ?? "No technical category")</dd>
+                                                    </div>
+                                                    <div>
+                                                        <dt>Project officer</dt>
+                                                        <dd>@(project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Not assigned")</dd>
+                                                    </div>
+                                                    <div>
+                                                        <dt>HoD</dt>
+                                                        <dd>@(project.HodUser?.FullName ?? project.HodUser?.UserName ?? "Not assigned")</dd>
+                                                    </div>
+                                                    <div>
+                                                        <dt>Pending stages</dt>
+                                                        <dd>@pendingCount</dd>
+                                                    </div>
+                                                </dl>
+                                                @if (!string.IsNullOrWhiteSpace(project.Description))
+                                                {
+                                                    <div class="projects-detail-panel__description">
+                                                        <h4 class="projects-detail-panel__description-title">Overview</h4>
+                                                        <p>@project.Description</p>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <p class="text-muted mb-0">No project overview has been recorded yet.</p>
+                                                }
+                                            </div>
+                                        </section>
+                                        <section id="@requestsId"
+                                                 class="projects-detail-section"
+                                                 role="tabpanel"
+                                                 aria-labelledby="@requestsId-tab"
+                                                 data-project-detail-pane
+                                                 hidden>
+                                            <header class="projects-detail-section__header">
+                                                <h3 class="projects-detail-section__title">Requests &amp; submissions</h3>
+                                                <p class="projects-detail-section__helper">Track follow-ups that may need additional information or documentation.</p>
+                                            </header>
+                                            <div class="projects-detail-section__content">
+                                                <ul class="projects-detail-metric-list">
+                                                    <li>
+                                                        <div>
+                                                            <span class="projects-detail-metric-list__label">Pending project stages</span>
+                                                            <span class="projects-detail-metric-list__value">@pendingCount</span>
+                                                        </div>
+                                                        <p class="projects-detail-metric-list__helper">Stages awaiting action before they can be completed.</p>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <span class="projects-detail-metric-list__label">Lifecycle status</span>
+                                                            <span class="projects-detail-metric-list__value">@FormatLifecycleStatus(project.LifecycleStatus)</span>
+                                                        </div>
+                                                        <p class="projects-detail-metric-list__helper">Use this to prioritise which submissions to prepare next.</p>
+                                                    </li>
+                                                </ul>
+                                                <div class="projects-detail-cta">
+                                                    <div>
+                                                        <h4 class="projects-detail-cta__title">Document follow-ups</h4>
+                                                        <p class="projects-detail-cta__helper">Review project files awaiting moderation before approvals are granted.</p>
+                                                    </div>
+                                                    <a class="btn btn-sm btn-outline-primary"
+                                                       asp-page="/Projects/Documents/Approvals/Index"
+                                                       asp-route-id="@project.Id">
+                                                        View document requests
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </section>
+                                        <section id="@updatesId"
+                                                 class="projects-detail-section"
+                                                 role="tabpanel"
+                                                 aria-labelledby="@updatesId-tab"
+                                                 data-project-detail-pane
+                                                 hidden>
+                                            <header class="projects-detail-section__header">
+                                                <h3 class="projects-detail-section__title">Progress updates</h3>
+                                                <p class="projects-detail-section__helper">Surface the latest milestone activity and what is queued next.</p>
+                                            </header>
+                                            <div class="projects-detail-panel__insights">
+                                                @if (stageSummary is not null)
+                                                {
+                                                    <div class="projects-detail-panel__insight">
+                                                        <h4 class="projects-detail-panel__insight-title">Latest update</h4>
+                                                        <p class="mb-1">@stageSummary.LastCompleted</p>
+                                                        <p class="text-muted mb-0">@stageSummary.Current</p>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="projects-detail-panel__insight">
+                                                        <h4 class="projects-detail-panel__insight-title">Latest update</h4>
+                                                        <p class="mb-0 text-muted">Stage progress has not been recorded for this project.</p>
+                                                    </div>
+                                                }
+                                                <div class="projects-detail-panel__insight">
+                                                    <h4 class="projects-detail-panel__insight-title">Activity guidance</h4>
+                                                    <p class="mb-0">Use the submission button above to capture new progress notes when milestones shift.</p>
+                                                </div>
+                                            </div>
+                                        </section>
+                                        <section id="@approvalsId"
+                                                 class="projects-detail-section"
+                                                 role="tabpanel"
+                                                 aria-labelledby="@approvalsId-tab"
+                                                 data-project-detail-pane
+                                                 hidden>
+                                            <header class="projects-detail-section__header">
+                                                <h3 class="projects-detail-section__title">Approvals &amp; hand-offs</h3>
+                                                <p class="projects-detail-section__helper">Reference technology transfer context and recent remarks before deciding.</p>
+                                            </header>
+                                            <div class="projects-detail-panel__insights">
+                                                @if (!string.IsNullOrWhiteSpace(totDetail))
+                                                {
+                                                    <div class="projects-detail-panel__insight">
+                                                        <h4 class="projects-detail-panel__insight-title">Technology transfer</h4>
+                                                        <p class="mb-0">@totDetail</p>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="projects-detail-panel__insight">
+                                                        <h4 class="projects-detail-panel__insight-title">Technology transfer</h4>
+                                                        <p class="mb-0 text-muted">Technology transfer information has not been added yet.</p>
+                                                    </div>
+                                                }
+                                                @if (project.Tot is { Remarks: { Length: > 0 } remarks })
+                                                {
+                                                    <div class="projects-detail-panel__insight">
+                                                        <h4 class="projects-detail-panel__insight-title">Remarks</h4>
+                                                        <p class="mb-0">@remarks</p>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="projects-detail-panel__insight">
+                                                        <h4 class="projects-detail-panel__insight-title">Remarks</h4>
+                                                        <p class="mb-0 text-muted">No approval notes have been captured for this project.</p>
+                                                    </div>
+                                                }
+                                            </div>
+                                        </section>
+                                    </div>
                                 </div>
-                                <div class="projects-detail-panel__insights">
-                                    @if (stageSummary is not null)
-                                    {
-                                        <div class="projects-detail-panel__insight">
-                                            <h3 class="projects-detail-panel__insight-title">Latest update</h3>
-                                            <p class="mb-1">@stageSummary.LastCompleted</p>
-                                            <p class="text-muted">@stageSummary.Current</p>
+                                <div class="modal fade"
+                                     id="@submissionModalId"
+                                     tabindex="-1"
+                                     aria-labelledby="@submissionModalId-label"
+                                     aria-hidden="true">
+                                    <div class="modal-dialog modal-dialog-centered modal-lg">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title" id="@submissionModalId-label">Log submission for @project.Name</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <form method="get"
+                                                  asp-page="/Projects/Meta/Request"
+                                                  asp-route-id="@project.Id">
+                                                <div class="modal-body d-flex flex-column gap-3">
+                                                    <p class="text-muted mb-0">Capture a short note before continuing to the detailed change request form.</p>
+                                                    <div>
+                                                        <label class="form-label" for="@submissionNoteId">Submission note</label>
+                                                        <textarea class="form-control" id="@submissionNoteId" name="note" rows="3" placeholder="Summarise the update you plan to request."></textarea>
+                                                        <div class="form-text">Notes are passed along to help reviewers understand the context.</div>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                    <button type="submit" class="btn btn-primary">Continue to request</button>
+                                                </div>
+                                            </form>
                                         </div>
-                                    }
-                                    @if (!string.IsNullOrWhiteSpace(totDetail))
-                                    {
-                                        <div class="projects-detail-panel__insight">
-                                            <h3 class="projects-detail-panel__insight-title">Technology transfer</h3>
-                                            <p>@totDetail</p>
+                                    </div>
+                                </div>
+                                <div class="modal fade"
+                                     id="@decisionModalId"
+                                     tabindex="-1"
+                                     aria-labelledby="@decisionModalId-label"
+                                     aria-hidden="true">
+                                    <div class="modal-dialog modal-dialog-centered modal-lg">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title" id="@decisionModalId-label">Review approvals for @project.Name</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <form method="get"
+                                                  asp-page="/Projects/Documents/Approvals/Index"
+                                                  asp-route-id="@project.Id">
+                                                <div class="modal-body d-flex flex-column gap-3">
+                                                    <p class="text-muted mb-0">Use this quick filter to jump into the approval workspace with the right context.</p>
+                                                    <div>
+                                                        <label class="form-label" for="@decisionNoteId">Decision helper note</label>
+                                                        <textarea class="form-control" id="@decisionNoteId" name="note" rows="3" placeholder="Capture reminders or questions for the review team."></textarea>
+                                                        <div class="form-text">The note travels with the query string so you can paste it into the decision form.</div>
+                                                    </div>
+                                                    <div>
+                                                        <label class="form-label" for="@decisionFilterId">Focus area</label>
+                                                        <select class="form-select" id="@decisionFilterId" name="focus">
+                                                            <option value="">All requests</option>
+                                                            <option value="documents">Document requests</option>
+                                                            <option value="stages">Stage approvals</option>
+                                                            <option value="tot">Technology transfer</option>
+                                                        </select>
+                                                        <div class="form-text">Choose the type of approval you want to address first.</div>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                    <button type="submit" class="btn btn-primary">Open approvals workspace</button>
+                                                </div>
+                                            </form>
                                         </div>
-                                    }
-                                    @if (project.Tot is { Remarks: { Length: > 0 } remarks })
-                                    {
-                                        <div class="projects-detail-panel__insight">
-                                            <h3 class="projects-detail-panel__insight-title">Remarks</h3>
-                                            <p>@remarks</p>
-                                        </div>
-                                    }
+                                    </div>
                                 </div>
                             </section>
                         }
@@ -474,6 +714,47 @@
                 return;
             }
 
+            const setupDetailTabs = (panel) => {
+                const tabContainer = panel.querySelector('[data-project-detail-tabs]');
+                if (!tabContainer) {
+                    return;
+                }
+
+                const buttons = Array.from(tabContainer.querySelectorAll('[data-project-detail-target]'));
+                const sections = Array.from(panel.querySelectorAll('[data-project-detail-pane]'));
+
+                if (!buttons.length || !sections.length) {
+                    return;
+                }
+
+                const showSection = (targetId) => {
+                    buttons.forEach((button) => {
+                        const isActive = button.dataset.projectDetailTarget === targetId;
+                        button.classList.toggle('is-active', isActive);
+                        button.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                    });
+
+                    sections.forEach((section) => {
+                        const show = section.id === targetId;
+                        section.classList.toggle('is-active', show);
+                        section.hidden = !show;
+                    });
+                };
+
+                buttons.forEach((button) => {
+                    button.addEventListener('click', () => {
+                        showSection(button.dataset.projectDetailTarget);
+                    });
+                });
+
+                const defaultButton = buttons.find((button) => button.classList.contains('is-active')) ?? buttons[0];
+                const defaultTarget = defaultButton?.dataset.projectDetailTarget;
+
+                if (defaultTarget) {
+                    showSection(defaultTarget);
+                }
+            };
+
             const activate = (panelId) => {
                 tabs.forEach((tab) => {
                     const isTarget = tab.dataset.projectTarget === panelId;
@@ -486,6 +767,9 @@
                     const show = panel.id === panelId;
                     panel.classList.toggle('is-active', show);
                     panel.hidden = !show;
+                    if (show) {
+                        setupDetailTabs(panel);
+                    }
                 });
             };
 
@@ -528,6 +812,8 @@
                     }
                 });
             });
+
+            panels.forEach(setupDetailTabs);
 
             const initialTab = tabs.find((tab) => tab.classList.contains('is-active')) ?? tabs[0];
             if (initialTab) {
