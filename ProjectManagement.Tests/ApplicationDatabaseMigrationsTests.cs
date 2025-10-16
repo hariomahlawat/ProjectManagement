@@ -1,7 +1,8 @@
-using System.Threading.Tasks;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using ProjectManagement.Data;
+using ProjectManagement.Migrations;
 using Xunit;
 
 namespace ProjectManagement.Tests;
@@ -9,24 +10,20 @@ namespace ProjectManagement.Tests;
 public sealed class ApplicationDatabaseMigrationsTests
 {
     [Fact]
-    public async Task ApplyingMigrations_LeavesNoPendingMigrations()
+    public void ModelSnapshot_IsInSyncWithRuntimeModel()
     {
-        await using var connection = new SqliteConnection("DataSource=:memory:");
-        await connection.OpenAsync();
-
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
-            .UseSqlite(connection)
+            .UseSqlite("DataSource=:memory:")
             .Options;
 
-        await using (var context = new ApplicationDbContext(options))
-        {
-            await context.Database.MigrateAsync();
-        }
+        using var context = new ApplicationDbContext(options);
+        var snapshot = new ApplicationDbContextModelSnapshot();
 
-        await using (var context = new ApplicationDbContext(options))
-        {
-            var pending = await context.Database.GetPendingMigrationsAsync();
-            Assert.Empty(pending);
-        }
+        var differ = context.GetService<IMigrationsModelDiffer>();
+
+        var snapshotModel = snapshot.Model.GetRelationalModel();
+        var runtimeModel = context.Model.GetRelationalModel();
+
+        Assert.False(differ.HasDifferences(snapshotModel, runtimeModel));
     }
 }
