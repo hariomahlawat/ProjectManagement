@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Mvc.RazorPages.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
@@ -188,15 +189,20 @@ public sealed class ProjectTotTrackerPageTests
 
     private static UserManager<ApplicationUser> CreateUserManager(ApplicationDbContext context)
     {
+        var services = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton<ILookupNormalizer, UpperInvariantLookupNormalizer>()
+            .BuildServiceProvider();
+
         return new UserManager<ApplicationUser>(
             new UserStore<ApplicationUser>(context),
             Options.Create(new IdentityOptions()),
             new PasswordHasher<ApplicationUser>(),
             Array.Empty<IUserValidator<ApplicationUser>>(),
             Array.Empty<IPasswordValidator<ApplicationUser>>(),
-            new UpperInvariantLookupNormalizer(),
+            services.GetRequiredService<ILookupNormalizer>(),
             new IdentityErrorDescriber(),
-            null,
+            services,
             NullLogger<UserManager<ApplicationUser>>.Instance);
     }
 

@@ -252,11 +252,11 @@ public sealed class ProjectTotUpdateService
         return ActorResolutionResult.NotAuthorized();
     }
 
-    private static string DisplayName(ApplicationUser? user, string fallback)
+    private static string DisplayName(ApplicationUser? user, string? fallback)
     {
         if (user is null)
         {
-            return fallback;
+            return FallbackName(fallback);
         }
 
         if (!string.IsNullOrWhiteSpace(user.FullName))
@@ -274,8 +274,11 @@ public sealed class ProjectTotUpdateService
             return user.Email!;
         }
 
-        return fallback;
+        return FallbackName(fallback);
     }
+
+    private static string FallbackName(string? value)
+        => string.IsNullOrWhiteSpace(value) ? "Unknown user" : value;
 
     private sealed record ActorResolutionResult(bool IsAuthorized, ProjectTotUpdateActorRole? Role, bool AutoApprove)
     {

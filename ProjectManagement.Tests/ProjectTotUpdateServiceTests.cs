@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Data;
@@ -258,15 +259,20 @@ public sealed class ProjectTotUpdateServiceTests
 
     private static UserManager<ApplicationUser> CreateUserManager(ApplicationDbContext context)
     {
+        var services = new ServiceCollection()
+            .AddLogging()
+            .AddSingleton<ILookupNormalizer, UpperInvariantLookupNormalizer>()
+            .BuildServiceProvider();
+
         return new UserManager<ApplicationUser>(
             new UserStore<ApplicationUser>(context),
             Options.Create(new IdentityOptions()),
             new PasswordHasher<ApplicationUser>(),
             Array.Empty<IUserValidator<ApplicationUser>>(),
             Array.Empty<IPasswordValidator<ApplicationUser>>(),
-            new UpperInvariantLookupNormalizer(),
+            services.GetRequiredService<ILookupNormalizer>(),
             new IdentityErrorDescriber(),
-            null,
+            services,
             NullLogger<UserManager<ApplicationUser>>.Instance);
     }
 
