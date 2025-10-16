@@ -31,4 +31,8 @@
     <Compile Remove="ProjectManagement.Tests/**" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="wwwroot\uploads\" />
+  </ItemGroup>
+
 </Project>
