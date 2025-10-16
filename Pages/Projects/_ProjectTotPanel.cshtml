@@ -101,6 +101,28 @@
                     <div class="fw-semibold">@request.StateLabel</div>
                     <ul class="mb-0">
                         <li>Status proposed as <strong>@request.ProposedStatusLabel</strong>@(request.ProposedStartedOn.HasValue ? $" starting {request.ProposedStartedOn.Value:dd MMM yyyy}" : string.Empty)@(request.ProposedCompletedOn.HasValue ? $" completing {request.ProposedCompletedOn.Value:dd MMM yyyy}" : string.Empty).</li>
+                        @if (!string.IsNullOrWhiteSpace(request.ProposedMetDetails) || request.ProposedMetCompletedOn.HasValue)
+                        {
+                            var metDescription = string.IsNullOrWhiteSpace(request.ProposedMetDetails)
+                                ? "MET completion"
+                                : $"MET details: {request.ProposedMetDetails}";
+                            var metSuffix = request.ProposedMetCompletedOn.HasValue
+                                ? (string.IsNullOrWhiteSpace(request.ProposedMetDetails)
+                                    ? $" on {request.ProposedMetCompletedOn.Value:dd MMM yyyy}"
+                                    : $" (completed {request.ProposedMetCompletedOn.Value:dd MMM yyyy})")
+                                : string.Empty;
+                            <li>@metDescription@metSuffix.</li>
+                        }
+                        @if (request.ProposedFirstProductionModelManufactured.HasValue || request.ProposedFirstProductionModelManufacturedOn.HasValue)
+                        {
+                            var manufacturedLabel = request.ProposedFirstProductionModelManufactured.HasValue
+                                ? (request.ProposedFirstProductionModelManufactured.Value ? "Yes" : "No")
+                                : "Not specified";
+                            var manufacturedSuffix = request.ProposedFirstProductionModelManufacturedOn.HasValue
+                                ? $" on {request.ProposedFirstProductionModelManufacturedOn.Value:dd MMM yyyy}"
+                                : string.Empty;
+                            <li>First production model manufactured: <strong>@manufacturedLabel</strong>@manufacturedSuffix.</li>
+                        }
                         <li>Submitted by @request.SubmittedBy on @submittedOnLocal:dd MMM yyyy HH:mm.</li>
                         @if (request.State != ProjectTotRequestDecisionState.Pending && decidedOnLocal.HasValue && !string.IsNullOrWhiteSpace(request.DecidedBy))
                         {
