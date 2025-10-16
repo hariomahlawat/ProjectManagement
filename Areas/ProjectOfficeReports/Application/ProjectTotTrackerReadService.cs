@@ -64,6 +64,18 @@ public sealed class ProjectTotTrackerReadService
             query = query.Where(p => p.TotRequest != null && p.TotRequest.DecisionState == state);
         }
 
+        if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
+        {
+            var term = filter.SearchTerm.Trim();
+            if (!string.IsNullOrEmpty(term))
+            {
+                var pattern = $"%{EscapeLikePattern(term)}%";
+                query = query.Where(p =>
+                    EF.Functions.ILike(p.Name, pattern, "\\")
+                    || (p.SponsoringUnit != null && EF.Functions.ILike(p.SponsoringUnit.Name, pattern, "\\")));
+            }
+        }
+
         query = query.OrderBy(p => p.Name);
 
         return query.Select(p => new ProjectSnapshot(
@@ -225,6 +237,14 @@ public sealed class ProjectTotTrackerReadService
             .ToDictionaryAsync(x => x.Key, x => x.Count, cancellationToken);
     }
 
+    private static string EscapeLikePattern(string value)
+    {
+        return value
+            .Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("%", "\\%", StringComparison.Ordinal)
+            .Replace("_", "\\_", StringComparison.Ordinal);
+    }
+
     private sealed record LatestApprovedUpdate(
         int ProjectId,
         string Body,
@@ -271,6 +291,7 @@ public sealed record ProjectTotTrackerFilter
     public ProjectTotStatus? TotStatus { get; init; }
     public ProjectTotRequestDecisionState? RequestState { get; init; }
     public bool OnlyPendingRequests { get; init; }
+    public string? SearchTerm { get; init; }
 }
 
 public sealed record ProjectTotTrackerRow(
