@@ -37,6 +37,11 @@
         ProjectTotProgressUpdateState.Approved => "success",
         ProjectTotProgressUpdateState.Rejected => "warning",
         _ => "secondary"
+    string FoPmLabel(bool? value) => value switch
+    {
+        true => "Yes",
+        false => "No",
+        _ => "—"
     };
 
     var istZone = TimeZoneHelper.GetIst();
@@ -192,6 +197,14 @@
                         <dd class="col-sm-7">@(selected.TotStartedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
                         <dt class="col-sm-5">Completed on</dt>
                         <dd class="col-sm-7">@(selected.TotCompletedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
+                        <dt class="col-sm-5">MET details</dt>
+                        <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(selected.TotMetDetails) ? "—" : selected.TotMetDetails)</dd>
+                        <dt class="col-sm-5">MET completed on</dt>
+                        <dd class="col-sm-7">@(selected.TotMetCompletedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
+                        <dt class="col-sm-5">First production model manufactured</dt>
+                        <dd class="col-sm-7">@FoPmLabel(selected.TotFirstProductionModelManufactured)</dd>
+                        <dt class="col-sm-5">Manufactured on</dt>
+                        <dd class="col-sm-7">@(selected.TotFirstProductionModelManufacturedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
                         <dt class="col-sm-5">Last approved by</dt>
                         <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(selected.TotLastApprovedBy) ? "—" : selected.TotLastApprovedBy)</dd>
                         <dt class="col-sm-5">Approved on</dt>
@@ -231,6 +244,14 @@
                             <dd class="col-sm-7">@(selected.RequestedStartedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
                             <dt class="col-sm-5">Proposed completion</dt>
                             <dd class="col-sm-7">@(selected.RequestedCompletedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
+                            <dt class="col-sm-5">Proposed MET details</dt>
+                            <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(selected.RequestedMetDetails) ? "—" : selected.RequestedMetDetails)</dd>
+                            <dt class="col-sm-5">Proposed MET completion</dt>
+                            <dd class="col-sm-7">@(selected.RequestedMetCompletedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
+                            <dt class="col-sm-5">FoPM manufactured?</dt>
+                            <dd class="col-sm-7">@FoPmLabel(selected.RequestedFirstProductionModelManufactured)</dd>
+                            <dt class="col-sm-5">FoPM manufacture date</dt>
+                            <dd class="col-sm-7">@(selected.RequestedFirstProductionModelManufacturedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
                             <dt class="col-sm-5">Submitted by</dt>
                             <dd class="col-sm-7">@(selected.RequestedBy ?? "—") on @(ToIst(selected.RequestedOnUtc)?.ToString("dd MMM yyyy HH:mm") ?? "—")</dd>
                             <dt class="col-sm-5">Decision by</dt>
@@ -415,6 +436,32 @@
                                     <label class="form-label" asp-for="SubmitInput.CompletedOn">Completed on</label>
                                     <input asp-for="SubmitInput.CompletedOn" class="form-control" type="date" />
                                 </div>
+                            </div>
+                            <div class="mb-3 mt-3">
+                                <label class="form-label" asp-for="SubmitInput.MetDetails">MET details</label>
+                                <textarea asp-for="SubmitInput.MetDetails" class="form-control" rows="2" maxlength="2000"></textarea>
+                                <span asp-validation-for="SubmitInput.MetDetails" class="text-danger"></span>
+                            </div>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label" asp-for="SubmitInput.MetCompletedOn">MET completed on</label>
+                                    <input asp-for="SubmitInput.MetCompletedOn" class="form-control" type="date" />
+                                    <span asp-validation-for="SubmitInput.MetCompletedOn" class="text-danger"></span>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label" asp-for="SubmitInput.FirstProductionModelManufactured">First production model manufactured?</label>
+                                    <select asp-for="SubmitInput.FirstProductionModelManufactured" class="form-select">
+                                        <option value="">Not specified</option>
+                                        <option value="true">Yes</option>
+                                        <option value="false">No</option>
+                                    </select>
+                                    <span asp-validation-for="SubmitInput.FirstProductionModelManufactured" class="text-danger"></span>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <label class="form-label" asp-for="SubmitInput.FirstProductionModelManufacturedOn">Manufactured on</label>
+                                <input asp-for="SubmitInput.FirstProductionModelManufacturedOn" class="form-control" type="date" />
+                                <span asp-validation-for="SubmitInput.FirstProductionModelManufacturedOn" class="text-danger"></span>
                             </div>
                             <div class="mb-3 mt-3">
                                 <label class="form-label" asp-for="SubmitInput.Remarks">Remarks</label>

@@ -2539,12 +2539,25 @@ namespace ProjectManagement.Migrations
                     b.Property<DateOnly?>("CompletedOn")
                         .HasColumnType("date");
 
+                    b.Property<bool?>("FirstProductionModelManufactured")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateOnly?>("FirstProductionModelManufacturedOn")
+                        .HasColumnType("date");
+
                     b.Property<string>("LastApprovedByUserId")
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
 
                     b.Property<DateTime?>("LastApprovedOnUtc")
                         .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("MetDetails")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateOnly?>("MetCompletedOn")
+                        .HasColumnType("date");
 
                     b.Property<int>("ProjectId")
                         .HasColumnType("integer");
@@ -2599,6 +2612,19 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("integer");
 
                     b.Property<DateOnly?>("ProposedCompletedOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ProposedMetDetails")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateOnly?>("ProposedMetCompletedOn")
+                        .HasColumnType("date");
+
+                    b.Property<bool?>("ProposedFirstProductionModelManufactured")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateOnly?>("ProposedFirstProductionModelManufacturedOn")
                         .HasColumnType("date");
 
                     b.Property<string>("ProposedRemarks")

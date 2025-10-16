@@ -55,6 +55,35 @@
                             </div>
                         </div>
 
+                        <div class="mb-3">
+                            <label asp-for="Input.MetDetails" class="form-label">MET details</label>
+                            <textarea asp-for="Input.MetDetails" class="form-control" rows="2" maxlength="2000"></textarea>
+                            <span asp-validation-for="Input.MetDetails" class="text-danger"></span>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label asp-for="Input.MetCompletedOn" class="form-label">MET completed on</label>
+                                <input asp-for="Input.MetCompletedOn" class="form-control" type="date" />
+                                <span asp-validation-for="Input.MetCompletedOn" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-6">
+                                <label asp-for="Input.FirstProductionModelManufactured" class="form-label">First production model manufactured?</label>
+                                <select asp-for="Input.FirstProductionModelManufactured" class="form-select">
+                                    <option value="">Not specified</option>
+                                    <option value="true">Yes</option>
+                                    <option value="false">No</option>
+                                </select>
+                                <span asp-validation-for="Input.FirstProductionModelManufactured" class="text-danger"></span>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label asp-for="Input.FirstProductionModelManufacturedOn" class="form-label">Manufactured on</label>
+                            <input asp-for="Input.FirstProductionModelManufacturedOn" class="form-control" type="date" />
+                            <span asp-validation-for="Input.FirstProductionModelManufacturedOn" class="text-danger"></span>
+                        </div>
+
                         <div>
                             <label asp-for="Input.Remarks" class="form-label">Remarks</label>
                             <textarea asp-for="Input.Remarks" class="form-control" rows="3" maxlength="2000"></textarea>
@@ -88,6 +117,7 @@
                         <li class="mb-2"><strong>Not started</strong>: Leave both dates empty until ToT begins.</li>
                         <li class="mb-2"><strong>In progress</strong>: Provide the start date; completion must stay empty.</li>
                         <li><strong>Completed</strong>: Provide both start and completion dates; completion cannot be earlier than the start.</li>
+                        <li class="mt-2">Update MET and first production model milestones when available.</li>
                     </ul>
                 </div>
             </div>

@@ -14,7 +14,11 @@ public sealed record ProjectTotUpdateRequest(
     ProjectTotStatus Status,
     DateOnly? StartedOn,
     DateOnly? CompletedOn,
-    string? Remarks);
+    string? Remarks,
+    string? MetDetails,
+    DateOnly? MetCompletedOn,
+    bool? FirstProductionModelManufactured,
+    DateOnly? FirstProductionModelManufacturedOn);
 
 public sealed record ProjectTotUpdateResult(ProjectTotUpdateStatus Status, string? ErrorMessage = null)
 {

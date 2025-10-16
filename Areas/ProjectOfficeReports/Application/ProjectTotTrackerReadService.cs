@@ -108,6 +108,8 @@ public sealed class ProjectTotTrackerReadService
 
             var totRemarksValue = tot?.Remarks;
             var totRemarks = string.IsNullOrWhiteSpace(totRemarksValue) ? null : totRemarksValue;
+            var totMetDetailsValue = tot?.MetDetails;
+            var totMetDetails = string.IsNullOrWhiteSpace(totMetDetailsValue) ? null : totMetDetailsValue;
             var totLastApprovedFullName = tot?.LastApprovedByUser?.FullName;
             var totLastApprovedName = string.IsNullOrWhiteSpace(totLastApprovedFullName)
                 ? tot?.LastApprovedByUserId
@@ -115,6 +117,8 @@ public sealed class ProjectTotTrackerReadService
 
             var requestProposedRemarks = request?.ProposedRemarks;
             var requestRemarks = string.IsNullOrWhiteSpace(requestProposedRemarks) ? null : requestProposedRemarks;
+            var requestMetDetailsValue = request?.ProposedMetDetails;
+            var requestMetDetails = string.IsNullOrWhiteSpace(requestMetDetailsValue) ? null : requestMetDetailsValue;
             var requestSubmittedFullName = request?.SubmittedByUser?.FullName;
             var requestSubmittedBy = string.IsNullOrWhiteSpace(requestSubmittedFullName)
                 ? request?.SubmittedByUserId
@@ -133,6 +137,10 @@ public sealed class ProjectTotTrackerReadService
                 tot?.Status,
                 tot?.StartedOn,
                 tot?.CompletedOn,
+                totMetDetails,
+                tot?.MetCompletedOn,
+                tot?.FirstProductionModelManufactured,
+                tot?.FirstProductionModelManufacturedOn,
                 totRemarks,
                 totLastApprovedName,
                 tot?.LastApprovedOnUtc,
@@ -140,6 +148,10 @@ public sealed class ProjectTotTrackerReadService
                 request?.ProposedStatus,
                 request?.ProposedStartedOn,
                 request?.ProposedCompletedOn,
+                requestMetDetails,
+                request?.ProposedMetCompletedOn,
+                request?.ProposedFirstProductionModelManufactured,
+                request?.ProposedFirstProductionModelManufacturedOn,
                 requestRemarks,
                 requestSubmittedBy,
                 request?.SubmittedOnUtc,
@@ -178,6 +190,10 @@ public sealed record ProjectTotTrackerRow(
     ProjectTotStatus? TotStatus,
     DateOnly? TotStartedOn,
     DateOnly? TotCompletedOn,
+    string? TotMetDetails,
+    DateOnly? TotMetCompletedOn,
+    bool? TotFirstProductionModelManufactured,
+    DateOnly? TotFirstProductionModelManufacturedOn,
     string? TotRemarks,
     string? TotLastApprovedBy,
     DateTime? TotLastApprovedOnUtc,
@@ -185,6 +201,10 @@ public sealed record ProjectTotTrackerRow(
     ProjectTotStatus? RequestedStatus,
     DateOnly? RequestedStartedOn,
     DateOnly? RequestedCompletedOn,
+    string? RequestedMetDetails,
+    DateOnly? RequestedMetCompletedOn,
+    bool? RequestedFirstProductionModelManufactured,
+    DateOnly? RequestedFirstProductionModelManufacturedOn,
     string? RequestedRemarks,
     string? RequestedBy,
     DateTime? RequestedOnUtc,

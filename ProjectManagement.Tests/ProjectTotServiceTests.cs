@@ -21,7 +21,7 @@ public sealed class ProjectTotServiceTests
 
         var result = await service.UpdateAsync(
             42,
-            new ProjectTotUpdateRequest(ProjectTotStatus.NotStarted, null, null, null),
+            CreateRequest(ProjectTotStatus.NotStarted),
             "actor");
 
         Assert.Equal(ProjectTotUpdateStatus.NotFound, result.Status);
@@ -44,6 +44,10 @@ public sealed class ProjectTotServiceTests
             Status = ProjectTotStatus.InProgress,
             StartedOn = new DateOnly(2024, 2, 1),
             CompletedOn = new DateOnly(2024, 3, 15),
+            MetDetails = "Previous MET milestone",
+            MetCompletedOn = new DateOnly(2024, 3, 10),
+            FirstProductionModelManufactured = true,
+            FirstProductionModelManufacturedOn = new DateOnly(2024, 3, 12),
             Remarks = "Some note"
         });
         await db.SaveChangesAsync();
@@ -53,7 +57,7 @@ public sealed class ProjectTotServiceTests
 
         var result = await service.UpdateAsync(
             1,
-            new ProjectTotUpdateRequest(ProjectTotStatus.NotRequired, null, null, null),
+            CreateRequest(ProjectTotStatus.NotRequired),
             "actor");
 
         Assert.True(result.IsSuccess);
@@ -61,6 +65,10 @@ public sealed class ProjectTotServiceTests
         Assert.Equal(ProjectTotStatus.NotRequired, tot.Status);
         Assert.Null(tot.StartedOn);
         Assert.Null(tot.CompletedOn);
+        Assert.Null(tot.MetDetails);
+        Assert.Null(tot.MetCompletedOn);
+        Assert.Null(tot.FirstProductionModelManufactured);
+        Assert.Null(tot.FirstProductionModelManufacturedOn);
         Assert.Null(tot.Remarks);
     }
 
@@ -98,7 +106,7 @@ public sealed class ProjectTotServiceTests
 
         var result = await service.UpdateAsync(
             41,
-            new ProjectTotUpdateRequest(ProjectTotStatus.NotRequired, null, null, null),
+            CreateRequest(ProjectTotStatus.NotRequired),
             "actor");
 
         Assert.True(result.IsSuccess);
@@ -113,6 +121,10 @@ public sealed class ProjectTotServiceTests
         Assert.Null(persisted.Remarks);
         Assert.Null(persisted.StartedOn);
         Assert.Null(persisted.CompletedOn);
+        Assert.Null(persisted.MetDetails);
+        Assert.Null(persisted.MetCompletedOn);
+        Assert.Null(persisted.FirstProductionModelManufactured);
+        Assert.Null(persisted.FirstProductionModelManufacturedOn);
     }
 
     [Fact]
@@ -138,7 +150,7 @@ public sealed class ProjectTotServiceTests
 
         var result = await service.UpdateAsync(
             5,
-            new ProjectTotUpdateRequest(ProjectTotStatus.InProgress, null, null, null),
+            CreateRequest(ProjectTotStatus.InProgress),
             "actor");
 
         Assert.Equal(ProjectTotUpdateStatus.ValidationFailed, result.Status);
@@ -174,12 +186,15 @@ public sealed class ProjectTotServiceTests
 
         var result = await service.UpdateAsync(
             7,
-            new ProjectTotUpdateRequest(
+            CreateRequest(
                 ProjectTotStatus.Completed,
-                new DateOnly(2024, 2, 1),
-                new DateOnly(2024, 5, 20),
-                " Completed successfully "
-            ),
+                startedOn: new DateOnly(2024, 2, 1),
+                completedOn: new DateOnly(2024, 5, 20),
+                remarks: " Completed successfully ",
+                metDetails: "  MET delivered  ",
+                metCompletedOn: new DateOnly(2024, 3, 5),
+                firstProductionModelManufactured: true,
+                firstProductionModelManufacturedOn: new DateOnly(2024, 4, 1)),
             "actor");
 
         Assert.True(result.IsSuccess);
@@ -187,7 +202,124 @@ public sealed class ProjectTotServiceTests
         Assert.Equal(ProjectTotStatus.Completed, tot.Status);
         Assert.Equal(new DateOnly(2024, 2, 1), tot.StartedOn);
         Assert.Equal(new DateOnly(2024, 5, 20), tot.CompletedOn);
+        Assert.Equal("MET delivered", tot.MetDetails);
+        Assert.Equal(new DateOnly(2024, 3, 5), tot.MetCompletedOn);
+        Assert.True(tot.FirstProductionModelManufactured);
+        Assert.Equal(new DateOnly(2024, 4, 1), tot.FirstProductionModelManufacturedOn);
         Assert.Equal("Completed successfully", tot.Remarks);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenFoPmMarkedTrueWithoutDate_ReturnsValidationError()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 21,
+            Name = "Theta",
+            CreatedAt = new DateTime(2024, 1, 1),
+            CreatedByUserId = "creator"
+        });
+        db.ProjectTots.Add(new ProjectTot
+        {
+            ProjectId = 21,
+            Status = ProjectTotStatus.NotStarted
+        });
+        await db.SaveChangesAsync();
+
+        var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 6, 0, 0, TimeSpan.Zero));
+        var service = new ProjectTotService(db, clock);
+
+        var result = await service.UpdateAsync(
+            21,
+            CreateRequest(
+                ProjectTotStatus.InProgress,
+                startedOn: new DateOnly(2024, 8, 1),
+                firstProductionModelManufactured: true),
+            "actor");
+
+        Assert.Equal(ProjectTotUpdateStatus.ValidationFailed, result.Status);
+        Assert.Equal("First production model manufacture date is required when marked as manufactured.", result.ErrorMessage);
+
+        var tot = await db.ProjectTots.SingleAsync(t => t.ProjectId == 21);
+        Assert.Equal(ProjectTotStatus.NotStarted, tot.Status);
+        Assert.Null(tot.FirstProductionModelManufactured);
+        Assert.Null(tot.FirstProductionModelManufacturedOn);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenFoPmDateProvidedWithoutFlag_ReturnsValidationError()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 22,
+            Name = "Iota",
+            CreatedAt = new DateTime(2024, 1, 1),
+            CreatedByUserId = "creator"
+        });
+        db.ProjectTots.Add(new ProjectTot
+        {
+            ProjectId = 22,
+            Status = ProjectTotStatus.NotStarted
+        });
+        await db.SaveChangesAsync();
+
+        var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 6, 0, 0, TimeSpan.Zero));
+        var service = new ProjectTotService(db, clock);
+
+        var result = await service.UpdateAsync(
+            22,
+            CreateRequest(
+                ProjectTotStatus.InProgress,
+                startedOn: new DateOnly(2024, 8, 1),
+                firstProductionModelManufacturedOn: new DateOnly(2024, 9, 1)),
+            "actor");
+
+        Assert.Equal(ProjectTotUpdateStatus.ValidationFailed, result.Status);
+        Assert.Equal("First production model manufacture date must be empty unless marked as manufactured.", result.ErrorMessage);
+
+        var tot = await db.ProjectTots.SingleAsync(t => t.ProjectId == 22);
+        Assert.Equal(ProjectTotStatus.NotStarted, tot.Status);
+        Assert.Null(tot.FirstProductionModelManufactured);
+        Assert.Null(tot.FirstProductionModelManufacturedOn);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenMetCompletionInFuture_ReturnsValidationError()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 23,
+            Name = "Kappa",
+            CreatedAt = new DateTime(2024, 1, 1),
+            CreatedByUserId = "creator"
+        });
+        db.ProjectTots.Add(new ProjectTot
+        {
+            ProjectId = 23,
+            Status = ProjectTotStatus.NotStarted
+        });
+        await db.SaveChangesAsync();
+
+        var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 6, 0, 0, TimeSpan.Zero));
+        var service = new ProjectTotService(db, clock);
+
+        var result = await service.UpdateAsync(
+            23,
+            CreateRequest(
+                ProjectTotStatus.InProgress,
+                startedOn: new DateOnly(2024, 8, 1),
+                metCompletedOn: new DateOnly(2024, 10, 9)),
+            "actor");
+
+        Assert.Equal(ProjectTotUpdateStatus.ValidationFailed, result.Status);
+        Assert.Equal("MET completion date cannot be in the future.", result.ErrorMessage);
+
+        var tot = await db.ProjectTots.SingleAsync(t => t.ProjectId == 23);
+        Assert.Equal(ProjectTotStatus.NotStarted, tot.Status);
+        Assert.Null(tot.MetCompletedOn);
     }
 
     [Fact]
@@ -213,11 +345,10 @@ public sealed class ProjectTotServiceTests
 
         var result = await service.UpdateAsync(
             11,
-            new ProjectTotUpdateRequest(
+            CreateRequest(
                 ProjectTotStatus.Completed,
-                new DateOnly(2024, 9, 1),
-                new DateOnly(2025, 1, 1),
-                null),
+                startedOn: new DateOnly(2024, 9, 1),
+                completedOn: new DateOnly(2025, 1, 1)),
             "actor");
 
         Assert.Equal(ProjectTotUpdateStatus.ValidationFailed, result.Status);
@@ -252,11 +383,10 @@ public sealed class ProjectTotServiceTests
 
         var result = await service.UpdateAsync(
             15,
-            new ProjectTotUpdateRequest(
+            CreateRequest(
                 ProjectTotStatus.Completed,
-                new DateOnly(2024, 5, 10),
-                new DateOnly(2024, 5, 5),
-                null),
+                startedOn: new DateOnly(2024, 5, 10),
+                completedOn: new DateOnly(2024, 5, 5)),
             "actor");
 
         Assert.Equal(ProjectTotUpdateStatus.ValidationFailed, result.Status);
@@ -267,6 +397,25 @@ public sealed class ProjectTotServiceTests
         Assert.Null(tot.StartedOn);
         Assert.Null(tot.CompletedOn);
     }
+
+    private static ProjectTotUpdateRequest CreateRequest(
+        ProjectTotStatus status,
+        DateOnly? startedOn = null,
+        DateOnly? completedOn = null,
+        string? remarks = null,
+        string? metDetails = null,
+        DateOnly? metCompletedOn = null,
+        bool? firstProductionModelManufactured = null,
+        DateOnly? firstProductionModelManufacturedOn = null) =>
+        new(
+            status,
+            startedOn,
+            completedOn,
+            remarks,
+            metDetails,
+            metCompletedOn,
+            firstProductionModelManufactured,
+            firstProductionModelManufacturedOn);
 
     private static ApplicationDbContext CreateContext()
     {

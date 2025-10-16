@@ -84,6 +84,14 @@ public sealed class IndexModel : PageModel
 
         public DateOnly? CompletedOn { get; set; }
 
+        public string? MetDetails { get; set; }
+
+        public DateOnly? MetCompletedOn { get; set; }
+
+        public bool? FirstProductionModelManufactured { get; set; }
+
+        public DateOnly? FirstProductionModelManufacturedOn { get; set; }
+
         public string? Remarks { get; set; }
     }
 
@@ -157,7 +165,11 @@ public sealed class IndexModel : PageModel
             SubmitInput.Status,
             SubmitInput.StartedOn,
             SubmitInput.CompletedOn,
-            SubmitInput.Remarks);
+            SubmitInput.Remarks,
+            SubmitInput.MetDetails,
+            SubmitInput.MetCompletedOn,
+            SubmitInput.FirstProductionModelManufactured,
+            SubmitInput.FirstProductionModelManufacturedOn);
 
         var result = await _totService.SubmitRequestAsync(
             SubmitInput.ProjectId,
@@ -176,6 +188,10 @@ public sealed class IndexModel : PageModel
             var status = request.Status;
             var started = request.StartedOn;
             var completed = request.CompletedOn;
+            var metDetails = request.MetDetails;
+            var metCompletedOn = request.MetCompletedOn;
+            var firstProductionModelManufactured = request.FirstProductionModelManufactured;
+            var firstProductionModelManufacturedOn = request.FirstProductionModelManufacturedOn;
             var remarks = request.Remarks;
             ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "Unable to submit the Transfer of Technology update.");
             await PopulateAsync(cancellationToken);
@@ -183,6 +199,10 @@ public sealed class IndexModel : PageModel
             SubmitInput.Status = status;
             SubmitInput.StartedOn = started;
             SubmitInput.CompletedOn = completed;
+            SubmitInput.MetDetails = metDetails;
+            SubmitInput.MetCompletedOn = metCompletedOn;
+            SubmitInput.FirstProductionModelManufactured = firstProductionModelManufactured;
+            SubmitInput.FirstProductionModelManufacturedOn = firstProductionModelManufacturedOn;
             SubmitInput.Remarks = remarks;
             return Page();
         }
@@ -466,6 +486,10 @@ public sealed class IndexModel : PageModel
                 Status = selected.RequestedStatus ?? selected.TotStatus ?? ProjectTotStatus.NotStarted,
                 StartedOn = selected.RequestedStartedOn ?? selected.TotStartedOn,
                 CompletedOn = selected.RequestedCompletedOn ?? selected.TotCompletedOn,
+                MetDetails = selected.RequestedMetDetails ?? selected.TotMetDetails,
+                MetCompletedOn = selected.RequestedMetCompletedOn ?? selected.TotMetCompletedOn,
+                FirstProductionModelManufactured = selected.RequestedFirstProductionModelManufactured ?? selected.TotFirstProductionModelManufactured,
+                FirstProductionModelManufacturedOn = selected.RequestedFirstProductionModelManufacturedOn ?? selected.TotFirstProductionModelManufacturedOn,
                 Remarks = selected.RequestedRemarks ?? selected.TotRemarks
             };
 
