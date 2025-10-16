@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 
@@ -24,17 +25,27 @@ public sealed class ProjectTotTrackerReadService
     {
         filter ??= new ProjectTotTrackerFilter();
 
+        try
+        {
+            var snapshots = await BuildProjectSnapshotQuery(filter, includeExtendedColumns: true)
+                .ToListAsync(cancellationToken);
+            return await BuildRowsAsync(snapshots, cancellationToken);
+        }
+        catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UndefinedColumn)
+        {
+            var snapshots = await BuildProjectSnapshotQuery(filter, includeExtendedColumns: false)
+                .ToListAsync(cancellationToken);
+            return await BuildRowsAsync(snapshots, cancellationToken);
+        }
+    }
+
+    private IQueryable<ProjectSnapshot> BuildProjectSnapshotQuery(
+        ProjectTotTrackerFilter filter,
+        bool includeExtendedColumns)
+    {
         var query = _db.Projects
             .AsNoTracking()
             .Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Completed)
-            .Include(p => p.SponsoringUnit)
-            .Include(p => p.Tot)
-                .ThenInclude(t => t!.LastApprovedByUser)
-            .Include(p => p.TotRequest)
-                .ThenInclude(r => r!.SubmittedByUser)
-            .Include(p => p.TotRequest)
-                .ThenInclude(r => r!.DecidedByUser)
-            .OrderBy(p => p.Name)
             .AsQueryable();
 
         if (filter.TotStatus.HasValue)
@@ -53,120 +64,165 @@ public sealed class ProjectTotTrackerReadService
             query = query.Where(p => p.TotRequest != null && p.TotRequest.DecisionState == state);
         }
 
-        var projects = await query.ToListAsync(cancellationToken);
+        query = query.OrderBy(p => p.Name);
 
-        var projectIds = projects.Select(p => p.Id).ToArray();
+        return query.Select(p => new ProjectSnapshot(
+            p.Id,
+            p.Name,
+            p.SponsoringUnit != null ? p.SponsoringUnit.Name : null,
+            p.LeadPoUserId,
+            p.Tot != null ? p.Tot.Status : (ProjectTotStatus?)null,
+            p.Tot != null ? p.Tot.StartedOn : null,
+            p.Tot != null ? p.Tot.CompletedOn : null,
+            includeExtendedColumns && p.Tot != null ? p.Tot.MetDetails : null,
+            includeExtendedColumns && p.Tot != null ? p.Tot.MetCompletedOn : null,
+            includeExtendedColumns && p.Tot != null ? p.Tot.FirstProductionModelManufactured : null,
+            includeExtendedColumns && p.Tot != null ? p.Tot.FirstProductionModelManufacturedOn : null,
+            p.Tot != null ? p.Tot.Remarks : null,
+            p.Tot != null ? p.Tot.LastApprovedByUserId : null,
+            p.Tot != null ? p.Tot.LastApprovedByUser != null ? p.Tot.LastApprovedByUser.FullName : null : null,
+            p.Tot != null ? p.Tot.LastApprovedOnUtc : null,
+            p.TotRequest != null ? p.TotRequest.DecisionState : (ProjectTotRequestDecisionState?)null,
+            p.TotRequest != null ? p.TotRequest.ProposedStatus : (ProjectTotStatus?)null,
+            p.TotRequest != null ? p.TotRequest.ProposedStartedOn : null,
+            p.TotRequest != null ? p.TotRequest.ProposedCompletedOn : null,
+            includeExtendedColumns && p.TotRequest != null ? p.TotRequest.ProposedMetDetails : null,
+            includeExtendedColumns && p.TotRequest != null ? p.TotRequest.ProposedMetCompletedOn : null,
+            includeExtendedColumns && p.TotRequest != null ? p.TotRequest.ProposedFirstProductionModelManufactured : null,
+            includeExtendedColumns && p.TotRequest != null ? p.TotRequest.ProposedFirstProductionModelManufacturedOn : null,
+            p.TotRequest != null ? p.TotRequest.ProposedRemarks : null,
+            p.TotRequest != null ? p.TotRequest.SubmittedByUserId : null,
+            p.TotRequest != null ? p.TotRequest.SubmittedByUser != null ? p.TotRequest.SubmittedByUser.FullName : null : null,
+            p.TotRequest != null ? p.TotRequest.SubmittedOnUtc : (DateTime?)null,
+            p.TotRequest != null ? p.TotRequest.DecidedByUserId : null,
+            p.TotRequest != null ? p.TotRequest.DecidedByUser != null ? p.TotRequest.DecidedByUser.FullName : null : null,
+            p.TotRequest != null ? p.TotRequest.DecidedOnUtc : (DateTime?)null,
+            p.TotRequest != null ? p.TotRequest.DecisionRemarks : null,
+            p.TotRequest != null ? p.TotRequest.RowVersion : null));
+    }
 
-        Dictionary<int, LatestApprovedUpdate> latestApprovedMap;
-        if (projectIds.Length == 0)
+    private async Task<IReadOnlyList<ProjectTotTrackerRow>> BuildRowsAsync(
+        List<ProjectSnapshot> snapshots,
+        CancellationToken cancellationToken)
+    {
+        if (snapshots.Count == 0)
         {
-            latestApprovedMap = new Dictionary<int, LatestApprovedUpdate>();
+            return Array.Empty<ProjectTotTrackerRow>();
         }
-        else
+
+        var projectIds = snapshots.Select(s => s.ProjectId).ToArray();
+        var latestApprovedMap = await LoadLatestApprovedUpdatesAsync(projectIds, cancellationToken);
+        var pendingCounts = await LoadPendingCountsAsync(projectIds, cancellationToken);
+
+        var rows = new List<ProjectTotTrackerRow>(snapshots.Count);
+        foreach (var snapshot in snapshots)
         {
-            var latestApprovedEntries = await _db.ProjectTotProgressUpdates
-                .AsNoTracking()
-                .Where(u => projectIds.Contains(u.ProjectId)
-                    && u.State == ProjectTotProgressUpdateState.Approved)
-                .OrderByDescending(u => u.PublishedOnUtc ?? u.SubmittedOnUtc)
-                .ThenByDescending(u => u.Id)
-                .Select(u => new LatestApprovedUpdate(
-                    u.ProjectId,
-                    u.Body,
-                    u.EventDate,
-                    u.PublishedOnUtc ?? u.SubmittedOnUtc))
-                .ToListAsync(cancellationToken);
+            latestApprovedMap.TryGetValue(snapshot.ProjectId, out var latestApproved);
+            pendingCounts.TryGetValue(snapshot.ProjectId, out var pendingCount);
 
-            latestApprovedMap = new Dictionary<int, LatestApprovedUpdate>(latestApprovedEntries.Count);
-            foreach (var entry in latestApprovedEntries)
-            {
-                if (!latestApprovedMap.ContainsKey(entry.ProjectId))
-                {
-                    latestApprovedMap[entry.ProjectId] = entry;
-                }
-            }
-        }
+            var totRemarks = string.IsNullOrWhiteSpace(snapshot.TotRemarks) ? null : snapshot.TotRemarks;
+            var totMetDetails = string.IsNullOrWhiteSpace(snapshot.TotMetDetails) ? null : snapshot.TotMetDetails;
+            var totLastApprovedName = !string.IsNullOrWhiteSpace(snapshot.TotLastApprovedByFullName)
+                ? snapshot.TotLastApprovedByFullName
+                : snapshot.TotLastApprovedByUserId;
 
-        var pendingCounts = projectIds.Length == 0
-            ? new Dictionary<int, int>()
-            : await _db.ProjectTotProgressUpdates
-                .AsNoTracking()
-                .Where(u => projectIds.Contains(u.ProjectId)
-                    && u.State == ProjectTotProgressUpdateState.Pending)
-                .GroupBy(u => u.ProjectId)
-                .Select(g => new { g.Key, Count = g.Count() })
-                .ToDictionaryAsync(x => x.Key, x => x.Count, cancellationToken);
-
-        var rows = new List<ProjectTotTrackerRow>(projects.Count);
-        foreach (var project in projects)
-        {
-            var tot = project.Tot;
-            var request = project.TotRequest;
-
-            latestApprovedMap.TryGetValue(project.Id, out var latestApproved);
-            pendingCounts.TryGetValue(project.Id, out var pendingCount);
-
-            var totRemarksValue = tot?.Remarks;
-            var totRemarks = string.IsNullOrWhiteSpace(totRemarksValue) ? null : totRemarksValue;
-            var totMetDetailsValue = tot?.MetDetails;
-            var totMetDetails = string.IsNullOrWhiteSpace(totMetDetailsValue) ? null : totMetDetailsValue;
-            var totLastApprovedFullName = tot?.LastApprovedByUser?.FullName;
-            var totLastApprovedName = string.IsNullOrWhiteSpace(totLastApprovedFullName)
-                ? tot?.LastApprovedByUserId
-                : totLastApprovedFullName;
-
-            var requestProposedRemarks = request?.ProposedRemarks;
-            var requestRemarks = string.IsNullOrWhiteSpace(requestProposedRemarks) ? null : requestProposedRemarks;
-            var requestMetDetailsValue = request?.ProposedMetDetails;
-            var requestMetDetails = string.IsNullOrWhiteSpace(requestMetDetailsValue) ? null : requestMetDetailsValue;
-            var requestSubmittedFullName = request?.SubmittedByUser?.FullName;
-            var requestSubmittedBy = string.IsNullOrWhiteSpace(requestSubmittedFullName)
-                ? request?.SubmittedByUserId
-                : requestSubmittedFullName;
-            var requestDecidedFullName = request?.DecidedByUser?.FullName;
-            var requestDecidedBy = string.IsNullOrWhiteSpace(requestDecidedFullName)
-                ? request?.DecidedByUserId
-                : requestDecidedFullName;
-            var decisionRemarksValue = request?.DecisionRemarks;
-            var decisionRemarks = string.IsNullOrWhiteSpace(decisionRemarksValue) ? null : decisionRemarksValue;
+            var requestRemarks = string.IsNullOrWhiteSpace(snapshot.RequestedRemarks) ? null : snapshot.RequestedRemarks;
+            var requestMetDetails = string.IsNullOrWhiteSpace(snapshot.RequestedMetDetails) ? null : snapshot.RequestedMetDetails;
+            var requestSubmittedBy = !string.IsNullOrWhiteSpace(snapshot.RequestedByFullName)
+                ? snapshot.RequestedByFullName
+                : snapshot.RequestedByUserId;
+            var requestDecidedBy = !string.IsNullOrWhiteSpace(snapshot.DecidedByFullName)
+                ? snapshot.DecidedByFullName
+                : snapshot.DecidedByUserId;
+            var decisionRemarks = string.IsNullOrWhiteSpace(snapshot.DecisionRemarks) ? null : snapshot.DecisionRemarks;
 
             rows.Add(new ProjectTotTrackerRow(
-                project.Id,
-                project.Name,
-                project.SponsoringUnit?.Name,
-                tot?.Status,
-                tot?.StartedOn,
-                tot?.CompletedOn,
+                snapshot.ProjectId,
+                snapshot.ProjectName,
+                snapshot.SponsoringUnit,
+                snapshot.TotStatus,
+                snapshot.TotStartedOn,
+                snapshot.TotCompletedOn,
                 totMetDetails,
-                tot?.MetCompletedOn,
-                tot?.FirstProductionModelManufactured,
-                tot?.FirstProductionModelManufacturedOn,
+                snapshot.TotMetCompletedOn,
+                snapshot.TotFirstProductionModelManufactured,
+                snapshot.TotFirstProductionModelManufacturedOn,
                 totRemarks,
                 totLastApprovedName,
-                tot?.LastApprovedOnUtc,
-                request?.DecisionState,
-                request?.ProposedStatus,
-                request?.ProposedStartedOn,
-                request?.ProposedCompletedOn,
+                snapshot.TotLastApprovedOnUtc,
+                snapshot.RequestState,
+                snapshot.RequestedStatus,
+                snapshot.RequestedStartedOn,
+                snapshot.RequestedCompletedOn,
                 requestMetDetails,
-                request?.ProposedMetCompletedOn,
-                request?.ProposedFirstProductionModelManufactured,
-                request?.ProposedFirstProductionModelManufacturedOn,
+                snapshot.RequestedMetCompletedOn,
+                snapshot.RequestedFirstProductionModelManufactured,
+                snapshot.RequestedFirstProductionModelManufacturedOn,
                 requestRemarks,
                 requestSubmittedBy,
-                request?.SubmittedOnUtc,
+                snapshot.RequestedOnUtc,
                 requestDecidedBy,
-                request?.DecidedOnUtc,
+                snapshot.DecidedOnUtc,
                 decisionRemarks,
-                request?.RowVersion,
+                snapshot.RequestRowVersion,
                 latestApproved?.Body,
                 latestApproved?.EventDate,
                 latestApproved?.PublishedOnUtc,
                 pendingCount,
-                project.LeadPoUserId));
+                snapshot.LeadPoUserId));
         }
 
         return rows;
+    }
+
+    private async Task<Dictionary<int, LatestApprovedUpdate>> LoadLatestApprovedUpdatesAsync(
+        int[] projectIds,
+        CancellationToken cancellationToken)
+    {
+        if (projectIds.Length == 0)
+        {
+            return new Dictionary<int, LatestApprovedUpdate>();
+        }
+
+        var latestApprovedEntries = await _db.ProjectTotProgressUpdates
+            .AsNoTracking()
+            .Where(u => projectIds.Contains(u.ProjectId)
+                && u.State == ProjectTotProgressUpdateState.Approved)
+            .OrderByDescending(u => u.PublishedOnUtc ?? u.SubmittedOnUtc)
+            .ThenByDescending(u => u.Id)
+            .Select(u => new LatestApprovedUpdate(
+                u.ProjectId,
+                u.Body,
+                u.EventDate,
+                u.PublishedOnUtc ?? u.SubmittedOnUtc))
+            .ToListAsync(cancellationToken);
+
+        var latestApprovedMap = new Dictionary<int, LatestApprovedUpdate>(latestApprovedEntries.Count);
+        foreach (var entry in latestApprovedEntries)
+        {
+            if (!latestApprovedMap.ContainsKey(entry.ProjectId))
+            {
+                latestApprovedMap[entry.ProjectId] = entry;
+            }
+        }
+
+        return latestApprovedMap;
+    }
+
+    private Task<Dictionary<int, int>> LoadPendingCountsAsync(int[] projectIds, CancellationToken cancellationToken)
+    {
+        if (projectIds.Length == 0)
+        {
+            return Task.FromResult(new Dictionary<int, int>());
+        }
+
+        return _db.ProjectTotProgressUpdates
+            .AsNoTracking()
+            .Where(u => projectIds.Contains(u.ProjectId)
+                && u.State == ProjectTotProgressUpdateState.Pending)
+            .GroupBy(u => u.ProjectId)
+            .Select(g => new { g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.Key, x => x.Count, cancellationToken);
     }
 
     private sealed record LatestApprovedUpdate(
@@ -217,3 +273,37 @@ public sealed record ProjectTotTrackerRow(
     DateTime? LatestApprovedUpdatePublishedOnUtc,
     int PendingUpdateCount,
     string? LeadProjectOfficerUserId);
+
+private sealed record ProjectSnapshot(
+    int ProjectId,
+    string ProjectName,
+    string? SponsoringUnit,
+    string? LeadPoUserId,
+    ProjectTotStatus? TotStatus,
+    DateOnly? TotStartedOn,
+    DateOnly? TotCompletedOn,
+    string? TotMetDetails,
+    DateOnly? TotMetCompletedOn,
+    bool? TotFirstProductionModelManufactured,
+    DateOnly? TotFirstProductionModelManufacturedOn,
+    string? TotRemarks,
+    string? TotLastApprovedByUserId,
+    string? TotLastApprovedByFullName,
+    DateTime? TotLastApprovedOnUtc,
+    ProjectTotRequestDecisionState? RequestState,
+    ProjectTotStatus? RequestedStatus,
+    DateOnly? RequestedStartedOn,
+    DateOnly? RequestedCompletedOn,
+    string? RequestedMetDetails,
+    DateOnly? RequestedMetCompletedOn,
+    bool? RequestedFirstProductionModelManufactured,
+    DateOnly? RequestedFirstProductionModelManufacturedOn,
+    string? RequestedRemarks,
+    string? RequestedByUserId,
+    string? RequestedByFullName,
+    DateTime? RequestedOnUtc,
+    string? DecidedByUserId,
+    string? DecidedByFullName,
+    DateTime? DecidedOnUtc,
+    string? DecisionRemarks,
+    byte[]? RequestRowVersion);
