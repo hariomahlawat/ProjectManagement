@@ -6,6 +6,7 @@ using System.Linq;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using Npgsql;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -186,18 +187,14 @@ namespace ProjectManagement.Pages.Projects
                 .Include(p => p.TechnicalCategory)
                 .Include(p => p.Photos)
                 .Include(p => p.Videos)
-                .Include(p => p.Tot)
-                    .ThenInclude(t => t!.LastApprovedByUser)
-                .Include(p => p.TotRequest)
-                    .ThenInclude(r => r!.SubmittedByUser)
-                .Include(p => p.TotRequest)
-                    .ThenInclude(r => r!.DecidedByUser)
                 .FirstOrDefaultAsync(p => p.Id == id, ct);
 
             if (project is null)
             {
                 return NotFound();
             }
+
+            var (totSnapshot, totRequestSnapshot) = await LoadTotDataAsync(project.Id, ct);
 
             Project = project;
 
@@ -376,7 +373,7 @@ namespace ProjectManagement.Pages.Projects
 
             LifecycleSummary = BuildLifecycleSummary(project);
             RemarkSummary = await LoadRemarkSummaryAsync(project.Id, ct);
-            TotSummary = await BuildTotSummaryAsync(project, ct);
+            TotSummary = await BuildTotSummaryAsync(project.Id, totSnapshot, totRequestSnapshot, ct);
             MediaSummary = BuildMediaSummary();
 
             AvailableMediaTotIds = availableTotIds.ToArray();
@@ -1073,11 +1070,156 @@ namespace ProjectManagement.Pages.Projects
             return string.Concat(trimmed.AsSpan(0, limit), "…");
         }
 
-        private async Task<ProjectTotSummaryViewModel> BuildTotSummaryAsync(Project project, CancellationToken ct)
+        private sealed record TotSnapshot(
+            ProjectTotStatus Status,
+            DateOnly? StartedOn,
+            DateOnly? CompletedOn,
+            string? MetDetails,
+            DateOnly? MetCompletedOn,
+            bool? FirstProductionModelManufactured,
+            DateOnly? FirstProductionModelManufacturedOn,
+            string? Remarks,
+            string? LastApprovedByDisplay,
+            DateTime? LastApprovedOnUtc);
+
+        private sealed record TotRequestSnapshot(
+            ProjectTotRequestDecisionState State,
+            ProjectTotStatus ProposedStatus,
+            DateOnly? ProposedStartedOn,
+            DateOnly? ProposedCompletedOn,
+            string? ProposedMetDetails,
+            DateOnly? ProposedMetCompletedOn,
+            bool? ProposedFirstProductionModelManufactured,
+            DateOnly? ProposedFirstProductionModelManufacturedOn,
+            string? ProposedRemarks,
+            string SubmittedByDisplay,
+            DateTime SubmittedOnUtc,
+            string? DecidedByDisplay,
+            DateTime? DecidedOnUtc,
+            string? DecisionRemarks);
+
+        private async Task<(TotSnapshot? Tot, TotRequestSnapshot? Request)> LoadTotDataAsync(int projectId, CancellationToken ct)
+        {
+            TotSnapshot? tot;
+            try
+            {
+                tot = await BuildTotSnapshotQuery(projectId, includeExtendedColumns: true).SingleOrDefaultAsync(ct);
+            }
+            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UndefinedColumn)
+            {
+                tot = await BuildTotSnapshotQuery(projectId, includeExtendedColumns: false).SingleOrDefaultAsync(ct);
+            }
+
+            TotRequestSnapshot? request;
+            try
+            {
+                request = await BuildTotRequestSnapshotQuery(projectId, includeExtendedColumns: true).SingleOrDefaultAsync(ct);
+            }
+            catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UndefinedColumn)
+            {
+                request = await BuildTotRequestSnapshotQuery(projectId, includeExtendedColumns: false).SingleOrDefaultAsync(ct);
+            }
+
+            return (tot, request);
+        }
+
+        private IQueryable<TotSnapshot> BuildTotSnapshotQuery(int projectId, bool includeExtendedColumns)
+        {
+            var query = _db.ProjectTots
+                .AsNoTracking()
+                .Where(t => t.ProjectId == projectId);
+
+            if (includeExtendedColumns)
+            {
+                return query.Select(t => new TotSnapshot(
+                    t.Status,
+                    t.StartedOn,
+                    t.CompletedOn,
+                    t.MetDetails,
+                    t.MetCompletedOn,
+                    t.FirstProductionModelManufactured,
+                    t.FirstProductionModelManufacturedOn,
+                    t.Remarks,
+                    t.LastApprovedByUser != null && !string.IsNullOrWhiteSpace(t.LastApprovedByUser.FullName)
+                        ? t.LastApprovedByUser.FullName
+                        : t.LastApprovedByUserId,
+                    t.LastApprovedOnUtc));
+            }
+
+            return query.Select(t => new TotSnapshot(
+                t.Status,
+                t.StartedOn,
+                t.CompletedOn,
+                null,
+                null,
+                null,
+                null,
+                t.Remarks,
+                t.LastApprovedByUser != null && !string.IsNullOrWhiteSpace(t.LastApprovedByUser.FullName)
+                    ? t.LastApprovedByUser.FullName
+                    : t.LastApprovedByUserId,
+                t.LastApprovedOnUtc));
+        }
+
+        private IQueryable<TotRequestSnapshot> BuildTotRequestSnapshotQuery(int projectId, bool includeExtendedColumns)
+        {
+            var query = _db.ProjectTotRequests
+                .AsNoTracking()
+                .Where(r => r.ProjectId == projectId);
+
+            if (includeExtendedColumns)
+            {
+                return query.Select(r => new TotRequestSnapshot(
+                    r.DecisionState,
+                    r.ProposedStatus,
+                    r.ProposedStartedOn,
+                    r.ProposedCompletedOn,
+                    r.ProposedMetDetails,
+                    r.ProposedMetCompletedOn,
+                    r.ProposedFirstProductionModelManufactured,
+                    r.ProposedFirstProductionModelManufacturedOn,
+                    r.ProposedRemarks,
+                    r.SubmittedByUser != null && !string.IsNullOrWhiteSpace(r.SubmittedByUser.FullName)
+                        ? r.SubmittedByUser.FullName
+                        : r.SubmittedByUserId,
+                    r.SubmittedOnUtc,
+                    r.DecidedByUser != null && !string.IsNullOrWhiteSpace(r.DecidedByUser.FullName)
+                        ? r.DecidedByUser.FullName
+                        : r.DecidedByUserId,
+                    r.DecidedOnUtc,
+                    r.DecisionRemarks));
+            }
+
+            return query.Select(r => new TotRequestSnapshot(
+                r.DecisionState,
+                r.ProposedStatus,
+                r.ProposedStartedOn,
+                r.ProposedCompletedOn,
+                null,
+                null,
+                null,
+                null,
+                r.ProposedRemarks,
+                r.SubmittedByUser != null && !string.IsNullOrWhiteSpace(r.SubmittedByUser.FullName)
+                    ? r.SubmittedByUser.FullName
+                    : r.SubmittedByUserId,
+                r.SubmittedOnUtc,
+                r.DecidedByUser != null && !string.IsNullOrWhiteSpace(r.DecidedByUser.FullName)
+                    ? r.DecidedByUser.FullName
+                    : r.DecidedByUserId,
+                r.DecidedOnUtc,
+                r.DecisionRemarks));
+        }
+
+        private async Task<ProjectTotSummaryViewModel> BuildTotSummaryAsync(
+            int projectId,
+            TotSnapshot? tot,
+            TotRequestSnapshot? request,
+            CancellationToken ct)
         {
             var latestApprovedUpdate = await _db.ProjectTotProgressUpdates
                 .AsNoTracking()
-                .Where(u => u.ProjectId == project.Id && u.State == ProjectTotProgressUpdateState.Approved)
+                .Where(u => u.ProjectId == projectId && u.State == ProjectTotProgressUpdateState.Approved)
                 .OrderByDescending(u => u.PublishedOnUtc ?? u.SubmittedOnUtc)
                 .ThenByDescending(u => u.Id)
                 .Select(u => new ProjectTotSummaryViewModel.TotProgressUpdateSnippet(
@@ -1088,9 +1230,8 @@ namespace ProjectManagement.Pages.Projects
 
             var pendingUpdateCount = await _db.ProjectTotProgressUpdates
                 .AsNoTracking()
-                .CountAsync(u => u.ProjectId == project.Id && u.State == ProjectTotProgressUpdateState.Pending, ct);
+                .CountAsync(u => u.ProjectId == projectId && u.State == ProjectTotProgressUpdateState.Pending, ct);
 
-            var tot = project.Tot;
             if (tot is null)
             {
                 return new ProjectTotSummaryViewModel
@@ -1099,8 +1240,8 @@ namespace ProjectManagement.Pages.Projects
                     Status = ProjectTotStatus.NotStarted,
                     StatusLabel = "Not tracked",
                     Summary = "Transfer of Technology tracking has not been configured for this project.",
-                    PendingRequest = project.TotRequest?.DecisionState == ProjectTotRequestDecisionState.Pending
-                        ? BuildTotRequestSummary(project.TotRequest)
+                    PendingRequest = request is { State: ProjectTotRequestDecisionState.Pending }
+                        ? BuildTotRequestSummary(request)
                         : null,
                     LatestApprovedUpdate = latestApprovedUpdate,
                     PendingUpdateCount = pendingUpdateCount
@@ -1144,16 +1285,14 @@ namespace ProjectManagement.Pages.Projects
                 facts.Add(new ProjectTotSummaryViewModel.TotFact("FoPM manufactured on", manufacturedOn));
             }
 
-            if (tot.LastApprovedOnUtc.HasValue && !string.IsNullOrWhiteSpace(tot.LastApprovedByUserId))
+            if (tot.LastApprovedOnUtc.HasValue && !string.IsNullOrWhiteSpace(tot.LastApprovedByDisplay))
             {
-                var approver = tot.LastApprovedByUser?.FullName;
-                var approverDisplay = string.IsNullOrWhiteSpace(approver) ? tot.LastApprovedByUserId : approver;
                 var approvedOn = TimeZoneInfo.ConvertTimeFromUtc(
                     DateTime.SpecifyKind(tot.LastApprovedOnUtc.Value, DateTimeKind.Utc),
                     TimeZoneHelper.GetIst());
                 facts.Add(new ProjectTotSummaryViewModel.TotFact(
                     "Approved",
-                    string.Format(CultureInfo.InvariantCulture, "{0} on {1:dd MMM yyyy HH:mm}", approverDisplay, approvedOn)));
+                    string.Format(CultureInfo.InvariantCulture, "{0} on {1:dd MMM yyyy HH:mm}", tot.LastApprovedByDisplay, approvedOn)));
             }
 
             var summary = tot.Status switch
@@ -1184,31 +1323,29 @@ namespace ProjectManagement.Pages.Projects
                 Summary = summary,
                 Remarks = string.IsNullOrWhiteSpace(tot.Remarks) ? null : tot.Remarks,
                 Facts = facts,
-                LastApprovedBy = string.IsNullOrWhiteSpace(tot.LastApprovedByUser?.FullName)
-                    ? tot.LastApprovedByUserId
-                    : tot.LastApprovedByUser!.FullName,
+                LastApprovedBy = tot.LastApprovedByDisplay,
                 LastApprovedOnUtc = tot.LastApprovedOnUtc,
-                PendingRequest = project.TotRequest?.DecisionState == ProjectTotRequestDecisionState.Pending
-                    ? BuildTotRequestSummary(project.TotRequest)
+                PendingRequest = request is { State: ProjectTotRequestDecisionState.Pending }
+                    ? BuildTotRequestSummary(request)
                     : null,
                 LatestApprovedUpdate = latestApprovedUpdate,
                 PendingUpdateCount = pendingUpdateCount
             };
         }
 
-        private static ProjectTotSummaryViewModel.TotRequestSummary? BuildTotRequestSummary(ProjectTotRequest? request)
+        private static ProjectTotSummaryViewModel.TotRequestSummary? BuildTotRequestSummary(TotRequestSnapshot? request)
         {
             if (request is null)
             {
                 return null;
             }
 
-            var stateLabel = request.DecisionState switch
+            var stateLabel = request.State switch
             {
                 ProjectTotRequestDecisionState.Pending => "Pending approval",
                 ProjectTotRequestDecisionState.Approved => "Approved",
                 ProjectTotRequestDecisionState.Rejected => "Rejected",
-                _ => request.DecisionState.ToString()
+                _ => request.State.ToString()
             };
 
             var proposedStatusLabel = request.ProposedStatus switch
@@ -1220,20 +1357,12 @@ namespace ProjectManagement.Pages.Projects
                 _ => request.ProposedStatus.ToString()
             };
 
-            var submittedBy = string.IsNullOrWhiteSpace(request.SubmittedByUser?.FullName)
-                ? request.SubmittedByUserId
-                : request.SubmittedByUser!.FullName;
-
-            var decidedBy = string.IsNullOrWhiteSpace(request.DecidedByUser?.FullName)
-                ? request.DecidedByUserId
-                : request.DecidedByUser!.FullName;
-
             var proposedMetDetails = string.IsNullOrWhiteSpace(request.ProposedMetDetails)
                 ? null
                 : request.ProposedMetDetails;
 
             return new ProjectTotSummaryViewModel.TotRequestSummary(
-                request.DecisionState,
+                request.State,
                 stateLabel,
                 request.ProposedStatus,
                 proposedStatusLabel,
@@ -1244,9 +1373,9 @@ namespace ProjectManagement.Pages.Projects
                 request.ProposedFirstProductionModelManufactured,
                 request.ProposedFirstProductionModelManufacturedOn,
                 string.IsNullOrWhiteSpace(request.ProposedRemarks) ? null : request.ProposedRemarks,
-                submittedBy ?? string.Empty,
+                request.SubmittedByDisplay,
                 request.SubmittedOnUtc,
-                decidedBy,
+                request.DecidedByDisplay,
                 request.DecidedOnUtc,
                 string.IsNullOrWhiteSpace(request.DecisionRemarks) ? null : request.DecisionRemarks);
         }
