@@ -412,7 +412,8 @@ public sealed class ProjectPhotoPageTests
         var remarksPanel = new ProjectRemarksPanelService(userManager, clock);
         var lifecycle = new ProjectLifecycleService(db, new NoOpAuditService(), clock);
         var mediaAggregator = new ProjectMediaAggregator();
-        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, mediaAggregator);
+        var totUpdateService = new ProjectTotUpdateService(db, userManager, clock);
+        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, mediaAggregator, totUpdateService);
     }
 
     private static UserManager<ApplicationUser> CreateUserManager(ApplicationDbContext db)
