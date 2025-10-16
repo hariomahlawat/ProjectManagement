@@ -114,7 +114,7 @@
             {
                 <div class="alert alert-info mt-3 mb-0 small" role="status">@pendingUpdateCount pending update@(pendingUpdateCount == 1 ? string.Empty : "s") awaiting HoD/Admin approval.</div>
             }
-            @if (pendingRequest is { } request)
+            @if (hasPending && pendingRequest is { } request)
             {
                 var alertVariant = request.State switch
                 {
