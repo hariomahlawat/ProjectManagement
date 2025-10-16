@@ -1099,7 +1099,9 @@ namespace ProjectManagement.Pages.Projects
                     Status = ProjectTotStatus.NotStarted,
                     StatusLabel = "Not tracked",
                     Summary = "Transfer of Technology tracking has not been configured for this project.",
-                    PendingRequest = BuildTotRequestSummary(project.TotRequest),
+                    PendingRequest = project.TotRequest?.DecisionState == ProjectTotRequestDecisionState.Pending
+                        ? BuildTotRequestSummary(project.TotRequest)
+                        : null,
                     LatestApprovedUpdate = latestApprovedUpdate,
                     PendingUpdateCount = pendingUpdateCount
                 };
@@ -1186,7 +1188,9 @@ namespace ProjectManagement.Pages.Projects
                     ? tot.LastApprovedByUserId
                     : tot.LastApprovedByUser!.FullName,
                 LastApprovedOnUtc = tot.LastApprovedOnUtc,
-                PendingRequest = BuildTotRequestSummary(project.TotRequest),
+                PendingRequest = project.TotRequest?.DecisionState == ProjectTotRequestDecisionState.Pending
+                    ? BuildTotRequestSummary(project.TotRequest)
+                    : null,
                 LatestApprovedUpdate = latestApprovedUpdate,
                 PendingUpdateCount = pendingUpdateCount
             };
