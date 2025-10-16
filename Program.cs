@@ -130,7 +130,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(ProjectOfficeReportsPolicies.ManageSocialMediaEvents, policy =>
         policy.RequireProjectOfficeManager());
     options.AddPolicy(ProjectOfficeReportsPolicies.ViewTotTracker, policy =>
-        policy.RequireProjectOfficeManager());
+        policy.RequireTotTrackerViewer());
     options.AddPolicy(ProjectOfficeReportsPolicies.ManageTotTracker, policy =>
         policy.RequireTotTrackerSubmitter());
     options.AddPolicy(ProjectOfficeReportsPolicies.ApproveTotTracker, policy =>
@@ -209,6 +209,7 @@ builder.Services.AddScoped<ProjectProcurementReadService>();
 builder.Services.AddScoped<ProjectTimelineReadService>();
 builder.Services.AddScoped<ProjectLifecycleService>();
 builder.Services.AddScoped<ProjectTotService>();
+builder.Services.AddScoped<ProjectTotUpdateService>();
 builder.Services.AddScoped<ProjectTotTrackerReadService>();
 builder.Services.AddScoped<ProjectCommentService>();
 builder.Services.AddScoped<ProjectRemarksPanelService>();
