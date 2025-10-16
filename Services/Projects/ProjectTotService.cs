@@ -47,13 +47,13 @@ public sealed class ProjectTotService
         }
 
         var todayLocal = GetTodayInIst();
-        var validation = ValidateRequest(request, todayLocal, out var trimmedRemarks);
+        var validation = ValidateRequest(request, todayLocal, out var normalizedRequest);
         if (!validation.IsSuccess)
         {
             return validation;
         }
 
-        ApplyTotUpdate(project, request, actorUserId, trimmedRemarks);
+        ApplyTotUpdate(project, normalizedRequest, actorUserId);
         await _db.SaveChangesAsync(cancellationToken);
 
         return ProjectTotUpdateResult.Success();
@@ -91,7 +91,7 @@ public sealed class ProjectTotService
         }
 
         var todayLocal = GetTodayInIst();
-        var validation = ValidateRequest(request, todayLocal, out var trimmedRemarks);
+        var validation = ValidateRequest(request, todayLocal, out var normalizedRequest);
         if (!validation.IsSuccess)
         {
             return ProjectTotRequestActionResult.ValidationFailed(validation.ErrorMessage ?? "Unable to validate Transfer of Technology details.");
@@ -113,10 +113,14 @@ public sealed class ProjectTotService
             return ProjectTotRequestActionResult.Conflict("A Transfer of Technology update is already pending approval for this project.");
         }
 
-        totRequest.ProposedStatus = request.Status;
-        totRequest.ProposedStartedOn = request.StartedOn;
-        totRequest.ProposedCompletedOn = request.CompletedOn;
-        totRequest.ProposedRemarks = trimmedRemarks;
+        totRequest.ProposedStatus = normalizedRequest.Status;
+        totRequest.ProposedStartedOn = normalizedRequest.StartedOn;
+        totRequest.ProposedCompletedOn = normalizedRequest.CompletedOn;
+        totRequest.ProposedMetDetails = normalizedRequest.MetDetails;
+        totRequest.ProposedMetCompletedOn = normalizedRequest.MetCompletedOn;
+        totRequest.ProposedFirstProductionModelManufactured = normalizedRequest.FirstProductionModelManufactured;
+        totRequest.ProposedFirstProductionModelManufacturedOn = normalizedRequest.FirstProductionModelManufacturedOn;
+        totRequest.ProposedRemarks = normalizedRequest.Remarks;
         totRequest.SubmittedByUserId = submittedByUserId;
         totRequest.SubmittedOnUtc = _clock.UtcNow.UtcDateTime;
         totRequest.DecisionState = ProjectTotRequestDecisionState.Pending;
@@ -182,16 +186,20 @@ public sealed class ProjectTotService
                 request.ProposedStatus,
                 request.ProposedStartedOn,
                 request.ProposedCompletedOn,
-                request.ProposedRemarks);
+                request.ProposedRemarks,
+                request.ProposedMetDetails,
+                request.ProposedMetCompletedOn,
+                request.ProposedFirstProductionModelManufactured,
+                request.ProposedFirstProductionModelManufacturedOn);
 
             var todayLocal = GetTodayInIst();
-            var validation = ValidateRequest(updateRequest, todayLocal, out var trimmedRemarks);
+            var validation = ValidateRequest(updateRequest, todayLocal, out var normalizedRequest);
             if (!validation.IsSuccess)
             {
                 return ProjectTotRequestActionResult.ValidationFailed(validation.ErrorMessage ?? "Unable to approve the Transfer of Technology request.");
             }
 
-            ApplyTotUpdate(project, updateRequest, decisionUserId, trimmedRemarks);
+            ApplyTotUpdate(project, normalizedRequest, decisionUserId);
             request.DecisionState = ProjectTotRequestDecisionState.Approved;
         }
         else
@@ -214,32 +222,115 @@ public sealed class ProjectTotService
         _clock.UtcNow.UtcDateTime,
         TimeZoneHelper.GetIst()));
 
-    private ProjectTotUpdateResult ValidateRequest(ProjectTotUpdateRequest request, DateOnly todayLocal, out string? trimmedRemarks)
+    private ProjectTotUpdateResult ValidateRequest(
+        ProjectTotUpdateRequest request,
+        DateOnly todayLocal,
+        out ProjectTotUpdateRequest normalizedRequest)
     {
-        trimmedRemarks = string.IsNullOrWhiteSpace(request.Remarks)
+        var trimmedRemarks = string.IsNullOrWhiteSpace(request.Remarks)
             ? null
             : request.Remarks.Trim();
 
         if (trimmedRemarks is { Length: > 2000 })
         {
+            normalizedRequest = request with { Remarks = trimmedRemarks };
             return ProjectTotUpdateResult.ValidationFailed("Remarks must be 2000 characters or fewer.");
         }
 
-        switch (request.Status)
+        var trimmedMetDetails = string.IsNullOrWhiteSpace(request.MetDetails)
+            ? null
+            : request.MetDetails.Trim();
+
+        if (trimmedMetDetails is { Length: > 2000 })
+        {
+            normalizedRequest = request with
+            {
+                Remarks = trimmedRemarks,
+                MetDetails = trimmedMetDetails
+            };
+            return ProjectTotUpdateResult.ValidationFailed("MET details must be 2000 characters or fewer.");
+        }
+
+        if (request.MetCompletedOn.HasValue && request.MetCompletedOn.Value > todayLocal)
+        {
+            normalizedRequest = request with
+            {
+                Remarks = trimmedRemarks,
+                MetDetails = trimmedMetDetails
+            };
+            return ProjectTotUpdateResult.ValidationFailed("MET completion date cannot be in the future.");
+        }
+
+        if (request.FirstProductionModelManufactured is true && request.FirstProductionModelManufacturedOn is null)
+        {
+            normalizedRequest = request with
+            {
+                Remarks = trimmedRemarks,
+                MetDetails = trimmedMetDetails
+            };
+            return ProjectTotUpdateResult.ValidationFailed("First production model manufacture date is required when marked as manufactured.");
+        }
+
+        if (request.FirstProductionModelManufactured is not true && request.FirstProductionModelManufacturedOn.HasValue)
+        {
+            normalizedRequest = request with
+            {
+                Remarks = trimmedRemarks,
+                MetDetails = trimmedMetDetails
+            };
+            return ProjectTotUpdateResult.ValidationFailed("First production model manufacture date must be empty unless marked as manufactured.");
+        }
+
+        if (request.FirstProductionModelManufacturedOn.HasValue && request.FirstProductionModelManufacturedOn.Value > todayLocal)
+        {
+            normalizedRequest = request with
+            {
+                Remarks = trimmedRemarks,
+                MetDetails = trimmedMetDetails
+            };
+            return ProjectTotUpdateResult.ValidationFailed("First production model manufacture date cannot be in the future.");
+        }
+
+        normalizedRequest = request with
+        {
+            Remarks = trimmedRemarks,
+            MetDetails = trimmedMetDetails
+        };
+
+        switch (normalizedRequest.Status)
         {
             case ProjectTotStatus.NotRequired:
             {
-                if (request.StartedOn.HasValue || request.CompletedOn.HasValue)
+                if (normalizedRequest.StartedOn.HasValue || normalizedRequest.CompletedOn.HasValue)
                 {
                     return ProjectTotUpdateResult.ValidationFailed(
                         "Start and completion dates must be empty when ToT is not required.");
                 }
 
+                if (!string.IsNullOrEmpty(normalizedRequest.MetDetails) ||
+                    normalizedRequest.MetCompletedOn.HasValue ||
+                    normalizedRequest.FirstProductionModelManufactured.HasValue ||
+                    normalizedRequest.FirstProductionModelManufacturedOn.HasValue)
+                {
+                    return ProjectTotUpdateResult.ValidationFailed(
+                        "MET and first production model details must be empty when ToT is not required.");
+                }
+
+                normalizedRequest = normalizedRequest with
+                {
+                    StartedOn = null,
+                    CompletedOn = null,
+                    MetDetails = null,
+                    MetCompletedOn = null,
+                    FirstProductionModelManufactured = null,
+                    FirstProductionModelManufacturedOn = null
+                };
+
                 break;
             }
             case ProjectTotStatus.NotStarted:
             {
-                if (request.StartedOn.HasValue || request.CompletedOn.HasValue)
+                if (normalizedRequest.StartedOn.HasValue || normalizedRequest.CompletedOn.HasValue)
                 {
                     return ProjectTotUpdateResult.ValidationFailed(
                         "Start and completion dates must be empty until ToT is in progress.");
@@ -249,17 +340,17 @@ public sealed class ProjectTotService
             }
             case ProjectTotStatus.InProgress:
             {
-                if (request.StartedOn is null)
+                if (normalizedRequest.StartedOn is null)
                 {
                     return ProjectTotUpdateResult.ValidationFailed("Start date is required when ToT is in progress.");
                 }
 
-                if (request.StartedOn.Value > todayLocal)
+                if (normalizedRequest.StartedOn.Value > todayLocal)
                 {
                     return ProjectTotUpdateResult.ValidationFailed("Start date cannot be in the future.");
                 }
 
-                if (request.CompletedOn.HasValue)
+                if (normalizedRequest.CompletedOn.HasValue)
                 {
                     return ProjectTotUpdateResult.ValidationFailed(
                         "Completion date must be empty until ToT is completed.");
@@ -269,28 +360,28 @@ public sealed class ProjectTotService
             }
             case ProjectTotStatus.Completed:
             {
-                if (request.StartedOn is null)
+                if (normalizedRequest.StartedOn is null)
                 {
                     return ProjectTotUpdateResult.ValidationFailed("Start date is required when ToT is completed.");
                 }
 
-                if (request.CompletedOn is null)
+                if (normalizedRequest.CompletedOn is null)
                 {
                     return ProjectTotUpdateResult.ValidationFailed("Completion date is required when ToT is completed.");
                 }
 
-                if (request.CompletedOn.Value < request.StartedOn.Value)
+                if (normalizedRequest.CompletedOn.Value < normalizedRequest.StartedOn.Value)
                 {
                     return ProjectTotUpdateResult.ValidationFailed(
                         "Completion date cannot be earlier than the start date.");
                 }
 
-                if (request.StartedOn.Value > todayLocal)
+                if (normalizedRequest.StartedOn.Value > todayLocal)
                 {
                     return ProjectTotUpdateResult.ValidationFailed("Start date cannot be in the future.");
                 }
 
-                if (request.CompletedOn.Value > todayLocal)
+                if (normalizedRequest.CompletedOn.Value > todayLocal)
                 {
                     return ProjectTotUpdateResult.ValidationFailed("Completion date cannot be in the future.");
                 }
@@ -306,7 +397,7 @@ public sealed class ProjectTotService
         return ProjectTotUpdateResult.Success();
     }
 
-    private void ApplyTotUpdate(Project project, ProjectTotUpdateRequest request, string actorUserId, string? trimmedRemarks)
+    private void ApplyTotUpdate(Project project, ProjectTotUpdateRequest request, string actorUserId)
     {
         if (project is null)
         {
@@ -330,7 +421,11 @@ public sealed class ProjectTotService
         }
 
         tot.Status = request.Status;
-        tot.Remarks = trimmedRemarks;
+        tot.Remarks = request.Remarks;
+        tot.MetDetails = request.MetDetails;
+        tot.MetCompletedOn = request.MetCompletedOn;
+        tot.FirstProductionModelManufactured = request.FirstProductionModelManufactured;
+        tot.FirstProductionModelManufacturedOn = request.FirstProductionModelManufacturedOn;
 
         switch (request.Status)
         {
@@ -338,6 +433,13 @@ public sealed class ProjectTotService
             case ProjectTotStatus.NotStarted:
                 tot.StartedOn = null;
                 tot.CompletedOn = null;
+                if (request.Status == ProjectTotStatus.NotRequired)
+                {
+                    tot.MetDetails = null;
+                    tot.MetCompletedOn = null;
+                    tot.FirstProductionModelManufactured = null;
+                    tot.FirstProductionModelManufacturedOn = null;
+                }
                 break;
             case ProjectTotStatus.InProgress:
                 tot.StartedOn = request.StartedOn;

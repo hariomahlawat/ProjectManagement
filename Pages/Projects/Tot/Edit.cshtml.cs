@@ -50,6 +50,14 @@ public class EditModel : PageModel
 
         public DateOnly? CompletedOn { get; set; }
 
+        public string? MetDetails { get; set; }
+
+        public DateOnly? MetCompletedOn { get; set; }
+
+        public bool? FirstProductionModelManufactured { get; set; }
+
+        public DateOnly? FirstProductionModelManufacturedOn { get; set; }
+
         public string? Remarks { get; set; }
     }
 
@@ -71,6 +79,10 @@ public class EditModel : PageModel
         Input.Status = project.Tot?.Status ?? ProjectTotStatus.NotStarted;
         Input.StartedOn = project.Tot?.StartedOn;
         Input.CompletedOn = project.Tot?.CompletedOn;
+        Input.MetDetails = project.Tot?.MetDetails;
+        Input.MetCompletedOn = project.Tot?.MetCompletedOn;
+        Input.FirstProductionModelManufactured = project.Tot?.FirstProductionModelManufactured;
+        Input.FirstProductionModelManufacturedOn = project.Tot?.FirstProductionModelManufacturedOn;
         Input.Remarks = project.Tot?.Remarks;
 
         StatusOptions = BuildStatusOptions();
@@ -109,7 +121,15 @@ public class EditModel : PageModel
             return Forbid();
         }
 
-        var request = new ProjectTotUpdateRequest(Input.Status, Input.StartedOn, Input.CompletedOn, Input.Remarks);
+        var request = new ProjectTotUpdateRequest(
+            Input.Status,
+            Input.StartedOn,
+            Input.CompletedOn,
+            Input.Remarks,
+            Input.MetDetails,
+            Input.MetCompletedOn,
+            Input.FirstProductionModelManufactured,
+            Input.FirstProductionModelManufacturedOn);
         var result = await _totService.UpdateAsync(id, request, actorUserId, cancellationToken);
 
         if (result.Status == ProjectTotUpdateStatus.NotFound)

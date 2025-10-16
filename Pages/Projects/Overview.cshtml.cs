@@ -1014,6 +1014,29 @@ namespace ProjectManagement.Pages.Projects
                 facts.Add(new ProjectTotSummaryViewModel.TotFact("Completed on", completed));
             }
 
+            if (!string.IsNullOrWhiteSpace(tot.MetDetails))
+            {
+                facts.Add(new ProjectTotSummaryViewModel.TotFact("MET details", tot.MetDetails));
+            }
+
+            if (tot.MetCompletedOn.HasValue)
+            {
+                var metCompleted = tot.MetCompletedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+                facts.Add(new ProjectTotSummaryViewModel.TotFact("MET completed on", metCompleted));
+            }
+
+            if (tot.FirstProductionModelManufactured.HasValue)
+            {
+                var manufactured = tot.FirstProductionModelManufactured.Value ? "Yes" : "No";
+                facts.Add(new ProjectTotSummaryViewModel.TotFact("First production model manufactured", manufactured));
+            }
+
+            if (tot.FirstProductionModelManufacturedOn.HasValue)
+            {
+                var manufacturedOn = tot.FirstProductionModelManufacturedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+                facts.Add(new ProjectTotSummaryViewModel.TotFact("FoPM manufactured on", manufacturedOn));
+            }
+
             if (tot.LastApprovedOnUtc.HasValue && !string.IsNullOrWhiteSpace(tot.LastApprovedByUserId))
             {
                 var approver = tot.LastApprovedByUser?.FullName;
@@ -1094,6 +1117,10 @@ namespace ProjectManagement.Pages.Projects
                 ? request.DecidedByUserId
                 : request.DecidedByUser!.FullName;
 
+            var proposedMetDetails = string.IsNullOrWhiteSpace(request.ProposedMetDetails)
+                ? null
+                : request.ProposedMetDetails;
+
             return new ProjectTotSummaryViewModel.TotRequestSummary(
                 request.DecisionState,
                 stateLabel,
@@ -1101,6 +1128,10 @@ namespace ProjectManagement.Pages.Projects
                 proposedStatusLabel,
                 request.ProposedStartedOn,
                 request.ProposedCompletedOn,
+                proposedMetDetails,
+                request.ProposedMetCompletedOn,
+                request.ProposedFirstProductionModelManufactured,
+                request.ProposedFirstProductionModelManufacturedOn,
                 string.IsNullOrWhiteSpace(request.ProposedRemarks) ? null : request.ProposedRemarks,
                 submittedBy ?? string.Empty,
                 request.SubmittedOnUtc,

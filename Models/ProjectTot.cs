@@ -28,6 +28,15 @@ namespace ProjectManagement.Models
         public DateOnly? CompletedOn { get; set; }
 
         [MaxLength(2000)]
+        public string? MetDetails { get; set; }
+
+        public DateOnly? MetCompletedOn { get; set; }
+
+        public bool? FirstProductionModelManufactured { get; set; }
+
+        public DateOnly? FirstProductionModelManufacturedOn { get; set; }
+
+        [MaxLength(2000)]
         public string? Remarks { get; set; }
 
         [MaxLength(450)]
