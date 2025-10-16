@@ -1,10 +1,14 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using ProjectManagement.Data;
 
 #nullable disable
 
 namespace ProjectManagement.Migrations;
 
+[DbContext(typeof(ApplicationDbContext))]
+[Migration("20251016021000_AddMetAndFopmToProjectTot")]
 public partial class AddMetAndFopmToProjectTot : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)

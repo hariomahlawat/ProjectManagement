@@ -64,7 +64,7 @@ namespace ProjectManagement.Services
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
             var columnCount = await db.Database
-                .SqlQueryRaw<long>("SELECT COUNT(*) FROM information_schema.columns WHERE table_name='TodoItems' AND column_name='DeletedUtc'")
+                .SqlQueryRaw<long>("SELECT COUNT(*) AS \"Value\" FROM information_schema.columns WHERE table_name='TodoItems' AND column_name='DeletedUtc'")
                 .SingleAsync(stoppingToken);
             var hasDeletedUtc = columnCount > 0;
 
