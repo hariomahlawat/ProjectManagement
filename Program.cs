@@ -338,10 +338,9 @@ using (var scope = app.Services.CreateScope())
         pendingMigrations = (await db.Database.GetPendingMigrationsAsync()).ToList();
         if (pendingMigrations.Count > 0)
         {
-            app.Logger.LogWarning(
-                "Database has {Count} pending migration(s): {Migrations}",
-                pendingMigrations.Count,
-                string.Join(", ", pendingMigrations));
+            var message = $"Database has {pendingMigrations.Count} pending migration(s): {string.Join(", ", pendingMigrations)}";
+            app.Logger.LogCritical(message);
+            throw new InvalidOperationException(message);
         }
     }
 }
