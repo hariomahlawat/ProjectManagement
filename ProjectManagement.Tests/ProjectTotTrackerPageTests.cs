@@ -125,6 +125,58 @@ public sealed class ProjectTotTrackerPageTests
     }
 
     [Fact]
+    public async Task SubmitUpdate_AllowsHeadOfDepartment()
+    {
+        await using var context = CreateContext();
+        using var userManager = CreateUserManager(context);
+
+        context.Roles.Add(new IdentityRole { Id = "role-hod", Name = "HoD", NormalizedName = "HOD" });
+        context.Projects.Add(new Project
+        {
+            Id = 4,
+            Name = "Omega",
+            CreatedAt = new DateTime(2024, 1, 1),
+            CreatedByUserId = "creator",
+            LeadPoUserId = "po-4",
+            HodUserId = "hod-1",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
+        });
+
+        await context.SaveChangesAsync();
+
+        var hod = new ApplicationUser { Id = "hod-1", UserName = "hod" };
+        await userManager.CreateAsync(hod);
+        await userManager.AddToRoleAsync(hod, "HoD");
+
+        var trackerService = new ProjectTotTrackerReadService(context);
+        var totService = new ProjectTotService(context, new FixedClock(DateTimeOffset.UtcNow));
+        var totUpdateService = new ProjectTotUpdateService(context, userManager, new FixedClock(DateTimeOffset.UtcNow));
+        var authService = new StubAuthorizationService(canSubmit: true, canApprove: false);
+
+        var page = new IndexModel(trackerService, totService, totUpdateService, authService, userManager)
+        {
+            PageContext = BuildPageContext(CreatePrincipal(hod.Id, "HoD"))
+        };
+
+        page.SubmitUpdate = new IndexModel.SubmitUpdateInput
+        {
+            ProjectId = 4,
+            Body = "Shared department knowledge",
+            EventDate = new DateOnly(2024, 9, 30)
+        };
+
+        var result = await page.OnPostSubmitUpdateAsync(CancellationToken.None);
+
+        var redirect = Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal(4, Convert.ToInt32(redirect.RouteValues!["SelectedProjectId"]));
+
+        var update = await context.ProjectTotProgressUpdates.SingleAsync();
+        Assert.Equal(ProjectTotProgressUpdateState.Approved, update.State);
+        Assert.Equal(ProjectTotUpdateActorRole.HeadOfDepartment, update.SubmittedByRole);
+        Assert.Equal(ProjectTotUpdateActorRole.HeadOfDepartment, update.DecidedByRole);
+    }
+
+    [Fact]
     public async Task DecideUpdate_ForbidsWhenUserNotApprover()
     {
         await using var context = CreateContext();
