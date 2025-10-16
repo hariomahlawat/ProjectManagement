@@ -94,6 +94,7 @@ namespace ProjectManagement.Models
         private ICollection<ProjectStage> _projectStages = new List<ProjectStage>();
         private ICollection<ProjectPhoto> _photos = new List<ProjectPhoto>();
         private ICollection<ProjectVideo> _videos = new List<ProjectVideo>();
+        private ICollection<ProjectTotProgressUpdate> _totProgressUpdates = new List<ProjectTotProgressUpdate>();
 
         public ICollection<ProjectStage> ProjectStages
         {
@@ -119,6 +120,12 @@ namespace ProjectManagement.Models
         {
             get => _videos;
             set => _videos = value ?? new List<ProjectVideo>();
+        }
+
+        public ICollection<ProjectTotProgressUpdate> TotProgressUpdates
+        {
+            get => _totProgressUpdates;
+            set => _totProgressUpdates = value ?? new List<ProjectTotProgressUpdate>();
         }
 
         public int? CoverPhotoId { get; set; }

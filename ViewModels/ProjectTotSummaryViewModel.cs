@@ -17,8 +17,11 @@ public sealed class ProjectTotSummaryViewModel
     public string? LastApprovedBy { get; init; }
     public DateTime? LastApprovedOnUtc { get; init; }
     public TotRequestSummary? PendingRequest { get; init; }
+    public TotProgressUpdateSnippet? LatestApprovedUpdate { get; init; }
+    public int PendingUpdateCount { get; init; }
 
     public bool HasPendingRequest => PendingRequest is { State: ProjectTotRequestDecisionState.Pending };
+    public bool HasPendingUpdates => PendingUpdateCount > 0;
 
     public sealed record TotFact(string Label, string Value);
 
@@ -39,4 +42,9 @@ public sealed class ProjectTotSummaryViewModel
         string? DecidedBy,
         DateTime? DecidedOnUtc,
         string? DecisionRemarks);
+
+    public sealed record TotProgressUpdateSnippet(
+        string Body,
+        DateOnly? EventDate,
+        DateTime? PublishedOnUtc);
 }

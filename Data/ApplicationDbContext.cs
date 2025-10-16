@@ -58,6 +58,7 @@ namespace ProjectManagement.Data
         public DbSet<ProjectVideo> ProjectVideos => Set<ProjectVideo>();
         public DbSet<ProjectTot> ProjectTots => Set<ProjectTot>();
         public DbSet<ProjectTotRequest> ProjectTotRequests => Set<ProjectTotRequest>();
+        public DbSet<ProjectTotProgressUpdate> ProjectTotProgressUpdates => Set<ProjectTotProgressUpdate>();
         public DbSet<ProjectMetaChangeRequest> ProjectMetaChangeRequests => Set<ProjectMetaChangeRequest>();
         public DbSet<ProjectComment> ProjectComments => Set<ProjectComment>();
         public DbSet<ProjectCommentAttachment> ProjectCommentAttachments => Set<ProjectCommentAttachment>();
@@ -129,6 +130,10 @@ namespace ProjectManagement.Data
                     .HasForeignKey(x => x.CoverPhotoId)
                     .OnDelete(DeleteBehavior.SetNull);
                 e.HasMany(x => x.Videos)
+                    .WithOne(x => x.Project)
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.HasMany(x => x.TotProgressUpdates)
                     .WithOne(x => x.Project)
                     .HasForeignKey(x => x.ProjectId)
                     .OnDelete(DeleteBehavior.Cascade);
@@ -627,6 +632,41 @@ namespace ProjectManagement.Data
                 e.HasOne(x => x.Project)
                     .WithOne(x => x.TotRequest)
                     .HasForeignKey<ProjectTotRequest>(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.SubmittedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.SubmittedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.DecidedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.DecidedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            builder.Entity<ProjectTotProgressUpdate>(e =>
+            {
+                ConfigureRowVersion(e);
+                e.Property(x => x.Body).HasMaxLength(2000).IsRequired();
+                e.Property(x => x.EventDate).HasColumnType("date");
+                e.Property(x => x.SubmittedByUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.DecisionRemarks).HasMaxLength(2000);
+                e.Property(x => x.SubmittedByRole)
+                    .HasConversion<string>()
+                    .HasMaxLength(32)
+                    .IsRequired();
+                e.Property(x => x.State)
+                    .HasConversion<string>()
+                    .HasMaxLength(32)
+                    .IsRequired();
+                e.Property(x => x.DecidedByUserId).HasMaxLength(450);
+                e.Property(x => x.DecidedByRole)
+                    .HasConversion<string>()
+                    .HasMaxLength(32);
+                e.HasIndex(x => x.ProjectId);
+                e.HasIndex(x => new { x.ProjectId, x.State });
+                e.HasOne(x => x.Project)
+                    .WithMany(x => x.TotProgressUpdates)
+                    .HasForeignKey(x => x.ProjectId)
                     .OnDelete(DeleteBehavior.Cascade);
                 e.HasOne(x => x.SubmittedByUser)
                     .WithMany()

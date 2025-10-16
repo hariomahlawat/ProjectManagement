@@ -55,11 +55,56 @@ public sealed class ProjectTotTrackerReadService
 
         var projects = await query.ToListAsync(cancellationToken);
 
+        var projectIds = projects.Select(p => p.Id).ToArray();
+
+        Dictionary<int, LatestApprovedUpdate> latestApprovedMap;
+        if (projectIds.Length == 0)
+        {
+            latestApprovedMap = new Dictionary<int, LatestApprovedUpdate>();
+        }
+        else
+        {
+            var latestApprovedEntries = await _db.ProjectTotProgressUpdates
+                .AsNoTracking()
+                .Where(u => projectIds.Contains(u.ProjectId)
+                    && u.State == ProjectTotProgressUpdateState.Approved)
+                .OrderByDescending(u => u.PublishedOnUtc ?? u.SubmittedOnUtc)
+                .ThenByDescending(u => u.Id)
+                .Select(u => new LatestApprovedUpdate(
+                    u.ProjectId,
+                    u.Body,
+                    u.EventDate,
+                    u.PublishedOnUtc ?? u.SubmittedOnUtc))
+                .ToListAsync(cancellationToken);
+
+            latestApprovedMap = new Dictionary<int, LatestApprovedUpdate>(latestApprovedEntries.Count);
+            foreach (var entry in latestApprovedEntries)
+            {
+                if (!latestApprovedMap.ContainsKey(entry.ProjectId))
+                {
+                    latestApprovedMap[entry.ProjectId] = entry;
+                }
+            }
+        }
+
+        var pendingCounts = projectIds.Length == 0
+            ? new Dictionary<int, int>()
+            : await _db.ProjectTotProgressUpdates
+                .AsNoTracking()
+                .Where(u => projectIds.Contains(u.ProjectId)
+                    && u.State == ProjectTotProgressUpdateState.Pending)
+                .GroupBy(u => u.ProjectId)
+                .Select(g => new { g.Key, Count = g.Count() })
+                .ToDictionaryAsync(x => x.Key, x => x.Count, cancellationToken);
+
         var rows = new List<ProjectTotTrackerRow>(projects.Count);
         foreach (var project in projects)
         {
             var tot = project.Tot;
             var request = project.TotRequest;
+
+            latestApprovedMap.TryGetValue(project.Id, out var latestApproved);
+            pendingCounts.TryGetValue(project.Id, out var pendingCount);
 
             var totRemarksValue = tot?.Remarks;
             var totRemarks = string.IsNullOrWhiteSpace(totRemarksValue) ? null : totRemarksValue;
@@ -113,11 +158,22 @@ public sealed class ProjectTotTrackerReadService
                 requestDecidedBy,
                 request?.DecidedOnUtc,
                 decisionRemarks,
-                request?.RowVersion));
+                request?.RowVersion,
+                latestApproved?.Body,
+                latestApproved?.EventDate,
+                latestApproved?.PublishedOnUtc,
+                pendingCount,
+                project.LeadPoUserId));
         }
 
         return rows;
     }
+
+    private sealed record LatestApprovedUpdate(
+        int ProjectId,
+        string Body,
+        DateOnly? EventDate,
+        DateTime? PublishedOnUtc);
 }
 
 public sealed record ProjectTotTrackerFilter
@@ -155,4 +211,9 @@ public sealed record ProjectTotTrackerRow(
     string? DecidedBy,
     DateTime? DecidedOnUtc,
     string? DecisionRemarks,
-    byte[]? RequestRowVersion);
+    byte[]? RequestRowVersion,
+    string? LatestApprovedUpdateBody,
+    DateOnly? LatestApprovedUpdateEventDate,
+    DateTime? LatestApprovedUpdatePublishedOnUtc,
+    int PendingUpdateCount,
+    string? LeadProjectOfficerUserId);

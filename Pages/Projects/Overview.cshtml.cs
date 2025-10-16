@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Linq;
 using System.IO;
@@ -41,10 +42,11 @@ namespace ProjectManagement.Pages.Projects
         private readonly ProjectRemarksPanelService _remarksPanelService;
         private readonly ProjectLifecycleService _lifecycleService;
         private readonly ProjectMediaAggregator _mediaAggregator;
+        private readonly ProjectTotUpdateService _totUpdateService;
 
         public PlanCompareService PlanCompare { get; }
 
-        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock, ProjectRemarksPanelService remarksPanelService, ProjectLifecycleService lifecycleService, ProjectMediaAggregator mediaAggregator)
+        public OverviewModel(ApplicationDbContext db, ProjectProcurementReadService procureRead, ProjectTimelineReadService timelineRead, UserManager<ApplicationUser> users, PlanReadService planRead, PlanCompareService planCompare, ILogger<OverviewModel> logger, IClock clock, ProjectRemarksPanelService remarksPanelService, ProjectLifecycleService lifecycleService, ProjectMediaAggregator mediaAggregator, ProjectTotUpdateService totUpdateService)
         {
             _db = db;
             _procureRead = procureRead;
@@ -57,6 +59,7 @@ namespace ProjectManagement.Pages.Projects
             _remarksPanelService = remarksPanelService;
             _lifecycleService = lifecycleService;
             _mediaAggregator = mediaAggregator;
+            _totUpdateService = totUpdateService;
         }
 
         public Project Project { get; private set; } = default!;
@@ -97,6 +100,10 @@ namespace ProjectManagement.Pages.Projects
         public bool CanViewDocumentRecycleBin { get; private set; }
         public bool CanManagePhotos { get; private set; }
         public bool CanManageVideos { get; private set; }
+        public bool CanSubmitTotUpdate { get; private set; }
+
+        [BindProperty]
+        public TotUpdateInputModel TotUpdateInput { get; set; } = new();
 
         [BindProperty(SupportsGet = true)]
         public string? DocumentStageFilter { get; set; }
@@ -120,6 +127,18 @@ namespace ProjectManagement.Pages.Projects
         public bool IsDocumentApprover { get; private set; }
 
         public int DocumentPendingRequestCount { get; private set; }
+
+        public sealed class TotUpdateInputModel
+        {
+            [HiddenInput]
+            public int ProjectId { get; set; }
+
+            [Required]
+            [StringLength(2000)]
+            public string Body { get; set; } = string.Empty;
+
+            public DateOnly? EventDate { get; set; }
+        }
 
         [BindProperty]
         public CompleteLifecycleInput CompleteProjectInput { get; set; } = new();
@@ -249,8 +268,11 @@ namespace ProjectManagement.Pages.Projects
             var isAdmin = User.IsInRole("Admin");
             var isHoD = User.IsInRole("HoD");
             var isProjectOfficer = User.IsInRole("Project Officer");
+            var isProjectOfficeRole = User.IsInRole("ProjectOffice") || User.IsInRole("Project Office");
             var isThisProjectsPo = isProjectOfficer && string.Equals(project.LeadPoUserId, CurrentUserId, StringComparison.Ordinal);
             var isThisProjectsHod = isHoD && string.Equals(project.HodUserId, CurrentUserId, StringComparison.Ordinal);
+            var isAssignedPoWithoutRole = !isProjectOfficer && !string.IsNullOrEmpty(project.LeadPoUserId)
+                && string.Equals(project.LeadPoUserId, CurrentUserId, StringComparison.Ordinal);
 
             CanManagePhotos = isAdmin || isThisProjectsPo || isThisProjectsHod;
             CanManageVideos = CanManagePhotos;
@@ -267,6 +289,8 @@ namespace ProjectManagement.Pages.Projects
             };
 
             CanManageTot = isAdmin || isHoD || isThisProjectsPo || isThisProjectsHod;
+            CanSubmitTotUpdate = isAdmin || isHoD || isProjectOfficeRole || isThisProjectsPo || isAssignedPoWithoutRole;
+            TotUpdateInput.ProjectId = project.Id;
 
             var todayLocalDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(_clock.UtcNow.UtcDateTime, TimeZoneHelper.GetIst()));
 
@@ -352,7 +376,7 @@ namespace ProjectManagement.Pages.Projects
 
             LifecycleSummary = BuildLifecycleSummary(project);
             RemarkSummary = await LoadRemarkSummaryAsync(project.Id, ct);
-            TotSummary = BuildTotSummary(project);
+            TotSummary = await BuildTotSummaryAsync(project, ct);
             MediaSummary = BuildMediaSummary();
 
             AvailableMediaTotIds = availableTotIds.ToArray();
@@ -558,6 +582,70 @@ namespace ProjectManagement.Pages.Projects
             {
                 TempData["Error"] = result.ErrorMessage ?? "Unable to cancel project.";
             }
+
+            return RedirectToPage(new { id });
+        }
+
+        public async Task<IActionResult> OnPostSubmitTotUpdateAsync(int id, CancellationToken ct)
+        {
+            if (TotUpdateInput is null || TotUpdateInput.ProjectId != id)
+            {
+                return BadRequest();
+            }
+
+            var postedBody = TotUpdateInput.Body;
+            var postedEventDate = TotUpdateInput.EventDate;
+
+            if (!ModelState.IsValid)
+            {
+                var getResult = await OnGetAsync(id, ct);
+                if (getResult is not PageResult)
+                {
+                    return getResult;
+                }
+
+                TotUpdateInput.Body = postedBody;
+                TotUpdateInput.EventDate = postedEventDate;
+                TotUpdateInput.ProjectId = id;
+                return Page();
+            }
+
+            var result = await _totUpdateService.SubmitAsync(
+                id,
+                TotUpdateInput.Body,
+                TotUpdateInput.EventDate,
+                User,
+                ct);
+
+            if (result.Status == ProjectTotProgressUpdateActionStatus.NotFound)
+            {
+                return NotFound();
+            }
+
+            if (result.Status == ProjectTotProgressUpdateActionStatus.Forbidden)
+            {
+                return Forbid();
+            }
+
+            if (!result.IsSuccess)
+            {
+                ModelState.AddModelError(nameof(TotUpdateInput.Body), result.ErrorMessage ?? "Unable to submit the Transfer of Technology update.");
+                var getResult = await OnGetAsync(id, ct);
+                if (getResult is not PageResult)
+                {
+                    return getResult;
+                }
+
+                TotUpdateInput.Body = postedBody;
+                TotUpdateInput.EventDate = postedEventDate;
+                TotUpdateInput.ProjectId = id;
+                return Page();
+            }
+
+            var toast = User.IsInRole("Admin") || User.IsInRole("HoD")
+                ? "Transfer of Technology update published."
+                : "Transfer of Technology update submitted for approval.";
+            TempData["Toast"] = toast;
 
             return RedirectToPage(new { id });
         }
@@ -985,8 +1073,23 @@ namespace ProjectManagement.Pages.Projects
             return string.Concat(trimmed.AsSpan(0, limit), "…");
         }
 
-        private ProjectTotSummaryViewModel BuildTotSummary(Project project)
+        private async Task<ProjectTotSummaryViewModel> BuildTotSummaryAsync(Project project, CancellationToken ct)
         {
+            var latestApprovedUpdate = await _db.ProjectTotProgressUpdates
+                .AsNoTracking()
+                .Where(u => u.ProjectId == project.Id && u.State == ProjectTotProgressUpdateState.Approved)
+                .OrderByDescending(u => u.PublishedOnUtc ?? u.SubmittedOnUtc)
+                .ThenByDescending(u => u.Id)
+                .Select(u => new ProjectTotSummaryViewModel.TotProgressUpdateSnippet(
+                    u.Body,
+                    u.EventDate,
+                    u.PublishedOnUtc ?? u.SubmittedOnUtc))
+                .FirstOrDefaultAsync(ct);
+
+            var pendingUpdateCount = await _db.ProjectTotProgressUpdates
+                .AsNoTracking()
+                .CountAsync(u => u.ProjectId == project.Id && u.State == ProjectTotProgressUpdateState.Pending, ct);
+
             var tot = project.Tot;
             if (tot is null)
             {
@@ -996,7 +1099,9 @@ namespace ProjectManagement.Pages.Projects
                     Status = ProjectTotStatus.NotStarted,
                     StatusLabel = "Not tracked",
                     Summary = "Transfer of Technology tracking has not been configured for this project.",
-                    PendingRequest = BuildTotRequestSummary(project.TotRequest)
+                    PendingRequest = BuildTotRequestSummary(project.TotRequest),
+                    LatestApprovedUpdate = latestApprovedUpdate,
+                    PendingUpdateCount = pendingUpdateCount
                 };
             }
 
@@ -1081,7 +1186,9 @@ namespace ProjectManagement.Pages.Projects
                     ? tot.LastApprovedByUserId
                     : tot.LastApprovedByUser!.FullName,
                 LastApprovedOnUtc = tot.LastApprovedOnUtc,
-                PendingRequest = BuildTotRequestSummary(project.TotRequest)
+                PendingRequest = BuildTotRequestSummary(project.TotRequest),
+                LatestApprovedUpdate = latestApprovedUpdate,
+                PendingUpdateCount = pendingUpdateCount
             };
         }
 

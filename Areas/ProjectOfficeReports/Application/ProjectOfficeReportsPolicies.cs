@@ -21,6 +21,16 @@ public static class ProjectOfficeReportsPolicies
         return builder.RequireRole("Admin", "HoD", "ProjectOffice", "Project Office");
     }
 
+    public static AuthorizationPolicyBuilder RequireTotTrackerViewer(this AuthorizationPolicyBuilder builder)
+    {
+        if (builder is null)
+        {
+            throw new ArgumentNullException(nameof(builder));
+        }
+
+        return builder.RequireRole("Admin", "HoD", "ProjectOffice", "Project Office", "Project Officer");
+    }
+
     public static AuthorizationPolicyBuilder RequireTotTrackerSubmitter(this AuthorizationPolicyBuilder builder)
     {
         if (builder is null)
@@ -28,7 +38,7 @@ public static class ProjectOfficeReportsPolicies
             throw new ArgumentNullException(nameof(builder));
         }
 
-        return builder.RequireRole("Admin", "ProjectOffice", "Project Office");
+        return builder.RequireRole("Admin", "ProjectOffice", "Project Office", "Project Officer");
     }
 
     public static AuthorizationPolicyBuilder RequireTotTrackerApprover(this AuthorizationPolicyBuilder builder)
