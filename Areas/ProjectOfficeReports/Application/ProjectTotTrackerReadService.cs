@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Remarks;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
 
@@ -120,14 +121,12 @@ public sealed class ProjectTotTrackerReadService
         }
 
         var projectIds = snapshots.Select(s => s.ProjectId).ToArray();
-        var latestApprovedMap = await LoadLatestApprovedUpdatesAsync(projectIds, cancellationToken);
-        var pendingCounts = await LoadPendingCountsAsync(projectIds, cancellationToken);
+        var remarkMap = await LoadLatestRemarksAsync(projectIds, cancellationToken);
 
         var rows = new List<ProjectTotTrackerRow>(snapshots.Count);
         foreach (var snapshot in snapshots)
         {
-            latestApprovedMap.TryGetValue(snapshot.ProjectId, out var latestApproved);
-            pendingCounts.TryGetValue(snapshot.ProjectId, out var pendingCount);
+            remarkMap.TryGetValue(snapshot.ProjectId, out var remarks);
 
             var totMetDetails = string.IsNullOrWhiteSpace(snapshot.TotMetDetails) ? null : snapshot.TotMetDetails;
             var totLastApprovedName = !string.IsNullOrWhiteSpace(snapshot.TotLastApprovedByFullName)
@@ -168,64 +167,68 @@ public sealed class ProjectTotTrackerReadService
                 requestDecidedBy,
                 snapshot.DecidedOnUtc,
                 snapshot.RequestRowVersion,
-                latestApproved?.Body,
-                latestApproved?.EventDate,
-                latestApproved?.PublishedOnUtc,
-                pendingCount,
+                remarks?.External,
+                remarks?.Internal,
                 snapshot.LeadPoUserId));
         }
 
         return rows;
     }
 
-    private async Task<Dictionary<int, LatestApprovedUpdate>> LoadLatestApprovedUpdatesAsync(
+    private async Task<Dictionary<int, ProjectTotRemarkPair>> LoadLatestRemarksAsync(
         int[] projectIds,
         CancellationToken cancellationToken)
     {
         if (projectIds.Length == 0)
         {
-            return new Dictionary<int, LatestApprovedUpdate>();
+            return new Dictionary<int, ProjectTotRemarkPair>();
         }
 
-        var latestApprovedEntries = await _db.ProjectTotProgressUpdates
+        var remarkSnapshots = await _db.Remarks
             .AsNoTracking()
-            .Where(u => projectIds.Contains(u.ProjectId)
-                && u.State == ProjectTotProgressUpdateState.Approved)
-            .OrderByDescending(u => u.PublishedOnUtc ?? u.SubmittedOnUtc)
-            .ThenByDescending(u => u.Id)
-            .Select(u => new LatestApprovedUpdate(
-                u.ProjectId,
-                u.Body,
-                u.EventDate,
-                u.PublishedOnUtc ?? u.SubmittedOnUtc))
+            .Where(r => projectIds.Contains(r.ProjectId)
+                && !r.IsDeleted
+                && r.Scope == RemarkScope.TransferOfTechnology
+                && (r.Type == RemarkType.Internal || r.Type == RemarkType.External))
+            .GroupBy(r => new { r.ProjectId, r.Type })
+            .Select(g => g
+                .OrderByDescending(r => r.CreatedAtUtc)
+                .ThenByDescending(r => r.Id)
+                .Select(r => new ProjectTotRemarkSummary(
+                    r.ProjectId,
+                    r.Body,
+                    r.EventDate,
+                    r.CreatedAtUtc,
+                    r.Type))
+                .FirstOrDefault())
             .ToListAsync(cancellationToken);
 
-        var latestApprovedMap = new Dictionary<int, LatestApprovedUpdate>(latestApprovedEntries.Count);
-        foreach (var entry in latestApprovedEntries)
+        var result = new Dictionary<int, ProjectTotRemarkPair>();
+        foreach (var snapshot in remarkSnapshots)
         {
-            if (!latestApprovedMap.ContainsKey(entry.ProjectId))
+            if (snapshot is null)
             {
-                latestApprovedMap[entry.ProjectId] = entry;
+                continue;
             }
+
+            if (!result.TryGetValue(snapshot.ProjectId, out var pair))
+            {
+                pair = new ProjectTotRemarkPair(null, null);
+            }
+
+            if (snapshot.Type == RemarkType.External)
+            {
+                pair = pair with { External = snapshot };
+            }
+            else
+            {
+                pair = pair with { Internal = snapshot };
+            }
+
+            result[snapshot.ProjectId] = pair;
         }
 
-        return latestApprovedMap;
-    }
-
-    private Task<Dictionary<int, int>> LoadPendingCountsAsync(int[] projectIds, CancellationToken cancellationToken)
-    {
-        if (projectIds.Length == 0)
-        {
-            return Task.FromResult(new Dictionary<int, int>());
-        }
-
-        return _db.ProjectTotProgressUpdates
-            .AsNoTracking()
-            .Where(u => projectIds.Contains(u.ProjectId)
-                && u.State == ProjectTotProgressUpdateState.Pending)
-            .GroupBy(u => u.ProjectId)
-            .Select(g => new { g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.Key, x => x.Count, cancellationToken);
+        return result;
     }
 
     private static string EscapeLikePattern(string value)
@@ -235,12 +238,6 @@ public sealed class ProjectTotTrackerReadService
             .Replace("%", "\\%", StringComparison.Ordinal)
             .Replace("_", "\\_", StringComparison.Ordinal);
     }
-
-    private sealed record LatestApprovedUpdate(
-        int ProjectId,
-        string Body,
-        DateOnly? EventDate,
-        DateTime? PublishedOnUtc);
 
     private sealed record ProjectSnapshot(
         int ProjectId,
@@ -272,6 +269,10 @@ public sealed class ProjectTotTrackerReadService
         string? DecidedByFullName,
         DateTime? DecidedOnUtc,
         byte[]? RequestRowVersion);
+
+    private sealed record ProjectTotRemarkPair(
+        ProjectTotRemarkSummary? External,
+        ProjectTotRemarkSummary? Internal);
 }
 
 public sealed record ProjectTotTrackerFilter
@@ -280,6 +281,16 @@ public sealed record ProjectTotTrackerFilter
     public ProjectTotRequestDecisionState? RequestState { get; init; }
     public bool OnlyPendingRequests { get; init; }
     public string? SearchTerm { get; init; }
+}
+
+public sealed record ProjectTotRemarkSummary(
+    int ProjectId,
+    string Body,
+    DateOnly? EventDate,
+    DateTime CreatedAtUtc,
+    RemarkType Type)
+{
+    public string TypeLabel => Type == RemarkType.External ? "External" : "Internal";
 }
 
 public sealed record ProjectTotTrackerRow(
@@ -308,8 +319,6 @@ public sealed record ProjectTotTrackerRow(
     string? DecidedBy,
     DateTime? DecidedOnUtc,
     byte[]? RequestRowVersion,
-    string? LatestApprovedUpdateBody,
-    DateOnly? LatestApprovedUpdateEventDate,
-    DateTime? LatestApprovedUpdatePublishedOnUtc,
-    int PendingUpdateCount,
+    ProjectTotRemarkSummary? LatestExternalRemark,
+    ProjectTotRemarkSummary? LatestInternalRemark,
     string? LeadProjectOfficerUserId);

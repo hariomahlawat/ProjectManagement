@@ -78,6 +78,8 @@ public sealed class ProjectOverviewLifecycleTests
         Assert.Equal(RemarkType.Internal, overview.RemarkSummary.LastRemarkType);
         Assert.Equal(ProjectTotStatus.Completed, overview.TotSummary.Status);
         Assert.Contains("Transfer of Technology completed", overview.TotSummary.Summary, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(overview.TotSummary.LatestRemark);
+        Assert.Equal("External", overview.TotSummary.LatestRemark?.TypeLabel);
     }
 
     [Fact]
@@ -285,6 +287,18 @@ public sealed class ProjectOverviewLifecycleTests
             CreatedAtUtc = DateTime.UtcNow
         });
 
+        db.Remarks.Add(new Remark
+        {
+            ProjectId = projectId,
+            AuthorUserId = "author",
+            AuthorRole = RemarkActorRole.ProjectOffice,
+            Type = RemarkType.External,
+            Scope = RemarkScope.TransferOfTechnology,
+            Body = "Knowledge handover with partner completed.",
+            EventDate = new DateOnly(2024, 3, 20),
+            CreatedAtUtc = DateTime.UtcNow
+        });
+
         db.ProjectTots.Add(new ProjectTot
         {
             ProjectId = projectId,
@@ -342,8 +356,7 @@ public sealed class ProjectOverviewLifecycleTests
         var remarksPanel = new ProjectRemarksPanelService(userManager, clock);
         var lifecycle = new ProjectLifecycleService(db, new NoOpAuditService(), clock);
         var mediaAggregator = new ProjectMediaAggregator();
-        var totUpdateService = new ProjectTotUpdateService(db, userManager, clock);
-        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, mediaAggregator, totUpdateService);
+        return new ProjectsOverviewModel(db, procure, timeline, userManager, planRead, planCompare, NullLogger<ProjectsOverviewModel>.Instance, clock, remarksPanel, lifecycle, mediaAggregator);
     }
 
     private static UserManager<ApplicationUser> CreateUserManager(ApplicationDbContext db)
