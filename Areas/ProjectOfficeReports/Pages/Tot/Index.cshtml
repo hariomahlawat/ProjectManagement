@@ -239,97 +239,100 @@
         : $"Showing {totalCount} projects";
 }
 
-<div class="d-flex flex-wrap gap-2 align-items-center justify-content-between mt-4">
-    <div class="fw-semibold">@resultCountText</div>
-    <div class="text-muted small">@summaryText</div>
-</div>
-
-<div class="table-responsive mt-3">
-    <table class="table table-striped align-middle">
-        <thead>
-            <tr>
-                <th scope="col">Project</th>
-                <th scope="col">Sponsoring unit</th>
-                <th scope="col">ToT status</th>
-                <th scope="col">Request state</th>
-                <th scope="col" class="text-end">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            @if (!Model.Projects.Any())
-            {
-                <tr>
-                    <td colspan="5" class="text-center text-muted py-4">No completed projects match the selected filters.</td>
-                </tr>
-            }
-            else
-            {
-                foreach (var row in Model.Projects)
-                {
-                    var isSelected = Model.SelectedProjectId.HasValue && Model.SelectedProjectId.Value == row.ProjectId;
-                    <tr class="@(isSelected ? "table-primary" : string.Empty)">
-                        <th scope="row">
-                            <div class="fw-semibold">@row.ProjectName</div>
-                            @{
-                                var latestRemark = row.LatestExternalRemark ?? row.LatestInternalRemark;
-                            }
-                            @if (latestRemark is not null)
-                            {
-                                var createdLocal = ToIst(latestRemark.CreatedAtUtc);
-                                <div class="text-muted small mt-1">
-                                    <span class="fw-semibold">Latest @latestRemark.TypeLabel remark</span>
-                                    @if (latestRemark.EventDate.HasValue)
-                                    {
-                                        <span> (@latestRemark.EventDate.Value:dd MMM yyyy)</span>
-                                    }
-                                    @if (createdLocal.HasValue)
-                                    {
-                                        <span> • posted @createdLocal.Value:dd MMM yyyy HH:mm</span>
-                                    }
-                                    <div class="text-truncate" style="max-width: 28rem;">@latestRemark.Body</div>
-                                </div>
-                            }
-                            else
-                            {
-                                <div class="text-muted small mt-1">No ToT remarks yet.</div>
-                            }
-                        </th>
-                        <td>@row.SponsoringUnit</td>
-                        <td>
-                            @if (row.TotStatus is { } status)
-                            {
-                                <span class="badge @TotStatusBadgeClass(status)">@StatusLabel(status)</span>
-                            }
-                            else
-                            {
-                                <span class="badge @TotStatusBadgeClass(ProjectTotStatus.NotStarted)">Not started</span>
-                            }
-                        </td>
-                        <td>
-                            @if (row.RequestState is { } state)
-                            {
-                                <span class="badge text-bg-@(state == ProjectTotRequestDecisionState.Pending ? "info" : state == ProjectTotRequestDecisionState.Approved ? "success" : "warning")">@RequestStateLabel(state)</span>
-                            }
-                            else
-                            {
-                                <span class="text-muted">No request</span>
-                            }
-                        </td>
-                        <td class="text-end">
-                            <a class="btn btn-sm btn-outline-primary"
-                               asp-route-TotStatusFilter="@Model.TotStatusFilter"
-                               asp-route-RequestStateFilter="@Model.RequestStateFilter"
-                               asp-route-SearchTerm="@Model.SearchTerm"
-                               asp-route-OnlyPending="@Model.OnlyPending"
-                               asp-route-SelectedProjectId="@row.ProjectId">
-                                View details
-                            </a>
-                        </td>
+<div class="card shadow-sm tot-project-list-card mt-4">
+    <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
+        <div class="fw-semibold">@resultCountText</div>
+        <div class="text-muted small">@summaryText</div>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col">Project</th>
+                        <th scope="col">Sponsoring unit</th>
+                        <th scope="col">ToT status</th>
+                        <th scope="col">Request state</th>
+                        <th scope="col" class="text-end">Actions</th>
                     </tr>
-                }
-            }
-        </tbody>
-    </table>
+                </thead>
+                <tbody>
+                    @if (!Model.Projects.Any())
+                    {
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">No completed projects match the selected filters.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        foreach (var row in Model.Projects)
+                        {
+                            var isSelected = Model.SelectedProjectId.HasValue && Model.SelectedProjectId.Value == row.ProjectId;
+                            <tr class="@(isSelected ? "table-primary" : string.Empty)">
+                                <th scope="row">
+                                    <div class="fw-semibold">@row.ProjectName</div>
+                                    @{
+                                        var latestRemark = row.LatestExternalRemark ?? row.LatestInternalRemark;
+                                    }
+                                    @if (latestRemark is not null)
+                                    {
+                                        var createdLocal = ToIst(latestRemark.CreatedAtUtc);
+                                        <div class="text-muted small mt-1">
+                                            <span class="fw-semibold">Latest @latestRemark.TypeLabel remark</span>
+                                            @if (latestRemark.EventDate.HasValue)
+                                            {
+                                                <span> (@latestRemark.EventDate.Value:dd MMM yyyy)</span>
+                                            }
+                                            @if (createdLocal.HasValue)
+                                            {
+                                                <span> • posted @createdLocal.Value:dd MMM yyyy HH:mm</span>
+                                            }
+                                            <div class="text-truncate" style="max-width: 28rem;">@latestRemark.Body</div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="text-muted small mt-1">No ToT remarks yet.</div>
+                                    }
+                                </th>
+                                <td>@row.SponsoringUnit</td>
+                                <td>
+                                    @if (row.TotStatus is { } status)
+                                    {
+                                        <span class="badge @TotStatusBadgeClass(status)">@StatusLabel(status)</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge @TotStatusBadgeClass(ProjectTotStatus.NotStarted)">Not started</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (row.RequestState is { } state)
+                                    {
+                                        <span class="badge text-bg-@(state == ProjectTotRequestDecisionState.Pending ? "info" : state == ProjectTotRequestDecisionState.Approved ? "success" : "warning")">@RequestStateLabel(state)</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">No request</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <a class="btn btn-sm btn-outline-primary"
+                                       asp-route-TotStatusFilter="@Model.TotStatusFilter"
+                                       asp-route-RequestStateFilter="@Model.RequestStateFilter"
+                                       asp-route-SearchTerm="@Model.SearchTerm"
+                                       asp-route-OnlyPending="@Model.OnlyPending"
+                                       asp-route-SelectedProjectId="@row.ProjectId">
+                                        View details
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
 @if (Model.SelectedProject is { } selected)
