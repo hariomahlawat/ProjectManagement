@@ -362,6 +362,15 @@
                 <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
                     <h2 class="h5 mb-0">@selected.ProjectName</h2>
                     <div class="d-flex align-items-center gap-2">
+                        @if (Model.CanSubmit)
+                        {
+                            <button type="button"
+                                    class="btn btn-primary btn-sm"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#tot-submit-modal">
+                                Submit update
+                            </button>
+                        }
                         <button type="button"
                                 class="btn btn-outline-primary btn-sm"
                                 data-bs-toggle="modal"
@@ -662,78 +671,6 @@
             </div>
         </div>
 
-        @if (Model.CanSubmit)
-        {
-            <div class="col-lg-6">
-                <div class="card h-100">
-                    <div class="card-header">
-                        <h2 class="h5 mb-0">Submit update for HoD approval</h2>
-                    </div>
-                    <div class="card-body">
-                        <form method="post" asp-page-handler="Submit">
-                            <input asp-for="SubmitInput.ProjectId" type="hidden" />
-                            <input type="hidden" asp-for="TotStatusFilter" />
-                            <input type="hidden" asp-for="RequestStateFilter" />
-                            <input type="hidden" asp-for="SearchTerm" />
-                            <input type="hidden" asp-for="OnlyPending" />
-                            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-                            <div class="mb-3">
-                                <label class="form-label" asp-for="SubmitInput.Status">Proposed status</label>
-                                <select class="form-select" asp-for="SubmitInput.Status">
-                                    @foreach (ProjectTotStatus status in Enum.GetValues<ProjectTotStatus>())
-                                    {
-                                        <option value="@status">@StatusLabel(status)</option>
-                                    }
-                                </select>
-                            </div>
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <label class="form-label" asp-for="SubmitInput.StartedOn">Started on</label>
-                                    <input asp-for="SubmitInput.StartedOn" class="form-control" type="date" />
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label" asp-for="SubmitInput.CompletedOn">Completed on</label>
-                                    <input asp-for="SubmitInput.CompletedOn" class="form-control" type="date" />
-                                </div>
-                            </div>
-                            <div class="mb-3 mt-3">
-                                <label class="form-label" asp-for="SubmitInput.MetDetails">MET details</label>
-                                <textarea asp-for="SubmitInput.MetDetails" class="form-control" rows="2" maxlength="2000"></textarea>
-                                <span asp-validation-for="SubmitInput.MetDetails" class="text-danger"></span>
-                            </div>
-                            <div class="row g-3">
-                                <div class="col-md-6">
-                                    <label class="form-label" asp-for="SubmitInput.MetCompletedOn">MET completed on</label>
-                                    <input asp-for="SubmitInput.MetCompletedOn" class="form-control" type="date" />
-                                    <span asp-validation-for="SubmitInput.MetCompletedOn" class="text-danger"></span>
-                                </div>
-                                <div class="col-md-6">
-                                    <label class="form-label" asp-for="SubmitInput.FirstProductionModelManufactured">First production model manufactured?</label>
-                                    <select asp-for="SubmitInput.FirstProductionModelManufactured" class="form-select">
-                                        <option value="">Not specified</option>
-                                        <option value="true">Yes</option>
-                                        <option value="false">No</option>
-                                    </select>
-                                    <span asp-validation-for="SubmitInput.FirstProductionModelManufactured" class="text-danger"></span>
-                                </div>
-                            </div>
-                            <div class="mt-3">
-                                <label class="form-label" asp-for="SubmitInput.FirstProductionModelManufacturedOn">Manufactured on</label>
-                                <input asp-for="SubmitInput.FirstProductionModelManufacturedOn" class="form-control" type="date" />
-                                <span asp-validation-for="SubmitInput.FirstProductionModelManufacturedOn" class="text-danger"></span>
-                            </div>
-                            <div class="mt-3">
-                                <label class="form-label" asp-for="SubmitContextBody">Context for approvers (optional)</label>
-                                <textarea asp-for="SubmitContextBody" class="form-control" rows="3"></textarea>
-                                <div class="form-text">Context is saved as a Transfer of Technology remark so the team can track the decision trail.</div>
-                                <span asp-validation-for="SubmitContextBody" class="text-danger"></span>
-                            </div>
-                            <button type="submit" class="btn btn-primary">Submit for approval</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        }
         @if (Model.CanApprove && selected.RequestState == ProjectTotRequestDecisionState.Pending && selected.RequestRowVersion is not null)
         {
             <div class="col-lg-6">
@@ -771,4 +708,34 @@
     {
         <partial name="_LatestTotRequestModal" model="selected" />
     }
+
+    @if (Model.CanSubmit)
+    {
+        <div class="modal fade" id="tot-submit-modal" tabindex="-1" aria-labelledby="tot-submit-modal-label" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2 class="modal-title fs-5" id="tot-submit-modal-label">Submit update for HoD approval</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <partial name="_SubmitTotUpdateModal" model="Model" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@if (Model.ShowSubmitModal)
+{
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var submitModalEl = document.getElementById('tot-submit-modal');
+            if (submitModalEl && typeof bootstrap !== 'undefined') {
+                var submitModal = bootstrap.Modal.getOrCreateInstance(submitModalEl);
+                submitModal.show();
+            }
+        });
+    </script>
 }

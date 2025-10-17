@@ -1,0 +1,76 @@
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel
+@using ProjectManagement.Models
+
+@functions {
+    private static string StatusLabel(ProjectTotStatus status) => status switch
+    {
+        ProjectTotStatus.NotRequired => "Not required",
+        ProjectTotStatus.NotStarted => "Not started",
+        ProjectTotStatus.InProgress => "In progress",
+        ProjectTotStatus.Completed => "Completed",
+        _ => status.ToString()
+    };
+}
+
+<form method="post" asp-page-handler="Submit">
+    <input asp-for="SubmitInput.ProjectId" type="hidden" />
+    <input type="hidden" asp-for="TotStatusFilter" />
+    <input type="hidden" asp-for="RequestStateFilter" />
+    <input type="hidden" asp-for="SearchTerm" />
+    <input type="hidden" asp-for="OnlyPending" />
+    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+    <div class="mb-3">
+        <label class="form-label" asp-for="SubmitInput.Status">Proposed status</label>
+        <select class="form-select" asp-for="SubmitInput.Status">
+            @foreach (ProjectTotStatus status in Enum.GetValues<ProjectTotStatus>())
+            {
+                <option value="@status">@StatusLabel(status)</option>
+            }
+        </select>
+    </div>
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label class="form-label" asp-for="SubmitInput.StartedOn">Started on</label>
+            <input asp-for="SubmitInput.StartedOn" class="form-control" type="date" />
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" asp-for="SubmitInput.CompletedOn">Completed on</label>
+            <input asp-for="SubmitInput.CompletedOn" class="form-control" type="date" />
+        </div>
+    </div>
+    <div class="mb-3 mt-3">
+        <label class="form-label" asp-for="SubmitInput.MetDetails">MET details</label>
+        <textarea asp-for="SubmitInput.MetDetails" class="form-control" rows="2" maxlength="2000"></textarea>
+        <span asp-validation-for="SubmitInput.MetDetails" class="text-danger"></span>
+    </div>
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label class="form-label" asp-for="SubmitInput.MetCompletedOn">MET completed on</label>
+            <input asp-for="SubmitInput.MetCompletedOn" class="form-control" type="date" />
+            <span asp-validation-for="SubmitInput.MetCompletedOn" class="text-danger"></span>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" asp-for="SubmitInput.FirstProductionModelManufactured">First production model manufactured?</label>
+            <select asp-for="SubmitInput.FirstProductionModelManufactured" class="form-select">
+                <option value="">Not specified</option>
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+            </select>
+            <span asp-validation-for="SubmitInput.FirstProductionModelManufactured" class="text-danger"></span>
+        </div>
+    </div>
+    <div class="mt-3">
+        <label class="form-label" asp-for="SubmitInput.FirstProductionModelManufacturedOn">Manufactured on</label>
+        <input asp-for="SubmitInput.FirstProductionModelManufacturedOn" class="form-control" type="date" />
+        <span asp-validation-for="SubmitInput.FirstProductionModelManufacturedOn" class="text-danger"></span>
+    </div>
+    <div class="mt-3">
+        <label class="form-label" asp-for="SubmitContextBody">Context for approvers (optional)</label>
+        <textarea asp-for="SubmitContextBody" class="form-control" rows="3"></textarea>
+        <div class="form-text">Context is saved as a Transfer of Technology remark so the team can track the decision trail.</div>
+        <span asp-validation-for="SubmitContextBody" class="text-danger"></span>
+    </div>
+    <div class="mt-4 d-flex justify-content-end">
+        <button type="submit" class="btn btn-primary">Submit for approval</button>
+    </div>
+</form>
