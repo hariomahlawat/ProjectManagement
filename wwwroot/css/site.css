@@ -336,6 +336,12 @@ body {
     font-size: .75rem;
 }
 
+.tot-project-card-statuses .tot-request-badge {
+    padding: .1rem .55rem;
+    letter-spacing: .03em;
+    line-height: 1.15;
+}
+
 .tot-project-card-no-request {
     font-size: .8125rem;
 }
