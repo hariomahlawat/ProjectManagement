@@ -50,8 +50,13 @@
     {
         var dt = ToIst(utcValue);
         return dt.HasValue
-            ? dt.Value.ToString("dd MMM yyyy 'at' HH:mm 'IST'", CultureInfo.InvariantCulture)
+            ? dt.Value.ToString("dd/MM/yyyy 'at' HH:mm 'IST'", CultureInfo.InvariantCulture)
             : null;
+    }
+
+    string? FormatDate(DateOnly? value)
+    {
+        return value?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
     }
 
 }
@@ -291,7 +296,7 @@
                                             <span class="fw-semibold">Latest @latestRemark.TypeLabel remark</span>
                                             @if (latestRemark.EventDate.HasValue)
                                             {
-                                                <span> (@latestRemark.EventDate.Value:dd MMM yyyy)</span>
+                                                <span> (@FormatDate(latestRemark.EventDate))</span>
                                             }
                                             @if (!string.IsNullOrEmpty(createdText))
                                             {
@@ -358,17 +363,17 @@
                         <dt class="col-sm-5">Current ToT status</dt>
                         <dd class="col-sm-7">@StatusLabel(selected.TotStatus ?? ProjectTotStatus.NotStarted)</dd>
                         <dt class="col-sm-5">Started on</dt>
-                        <dd class="col-sm-7">@(selected.TotStartedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
+                        <dd class="col-sm-7">@(FormatDate(selected.TotStartedOn) ?? "—")</dd>
                         <dt class="col-sm-5">Completed on</dt>
-                        <dd class="col-sm-7">@(selected.TotCompletedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
+                        <dd class="col-sm-7">@(FormatDate(selected.TotCompletedOn) ?? "—")</dd>
                         <dt class="col-sm-5">MET details</dt>
                         <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(selected.TotMetDetails) ? "—" : selected.TotMetDetails)</dd>
                         <dt class="col-sm-5">MET completed on</dt>
-                        <dd class="col-sm-7">@(selected.TotMetCompletedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
+                        <dd class="col-sm-7">@(FormatDate(selected.TotMetCompletedOn) ?? "—")</dd>
                         <dt class="col-sm-5">First production model manufactured</dt>
                         <dd class="col-sm-7">@FoPmLabel(selected.TotFirstProductionModelManufactured)</dd>
                         <dt class="col-sm-5">Manufactured on</dt>
-                        <dd class="col-sm-7">@(selected.TotFirstProductionModelManufacturedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
+                        <dd class="col-sm-7">@(FormatDate(selected.TotFirstProductionModelManufacturedOn) ?? "—")</dd>
                         <dt class="col-sm-5">Last approved by</dt>
                         <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(selected.TotLastApprovedBy) ? "—" : selected.TotLastApprovedBy)</dd>
                         <dt class="col-sm-5">Approved on</dt>
@@ -402,17 +407,17 @@
                             <dt class="col-sm-5">Proposed status</dt>
                             <dd class="col-sm-7">@StatusLabel(selected.RequestedStatus ?? selected.TotStatus ?? ProjectTotStatus.NotStarted)</dd>
                             <dt class="col-sm-5">Proposed start</dt>
-                            <dd class="col-sm-7">@(selected.RequestedStartedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
+                            <dd class="col-sm-7">@(FormatDate(selected.RequestedStartedOn) ?? "—")</dd>
                             <dt class="col-sm-5">Proposed completion</dt>
-                            <dd class="col-sm-7">@(selected.RequestedCompletedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
+                            <dd class="col-sm-7">@(FormatDate(selected.RequestedCompletedOn) ?? "—")</dd>
                             <dt class="col-sm-5">Proposed MET details</dt>
                             <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(selected.RequestedMetDetails) ? "—" : selected.RequestedMetDetails)</dd>
                             <dt class="col-sm-5">Proposed MET completion</dt>
-                            <dd class="col-sm-7">@(selected.RequestedMetCompletedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
+                            <dd class="col-sm-7">@(FormatDate(selected.RequestedMetCompletedOn) ?? "—")</dd>
                             <dt class="col-sm-5">FoPM manufactured?</dt>
                             <dd class="col-sm-7">@FoPmLabel(selected.RequestedFirstProductionModelManufactured)</dd>
                             <dt class="col-sm-5">FoPM manufacture date</dt>
-                            <dd class="col-sm-7">@(selected.RequestedFirstProductionModelManufacturedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
+                            <dd class="col-sm-7">@(FormatDate(selected.RequestedFirstProductionModelManufacturedOn) ?? "—")</dd>
                             <dt class="col-sm-5">Submitted by</dt>
                             <dd class="col-sm-7">
                                 @if (string.IsNullOrWhiteSpace(selected.RequestedBy) && string.IsNullOrEmpty(requestedOnText))
@@ -468,7 +473,7 @@
                                         Posted @(FormatTimestamp(externalRemark.CreatedAtUtc) ?? "—")
                                         @if (externalRemark.EventDate.HasValue)
                                         {
-                                            <span> • Event @externalRemark.EventDate.Value:dd MMM yyyy</span>
+                                            <span> • Event @FormatDate(externalRemark.EventDate)</span>
                                         }
                                     </div>
                                     <p class="mt-2 mb-0" style="white-space: pre-line;">@externalRemark.Body</p>
@@ -482,7 +487,7 @@
                                         Posted @(FormatTimestamp(internalRemark.CreatedAtUtc) ?? "—")
                                         @if (internalRemark.EventDate.HasValue)
                                         {
-                                            <span> • Event @internalRemark.EventDate.Value:dd MMM yyyy</span>
+                                            <span> • Event @FormatDate(internalRemark.EventDate)</span>
                                         }
                                     </div>
                                     <p class="mt-2 mb-0" style="white-space: pre-line;">@internalRemark.Body</p>

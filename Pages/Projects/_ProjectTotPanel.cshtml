@@ -15,8 +15,13 @@
     {
         var dt = ToIst(utcValue);
         return dt.HasValue
-            ? dt.Value.ToString("dd MMM yyyy 'at' HH:mm 'IST'", CultureInfo.InvariantCulture)
+            ? dt.Value.ToString("dd/MM/yyyy 'at' HH:mm 'IST'", CultureInfo.InvariantCulture)
             : null;
+    }
+
+    string? FormatDate(DateOnly? value)
+    {
+        return value?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
     }
 }
 
@@ -105,7 +110,7 @@
                     <div class="mt-2" style="white-space: pre-line;">@remarkSnippet.Body</div>
                     @if (remarkSnippet.EventDate.HasValue)
                     {
-                        <div class="text-muted mt-2">Event date: @remarkSnippet.EventDate.Value:dd MMM yyyy</div>
+                        <div class="text-muted mt-2">Event date: @FormatDate(remarkSnippet.EventDate)</div>
                     }
                     <a class="btn btn-link btn-sm px-0 mt-2" href="#remarks-panel">Open remarks panel</a>
                 </div>
@@ -137,7 +142,7 @@
                 <div class="alert alert-@alertVariant mb-0" role="status">
                     <div class="fw-semibold">@request.StateLabel</div>
                     <ul class="mb-0">
-                        <li>Status proposed as <strong>@request.ProposedStatusLabel</strong>@(request.ProposedStartedOn.HasValue ? $" starting {request.ProposedStartedOn.Value:dd MMM yyyy}" : string.Empty)@(request.ProposedCompletedOn.HasValue ? $" completing {request.ProposedCompletedOn.Value:dd MMM yyyy}" : string.Empty).</li>
+                        <li>Status proposed as <strong>@request.ProposedStatusLabel</strong>@(request.ProposedStartedOn.HasValue ? $" starting {FormatDate(request.ProposedStartedOn)}" : string.Empty)@(request.ProposedCompletedOn.HasValue ? $" completing {FormatDate(request.ProposedCompletedOn)}" : string.Empty).</li>
                         @if (!string.IsNullOrWhiteSpace(request.ProposedMetDetails) || request.ProposedMetCompletedOn.HasValue)
                         {
                             var metDescription = string.IsNullOrWhiteSpace(request.ProposedMetDetails)
@@ -145,8 +150,8 @@
                                 : $"MET details: {request.ProposedMetDetails}";
                             var metSuffix = request.ProposedMetCompletedOn.HasValue
                                 ? (string.IsNullOrWhiteSpace(request.ProposedMetDetails)
-                                    ? $" on {request.ProposedMetCompletedOn.Value:dd MMM yyyy}"
-                                    : $" (completed {request.ProposedMetCompletedOn.Value:dd MMM yyyy})")
+                                    ? $" on {FormatDate(request.ProposedMetCompletedOn)}"
+                                    : $" (completed {FormatDate(request.ProposedMetCompletedOn)})")
                                 : string.Empty;
                             <li>@metDescription@metSuffix.</li>
                         }
@@ -156,7 +161,7 @@
                                 ? (request.ProposedFirstProductionModelManufactured.Value ? "Yes" : "No")
                                 : "Not specified";
                             var manufacturedSuffix = request.ProposedFirstProductionModelManufacturedOn.HasValue
-                                ? $" on {request.ProposedFirstProductionModelManufacturedOn.Value:dd MMM yyyy}"
+                                ? $" on {FormatDate(request.ProposedFirstProductionModelManufacturedOn)}"
                                 : string.Empty;
                             <li>First production model manufactured: <strong>@manufacturedLabel</strong>@manufacturedSuffix.</li>
                         }
