@@ -231,6 +231,24 @@ body {
     background-color: rgba(15, 23, 42, .03);
 }
 
+.tot-project-list-card {
+    border: 1px solid rgba(15, 23, 42, .08);
+    border-radius: 1rem;
+    background-color: #ffffff;
+    padding: 0;
+    overflow: hidden;
+}
+
+.tot-project-list-card .card-header,
+.tot-project-list-card .card-body {
+    padding: 1.25rem 1.5rem;
+}
+
+.tot-project-list-card .card-header {
+    background-color: transparent;
+    border-bottom: 1px solid rgba(15, 23, 42, .08);
+}
+
 /* ---------- ToT status badges ---------- */
 .badge-tot-not-required,
 .badge-tot-not-started,
