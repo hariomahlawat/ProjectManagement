@@ -8,33 +8,48 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Data;
+using ProjectManagement.Infrastructure;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Remarks;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.Services.Remarks;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot;
 
 [Authorize(Policy = ProjectOfficeReportsPolicies.ViewTotTracker)]
 public sealed class IndexModel : PageModel
 {
+    private readonly ApplicationDbContext _db;
     private readonly ProjectTotTrackerReadService _trackerService;
     private readonly ProjectTotService _totService;
     private readonly ProjectTotUpdateService _totUpdateService;
     private readonly IAuthorizationService _authorizationService;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IRemarkService _remarkService;
+    private readonly ILogger<IndexModel> _logger;
 
     public IndexModel(
+        ApplicationDbContext db,
         ProjectTotTrackerReadService trackerService,
         ProjectTotService totService,
         ProjectTotUpdateService totUpdateService,
         IAuthorizationService authorizationService,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        IRemarkService remarkService,
+        ILogger<IndexModel> logger)
     {
+        _db = db ?? throw new ArgumentNullException(nameof(db));
         _trackerService = trackerService ?? throw new ArgumentNullException(nameof(trackerService));
         _totService = totService ?? throw new ArgumentNullException(nameof(totService));
         _totUpdateService = totUpdateService ?? throw new ArgumentNullException(nameof(totUpdateService));
         _authorizationService = authorizationService ?? throw new ArgumentNullException(nameof(authorizationService));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+        _remarkService = remarkService ?? throw new ArgumentNullException(nameof(remarkService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     [BindProperty(SupportsGet = true)]
@@ -81,6 +96,12 @@ public sealed class IndexModel : PageModel
 
     [BindProperty]
     public DecideUpdateInput DecideUpdate { get; set; } = new();
+
+    [BindProperty]
+    public string? SubmitContextBody { get; set; }
+
+    [BindProperty]
+    public string? DecideContextBody { get; set; }
 
     public sealed class SubmitRequestInput
     {
@@ -154,9 +175,18 @@ public sealed class IndexModel : PageModel
 
         SelectedProjectId = SubmitInput.ProjectId;
 
+        var submitContext = NormalizeRemarkBody(SubmitContextBody);
+        if (!ValidateRemarkBody(submitContext, nameof(SubmitContextBody)))
+        {
+            await PopulateAsync(cancellationToken);
+            SubmitContextBody = submitContext ?? SubmitContextBody;
+            return Page();
+        }
+
         if (!ModelState.IsValid)
         {
             await PopulateAsync(cancellationToken);
+            SubmitContextBody = submitContext;
             return Page();
         }
 
@@ -206,10 +236,20 @@ public sealed class IndexModel : PageModel
             SubmitInput.MetCompletedOn = metCompletedOn;
             SubmitInput.FirstProductionModelManufactured = firstProductionModelManufactured;
             SubmitInput.FirstProductionModelManufacturedOn = firstProductionModelManufacturedOn;
+            SubmitContextBody = submitContext;
             return Page();
         }
 
-        TempData["Toast"] = "Transfer of Technology update submitted for approval.";
+        var (remarkSuccess, remarkError) = await TryCreateTotRemarkAsync(SubmitInput.ProjectId, submitContext, cancellationToken);
+        var toast = "Transfer of Technology update submitted for approval.";
+        if (!remarkSuccess)
+        {
+            toast += remarkError is { Length: > 0 }
+                ? $" However, the remark could not be saved: {remarkError}"
+                : " However, the remark could not be saved.";
+        }
+
+        TempData["Toast"] = toast;
         return RedirectToPage(new
         {
             TotStatusFilter,
@@ -230,9 +270,18 @@ public sealed class IndexModel : PageModel
 
         SelectedProjectId = DecideInput.ProjectId;
 
+        var decisionContext = NormalizeRemarkBody(DecideContextBody);
+        if (!ValidateRemarkBody(decisionContext, nameof(DecideContextBody)))
+        {
+            await PopulateAsync(cancellationToken);
+            DecideContextBody = decisionContext ?? DecideContextBody;
+            return Page();
+        }
+
         if (!ModelState.IsValid)
         {
             await PopulateAsync(cancellationToken);
+            DecideContextBody = decisionContext;
             return Page();
         }
 
@@ -253,6 +302,7 @@ public sealed class IndexModel : PageModel
             {
                 ModelState.AddModelError(string.Empty, "The approval request could not be processed because the version token was invalid.");
                 await PopulateAsync(cancellationToken);
+                DecideContextBody = decisionContext;
                 return Page();
             }
         }
@@ -275,12 +325,23 @@ public sealed class IndexModel : PageModel
             var approveChoice = DecideInput.Approve;
             await PopulateAsync(cancellationToken);
             DecideInput.Approve = approveChoice;
+            DecideContextBody = decisionContext;
             return Page();
         }
 
-        TempData["Toast"] = DecideInput.Approve
+        var (remarkSuccess, remarkError) = await TryCreateTotRemarkAsync(DecideInput.ProjectId, decisionContext, cancellationToken);
+        var toast = DecideInput.Approve
             ? "Transfer of Technology update approved."
             : "Transfer of Technology update rejected.";
+
+        if (!remarkSuccess)
+        {
+            toast += remarkError is { Length: > 0 }
+                ? $" However, the remark could not be saved: {remarkError}"
+                : " However, the remark could not be saved.";
+        }
+
+        TempData["Toast"] = toast;
 
         return RedirectToPage(new
         {
@@ -515,6 +576,9 @@ public sealed class IndexModel : PageModel
                 ProjectId = selected.ProjectId
             };
 
+            SubmitContextBody = null;
+            DecideContextBody = null;
+
             CanSubmitUpdatesForSelectedProject = CanSubmit && IsAuthorizedProjectOfficer(selected);
         }
         else
@@ -525,6 +589,8 @@ public sealed class IndexModel : PageModel
             SubmitUpdate = new SubmitUpdateInput();
             DecideUpdate = new DecideUpdateInput();
             CanSubmitUpdatesForSelectedProject = false;
+            SubmitContextBody = null;
+            DecideContextBody = null;
         }
     }
 
@@ -564,4 +630,155 @@ public sealed class IndexModel : PageModel
         var approveResult = await _authorizationService.AuthorizeAsync(User, null, ProjectOfficeReportsPolicies.ApproveTotTracker);
         CanApprove = approveResult.Succeeded;
     }
+
+    private async Task<(bool Success, string? ErrorMessage)> TryCreateTotRemarkAsync(int projectId, string? body, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(body))
+        {
+            return (true, null);
+        }
+
+        var (actor, remarkType, errorMessage) = await BuildRemarkActorContextAsync(projectId, cancellationToken);
+        if (actor is null || remarkType is null)
+        {
+            return (false, errorMessage);
+        }
+
+        var request = new CreateRemarkRequest(
+            projectId,
+            actor,
+            remarkType.Value,
+            RemarkScope.TransferOfTechnology,
+            body,
+            DateOnly.FromDateTime(IstClock.ToIst(DateTime.UtcNow)),
+            null,
+            null,
+            null);
+
+        try
+        {
+            await _remarkService.CreateRemarkAsync(request, cancellationToken);
+            return (true, null);
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogWarning(ex, "Failed to create ToT remark for project {ProjectId}.", projectId);
+            return (false, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error while creating ToT remark for project {ProjectId}.", projectId);
+            return (false, "Unable to save the Transfer of Technology remark.");
+        }
+    }
+
+    private async Task<(RemarkActorContext? Actor, RemarkType? Type, string? ErrorMessage)> BuildRemarkActorContextAsync(int projectId, CancellationToken cancellationToken)
+    {
+        var user = await _userManager.GetUserAsync(User);
+        if (user is null)
+        {
+            return (null, null, "User context is required to add a remark.");
+        }
+
+        var project = await LoadProjectAssignmentsAsync(projectId, cancellationToken);
+        if (project is null)
+        {
+            return (null, null, "Project not found.");
+        }
+
+        var roleNames = await _userManager.GetRolesAsync(user);
+        var remarkRoles = roleNames
+            .Select(name => RemarkActorRoleExtensions.TryParse(name, out var parsed) ? parsed : RemarkActorRole.Unknown)
+            .Where(role => role != RemarkActorRole.Unknown)
+            .ToHashSet();
+
+        if (!string.IsNullOrEmpty(project.LeadProjectOfficerUserId)
+            && string.Equals(project.LeadProjectOfficerUserId, user.Id, StringComparison.Ordinal))
+        {
+            remarkRoles.Add(RemarkActorRole.ProjectOfficer);
+        }
+
+        if (!string.IsNullOrEmpty(project.HodUserId)
+            && string.Equals(project.HodUserId, user.Id, StringComparison.Ordinal))
+        {
+            remarkRoles.Add(RemarkActorRole.HeadOfDepartment);
+        }
+
+        if (remarkRoles.Count == 0)
+        {
+            return (null, null, "You do not have permission to add remarks.");
+        }
+
+        var primaryRole = SelectPrimaryRole(remarkRoles);
+        var actor = new RemarkActorContext(user.Id, primaryRole, remarkRoles.ToList());
+        var remarkType = ResolveRemarkType(primaryRole);
+        return (actor, remarkType, null);
+    }
+
+    private async Task<ProjectAssignmentInfo?> LoadProjectAssignmentsAsync(int projectId, CancellationToken cancellationToken)
+        => await _db.Projects
+            .AsNoTracking()
+            .Where(p => p.Id == projectId)
+            .Select(p => new ProjectAssignmentInfo(p.Id, p.LeadPoUserId, p.HodUserId))
+            .FirstOrDefaultAsync(cancellationToken);
+
+    private static string? NormalizeRemarkBody(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        return string.IsNullOrEmpty(trimmed) ? null : trimmed;
+    }
+
+    private bool ValidateRemarkBody(string? body, string modelStateKey)
+    {
+        if (string.IsNullOrEmpty(body))
+        {
+            return true;
+        }
+
+        if (body.Length < 4)
+        {
+            ModelState.AddModelError(modelStateKey, "Remarks must be at least 4 characters long.");
+            return false;
+        }
+
+        if (body.Length > 2000)
+        {
+            ModelState.AddModelError(modelStateKey, "Remarks must be 2000 characters or fewer.");
+            return false;
+        }
+
+        return true;
+    }
+
+    private static RemarkActorRole SelectPrimaryRole(IReadOnlyCollection<RemarkActorRole> roles)
+    {
+        foreach (var role in new[]
+                 {
+                     RemarkActorRole.Administrator,
+                     RemarkActorRole.HeadOfDepartment,
+                     RemarkActorRole.ProjectOffice,
+                     RemarkActorRole.MainOffice,
+                     RemarkActorRole.ProjectOfficer
+                 })
+        {
+            if (roles.Contains(role))
+            {
+                return role;
+            }
+        }
+
+        return roles.First();
+    }
+
+    private static RemarkType ResolveRemarkType(RemarkActorRole role)
+        => role is RemarkActorRole.ProjectOffice or RemarkActorRole.MainOffice
+            ? RemarkType.External
+            : RemarkType.Internal;
+
+    private sealed record ProjectAssignmentInfo(int ProjectId, string? LeadProjectOfficerUserId, string? HodUserId);
 }
