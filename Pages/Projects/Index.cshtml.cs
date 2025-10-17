@@ -404,38 +404,43 @@ namespace ProjectManagement.Pages.Projects
 
             var projectIds = projects.Select(p => p.Id).ToArray();
 
-            var remarks = await _db.Remarks
+            var remarkAggregates = await _db.Remarks
                 .AsNoTracking()
                 .Where(r => projectIds.Contains(r.ProjectId) && !r.IsDeleted)
-                .Select(r => new RemarkProjection(
-                    r.ProjectId,
-                    r.Id,
-                    r.Type,
-                    r.AuthorRole,
-                    r.AuthorUserId,
-                    r.Body,
-                    r.CreatedAtUtc))
+                .GroupBy(r => r.ProjectId)
+                .Select(g => new RemarkAggregateProjection(
+                    g.Key,
+                    g.Sum(r => r.Type == RemarkType.Internal ? 1 : 0),
+                    g.Sum(r => r.Type == RemarkType.External ? 1 : 0),
+                    g.OrderByDescending(r => r.CreatedAtUtc)
+                        .ThenByDescending(r => r.Id)
+                        .Select(r => new RemarkProjection(
+                            r.Id,
+                            r.Type,
+                            r.AuthorRole,
+                            r.AuthorUserId,
+                            r.Body,
+                            r.CreatedAtUtc))
+                        .FirstOrDefault()))
                 .ToListAsync(cancellationToken);
 
-            var authorLookup = await BuildAuthorLookupAsync(remarks, cancellationToken);
+            var authorLookup = await BuildAuthorLookupAsync(
+                remarkAggregates
+                    .Select(a => a.LastRemark)
+                    .OfType<RemarkProjection>(),
+                cancellationToken);
 
-            var summaries = remarks
-                .GroupBy(r => r.ProjectId)
+            var summaries = remarkAggregates
                 .ToDictionary(
-                    g => g.Key,
-                    g =>
+                    r => r.ProjectId,
+                    r =>
                     {
-                        var ordered = g
-                            .OrderByDescending(r => r.CreatedAtUtc)
-                            .ThenByDescending(r => r.Id)
-                            .ToList();
-
-                        var last = ordered.FirstOrDefault();
+                        var last = r.LastRemark;
 
                         return new ProjectRemarkSummaryViewModel
                         {
-                            InternalCount = g.Count(r => r.Type == RemarkType.Internal),
-                            ExternalCount = g.Count(r => r.Type == RemarkType.External),
+                            InternalCount = r.InternalCount,
+                            ExternalCount = r.ExternalCount,
                             LastRemarkId = last?.Id,
                             LastRemarkType = last?.Type,
                             LastRemarkActorRole = last?.AuthorRole,
@@ -529,8 +534,13 @@ namespace ProjectManagement.Pages.Projects
             return string.Concat(trimmed.AsSpan(0, limit), "…");
         }
 
-        private sealed record RemarkProjection(
+        private sealed record RemarkAggregateProjection(
             int ProjectId,
+            int InternalCount,
+            int ExternalCount,
+            RemarkProjection? LastRemark);
+
+        private sealed record RemarkProjection(
             int Id,
             RemarkType Type,
             RemarkActorRole AuthorRole,
