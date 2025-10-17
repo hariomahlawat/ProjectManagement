@@ -621,40 +621,157 @@
                     </a>
                 </div>
                 <div class="card-body">
-                    @{ var externalRemark = selected.LatestExternalRemark; var internalRemark = selected.LatestInternalRemark; }
-                    @if (externalRemark is null && internalRemark is null)
+                    @{
+                        var externalRemark = selected.LatestExternalRemark;
+                        var internalRemark = selected.LatestInternalRemark;
+                        var hasExternalRemark = externalRemark is not null;
+                        var hasInternalRemark = internalRemark is not null;
+                        var hasBothRemarks = hasExternalRemark && hasInternalRemark;
+                    }
+                    @if (!hasExternalRemark && !hasInternalRemark)
                     {
                         <p class="text-muted mb-0">No ToT remarks recorded yet.</p>
                     }
                     else
                     {
-                        <div class="d-flex flex-column gap-3">
-                            @if (externalRemark is not null)
+                        <div class="tot-remarks-tabs">
+                            @if (hasBothRemarks)
                             {
-                                <div>
-                                    <h3 class="h6 mb-1">External remark</h3>
-                                    <div class="text-muted small">
-                                        Posted @(FormatTimestamp(externalRemark.CreatedAtUtc) ?? "—")
-                                        @if (externalRemark.EventDate.HasValue)
+                                <ul class="nav nav-pills tot-remarks-tabs-nav" id="tot-remarks-tablist" role="tablist">
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link active"
+                                                id="tot-remark-external-tab"
+                                                type="button"
+                                                role="tab"
+                                                data-bs-toggle="pill"
+                                                data-bs-target="#tot-remark-external"
+                                                aria-controls="tot-remark-external"
+                                                aria-selected="true">
+                                            External
+                                        </button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link"
+                                                id="tot-remark-internal-tab"
+                                                type="button"
+                                                role="tab"
+                                                data-bs-toggle="pill"
+                                                data-bs-target="#tot-remark-internal"
+                                                aria-controls="tot-remark-internal"
+                                                aria-selected="false">
+                                            Internal
+                                        </button>
+                                    </li>
+                                </ul>
+                                <div class="tab-content" id="tot-remarks-tabcontent">
+                                    <div class="tab-pane fade show active" id="tot-remark-external" role="tabpanel" aria-labelledby="tot-remark-external-tab">
+                                        @if (externalRemark is not null)
                                         {
-                                            <span> • Event @FormatDate(externalRemark.EventDate)</span>
+                                            <div class="tot-remark-card" data-remark-type="external">
+                                                <div class="tot-remark-card-header">
+                                                    <h3 class="h6 tot-remark-card-title mb-0">External remark</h3>
+                                                    <div class="tot-remark-meta">
+                                                        <span class="tot-remark-meta-item">
+                                                            <i class="bi bi-clock-history" aria-hidden="true"></i>
+                                                            <span class="tot-remark-meta-label">Posted</span>
+                                                            <span>@(FormatTimestamp(externalRemark.CreatedAtUtc) ?? "—")</span>
+                                                        </span>
+                                                        @if (externalRemark.EventDate.HasValue)
+                                                        {
+                                                            <span class="tot-remark-meta-item">
+                                                                <i class="bi bi-calendar-event" aria-hidden="true"></i>
+                                                                <span class="tot-remark-meta-label">Event</span>
+                                                                <span>@FormatDate(externalRemark.EventDate)</span>
+                                                            </span>
+                                                        }
+                                                    </div>
+                                                </div>
+                                                <div class="tot-remark-card-body">
+                                                    <div class="tot-remark-card-text">@externalRemark.Body</div>
+                                                </div>
+                                            </div>
                                         }
                                     </div>
-                                    <p class="mt-2 mb-0" style="white-space: pre-line;">@externalRemark.Body</p>
+                                    <div class="tab-pane fade" id="tot-remark-internal" role="tabpanel" aria-labelledby="tot-remark-internal-tab">
+                                        @if (internalRemark is not null)
+                                        {
+                                            <div class="tot-remark-card" data-remark-type="internal">
+                                                <div class="tot-remark-card-header">
+                                                    <h3 class="h6 tot-remark-card-title mb-0">Internal remark</h3>
+                                                    <div class="tot-remark-meta">
+                                                        <span class="tot-remark-meta-item">
+                                                            <i class="bi bi-clock-history" aria-hidden="true"></i>
+                                                            <span class="tot-remark-meta-label">Posted</span>
+                                                            <span>@(FormatTimestamp(internalRemark.CreatedAtUtc) ?? "—")</span>
+                                                        </span>
+                                                        @if (internalRemark.EventDate.HasValue)
+                                                        {
+                                                            <span class="tot-remark-meta-item">
+                                                                <i class="bi bi-calendar-event" aria-hidden="true"></i>
+                                                                <span class="tot-remark-meta-label">Event</span>
+                                                                <span>@FormatDate(internalRemark.EventDate)</span>
+                                                            </span>
+                                                        }
+                                                    </div>
+                                                </div>
+                                                <div class="tot-remark-card-body">
+                                                    <div class="tot-remark-card-text">@internalRemark.Body</div>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
                                 </div>
                             }
-                            @if (internalRemark is not null)
+                            else if (hasExternalRemark && externalRemark is not null)
                             {
-                                <div>
-                                    <h3 class="h6 mb-1">Internal remark</h3>
-                                    <div class="text-muted small">
-                                        Posted @(FormatTimestamp(internalRemark.CreatedAtUtc) ?? "—")
-                                        @if (internalRemark.EventDate.HasValue)
-                                        {
-                                            <span> • Event @FormatDate(internalRemark.EventDate)</span>
-                                        }
+                                <div class="tot-remark-card" data-remark-type="external">
+                                    <div class="tot-remark-card-header">
+                                        <h3 class="h6 tot-remark-card-title mb-0">External remark</h3>
+                                        <div class="tot-remark-meta">
+                                            <span class="tot-remark-meta-item">
+                                                <i class="bi bi-clock-history" aria-hidden="true"></i>
+                                                <span class="tot-remark-meta-label">Posted</span>
+                                                <span>@(FormatTimestamp(externalRemark.CreatedAtUtc) ?? "—")</span>
+                                            </span>
+                                            @if (externalRemark.EventDate.HasValue)
+                                            {
+                                                <span class="tot-remark-meta-item">
+                                                    <i class="bi bi-calendar-event" aria-hidden="true"></i>
+                                                    <span class="tot-remark-meta-label">Event</span>
+                                                    <span>@FormatDate(externalRemark.EventDate)</span>
+                                                </span>
+                                            }
+                                        </div>
                                     </div>
-                                    <p class="mt-2 mb-0" style="white-space: pre-line;">@internalRemark.Body</p>
+                                    <div class="tot-remark-card-body">
+                                        <div class="tot-remark-card-text">@externalRemark.Body</div>
+                                    </div>
+                                </div>
+                            }
+                            else if (hasInternalRemark && internalRemark is not null)
+                            {
+                                <div class="tot-remark-card" data-remark-type="internal">
+                                    <div class="tot-remark-card-header">
+                                        <h3 class="h6 tot-remark-card-title mb-0">Internal remark</h3>
+                                        <div class="tot-remark-meta">
+                                            <span class="tot-remark-meta-item">
+                                                <i class="bi bi-clock-history" aria-hidden="true"></i>
+                                                <span class="tot-remark-meta-label">Posted</span>
+                                                <span>@(FormatTimestamp(internalRemark.CreatedAtUtc) ?? "—")</span>
+                                            </span>
+                                            @if (internalRemark.EventDate.HasValue)
+                                            {
+                                                <span class="tot-remark-meta-item">
+                                                    <i class="bi bi-calendar-event" aria-hidden="true"></i>
+                                                    <span class="tot-remark-meta-label">Event</span>
+                                                    <span>@FormatDate(internalRemark.EventDate)</span>
+                                                </span>
+                                            }
+                                        </div>
+                                    </div>
+                                    <div class="tot-remark-card-body">
+                                        <div class="tot-remark-card-text">@internalRemark.Body</div>
+                                    </div>
                                 </div>
                             }
                         </div>
