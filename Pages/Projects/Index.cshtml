@@ -223,163 +223,69 @@
             }
             else
             {
-                var initialProject = Model.Projects.First();
-                <div class="projects-split" data-projects-split>
-                    <div class="projects-split__list" role="tablist" aria-label="Project selection">
-                        @foreach (var project in Model.Projects)
-                        {
-                            var tabId = $"project-tab-{project.Id}";
-                            var panelId = $"project-panel-{project.Id}";
-                            var isActive = project.Id == initialProject.Id;
-                            var pendingCount = CountPendingStages(project);
-                            var totStatus = FormatTotStatusShort(project);
-                            <button type="button"
-                                    id="@tabId"
-                                    class="projects-list-item@(isActive ? " is-active" : string.Empty)"
-                                    role="tab"
-                                    aria-selected="@isActive.ToString().ToLowerInvariant()"
-                                    aria-controls="@panelId"
-                                    data-project-target="@panelId"
-                                    tabindex="@(isActive ? "0" : "-1")">
-                                <div class="projects-list-item__header">
-                                    <span class="projects-list-item__name">@project.Name</span>
-                                    <span class="badge rounded-pill projects-list-item__status">@FormatLifecycleStatus(project.LifecycleStatus)</span>
+                <div class="projects-grid">
+                    @foreach (var project in Model.Projects)
+                    {
+                        var pendingCount = CountPendingStages(project);
+                        var totStatus = FormatTotStatusShort(project);
+                        <article class="projects-card shadow-sm">
+                            <div class="projects-card__body">
+                                <div class="projects-card__title-row">
+                                    <h2 class="projects-card__title">
+                                        <a asp-page="/Projects/Overview"
+                                           asp-route-id="@project.Id"
+                                           asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId">
+                                            @project.Name
+                                        </a>
+                                    </h2>
+                                    <div class="d-flex flex-wrap gap-1 justify-content-end">
+                                        <span class="badge rounded-pill text-bg-primary">@FormatLifecycleStatus(project.LifecycleStatus)</span>
+                                        @if (project.IsArchived)
+                                        {
+                                            <span class="badge text-bg-secondary">Archived</span>
+                                        }
+                                        @if (project.Tot is { } tot)
+                                        {
+                                            <span class="badge text-bg-light">@FormatTotStatus(tot.Status)</span>
+                                        }
+                                    </div>
                                 </div>
-                                <div class="projects-list-item__meta">
-                                    <span class="projects-list-item__meta-item">
+                                <div class="projects-card__meta">
+                                    <span class="projects-card__meta-item">
                                         <i class="bi bi-diagram-3" aria-hidden="true"></i>
                                         <span>@(project.Category?.Name ?? "Uncategorised")</span>
                                     </span>
-                                    <span class="projects-list-item__meta-item">
+                                    <span class="projects-card__meta-item">
                                         <i class="bi bi-hash" aria-hidden="true"></i>
                                         <span>@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "No case file" : project.CaseFileNumber)</span>
                                     </span>
-                                </div>
-                                <div class="projects-list-item__badges" aria-hidden="true">
+                                    <span class="projects-card__meta-item">
+                                        <i class="bi bi-person" aria-hidden="true"></i>
+                                        <span>@(project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Project officer not assigned")</span>
+                                    </span>
+                                    <span class="projects-card__meta-item">
+                                        <i class="bi bi-mortarboard" aria-hidden="true"></i>
+                                        <span>@(project.HodUser?.FullName ?? project.HodUser?.UserName ?? "HoD not assigned")</span>
+                                    </span>
+                                    <span class="projects-card__meta-item">
+                                        <i class="bi bi-check2-circle" aria-hidden="true"></i>
+                                        <span>Pending stages: @pendingCount</span>
+                                    </span>
                                     @if (!string.IsNullOrWhiteSpace(totStatus))
                                     {
-                                        <span class="badge text-bg-light">@totStatus</span>
-                                    }
-                                    <span class="badge text-bg-primary-subtle">Pending stages: @pendingCount</span>
-                                    @if (project.IsArchived)
-                                    {
-                                        <span class="badge text-bg-secondary">Archived</span>
+                                        <span class="projects-card__meta-item">
+                                            <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
+                                            <span>@totStatus</span>
+                                        </span>
                                     }
                                 </div>
-                            </button>
-                        }
-                    </div>
-                    <div class="projects-split__detail">
-                        @foreach (var project in Model.Projects)
-                        {
-                            var tabId = $"project-tab-{project.Id}";
-                            var panelId = $"project-panel-{project.Id}";
-                            var isActive = project.Id == initialProject.Id;
-                            StageSummary? stageSummary = null;
-                            string? totDetail = null;
-
-                            if (project.LifecycleStatus == ProjectLifecycleStatus.Active)
-                            {
-                                stageSummary = BuildStageSummary(project);
-                            }
-
-                            if (project.Tot is not null)
-                            {
-                                totDetail = FormatTotDetail(project);
-                            }
-
-                            var pendingCount = CountPendingStages(project);
-                            <section class="projects-detail-panel@(isActive ? " is-active" : string.Empty)"
-                                     id="@panelId"
-                                     role="tabpanel"
-                                     aria-labelledby="@tabId"
-                                     data-project-panel@(isActive ? string.Empty : " hidden")>
-                                <header class="projects-detail-panel__header">
-                                    <div>
-                                        <h2 class="projects-detail-panel__title">@project.Name</h2>
-                                        <div class="projects-detail-panel__status">
-                                            <span class="badge rounded-pill text-bg-primary">@FormatLifecycleStatus(project.LifecycleStatus)</span>
-                                            @if (project.IsArchived)
-                                            {
-                                                <span class="badge text-bg-secondary">Archived</span>
-                                            }
-                                            @if (project.Tot is { } tot)
-                                            {
-                                                <span class="badge text-bg-light">@FormatTotStatus(tot.Status)</span>
-                                            }
-                                        </div>
-                                    </div>
-                                    <div class="projects-detail-panel__actions">
-                                        <a class="btn btn-outline-primary"
-                                           asp-page="/Projects/Overview"
-                                           asp-route-id="@project.Id"
-                                           asp-route-TechnicalCategoryId="@Model.TechnicalCategoryId">
-                                            Open project
-                                        </a>
-                                    </div>
-                                </header>
-                                <div class="projects-detail-panel__summary">
-                                    <dl class="projects-detail-panel__facts">
-                                        <div>
-                                            <dt>Case file</dt>
-                                            <dd>@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "No case file" : project.CaseFileNumber)</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Category</dt>
-                                            <dd>@(project.Category?.Name ?? "Uncategorised")</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Technical category</dt>
-                                            <dd>@(project.TechnicalCategory?.Name ?? "No technical category")</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Project officer</dt>
-                                            <dd>@(project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Not assigned")</dd>
-                                        </div>
-                                        <div>
-                                            <dt>HoD</dt>
-                                            <dd>@(project.HodUser?.FullName ?? project.HodUser?.UserName ?? "Not assigned")</dd>
-                                        </div>
-                                        <div>
-                                            <dt>Pending stages</dt>
-                                            <dd>@pendingCount</dd>
-                                        </div>
-                                    </dl>
-                                    @if (!string.IsNullOrWhiteSpace(project.Description))
-                                    {
-                                        <div class="projects-detail-panel__description">
-                                            <h3>Overview</h3>
-                                            <p>@project.Description</p>
-                                        </div>
-                                    }
-                                </div>
-                                <div class="projects-detail-panel__insights">
-                                    @if (stageSummary is not null)
-                                    {
-                                        <div class="projects-detail-panel__insight">
-                                            <h3 class="projects-detail-panel__insight-title">Latest update</h3>
-                                            <p class="mb-1">@stageSummary.LastCompleted</p>
-                                            <p class="text-muted">@stageSummary.Current</p>
-                                        </div>
-                                    }
-                                    @if (!string.IsNullOrWhiteSpace(totDetail))
-                                    {
-                                        <div class="projects-detail-panel__insight">
-                                            <h3 class="projects-detail-panel__insight-title">Technology transfer</h3>
-                                            <p>@totDetail</p>
-                                        </div>
-                                    }
-                                    @if (project.Tot is { Remarks: { Length: > 0 } remarks })
-                                    {
-                                        <div class="projects-detail-panel__insight">
-                                            <h3 class="projects-detail-panel__insight-title">Remarks</h3>
-                                            <p>@remarks</p>
-                                        </div>
-                                    }
-                                </div>
-                            </section>
-                        }
-                    </div>
+                                @if (!string.IsNullOrWhiteSpace(project.Description))
+                                {
+                                    <p class="projects-card__description">@project.Description</p>
+                                }
+                            </div>
+                        </article>
+                    }
                 </div>
 
                 @if (Model.TotalPages > 1)
@@ -458,89 +364,8 @@
     }
 </div>
 
-@section Scripts
-{
-    <script>
-        (() => {
-            const split = document.querySelector('[data-projects-split]');
-            if (!split) {
-                return;
-            }
-
-            const tabs = Array.from(split.querySelectorAll('[data-project-target]'));
-            const panels = Array.from(split.querySelectorAll('[data-project-panel]'));
-
-            if (!tabs.length || !panels.length) {
-                return;
-            }
-
-            const activate = (panelId) => {
-                tabs.forEach((tab) => {
-                    const isTarget = tab.dataset.projectTarget === panelId;
-                    tab.classList.toggle('is-active', isTarget);
-                    tab.setAttribute('aria-selected', isTarget ? 'true' : 'false');
-                    tab.setAttribute('tabindex', isTarget ? '0' : '-1');
-                });
-
-                panels.forEach((panel) => {
-                    const show = panel.id === panelId;
-                    panel.classList.toggle('is-active', show);
-                    panel.hidden = !show;
-                });
-            };
-
-            const focusByOffset = (currentIndex, offset) => {
-                const nextIndex = (currentIndex + offset + tabs.length) % tabs.length;
-                const nextTab = tabs[nextIndex];
-                activate(nextTab.dataset.projectTarget);
-                nextTab.focus();
-            };
-
-            tabs.forEach((tab, index) => {
-                tab.addEventListener('click', () => {
-                    activate(tab.dataset.projectTarget);
-                });
-
-                tab.addEventListener('keydown', (event) => {
-                    switch (event.key) {
-                        case 'ArrowUp':
-                        case 'ArrowLeft':
-                            event.preventDefault();
-                            focusByOffset(index, -1);
-                            break;
-                        case 'ArrowDown':
-                        case 'ArrowRight':
-                            event.preventDefault();
-                            focusByOffset(index, 1);
-                            break;
-                        case 'Home':
-                            event.preventDefault();
-                            activate(tabs[0].dataset.projectTarget);
-                            tabs[0].focus();
-                            break;
-                        case 'End':
-                            event.preventDefault();
-                            activate(tabs[tabs.length - 1].dataset.projectTarget);
-                            tabs[tabs.length - 1].focus();
-                            break;
-                        default:
-                            break;
-                    }
-                });
-            });
-
-            const initialTab = tabs.find((tab) => tab.classList.contains('is-active')) ?? tabs[0];
-            if (initialTab) {
-                activate(initialTab.dataset.projectTarget);
-            }
-        })();
-    </script>
-}
-
 @functions
 {
-    private sealed record StageSummary(string LastCompleted, string Current);
-
     private static int CountPendingStages(Project project)
     {
         if (project.ProjectStages is not { Count: > 0 })
@@ -591,124 +416,4 @@
         };
     }
 
-    private static StageSummary BuildStageSummary(Project project)
-    {
-        if (project.ProjectStages is not { Count: > 0 })
-        {
-            return new StageSummary("No completed stages yet", "Stages not scheduled");
-        }
-
-        var ordered = project.ProjectStages
-            .OrderBy(s => s.SortOrder)
-            .ThenBy(s => s.Id)
-            .ToList();
-
-        static bool ComesAfter(ProjectStage candidate, ProjectStage reference)
-        {
-            if (candidate.SortOrder != reference.SortOrder)
-            {
-                return candidate.SortOrder > reference.SortOrder;
-            }
-
-            return candidate.Id > reference.Id;
-        }
-
-        static bool IsNotStarted(ProjectStage stage)
-        {
-            return stage.Status == StageStatus.NotStarted
-                || !System.Enum.IsDefined(typeof(StageStatus), stage.Status);
-        }
-
-        static bool IsCompleted(ProjectStage stage) => stage.Status == StageStatus.Completed;
-
-        static bool IsSkipped(ProjectStage stage) => stage.Status == StageStatus.Skipped;
-
-        static bool IsFinished(ProjectStage stage) => IsCompleted(stage) || IsSkipped(stage);
-
-        var lastCompleted = ordered
-            .Where(IsCompleted)
-            .OrderByDescending(s => s.SortOrder)
-            .ThenByDescending(s => s.CompletedOn ?? DateOnly.MinValue)
-            .ThenByDescending(s => s.Id)
-            .FirstOrDefault();
-
-        var current = ordered.FirstOrDefault(s => s.Status == StageStatus.InProgress)
-            ?? ordered.FirstOrDefault(s => s.Status == StageStatus.Blocked);
-
-        if (current is null && lastCompleted is not null)
-        {
-            current = ordered
-                .Where(s => ComesAfter(s, lastCompleted))
-                .FirstOrDefault(IsNotStarted)
-                ?? ordered
-                    .Where(s => ComesAfter(s, lastCompleted))
-                    .FirstOrDefault(IsSkipped);
-        }
-
-        current ??= ordered.FirstOrDefault(IsNotStarted)
-            ?? ordered.FirstOrDefault(IsSkipped);
-
-        var paymentStage = ordered
-            .FirstOrDefault(stage => string.Equals(stage.StageCode, StageCodes.PAYMENT, StringComparison.OrdinalIgnoreCase));
-        var paymentCompleted = paymentStage?.Status == StageStatus.Completed;
-
-        var allStagesCompleted = ordered.All(IsFinished) && paymentCompleted;
-
-        current ??= lastCompleted ?? ordered.Last();
-
-        return new StageSummary(
-            FormatLastCompletedStage(lastCompleted),
-            allStagesCompleted ? "All stages completed" : FormatCurrentStage(current));
-    }
-
-    private static string FormatLastCompletedStage(ProjectStage? stage)
-    {
-        if (stage is null)
-        {
-            return "No completed stages yet";
-        }
-
-        var name = StageCodes.DisplayNameOf(stage.StageCode);
-        return stage.CompletedOn is { } completed
-            ? $"{name} — {completed:dd MMM yyyy}"
-            : $"{name} — Date not recorded";
-    }
-
-    private static string FormatCurrentStage(ProjectStage? stage)
-    {
-        if (stage is null)
-        {
-            return "Stages not scheduled";
-        }
-
-        var name = StageCodes.DisplayNameOf(stage.StageCode);
-        return stage.Status switch
-        {
-            StageStatus.InProgress => $"{name} — In progress",
-            StageStatus.NotStarted => $"{name} — Not started",
-            StageStatus.Completed => $"{name} — Completed",
-            StageStatus.Blocked => $"{name} — Blocked",
-            StageStatus.Skipped => $"{name} — Skipped",
-            _ => $"{name} — Not started"
-        };
-    }
-
-    private static string FormatTotDetail(Project project)
-    {
-        if (project.Tot is not { } tot)
-        {
-            return "ToT details not recorded";
-        }
-
-        return tot.Status switch
-        {
-            ProjectTotStatus.Completed when tot.CompletedOn is { } completed => $"ToT completed on {completed:dd MMM yyyy}",
-            ProjectTotStatus.Completed => "ToT completed (date not recorded)",
-            ProjectTotStatus.InProgress when tot.StartedOn is { } started => $"ToT in progress since {started:dd MMM yyyy}",
-            ProjectTotStatus.InProgress => "ToT in progress",
-            ProjectTotStatus.NotStarted => "ToT not started",
-            ProjectTotStatus.NotRequired => "ToT not required",
-            _ => FormatTotStatus(tot.Status)
-        };
-    }
 }
