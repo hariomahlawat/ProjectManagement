@@ -77,10 +77,87 @@
 
 }
 
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
     <div>
         <h1 class="h3 mb-0">Transfer of Technology tracker</h1>
         <p class="text-muted mb-0">Track project ToT progress, submit updates for approval of HoD.</p>
+    </div>
+    <button type="button"
+            class="btn btn-light tot-filter-trigger"
+            data-bs-toggle="modal"
+            data-bs-target="#tot-filter-modal"
+            aria-haspopup="dialog"
+            aria-controls="tot-filter-modal"
+            aria-expanded="false">
+        <i class="bi bi-search" aria-hidden="true"></i>
+        <span class="tot-filter-trigger-label">Search &amp; filter</span>
+        <span class="visually-hidden">Open Transfer of Technology tracker filters</span>
+    </button>
+</div>
+
+<div class="modal fade tot-filter-modal" id="tot-filter-modal" tabindex="-1" aria-labelledby="tot-filter-modal-label" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <form id="tot-filter-form" method="get">
+                <div class="modal-header">
+                    <h2 class="modal-title fs-5" id="tot-filter-modal-label">Search &amp; filter projects</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" asp-for="SelectedProjectId" />
+                    <div class="row g-3 align-items-end">
+                        <div class="col-12 col-md-6 col-lg-4">
+                            <label class="form-label tot-filter-heading" for="tot-search-term">Search</label>
+                            <input type="search"
+                                   class="form-control"
+                                   id="tot-search-term"
+                                   name="SearchTerm"
+                                   value="@Model.SearchTerm"
+                                   placeholder="Search projects or units" />
+                        </div>
+                        <div class="col-12 col-md-6 col-lg-4">
+                            <span class="tot-filter-heading">ToT status</span>
+                            <div class="btn-group tot-filter-btn-group w-100" role="group" aria-label="Filter projects by Transfer of Technology status">
+                                <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-all" value="" @(Model.TotStatusFilter is null ? "checked" : null)>
+                                <label class="btn btn-outline-secondary" for="tot-status-all">All</label>
+                                <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-not-required" value="@ProjectTotStatus.NotRequired" @(Model.TotStatusFilter == ProjectTotStatus.NotRequired ? "checked" : null)>
+                                <label class="btn btn-outline-secondary" for="tot-status-not-required">@StatusLabel(ProjectTotStatus.NotRequired)</label>
+                                <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-not-started" value="@ProjectTotStatus.NotStarted" @(Model.TotStatusFilter == ProjectTotStatus.NotStarted ? "checked" : null)>
+                                <label class="btn btn-outline-secondary" for="tot-status-not-started">@StatusLabel(ProjectTotStatus.NotStarted)</label>
+                                <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-in-progress" value="@ProjectTotStatus.InProgress" @(Model.TotStatusFilter == ProjectTotStatus.InProgress ? "checked" : null)>
+                                <label class="btn btn-outline-secondary" for="tot-status-in-progress">@StatusLabel(ProjectTotStatus.InProgress)</label>
+                                <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-completed" value="@ProjectTotStatus.Completed" @(Model.TotStatusFilter == ProjectTotStatus.Completed ? "checked" : null)>
+                                <label class="btn btn-outline-secondary" for="tot-status-completed">@StatusLabel(ProjectTotStatus.Completed)</label>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 col-lg-4">
+                            <span class="tot-filter-heading">Request state</span>
+                            <div class="btn-group tot-filter-btn-group w-100" role="group" aria-label="Filter projects by request decision state">
+                                <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-all" value="" @(Model.RequestStateFilter is null && !Model.OnlyPending ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
+                                <label class="btn btn-outline-secondary @(Model.OnlyPending ? "disabled" : null)" for="request-state-all">All</label>
+                                <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-pending" value="@ProjectTotRequestDecisionState.Pending" @(Model.RequestStateFilter == ProjectTotRequestDecisionState.Pending ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
+                                <label class="btn btn-outline-secondary @(Model.OnlyPending ? "disabled" : null)" for="request-state-pending">@RequestStateLabel(ProjectTotRequestDecisionState.Pending)</label>
+                                <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-approved" value="@ProjectTotRequestDecisionState.Approved" @(Model.RequestStateFilter == ProjectTotRequestDecisionState.Approved ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
+                                <label class="btn btn-outline-secondary @(Model.OnlyPending ? "disabled" : null)" for="request-state-approved">@RequestStateLabel(ProjectTotRequestDecisionState.Approved)</label>
+                                <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-rejected" value="@ProjectTotRequestDecisionState.Rejected" @(Model.RequestStateFilter == ProjectTotRequestDecisionState.Rejected ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
+                                <label class="btn btn-outline-secondary @(Model.OnlyPending ? "disabled" : null)" for="request-state-rejected">@RequestStateLabel(ProjectTotRequestDecisionState.Rejected)</label>
+                            </div>
+                        </div>
+                        <div class="col-12 col-sm-6 col-lg-4">
+                            <span class="tot-filter-heading">Approvals</span>
+                            <div class="form-check form-switch tot-filter-switch">
+                                <input class="form-check-input" type="checkbox" asp-for="OnlyPending" id="onlyPending">
+                                <label class="form-check-label" for="onlyPending">Only pending approvals</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="reset" class="btn btn-outline-secondary" form="tot-filter-form">Reset</button>
+                    <button type="submit" class="btn btn-primary" form="tot-filter-form">Apply</button>
+                </div>
+            </form>
+        </div>
     </div>
 </div>
 
@@ -186,63 +263,34 @@
     </div>
 }
 
-<div class="card shadow-sm mb-4 tot-filter-card">
-    <div class="card-body">
-        <form method="get" class="row g-3 align-items-end">
-            <input type="hidden" asp-for="SelectedProjectId" />
-            <div class="col-12 col-lg-4">
-                <label class="form-label tot-filter-heading" for="tot-search-term">Search</label>
-                <input type="search"
-                       class="form-control"
-                       id="tot-search-term"
-                       name="SearchTerm"
-                       value="@Model.SearchTerm"
-                       placeholder="Search projects or units" />
-            </div>
-            <div class="col-12 col-md-6 col-lg-4">
-                <span class="tot-filter-heading">ToT status</span>
-                <div class="btn-group tot-filter-btn-group w-100" role="group" aria-label="Filter projects by Transfer of Technology status">
-                    <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-all" value="" @(Model.TotStatusFilter is null ? "checked" : null)>
-                    <label class="btn btn-outline-secondary" for="tot-status-all">All</label>
-                    <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-not-required" value="@ProjectTotStatus.NotRequired" @(Model.TotStatusFilter == ProjectTotStatus.NotRequired ? "checked" : null)>
-                    <label class="btn btn-outline-secondary" for="tot-status-not-required">@StatusLabel(ProjectTotStatus.NotRequired)</label>
-                    <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-not-started" value="@ProjectTotStatus.NotStarted" @(Model.TotStatusFilter == ProjectTotStatus.NotStarted ? "checked" : null)>
-                    <label class="btn btn-outline-secondary" for="tot-status-not-started">@StatusLabel(ProjectTotStatus.NotStarted)</label>
-                    <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-in-progress" value="@ProjectTotStatus.InProgress" @(Model.TotStatusFilter == ProjectTotStatus.InProgress ? "checked" : null)>
-                    <label class="btn btn-outline-secondary" for="tot-status-in-progress">@StatusLabel(ProjectTotStatus.InProgress)</label>
-                    <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-completed" value="@ProjectTotStatus.Completed" @(Model.TotStatusFilter == ProjectTotStatus.Completed ? "checked" : null)>
-                    <label class="btn btn-outline-secondary" for="tot-status-completed">@StatusLabel(ProjectTotStatus.Completed)</label>
-                </div>
-            </div>
-            <div class="col-12 col-md-6 col-lg-4">
-                <span class="tot-filter-heading">Request state</span>
-                <div class="btn-group tot-filter-btn-group w-100" role="group" aria-label="Filter projects by request decision state">
-                    <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-all" value="" @(Model.RequestStateFilter is null && !Model.OnlyPending ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
-                    <label class="btn btn-outline-secondary @(Model.OnlyPending ? "disabled" : null)" for="request-state-all">All</label>
-                    <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-pending" value="@ProjectTotRequestDecisionState.Pending" @(Model.RequestStateFilter == ProjectTotRequestDecisionState.Pending ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
-                    <label class="btn btn-outline-secondary @(Model.OnlyPending ? "disabled" : null)" for="request-state-pending">@RequestStateLabel(ProjectTotRequestDecisionState.Pending)</label>
-                    <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-approved" value="@ProjectTotRequestDecisionState.Approved" @(Model.RequestStateFilter == ProjectTotRequestDecisionState.Approved ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
-                    <label class="btn btn-outline-secondary @(Model.OnlyPending ? "disabled" : null)" for="request-state-approved">@RequestStateLabel(ProjectTotRequestDecisionState.Approved)</label>
-                    <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-rejected" value="@ProjectTotRequestDecisionState.Rejected" @(Model.RequestStateFilter == ProjectTotRequestDecisionState.Rejected ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
-                    <label class="btn btn-outline-secondary @(Model.OnlyPending ? "disabled" : null)" for="request-state-rejected">@RequestStateLabel(ProjectTotRequestDecisionState.Rejected)</label>
-                </div>
-            </div>
-            <div class="col-12 col-sm-6 col-lg-3">
-                <span class="tot-filter-heading">Approvals</span>
-                <div class="form-check form-switch tot-filter-switch">
-                    <input class="form-check-input" type="checkbox" asp-for="OnlyPending" id="onlyPending">
-                    <label class="form-check-label" for="onlyPending">Only pending approvals</label>
-                </div>
-            </div>
-            <div class="col-12 col-sm-6 col-lg-3 ms-lg-auto d-flex gap-2 justify-content-lg-end">
-                <button type="submit" class="btn btn-primary">Apply</button>
-                <a asp-page="./Index" class="btn btn-outline-secondary">Reset</a>
-            </div>
-        </form>
-    </div>
-</div>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        var filterModalEl = document.getElementById('tot-filter-modal');
+        if (filterModalEl) {
+            var filterTrigger = document.querySelector('[data-bs-target="#tot-filter-modal"]');
+            if (filterTrigger) {
+                filterModalEl.addEventListener('show.bs.modal', function () {
+                    filterTrigger.setAttribute('aria-expanded', 'true');
+                });
 
-@{
+                filterModalEl.addEventListener('hidden.bs.modal', function () {
+                    filterTrigger.setAttribute('aria-expanded', 'false');
+                    filterTrigger.focus();
+                });
+            }
+
+            filterModalEl.addEventListener('shown.bs.modal', function () {
+                var searchInput = document.getElementById('tot-search-term');
+                if (searchInput) {
+                    searchInput.focus();
+                    searchInput.select();
+                }
+            });
+        }
+    });
+</script>
+
+@{ 
     var totalCount = Model.Projects.Count;
     var appliedFilters = new List<string>();
     if (!string.IsNullOrWhiteSpace(Model.SearchTerm))
