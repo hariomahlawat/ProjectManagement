@@ -231,6 +231,37 @@ body {
     background-color: rgba(15, 23, 42, .03);
 }
 
+/* ---------- ToT status badges ---------- */
+.badge-tot-not-required,
+.badge-tot-not-started,
+.badge-tot-in-progress,
+.badge-tot-completed {
+    border-radius: 999px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    padding: .5em .75em;
+}
+
+.badge-tot-not-required {
+    background-color: #6b7280;
+    color: #ffffff;
+}
+
+.badge-tot-not-started {
+    background-color: #b45309;
+    color: #ffffff;
+}
+
+.badge-tot-in-progress {
+    background-color: #2563eb;
+    color: #ffffff;
+}
+
+.badge-tot-completed {
+    background-color: #15803d;
+    color: #ffffff;
+}
+
 /* ---------- Confirm modal ---------- */
 .visits-confirm-modal .modal-content {
     border-radius: 1.25rem;
