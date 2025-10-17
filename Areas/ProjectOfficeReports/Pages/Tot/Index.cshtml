@@ -24,22 +24,6 @@
         _ => state.ToString()
     };
 
-    string UpdateStateLabel(ProjectTotProgressUpdateState state) => state switch
-    {
-        ProjectTotProgressUpdateState.Pending => "Pending approval",
-        ProjectTotProgressUpdateState.Approved => "Published",
-        ProjectTotProgressUpdateState.Rejected => "Rejected",
-        _ => state.ToString()
-    };
-
-    string UpdateStateBadge(ProjectTotProgressUpdateState state) => state switch
-    {
-        ProjectTotProgressUpdateState.Pending => "info",
-        ProjectTotProgressUpdateState.Approved => "success",
-        ProjectTotProgressUpdateState.Rejected => "warning",
-        _ => "secondary"
-    };
-
     string FoPmLabel(bool? value) => value switch
     {
         true => "Yes",
@@ -171,25 +155,26 @@
                     <tr class="@(isSelected ? "table-primary" : string.Empty)">
                         <th scope="row">
                             <div class="fw-semibold">@row.ProjectName</div>
-                            @if (!string.IsNullOrWhiteSpace(row.LatestApprovedUpdateBody))
+                            var latestRemark = row.LatestExternalRemark ?? row.LatestInternalRemark;
+                            if (latestRemark is not null)
                             {
-                                var publishedLocal = ToIst(row.LatestApprovedUpdatePublishedOnUtc);
+                                var createdLocal = ToIst(latestRemark.CreatedAtUtc);
                                 <div class="text-muted small mt-1">
-                                    <span class="fw-semibold">Latest update</span>
-                                    @if (row.LatestApprovedUpdateEventDate.HasValue)
+                                    <span class="fw-semibold">Latest @latestRemark.TypeLabel remark</span>
+                                    @if (latestRemark.EventDate.HasValue)
                                     {
-                                        <span> (@row.LatestApprovedUpdateEventDate.Value:dd MMM yyyy)</span>
+                                        <span> (@latestRemark.EventDate.Value:dd MMM yyyy)</span>
                                     }
-                                    @if (publishedLocal.HasValue)
+                                    @if (createdLocal.HasValue)
                                     {
-                                        <span> • published @publishedLocal.Value:dd MMM yyyy HH:mm</span>
+                                        <span> • posted @createdLocal.Value:dd MMM yyyy HH:mm</span>
                                     }
-                                    <div class="text-truncate" style="max-width: 28rem;">@row.LatestApprovedUpdateBody</div>
+                                    <div class="text-truncate" style="max-width: 28rem;">@latestRemark.Body</div>
                                 </div>
                             }
-                            @if (row.PendingUpdateCount > 0)
+                            else
                             {
-                                <div class="text-warning small mt-1">Pending updates: @row.PendingUpdateCount</div>
+                                <div class="text-muted small mt-1">No ToT remarks yet.</div>
                             }
                         </th>
                         <td>@row.SponsoringUnit</td>
@@ -311,134 +296,58 @@
     </div>
 
     <div class="row g-4 mt-1">
-        @{ var updates = Model.TotUpdates; var pendingUpdatesCount = selected.PendingUpdateCount; var updatesBadgeVariant = pendingUpdatesCount > 0 ? "warning" : "secondary"; var updatesBadgeText = pendingUpdatesCount > 0 ? $"{pendingUpdatesCount} pending" : "No pending approvals"; }
         <div class="col-12">
             <div class="card h-100">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h2 class="h5 mb-0">Project updates</h2>
-                    <span class="badge text-bg-@updatesBadgeVariant">@updatesBadgeText</span>
+                    <h2 class="h5 mb-0">ToT remarks</h2>
+                    <a class="btn btn-sm btn-outline-primary"
+                       asp-page="/Projects/Overview"
+                       asp-route-id="@selected.ProjectId"
+                       asp-fragment="remarks-panel">
+                        Open remarks panel
+                    </a>
                 </div>
                 <div class="card-body">
-                    <div class="row g-4">
-                        <div class="col-lg-7">
-                            <h3 class="h6">History</h3>
-                            @if (!updates.Any())
+                    @{ var externalRemark = selected.LatestExternalRemark; var internalRemark = selected.LatestInternalRemark; }
+                    @if (externalRemark is null && internalRemark is null)
+                    {
+                        <p class="text-muted mb-0">No ToT remarks recorded yet.</p>
+                    }
+                    else
+                    {
+                        <div class="d-flex flex-column gap-3">
+                            @if (externalRemark is not null)
                             {
-                                <p class="text-muted mb-0">No updates have been submitted for this project yet.</p>
+                                var createdLocal = ToIst(externalRemark.CreatedAtUtc);
+                                <div>
+                                    <h3 class="h6 mb-1">External remark</h3>
+                                    <div class="text-muted small">
+                                        Posted @(createdLocal?.ToString("dd MMM yyyy HH:mm") ?? "—") IST
+                                        @if (externalRemark.EventDate.HasValue)
+                                        {
+                                            <span> • Event @externalRemark.EventDate.Value:dd MMM yyyy</span>
+                                        }
+                                    </div>
+                                    <p class="mt-2 mb-0" style="white-space: pre-line;">@externalRemark.Body</p>
+                                </div>
                             }
-                            else
+                            @if (internalRemark is not null)
                             {
-                                <div class="list-group">
-                                    @foreach (var update in updates)
-                                    {
-                                        var submittedLocal = ToIst(update.SubmittedOnUtc);
-                                        var decidedLocal = ToIst(update.DecidedOnUtc);
-                                        var publishedLocal = ToIst(update.PublishedOnUtc);
-                                        var rowVersion = update.RowVersion is { Length: > 0 } ? Convert.ToBase64String(update.RowVersion) : string.Empty;
-                                        var remarksKey = $"DecideUpdate.{update.Id}";
-                                        ViewData.ModelState.TryGetValue(remarksKey, out var updateState);
-                                        var errorMessage = updateState?.Errors.FirstOrDefault()?.ErrorMessage;
-                                        var remarksValue = Model.DecideUpdate.UpdateId == update.Id ? Model.DecideUpdate.Remarks : string.Empty;
-                                        var isPending = update.State == ProjectTotProgressUpdateState.Pending;
-                                        var decidedByDisplay = string.IsNullOrWhiteSpace(update.DecidedByName) ? "—" : update.DecidedByName;
-                                        <div class="list-group-item">
-                                            <div class="d-flex justify-content-between flex-wrap gap-2">
-                                                <div class="d-flex align-items-center gap-2">
-                                                    <span class="badge text-bg-@UpdateStateBadge(update.State)">@UpdateStateLabel(update.State)</span>
-                                                    @if (update.EventDate.HasValue)
-                                                    {
-                                                        <span class="text-muted small">Event: @update.EventDate.Value:dd MMM yyyy</span>
-                                                    }
-                                                </div>
-                                                <div class="text-muted small text-end">
-                                                    Submitted by <span class="fw-semibold">@update.SubmittedByName</span>
-                                                    on @(submittedLocal?.ToString("dd MMM yyyy HH:mm") ?? "—")
-                                                </div>
-                                            </div>
-                                            <div class="mt-2" style="white-space: pre-line;">@update.Body</div>
-                                            @if (update.State == ProjectTotProgressUpdateState.Approved)
-                                            {
-                                                <div class="text-muted small mt-2">
-                                                    Published on @(publishedLocal?.ToString("dd MMM yyyy HH:mm") ?? "—") by @decidedByDisplay
-                                                </div>
-                                            }
-                                            else if (update.State == ProjectTotProgressUpdateState.Rejected)
-                                            {
-                                                <div class="text-muted small mt-2">
-                                                    Rejected on @(decidedLocal?.ToString("dd MMM yyyy HH:mm") ?? "—") by @decidedByDisplay
-                                                </div>
-                                            }
-                                            @if (!string.IsNullOrWhiteSpace(update.DecisionRemarks))
-                                            {
-                                                <div class="alert alert-warning mt-2 mb-0 small">Decision remarks: @update.DecisionRemarks</div>
-                                            }
-                                            @if (isPending)
-                                            {
-                                                <div class="text-muted small mt-2">Awaiting HoD/Admin approval.</div>
-                                            }
-                                            @if (isPending && Model.CanApprove && !string.IsNullOrEmpty(rowVersion))
-                                            {
-                                                <form method="post" asp-page-handler="DecideUpdate" class="mt-3">
-                                                    <input type="hidden" name="DecideUpdate.ProjectId" value="@selected.ProjectId" />
-                                                    <input type="hidden" name="DecideUpdate.UpdateId" value="@update.Id" />
-                                                    <input type="hidden" name="DecideUpdate.RowVersion" value="@rowVersion" />
-                                                    <input type="hidden" name="TotStatusFilter" value="@(Model.TotStatusFilter?.ToString())" />
-                                                    <input type="hidden" name="RequestStateFilter" value="@(Model.RequestStateFilter?.ToString())" />
-                                                    <input type="hidden" name="SearchTerm" value="@Model.SearchTerm" />
-                                                    <input type="hidden" name="OnlyPending" value="@(Model.OnlyPending ? "true" : "false")" />
-                                                    <div class="mb-3">
-                                                        <label class="form-label" for="decide-update-@update.Id-remarks">Decision remarks</label>
-                                                        <textarea class="form-control" id="decide-update-@update.Id-remarks" name="DecideUpdate.Remarks" rows="3">@remarksValue</textarea>
-                                                    </div>
-                                                    @if (!string.IsNullOrEmpty(errorMessage))
-                                                    {
-                                                        <div class="text-danger mb-2">@errorMessage</div>
-                                                    }
-                                                    <div class="d-flex gap-2">
-                                                        <button type="submit" name="DecideUpdate.Approve" value="true" class="btn btn-success btn-sm">Approve</button>
-                                                        <button type="submit" name="DecideUpdate.Approve" value="false" class="btn btn-outline-danger btn-sm">Reject</button>
-                                                    </div>
-                                                </form>
-                                            }
-                                        </div>
-                                    }
+                                var createdLocal = ToIst(internalRemark.CreatedAtUtc);
+                                <div>
+                                    <h3 class="h6 mb-1">Internal remark</h3>
+                                    <div class="text-muted small">
+                                        Posted @(createdLocal?.ToString("dd MMM yyyy HH:mm") ?? "—") IST
+                                        @if (internalRemark.EventDate.HasValue)
+                                        {
+                                            <span> • Event @internalRemark.EventDate.Value:dd MMM yyyy</span>
+                                        }
+                                    </div>
+                                    <p class="mt-2 mb-0" style="white-space: pre-line;">@internalRemark.Body</p>
                                 </div>
                             }
                         </div>
-                        <div class="col-lg-5">
-                            <h3 class="h6">Submit update</h3>
-                            @if (Model.CanSubmitUpdatesForSelectedProject && Model.SubmitUpdate.ProjectId == selected.ProjectId)
-                            {
-                                <form method="post" asp-page-handler="SubmitUpdate">
-                                    <input type="hidden" asp-for="SubmitUpdate.ProjectId" />
-                                    <input type="hidden" asp-for="TotStatusFilter" />
-                                    <input type="hidden" asp-for="RequestStateFilter" />
-                                    <input type="hidden" asp-for="SearchTerm" />
-                                    <input type="hidden" asp-for="OnlyPending" />
-                                    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-                                    <div class="mb-3">
-                                        <label class="form-label" asp-for="SubmitUpdate.Body">Update details</label>
-                                        <textarea asp-for="SubmitUpdate.Body" class="form-control" rows="4"></textarea>
-                                        <span asp-validation-for="SubmitUpdate.Body" class="text-danger"></span>
-                                    </div>
-                                    <div class="mb-3">
-                                        <label class="form-label" asp-for="SubmitUpdate.EventDate">Event date (optional)</label>
-                                        <input asp-for="SubmitUpdate.EventDate" class="form-control" type="date" />
-                                        <span asp-validation-for="SubmitUpdate.EventDate" class="text-danger"></span>
-                                    </div>
-                                    <button type="submit" class="btn btn-primary">Submit update</button>
-                                </form>
-                            }
-                            else if (!Model.CanSubmit)
-                            {
-                                <p class="text-muted mb-0">You do not have permission to submit updates for this project.</p>
-                            }
-                            else
-                            {
-                                <p class="text-muted mb-0">Only the assigned Project Officer can submit updates for this project.</p>
-                            }
-                        </div>
-                    </div>
+                    }
                 </div>
             </div>
         </div>

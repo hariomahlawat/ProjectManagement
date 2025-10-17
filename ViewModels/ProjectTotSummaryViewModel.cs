@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Remarks;
 
 namespace ProjectManagement.ViewModels;
 
@@ -16,11 +17,9 @@ public sealed class ProjectTotSummaryViewModel
     public string? LastApprovedBy { get; init; }
     public DateTime? LastApprovedOnUtc { get; init; }
     public TotRequestSummary? PendingRequest { get; init; }
-    public TotProgressUpdateSnippet? LatestApprovedUpdate { get; init; }
-    public int PendingUpdateCount { get; init; }
+    public TotRemarkSnippet? LatestRemark { get; init; }
 
     public bool HasPendingRequest => PendingRequest is { State: ProjectTotRequestDecisionState.Pending };
-    public bool HasPendingUpdates => PendingUpdateCount > 0;
 
     public sealed record TotFact(string Label, string Value);
 
@@ -40,8 +39,10 @@ public sealed class ProjectTotSummaryViewModel
         string? DecidedBy,
         DateTime? DecidedOnUtc);
 
-    public sealed record TotProgressUpdateSnippet(
+    public sealed record TotRemarkSnippet(
+        RemarkType Type,
+        string TypeLabel,
         string Body,
         DateOnly? EventDate,
-        DateTime? PublishedOnUtc);
+        DateTime CreatedAtUtc);
 }
