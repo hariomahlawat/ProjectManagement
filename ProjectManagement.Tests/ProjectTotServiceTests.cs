@@ -28,7 +28,7 @@ public sealed class ProjectTotServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_WhenSetToNotRequired_ClearsDatesAndRemarks()
+    public async Task UpdateAsync_WhenSetToNotRequired_ClearsDates()
     {
         await using var db = CreateContext();
         db.Projects.Add(new Project
@@ -47,8 +47,7 @@ public sealed class ProjectTotServiceTests
             MetDetails = "Previous MET milestone",
             MetCompletedOn = new DateOnly(2024, 3, 10),
             FirstProductionModelManufactured = true,
-            FirstProductionModelManufacturedOn = new DateOnly(2024, 3, 12),
-            Remarks = "Some note"
+            FirstProductionModelManufacturedOn = new DateOnly(2024, 3, 12)
         });
         await db.SaveChangesAsync();
 
@@ -69,7 +68,6 @@ public sealed class ProjectTotServiceTests
         Assert.Null(tot.MetCompletedOn);
         Assert.Null(tot.FirstProductionModelManufactured);
         Assert.Null(tot.FirstProductionModelManufacturedOn);
-        Assert.Null(tot.Remarks);
     }
 
     [Fact]
@@ -96,8 +94,7 @@ public sealed class ProjectTotServiceTests
         {
             ProjectId = 41,
             Status = ProjectTotStatus.NotStarted,
-            StartedOn = new DateOnly(2024, 1, 10),
-            Remarks = "Existing"
+            StartedOn = new DateOnly(2024, 1, 10)
         });
         await db.SaveChangesAsync();
 
@@ -118,7 +115,6 @@ public sealed class ProjectTotServiceTests
             .SingleAsync(t => t.ProjectId == 41);
 
         Assert.Equal(ProjectTotStatus.NotRequired, persisted.Status);
-        Assert.Null(persisted.Remarks);
         Assert.Null(persisted.StartedOn);
         Assert.Null(persisted.CompletedOn);
         Assert.Null(persisted.MetDetails);
@@ -163,7 +159,7 @@ public sealed class ProjectTotServiceTests
     }
 
     [Fact]
-    public async Task UpdateAsync_CompletedRequiresDates_TrimsRemarks()
+    public async Task UpdateAsync_CompletedRequiresDates_TrimsMetDetails()
     {
         await using var db = CreateContext();
         db.Projects.Add(new Project
@@ -190,7 +186,6 @@ public sealed class ProjectTotServiceTests
                 ProjectTotStatus.Completed,
                 startedOn: new DateOnly(2024, 2, 1),
                 completedOn: new DateOnly(2024, 5, 20),
-                remarks: " Completed successfully ",
                 metDetails: "  MET delivered  ",
                 metCompletedOn: new DateOnly(2024, 3, 5),
                 firstProductionModelManufactured: true,
@@ -206,7 +201,6 @@ public sealed class ProjectTotServiceTests
         Assert.Equal(new DateOnly(2024, 3, 5), tot.MetCompletedOn);
         Assert.True(tot.FirstProductionModelManufactured);
         Assert.Equal(new DateOnly(2024, 4, 1), tot.FirstProductionModelManufacturedOn);
-        Assert.Equal("Completed successfully", tot.Remarks);
     }
 
     [Fact]
@@ -402,7 +396,6 @@ public sealed class ProjectTotServiceTests
         ProjectTotStatus status,
         DateOnly? startedOn = null,
         DateOnly? completedOn = null,
-        string? remarks = null,
         string? metDetails = null,
         DateOnly? metCompletedOn = null,
         bool? firstProductionModelManufactured = null,
@@ -411,7 +404,6 @@ public sealed class ProjectTotServiceTests
             status,
             startedOn,
             completedOn,
-            remarks,
             metDetails,
             metCompletedOn,
             firstProductionModelManufactured,

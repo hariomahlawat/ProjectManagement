@@ -597,7 +597,6 @@ namespace ProjectManagement.Data
                 e.Property(x => x.MetCompletedOn).HasColumnType("date");
                 e.Property(x => x.FirstProductionModelManufactured).IsRequired(false);
                 e.Property(x => x.FirstProductionModelManufacturedOn).HasColumnType("date");
-                e.Property(x => x.Remarks).HasMaxLength(2000);
                 e.Property(x => x.LastApprovedByUserId).HasMaxLength(450);
                 e.HasIndex(x => x.ProjectId).IsUnique();
                 e.HasOne(x => x.Project)
@@ -621,13 +620,11 @@ namespace ProjectManagement.Data
                     .HasConversion<string>()
                     .HasMaxLength(32)
                     .IsRequired();
-                e.Property(x => x.ProposedRemarks).HasMaxLength(2000);
                 e.Property(x => x.ProposedMetDetails).HasMaxLength(2000);
                 e.Property(x => x.ProposedMetCompletedOn).HasColumnType("date");
                 e.Property(x => x.ProposedFirstProductionModelManufactured).IsRequired(false);
                 e.Property(x => x.ProposedFirstProductionModelManufacturedOn).HasColumnType("date");
                 e.Property(x => x.SubmittedByUserId).HasMaxLength(450).IsRequired();
-                e.Property(x => x.DecisionRemarks).HasMaxLength(2000);
                 e.HasIndex(x => x.ProjectId).IsUnique();
                 e.HasOne(x => x.Project)
                     .WithOne(x => x.TotRequest)

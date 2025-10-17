@@ -2562,10 +2562,6 @@ namespace ProjectManagement.Migrations
                     b.Property<int>("ProjectId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("Remarks")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
                     b.Property<DateOnly?>("StartedOn")
                         .HasColumnType("date");
 
@@ -2672,10 +2668,6 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTime?>("DecidedOnUtc")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<string>("DecisionRemarks")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
                     b.Property<string>("DecisionState")
                         .IsRequired()
                         .HasMaxLength(32)
@@ -2697,10 +2689,6 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("date");
 
                     b.Property<string>("ProposedMetDetails")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("ProposedRemarks")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 

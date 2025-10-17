@@ -81,10 +81,6 @@
                     }
                 </dl>
             }
-            @if (!string.IsNullOrWhiteSpace(tot.Remarks))
-            {
-                <div class="alert alert-secondary mb-0" role="status">@tot.Remarks</div>
-            }
             @if (latestUpdate is { } updateSnippet)
             {
                 var ist = TimeZoneHelper.GetIst();
@@ -161,14 +157,6 @@
                         {
                             <li>Decided by @request.DecidedBy on @decidedOnLocal.Value:dd MMM yyyy HH:mm.</li>
                         }
-                        @if (!string.IsNullOrWhiteSpace(request.ProposedRemarks))
-                        {
-                            <li>Proposal remarks: @request.ProposedRemarks</li>
-                        }
-                        @if (!string.IsNullOrWhiteSpace(request.DecisionRemarks))
-                        {
-                            <li>Decision remarks: @request.DecisionRemarks</li>
-                        }
                     </ul>
                 </div>
             }
@@ -192,7 +180,7 @@
             }
             @if (!hasTot)
             {
-                <p class="text-muted small mb-0">Set up ToT tracking to capture milestones and remarks.</p>
+                <p class="text-muted small mb-0">Set up ToT tracking to capture milestones.</p>
             }
         </div>
     </div>

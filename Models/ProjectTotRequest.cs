@@ -28,9 +28,6 @@ namespace ProjectManagement.Models
 
         public DateOnly? ProposedFirstProductionModelManufacturedOn { get; set; }
 
-        [MaxLength(2000)]
-        public string? ProposedRemarks { get; set; }
-
         [Required]
         [MaxLength(450)]
         public string SubmittedByUserId { get; set; } = string.Empty;
@@ -48,9 +45,6 @@ namespace ProjectManagement.Models
         public ApplicationUser? DecidedByUser { get; set; }
 
         public DateTime? DecidedOnUtc { get; set; }
-
-        [MaxLength(2000)]
-        public string? DecisionRemarks { get; set; }
 
         [ConcurrencyCheck]
         public byte[] RowVersion { get; set; } = Array.Empty<byte>();

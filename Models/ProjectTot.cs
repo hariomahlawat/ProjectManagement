@@ -36,9 +36,6 @@ namespace ProjectManagement.Models
 
         public DateOnly? FirstProductionModelManufacturedOn { get; set; }
 
-        [MaxLength(2000)]
-        public string? Remarks { get; set; }
-
         [MaxLength(450)]
         public string? LastApprovedByUserId { get; set; }
 
