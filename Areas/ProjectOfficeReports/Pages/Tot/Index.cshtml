@@ -155,8 +155,10 @@
                     <tr class="@(isSelected ? "table-primary" : string.Empty)">
                         <th scope="row">
                             <div class="fw-semibold">@row.ProjectName</div>
-                            var latestRemark = row.LatestExternalRemark ?? row.LatestInternalRemark;
-                            if (latestRemark is not null)
+                            @{
+                                var latestRemark = row.LatestExternalRemark ?? row.LatestInternalRemark;
+                            }
+                            @if (latestRemark is not null)
                             {
                                 var createdLocal = ToIst(latestRemark.CreatedAtUtc);
                                 <div class="text-muted small mt-1">
