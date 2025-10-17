@@ -304,8 +304,7 @@ public sealed class ProjectOverviewLifecycleTests
             ProjectId = projectId,
             Status = ProjectTotStatus.Completed,
             StartedOn = new DateOnly(2023, 8, 1),
-            CompletedOn = new DateOnly(2024, 3, 15),
-            Remarks = "Knowledge transfer complete."
+            CompletedOn = new DateOnly(2024, 3, 15)
         });
 
         await db.SaveChangesAsync();

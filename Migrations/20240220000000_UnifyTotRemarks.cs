@@ -14,76 +14,76 @@ namespace ProjectManagement.Migrations
             if (migrationBuilder.ActiveProvider == "Npgsql.EntityFrameworkCore.PostgreSQL")
             {
                 migrationBuilder.Sql(@"
-INSERT INTO \"Remarks\" (\"ProjectId\", \"AuthorUserId\", \"AuthorRole\", \"Type\", \"Scope\", \"Body\", \"EventDate\", \"CreatedAtUtc\", \"IsDeleted\", \"RowVersion\")
-SELECT t.\"ProjectId\",
-       COALESCE(NULLIF(t.\"LastApprovedByUserId\", ''), p.\"CreatedByUserId\"),
+INSERT INTO ""Remarks"" (""ProjectId"", ""AuthorUserId"", ""AuthorRole"", ""Type"", ""Scope"", ""Body"", ""EventDate"", ""CreatedAtUtc"", ""IsDeleted"", ""RowVersion"")
+SELECT t.""ProjectId"",
+       COALESCE(NULLIF(t.""LastApprovedByUserId"", ''), p.""CreatedByUserId""),
        'Unknown',
        'Internal',
        'TransferOfTechnology',
-       BTRIM(t.\"Remarks\"),
+       BTRIM(t.""Remarks""),
        COALESCE(
-           t.\"CompletedOn\",
-           t.\"StartedOn\",
-           CAST(t.\"LastApprovedOnUtc\" AS date),
-           p.\"CompletedOn\",
-           p.\"CancelledOn\",
-           CAST(p.\"CreatedAt\" AS date)
+           t.""CompletedOn"",
+           t.""StartedOn"",
+           CAST(t.""LastApprovedOnUtc"" AS date),
+           p.""CompletedOn"",
+           p.""CancelledOn"",
+           CAST(p.""CreatedAt"" AS date)
        ),
-       COALESCE(t.\"LastApprovedOnUtc\", p.\"CreatedAt\"),
+       COALESCE(t.""LastApprovedOnUtc"", p.""CreatedAt""),
        FALSE,
        decode(md5(random()::text || clock_timestamp()::text), 'hex')
-FROM \"ProjectTots\" t
-JOIN \"Projects\" p ON p.\"Id\" = t.\"ProjectId\"
-WHERE t.\"Remarks\" IS NOT NULL
-  AND BTRIM(t.\"Remarks\") <> ''
-  AND COALESCE(NULLIF(t.\"LastApprovedByUserId\", ''), p.\"CreatedByUserId\") IS NOT NULL;
+FROM ""ProjectTots"" t
+JOIN ""Projects"" p ON p.""Id"" = t.""ProjectId""
+WHERE t.""Remarks"" IS NOT NULL
+  AND BTRIM(t.""Remarks"") <> ''
+  AND COALESCE(NULLIF(t.""LastApprovedByUserId"", ''), p.""CreatedByUserId"") IS NOT NULL;
 
-INSERT INTO \"Remarks\" (\"ProjectId\", \"AuthorUserId\", \"AuthorRole\", \"Type\", \"Scope\", \"Body\", \"EventDate\", \"CreatedAtUtc\", \"IsDeleted\", \"RowVersion\")
-SELECT r.\"ProjectId\",
-       COALESCE(NULLIF(r.\"SubmittedByUserId\", ''), p.\"CreatedByUserId\"),
+INSERT INTO ""Remarks"" (""ProjectId"", ""AuthorUserId"", ""AuthorRole"", ""Type"", ""Scope"", ""Body"", ""EventDate"", ""CreatedAtUtc"", ""IsDeleted"", ""RowVersion"")
+SELECT r.""ProjectId"",
+       COALESCE(NULLIF(r.""SubmittedByUserId"", ''), p.""CreatedByUserId""),
        'Unknown',
        'Internal',
        'TransferOfTechnology',
-       BTRIM(r.\"ProposedRemarks\"),
+       BTRIM(r.""ProposedRemarks""),
        COALESCE(
-           r.\"ProposedCompletedOn\",
-           r.\"ProposedStartedOn\",
-           CAST(r.\"SubmittedOnUtc\" AS date),
-           p.\"CompletedOn\",
-           p.\"CancelledOn\",
-           CAST(p.\"CreatedAt\" AS date)
+           r.""ProposedCompletedOn"",
+           r.""ProposedStartedOn"",
+           CAST(r.""SubmittedOnUtc"" AS date),
+           p.""CompletedOn"",
+           p.""CancelledOn"",
+           CAST(p.""CreatedAt"" AS date)
        ),
-       COALESCE(r.\"SubmittedOnUtc\", p.\"CreatedAt\"),
+       COALESCE(r.""SubmittedOnUtc"", p.""CreatedAt""),
        FALSE,
        decode(md5(random()::text || clock_timestamp()::text), 'hex')
-FROM \"ProjectTotRequests\" r
-JOIN \"Projects\" p ON p.\"Id\" = r.\"ProjectId\"
-WHERE r.\"ProposedRemarks\" IS NOT NULL
-  AND BTRIM(r.\"ProposedRemarks\") <> ''
-  AND COALESCE(NULLIF(r.\"SubmittedByUserId\", ''), p.\"CreatedByUserId\") IS NOT NULL;
+FROM ""ProjectTotRequests"" r
+JOIN ""Projects"" p ON p.""Id"" = r.""ProjectId""
+WHERE r.""ProposedRemarks"" IS NOT NULL
+  AND BTRIM(r.""ProposedRemarks"") <> ''
+  AND COALESCE(NULLIF(r.""SubmittedByUserId"", ''), p.""CreatedByUserId"") IS NOT NULL;
 
-INSERT INTO \"Remarks\" (\"ProjectId\", \"AuthorUserId\", \"AuthorRole\", \"Type\", \"Scope\", \"Body\", \"EventDate\", \"CreatedAtUtc\", \"IsDeleted\", \"RowVersion\")
-SELECT r.\"ProjectId\",
-       COALESCE(NULLIF(r.\"DecidedByUserId\", ''), NULLIF(r.\"SubmittedByUserId\", ''), p.\"CreatedByUserId\"),
+INSERT INTO ""Remarks"" (""ProjectId"", ""AuthorUserId"", ""AuthorRole"", ""Type"", ""Scope"", ""Body"", ""EventDate"", ""CreatedAtUtc"", ""IsDeleted"", ""RowVersion"")
+SELECT r.""ProjectId"",
+       COALESCE(NULLIF(r.""DecidedByUserId"", ''), NULLIF(r.""SubmittedByUserId"", ''), p.""CreatedByUserId""),
        'Unknown',
        'Internal',
        'TransferOfTechnology',
-       BTRIM(r.\"DecisionRemarks\"),
+       BTRIM(r.""DecisionRemarks""),
        COALESCE(
-           CAST(r.\"DecidedOnUtc\" AS date),
-           CAST(r.\"SubmittedOnUtc\" AS date),
-           p.\"CompletedOn\",
-           p.\"CancelledOn\",
-           CAST(p.\"CreatedAt\" AS date)
+           CAST(r.""DecidedOnUtc"" AS date),
+           CAST(r.""SubmittedOnUtc"" AS date),
+           p.""CompletedOn"",
+           p.""CancelledOn"",
+           CAST(p.""CreatedAt"" AS date)
        ),
-       COALESCE(r.\"DecidedOnUtc\", r.\"SubmittedOnUtc\", p.\"CreatedAt\"),
+       COALESCE(r.""DecidedOnUtc"", r.""SubmittedOnUtc"", p.""CreatedAt""),
        FALSE,
        decode(md5(random()::text || clock_timestamp()::text), 'hex')
-FROM \"ProjectTotRequests\" r
-JOIN \"Projects\" p ON p.\"Id\" = r.\"ProjectId\"
-WHERE r.\"DecisionRemarks\" IS NOT NULL
-  AND BTRIM(r.\"DecisionRemarks\") <> ''
-  AND COALESCE(NULLIF(r.\"DecidedByUserId\", ''), NULLIF(r.\"SubmittedByUserId\", ''), p.\"CreatedByUserId\") IS NOT NULL;
+FROM ""ProjectTotRequests"" r
+JOIN ""Projects"" p ON p.""Id"" = r.""ProjectId""
+WHERE r.""DecisionRemarks"" IS NOT NULL
+  AND BTRIM(r.""DecisionRemarks"") <> ''
+  AND COALESCE(NULLIF(r.""DecidedByUserId"", ''), NULLIF(r.""SubmittedByUserId"", ''), p.""CreatedByUserId"") IS NOT NULL;
 ");
             }
             else if (migrationBuilder.ActiveProvider == "Microsoft.EntityFrameworkCore.SqlServer")
