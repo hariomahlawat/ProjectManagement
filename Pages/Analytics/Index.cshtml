@@ -120,7 +120,7 @@
                 <option value="">All categories</option>
                 @foreach (var category in categories)
                 {
-                  <option value="@category.Id">@category.Name</option>
+                  <option value="@category!.Id">@category!.Name</option>
                 }
               </select>
             </label>
@@ -130,7 +130,7 @@
                 <option value="">All technical categories</option>
                 @foreach (var technical in technicalCategories)
                 {
-                  <option value="@technical.Id">@technical.Name</option>
+                  <option value="@technical!.Id">@technical!.Name</option>
                 }
               </select>
             </label>

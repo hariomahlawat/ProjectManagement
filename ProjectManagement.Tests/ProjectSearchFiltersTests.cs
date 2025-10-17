@@ -471,11 +471,11 @@ namespace ProjectManagement.Tests
             var hierarchy = new ProjectCategoryHierarchyService(context);
             var categoryIds = await hierarchy.GetCategoryAndDescendantIdsAsync(parent.Id);
 
-            var filters = new ProjectSearchFilters(
-                Query: null,
-                CategoryId: parent.Id,
-                IncludeCategoryDescendants: true,
-                CategoryIds: categoryIds);
+            var filters = new ProjectSearchFilters(Query: null, CategoryId: parent.Id) with
+            {
+                IncludeCategoryDescendants = true,
+                CategoryIds = categoryIds
+            };
 
             var results = await context.Projects.ApplyProjectSearch(filters).ToListAsync();
 
