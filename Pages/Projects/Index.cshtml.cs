@@ -34,7 +34,7 @@ namespace ProjectManagement.Pages.Projects
             _categoryHierarchy = categoryHierarchy;
         }
 
-        public IList<Project> Projects { get; private set; } = new List<Project>();
+        public IReadOnlyList<Project> Projects { get; private set; } = new List<Project>();
 
         [BindProperty(SupportsGet = true)]
         public string? Query { get; set; }

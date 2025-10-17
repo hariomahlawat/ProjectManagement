@@ -46,7 +46,7 @@
         ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc), istZone)
         : null;
 
-    string FormatTimestamp(DateTime? utcValue)
+    string? FormatTimestamp(DateTime? utcValue)
     {
         var dt = ToIst(utcValue);
         return dt.HasValue
