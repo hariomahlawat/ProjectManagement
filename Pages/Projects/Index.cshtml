@@ -228,7 +228,35 @@
                     {
                         var pendingCount = CountPendingStages(project);
                         var totStatus = FormatTotStatusShort(project);
+                        string? coverPhotoUrl = null;
+                        if (project.CoverPhotoId.HasValue)
+                        {
+                            coverPhotoUrl = Url.Page("/Projects/Photos/View", new
+                            {
+                                id = project.Id,
+                                photoId = project.CoverPhotoId,
+                                size = "sm",
+                                v = project.CurrentCoverPhotoVersion ?? project.CoverPhotoVersion
+                            });
+                        }
+                        var projectNameForMedia = string.IsNullOrWhiteSpace(project.Name)
+                            ? "this project"
+                            : project.Name;
+                        var coverPhotoAlt = $"{projectNameForMedia} cover photo";
                         <article class="projects-card shadow-sm">
+                            <div class="projects-card__media">
+                                @if (!string.IsNullOrEmpty(coverPhotoUrl))
+                                {
+                                    <img class="projects-card__image" src="@coverPhotoUrl" alt="@coverPhotoAlt" />
+                                }
+                                else
+                                {
+                                    <div class="projects-card__placeholder">
+                                        <i class="bi bi-image" aria-hidden="true"></i>
+                                        <span class="visually-hidden">No cover photo for @projectNameForMedia</span>
+                                    </div>
+                                }
+                            </div>
                             <div class="projects-card__body">
                                 <div class="projects-card__title-row">
                                     <h2 class="projects-card__title">
