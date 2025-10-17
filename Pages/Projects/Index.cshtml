@@ -295,10 +295,13 @@
                                         <i class="bi bi-mortarboard" aria-hidden="true"></i>
                                         <span>@(project.HodUser?.FullName ?? project.HodUser?.UserName ?? "HoD not assigned")</span>
                                     </span>
-                                    <span class="projects-card__meta-item">
-                                        <i class="bi bi-check2-circle" aria-hidden="true"></i>
-                                        <span>@stageSummary</span>
-                                    </span>
+                                    @if (!string.IsNullOrWhiteSpace(stageSummary))
+                                    {
+                                        <span class="projects-card__meta-item">
+                                            <i class="bi bi-check2-circle" aria-hidden="true"></i>
+                                            <span>@stageSummary</span>
+                                        </span>
+                                    }
                                     @if (project.LifecycleStatus == ProjectLifecycleStatus.Completed && !string.IsNullOrWhiteSpace(totStatus))
                                     {
                                         <span class="projects-card__meta-item">
@@ -394,7 +397,7 @@
 
 @functions
 {
-    private static string FormatStageSummary(Project project)
+    private static string? FormatStageSummary(Project project)
     {
         if (project.LifecycleStatus == ProjectLifecycleStatus.Active)
         {
@@ -421,6 +424,11 @@
         var pendingCount = project.ProjectStages is not { Count: > 0 }
             ? 0
             : project.ProjectStages.Count(stage => stage.Status is StageStatus.InProgress or StageStatus.Blocked or StageStatus.NotStarted);
+
+        if (project.LifecycleStatus == ProjectLifecycleStatus.Completed && pendingCount == 0)
+        {
+            return null;
+        }
 
         return $"Pending stages: {pendingCount}";
     }
