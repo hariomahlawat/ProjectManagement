@@ -200,6 +200,37 @@ body {
     padding: 1.25rem 1.5rem;
 }
 
+/* ---------- ToT filters ---------- */
+.tot-filter-card {
+    border: 1px solid rgba(15, 23, 42, .08);
+    border-radius: 1rem;
+}
+
+.tot-filter-heading {
+    display: inline-block;
+    margin-bottom: .35rem;
+    font-size: var(--pm-font-size-xs);
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--pm-text-secondary);
+}
+
+.tot-filter-btn-group {
+    flex-wrap: wrap;
+    gap: .5rem;
+}
+
+.tot-filter-btn-group .btn {
+    flex: 1 1 auto;
+}
+
+.tot-filter-switch {
+    padding: .75rem 1rem;
+    border-radius: .75rem;
+    background-color: rgba(15, 23, 42, .03);
+}
+
 /* ---------- Confirm modal ---------- */
 .visits-confirm-modal .modal-content {
     border-radius: 1.25rem;
