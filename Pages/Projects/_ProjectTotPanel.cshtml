@@ -1,3 +1,4 @@
+@using System.Globalization
 @using System.Linq
 @using ProjectManagement.Models
 @using ProjectManagement.Utilities
@@ -5,6 +6,18 @@
 
 @{
     var showTransferOfTechnology = Model.LifecycleSummary.Status == ProjectLifecycleStatus.Completed;
+    var istZone = TimeZoneHelper.GetIst();
+    DateTime? ToIst(DateTime? value) => value.HasValue
+        ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc), istZone)
+        : null;
+
+    string? FormatTimestamp(DateTime? utcValue)
+    {
+        var dt = ToIst(utcValue);
+        return dt.HasValue
+            ? dt.Value.ToString("dd MMM yyyy 'at' h:mm tt 'IST'", CultureInfo.InvariantCulture)
+            : null;
+    }
 }
 
 @if (showTransferOfTechnology)
@@ -82,14 +95,13 @@
             }
             @if (latestRemark is { } remarkSnippet)
             {
-                var ist = TimeZoneHelper.GetIst();
-                var createdLocal = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(remarkSnippet.CreatedAtUtc, DateTimeKind.Utc), ist);
+                var createdText = FormatTimestamp(remarkSnippet.CreatedAtUtc);
                 <div class="border rounded p-3 bg-light small">
                     <div class="d-flex justify-content-between align-items-center gap-2">
                         <span class="fw-semibold">Latest ToT remark</span>
                         <span class="badge text-bg-secondary">@remarkSnippet.TypeLabel</span>
                     </div>
-                    <div class="text-muted mt-1">Posted on @createdLocal:dd MMM yyyy HH:mm IST</div>
+                    <div class="text-muted mt-1">Posted @(createdText ?? "—")</div>
                     <div class="mt-2" style="white-space: pre-line;">@remarkSnippet.Body</div>
                     @if (remarkSnippet.EventDate.HasValue)
                     {
@@ -111,13 +123,17 @@
                     ProjectTotRequestDecisionState.Rejected => "warning",
                     _ => "secondary"
                 };
-                var ist = TimeZoneHelper.GetIst();
-                var submittedOnLocal = TimeZoneInfo.ConvertTimeFromUtc(
-                    DateTime.SpecifyKind(request.SubmittedOnUtc, DateTimeKind.Utc),
-                    ist);
-                DateTime? decidedOnLocal = request.DecidedOnUtc.HasValue
-                    ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(request.DecidedOnUtc.Value, DateTimeKind.Utc), ist)
-                    : null;
+                var submittedByText = string.IsNullOrWhiteSpace(request.SubmittedBy)
+                    ? "—"
+                    : request.SubmittedBy;
+                var submittedOnText = FormatTimestamp(request.SubmittedOnUtc);
+                var decidedOnText = FormatTimestamp(request.DecidedOnUtc);
+                var submittedSuffix = string.IsNullOrEmpty(submittedOnText)
+                    ? "."
+                    : $" on {submittedOnText}.";
+                var decidedSuffix = string.IsNullOrEmpty(decidedOnText)
+                    ? null
+                    : $" on {decidedOnText}.";
                 <div class="alert alert-@alertVariant mb-0" role="status">
                     <div class="fw-semibold">@request.StateLabel</div>
                     <ul class="mb-0">
@@ -144,10 +160,10 @@
                                 : string.Empty;
                             <li>First production model manufactured: <strong>@manufacturedLabel</strong>@manufacturedSuffix.</li>
                         }
-                        <li>Submitted by @request.SubmittedBy on @submittedOnLocal:dd MMM yyyy HH:mm.</li>
-                        @if (request.State != ProjectTotRequestDecisionState.Pending && decidedOnLocal.HasValue && !string.IsNullOrWhiteSpace(request.DecidedBy))
+                        <li>Submitted by @submittedByText@submittedSuffix</li>
+                        @if (request.State != ProjectTotRequestDecisionState.Pending && !string.IsNullOrWhiteSpace(request.DecidedBy) && decidedSuffix is not null)
                         {
-                            <li>Decided by @request.DecidedBy on @decidedOnLocal.Value:dd MMM yyyy HH:mm.</li>
+                            <li>Decided by @request.DecidedBy@decidedSuffix</li>
                         }
                     </ul>
                 </div>
