@@ -16,6 +16,15 @@
         _ => status.ToString()
     };
 
+    string TotStatusBadgeClass(ProjectTotStatus status) => status switch
+    {
+        ProjectTotStatus.NotRequired => "badge-tot-not-required",
+        ProjectTotStatus.NotStarted => "badge-tot-not-started",
+        ProjectTotStatus.InProgress => "badge-tot-in-progress",
+        ProjectTotStatus.Completed => "badge-tot-completed",
+        _ => "badge-tot-not-started"
+    };
+
     string RequestStateLabel(ProjectTotRequestDecisionState state) => state switch
     {
         ProjectTotRequestDecisionState.Pending => "Pending approval",
@@ -188,11 +197,11 @@
                         <td>
                             @if (row.TotStatus is { } status)
                             {
-                                <span class="badge text-bg-secondary">@StatusLabel(status)</span>
+                                <span class="badge @TotStatusBadgeClass(status)">@StatusLabel(status)</span>
                             }
                             else
                             {
-                                <span class="badge text-bg-secondary">Not started</span>
+                                <span class="badge @TotStatusBadgeClass(ProjectTotStatus.NotStarted)">Not started</span>
                             }
                         </td>
                         <td>
