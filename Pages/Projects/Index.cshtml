@@ -226,7 +226,7 @@
                 <div class="projects-grid">
                     @foreach (var project in Model.Projects)
                     {
-                        var pendingCount = CountPendingStages(project);
+                        var stageSummary = FormatStageSummary(project);
                         var totStatus = FormatTotStatusShort(project);
                         string? coverPhotoUrl = null;
                         if (project.CoverPhotoId.HasValue)
@@ -272,7 +272,7 @@
                                         {
                                             <span class="badge text-bg-secondary">Archived</span>
                                         }
-                                        @if (project.Tot is { } tot)
+                                        @if (project.Tot is { } tot && project.LifecycleStatus == ProjectLifecycleStatus.Completed)
                                         {
                                             <span class="badge text-bg-light">@FormatTotStatus(tot.Status)</span>
                                         }
@@ -297,9 +297,9 @@
                                     </span>
                                     <span class="projects-card__meta-item">
                                         <i class="bi bi-check2-circle" aria-hidden="true"></i>
-                                        <span>Pending stages: @pendingCount</span>
+                                        <span>@stageSummary</span>
                                     </span>
-                                    @if (!string.IsNullOrWhiteSpace(totStatus))
+                                    @if (project.LifecycleStatus == ProjectLifecycleStatus.Completed && !string.IsNullOrWhiteSpace(totStatus))
                                     {
                                         <span class="projects-card__meta-item">
                                             <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
@@ -394,14 +394,35 @@
 
 @functions
 {
-    private static int CountPendingStages(Project project)
+    private static string FormatStageSummary(Project project)
     {
-        if (project.ProjectStages is not { Count: > 0 })
+        if (project.LifecycleStatus == ProjectLifecycleStatus.Active)
         {
-            return 0;
+            if (project.ProjectStages is not { Count: > 0 })
+            {
+                return "No stages completed yet";
+            }
+
+            var latestCompletedStage = project.ProjectStages
+                .Where(stage => stage.Status == StageStatus.Completed)
+                .OrderByDescending(stage => stage.SortOrder)
+                .ThenByDescending(stage => stage.CompletedOn ?? DateOnly.MinValue)
+                .FirstOrDefault();
+
+            if (latestCompletedStage is null)
+            {
+                return "No stages completed yet";
+            }
+
+            var stageName = StageCodes.DisplayNameOf(latestCompletedStage.StageCode);
+            return $"Last stage completed: {stageName}";
         }
 
-        return project.ProjectStages.Count(stage => stage.Status is StageStatus.InProgress or StageStatus.Blocked or StageStatus.NotStarted);
+        var pendingCount = project.ProjectStages is not { Count: > 0 }
+            ? 0
+            : project.ProjectStages.Count(stage => stage.Status is StageStatus.InProgress or StageStatus.Blocked or StageStatus.NotStarted);
+
+        return $"Pending stages: {pendingCount}";
     }
 
     private static string? FormatTotStatusShort(Project project)
