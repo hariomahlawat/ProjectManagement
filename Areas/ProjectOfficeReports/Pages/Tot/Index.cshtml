@@ -34,6 +34,22 @@
         _ => state.ToString()
     };
 
+    string RequestStateAccentClass(ProjectTotRequestDecisionState state) => state switch
+    {
+        ProjectTotRequestDecisionState.Pending => "is-pending",
+        ProjectTotRequestDecisionState.Approved => "is-approved",
+        ProjectTotRequestDecisionState.Rejected => "is-rejected",
+        _ => "is-pending"
+    };
+
+    string RequestStateBadgeClass(ProjectTotRequestDecisionState state) => state switch
+    {
+        ProjectTotRequestDecisionState.Pending => "tot-request-badge-pending",
+        ProjectTotRequestDecisionState.Approved => "tot-request-badge-approved",
+        ProjectTotRequestDecisionState.Rejected => "tot-request-badge-rejected",
+        _ => "tot-request-badge-pending"
+    };
+
     string FoPmLabel(bool? value) => value switch
     {
         true => "Yes",
@@ -486,41 +502,106 @@
                     else
                     {
                         var requestedOnText = FormatTimestamp(selected.RequestedOnUtc);
-                        <dl class="row mb-0">
-                            <dt class="col-sm-5">Proposed status</dt>
-                            <dd class="col-sm-7">@StatusLabel(selected.RequestedStatus ?? selected.TotStatus ?? ProjectTotStatus.NotStarted)</dd>
-                            <dt class="col-sm-5">Proposed start</dt>
-                            <dd class="col-sm-7">@(FormatDate(selected.RequestedStartedOn) ?? "—")</dd>
-                            <dt class="col-sm-5">Proposed completion</dt>
-                            <dd class="col-sm-7">@(FormatDate(selected.RequestedCompletedOn) ?? "—")</dd>
-                            <dt class="col-sm-5">Proposed MET details</dt>
-                            <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(selected.RequestedMetDetails) ? "—" : selected.RequestedMetDetails)</dd>
-                            <dt class="col-sm-5">Proposed MET completion</dt>
-                            <dd class="col-sm-7">@(FormatDate(selected.RequestedMetCompletedOn) ?? "—")</dd>
-                            <dt class="col-sm-5">FoPM manufactured?</dt>
-                            <dd class="col-sm-7">@FoPmLabel(selected.RequestedFirstProductionModelManufactured)</dd>
-                            <dt class="col-sm-5">FoPM manufacture date</dt>
-                            <dd class="col-sm-7">@(FormatDate(selected.RequestedFirstProductionModelManufacturedOn) ?? "—")</dd>
-                            <dt class="col-sm-5">Submitted by</dt>
-                            <dd class="col-sm-7">
-                                @if (string.IsNullOrWhiteSpace(selected.RequestedBy) && string.IsNullOrEmpty(requestedOnText))
-                                {
-                                    <text>—</text>
-                                }
-                                else
-                                {
-                                    <text>@(string.IsNullOrWhiteSpace(selected.RequestedBy) ? "—" : selected.RequestedBy)</text>
-                                    @if (!string.IsNullOrEmpty(requestedOnText))
-                                    {
-                                        <text> on @requestedOnText</text>
-                                    }
-                                }
-                            </dd>
-                            <dt class="col-sm-5">Decision by</dt>
-                            <dd class="col-sm-7">@(selected.DecidedBy ?? "—")</dd>
-                            <dt class="col-sm-5">Decision on</dt>
-                            <dd class="col-sm-7">@(FormatTimestamp(selected.DecidedOnUtc) ?? "—")</dd>
-                        </dl>
+                        var state = selected.RequestState!.Value;
+                        var stateAccentClass = RequestStateAccentClass(state);
+                        var stateBadgeClass = RequestStateBadgeClass(state);
+                        var stateLabel = RequestStateLabel(state);
+                        var requestedStatusLabel = StatusLabel(selected.RequestedStatus ?? selected.TotStatus ?? ProjectTotStatus.NotStarted);
+                        var currentStatusLabel = StatusLabel(selected.TotStatus ?? ProjectTotStatus.NotStarted);
+                        var proposedStart = FormatDate(selected.RequestedStartedOn) ?? "—";
+                        var proposedCompletion = FormatDate(selected.RequestedCompletedOn) ?? "—";
+                        var requestedMetDetails = string.IsNullOrWhiteSpace(selected.RequestedMetDetails) ? "—" : selected.RequestedMetDetails;
+                        var requestedMetCompletedOn = FormatDate(selected.RequestedMetCompletedOn) ?? "—";
+                        var requestedFoPmManufactured = FoPmLabel(selected.RequestedFirstProductionModelManufactured);
+                        var requestedFoPmManufacturedOn = FormatDate(selected.RequestedFirstProductionModelManufacturedOn) ?? "—";
+                        var submittedBy = string.IsNullOrWhiteSpace(selected.RequestedBy) ? "—" : selected.RequestedBy;
+                        var submittedOn = requestedOnText ?? "—";
+                        var decidedBy = string.IsNullOrWhiteSpace(selected.DecidedBy) ? "—" : selected.DecidedBy;
+                        var decidedOn = FormatTimestamp(selected.DecidedOnUtc) ?? "—";
+                        <ul class="tot-request-timeline list-unstyled mb-0">
+                            <li class="tot-request-item @stateAccentClass">
+                                <div class="tot-request-item-header">
+                                    <span class="tot-request-title">Proposed status</span>
+                                    <span class="tot-request-badge @stateBadgeClass">@stateLabel</span>
+                                </div>
+                                <div class="tot-request-value">@requestedStatusLabel</div>
+                                <div class="tot-request-meta">
+                                    <div class="tot-request-meta-row">
+                                        <span class="tot-request-meta-label">Current</span>
+                                        <span>@currentStatusLabel</span>
+                                    </div>
+                                </div>
+                            </li>
+                            <li class="tot-request-item @stateAccentClass">
+                                <div class="tot-request-item-header">
+                                    <span class="tot-request-title">Proposed schedule</span>
+                                    <span class="tot-request-badge @stateBadgeClass">@stateLabel</span>
+                                </div>
+                                <div class="tot-request-meta">
+                                    <div class="tot-request-meta-row">
+                                        <span class="tot-request-meta-label">Start</span>
+                                        <span>@proposedStart</span>
+                                    </div>
+                                    <div class="tot-request-meta-row">
+                                        <span class="tot-request-meta-label">Completion</span>
+                                        <span>@proposedCompletion</span>
+                                    </div>
+                                </div>
+                            </li>
+                            <li class="tot-request-item @stateAccentClass">
+                                <div class="tot-request-item-header">
+                                    <span class="tot-request-title">MET &amp; FoPM details</span>
+                                    <span class="tot-request-badge @stateBadgeClass">@stateLabel</span>
+                                </div>
+                                <div class="tot-request-value">@requestedMetDetails</div>
+                                <div class="tot-request-meta">
+                                    <div class="tot-request-meta-row">
+                                        <span class="tot-request-meta-label">MET completion</span>
+                                        <span>@requestedMetCompletedOn</span>
+                                    </div>
+                                    <div class="tot-request-meta-row">
+                                        <span class="tot-request-meta-label">FoPM manufactured</span>
+                                        <span>@requestedFoPmManufactured</span>
+                                    </div>
+                                    <div class="tot-request-meta-row">
+                                        <span class="tot-request-meta-label">FoPM manufacture date</span>
+                                        <span>@requestedFoPmManufacturedOn</span>
+                                    </div>
+                                </div>
+                            </li>
+                            <li class="tot-request-item @stateAccentClass">
+                                <div class="tot-request-item-header">
+                                    <span class="tot-request-title">Submission</span>
+                                    <span class="tot-request-badge @stateBadgeClass">@stateLabel</span>
+                                </div>
+                                <div class="tot-request-meta">
+                                    <div class="tot-request-meta-row">
+                                        <span class="tot-request-meta-label">Submitted by</span>
+                                        <span>@submittedBy</span>
+                                    </div>
+                                    <div class="tot-request-meta-row">
+                                        <span class="tot-request-meta-label">Submitted on</span>
+                                        <span>@submittedOn</span>
+                                    </div>
+                                </div>
+                            </li>
+                            <li class="tot-request-item @stateAccentClass">
+                                <div class="tot-request-item-header">
+                                    <span class="tot-request-title">Decision</span>
+                                    <span class="tot-request-badge @stateBadgeClass">@stateLabel</span>
+                                </div>
+                                <div class="tot-request-meta">
+                                    <div class="tot-request-meta-row">
+                                        <span class="tot-request-meta-label">Decision by</span>
+                                        <span>@decidedBy</span>
+                                    </div>
+                                    <div class="tot-request-meta-row">
+                                        <span class="tot-request-meta-label">Decision on</span>
+                                        <span>@decidedOn</span>
+                                    </div>
+                                </div>
+                            </li>
+                        </ul>
                     }
                 </div>
             </div>
