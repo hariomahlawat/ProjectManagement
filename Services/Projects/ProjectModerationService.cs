@@ -399,16 +399,19 @@ public sealed class ProjectModerationService
 
     private string BuildProjectRootPath(int projectId)
     {
-        var segments = new List<string> { _uploadRootProvider.RootPath };
-
-        if (!string.IsNullOrWhiteSpace(_documentOptions.ProjectsSubpath))
+        var rootPath = _uploadRootProvider.RootPath;
+        if (string.IsNullOrWhiteSpace(rootPath))
         {
-            segments.Add(_documentOptions.ProjectsSubpath);
+            throw new InvalidOperationException("Upload root path cannot be null or empty.");
         }
 
-        segments.Add(projectId.ToString(CultureInfo.InvariantCulture));
+        var basePath = string.IsNullOrWhiteSpace(_documentOptions.ProjectsSubpath)
+            ? rootPath
+            : Path.Combine(rootPath, _documentOptions.ProjectsSubpath);
 
-        return Path.GetFullPath(Path.Combine(segments.ToArray()));
+        var fullPath = Path.Combine(basePath, projectId.ToString(CultureInfo.InvariantCulture));
+
+        return Path.GetFullPath(fullPath);
     }
 
     private void TryDeleteParentIfEmpty(string path)

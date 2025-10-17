@@ -17,6 +17,11 @@ public sealed class TestWebHostEnvironment : IWebHostEnvironment
 
     public IFileProvider WebRootFileProvider { get; set; } = new NullFileProvider();
 
-    public string WebRootPath { get; set; }
-        = Path.Combine(Path.GetTempPath(), "ProjectManagement", "wwwroot");
+    private string _webRootPath = Path.Combine(Path.GetTempPath(), "ProjectManagement", "wwwroot");
+
+    public string WebRootPath
+    {
+        get => _webRootPath;
+        set => _webRootPath = value ?? throw new ArgumentNullException(nameof(value));
+    }
 }
