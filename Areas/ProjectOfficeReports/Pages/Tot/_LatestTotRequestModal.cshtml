@@ -1,0 +1,189 @@
+@model ProjectManagement.Areas.ProjectOfficeReports.Application.ProjectTotTrackerRow
+@using System.Globalization
+@using ProjectManagement.Models
+@using ProjectManagement.Utilities
+
+@if (Model.RequestState is null)
+{
+    return;
+}
+
+@{
+    string StatusLabel(ProjectTotStatus status) => status switch
+    {
+        ProjectTotStatus.NotRequired => "Not required",
+        ProjectTotStatus.NotStarted => "Not started",
+        ProjectTotStatus.InProgress => "In progress",
+        ProjectTotStatus.Completed => "Completed",
+        _ => status.ToString()
+    };
+
+    string RequestStateLabel(ProjectTotRequestDecisionState state) => state switch
+    {
+        ProjectTotRequestDecisionState.Pending => "Pending approval",
+        ProjectTotRequestDecisionState.Approved => "Approved",
+        ProjectTotRequestDecisionState.Rejected => "Rejected",
+        _ => state.ToString()
+    };
+
+    string RequestStateAccentClass(ProjectTotRequestDecisionState state) => state switch
+    {
+        ProjectTotRequestDecisionState.Pending => "is-pending",
+        ProjectTotRequestDecisionState.Approved => "is-approved",
+        ProjectTotRequestDecisionState.Rejected => "is-rejected",
+        _ => "is-pending"
+    };
+
+    string RequestStateBadgeClass(ProjectTotRequestDecisionState state) => state switch
+    {
+        ProjectTotRequestDecisionState.Pending => "tot-request-badge-pending",
+        ProjectTotRequestDecisionState.Approved => "tot-request-badge-approved",
+        ProjectTotRequestDecisionState.Rejected => "tot-request-badge-rejected",
+        _ => "tot-request-badge-pending"
+    };
+
+    string FoPmLabel(bool? value) => value switch
+    {
+        true => "Yes",
+        false => "No",
+        _ => "—"
+    };
+
+    var istZone = TimeZoneHelper.GetIst();
+    DateTime? ToIst(DateTime? value) => value.HasValue
+        ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc), istZone)
+        : null;
+
+    string? FormatTimestamp(DateTime? utcValue)
+    {
+        var dt = ToIst(utcValue);
+        return dt.HasValue
+            ? dt.Value.ToString("dd/MM/yyyy 'at' HH:mm 'IST'", CultureInfo.InvariantCulture)
+            : null;
+    }
+
+    string? FormatDate(DateOnly? value) => value?.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+
+    var requestState = Model.RequestState.Value;
+    var stateAccentClass = RequestStateAccentClass(requestState);
+    var stateBadgeClass = RequestStateBadgeClass(requestState);
+    var stateLabel = RequestStateLabel(requestState);
+    var requestedStatusLabel = StatusLabel(Model.RequestedStatus ?? Model.TotStatus ?? ProjectTotStatus.NotStarted);
+    var currentStatusLabel = StatusLabel(Model.TotStatus ?? ProjectTotStatus.NotStarted);
+    var proposedStart = FormatDate(Model.RequestedStartedOn) ?? "—";
+    var proposedCompletion = FormatDate(Model.RequestedCompletedOn) ?? "—";
+    var requestedMetDetails = string.IsNullOrWhiteSpace(Model.RequestedMetDetails) ? "—" : Model.RequestedMetDetails;
+    var requestedMetCompletedOn = FormatDate(Model.RequestedMetCompletedOn) ?? "—";
+    var requestedFoPmManufactured = FoPmLabel(Model.RequestedFirstProductionModelManufactured);
+    var requestedFoPmManufacturedOn = FormatDate(Model.RequestedFirstProductionModelManufacturedOn) ?? "—";
+    var submittedBy = string.IsNullOrWhiteSpace(Model.RequestedBy) ? "—" : Model.RequestedBy;
+    var submittedOn = FormatTimestamp(Model.RequestedOnUtc) ?? "—";
+    var decidedBy = string.IsNullOrWhiteSpace(Model.DecidedBy) ? "—" : Model.DecidedBy;
+    var decidedOn = FormatTimestamp(Model.DecidedOnUtc) ?? "—";
+}
+
+<div class="modal fade" id="tot-request-modal" tabindex="-1" aria-labelledby="tot-request-modal-label" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-scrollable modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="me-3">
+                    <h2 class="modal-title h5 mb-0" id="tot-request-modal-label">Latest ToT request</h2>
+                    <p class="text-muted mb-0">@Model.ProjectName</p>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <span class="tot-request-badge @stateBadgeClass">@stateLabel</span>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <ul class="tot-request-timeline list-unstyled mb-0">
+                    <li class="tot-request-item @stateAccentClass">
+                        <div class="tot-request-item-header">
+                            <span class="tot-request-title">Proposed status</span>
+                            <span class="tot-request-badge @stateBadgeClass">@stateLabel</span>
+                        </div>
+                        <div class="tot-request-value">@requestedStatusLabel</div>
+                        <div class="tot-request-meta">
+                            <div class="tot-request-meta-row">
+                                <span class="tot-request-meta-label">Current</span>
+                                <span>@currentStatusLabel</span>
+                            </div>
+                        </div>
+                    </li>
+                    <li class="tot-request-item @stateAccentClass">
+                        <div class="tot-request-item-header">
+                            <span class="tot-request-title">Proposed schedule</span>
+                            <span class="tot-request-badge @stateBadgeClass">@stateLabel</span>
+                        </div>
+                        <div class="tot-request-meta">
+                            <div class="tot-request-meta-row">
+                                <span class="tot-request-meta-label">Start</span>
+                                <span>@proposedStart</span>
+                            </div>
+                            <div class="tot-request-meta-row">
+                                <span class="tot-request-meta-label">Completion</span>
+                                <span>@proposedCompletion</span>
+                            </div>
+                        </div>
+                    </li>
+                    <li class="tot-request-item @stateAccentClass">
+                        <div class="tot-request-item-header">
+                            <span class="tot-request-title">MET &amp; FoPM details</span>
+                            <span class="tot-request-badge @stateBadgeClass">@stateLabel</span>
+                        </div>
+                        <div class="tot-request-value">@requestedMetDetails</div>
+                        <div class="tot-request-meta">
+                            <div class="tot-request-meta-row">
+                                <span class="tot-request-meta-label">MET completion</span>
+                                <span>@requestedMetCompletedOn</span>
+                            </div>
+                            <div class="tot-request-meta-row">
+                                <span class="tot-request-meta-label">FoPM manufactured</span>
+                                <span>@requestedFoPmManufactured</span>
+                            </div>
+                            <div class="tot-request-meta-row">
+                                <span class="tot-request-meta-label">FoPM manufacture date</span>
+                                <span>@requestedFoPmManufacturedOn</span>
+                            </div>
+                        </div>
+                    </li>
+                    <li class="tot-request-item @stateAccentClass">
+                        <div class="tot-request-item-header">
+                            <span class="tot-request-title">Submission</span>
+                            <span class="tot-request-badge @stateBadgeClass">@stateLabel</span>
+                        </div>
+                        <div class="tot-request-meta">
+                            <div class="tot-request-meta-row">
+                                <span class="tot-request-meta-label">Submitted by</span>
+                                <span>@submittedBy</span>
+                            </div>
+                            <div class="tot-request-meta-row">
+                                <span class="tot-request-meta-label">Submitted on</span>
+                                <span>@submittedOn</span>
+                            </div>
+                        </div>
+                    </li>
+                    <li class="tot-request-item @stateAccentClass">
+                        <div class="tot-request-item-header">
+                            <span class="tot-request-title">Decision</span>
+                            <span class="tot-request-badge @stateBadgeClass">@stateLabel</span>
+                        </div>
+                        <div class="tot-request-meta">
+                            <div class="tot-request-meta-row">
+                                <span class="tot-request-meta-label">Decision by</span>
+                                <span>@decidedBy</span>
+                            </div>
+                            <div class="tot-request-meta-row">
+                                <span class="tot-request-meta-label">Decision on</span>
+                                <span>@decidedOn</span>
+                            </div>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>

@@ -355,11 +355,31 @@
 
 @if (Model.SelectedProject is { } selected)
 {
+    var hasRequest = selected.RequestState is not null;
     <div class="row g-4 mt-4">
-        <div class="col-lg-6">
+        <div class="col-12">
             <div class="card h-100">
-                <div class="card-header">
+                <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
                     <h2 class="h5 mb-0">@selected.ProjectName</h2>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button"
+                                class="btn btn-outline-primary btn-sm"
+                                data-bs-toggle="modal"
+                                data-bs-target="#tot-request-modal"
+                                @(hasRequest ? null : "disabled")>
+                            Latest ToT request
+                        </button>
+                        @if (hasRequest)
+                        {
+                            <span class="tot-request-badge @RequestStateBadgeClass(selected.RequestState!.Value)">
+                                @RequestStateLabel(selected.RequestState.Value)
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">No request</span>
+                        }
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="tot-summary-card">
@@ -465,131 +485,6 @@
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-6">
-            <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h2 class="h5 mb-0">Latest ToT request</h2>
-                    @if (selected.RequestState is { } state)
-                    {
-                        <span class="tot-request-badge @RequestStateBadgeClass(state)">@RequestStateLabel(state)</span>
-                    }
-                    else
-                    {
-                        <span class="badge text-bg-secondary">No request</span>
-                    }
-                </div>
-                <div class="card-body">
-                    @if (selected.RequestState is null)
-                    {
-                        <p class="text-muted mb-0">No ToT request has been submitted for this project yet.</p>
-                    }
-                    else
-                    {
-                        var requestedOnText = FormatTimestamp(selected.RequestedOnUtc);
-                        var requestState = selected.RequestState!.Value;
-                        var stateAccentClass = RequestStateAccentClass(requestState);
-                        var stateBadgeClass = RequestStateBadgeClass(requestState);
-                        var stateLabel = RequestStateLabel(requestState);
-                        var requestedStatusLabel = StatusLabel(selected.RequestedStatus ?? selected.TotStatus ?? ProjectTotStatus.NotStarted);
-                        var currentStatusLabel = StatusLabel(selected.TotStatus ?? ProjectTotStatus.NotStarted);
-                        var proposedStart = FormatDate(selected.RequestedStartedOn) ?? "—";
-                        var proposedCompletion = FormatDate(selected.RequestedCompletedOn) ?? "—";
-                        var requestedMetDetails = string.IsNullOrWhiteSpace(selected.RequestedMetDetails) ? "—" : selected.RequestedMetDetails;
-                        var requestedMetCompletedOn = FormatDate(selected.RequestedMetCompletedOn) ?? "—";
-                        var requestedFoPmManufactured = FoPmLabel(selected.RequestedFirstProductionModelManufactured);
-                        var requestedFoPmManufacturedOn = FormatDate(selected.RequestedFirstProductionModelManufacturedOn) ?? "—";
-                        var submittedBy = string.IsNullOrWhiteSpace(selected.RequestedBy) ? "—" : selected.RequestedBy;
-                        var submittedOn = requestedOnText ?? "—";
-                        var decidedBy = string.IsNullOrWhiteSpace(selected.DecidedBy) ? "—" : selected.DecidedBy;
-                        var decidedOn = FormatTimestamp(selected.DecidedOnUtc) ?? "—";
-                        <ul class="tot-request-timeline list-unstyled mb-0">
-                            <li class="tot-request-item @stateAccentClass">
-                                <div class="tot-request-item-header">
-                                    <span class="tot-request-title">Proposed status</span>
-                                    <span class="tot-request-badge @stateBadgeClass">@stateLabel</span>
-                                </div>
-                                <div class="tot-request-value">@requestedStatusLabel</div>
-                                <div class="tot-request-meta">
-                                    <div class="tot-request-meta-row">
-                                        <span class="tot-request-meta-label">Current</span>
-                                        <span>@currentStatusLabel</span>
-                                    </div>
-                                </div>
-                            </li>
-                            <li class="tot-request-item @stateAccentClass">
-                                <div class="tot-request-item-header">
-                                    <span class="tot-request-title">Proposed schedule</span>
-                                    <span class="tot-request-badge @stateBadgeClass">@stateLabel</span>
-                                </div>
-                                <div class="tot-request-meta">
-                                    <div class="tot-request-meta-row">
-                                        <span class="tot-request-meta-label">Start</span>
-                                        <span>@proposedStart</span>
-                                    </div>
-                                    <div class="tot-request-meta-row">
-                                        <span class="tot-request-meta-label">Completion</span>
-                                        <span>@proposedCompletion</span>
-                                    </div>
-                                </div>
-                            </li>
-                            <li class="tot-request-item @stateAccentClass">
-                                <div class="tot-request-item-header">
-                                    <span class="tot-request-title">MET &amp; FoPM details</span>
-                                    <span class="tot-request-badge @stateBadgeClass">@stateLabel</span>
-                                </div>
-                                <div class="tot-request-value">@requestedMetDetails</div>
-                                <div class="tot-request-meta">
-                                    <div class="tot-request-meta-row">
-                                        <span class="tot-request-meta-label">MET completion</span>
-                                        <span>@requestedMetCompletedOn</span>
-                                    </div>
-                                    <div class="tot-request-meta-row">
-                                        <span class="tot-request-meta-label">FoPM manufactured</span>
-                                        <span>@requestedFoPmManufactured</span>
-                                    </div>
-                                    <div class="tot-request-meta-row">
-                                        <span class="tot-request-meta-label">FoPM manufacture date</span>
-                                        <span>@requestedFoPmManufacturedOn</span>
-                                    </div>
-                                </div>
-                            </li>
-                            <li class="tot-request-item @stateAccentClass">
-                                <div class="tot-request-item-header">
-                                    <span class="tot-request-title">Submission</span>
-                                    <span class="tot-request-badge @stateBadgeClass">@stateLabel</span>
-                                </div>
-                                <div class="tot-request-meta">
-                                    <div class="tot-request-meta-row">
-                                        <span class="tot-request-meta-label">Submitted by</span>
-                                        <span>@submittedBy</span>
-                                    </div>
-                                    <div class="tot-request-meta-row">
-                                        <span class="tot-request-meta-label">Submitted on</span>
-                                        <span>@submittedOn</span>
-                                    </div>
-                                </div>
-                            </li>
-                            <li class="tot-request-item @stateAccentClass">
-                                <div class="tot-request-item-header">
-                                    <span class="tot-request-title">Decision</span>
-                                    <span class="tot-request-badge @stateBadgeClass">@stateLabel</span>
-                                </div>
-                                <div class="tot-request-meta">
-                                    <div class="tot-request-meta-row">
-                                        <span class="tot-request-meta-label">Decision by</span>
-                                        <span>@decidedBy</span>
-                                    </div>
-                                    <div class="tot-request-meta-row">
-                                        <span class="tot-request-meta-label">Decision on</span>
-                                        <span>@decidedOn</span>
-                                    </div>
-                                </div>
-                            </li>
-                        </ul>
-                    }
                 </div>
             </div>
         </div>
@@ -871,4 +766,9 @@
             </div>
         }
     </div>
+
+    @if (hasRequest)
+    {
+        <partial name="_LatestTotRequestModal" model="selected" />
+    }
 }
