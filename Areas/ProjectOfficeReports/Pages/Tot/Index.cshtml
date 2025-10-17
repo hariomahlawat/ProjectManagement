@@ -1,6 +1,7 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel
 @using System.Collections.Generic
+@using System.Globalization
 @using System.Linq
 @using ProjectManagement.Models
 @using ProjectManagement.Services.Projects
@@ -44,6 +45,14 @@
     DateTime? ToIst(DateTime? value) => value.HasValue
         ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(value.Value, DateTimeKind.Utc), istZone)
         : null;
+
+    string FormatTimestamp(DateTime? utcValue)
+    {
+        var dt = ToIst(utcValue);
+        return dt.HasValue
+            ? dt.Value.ToString("dd MMM yyyy 'at' h:mm tt 'IST'", CultureInfo.InvariantCulture)
+            : null;
+    }
 
 }
 
@@ -362,7 +371,7 @@
                         <dt class="col-sm-5">Last approved by</dt>
                         <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(selected.TotLastApprovedBy) ? "—" : selected.TotLastApprovedBy)</dd>
                         <dt class="col-sm-5">Approved on</dt>
-                        <dd class="col-sm-7">@(ToIst(selected.TotLastApprovedOnUtc)?.ToString("dd MMM yyyy HH:mm") ?? "—")</dd>
+                        <dd class="col-sm-7">@(FormatTimestamp(selected.TotLastApprovedOnUtc) ?? "—")</dd>
                     </dl>
                 </div>
             </div>
@@ -403,11 +412,11 @@
                             <dt class="col-sm-5">FoPM manufacture date</dt>
                             <dd class="col-sm-7">@(selected.RequestedFirstProductionModelManufacturedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
                             <dt class="col-sm-5">Submitted by</dt>
-                            <dd class="col-sm-7">@(selected.RequestedBy ?? "—") on @(ToIst(selected.RequestedOnUtc)?.ToString("dd MMM yyyy HH:mm") ?? "—")</dd>
+                            <dd class="col-sm-7">@(selected.RequestedBy ?? "—") on @(FormatTimestamp(selected.RequestedOnUtc) ?? "—")</dd>
                             <dt class="col-sm-5">Decision by</dt>
                             <dd class="col-sm-7">@(selected.DecidedBy ?? "—")</dd>
                             <dt class="col-sm-5">Decision on</dt>
-                            <dd class="col-sm-7">@(ToIst(selected.DecidedOnUtc)?.ToString("dd MMM yyyy HH:mm") ?? "—")</dd>
+                            <dd class="col-sm-7">@(FormatTimestamp(selected.DecidedOnUtc) ?? "—")</dd>
                         </dl>
                     }
                 </div>
@@ -438,11 +447,10 @@
                         <div class="d-flex flex-column gap-3">
                             @if (externalRemark is not null)
                             {
-                                var createdLocal = ToIst(externalRemark.CreatedAtUtc);
                                 <div>
                                     <h3 class="h6 mb-1">External remark</h3>
                                     <div class="text-muted small">
-                                        Posted @(createdLocal?.ToString("dd MMM yyyy HH:mm") ?? "—") IST
+                                        Posted @(FormatTimestamp(externalRemark.CreatedAtUtc) ?? "—")
                                         @if (externalRemark.EventDate.HasValue)
                                         {
                                             <span> • Event @externalRemark.EventDate.Value:dd MMM yyyy</span>
@@ -453,11 +461,10 @@
                             }
                             @if (internalRemark is not null)
                             {
-                                var createdLocal = ToIst(internalRemark.CreatedAtUtc);
                                 <div>
                                     <h3 class="h6 mb-1">Internal remark</h3>
                                     <div class="text-muted small">
-                                        Posted @(createdLocal?.ToString("dd MMM yyyy HH:mm") ?? "—") IST
+                                        Posted @(FormatTimestamp(internalRemark.CreatedAtUtc) ?? "—")
                                         @if (internalRemark.EventDate.HasValue)
                                         {
                                             <span> • Event @internalRemark.EventDate.Value:dd MMM yyyy</span>
