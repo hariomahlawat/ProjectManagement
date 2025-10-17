@@ -71,6 +71,8 @@ public sealed class IndexModel : PageModel
 
     public IReadOnlyList<ProjectTotTrackerRow> Projects { get; private set; } = Array.Empty<ProjectTotTrackerRow>();
 
+    public TotTrackerSummary Summary { get; private set; } = TotTrackerSummary.Empty;
+
     public ProjectTotTrackerRow? SelectedProject { get; private set; }
 
     public bool CanSubmit { get; private set; }
@@ -117,6 +119,64 @@ public sealed class IndexModel : PageModel
         public bool Approve { get; set; }
 
         public string? RowVersion { get; set; }
+    }
+
+    public sealed class TotTrackerSummary
+    {
+        public static TotTrackerSummary Empty { get; } = new();
+
+        public int TotalProjects { get; init; }
+
+        public int TotNotRequired { get; init; }
+
+        public int TotNotStarted { get; init; }
+
+        public int TotInProgress { get; init; }
+
+        public int TotCompleted { get; init; }
+
+        public int PendingApprovals { get; init; }
+
+        public int ApprovedRequests { get; init; }
+
+        public int RejectedRequests { get; init; }
+
+        public int ProjectsRequiringTot { get; init; }
+
+        public int ProjectsWithMetCompleted { get; init; }
+
+        public int ProjectsWithFirstProductionModel { get; init; }
+
+        public static TotTrackerSummary FromProjects(IReadOnlyList<ProjectTotTrackerRow>? projects)
+        {
+            var items = projects ?? Array.Empty<ProjectTotTrackerRow>();
+
+            var total = items.Count;
+            var notRequired = items.Count(p => p.TotStatus == ProjectTotStatus.NotRequired);
+            var notStarted = items.Count(p => p.TotStatus == ProjectTotStatus.NotStarted);
+            var inProgress = items.Count(p => p.TotStatus == ProjectTotStatus.InProgress);
+            var completed = items.Count(p => p.TotStatus == ProjectTotStatus.Completed);
+            var pending = items.Count(p => p.RequestState == ProjectTotRequestDecisionState.Pending);
+            var approved = items.Count(p => p.RequestState == ProjectTotRequestDecisionState.Approved);
+            var rejected = items.Count(p => p.RequestState == ProjectTotRequestDecisionState.Rejected);
+            var metCompleted = items.Count(p => p.TotMetCompletedOn.HasValue);
+            var firstProduction = items.Count(p => p.TotFirstProductionModelManufactured == true);
+
+            return new TotTrackerSummary
+            {
+                TotalProjects = total,
+                TotNotRequired = notRequired,
+                TotNotStarted = notStarted,
+                TotInProgress = inProgress,
+                TotCompleted = completed,
+                PendingApprovals = pending,
+                ApprovedRequests = approved,
+                RejectedRequests = rejected,
+                ProjectsRequiringTot = total - notRequired,
+                ProjectsWithMetCompleted = metCompleted,
+                ProjectsWithFirstProductionModel = firstProduction
+            };
+        }
     }
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
@@ -325,6 +385,7 @@ public sealed class IndexModel : PageModel
         };
 
         Projects = await _trackerService.GetAsync(filter, cancellationToken);
+        Summary = TotTrackerSummary.FromProjects(Projects);
 
         SelectedProject = SelectedProjectId.HasValue
             ? Projects.FirstOrDefault(p => p.ProjectId == SelectedProjectId.Value)

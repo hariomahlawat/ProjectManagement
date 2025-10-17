@@ -54,6 +54,107 @@
     </div>
 </div>
 
+@if (Model.Summary is { } summary)
+{
+    <div class="row g-3 mb-4">
+        <div class="col-12 col-sm-6 col-lg-4 col-xxl-2">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body py-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary-subtle text-primary" style="width: 3rem; height: 3rem;">
+                            <i class="bi bi-kanban" aria-hidden="true"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted text-uppercase small fw-semibold">Tracked projects</div>
+                            <div class="fs-3 fw-bold mb-0">@summary.TotalProjects</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-4 col-xxl-2">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body py-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-info-subtle text-info" style="width: 3rem; height: 3rem;">
+                            <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted text-uppercase small fw-semibold">Active ToT streams</div>
+                            <div class="fs-3 fw-bold mb-1">@summary.ProjectsRequiringTot</div>
+                            <span class="badge text-bg-light text-secondary">@summary.TotNotRequired not required</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-4 col-xxl-2">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body py-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-warning-subtle text-warning" style="width: 3rem; height: 3rem;">
+                            <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted text-uppercase small fw-semibold">Pending approvals</div>
+                            <div class="fs-3 fw-bold mb-1">@summary.PendingApprovals</div>
+                            <span class="badge text-bg-warning text-uppercase">Action needed</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-4 col-xxl-2">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body py-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary-subtle text-primary" style="width: 3rem; height: 3rem;">
+                            <i class="bi bi-lightning-charge" aria-hidden="true"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted text-uppercase small fw-semibold">In progress</div>
+                            <div class="fs-3 fw-bold mb-1">@summary.TotInProgress</div>
+                            <span class="badge text-bg-primary-subtle text-primary">@summary.TotNotStarted not started</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-4 col-xxl-2">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body py-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-success-subtle text-success" style="width: 3rem; height: 3rem;">
+                            <i class="bi bi-check-circle" aria-hidden="true"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted text-uppercase small fw-semibold">ToT completed</div>
+                            <div class="fs-3 fw-bold mb-1">@summary.TotCompleted</div>
+                            <span class="badge text-bg-success text-uppercase">Momentum</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-sm-6 col-lg-4 col-xxl-2">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body py-3">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-secondary-subtle text-secondary" style="width: 3rem; height: 3rem;">
+                            <i class="bi bi-award" aria-hidden="true"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted text-uppercase small fw-semibold">Milestones delivered</div>
+                            <div class="fs-3 fw-bold mb-1">@summary.ProjectsWithMetCompleted</div>
+                            <span class="badge text-bg-secondary">@summary.ProjectsWithFirstProductionModel first builds</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 <div class="card shadow-sm mb-4 tot-filter-card">
     <div class="card-body">
         <form method="get" class="row g-3 align-items-end">
