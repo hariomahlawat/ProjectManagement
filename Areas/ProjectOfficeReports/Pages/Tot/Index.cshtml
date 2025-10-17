@@ -474,7 +474,7 @@
                     <h2 class="h5 mb-0">Latest ToT request</h2>
                     @if (selected.RequestState is { } state)
                     {
-                        <span class="badge text-bg-@(state == ProjectTotRequestDecisionState.Pending ? "info" : state == ProjectTotRequestDecisionState.Approved ? "success" : "warning")">@RequestStateLabel(state)</span>
+                        <span class="tot-request-badge @RequestStateBadgeClass(state)">@RequestStateLabel(state)</span>
                     }
                     else
                     {
