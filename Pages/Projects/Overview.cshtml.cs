@@ -944,9 +944,20 @@ namespace ProjectManagement.Pages.Projects
                     r.Type,
                     r.Body,
                     r.CreatedAtUtc,
-                    r.AuthorRole
+                    r.AuthorRole,
+                    r.AuthorUserId
                 })
                 .FirstOrDefaultAsync(ct);
+
+            string? authorDisplayName = null;
+            if (!string.IsNullOrWhiteSpace(lastRemark?.AuthorUserId))
+            {
+                authorDisplayName = await _db.Users
+                    .AsNoTracking()
+                    .Where(u => u.Id == lastRemark.AuthorUserId)
+                    .Select(u => u.FullName ?? u.UserName ?? u.Email ?? u.Id)
+                    .FirstOrDefaultAsync(ct) ?? lastRemark.AuthorUserId;
+            }
 
             return new ProjectRemarkSummaryViewModel
             {
@@ -956,7 +967,8 @@ namespace ProjectManagement.Pages.Projects
                 LastRemarkType = lastRemark?.Type,
                 LastRemarkActorRole = lastRemark?.AuthorRole,
                 LastActivityUtc = lastRemark?.CreatedAtUtc,
-                LastRemarkPreview = BuildRemarkPreview(lastRemark?.Body)
+                LastRemarkPreview = BuildRemarkPreview(lastRemark?.Body),
+                LastRemarkAuthorDisplayName = authorDisplayName
             };
         }
 

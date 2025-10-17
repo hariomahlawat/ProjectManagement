@@ -6,6 +6,7 @@
 @using ProjectManagement.Models.Execution
 @using ProjectManagement.Models.Stages
 @using ProjectManagement.Services.Projects
+@using ProjectManagement.ViewModels
 @{
     ViewData["Title"] = "Projects";
 
@@ -243,6 +244,12 @@
                             ? "this project"
                             : project.Name;
                         var coverPhotoAlt = $"{projectNameForMedia} cover photo";
+                        var remarkSummary = Model.RemarkSummaries.TryGetValue(project.Id, out var summary)
+                            ? summary
+                            : ProjectRemarkSummaryViewModel.Empty;
+                        var remarkAuthor = string.IsNullOrWhiteSpace(remarkSummary.LastRemarkAuthorDisplayName)
+                            ? "Unknown author"
+                            : remarkSummary.LastRemarkAuthorDisplayName;
                         <article class="projects-card shadow-sm">
                             <div class="projects-card__media">
                                 @if (!string.IsNullOrEmpty(coverPhotoUrl))
@@ -258,7 +265,7 @@
                                 }
                             </div>
                             <div class="projects-card__body">
-                                <div class="projects-card__title-row">
+                                <div class="projects-card__header">
                                     <h2 class="projects-card__title">
                                         <a asp-page="/Projects/Overview"
                                            asp-route-id="@project.Id"
@@ -266,7 +273,7 @@
                                             @project.Name
                                         </a>
                                     </h2>
-                                    <div class="d-flex flex-wrap gap-1 justify-content-end">
+                                    <div class="projects-card__badges">
                                         <span class="badge rounded-pill text-bg-primary">@FormatLifecycleStatus(project.LifecycleStatus)</span>
                                         @if (project.IsArchived)
                                         {
@@ -278,42 +285,58 @@
                                         }
                                     </div>
                                 </div>
-                                <div class="projects-card__meta">
-                                    <span class="projects-card__meta-item">
+                                <div class="projects-card__info">
+                                    <span class="projects-card__info-item">
                                         <i class="bi bi-diagram-3" aria-hidden="true"></i>
                                         <span>@(project.Category?.Name ?? "Uncategorised")</span>
                                     </span>
-                                    <span class="projects-card__meta-item">
+                                    <span class="projects-card__info-item">
                                         <i class="bi bi-hash" aria-hidden="true"></i>
                                         <span>@(string.IsNullOrWhiteSpace(project.CaseFileNumber) ? "No case file" : project.CaseFileNumber)</span>
                                     </span>
-                                    <span class="projects-card__meta-item">
+                                    <span class="projects-card__info-item">
                                         <i class="bi bi-person" aria-hidden="true"></i>
                                         <span>@(project.LeadPoUser?.FullName ?? project.LeadPoUser?.UserName ?? "Project officer not assigned")</span>
                                     </span>
-                                    <span class="projects-card__meta-item">
-                                        <i class="bi bi-mortarboard" aria-hidden="true"></i>
-                                        <span>@(project.HodUser?.FullName ?? project.HodUser?.UserName ?? "HoD not assigned")</span>
-                                    </span>
+                                </div>
+                                <div class="projects-card__status-line">
                                     @if (!string.IsNullOrWhiteSpace(stageSummary))
                                     {
-                                        <span class="projects-card__meta-item">
+                                        <span class="projects-card__status-item">
                                             <i class="bi bi-check2-circle" aria-hidden="true"></i>
                                             <span>@stageSummary</span>
                                         </span>
                                     }
                                     @if (project.LifecycleStatus == ProjectLifecycleStatus.Completed && !string.IsNullOrWhiteSpace(totStatus))
                                     {
-                                        <span class="projects-card__meta-item">
+                                        <span class="projects-card__status-item">
                                             <i class="bi bi-arrow-left-right" aria-hidden="true"></i>
                                             <span>@totStatus</span>
                                         </span>
                                     }
                                 </div>
-                                @if (!string.IsNullOrWhiteSpace(project.Description))
-                                {
-                                    <p class="projects-card__description">@project.Description</p>
-                                }
+                                <div class="projects-card__remark">
+                                    <div class="projects-card__remark-label">
+                                        <i class="bi bi-chat-text" aria-hidden="true"></i>
+                                        <span>Last remark</span>
+                                    </div>
+                                    @if (remarkSummary.HasRemarks && !string.IsNullOrWhiteSpace(remarkSummary.LastRemarkPreview))
+                                    {
+                                        <p class="projects-card__remark-text">@remarkSummary.LastRemarkPreview</p>
+                                    }
+                                    else if (remarkSummary.HasRemarks)
+                                    {
+                                        <p class="projects-card__remark-text">Remark available</p>
+                                    }
+                                    else
+                                    {
+                                        <p class="projects-card__remark-empty">No remarks yet</p>
+                                    }
+                                    @if (remarkSummary.HasRemarks)
+                                    {
+                                        <div class="projects-card__remark-meta">by @remarkAuthor</div>
+                                    }
+                                </div>
                             </div>
                         </article>
                     }

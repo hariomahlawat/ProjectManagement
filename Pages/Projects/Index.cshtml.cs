@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc;
@@ -9,8 +10,10 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Remarks;
 using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Projects;
+using ProjectManagement.ViewModels;
 
 namespace ProjectManagement.Pages.Projects
 {
@@ -114,6 +117,9 @@ namespace ProjectManagement.Pages.Projects
 
         public IReadOnlyList<LifecycleFilterTab> LifecycleTabs { get; private set; } = Array.Empty<LifecycleFilterTab>();
 
+        public IReadOnlyDictionary<int, ProjectRemarkSummaryViewModel> RemarkSummaries { get; private set; }
+            = new Dictionary<int, ProjectRemarkSummaryViewModel>();
+
         public async Task OnGetAsync()
         {
             await LoadFilterOptionsAsync();
@@ -216,6 +222,7 @@ namespace ProjectManagement.Pages.Projects
             }
 
             Projects = await query.Skip(skip).Take(PageSize).ToListAsync();
+            RemarkSummaries = await LoadRemarkSummariesAsync(Projects, HttpContext.RequestAborted);
 
             ResultsStart = TotalCount == 0 ? 0 : skip + 1;
             ResultsEnd = TotalCount == 0 ? 0 : Math.Min(skip + Projects.Count, TotalCount);
@@ -385,6 +392,151 @@ namespace ProjectManagement.Pages.Projects
 
             return option.Id;
         }
+
+        private async Task<IReadOnlyDictionary<int, ProjectRemarkSummaryViewModel>> LoadRemarkSummariesAsync(
+            IReadOnlyCollection<Project> projects,
+            CancellationToken cancellationToken)
+        {
+            if (projects.Count == 0)
+            {
+                return new Dictionary<int, ProjectRemarkSummaryViewModel>();
+            }
+
+            var projectIds = projects.Select(p => p.Id).ToArray();
+
+            var remarks = await _db.Remarks
+                .AsNoTracking()
+                .Where(r => projectIds.Contains(r.ProjectId) && !r.IsDeleted)
+                .Select(r => new RemarkProjection(
+                    r.ProjectId,
+                    r.Id,
+                    r.Type,
+                    r.AuthorRole,
+                    r.AuthorUserId,
+                    r.Body,
+                    r.CreatedAtUtc))
+                .ToListAsync(cancellationToken);
+
+            var authorLookup = await BuildAuthorLookupAsync(remarks, cancellationToken);
+
+            var summaries = remarks
+                .GroupBy(r => r.ProjectId)
+                .ToDictionary(
+                    g => g.Key,
+                    g =>
+                    {
+                        var ordered = g
+                            .OrderByDescending(r => r.CreatedAtUtc)
+                            .ThenByDescending(r => r.Id)
+                            .ToList();
+
+                        var last = ordered.FirstOrDefault();
+
+                        return new ProjectRemarkSummaryViewModel
+                        {
+                            InternalCount = g.Count(r => r.Type == RemarkType.Internal),
+                            ExternalCount = g.Count(r => r.Type == RemarkType.External),
+                            LastRemarkId = last?.Id,
+                            LastRemarkType = last?.Type,
+                            LastRemarkActorRole = last?.AuthorRole,
+                            LastActivityUtc = last?.CreatedAtUtc,
+                            LastRemarkPreview = BuildRemarkPreview(last?.Body),
+                            LastRemarkAuthorDisplayName = ResolveAuthorDisplayName(last?.AuthorUserId, authorLookup)
+                        };
+                    });
+
+            foreach (var project in projects)
+            {
+                if (!summaries.ContainsKey(project.Id))
+                {
+                    summaries[project.Id] = ProjectRemarkSummaryViewModel.Empty;
+                }
+            }
+
+            return summaries;
+        }
+
+        private async Task<IReadOnlyDictionary<string, string>> BuildAuthorLookupAsync(
+            IEnumerable<RemarkProjection> remarks,
+            CancellationToken cancellationToken)
+        {
+            var authorIds = remarks
+                .Select(r => r.AuthorUserId)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+            if (authorIds.Length == 0)
+            {
+                return new Dictionary<string, string>(StringComparer.Ordinal);
+            }
+
+            var authors = await _db.Users
+                .AsNoTracking()
+                .Where(u => authorIds.Contains(u.Id))
+                .Select(u => new
+                {
+                    u.Id,
+                    u.FullName,
+                    u.UserName,
+                    u.Email
+                })
+                .ToListAsync(cancellationToken);
+
+            return authors.ToDictionary(
+                a => a.Id,
+                a => !string.IsNullOrWhiteSpace(a.FullName)
+                    ? a.FullName!
+                    : !string.IsNullOrWhiteSpace(a.UserName)
+                        ? a.UserName!
+                        : !string.IsNullOrWhiteSpace(a.Email)
+                            ? a.Email!
+                            : a.Id,
+                StringComparer.Ordinal);
+        }
+
+        private static string? ResolveAuthorDisplayName(
+            string? authorUserId,
+            IReadOnlyDictionary<string, string> authorLookup)
+        {
+            if (string.IsNullOrWhiteSpace(authorUserId))
+            {
+                return null;
+            }
+
+            return authorLookup.TryGetValue(authorUserId, out var display)
+                ? display
+                : authorUserId;
+        }
+
+        private static string? BuildRemarkPreview(string? body)
+        {
+            if (string.IsNullOrWhiteSpace(body))
+            {
+                return null;
+            }
+
+            var trimmed = body.Trim();
+            trimmed = trimmed.Replace("\r", " ", StringComparison.Ordinal)
+                .Replace("\n", " ", StringComparison.Ordinal);
+
+            const int limit = 120;
+            if (trimmed.Length <= limit)
+            {
+                return trimmed;
+            }
+
+            return string.Concat(trimmed.AsSpan(0, limit), "…");
+        }
+
+        private sealed record RemarkProjection(
+            int ProjectId,
+            int Id,
+            RemarkType Type,
+            RemarkActorRole AuthorRole,
+            string? AuthorUserId,
+            string? Body,
+            DateTime CreatedAtUtc);
 
         private async Task<IReadOnlyDictionary<ProjectLifecycleFilter, int>> CountProjectsByLifecycleAsync(ProjectSearchFilters baseFilters)
         {
