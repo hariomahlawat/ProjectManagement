@@ -286,16 +286,16 @@
                                     }
                                     @if (latestRemark is not null)
                                     {
-                                        var createdLocal = ToIst(latestRemark.CreatedAtUtc);
+                                        var createdText = FormatTimestamp(latestRemark.CreatedAtUtc);
                                         <div class="text-muted small mt-1">
                                             <span class="fw-semibold">Latest @latestRemark.TypeLabel remark</span>
                                             @if (latestRemark.EventDate.HasValue)
                                             {
                                                 <span> (@latestRemark.EventDate.Value:dd MMM yyyy)</span>
                                             }
-                                            @if (createdLocal.HasValue)
+                                            @if (!string.IsNullOrEmpty(createdText))
                                             {
-                                                <span> • posted @createdLocal.Value:dd MMM yyyy HH:mm</span>
+                                                <span> • posted @createdText</span>
                                             }
                                             <div class="text-truncate" style="max-width: 28rem;">@latestRemark.Body</div>
                                         </div>
@@ -397,6 +397,7 @@
                     }
                     else
                     {
+                        var requestedOnText = FormatTimestamp(selected.RequestedOnUtc);
                         <dl class="row mb-0">
                             <dt class="col-sm-5">Proposed status</dt>
                             <dd class="col-sm-7">@StatusLabel(selected.RequestedStatus ?? selected.TotStatus ?? ProjectTotStatus.NotStarted)</dd>
@@ -413,7 +414,20 @@
                             <dt class="col-sm-5">FoPM manufacture date</dt>
                             <dd class="col-sm-7">@(selected.RequestedFirstProductionModelManufacturedOn?.ToString("dd MMM yyyy") ?? "—")</dd>
                             <dt class="col-sm-5">Submitted by</dt>
-                            <dd class="col-sm-7">@(selected.RequestedBy ?? "—") on @(FormatTimestamp(selected.RequestedOnUtc) ?? "—")</dd>
+                            <dd class="col-sm-7">
+                                @if (string.IsNullOrWhiteSpace(selected.RequestedBy) && string.IsNullOrEmpty(requestedOnText))
+                                {
+                                    <text>—</text>
+                                }
+                                else
+                                {
+                                    <text>@(string.IsNullOrWhiteSpace(selected.RequestedBy) ? "—" : selected.RequestedBy)</text>
+                                    @if (!string.IsNullOrEmpty(requestedOnText))
+                                    {
+                                        <text> on @requestedOnText</text>
+                                    }
+                                }
+                            </dd>
                             <dt class="col-sm-5">Decision by</dt>
                             <dd class="col-sm-7">@(selected.DecidedBy ?? "—")</dd>
                             <dt class="col-sm-5">Decision on</dt>
