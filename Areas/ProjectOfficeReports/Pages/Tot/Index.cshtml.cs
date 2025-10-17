@@ -79,6 +79,8 @@ public sealed class IndexModel : PageModel
 
     public bool CanApprove { get; private set; }
 
+    public bool ShowSubmitModal { get; private set; }
+
     [BindProperty]
     public SubmitRequestInput SubmitInput { get; set; } = new();
 
@@ -199,6 +201,7 @@ public sealed class IndexModel : PageModel
         {
             await PopulateAsync(cancellationToken);
             SubmitContextBody = submitContext ?? SubmitContextBody;
+            ShowSubmitModal = true;
             return Page();
         }
 
@@ -206,6 +209,7 @@ public sealed class IndexModel : PageModel
         {
             await PopulateAsync(cancellationToken);
             SubmitContextBody = submitContext;
+            ShowSubmitModal = true;
             return Page();
         }
 
@@ -256,6 +260,7 @@ public sealed class IndexModel : PageModel
             SubmitInput.FirstProductionModelManufactured = firstProductionModelManufactured;
             SubmitInput.FirstProductionModelManufacturedOn = firstProductionModelManufacturedOn;
             SubmitContextBody = submitContext;
+            ShowSubmitModal = true;
             return Page();
         }
 
