@@ -15,7 +15,7 @@
     {
         var dt = ToIst(utcValue);
         return dt.HasValue
-            ? dt.Value.ToString("dd MMM yyyy 'at' h:mm tt 'IST'", CultureInfo.InvariantCulture)
+            ? dt.Value.ToString("dd/MM/yyyy 'at' HH:mm 'IST'", CultureInfo.InvariantCulture)
             : null;
     }
 }
