@@ -359,26 +359,109 @@
                     <h2 class="h5 mb-0">@selected.ProjectName</h2>
                 </div>
                 <div class="card-body">
-                    <dl class="row mb-0">
-                        <dt class="col-sm-5">Current ToT status</dt>
-                        <dd class="col-sm-7">@StatusLabel(selected.TotStatus ?? ProjectTotStatus.NotStarted)</dd>
-                        <dt class="col-sm-5">Started on</dt>
-                        <dd class="col-sm-7">@(FormatDate(selected.TotStartedOn) ?? "—")</dd>
-                        <dt class="col-sm-5">Completed on</dt>
-                        <dd class="col-sm-7">@(FormatDate(selected.TotCompletedOn) ?? "—")</dd>
-                        <dt class="col-sm-5">MET details</dt>
-                        <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(selected.TotMetDetails) ? "—" : selected.TotMetDetails)</dd>
-                        <dt class="col-sm-5">MET completed on</dt>
-                        <dd class="col-sm-7">@(FormatDate(selected.TotMetCompletedOn) ?? "—")</dd>
-                        <dt class="col-sm-5">First production model manufactured</dt>
-                        <dd class="col-sm-7">@FoPmLabel(selected.TotFirstProductionModelManufactured)</dd>
-                        <dt class="col-sm-5">Manufactured on</dt>
-                        <dd class="col-sm-7">@(FormatDate(selected.TotFirstProductionModelManufacturedOn) ?? "—")</dd>
-                        <dt class="col-sm-5">Last approved by</dt>
-                        <dd class="col-sm-7">@(string.IsNullOrWhiteSpace(selected.TotLastApprovedBy) ? "—" : selected.TotLastApprovedBy)</dd>
-                        <dt class="col-sm-5">Approved on</dt>
-                        <dd class="col-sm-7">@(FormatTimestamp(selected.TotLastApprovedOnUtc) ?? "—")</dd>
-                    </dl>
+                    <div class="tot-summary-card">
+                        <div class="row g-3">
+                            <div class="col-sm-6 col-xl-4">
+                                <div class="tot-summary-item h-100">
+                                    <div class="tot-summary-icon text-primary">
+                                        <i class="bi bi-kanban" aria-hidden="true"></i>
+                                    </div>
+                                    <div class="tot-summary-content">
+                                        <div class="tot-summary-label">Current ToT status</div>
+                                        <div class="tot-summary-value">@StatusLabel(selected.TotStatus ?? ProjectTotStatus.NotStarted)</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-xl-4">
+                                <div class="tot-summary-item h-100">
+                                    <div class="tot-summary-icon text-success">
+                                        <i class="bi bi-play-circle" aria-hidden="true"></i>
+                                    </div>
+                                    <div class="tot-summary-content">
+                                        <div class="tot-summary-label">Started on</div>
+                                        <div class="tot-summary-value">@(FormatDate(selected.TotStartedOn) ?? "—")</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-xl-4">
+                                <div class="tot-summary-item h-100">
+                                    <div class="tot-summary-icon text-info">
+                                        <i class="bi bi-flag" aria-hidden="true"></i>
+                                    </div>
+                                    <div class="tot-summary-content">
+                                        <div class="tot-summary-label">Completed on</div>
+                                        <div class="tot-summary-value">@(FormatDate(selected.TotCompletedOn) ?? "—")</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-xl-4">
+                                <div class="tot-summary-item h-100">
+                                    <div class="tot-summary-icon text-warning">
+                                        <i class="bi bi-clipboard-data" aria-hidden="true"></i>
+                                    </div>
+                                    <div class="tot-summary-content">
+                                        <div class="tot-summary-label">MET details</div>
+                                        <div class="tot-summary-value">@(string.IsNullOrWhiteSpace(selected.TotMetDetails) ? "—" : selected.TotMetDetails)</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-xl-4">
+                                <div class="tot-summary-item h-100">
+                                    <div class="tot-summary-icon text-secondary">
+                                        <i class="bi bi-calendar-check" aria-hidden="true"></i>
+                                    </div>
+                                    <div class="tot-summary-content">
+                                        <div class="tot-summary-label">MET completed on</div>
+                                        <div class="tot-summary-value">@(FormatDate(selected.TotMetCompletedOn) ?? "—")</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-xl-4">
+                                <div class="tot-summary-item h-100">
+                                    <div class="tot-summary-icon text-danger">
+                                        <i class="bi bi-award" aria-hidden="true"></i>
+                                    </div>
+                                    <div class="tot-summary-content">
+                                        <div class="tot-summary-label">First production model manufactured</div>
+                                        <div class="tot-summary-value">@FoPmLabel(selected.TotFirstProductionModelManufactured)</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-xl-4">
+                                <div class="tot-summary-item h-100">
+                                    <div class="tot-summary-icon text-muted">
+                                        <i class="bi bi-gear" aria-hidden="true"></i>
+                                    </div>
+                                    <div class="tot-summary-content">
+                                        <div class="tot-summary-label">Manufactured on</div>
+                                        <div class="tot-summary-value">@(FormatDate(selected.TotFirstProductionModelManufacturedOn) ?? "—")</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-xl-4">
+                                <div class="tot-summary-item h-100">
+                                    <div class="tot-summary-icon text-primary">
+                                        <i class="bi bi-person-check" aria-hidden="true"></i>
+                                    </div>
+                                    <div class="tot-summary-content">
+                                        <div class="tot-summary-label">Last approved by</div>
+                                        <div class="tot-summary-value">@(string.IsNullOrWhiteSpace(selected.TotLastApprovedBy) ? "—" : selected.TotLastApprovedBy)</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-xl-4">
+                                <div class="tot-summary-item h-100">
+                                    <div class="tot-summary-icon text-success">
+                                        <i class="bi bi-clock-history" aria-hidden="true"></i>
+                                    </div>
+                                    <div class="tot-summary-content">
+                                        <div class="tot-summary-label">Approved on</div>
+                                        <div class="tot-summary-value">@(FormatTimestamp(selected.TotLastApprovedOnUtc) ?? "—")</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
