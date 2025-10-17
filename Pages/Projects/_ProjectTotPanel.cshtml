@@ -26,7 +26,7 @@
     var latestUpdate = tot.LatestApprovedUpdate;
     var pendingUpdateCount = tot.PendingUpdateCount;
 
-    <div class="card pm-card">
+    <div class="card pm-card tot-panel">
         <div class="card-header pm-card-header">
             <div class="pm-card-heading">
                 <span class="pm-card-icon" aria-hidden="true">
@@ -34,16 +34,16 @@
                 </span>
                 <div>
                     <h3 class="pm-card-title h6 mb-0">Transfer of Technology</h3>
-                    <p class="pm-card-subtitle mb-0">Status and milestones.</p>
+                    <p class="pm-card-subtitle mb-0">Status, milestones, and the latest movement.</p>
                 </div>
             </div>
             <div class="pm-card-actions d-flex align-items-center gap-2">
-                <span class="badge text-bg-@badgeVariant">@tot.StatusLabel</span>
+                <span class="badge rounded-pill text-bg-@badgeVariant tot-panel__status">@tot.StatusLabel</span>
                 @if (canManageTot && Model.Project is { } project)
                 {
                     if (hasPending)
                     {
-                        <a class="btn btn-sm btn-outline-secondary disabled"
+                        <a class="btn btn-sm btn-outline-primary disabled"
                            href="#"
                            role="button"
                            aria-disabled="true"
@@ -53,7 +53,7 @@
                     }
                     else
                     {
-                        <a class="btn btn-sm btn-outline-secondary"
+                        <a class="btn btn-sm btn-outline-primary"
                            asp-page="/Projects/Tot/Edit"
                            asp-route-id="@project.Id">
                             Update
@@ -69,11 +69,11 @@
                 }
             </div>
         </div>
-        <div class="card-body pm-card-body d-flex flex-column gap-2">
-            <p class="mb-0">@tot.Summary</p>
+        <div class="card-body pm-card-body d-flex flex-column gap-3">
+            <p class="tot-panel__summary mb-0">@tot.Summary</p>
             @if (tot.Facts.Any())
             {
-                <dl class="row small mb-0">
+                <dl class="row small mb-0 tot-panel__facts">
                     @foreach (var fact in tot.Facts)
                     {
                         <dt class="col-sm-5">@fact.Label</dt>
@@ -83,7 +83,7 @@
             }
             @if (!string.IsNullOrWhiteSpace(tot.Remarks))
             {
-                <div class="alert alert-secondary mb-0" role="status">@tot.Remarks</div>
+                <div class="tot-panel__note" role="status">@tot.Remarks</div>
             }
             @if (latestUpdate is { } updateSnippet)
             {
@@ -91,28 +91,28 @@
                 DateTime? publishedLocal = updateSnippet.PublishedOnUtc.HasValue
                     ? TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(updateSnippet.PublishedOnUtc.Value, DateTimeKind.Utc), ist)
                     : null;
-                <div class="border rounded p-3 bg-light small">
-                    <div class="d-flex justify-content-between align-items-center gap-2">
+                <div class="tot-panel__update">
+                    <div class="tot-panel__update-header d-flex justify-content-between align-items-center gap-2">
                         <span class="fw-semibold">Latest update</span>
                         @if (publishedLocal.HasValue)
                         {
-                            <span class="text-muted">@publishedLocal.Value:dd MMM yyyy HH:mm</span>
+                            <span class="tot-panel__timestamp">@publishedLocal.Value.ToString("dd MMM yyyy HH:mm")</span>
                         }
                     </div>
-                    <div class="mt-2" style="white-space: pre-line;">@updateSnippet.Body</div>
+                    <div class="mt-2 tot-panel__update-body" style="white-space: pre-line;">@updateSnippet.Body</div>
                     @if (updateSnippet.EventDate.HasValue)
                     {
-                        <div class="text-muted mt-2">Event date: @updateSnippet.EventDate.Value:dd MMM yyyy</div>
+                        <div class="tot-panel__event-date mt-2">Event date: @updateSnippet.EventDate.Value.ToString("dd MMM yyyy")</div>
                     }
                 </div>
             }
             else
             {
-                <p class="text-muted small mb-0">No published updates yet.</p>
+                <p class="tot-panel__empty mb-0">No published updates yet.</p>
             }
             @if (pendingUpdateCount > 0)
             {
-                <div class="alert alert-info mt-3 mb-0 small" role="status">@pendingUpdateCount pending update@(pendingUpdateCount == 1 ? string.Empty : "s") awaiting HoD/Admin approval.</div>
+                <div class="alert alert-info mt-1 mb-0 small" role="status">@pendingUpdateCount pending update@(pendingUpdateCount == 1 ? string.Empty : "s") awaiting HoD/Admin approval.</div>
             }
             @if (hasPending && pendingRequest is { } request)
             {
@@ -133,7 +133,7 @@
                 <div class="alert alert-@alertVariant mb-0" role="status">
                     <div class="fw-semibold">@request.StateLabel</div>
                     <ul class="mb-0">
-                        <li>Status proposed as <strong>@request.ProposedStatusLabel</strong>@(request.ProposedStartedOn.HasValue ? $" starting {request.ProposedStartedOn.Value:dd MMM yyyy}" : string.Empty)@(request.ProposedCompletedOn.HasValue ? $" completing {request.ProposedCompletedOn.Value:dd MMM yyyy}" : string.Empty).</li>
+                        <li>Status proposed as <strong>@request.ProposedStatusLabel</strong>@(request.ProposedStartedOn.HasValue ? $" starting {request.ProposedStartedOn.Value.ToString("dd MMM yyyy")}" : string.Empty)@(request.ProposedCompletedOn.HasValue ? $" completing {request.ProposedCompletedOn.Value.ToString("dd MMM yyyy")}" : string.Empty).</li>
                         @if (!string.IsNullOrWhiteSpace(request.ProposedMetDetails) || request.ProposedMetCompletedOn.HasValue)
                         {
                             var metDescription = string.IsNullOrWhiteSpace(request.ProposedMetDetails)
@@ -141,8 +141,8 @@
                                 : $"MET details: {request.ProposedMetDetails}";
                             var metSuffix = request.ProposedMetCompletedOn.HasValue
                                 ? (string.IsNullOrWhiteSpace(request.ProposedMetDetails)
-                                    ? $" on {request.ProposedMetCompletedOn.Value:dd MMM yyyy}"
-                                    : $" (completed {request.ProposedMetCompletedOn.Value:dd MMM yyyy})")
+                                    ? $" on {request.ProposedMetCompletedOn.Value.ToString("dd MMM yyyy")}" 
+                                    : $" (completed {request.ProposedMetCompletedOn.Value.ToString("dd MMM yyyy")})")
                                 : string.Empty;
                             <li>@metDescription@metSuffix.</li>
                         }
@@ -152,14 +152,14 @@
                                 ? (request.ProposedFirstProductionModelManufactured.Value ? "Yes" : "No")
                                 : "Not specified";
                             var manufacturedSuffix = request.ProposedFirstProductionModelManufacturedOn.HasValue
-                                ? $" on {request.ProposedFirstProductionModelManufacturedOn.Value:dd MMM yyyy}"
+                                ? $" on {request.ProposedFirstProductionModelManufacturedOn.Value.ToString("dd MMM yyyy")}"
                                 : string.Empty;
                             <li>First production model manufactured: <strong>@manufacturedLabel</strong>@manufacturedSuffix.</li>
                         }
-                        <li>Submitted by @request.SubmittedBy on @submittedOnLocal:dd MMM yyyy HH:mm.</li>
+                        <li>Submitted by @request.SubmittedBy on @submittedOnLocal.ToString("dd MMM yyyy HH:mm").</li>
                         @if (request.State != ProjectTotRequestDecisionState.Pending && decidedOnLocal.HasValue && !string.IsNullOrWhiteSpace(request.DecidedBy))
                         {
-                            <li>Decided by @request.DecidedBy on @decidedOnLocal.Value:dd MMM yyyy HH:mm.</li>
+                            <li>Decided by @request.DecidedBy on @decidedOnLocal.Value.ToString("dd MMM yyyy HH:mm").</li>
                         }
                         @if (!string.IsNullOrWhiteSpace(request.ProposedRemarks))
                         {
@@ -192,7 +192,7 @@
             }
             @if (!hasTot)
             {
-                <p class="text-muted small mb-0">Set up ToT tracking to capture milestones and remarks.</p>
+                <p class="tot-panel__empty mb-0">Set up ToT tracking to capture milestones and remarks.</p>
             }
         </div>
     </div>
