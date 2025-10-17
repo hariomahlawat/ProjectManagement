@@ -88,6 +88,40 @@
                             <button type="submit" class="btn btn-primary">Save changes</button>
                             <a class="btn btn-outline-secondary" asp-page="/Projects/Overview" asp-route-id="@Model.Project?.Id">Cancel</a>
                         </div>
+                        <p class="text-muted small mb-0">Need to add context? Share it as a ToT remark below so the whole team can follow along.</p>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card pm-card mt-4">
+                <div class="card-header pm-card-header">
+                    <div class="pm-card-heading">
+                        <span class="pm-card-icon" aria-hidden="true">
+                            <i class="bi bi-chat-text"></i>
+                        </span>
+                        <div>
+                            <h2 class="pm-card-title h6 mb-0">Transfer of Technology remarks</h2>
+                            <p class="pm-card-subtitle mb-0">Post quick notes for this ToT scope.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body pm-card-body">
+                    @if (!string.IsNullOrEmpty(Model.RemarkStatus))
+                    {
+                        <div class="alert alert-success" role="status">@Model.RemarkStatus</div>
+                    }
+                    <form method="post" asp-page-handler="AddRemark" class="d-flex flex-column gap-3">
+                        <input asp-for="RemarkInput.ProjectId" type="hidden" />
+                        <div>
+                            <label asp-for="RemarkInput.Body" class="form-label">Add a remark</label>
+                            <textarea asp-for="RemarkInput.Body" class="form-control" rows="3"></textarea>
+                            <div class="form-text">Remarks here are saved under Transfer of Technology.</div>
+                            <span asp-validation-for="RemarkInput.Body" class="text-danger"></span>
+                        </div>
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="submit" class="btn btn-primary">Post remark</button>
+                            <a class="btn btn-outline-secondary" asp-page="/Projects/Overview" asp-route-id="@Model.Project?.Id">Open remarks panel</a>
+                        </div>
                     </form>
                 </div>
             </div>

@@ -503,6 +503,12 @@
                                 <input asp-for="SubmitInput.FirstProductionModelManufacturedOn" class="form-control" type="date" />
                                 <span asp-validation-for="SubmitInput.FirstProductionModelManufacturedOn" class="text-danger"></span>
                             </div>
+                            <div class="mt-3">
+                                <label class="form-label" asp-for="SubmitContextBody">Context for approvers (optional)</label>
+                                <textarea asp-for="SubmitContextBody" class="form-control" rows="3"></textarea>
+                                <div class="form-text">Context is saved as a Transfer of Technology remark so the team can track the decision trail.</div>
+                                <span asp-validation-for="SubmitContextBody" class="text-danger"></span>
+                            </div>
                             <button type="submit" class="btn btn-primary">Submit for approval</button>
                         </form>
                     </div>
@@ -525,6 +531,12 @@
                             <input type="hidden" asp-for="SearchTerm" />
                             <input type="hidden" asp-for="OnlyPending" />
                             <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                            <div class="mt-3">
+                                <label class="form-label" asp-for="DecideContextBody">Decision context (optional)</label>
+                                <textarea asp-for="DecideContextBody" class="form-control" rows="3"></textarea>
+                                <div class="form-text">Decision notes are stored as Transfer of Technology remarks.</div>
+                                <span asp-validation-for="DecideContextBody" class="text-danger"></span>
+                            </div>
                             <div class="d-flex gap-2">
                                 <button type="submit" name="DecideInput.Approve" value="true" class="btn btn-success">Approve</button>
                                 <button type="submit" name="DecideInput.Approve" value="false" class="btn btn-outline-danger">Reject</button>
