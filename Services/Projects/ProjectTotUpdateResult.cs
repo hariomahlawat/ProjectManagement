@@ -14,7 +14,6 @@ public sealed record ProjectTotUpdateRequest(
     ProjectTotStatus Status,
     DateOnly? StartedOn,
     DateOnly? CompletedOn,
-    string? Remarks,
     string? MetDetails,
     DateOnly? MetCompletedOn,
     bool? FirstProductionModelManufactured,

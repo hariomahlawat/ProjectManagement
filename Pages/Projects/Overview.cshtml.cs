@@ -1078,7 +1078,6 @@ namespace ProjectManagement.Pages.Projects
             DateOnly? MetCompletedOn,
             bool? FirstProductionModelManufactured,
             DateOnly? FirstProductionModelManufacturedOn,
-            string? Remarks,
             string? LastApprovedByDisplay,
             DateTime? LastApprovedOnUtc);
 
@@ -1091,12 +1090,10 @@ namespace ProjectManagement.Pages.Projects
             DateOnly? ProposedMetCompletedOn,
             bool? ProposedFirstProductionModelManufactured,
             DateOnly? ProposedFirstProductionModelManufacturedOn,
-            string? ProposedRemarks,
             string SubmittedByDisplay,
             DateTime SubmittedOnUtc,
             string? DecidedByDisplay,
-            DateTime? DecidedOnUtc,
-            string? DecisionRemarks);
+            DateTime? DecidedOnUtc);
 
         private async Task<(TotSnapshot? Tot, TotRequestSnapshot? Request)> LoadTotDataAsync(int projectId, CancellationToken ct)
         {
@@ -1139,7 +1136,6 @@ namespace ProjectManagement.Pages.Projects
                     t.MetCompletedOn,
                     t.FirstProductionModelManufactured,
                     t.FirstProductionModelManufacturedOn,
-                    t.Remarks,
                     t.LastApprovedByUser != null && !string.IsNullOrWhiteSpace(t.LastApprovedByUser.FullName)
                         ? t.LastApprovedByUser.FullName
                         : t.LastApprovedByUserId,
@@ -1154,7 +1150,6 @@ namespace ProjectManagement.Pages.Projects
                 null,
                 null,
                 null,
-                t.Remarks,
                 t.LastApprovedByUser != null && !string.IsNullOrWhiteSpace(t.LastApprovedByUser.FullName)
                     ? t.LastApprovedByUser.FullName
                     : t.LastApprovedByUserId,
@@ -1178,7 +1173,6 @@ namespace ProjectManagement.Pages.Projects
                     r.ProposedMetCompletedOn,
                     r.ProposedFirstProductionModelManufactured,
                     r.ProposedFirstProductionModelManufacturedOn,
-                    r.ProposedRemarks,
                     r.SubmittedByUser != null && !string.IsNullOrWhiteSpace(r.SubmittedByUser.FullName)
                         ? r.SubmittedByUser.FullName
                         : r.SubmittedByUserId,
@@ -1186,8 +1180,7 @@ namespace ProjectManagement.Pages.Projects
                     r.DecidedByUser != null && !string.IsNullOrWhiteSpace(r.DecidedByUser.FullName)
                         ? r.DecidedByUser.FullName
                         : r.DecidedByUserId,
-                    r.DecidedOnUtc,
-                    r.DecisionRemarks));
+                    r.DecidedOnUtc));
             }
 
             return query.Select(r => new TotRequestSnapshot(
@@ -1199,7 +1192,6 @@ namespace ProjectManagement.Pages.Projects
                 null,
                 null,
                 null,
-                r.ProposedRemarks,
                 r.SubmittedByUser != null && !string.IsNullOrWhiteSpace(r.SubmittedByUser.FullName)
                     ? r.SubmittedByUser.FullName
                     : r.SubmittedByUserId,
@@ -1207,8 +1199,7 @@ namespace ProjectManagement.Pages.Projects
                 r.DecidedByUser != null && !string.IsNullOrWhiteSpace(r.DecidedByUser.FullName)
                     ? r.DecidedByUser.FullName
                     : r.DecidedByUserId,
-                r.DecidedOnUtc,
-                r.DecisionRemarks));
+                r.DecidedOnUtc));
         }
 
         private async Task<ProjectTotSummaryViewModel> BuildTotSummaryAsync(
@@ -1321,7 +1312,6 @@ namespace ProjectManagement.Pages.Projects
                     _ => tot.Status.ToString()
                 },
                 Summary = summary,
-                Remarks = string.IsNullOrWhiteSpace(tot.Remarks) ? null : tot.Remarks,
                 Facts = facts,
                 LastApprovedBy = tot.LastApprovedByDisplay,
                 LastApprovedOnUtc = tot.LastApprovedOnUtc,
@@ -1372,12 +1362,10 @@ namespace ProjectManagement.Pages.Projects
                 request.ProposedMetCompletedOn,
                 request.ProposedFirstProductionModelManufactured,
                 request.ProposedFirstProductionModelManufacturedOn,
-                string.IsNullOrWhiteSpace(request.ProposedRemarks) ? null : request.ProposedRemarks,
                 request.SubmittedByDisplay,
                 request.SubmittedOnUtc,
                 request.DecidedByDisplay,
-                request.DecidedOnUtc,
-                string.IsNullOrWhiteSpace(request.DecisionRemarks) ? null : request.DecisionRemarks);
+                request.DecidedOnUtc);
         }
 
         private IReadOnlyList<ProjectDocumentFilterOptionViewModel> BuildStageFilters(

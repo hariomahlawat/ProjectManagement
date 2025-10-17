@@ -100,8 +100,6 @@ public sealed class IndexModel : PageModel
         public bool? FirstProductionModelManufactured { get; set; }
 
         public DateOnly? FirstProductionModelManufacturedOn { get; set; }
-
-        public string? Remarks { get; set; }
     }
 
     public sealed class DecideRequestInput
@@ -110,8 +108,6 @@ public sealed class IndexModel : PageModel
         public int ProjectId { get; set; }
 
         public bool Approve { get; set; }
-
-        public string? Remarks { get; set; }
 
         public string? RowVersion { get; set; }
     }
@@ -174,7 +170,6 @@ public sealed class IndexModel : PageModel
             SubmitInput.Status,
             SubmitInput.StartedOn,
             SubmitInput.CompletedOn,
-            SubmitInput.Remarks,
             SubmitInput.MetDetails,
             SubmitInput.MetCompletedOn,
             SubmitInput.FirstProductionModelManufactured,
@@ -201,7 +196,6 @@ public sealed class IndexModel : PageModel
             var metCompletedOn = request.MetCompletedOn;
             var firstProductionModelManufactured = request.FirstProductionModelManufactured;
             var firstProductionModelManufacturedOn = request.FirstProductionModelManufacturedOn;
-            var remarks = request.Remarks;
             ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "Unable to submit the Transfer of Technology update.");
             await PopulateAsync(cancellationToken);
             SubmitInput.ProjectId = projectId;
@@ -212,7 +206,6 @@ public sealed class IndexModel : PageModel
             SubmitInput.MetCompletedOn = metCompletedOn;
             SubmitInput.FirstProductionModelManufactured = firstProductionModelManufactured;
             SubmitInput.FirstProductionModelManufacturedOn = firstProductionModelManufacturedOn;
-            SubmitInput.Remarks = remarks;
             return Page();
         }
 
@@ -268,7 +261,6 @@ public sealed class IndexModel : PageModel
             DecideInput.ProjectId,
             DecideInput.Approve,
             currentUserId,
-            DecideInput.Remarks,
             rowVersion,
             cancellationToken);
 
@@ -281,10 +273,8 @@ public sealed class IndexModel : PageModel
         {
             ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "Unable to complete the Transfer of Technology decision.");
             var approveChoice = DecideInput.Approve;
-            var remarks = DecideInput.Remarks;
             await PopulateAsync(cancellationToken);
             DecideInput.Approve = approveChoice;
-            DecideInput.Remarks = remarks;
             return Page();
         }
 
@@ -503,8 +493,7 @@ public sealed class IndexModel : PageModel
                 MetDetails = selected.RequestedMetDetails ?? selected.TotMetDetails,
                 MetCompletedOn = selected.RequestedMetCompletedOn ?? selected.TotMetCompletedOn,
                 FirstProductionModelManufactured = selected.RequestedFirstProductionModelManufactured ?? selected.TotFirstProductionModelManufactured,
-                FirstProductionModelManufacturedOn = selected.RequestedFirstProductionModelManufacturedOn ?? selected.TotFirstProductionModelManufacturedOn,
-                Remarks = selected.RequestedRemarks ?? selected.TotRemarks
+                FirstProductionModelManufacturedOn = selected.RequestedFirstProductionModelManufacturedOn ?? selected.TotFirstProductionModelManufacturedOn
             };
 
             DecideInput = new DecideRequestInput

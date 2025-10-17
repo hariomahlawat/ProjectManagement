@@ -78,39 +78,36 @@ public sealed class ProjectTotTrackerReadService
 
         query = query.OrderBy(p => p.Name);
 
-        return query.Select(p => new ProjectSnapshot(
-            p.Id,
-            p.Name,
-            p.SponsoringUnit != null ? p.SponsoringUnit.Name : null,
-            p.LeadPoUserId,
-            p.Tot != null ? p.Tot.Status : (ProjectTotStatus?)null,
-            p.Tot != null ? p.Tot.StartedOn : null,
-            p.Tot != null ? p.Tot.CompletedOn : null,
-            includeExtendedColumns && p.Tot != null ? p.Tot.MetDetails : null,
-            includeExtendedColumns && p.Tot != null ? p.Tot.MetCompletedOn : null,
-            includeExtendedColumns && p.Tot != null ? p.Tot.FirstProductionModelManufactured : null,
-            includeExtendedColumns && p.Tot != null ? p.Tot.FirstProductionModelManufacturedOn : null,
-            p.Tot != null ? p.Tot.Remarks : null,
-            p.Tot != null ? p.Tot.LastApprovedByUserId : null,
-            p.Tot != null ? p.Tot.LastApprovedByUser != null ? p.Tot.LastApprovedByUser.FullName : null : null,
-            p.Tot != null ? p.Tot.LastApprovedOnUtc : null,
-            p.TotRequest != null ? p.TotRequest.DecisionState : (ProjectTotRequestDecisionState?)null,
-            p.TotRequest != null ? p.TotRequest.ProposedStatus : (ProjectTotStatus?)null,
-            p.TotRequest != null ? p.TotRequest.ProposedStartedOn : null,
-            p.TotRequest != null ? p.TotRequest.ProposedCompletedOn : null,
-            includeExtendedColumns && p.TotRequest != null ? p.TotRequest.ProposedMetDetails : null,
-            includeExtendedColumns && p.TotRequest != null ? p.TotRequest.ProposedMetCompletedOn : null,
-            includeExtendedColumns && p.TotRequest != null ? p.TotRequest.ProposedFirstProductionModelManufactured : null,
-            includeExtendedColumns && p.TotRequest != null ? p.TotRequest.ProposedFirstProductionModelManufacturedOn : null,
-            p.TotRequest != null ? p.TotRequest.ProposedRemarks : null,
-            p.TotRequest != null ? p.TotRequest.SubmittedByUserId : null,
-            p.TotRequest != null ? p.TotRequest.SubmittedByUser != null ? p.TotRequest.SubmittedByUser.FullName : null : null,
-            p.TotRequest != null ? p.TotRequest.SubmittedOnUtc : (DateTime?)null,
-            p.TotRequest != null ? p.TotRequest.DecidedByUserId : null,
-            p.TotRequest != null ? p.TotRequest.DecidedByUser != null ? p.TotRequest.DecidedByUser.FullName : null : null,
-            p.TotRequest != null ? p.TotRequest.DecidedOnUtc : (DateTime?)null,
-            p.TotRequest != null ? p.TotRequest.DecisionRemarks : null,
-            p.TotRequest != null ? p.TotRequest.RowVersion : null));
+            return query.Select(p => new ProjectSnapshot(
+                p.Id,
+                p.Name,
+                p.SponsoringUnit != null ? p.SponsoringUnit.Name : null,
+                p.LeadPoUserId,
+                p.Tot != null ? p.Tot.Status : (ProjectTotStatus?)null,
+                p.Tot != null ? p.Tot.StartedOn : null,
+                p.Tot != null ? p.Tot.CompletedOn : null,
+                includeExtendedColumns && p.Tot != null ? p.Tot.MetDetails : null,
+                includeExtendedColumns && p.Tot != null ? p.Tot.MetCompletedOn : null,
+                includeExtendedColumns && p.Tot != null ? p.Tot.FirstProductionModelManufactured : null,
+                includeExtendedColumns && p.Tot != null ? p.Tot.FirstProductionModelManufacturedOn : null,
+                p.Tot != null ? p.Tot.LastApprovedByUserId : null,
+                p.Tot != null ? p.Tot.LastApprovedByUser != null ? p.Tot.LastApprovedByUser.FullName : null : null,
+                p.Tot != null ? p.Tot.LastApprovedOnUtc : null,
+                p.TotRequest != null ? p.TotRequest.DecisionState : (ProjectTotRequestDecisionState?)null,
+                p.TotRequest != null ? p.TotRequest.ProposedStatus : (ProjectTotStatus?)null,
+                p.TotRequest != null ? p.TotRequest.ProposedStartedOn : null,
+                p.TotRequest != null ? p.TotRequest.ProposedCompletedOn : null,
+                includeExtendedColumns && p.TotRequest != null ? p.TotRequest.ProposedMetDetails : null,
+                includeExtendedColumns && p.TotRequest != null ? p.TotRequest.ProposedMetCompletedOn : null,
+                includeExtendedColumns && p.TotRequest != null ? p.TotRequest.ProposedFirstProductionModelManufactured : null,
+                includeExtendedColumns && p.TotRequest != null ? p.TotRequest.ProposedFirstProductionModelManufacturedOn : null,
+                p.TotRequest != null ? p.TotRequest.SubmittedByUserId : null,
+                p.TotRequest != null ? p.TotRequest.SubmittedByUser != null ? p.TotRequest.SubmittedByUser.FullName : null : null,
+                p.TotRequest != null ? p.TotRequest.SubmittedOnUtc : (DateTime?)null,
+                p.TotRequest != null ? p.TotRequest.DecidedByUserId : null,
+                p.TotRequest != null ? p.TotRequest.DecidedByUser != null ? p.TotRequest.DecidedByUser.FullName : null : null,
+                p.TotRequest != null ? p.TotRequest.DecidedOnUtc : (DateTime?)null,
+                p.TotRequest != null ? p.TotRequest.RowVersion : null));
     }
 
     private async Task<IReadOnlyList<ProjectTotTrackerRow>> BuildRowsAsync(
@@ -132,13 +129,11 @@ public sealed class ProjectTotTrackerReadService
             latestApprovedMap.TryGetValue(snapshot.ProjectId, out var latestApproved);
             pendingCounts.TryGetValue(snapshot.ProjectId, out var pendingCount);
 
-            var totRemarks = string.IsNullOrWhiteSpace(snapshot.TotRemarks) ? null : snapshot.TotRemarks;
             var totMetDetails = string.IsNullOrWhiteSpace(snapshot.TotMetDetails) ? null : snapshot.TotMetDetails;
             var totLastApprovedName = !string.IsNullOrWhiteSpace(snapshot.TotLastApprovedByFullName)
                 ? snapshot.TotLastApprovedByFullName
                 : snapshot.TotLastApprovedByUserId;
 
-            var requestRemarks = string.IsNullOrWhiteSpace(snapshot.RequestedRemarks) ? null : snapshot.RequestedRemarks;
             var requestMetDetails = string.IsNullOrWhiteSpace(snapshot.RequestedMetDetails) ? null : snapshot.RequestedMetDetails;
             var requestSubmittedBy = !string.IsNullOrWhiteSpace(snapshot.RequestedByFullName)
                 ? snapshot.RequestedByFullName
@@ -146,7 +141,6 @@ public sealed class ProjectTotTrackerReadService
             var requestDecidedBy = !string.IsNullOrWhiteSpace(snapshot.DecidedByFullName)
                 ? snapshot.DecidedByFullName
                 : snapshot.DecidedByUserId;
-            var decisionRemarks = string.IsNullOrWhiteSpace(snapshot.DecisionRemarks) ? null : snapshot.DecisionRemarks;
 
             rows.Add(new ProjectTotTrackerRow(
                 snapshot.ProjectId,
@@ -159,7 +153,6 @@ public sealed class ProjectTotTrackerReadService
                 snapshot.TotMetCompletedOn,
                 snapshot.TotFirstProductionModelManufactured,
                 snapshot.TotFirstProductionModelManufacturedOn,
-                totRemarks,
                 totLastApprovedName,
                 snapshot.TotLastApprovedOnUtc,
                 snapshot.RequestState,
@@ -170,12 +163,10 @@ public sealed class ProjectTotTrackerReadService
                 snapshot.RequestedMetCompletedOn,
                 snapshot.RequestedFirstProductionModelManufactured,
                 snapshot.RequestedFirstProductionModelManufacturedOn,
-                requestRemarks,
                 requestSubmittedBy,
                 snapshot.RequestedOnUtc,
                 requestDecidedBy,
                 snapshot.DecidedOnUtc,
-                decisionRemarks,
                 snapshot.RequestRowVersion,
                 latestApproved?.Body,
                 latestApproved?.EventDate,
@@ -263,7 +254,6 @@ public sealed class ProjectTotTrackerReadService
         DateOnly? TotMetCompletedOn,
         bool? TotFirstProductionModelManufactured,
         DateOnly? TotFirstProductionModelManufacturedOn,
-        string? TotRemarks,
         string? TotLastApprovedByUserId,
         string? TotLastApprovedByFullName,
         DateTime? TotLastApprovedOnUtc,
@@ -275,14 +265,12 @@ public sealed class ProjectTotTrackerReadService
         DateOnly? RequestedMetCompletedOn,
         bool? RequestedFirstProductionModelManufactured,
         DateOnly? RequestedFirstProductionModelManufacturedOn,
-        string? RequestedRemarks,
         string? RequestedByUserId,
         string? RequestedByFullName,
         DateTime? RequestedOnUtc,
         string? DecidedByUserId,
         string? DecidedByFullName,
         DateTime? DecidedOnUtc,
-        string? DecisionRemarks,
         byte[]? RequestRowVersion);
 }
 
@@ -305,7 +293,6 @@ public sealed record ProjectTotTrackerRow(
     DateOnly? TotMetCompletedOn,
     bool? TotFirstProductionModelManufactured,
     DateOnly? TotFirstProductionModelManufacturedOn,
-    string? TotRemarks,
     string? TotLastApprovedBy,
     DateTime? TotLastApprovedOnUtc,
     ProjectTotRequestDecisionState? RequestState,
@@ -316,12 +303,10 @@ public sealed record ProjectTotTrackerRow(
     DateOnly? RequestedMetCompletedOn,
     bool? RequestedFirstProductionModelManufactured,
     DateOnly? RequestedFirstProductionModelManufacturedOn,
-    string? RequestedRemarks,
     string? RequestedBy,
     DateTime? RequestedOnUtc,
     string? DecidedBy,
     DateTime? DecidedOnUtc,
-    string? DecisionRemarks,
     byte[]? RequestRowVersion,
     string? LatestApprovedUpdateBody,
     DateOnly? LatestApprovedUpdateEventDate,

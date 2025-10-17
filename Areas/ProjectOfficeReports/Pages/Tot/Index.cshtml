@@ -171,10 +171,6 @@
                     <tr class="@(isSelected ? "table-primary" : string.Empty)">
                         <th scope="row">
                             <div class="fw-semibold">@row.ProjectName</div>
-                            @if (!string.IsNullOrWhiteSpace(row.TotRemarks))
-                            {
-                                <div class="text-muted small">@row.TotRemarks</div>
-                            }
                             @if (!string.IsNullOrWhiteSpace(row.LatestApprovedUpdateBody))
                             {
                                 var publishedLocal = ToIst(row.LatestApprovedUpdatePublishedOnUtc);
@@ -263,10 +259,6 @@
                         <dt class="col-sm-5">Approved on</dt>
                         <dd class="col-sm-7">@(ToIst(selected.TotLastApprovedOnUtc)?.ToString("dd MMM yyyy HH:mm") ?? "—")</dd>
                     </dl>
-                    @if (!string.IsNullOrWhiteSpace(selected.TotRemarks))
-                    {
-                        <div class="alert alert-secondary mt-3 mb-0">@selected.TotRemarks</div>
-                    }
                 </div>
             </div>
         </div>
@@ -312,14 +304,6 @@
                             <dt class="col-sm-5">Decision on</dt>
                             <dd class="col-sm-7">@(ToIst(selected.DecidedOnUtc)?.ToString("dd MMM yyyy HH:mm") ?? "—")</dd>
                         </dl>
-                        @if (!string.IsNullOrWhiteSpace(selected.RequestedRemarks))
-                        {
-                            <div class="alert alert-info mt-3">Proposal remarks: @selected.RequestedRemarks</div>
-                        }
-                        @if (!string.IsNullOrWhiteSpace(selected.DecisionRemarks))
-                        {
-                            <div class="alert alert-warning mt-3">Decision remarks: @selected.DecisionRemarks</div>
-                        }
                     }
                 </div>
             </div>
@@ -519,10 +503,6 @@
                                 <input asp-for="SubmitInput.FirstProductionModelManufacturedOn" class="form-control" type="date" />
                                 <span asp-validation-for="SubmitInput.FirstProductionModelManufacturedOn" class="text-danger"></span>
                             </div>
-                            <div class="mb-3 mt-3">
-                                <label class="form-label" asp-for="SubmitInput.Remarks">Remarks</label>
-                                <textarea asp-for="SubmitInput.Remarks" class="form-control" rows="3"></textarea>
-                            </div>
                             <button type="submit" class="btn btn-primary">Submit for approval</button>
                         </form>
                     </div>
@@ -545,10 +525,6 @@
                             <input type="hidden" asp-for="SearchTerm" />
                             <input type="hidden" asp-for="OnlyPending" />
                             <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-                            <div class="mb-3">
-                                <label class="form-label" asp-for="DecideInput.Remarks">Decision remarks</label>
-                                <textarea asp-for="DecideInput.Remarks" class="form-control" rows="3"></textarea>
-                            </div>
                             <div class="d-flex gap-2">
                                 <button type="submit" name="DecideInput.Approve" value="true" class="btn btn-success">Approve</button>
                                 <button type="submit" name="DecideInput.Approve" value="false" class="btn btn-outline-danger">Reject</button>

@@ -120,13 +120,11 @@ public sealed class ProjectTotService
         totRequest.ProposedMetCompletedOn = normalizedRequest.MetCompletedOn;
         totRequest.ProposedFirstProductionModelManufactured = normalizedRequest.FirstProductionModelManufactured;
         totRequest.ProposedFirstProductionModelManufacturedOn = normalizedRequest.FirstProductionModelManufacturedOn;
-        totRequest.ProposedRemarks = normalizedRequest.Remarks;
         totRequest.SubmittedByUserId = submittedByUserId;
         totRequest.SubmittedOnUtc = _clock.UtcNow.UtcDateTime;
         totRequest.DecisionState = ProjectTotRequestDecisionState.Pending;
         totRequest.DecidedByUserId = null;
         totRequest.DecidedOnUtc = null;
-        totRequest.DecisionRemarks = null;
         totRequest.SubmittedByUser = null!;
         totRequest.DecidedByUser = null;
         totRequest.RowVersion = Guid.NewGuid().ToByteArray();
@@ -140,7 +138,6 @@ public sealed class ProjectTotService
         int projectId,
         bool approve,
         string decisionUserId,
-        string? decisionRemarks,
         byte[]? expectedRowVersion,
         CancellationToken cancellationToken = default)
     {
@@ -171,22 +168,12 @@ public sealed class ProjectTotService
             return ProjectTotRequestActionResult.Conflict("The Transfer of Technology request was modified by another user. Refresh the page to continue.");
         }
 
-        var trimmedDecisionRemarks = string.IsNullOrWhiteSpace(decisionRemarks)
-            ? null
-            : decisionRemarks.Trim();
-
-        if (trimmedDecisionRemarks is { Length: > 2000 })
-        {
-            return ProjectTotRequestActionResult.ValidationFailed("Decision remarks must be 2000 characters or fewer.");
-        }
-
         if (approve)
         {
             var updateRequest = new ProjectTotUpdateRequest(
                 request.ProposedStatus,
                 request.ProposedStartedOn,
                 request.ProposedCompletedOn,
-                request.ProposedRemarks,
                 request.ProposedMetDetails,
                 request.ProposedMetCompletedOn,
                 request.ProposedFirstProductionModelManufactured,
@@ -209,7 +196,6 @@ public sealed class ProjectTotService
 
         request.DecidedByUserId = decisionUserId;
         request.DecidedOnUtc = _clock.UtcNow.UtcDateTime;
-        request.DecisionRemarks = trimmedDecisionRemarks;
         request.DecidedByUser = null;
         request.RowVersion = Guid.NewGuid().ToByteArray();
 
@@ -227,16 +213,6 @@ public sealed class ProjectTotService
         DateOnly todayLocal,
         out ProjectTotUpdateRequest normalizedRequest)
     {
-        var trimmedRemarks = string.IsNullOrWhiteSpace(request.Remarks)
-            ? null
-            : request.Remarks.Trim();
-
-        if (trimmedRemarks is { Length: > 2000 })
-        {
-            normalizedRequest = request with { Remarks = trimmedRemarks };
-            return ProjectTotUpdateResult.ValidationFailed("Remarks must be 2000 characters or fewer.");
-        }
-
         var trimmedMetDetails = string.IsNullOrWhiteSpace(request.MetDetails)
             ? null
             : request.MetDetails.Trim();
@@ -245,7 +221,6 @@ public sealed class ProjectTotService
         {
             normalizedRequest = request with
             {
-                Remarks = trimmedRemarks,
                 MetDetails = trimmedMetDetails
             };
             return ProjectTotUpdateResult.ValidationFailed("MET details must be 2000 characters or fewer.");
@@ -255,7 +230,6 @@ public sealed class ProjectTotService
         {
             normalizedRequest = request with
             {
-                Remarks = trimmedRemarks,
                 MetDetails = trimmedMetDetails
             };
             return ProjectTotUpdateResult.ValidationFailed("MET completion date cannot be in the future.");
@@ -265,7 +239,6 @@ public sealed class ProjectTotService
         {
             normalizedRequest = request with
             {
-                Remarks = trimmedRemarks,
                 MetDetails = trimmedMetDetails
             };
             return ProjectTotUpdateResult.ValidationFailed("First production model manufacture date is required when marked as manufactured.");
@@ -275,7 +248,6 @@ public sealed class ProjectTotService
         {
             normalizedRequest = request with
             {
-                Remarks = trimmedRemarks,
                 MetDetails = trimmedMetDetails
             };
             return ProjectTotUpdateResult.ValidationFailed("First production model manufacture date must be empty unless marked as manufactured.");
@@ -285,7 +257,6 @@ public sealed class ProjectTotService
         {
             normalizedRequest = request with
             {
-                Remarks = trimmedRemarks,
                 MetDetails = trimmedMetDetails
             };
             return ProjectTotUpdateResult.ValidationFailed("First production model manufacture date cannot be in the future.");
@@ -293,7 +264,6 @@ public sealed class ProjectTotService
 
         normalizedRequest = request with
         {
-            Remarks = trimmedRemarks,
             MetDetails = trimmedMetDetails
         };
 
@@ -421,7 +391,6 @@ public sealed class ProjectTotService
         }
 
         tot.Status = request.Status;
-        tot.Remarks = request.Remarks;
         tot.MetDetails = request.MetDetails;
         tot.MetCompletedOn = request.MetCompletedOn;
         tot.FirstProductionModelManufactured = request.FirstProductionModelManufactured;

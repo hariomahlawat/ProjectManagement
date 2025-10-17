@@ -57,8 +57,6 @@ public class EditModel : PageModel
         public bool? FirstProductionModelManufactured { get; set; }
 
         public DateOnly? FirstProductionModelManufacturedOn { get; set; }
-
-        public string? Remarks { get; set; }
     }
 
     public async Task<IActionResult> OnGetAsync(int id, CancellationToken cancellationToken)
@@ -83,7 +81,6 @@ public class EditModel : PageModel
         Input.MetCompletedOn = project.Tot?.MetCompletedOn;
         Input.FirstProductionModelManufactured = project.Tot?.FirstProductionModelManufactured;
         Input.FirstProductionModelManufacturedOn = project.Tot?.FirstProductionModelManufacturedOn;
-        Input.Remarks = project.Tot?.Remarks;
 
         StatusOptions = BuildStatusOptions();
 
@@ -125,7 +122,6 @@ public class EditModel : PageModel
             Input.Status,
             Input.StartedOn,
             Input.CompletedOn,
-            Input.Remarks,
             Input.MetDetails,
             Input.MetCompletedOn,
             Input.FirstProductionModelManufactured,
