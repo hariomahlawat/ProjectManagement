@@ -502,10 +502,10 @@
                     else
                     {
                         var requestedOnText = FormatTimestamp(selected.RequestedOnUtc);
-                        var state = selected.RequestState!.Value;
-                        var stateAccentClass = RequestStateAccentClass(state);
-                        var stateBadgeClass = RequestStateBadgeClass(state);
-                        var stateLabel = RequestStateLabel(state);
+                        var requestState = selected.RequestState!.Value;
+                        var stateAccentClass = RequestStateAccentClass(requestState);
+                        var stateBadgeClass = RequestStateBadgeClass(requestState);
+                        var stateLabel = RequestStateLabel(requestState);
                         var requestedStatusLabel = StatusLabel(selected.RequestedStatus ?? selected.TotStatus ?? ProjectTotStatus.NotStarted);
                         var currentStatusLabel = StatusLabel(selected.TotStatus ?? ProjectTotStatus.NotStarted);
                         var proposedStart = FormatDate(selected.RequestedStartedOn) ?? "—";
