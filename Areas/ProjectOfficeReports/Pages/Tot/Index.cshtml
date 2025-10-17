@@ -45,56 +45,61 @@
     </div>
 </div>
 
-<form method="get" class="d-flex flex-wrap align-items-end gap-3">
-    <input type="hidden" asp-for="SelectedProjectId" />
-    <div class="flex-grow-1 w-100 w-md-auto" style="min-width: 16rem;">
-        <label class="form-label text-uppercase small text-muted mb-1" for="tot-search-term">Search</label>
-        <input type="search"
-               class="form-control"
-               id="tot-search-term"
-               name="SearchTerm"
-               value="@Model.SearchTerm"
-               placeholder="Search projects or units" />
-    </div>
-    <div class="d-flex flex-column gap-1">
-        <span class="text-uppercase small text-muted fw-semibold">ToT status</span>
-        <div class="btn-group" role="group" aria-label="Filter projects by Transfer of Technology status">
-            <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-all" value="" @(Model.TotStatusFilter is null ? "checked" : null)>
-            <label class="btn btn-outline-secondary" for="tot-status-all">All</label>
-            <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-not-required" value="@ProjectTotStatus.NotRequired" @(Model.TotStatusFilter == ProjectTotStatus.NotRequired ? "checked" : null)>
-            <label class="btn btn-outline-secondary" for="tot-status-not-required">@StatusLabel(ProjectTotStatus.NotRequired)</label>
-            <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-not-started" value="@ProjectTotStatus.NotStarted" @(Model.TotStatusFilter == ProjectTotStatus.NotStarted ? "checked" : null)>
-            <label class="btn btn-outline-secondary" for="tot-status-not-started">@StatusLabel(ProjectTotStatus.NotStarted)</label>
-            <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-in-progress" value="@ProjectTotStatus.InProgress" @(Model.TotStatusFilter == ProjectTotStatus.InProgress ? "checked" : null)>
-            <label class="btn btn-outline-secondary" for="tot-status-in-progress">@StatusLabel(ProjectTotStatus.InProgress)</label>
-            <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-completed" value="@ProjectTotStatus.Completed" @(Model.TotStatusFilter == ProjectTotStatus.Completed ? "checked" : null)>
-            <label class="btn btn-outline-secondary" for="tot-status-completed">@StatusLabel(ProjectTotStatus.Completed)</label>
-        </div>
-    </div>
-    <div class="d-flex flex-column gap-2">
-        <div class="d-flex flex-column gap-1">
-            <span class="text-uppercase small text-muted fw-semibold">Request state</span>
-            <div class="btn-group" role="group" aria-label="Filter projects by request decision state">
-                <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-all" value="" @(Model.RequestStateFilter is null && !Model.OnlyPending ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
-                <label class="btn btn-outline-secondary @(Model.OnlyPending ? "disabled" : null)" for="request-state-all">All</label>
-                <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-pending" value="@ProjectTotRequestDecisionState.Pending" @(Model.RequestStateFilter == ProjectTotRequestDecisionState.Pending ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
-                <label class="btn btn-outline-secondary @(Model.OnlyPending ? "disabled" : null)" for="request-state-pending">@RequestStateLabel(ProjectTotRequestDecisionState.Pending)</label>
-                <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-approved" value="@ProjectTotRequestDecisionState.Approved" @(Model.RequestStateFilter == ProjectTotRequestDecisionState.Approved ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
-                <label class="btn btn-outline-secondary @(Model.OnlyPending ? "disabled" : null)" for="request-state-approved">@RequestStateLabel(ProjectTotRequestDecisionState.Approved)</label>
-                <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-rejected" value="@ProjectTotRequestDecisionState.Rejected" @(Model.RequestStateFilter == ProjectTotRequestDecisionState.Rejected ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
-                <label class="btn btn-outline-secondary @(Model.OnlyPending ? "disabled" : null)" for="request-state-rejected">@RequestStateLabel(ProjectTotRequestDecisionState.Rejected)</label>
+<div class="card shadow-sm mb-4 tot-filter-card">
+    <div class="card-body">
+        <form method="get" class="row g-3 align-items-end">
+            <input type="hidden" asp-for="SelectedProjectId" />
+            <div class="col-12 col-lg-4">
+                <label class="form-label tot-filter-heading" for="tot-search-term">Search</label>
+                <input type="search"
+                       class="form-control"
+                       id="tot-search-term"
+                       name="SearchTerm"
+                       value="@Model.SearchTerm"
+                       placeholder="Search projects or units" />
             </div>
-        </div>
-        <div class="form-check form-switch">
-            <input class="form-check-input" type="checkbox" asp-for="OnlyPending" id="onlyPending">
-            <label class="form-check-label" for="onlyPending">Only pending approvals</label>
-        </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <span class="tot-filter-heading">ToT status</span>
+                <div class="btn-group tot-filter-btn-group w-100" role="group" aria-label="Filter projects by Transfer of Technology status">
+                    <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-all" value="" @(Model.TotStatusFilter is null ? "checked" : null)>
+                    <label class="btn btn-outline-secondary" for="tot-status-all">All</label>
+                    <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-not-required" value="@ProjectTotStatus.NotRequired" @(Model.TotStatusFilter == ProjectTotStatus.NotRequired ? "checked" : null)>
+                    <label class="btn btn-outline-secondary" for="tot-status-not-required">@StatusLabel(ProjectTotStatus.NotRequired)</label>
+                    <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-not-started" value="@ProjectTotStatus.NotStarted" @(Model.TotStatusFilter == ProjectTotStatus.NotStarted ? "checked" : null)>
+                    <label class="btn btn-outline-secondary" for="tot-status-not-started">@StatusLabel(ProjectTotStatus.NotStarted)</label>
+                    <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-in-progress" value="@ProjectTotStatus.InProgress" @(Model.TotStatusFilter == ProjectTotStatus.InProgress ? "checked" : null)>
+                    <label class="btn btn-outline-secondary" for="tot-status-in-progress">@StatusLabel(ProjectTotStatus.InProgress)</label>
+                    <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-completed" value="@ProjectTotStatus.Completed" @(Model.TotStatusFilter == ProjectTotStatus.Completed ? "checked" : null)>
+                    <label class="btn btn-outline-secondary" for="tot-status-completed">@StatusLabel(ProjectTotStatus.Completed)</label>
+                </div>
+            </div>
+            <div class="col-12 col-md-6 col-lg-4">
+                <span class="tot-filter-heading">Request state</span>
+                <div class="btn-group tot-filter-btn-group w-100" role="group" aria-label="Filter projects by request decision state">
+                    <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-all" value="" @(Model.RequestStateFilter is null && !Model.OnlyPending ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
+                    <label class="btn btn-outline-secondary @(Model.OnlyPending ? "disabled" : null)" for="request-state-all">All</label>
+                    <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-pending" value="@ProjectTotRequestDecisionState.Pending" @(Model.RequestStateFilter == ProjectTotRequestDecisionState.Pending ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
+                    <label class="btn btn-outline-secondary @(Model.OnlyPending ? "disabled" : null)" for="request-state-pending">@RequestStateLabel(ProjectTotRequestDecisionState.Pending)</label>
+                    <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-approved" value="@ProjectTotRequestDecisionState.Approved" @(Model.RequestStateFilter == ProjectTotRequestDecisionState.Approved ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
+                    <label class="btn btn-outline-secondary @(Model.OnlyPending ? "disabled" : null)" for="request-state-approved">@RequestStateLabel(ProjectTotRequestDecisionState.Approved)</label>
+                    <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-rejected" value="@ProjectTotRequestDecisionState.Rejected" @(Model.RequestStateFilter == ProjectTotRequestDecisionState.Rejected ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
+                    <label class="btn btn-outline-secondary @(Model.OnlyPending ? "disabled" : null)" for="request-state-rejected">@RequestStateLabel(ProjectTotRequestDecisionState.Rejected)</label>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3">
+                <span class="tot-filter-heading">Approvals</span>
+                <div class="form-check form-switch tot-filter-switch">
+                    <input class="form-check-input" type="checkbox" asp-for="OnlyPending" id="onlyPending">
+                    <label class="form-check-label" for="onlyPending">Only pending approvals</label>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-lg-3 ms-lg-auto d-flex gap-2 justify-content-lg-end">
+                <button type="submit" class="btn btn-primary">Apply</button>
+                <a asp-page="./Index" class="btn btn-outline-secondary">Reset</a>
+            </div>
+        </form>
     </div>
-    <div class="d-flex gap-2 ms-md-auto">
-        <button type="submit" class="btn btn-primary">Apply</button>
-        <a asp-page="./Index" class="btn btn-outline-secondary">Reset</a>
-    </div>
-</form>
+</div>
 
 @{
     var totalCount = Model.Projects.Count;
