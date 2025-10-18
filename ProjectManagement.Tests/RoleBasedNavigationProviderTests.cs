@@ -90,10 +90,27 @@ public class RoleBasedNavigationProviderTests
         if (isAdmin)
         {
             Assert.Contains(children, c => c.Text == "Social media tracker" && c.Page == "/SocialMedia/Index");
+
+            var proliferation = Assert.Single(children.Where(c => c.Text == "Proliferation tracker"));
+            Assert.Equal("/Proliferation/Index", proliferation.Page);
+
+            var proliferationChildren = proliferation.Children?.ToList();
+            Assert.NotNull(proliferationChildren);
+
+            Assert.Contains(proliferationChildren!, c => c.Text == "Overview" && c.Page == "/Proliferation/Index");
+
+            var reconciliation = Assert.Single(proliferationChildren!.Where(c => c.Text == "Reconciliation"));
+            Assert.Equal("/Proliferation/Reconciliation", reconciliation.Page);
+            Assert.Equal(new[] { "HoD", "Admin" }, reconciliation.RequiredRoles);
+
+            var adminChild = Assert.Single(proliferationChildren.Where(c => c.Text == "Administration"));
+            Assert.Equal("/Proliferation/Admin/Index", adminChild.Page);
+            Assert.Equal(new[] { "Admin" }, adminChild.RequiredRoles);
         }
         else
         {
             Assert.DoesNotContain(children, c => c.Text == "Social media tracker");
+            Assert.DoesNotContain(children, c => c.Text == "Proliferation tracker");
         }
 
         if (isAdmin)
@@ -145,6 +162,32 @@ public class RoleBasedNavigationProviderTests
         var children = projectOfficeReports.Children.ToList();
 
         Assert.Contains(children, c => c.Text == "Social media tracker" && c.Page == "/SocialMedia/Index");
+
+        var proliferation = Assert.Single(children.Where(c => c.Text == "Proliferation tracker"));
+        Assert.Equal("/Proliferation/Index", proliferation.Page);
+
+        var proliferationChildren = proliferation.Children?.ToList();
+        Assert.NotNull(proliferationChildren);
+        Assert.Contains(proliferationChildren!, c => c.Text == "Overview" && c.Page == "/Proliferation/Index");
+
+        if (role == "HoD" || role == "Admin")
+        {
+            var reconciliation = Assert.Single(proliferationChildren!.Where(c => c.Text == "Reconciliation"));
+            Assert.Equal(new[] { "HoD", "Admin" }, reconciliation.RequiredRoles);
+        }
+        else
+        {
+            Assert.DoesNotContain(proliferationChildren!, c => c.Text == "Reconciliation");
+        }
+
+        if (role == "Admin")
+        {
+            Assert.Contains(proliferationChildren!, c => c.Text == "Administration" && c.Page == "/Proliferation/Admin/Index");
+        }
+        else
+        {
+            Assert.DoesNotContain(proliferationChildren!, c => c.Text == "Administration");
+        }
     }
 
     private sealed class StubUserManager : UserManager<ApplicationUser>
