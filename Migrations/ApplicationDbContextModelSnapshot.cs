@@ -360,6 +360,154 @@ namespace ProjectManagement.Migrations
                     b.ToTable("ProliferationYearlies");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationYearlyRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("DecidedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DecidedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("DecisionNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("DecisionState")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SubmittedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTimeOffset>("SubmittedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DecidedByUserId");
+
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("IX_ProliferationYearlyRequests_ProjectId");
+
+                    b.HasIndex("SubmittedByUserId");
+
+                    b.HasIndex("ProjectId", "Source", "Year")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProliferationYearlyRequest_Project_Source_Year");
+
+                    b.ToTable("ProliferationYearlyRequests");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationGranularRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("DecidedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DecidedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("DecisionNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("DecisionState")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Granularity")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("Period")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PeriodLabel")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SubmittedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTimeOffset>("SubmittedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DecidedByUserId");
+
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("IX_ProliferationGranularRequests_ProjectId");
+
+                    b.HasIndex("SubmittedByUserId");
+
+                    b.HasIndex("ProjectId", "Source", "Year", "Granularity", "Period")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProliferationGranularRequest_Project_Source_Period");
+
+                    b.ToTable("ProliferationGranularRequests");
+                });
+
             modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.SocialMediaEvent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3976,6 +4124,114 @@ namespace ProjectManagement.Migrations
                         .IsRequired();
 
                     b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationYearlyRequest", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "DecidedByUser")
+                        .WithMany()
+                        .HasForeignKey("DecidedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ProjectManagement.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "SubmittedByUser")
+                        .WithMany()
+                        .HasForeignKey("SubmittedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.OwnsOne("ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationMetrics", "Metrics", b1 =>
+                        {
+                            b1.Property<Guid>("ProliferationYearlyRequestId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<int?>("DirectBeneficiaries")
+                                .HasColumnType("integer")
+                                .HasColumnName("DirectBeneficiaries");
+
+                            b1.Property<int?>("IndirectBeneficiaries")
+                                .HasColumnType("integer")
+                                .HasColumnName("IndirectBeneficiaries");
+
+                            b1.Property<decimal?>("InvestmentValue")
+                                .HasColumnType("numeric")
+                                .HasColumnName("InvestmentValue");
+
+                            b1.HasKey("ProliferationYearlyRequestId");
+
+                            b1.ToTable("ProliferationYearlyRequests");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ProliferationYearlyRequestId");
+                        });
+
+                    b.Navigation("DecidedByUser");
+
+                    b.Navigation("Metrics")
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("SubmittedByUser");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationGranularRequest", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "DecidedByUser")
+                        .WithMany()
+                        .HasForeignKey("DecidedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ProjectManagement.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "SubmittedByUser")
+                        .WithMany()
+                        .HasForeignKey("SubmittedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.OwnsOne("ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationMetrics", "Metrics", b1 =>
+                        {
+                            b1.Property<Guid>("ProliferationGranularRequestId")
+                                .HasColumnType("uuid");
+
+                            b1.Property<int?>("DirectBeneficiaries")
+                                .HasColumnType("integer")
+                                .HasColumnName("DirectBeneficiaries");
+
+                            b1.Property<int?>("IndirectBeneficiaries")
+                                .HasColumnType("integer")
+                                .HasColumnName("IndirectBeneficiaries");
+
+                            b1.Property<decimal?>("InvestmentValue")
+                                .HasColumnType("numeric")
+                                .HasColumnName("InvestmentValue");
+
+                            b1.HasKey("ProliferationGranularRequestId");
+
+                            b1.ToTable("ProliferationGranularRequests");
+
+                            b1.WithOwner()
+                                .HasForeignKey("ProliferationGranularRequestId");
+                        });
+
+                    b.Navigation("DecidedByUser");
+
+                    b.Navigation("Metrics")
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("SubmittedByUser");
                 });
 
             modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.SocialMediaEvent", b =>

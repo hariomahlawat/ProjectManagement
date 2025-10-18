@@ -105,6 +105,18 @@ public class RoleBasedNavigationProvider : INavigationProvider
                     Text = "Overview",
                     Area = "ProjectOfficeReports",
                     Page = "/Proliferation/Index"
+                },
+                new()
+                {
+                    Text = "Yearly totals",
+                    Area = "ProjectOfficeReports",
+                    Page = "/Proliferation/Yearly/Index"
+                },
+                new()
+                {
+                    Text = "Granular metrics",
+                    Area = "ProjectOfficeReports",
+                    Page = "/Proliferation/Granular/Index"
                 }
             };
 

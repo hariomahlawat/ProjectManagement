@@ -464,6 +464,82 @@ public static class Audit
 
             return new AuditEvent("ProjectOfficeReports.ProliferationPreferenceCleared", userId, data);
         }
+
+        public static AuditEvent ProliferationYearlySubmitted(
+            int projectId,
+            ProliferationSource source,
+            int year,
+            string submittedByUserId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["Source"] = source.ToString(),
+                ["Year"] = year.ToString(CultureInfo.InvariantCulture)
+            };
+
+            return new AuditEvent("ProjectOfficeReports.ProliferationYearlySubmitted", submittedByUserId, data);
+        }
+
+        public static AuditEvent ProliferationYearlyDecided(
+            int projectId,
+            ProliferationSource source,
+            int year,
+            bool approved,
+            string decidedByUserId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["Source"] = source.ToString(),
+                ["Year"] = year.ToString(CultureInfo.InvariantCulture),
+                ["Approved"] = approved ? "true" : "false"
+            };
+
+            return new AuditEvent("ProjectOfficeReports.ProliferationYearlyDecided", decidedByUserId, data);
+        }
+
+        public static AuditEvent ProliferationGranularSubmitted(
+            int projectId,
+            ProliferationSource source,
+            int year,
+            ProliferationGranularity granularity,
+            int period,
+            string submittedByUserId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["Source"] = source.ToString(),
+                ["Year"] = year.ToString(CultureInfo.InvariantCulture),
+                ["Granularity"] = granularity.ToString(),
+                ["Period"] = period.ToString(CultureInfo.InvariantCulture)
+            };
+
+            return new AuditEvent("ProjectOfficeReports.ProliferationGranularSubmitted", submittedByUserId, data);
+        }
+
+        public static AuditEvent ProliferationGranularDecided(
+            int projectId,
+            ProliferationSource source,
+            int year,
+            ProliferationGranularity granularity,
+            int period,
+            bool approved,
+            string decidedByUserId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["Source"] = source.ToString(),
+                ["Year"] = year.ToString(CultureInfo.InvariantCulture),
+                ["Granularity"] = granularity.ToString(),
+                ["Period"] = period.ToString(CultureInfo.InvariantCulture),
+                ["Approved"] = approved ? "true" : "false"
+            };
+
+            return new AuditEvent("ProjectOfficeReports.ProliferationGranularDecided", decidedByUserId, data);
+        }
     }
 }
 
