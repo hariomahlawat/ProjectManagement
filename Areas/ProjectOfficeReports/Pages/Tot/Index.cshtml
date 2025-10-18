@@ -178,9 +178,17 @@
                             <div class="form-check form-switch tot-filter-switch">
                                 <input class="form-check-input" type="checkbox" asp-for="OnlyPending" id="onlyPending">
                                 <label class="form-check-label" for="onlyPending">Only pending approvals</label>
-</div>
-</div>
-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="reset" class="btn btn-outline-secondary" form="tot-filter-form">Reset</button>
+                    <button type="submit" class="btn btn-primary" form="tot-filter-form">Apply</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </div>
 
 <div class="modal fade" id="tot-export-modal" tabindex="-1" aria-labelledby="tot-export-modal-label" aria-hidden="true" data-tot-auto-show="@(showExportModal ? "true" : "false")">
@@ -262,14 +270,6 @@
                         <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
                         <span>Export workbook</span>
                     </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-                <div class="modal-footer">
-                    <button type="reset" class="btn btn-outline-secondary" form="tot-filter-form">Reset</button>
-                    <button type="submit" class="btn btn-primary" form="tot-filter-form">Apply</button>
                 </div>
             </form>
         </div>
