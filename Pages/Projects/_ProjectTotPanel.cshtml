@@ -100,19 +100,14 @@
             }
             @if (latestRemark is { } remarkSnippet)
             {
-                var createdText = FormatTimestamp(remarkSnippet.CreatedAtUtc);
                 <div class="border rounded p-3 bg-light small">
-                    <div class="d-flex justify-content-between align-items-center gap-2">
-                        <span class="fw-semibold">Latest ToT remark</span>
-                        <span class="badge text-bg-secondary">@remarkSnippet.TypeLabel</span>
-                    </div>
-                    <div class="text-muted mt-1">Posted @(createdText ?? "—")</div>
-                    <div class="mt-2" style="white-space: pre-line;">@remarkSnippet.Body</div>
-                    @if (remarkSnippet.EventDate.HasValue)
+                    <div class="fw-semibold mb-1">Latest ToT remark</div>
+                    @if (!string.IsNullOrWhiteSpace(remarkSnippet.AuthorDisplayName))
                     {
-                        <div class="text-muted mt-2">Event date: @FormatDate(remarkSnippet.EventDate)</div>
+                        <div class="text-muted">by @remarkSnippet.AuthorDisplayName</div>
                     }
-                    <a class="btn btn-link btn-sm px-0 mt-2" href="#remarks-panel">Open remarks panel</a>
+                    <div class="mt-2" style="white-space: pre-line;">@remarkSnippet.Body</div>
+                    <a class="btn btn-link btn-sm px-0 mt-3" href="#remarks-panel">Open remarks panel</a>
                 </div>
             }
             else
