@@ -83,8 +83,8 @@ public sealed class ProjectTotExportService : IProjectTotExportService
         var filter = new ProjectTotTrackerFilter
         {
             TotStatus = request.TotStatus,
-            RequestState = request.OnlyPendingRequests ? null : request.RequestState,
-            OnlyPendingRequests = request.OnlyPendingRequests,
+            RequestState = null,
+            OnlyPendingRequests = false,
             SearchTerm = normalizedSearchTerm,
             StartedFrom = request.StartedFrom,
             StartedTo = request.StartedTo,
@@ -105,8 +105,6 @@ public sealed class ProjectTotExportService : IProjectTotExportService
 
 public sealed record ProjectTotExportRequest(
     ProjectTotStatus? TotStatus,
-    ProjectTotRequestDecisionState? RequestState,
-    bool OnlyPendingRequests,
     DateOnly? StartedFrom,
     DateOnly? StartedTo,
     DateOnly? CompletedFrom,

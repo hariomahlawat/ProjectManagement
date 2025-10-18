@@ -133,10 +133,6 @@ public sealed class IndexModel : PageModel
     {
         public ProjectTotStatus? TotStatus { get; set; }
 
-        public ProjectTotRequestDecisionState? RequestState { get; set; }
-
-        public bool OnlyPendingRequests { get; set; }
-
         public DateOnly? StartedFrom { get; set; }
 
         public DateOnly? StartedTo { get; set; }
@@ -209,9 +205,7 @@ public sealed class IndexModel : PageModel
         await PopulateAsync(cancellationToken);
         Export = new ExportRequestInput
         {
-            TotStatus = TotStatusFilter,
-            RequestState = RequestStateFilter,
-            OnlyPendingRequests = OnlyPending
+            TotStatus = TotStatusFilter
         };
     }
 
@@ -336,8 +330,6 @@ public sealed class IndexModel : PageModel
 
         var request = new ProjectTotExportRequest(
             Export.TotStatus,
-            Export.RequestState,
-            Export.OnlyPendingRequests,
             Export.StartedFrom,
             Export.StartedTo,
             Export.CompletedFrom,
