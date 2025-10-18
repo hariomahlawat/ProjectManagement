@@ -262,6 +262,7 @@ builder.Services.AddScoped<SocialMediaPlatformService>();
 builder.Services.AddScoped<VisitService>();
 builder.Services.AddScoped<SocialMediaEventService>();
 builder.Services.AddScoped<IProjectTotExportService, ProjectTotExportService>();
+builder.Services.AddScoped<IProliferationExportService, ProliferationExportService>();
 builder.Services.AddScoped<IVisitExportService, VisitExportService>();
 builder.Services.AddScoped<ISocialMediaExportService, SocialMediaExportService>();
 builder.Services.AddScoped<IVisitPhotoService, VisitPhotoService>();
