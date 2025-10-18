@@ -279,13 +279,9 @@ public sealed class IndexModel : PageModel
             .Select(p => new ProjectOption(p.Id, p.Name))
             .ToListAsync(cancellationToken);
 
-        var granularQuery = _db.ProliferationGranularEntries
+        IQueryable<ProliferationGranular> granularQuery = _db.ProliferationGranularEntries
             .AsNoTracking()
-            .Include(g => g.Project)
-            .OrderBy(g => g.Project!.Name)
-            .ThenBy(g => g.Year)
-            .ThenBy(g => g.Granularity)
-            .ThenBy(g => g.Period);
+            .Include(g => g.Project);
 
         if (ProjectId.HasValue)
         {
@@ -306,6 +302,12 @@ public sealed class IndexModel : PageModel
         {
             granularQuery = granularQuery.Where(g => g.Granularity == Granularity.Value);
         }
+
+        granularQuery = granularQuery
+            .OrderBy(g => g.Project!.Name)
+            .ThenBy(g => g.Year)
+            .ThenBy(g => g.Granularity)
+            .ThenBy(g => g.Period);
 
         ApprovedEntries = await granularQuery
             .Select(g => new GranularRow(
