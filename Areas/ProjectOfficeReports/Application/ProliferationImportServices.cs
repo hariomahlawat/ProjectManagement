@@ -387,7 +387,7 @@ public sealed class ProliferationYearlyImportService : IProliferationYearlyImpor
 
         var notes = TryGetString(headerMap, fields, "Notes");
 
-        return ParseResult.Success(new ParsedYearlyRow(
+        return ParseResult.FromSuccess(new ParsedYearlyRow(
             rowNumber,
             projectId!.Value,
             year!.Value,
@@ -594,7 +594,7 @@ public sealed class ProliferationYearlyImportService : IProliferationYearlyImpor
 
     private sealed record ParseResult(bool Success, ParsedYearlyRow? Row, string? Error)
     {
-        public static ParseResult Success(ParsedYearlyRow row) => new(true, row, null);
+        public static ParseResult FromSuccess(ParsedYearlyRow row) => new(true, row, null);
 
         public static ParseResult Fail(string error) => new(false, null, error);
     }
@@ -971,7 +971,7 @@ public sealed class ProliferationGranularImportService : IProliferationGranularI
         var periodLabel = TryGetString(headerMap, fields, "PeriodLabel");
         var notes = TryGetString(headerMap, fields, "Notes");
 
-        return ParseResult.Success(new ParsedGranularRow(
+        return ParseResult.FromSuccess(new ParsedGranularRow(
             rowNumber,
             projectId!.Value,
             year!.Value,
@@ -1203,7 +1203,7 @@ public sealed class ProliferationGranularImportService : IProliferationGranularI
 
     private sealed record ParseResult(bool Success, ParsedGranularRow? Row, string? Error)
     {
-        public static ParseResult Success(ParsedGranularRow row) => new(true, row, null);
+        public static ParseResult FromSuccess(ParsedGranularRow row) => new(true, row, null);
 
         public static ParseResult Fail(string error) => new(false, null, error);
     }
