@@ -176,7 +176,7 @@ public sealed class ProliferationTrackerReadService
         IQueryable<ProjectSnapshotProjection> projectQuery,
         CancellationToken cancellationToken)
     {
-        var granularQuery = _db.ProliferationGranularYearlyView.AsNoTracking();
+        var granularQuery = _db.ProliferationGranularEntries.AsNoTracking();
 
         if (filter.Source.HasValue)
         {
@@ -196,8 +196,21 @@ public sealed class ProliferationTrackerReadService
             granularQuery = granularQuery.Where(g => g.ProjectId == projectId);
         }
 
+        var aggregatedQuery = from g in granularQuery
+                              group g by new { g.ProjectId, g.Source, g.Year }
+            into grouped
+                              select new
+                              {
+                                  grouped.Key.ProjectId,
+                                  grouped.Key.Source,
+                                  grouped.Key.Year,
+                                  DirectBeneficiaries = grouped.Sum(x => x.Metrics.DirectBeneficiaries ?? 0),
+                                  IndirectBeneficiaries = grouped.Sum(x => x.Metrics.IndirectBeneficiaries ?? 0),
+                                  InvestmentValue = grouped.Sum(x => x.Metrics.InvestmentValue ?? 0m)
+                              };
+
         return await (
-                from g in granularQuery
+                from g in aggregatedQuery
                 join p in projectQuery on g.ProjectId equals p.ProjectId
                 select new GranularSnapshot(
                     new AggregationKey(g.ProjectId, g.Source, g.Year),
