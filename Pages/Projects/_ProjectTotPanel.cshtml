@@ -102,6 +102,10 @@
             {
                 <div class="border rounded p-3 bg-light small">
                     <div class="fw-semibold mb-1">Latest ToT remark</div>
+                    @if (!string.IsNullOrWhiteSpace(remarkSnippet.AuthorDisplayName))
+                    {
+                        <div class="text-muted">by @remarkSnippet.AuthorDisplayName</div>
+                    }
                     <div class="mt-2" style="white-space: pre-line;">@remarkSnippet.Body</div>
                     <a class="btn btn-link btn-sm px-0 mt-3" href="#remarks-panel">Open remarks panel</a>
                 </div>

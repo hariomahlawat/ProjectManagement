@@ -44,5 +44,6 @@ public sealed class ProjectTotSummaryViewModel
         string TypeLabel,
         string Body,
         DateOnly? EventDate,
-        DateTime CreatedAtUtc);
+        DateTime CreatedAtUtc,
+        string? AuthorDisplayName);
 }

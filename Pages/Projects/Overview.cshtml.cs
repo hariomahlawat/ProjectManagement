@@ -1142,7 +1142,8 @@ namespace ProjectManagement.Pages.Projects
                     r.Body,
                     r.EventDate,
                     r.CreatedAtUtc,
-                    r.Type
+                    r.Type,
+                    r.AuthorUserId
                 })
                 .FirstOrDefaultAsync(ct);
 
@@ -1159,7 +1160,8 @@ namespace ProjectManagement.Pages.Projects
                     r.Body,
                     r.EventDate,
                     r.CreatedAtUtc,
-                    r.Type
+                    r.Type,
+                    r.AuthorUserId
                 })
                 .FirstOrDefaultAsync(ct);
 
@@ -1169,12 +1171,25 @@ namespace ProjectManagement.Pages.Projects
             if (selectedRemark is not null)
             {
                 var typeLabel = selectedRemark.Type == RemarkType.External ? "External" : "Internal";
+                string? authorDisplayName = null;
+
+                if (!string.IsNullOrWhiteSpace(selectedRemark.AuthorUserId))
+                {
+                    authorDisplayName = await _db.Users
+                        .AsNoTracking()
+                        .Where(u => u.Id == selectedRemark.AuthorUserId)
+                        .Select(u => u.FullName ?? u.UserName ?? u.Email ?? u.Id)
+                        .FirstOrDefaultAsync(ct)
+                        ?? selectedRemark.AuthorUserId;
+                }
+
                 latestRemark = new ProjectTotSummaryViewModel.TotRemarkSnippet(
                     selectedRemark.Type,
                     typeLabel,
                     selectedRemark.Body,
                     selectedRemark.EventDate,
-                    selectedRemark.CreatedAtUtc);
+                    selectedRemark.CreatedAtUtc,
+                    authorDisplayName);
             }
 
             if (tot is null)
@@ -1227,16 +1242,6 @@ namespace ProjectManagement.Pages.Projects
             {
                 var manufacturedOn = tot.FirstProductionModelManufacturedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
                 facts.Add(new ProjectTotSummaryViewModel.TotFact("FoPM manufactured on", manufacturedOn));
-            }
-
-            if (tot.LastApprovedOnUtc.HasValue && !string.IsNullOrWhiteSpace(tot.LastApprovedByDisplay))
-            {
-                var approvedOn = TimeZoneInfo.ConvertTimeFromUtc(
-                    DateTime.SpecifyKind(tot.LastApprovedOnUtc.Value, DateTimeKind.Utc),
-                    TimeZoneHelper.GetIst());
-                facts.Add(new ProjectTotSummaryViewModel.TotFact(
-                    "Approved",
-                    string.Format(CultureInfo.InvariantCulture, "{0} on {1:dd MMM yyyy HH:mm}", tot.LastApprovedByDisplay, approvedOn)));
             }
 
             var summary = tot.Status switch
