@@ -1,8 +1,18 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.Reconciliation.IndexModel
+@using System.Linq
 @{
     ViewData["Title"] = "Proliferation reconciliation";
     var sources = new[] { ProliferationSource.Internal, ProliferationSource.External };
+    var totalRows = Model.Rows.Count;
+    var automaticCount = Model.Rows.Count(row => row.Preference.Mode == ProliferationPreferenceMode.Auto);
+    var manualCount = totalRows - automaticCount;
+    var varianceCount = Model.Rows.Count(row => HasVariance(row.Variance));
+    var mismatchedCount = Model.Rows.Count(row => row.Preference.HasPreference && !row.Preference.PreferredYearMatches);
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/project-office-reports/proliferation-management.css" asp-append-version="true" />
 }
 
 @functions {
@@ -16,131 +26,264 @@
     };
     private static string RowVersionString(ProliferationPreferenceMetadata preference)
         => preference.RowVersion is { Length: > 0 } rv ? Convert.ToBase64String(rv) : string.Empty;
+    private static bool HasVariance(ProliferationMetricsDto? metrics)
+    {
+        if (metrics is null)
+        {
+            return false;
+        }
+
+        if ((metrics.DirectBeneficiaries ?? 0) != 0)
+        {
+            return true;
+        }
+
+        if ((metrics.IndirectBeneficiaries ?? 0) != 0)
+        {
+            return true;
+        }
+
+        if ((metrics.InvestmentValue ?? 0m) != 0m)
+        {
+            return true;
+        }
+
+        return false;
+    }
+    private static string MetricVarianceClass(int? value) => value switch
+    {
+        > 0 => "pro-metric-value is-positive",
+        < 0 => "pro-metric-value is-negative",
+        0 => "pro-metric-value is-neutral",
+        _ => "pro-metric-value"
+    };
+    private static string MetricVarianceClass(decimal? value)
+    {
+        if (!value.HasValue)
+        {
+            return "pro-metric-value";
+        }
+
+        if (value.Value > 0)
+        {
+            return "pro-metric-value is-positive";
+        }
+
+        if (value.Value < 0)
+        {
+            return "pro-metric-value is-negative";
+        }
+
+        return "pro-metric-value is-neutral";
+    }
 }
 
-<div class="row align-items-center mb-3">
-    <div class="col">
-        <h1 class="h3 mb-0">Proliferation reconciliation</h1>
-        <p class="text-muted mb-0">Compare yearly and granular submissions, review variances and adjust data source preferences.</p>
-    </div>
-</div>
+<section class="pro-shell container-xxl">
+    <header class="pro-hero pro-hero--reconciliation">
+        <div class="pro-hero__content">
+            <span class="pro-hero__eyebrow">Proliferation tracker</span>
+            <h1 class="pro-hero__title">Proliferation reconciliation</h1>
+            <p class="pro-hero__subtitle">
+                Compare yearly and granular submissions, review variances, and adjust data source preferences to keep analytics aligned.
+            </p>
+        </div>
+        <dl class="pro-hero__stats">
+            <div class="pro-hero__stat">
+                <dt class="pro-hero__stat-label">Records evaluated</dt>
+                <dd class="pro-hero__stat-value">@totalRows.ToString("N0")</dd>
+            </div>
+            <div class="pro-hero__stat">
+                <dt class="pro-hero__stat-label">Manual overrides</dt>
+                <dd class="pro-hero__stat-value">@manualCount.ToString("N0")</dd>
+            </div>
+            <div class="pro-hero__stat">
+                <dt class="pro-hero__stat-label">Active variances</dt>
+                <dd class="pro-hero__stat-value">@varianceCount.ToString("N0")</dd>
+            </div>
+        </dl>
+    </header>
 
-<div class="card shadow-sm mb-4">
-    <div class="card-body">
-        <form method="get" class="row gy-2 gx-3 align-items-end">
-            <div class="col-12 col-md-4">
-                <label class="form-label fw-semibold">Source</label>
-                <div class="d-flex gap-3">
-                    @foreach (var source in sources)
-                    {
-                        var radioId = $"source-{(int)source}";
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="Source" id="@radioId" value="@source" @(Model.Source == source ? "checked" : null) />
-                            <label class="form-check-label" for="@radioId">@source</label>
-                        </div>
-                    }
-                </div>
-            </div>
-            <div class="col-12 col-md-3">
-                <label for="year-select" class="form-label fw-semibold">Year</label>
-                <select id="year-select" class="form-select" name="Year">
-                    <option value="">Latest available</option>
-                    @foreach (var year in Model.YearOptions)
-                    {
-                        <option value="@year" @(Model.Year == year ? "selected" : null)>@year</option>
-                    }
-                </select>
-            </div>
-            <div class="col-12 col-md-auto">
-                <button type="submit" class="btn btn-primary">Apply filters</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-@if (!Model.Rows.Any())
-{
-    <div class="alert alert-info">No reconciliation data was found for the selected filters.</div>
-}
-else
-{
-    <div class="table-responsive">
-        <table class="table table-hover align-middle">
-            <thead class="table-light">
-                <tr>
-                    <th scope="col">Project</th>
-                    <th scope="col" class="text-nowrap">Year</th>
-                    <th scope="col">Yearly metrics</th>
-                    <th scope="col">Granular metrics</th>
-                    <th scope="col">Variance</th>
-                    <th scope="col">Preference</th>
-                    <th scope="col" class="text-end">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var row in Model.Rows)
-                {
-                    var hasYearly = row.Yearly is not null;
-                    var hasGranular = row.GranularSum is not null;
-                    var rowVersion = RowVersionString(row.Preference);
-                    var disableAuto = !row.Preference.HasPreference;
-                    var disableYearly = !hasYearly || row.Preference.Mode == ProliferationPreferenceMode.UseYearly;
-                    var disableGranular = !hasGranular || row.Source != ProliferationSource.External || row.Preference.Mode == ProliferationPreferenceMode.UseGranular;
-                    <tr data-pro-rec-row>
-                        <td>
-                            <div class="fw-semibold">@row.ProjectName</div>
-                            <div class="text-muted small">@row.Source</div>
-                        </td>
-                        <td>@row.Year</td>
-                        <td>
-                            <div>Direct: @FormatNumber(row.Yearly?.DirectBeneficiaries)</div>
-                            <div>Indirect: @FormatNumber(row.Yearly?.IndirectBeneficiaries)</div>
-                            <div>Investment: @FormatDecimal(row.Yearly?.InvestmentValue)</div>
-                        </td>
-                        <td>
-                            <div>Direct: @FormatNumber(row.GranularSum?.DirectBeneficiaries)</div>
-                            <div>Indirect: @FormatNumber(row.GranularSum?.IndirectBeneficiaries)</div>
-                            <div>Investment: @FormatDecimal(row.GranularSum?.InvestmentValue)</div>
-                        </td>
-                        <td>
-                            <div>Direct: @FormatNumber(row.Variance?.DirectBeneficiaries)</div>
-                            <div>Indirect: @FormatNumber(row.Variance?.IndirectBeneficiaries)</div>
-                            <div>Investment: @FormatDecimal(row.Variance?.InvestmentValue)</div>
-                        </td>
-                        <td>
-                            <span class="badge @ModeBadgeClass(row.Preference.Mode)">@row.Preference.Mode</span>
-                            @if (row.Preference.HasPreference)
+    <section class="pro-section">
+        <div class="card pro-card pro-filter-card">
+            <div class="card-body pro-card__body">
+                <form method="get" class="row g-3 align-items-end pro-filter-form">
+                    <div class="col-12 col-md-4">
+                        <label class="form-label">Source</label>
+                        <div class="d-flex flex-wrap gap-3">
+                            @foreach (var source in sources)
                             {
-                                <div class="small text-muted mt-1">
-                                    Preferred year: @row.Preference.PreferredYear
-                                    @if (row.Preference.PreferredYearMatches)
-                                    {
-                                        <span class="text-success">(matches selected year)</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-warning">(out of sync with selected year)</span>
-                                    }
+                                var radioId = $"source-{(int)source}";
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="Source" id="@radioId" value="@source" @(Model.Source == source ? "checked" : null) />
+                                    <label class="form-check-label" for="@radioId">@source</label>
                                 </div>
                             }
-                            else
+                        </div>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label for="year-select" class="form-label">Year</label>
+                        <select id="year-select" class="form-select" name="Year">
+                            <option value="">Latest available</option>
+                            @foreach (var year in Model.YearOptions)
                             {
-                                <div class="small text-muted mt-1">Using automatic mode.</div>
+                                <option value="@year" @(Model.Year == year ? "selected" : null)>@year</option>
                             }
-                        </td>
-                        <td class="text-end">
-                            <div class="btn-group" role="group">
-                                <button type="button" class="btn btn-outline-secondary btn-sm" data-pro-rec-action="auto" data-project-id="@row.ProjectId" data-source="@row.Source" data-year="@row.Year" data-row-version="@rowVersion" @(disableAuto ? "disabled" : null)>Set auto</button>
-                                <button type="button" class="btn btn-outline-primary btn-sm" data-pro-rec-action="yearly" data-project-id="@row.ProjectId" data-source="@row.Source" data-year="@row.Year" data-row-version="@rowVersion" @(disableYearly ? "disabled" : null)>Use yearly</button>
-                                <button type="button" class="btn btn-outline-success btn-sm" data-pro-rec-action="granular" data-project-id="@row.ProjectId" data-source="@row.Source" data-year="@row.Year" data-row-version="@rowVersion" @(disableGranular ? "disabled" : null)>Use granular</button>
-                            </div>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-}
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-auto pro-filter-actions">
+                        <button type="submit" class="btn btn-primary">Apply filters</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    @if (!Model.Rows.Any())
+    {
+        <div class="alert alert-info mb-0">No reconciliation data was found for the selected filters.</div>
+    }
+    else
+    {
+        <section class="pro-section" aria-label="Reconciliation insights">
+            <div class="pro-kpi-grid" role="list">
+                <article class="pro-kpi-card" role="listitem">
+                    <span class="pro-kpi-card__label">Automatic mode</span>
+                    <span class="pro-kpi-card__value">@automaticCount.ToString("N0")</span>
+                    <span class="pro-kpi-card__hint">Projects currently relying on automatic preferences.</span>
+                </article>
+                <article class="pro-kpi-card" role="listitem">
+                    <span class="pro-kpi-card__label">Manual overrides</span>
+                    <span class="pro-kpi-card__value">@manualCount.ToString("N0")</span>
+                    <span class="pro-kpi-card__hint">Projects explicitly set to yearly or granular totals.</span>
+                </article>
+                <article class="pro-kpi-card" role="listitem">
+                    <span class="pro-kpi-card__label">Out-of-sync years</span>
+                    <span class="pro-kpi-card__value">@mismatchedCount.ToString("N0")</span>
+                    <span class="pro-kpi-card__hint">Overrides whose preferred year differs from the selected period.</span>
+                </article>
+                <article class="pro-kpi-card" role="listitem">
+                    <span class="pro-kpi-card__label">Variance flagged</span>
+                    <span class="pro-kpi-card__value">@varianceCount.ToString("N0")</span>
+                    <span class="pro-kpi-card__hint">Rows where yearly and granular values still diverge.</span>
+                </article>
+            </div>
+        </section>
+
+        <section class="pro-section" aria-label="Reconciliation table">
+            <div class="card pro-card pro-card--table">
+                <div class="card-header pro-card__header">
+                    <h2 class="h5 mb-0">Reconciliation details</h2>
+                </div>
+                <div class="card-body pro-card__body">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle pro-table pro-table--reconciliation">
+                            <thead>
+                                <tr>
+                                    <th scope="col">Project</th>
+                                    <th scope="col" class="text-nowrap">Year</th>
+                                    <th scope="col">Yearly metrics</th>
+                                    <th scope="col">Granular metrics</th>
+                                    <th scope="col">Variance</th>
+                                    <th scope="col">Preference</th>
+                                    <th scope="col" class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in Model.Rows)
+                                {
+                                    var hasYearly = row.Yearly is not null;
+                                    var hasGranular = row.GranularSum is not null;
+                                    var rowVersion = RowVersionString(row.Preference);
+                                    var disableAuto = !row.Preference.HasPreference;
+                                    var disableYearly = !hasYearly || row.Preference.Mode == ProliferationPreferenceMode.UseYearly;
+                                    var disableGranular = !hasGranular || row.Source != ProliferationSource.External || row.Preference.Mode == ProliferationPreferenceMode.UseGranular;
+                                    <tr data-pro-rec-row>
+                                        <td>
+                                            <div class="pro-table__project">
+                                                <span class="pro-table__project-title">@row.ProjectName</span>
+                                                <span class="pro-table__project-meta">@row.Source</span>
+                                            </div>
+                                        </td>
+                                        <td>@row.Year</td>
+                                        <td class="pro-metric">
+                                            <div class="pro-metric__row">
+                                                <span class="pro-metric__label">Direct</span>
+                                                <span class="pro-metric-value">@FormatNumber(row.Yearly?.DirectBeneficiaries)</span>
+                                            </div>
+                                            <div class="pro-metric__row">
+                                                <span class="pro-metric__label">Indirect</span>
+                                                <span class="pro-metric-value">@FormatNumber(row.Yearly?.IndirectBeneficiaries)</span>
+                                            </div>
+                                            <div class="pro-metric__row">
+                                                <span class="pro-metric__label">Investment</span>
+                                                <span class="pro-metric-value">@FormatDecimal(row.Yearly?.InvestmentValue)</span>
+                                            </div>
+                                        </td>
+                                        <td class="pro-metric">
+                                            <div class="pro-metric__row">
+                                                <span class="pro-metric__label">Direct</span>
+                                                <span class="pro-metric-value">@FormatNumber(row.GranularSum?.DirectBeneficiaries)</span>
+                                            </div>
+                                            <div class="pro-metric__row">
+                                                <span class="pro-metric__label">Indirect</span>
+                                                <span class="pro-metric-value">@FormatNumber(row.GranularSum?.IndirectBeneficiaries)</span>
+                                            </div>
+                                            <div class="pro-metric__row">
+                                                <span class="pro-metric__label">Investment</span>
+                                                <span class="pro-metric-value">@FormatDecimal(row.GranularSum?.InvestmentValue)</span>
+                                            </div>
+                                        </td>
+                                        <td class="pro-metric">
+                                            <div class="pro-metric__row">
+                                                <span class="pro-metric__label">Direct</span>
+                                                <span class="@MetricVarianceClass(row.Variance?.DirectBeneficiaries)">@FormatNumber(row.Variance?.DirectBeneficiaries)</span>
+                                            </div>
+                                            <div class="pro-metric__row">
+                                                <span class="pro-metric__label">Indirect</span>
+                                                <span class="@MetricVarianceClass(row.Variance?.IndirectBeneficiaries)">@FormatNumber(row.Variance?.IndirectBeneficiaries)</span>
+                                            </div>
+                                            <div class="pro-metric__row">
+                                                <span class="@MetricVarianceClass(row.Variance?.InvestmentValue)">@FormatDecimal(row.Variance?.InvestmentValue)</span>
+                                            </div>
+                                        </td>
+                                        <td class="pro-preference">
+                                            <span class="badge @ModeBadgeClass(row.Preference.Mode)">@row.Preference.Mode</span>
+                                            @if (row.Preference.HasPreference)
+                                            {
+                                                <p class="pro-preference__hint mb-0">
+                                                    Preferred year: <span>@row.Preference.PreferredYear</span>
+                                                    @if (row.Preference.PreferredYearMatches)
+                                                    {
+                                                        <span class="text-success">(matches selected year)</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-warning">(out of sync with selected year)</span>
+                                                    }
+                                                </p>
+                                            }
+                                            else
+                                            {
+                                                <p class="pro-preference__hint mb-0 text-muted">Using automatic mode.</p>
+                                            }
+                                        </td>
+                                        <td class="text-end">
+                                            <div class="pro-preference-actions" role="group" aria-label="Update preference">
+                                                <button type="button" class="btn btn-outline-secondary btn-sm" data-pro-rec-action="auto" data-project-id="@row.ProjectId" data-source="@row.Source" data-year="@row.Year" data-row-version="@rowVersion" @(disableAuto ? "disabled" : null)>Set auto</button>
+                                                <button type="button" class="btn btn-outline-primary btn-sm" data-pro-rec-action="yearly" data-project-id="@row.ProjectId" data-source="@row.Source" data-year="@row.Year" data-row-version="@rowVersion" @(disableYearly ? "disabled" : null)>Use yearly</button>
+                                                <button type="button" class="btn btn-outline-success btn-sm" data-pro-rec-action="granular" data-project-id="@row.ProjectId" data-source="@row.Source" data-year="@row.Year" data-row-version="@rowVersion" @(disableGranular ? "disabled" : null)>Use granular</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+    }
+</section>
 
 <form method="post" class="d-none" data-pro-rec-antiforgery>
     @Html.AntiForgeryToken()
