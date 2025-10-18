@@ -67,12 +67,18 @@ public sealed class ProliferationYearlyImportService : IProliferationYearlyImpor
 
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
+    private readonly IAuditService _audit;
     private readonly ILogger<ProliferationYearlyImportService> _logger;
 
-    public ProliferationYearlyImportService(ApplicationDbContext db, IClock clock, ILogger<ProliferationYearlyImportService> logger)
+    public ProliferationYearlyImportService(
+        ApplicationDbContext db,
+        IClock clock,
+        IAuditService audit,
+        ILogger<ProliferationYearlyImportService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _audit = audit ?? throw new ArgumentNullException(nameof(audit));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -104,6 +110,7 @@ public sealed class ProliferationYearlyImportService : IProliferationYearlyImpor
         var rows = new List<ParsedYearlyRow>();
         var errors = new List<ProliferationImportRowError>();
         var rejectedRows = new List<RejectedRow>();
+        var auditChanges = new List<RecordChange>();
 
         using (var reader = new StreamReader(request.Content, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true))
         using (var parser = new TextFieldParser(reader))
@@ -249,6 +256,7 @@ public sealed class ProliferationYearlyImportService : IProliferationYearlyImpor
                 entity.LastModifiedByUserId = request.UploadedByUserId;
                 entity.LastModifiedAtUtc = now;
                 entity.RowVersion = Guid.NewGuid().ToByteArray();
+                auditChanges.Add(RecordChange.Edited(row.ProjectId, request.Source, row.Year, row.DirectBeneficiaries, row.IndirectBeneficiaries, row.InvestmentValue));
             }
             else
             {
@@ -267,12 +275,51 @@ public sealed class ProliferationYearlyImportService : IProliferationYearlyImpor
 
                 ApplyMetrics(yearly.Metrics, row.DirectBeneficiaries, row.IndirectBeneficiaries, row.InvestmentValue);
                 _db.ProliferationYearlies.Add(yearly);
+                auditChanges.Add(RecordChange.Created(row.ProjectId, request.Source, row.Year, row.DirectBeneficiaries, row.IndirectBeneficiaries, row.InvestmentValue));
             }
 
             imported++;
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (auditChanges.Count > 0)
+        {
+            foreach (var change in auditChanges)
+            {
+                var auditEvent = change.IsCreation
+                    ? Audit.Events.ProliferationRecordCreated(
+                        change.ProjectId,
+                        change.Source,
+                        change.Year,
+                        change.DirectBeneficiaries,
+                        change.IndirectBeneficiaries,
+                        change.InvestmentValue,
+                        request.UploadedByUserId,
+                        origin: "Import")
+                    : Audit.Events.ProliferationRecordEdited(
+                        change.ProjectId,
+                        change.Source,
+                        change.Year,
+                        change.DirectBeneficiaries,
+                        change.IndirectBeneficiaries,
+                        change.InvestmentValue,
+                        request.UploadedByUserId,
+                        origin: "Import");
+
+                await auditEvent.WriteAsync(_audit);
+            }
+
+            await Audit.Events.ProliferationImportCompleted(
+                    request.UploadedByUserId,
+                    "Yearly",
+                    request.Source,
+                    request.FileName,
+                    processedRows: rows.Count + rejectedRows.Count,
+                    importedRows: imported,
+                    errorCount: errors.Count)
+                .WriteAsync(_audit);
+        }
 
         var rejection = rejectedRows.Count > 0
             ? BuildRejectionFile(request.FileName, rejectedRows)
@@ -519,6 +566,32 @@ public sealed class ProliferationYearlyImportService : IProliferationYearlyImpor
         string[] Headers,
         string[] RawValues);
 
+    private sealed record RecordChange(
+        bool IsCreation,
+        int ProjectId,
+        ProliferationSource Source,
+        int Year,
+        int? DirectBeneficiaries,
+        int? IndirectBeneficiaries,
+        decimal? InvestmentValue)
+    {
+        public static RecordChange Created(
+            int projectId,
+            ProliferationSource source,
+            int year,
+            int? direct,
+            int? indirect,
+            decimal? investment) => new(true, projectId, source, year, direct, indirect, investment);
+
+        public static RecordChange Edited(
+            int projectId,
+            ProliferationSource source,
+            int year,
+            int? direct,
+            int? indirect,
+            decimal? investment) => new(false, projectId, source, year, direct, indirect, investment);
+    }
+
     private sealed record ParseResult(bool Success, ParsedYearlyRow? Row, string? Error)
     {
         public static ParseResult Success(ParsedYearlyRow row) => new(true, row, null);
@@ -546,12 +619,18 @@ public sealed class ProliferationGranularImportService : IProliferationGranularI
 
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
+    private readonly IAuditService _audit;
     private readonly ILogger<ProliferationGranularImportService> _logger;
 
-    public ProliferationGranularImportService(ApplicationDbContext db, IClock clock, ILogger<ProliferationGranularImportService> logger)
+    public ProliferationGranularImportService(
+        ApplicationDbContext db,
+        IClock clock,
+        IAuditService audit,
+        ILogger<ProliferationGranularImportService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _audit = audit ?? throw new ArgumentNullException(nameof(audit));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -583,6 +662,7 @@ public sealed class ProliferationGranularImportService : IProliferationGranularI
         var rows = new List<ParsedGranularRow>();
         var errors = new List<ProliferationImportRowError>();
         var rejectedRows = new List<RejectedRow>();
+        var auditChanges = new List<GranularChange>();
 
         using (var reader = new StreamReader(request.Content, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true))
         using (var parser = new TextFieldParser(reader))
@@ -730,6 +810,7 @@ public sealed class ProliferationGranularImportService : IProliferationGranularI
                 entity.LastModifiedByUserId = request.UploadedByUserId;
                 entity.LastModifiedAtUtc = now;
                 entity.RowVersion = Guid.NewGuid().ToByteArray();
+                auditChanges.Add(GranularChange.Edited(row.ProjectId, request.Source, row.Year, row.Granularity, row.Period, row.PeriodLabel, row.DirectBeneficiaries, row.IndirectBeneficiaries, row.InvestmentValue));
             }
             else
             {
@@ -751,12 +832,57 @@ public sealed class ProliferationGranularImportService : IProliferationGranularI
 
                 ApplyMetrics(granular.Metrics, row.DirectBeneficiaries, row.IndirectBeneficiaries, row.InvestmentValue);
                 _db.ProliferationGranularEntries.Add(granular);
+                auditChanges.Add(GranularChange.Created(row.ProjectId, request.Source, row.Year, row.Granularity, row.Period, row.PeriodLabel, row.DirectBeneficiaries, row.IndirectBeneficiaries, row.InvestmentValue));
             }
 
             imported++;
         }
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (auditChanges.Count > 0)
+        {
+            foreach (var change in auditChanges)
+            {
+                var auditEvent = change.IsCreation
+                    ? Audit.Events.ProliferationRecordCreated(
+                        change.ProjectId,
+                        change.Source,
+                        change.Year,
+                        change.DirectBeneficiaries,
+                        change.IndirectBeneficiaries,
+                        change.InvestmentValue,
+                        request.UploadedByUserId,
+                        origin: "Import",
+                        granularity: change.Granularity,
+                        period: change.Period,
+                        periodLabel: change.PeriodLabel)
+                    : Audit.Events.ProliferationRecordEdited(
+                        change.ProjectId,
+                        change.Source,
+                        change.Year,
+                        change.DirectBeneficiaries,
+                        change.IndirectBeneficiaries,
+                        change.InvestmentValue,
+                        request.UploadedByUserId,
+                        origin: "Import",
+                        granularity: change.Granularity,
+                        period: change.Period,
+                        periodLabel: change.PeriodLabel);
+
+                await auditEvent.WriteAsync(_audit);
+            }
+
+            await Audit.Events.ProliferationImportCompleted(
+                    request.UploadedByUserId,
+                    "Granular",
+                    request.Source,
+                    request.FileName,
+                    processedRows: rows.Count + rejectedRows.Count,
+                    importedRows: imported,
+                    errorCount: errors.Count)
+                .WriteAsync(_audit);
+        }
 
         var rejection = rejectedRows.Count > 0
             ? BuildRejectionFile(request.FileName, rejectedRows)
@@ -1039,6 +1165,41 @@ public sealed class ProliferationGranularImportService : IProliferationGranularI
         ProliferationSource Source,
         string[] Headers,
         string[] RawValues);
+
+    private sealed record GranularChange(
+        bool IsCreation,
+        int ProjectId,
+        ProliferationSource Source,
+        int Year,
+        ProliferationGranularity Granularity,
+        int Period,
+        string? PeriodLabel,
+        int? DirectBeneficiaries,
+        int? IndirectBeneficiaries,
+        decimal? InvestmentValue)
+    {
+        public static GranularChange Created(
+            int projectId,
+            ProliferationSource source,
+            int year,
+            ProliferationGranularity granularity,
+            int period,
+            string? periodLabel,
+            int? direct,
+            int? indirect,
+            decimal? investment) => new(true, projectId, source, year, granularity, period, periodLabel, direct, indirect, investment);
+
+        public static GranularChange Edited(
+            int projectId,
+            ProliferationSource source,
+            int year,
+            ProliferationGranularity granularity,
+            int period,
+            string? periodLabel,
+            int? direct,
+            int? indirect,
+            decimal? investment) => new(false, projectId, source, year, granularity, period, periodLabel, direct, indirect, investment);
+    }
 
     private sealed record ParseResult(bool Success, ParsedGranularRow? Row, string? Error)
     {

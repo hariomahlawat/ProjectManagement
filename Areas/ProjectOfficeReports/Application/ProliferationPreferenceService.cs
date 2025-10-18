@@ -98,10 +98,11 @@ public sealed class ProliferationPreferenceService
                 return ProliferationPreferenceCommandResult.ConcurrencyConflict();
             }
 
-            await Audit.Events.ProliferationPreferenceSaved(
+            await Audit.Events.ProliferationPreferenceChanged(
                     projectId,
                     source,
                     year,
+                    preference.UserId,
                     userId,
                     ProliferationPreferenceChangeOutcome.Created.ToString())
                 .WriteAsync(_audit);
@@ -128,10 +129,11 @@ public sealed class ProliferationPreferenceService
             return ProliferationPreferenceCommandResult.ConcurrencyConflict();
         }
 
-        await Audit.Events.ProliferationPreferenceSaved(
+        await Audit.Events.ProliferationPreferenceChanged(
                 projectId,
                 source,
                 year,
+                preference.UserId,
                 userId,
                 ProliferationPreferenceChangeOutcome.Updated.ToString())
             .WriteAsync(_audit);
@@ -184,7 +186,13 @@ public sealed class ProliferationPreferenceService
             return ProliferationPreferenceCommandResult.ConcurrencyConflict();
         }
 
-        await Audit.Events.ProliferationPreferenceCleared(projectId, source, userId)
+        await Audit.Events.ProliferationPreferenceChanged(
+                projectId,
+                source,
+                preference.Year,
+                preference.UserId,
+                userId,
+                ProliferationPreferenceChangeOutcome.Cleared.ToString())
             .WriteAsync(_audit);
 
         return ProliferationPreferenceCommandResult.Success(null, ProliferationPreferenceChangeOutcome.Cleared);

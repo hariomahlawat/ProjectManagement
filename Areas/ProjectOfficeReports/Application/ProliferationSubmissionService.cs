@@ -252,6 +252,8 @@ public sealed class ProliferationSubmissionService
         }
 
         var now = _clock.UtcNow;
+        ProliferationYearly? approvedYearly = null;
+        var yearlyCreated = false;
 
         if (approve)
         {
@@ -281,6 +283,7 @@ public sealed class ProliferationSubmissionService
                 yearly.LastModifiedAtUtc = now;
 
                 _db.ProliferationYearlies.Add(yearly);
+                yearlyCreated = true;
             }
             else
             {
@@ -290,6 +293,8 @@ public sealed class ProliferationSubmissionService
                 yearly.LastModifiedAtUtc = now;
                 yearly.RowVersion = Guid.NewGuid().ToByteArray();
             }
+
+            approvedYearly = yearly;
         }
 
         request.DecisionState = approve
@@ -317,6 +322,47 @@ public sealed class ProliferationSubmissionService
                 approve,
                 decisionUserId)
             .WriteAsync(_audit);
+
+        if (approve && approvedYearly is not null)
+        {
+            var recordEvent = yearlyCreated
+                ? Audit.Events.ProliferationRecordCreated(
+                    approvedYearly.ProjectId,
+                    approvedYearly.Source,
+                    approvedYearly.Year,
+                    approvedYearly.Metrics.DirectBeneficiaries,
+                    approvedYearly.Metrics.IndirectBeneficiaries,
+                    approvedYearly.Metrics.InvestmentValue,
+                    decisionUserId,
+                    origin: "Approval")
+                : Audit.Events.ProliferationRecordEdited(
+                    approvedYearly.ProjectId,
+                    approvedYearly.Source,
+                    approvedYearly.Year,
+                    approvedYearly.Metrics.DirectBeneficiaries,
+                    approvedYearly.Metrics.IndirectBeneficiaries,
+                    approvedYearly.Metrics.InvestmentValue,
+                    decisionUserId,
+                    origin: "Approval");
+
+            await recordEvent.WriteAsync(_audit);
+
+            await Audit.Events.ProliferationRecordApproved(
+                    request.Id,
+                    approvedYearly.ProjectId,
+                    approvedYearly.Source,
+                    approvedYearly.Year,
+                    approvedYearly.Metrics.DirectBeneficiaries,
+                    approvedYearly.Metrics.IndirectBeneficiaries,
+                    approvedYearly.Metrics.InvestmentValue,
+                    decisionUserId,
+                    granularity: null,
+                    period: null,
+                    periodLabel: null,
+                    decisionNotes: request.DecisionNotes,
+                    submittedByUserId: request.SubmittedByUserId)
+                .WriteAsync(_audit);
+        }
 
         return ProliferationRequestActionResult.Success(request.Id, request.RowVersion, null);
     }
@@ -354,6 +400,8 @@ public sealed class ProliferationSubmissionService
         }
 
         var now = _clock.UtcNow;
+        ProliferationGranular? approvedGranular = null;
+        var granularCreated = false;
 
         if (approve)
         {
@@ -388,6 +436,7 @@ public sealed class ProliferationSubmissionService
                 granular.LastModifiedAtUtc = now;
 
                 _db.ProliferationGranularEntries.Add(granular);
+                granularCreated = true;
             }
             else
             {
@@ -398,6 +447,8 @@ public sealed class ProliferationSubmissionService
                 granular.LastModifiedAtUtc = now;
                 granular.RowVersion = Guid.NewGuid().ToByteArray();
             }
+
+            approvedGranular = granular;
         }
 
         request.DecisionState = approve
@@ -427,6 +478,53 @@ public sealed class ProliferationSubmissionService
                 approve,
                 decisionUserId)
             .WriteAsync(_audit);
+
+        if (approve && approvedGranular is not null)
+        {
+            var recordEvent = granularCreated
+                ? Audit.Events.ProliferationRecordCreated(
+                    approvedGranular.ProjectId,
+                    approvedGranular.Source,
+                    approvedGranular.Year,
+                    approvedGranular.Metrics.DirectBeneficiaries,
+                    approvedGranular.Metrics.IndirectBeneficiaries,
+                    approvedGranular.Metrics.InvestmentValue,
+                    decisionUserId,
+                    origin: "Approval",
+                    granularity: approvedGranular.Granularity,
+                    period: approvedGranular.Period,
+                    periodLabel: approvedGranular.PeriodLabel)
+                : Audit.Events.ProliferationRecordEdited(
+                    approvedGranular.ProjectId,
+                    approvedGranular.Source,
+                    approvedGranular.Year,
+                    approvedGranular.Metrics.DirectBeneficiaries,
+                    approvedGranular.Metrics.IndirectBeneficiaries,
+                    approvedGranular.Metrics.InvestmentValue,
+                    decisionUserId,
+                    origin: "Approval",
+                    granularity: approvedGranular.Granularity,
+                    period: approvedGranular.Period,
+                    periodLabel: approvedGranular.PeriodLabel);
+
+            await recordEvent.WriteAsync(_audit);
+
+            await Audit.Events.ProliferationRecordApproved(
+                    request.Id,
+                    approvedGranular.ProjectId,
+                    approvedGranular.Source,
+                    approvedGranular.Year,
+                    approvedGranular.Metrics.DirectBeneficiaries,
+                    approvedGranular.Metrics.IndirectBeneficiaries,
+                    approvedGranular.Metrics.InvestmentValue,
+                    decisionUserId,
+                    granularity: approvedGranular.Granularity,
+                    period: approvedGranular.Period,
+                    periodLabel: approvedGranular.PeriodLabel,
+                    decisionNotes: request.DecisionNotes,
+                    submittedByUserId: request.SubmittedByUserId)
+                .WriteAsync(_audit);
+        }
 
         return ProliferationRequestActionResult.Success(request.Id, request.RowVersion, null);
     }

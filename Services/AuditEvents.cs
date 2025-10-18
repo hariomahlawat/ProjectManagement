@@ -433,36 +433,167 @@ public static class Audit
             return new AuditEvent("ProjectOfficeReports.VisitCoverPhotoChanged", userId, data);
         }
 
-        public static AuditEvent ProliferationPreferenceSaved(
+        public static AuditEvent ProliferationPreferenceChanged(
             int projectId,
             ProliferationSource source,
-            int year,
-            string userId,
+            int? year,
+            string preferenceUserId,
+            string actorUserId,
             string changeType)
         {
             var data = new Dictionary<string, string?>
             {
-                ["ProjectId"] = projectId.ToString(),
+                ["ProjectId"] = projectId.ToString(CultureInfo.InvariantCulture),
                 ["Source"] = source.ToString(),
-                ["Year"] = year.ToString(),
+                ["Year"] = year?.ToString(CultureInfo.InvariantCulture),
+                ["PreferenceUserId"] = preferenceUserId,
                 ["ChangeType"] = changeType
             };
 
-            return new AuditEvent("ProjectOfficeReports.ProliferationPreferenceSaved", userId, data);
+            return new AuditEvent("ProjectOfficeReports.Proliferation.PreferenceChanged", actorUserId, data);
         }
 
-        public static AuditEvent ProliferationPreferenceCleared(
+        public static AuditEvent ProliferationRecordCreated(
             int projectId,
             ProliferationSource source,
-            string userId)
+            int year,
+            int? directBeneficiaries,
+            int? indirectBeneficiaries,
+            decimal? investmentValue,
+            string userId,
+            string origin,
+            ProliferationGranularity? granularity = null,
+            int? period = null,
+            string? periodLabel = null)
+        {
+            return CreateProliferationRecordEvent(
+                "ProjectOfficeReports.Proliferation.RecordCreated",
+                userId,
+                projectId,
+                source,
+                year,
+                directBeneficiaries,
+                indirectBeneficiaries,
+                investmentValue,
+                origin,
+                granularity,
+                period,
+                periodLabel,
+                requestId: null,
+                decisionNotes: null,
+                submittedByUserId: null);
+        }
+
+        public static AuditEvent ProliferationRecordEdited(
+            int projectId,
+            ProliferationSource source,
+            int year,
+            int? directBeneficiaries,
+            int? indirectBeneficiaries,
+            decimal? investmentValue,
+            string userId,
+            string origin,
+            ProliferationGranularity? granularity = null,
+            int? period = null,
+            string? periodLabel = null)
+        {
+            return CreateProliferationRecordEvent(
+                "ProjectOfficeReports.Proliferation.RecordEdited",
+                userId,
+                projectId,
+                source,
+                year,
+                directBeneficiaries,
+                indirectBeneficiaries,
+                investmentValue,
+                origin,
+                granularity,
+                period,
+                periodLabel,
+                requestId: null,
+                decisionNotes: null,
+                submittedByUserId: null);
+        }
+
+        public static AuditEvent ProliferationRecordApproved(
+            Guid requestId,
+            int projectId,
+            ProliferationSource source,
+            int year,
+            int? directBeneficiaries,
+            int? indirectBeneficiaries,
+            decimal? investmentValue,
+            string decidedByUserId,
+            ProliferationGranularity? granularity = null,
+            int? period = null,
+            string? periodLabel = null,
+            string? decisionNotes = null,
+            string? submittedByUserId = null)
+        {
+            return CreateProliferationRecordEvent(
+                "ProjectOfficeReports.Proliferation.RecordApproved",
+                decidedByUserId,
+                projectId,
+                source,
+                year,
+                directBeneficiaries,
+                indirectBeneficiaries,
+                investmentValue,
+                origin: "Approval",
+                granularity,
+                period,
+                periodLabel,
+                requestId,
+                decisionNotes,
+                submittedByUserId);
+        }
+
+        public static AuditEvent ProliferationImportCompleted(
+            string userId,
+            string importType,
+            ProliferationSource source,
+            string? fileName,
+            int processedRows,
+            int importedRows,
+            int errorCount)
         {
             var data = new Dictionary<string, string?>
             {
-                ["ProjectId"] = projectId.ToString(),
-                ["Source"] = source.ToString()
+                ["ImportType"] = importType,
+                ["Source"] = source.ToString(),
+                ["FileName"] = fileName,
+                ["ProcessedRows"] = processedRows.ToString(CultureInfo.InvariantCulture),
+                ["ImportedRows"] = importedRows.ToString(CultureInfo.InvariantCulture),
+                ["ErrorCount"] = errorCount.ToString(CultureInfo.InvariantCulture)
             };
 
-            return new AuditEvent("ProjectOfficeReports.ProliferationPreferenceCleared", userId, data);
+            return new AuditEvent("ProjectOfficeReports.Proliferation.ImportCompleted", userId, data);
+        }
+
+        public static AuditEvent ProliferationExportGenerated(
+            string userId,
+            ProliferationSource? source,
+            int? yearFrom,
+            int? yearTo,
+            int? sponsoringUnitId,
+            string? simulatorUserId,
+            string? searchTerm,
+            int rowCount,
+            string fileName)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["Source"] = source?.ToString(),
+                ["YearFrom"] = yearFrom?.ToString(CultureInfo.InvariantCulture),
+                ["YearTo"] = yearTo?.ToString(CultureInfo.InvariantCulture),
+                ["SponsoringUnitId"] = sponsoringUnitId?.ToString(CultureInfo.InvariantCulture),
+                ["SimulatorUserId"] = simulatorUserId,
+                ["SearchTerm"] = searchTerm,
+                ["RowCount"] = rowCount.ToString(CultureInfo.InvariantCulture),
+                ["FileName"] = fileName
+            };
+
+            return new AuditEvent("ProjectOfficeReports.Proliferation.ExportGenerated", userId, data);
         }
 
         public static AuditEvent ProliferationYearlySubmitted(
@@ -539,6 +670,47 @@ public static class Audit
             };
 
             return new AuditEvent("ProjectOfficeReports.ProliferationGranularDecided", decidedByUserId, data);
+        }
+
+        private static AuditEvent CreateProliferationRecordEvent(
+            string action,
+            string userId,
+            int projectId,
+            ProliferationSource source,
+            int year,
+            int? directBeneficiaries,
+            int? indirectBeneficiaries,
+            decimal? investmentValue,
+            string? origin,
+            ProliferationGranularity? granularity,
+            int? period,
+            string? periodLabel,
+            Guid? requestId,
+            string? decisionNotes,
+            string? submittedByUserId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(CultureInfo.InvariantCulture),
+                ["Source"] = source.ToString(),
+                ["Year"] = year.ToString(CultureInfo.InvariantCulture),
+                ["DirectBeneficiaries"] = directBeneficiaries?.ToString(CultureInfo.InvariantCulture),
+                ["IndirectBeneficiaries"] = indirectBeneficiaries?.ToString(CultureInfo.InvariantCulture),
+                ["InvestmentValue"] = investmentValue?.ToString(CultureInfo.InvariantCulture),
+                ["Origin"] = origin,
+                ["PeriodLabel"] = periodLabel,
+                ["DecisionNotes"] = decisionNotes,
+                ["SubmittedByUserId"] = submittedByUserId,
+                ["RequestId"] = requestId?.ToString()
+            };
+
+            if (granularity.HasValue)
+            {
+                data["Granularity"] = granularity.Value.ToString();
+                data["Period"] = period?.ToString(CultureInfo.InvariantCulture);
+            }
+
+            return new AuditEvent(action, userId, data);
         }
     }
 }
