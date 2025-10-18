@@ -93,5 +93,5 @@ public sealed class TotTrackerSummaryTests
             RequestRowVersion: null,
             LatestExternalRemark: null,
             LatestInternalRemark: null,
-            LeadProjectOfficerUserId: null);
+            LeadProjectOfficer: null);
 }
