@@ -237,10 +237,14 @@ public sealed class ProjectTotExcelWorkbookBuilderTests
         Assert.Equal("Completed", worksheet.Cell(2, 5).GetString());
         Assert.Equal("MET signed off", worksheet.Cell(2, 8).GetString());
         Assert.Equal("Yes", worksheet.Cell(2, 10).GetString());
+        Assert.Equal("Latest external remark", worksheet.Cell(1, 12).GetString());
+        Assert.Equal(
+            "External insight\nEvent: 15-Feb-2024\nPosted: 16-Feb-2024 11:00 IST",
+            worksheet.Cell(2, 12).GetString());
 
         var lastColumn = worksheet.LastColumnUsed();
         Assert.NotNull(lastColumn);
-        Assert.Equal(11, lastColumn!.ColumnNumber());
+        Assert.Equal(12, lastColumn!.ColumnNumber());
 
         var metadataRow = rows.Count + 3;
         Assert.Equal("Export generated", worksheet.Cell(metadataRow, 1).GetString());
