@@ -135,6 +135,14 @@ builder.Services.AddAuthorization(options =>
         policy.RequireTotTrackerSubmitter());
     options.AddPolicy(ProjectOfficeReportsPolicies.ApproveTotTracker, policy =>
         policy.RequireTotTrackerApprover());
+    options.AddPolicy(ProjectOfficeReportsPolicies.ViewProliferationTracker, policy =>
+        policy.RequireProliferationViewer());
+    options.AddPolicy(ProjectOfficeReportsPolicies.SubmitProliferationTracker, policy =>
+        policy.RequireProliferationSubmitter());
+    options.AddPolicy(ProjectOfficeReportsPolicies.ApproveProliferationTracker, policy =>
+        policy.RequireProliferationApprover());
+    options.AddPolicy(ProjectOfficeReportsPolicies.ManageProliferationPreferences, policy =>
+        policy.RequireProliferationPreferenceManager());
 });
 
 builder.Services.ConfigureApplicationCookie(opt =>
