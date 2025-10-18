@@ -97,6 +97,21 @@ public sealed class ProliferationPreferenceService
             {
                 return ProliferationPreferenceCommandResult.ConcurrencyConflict();
             }
+            catch (DbUpdateException)
+            {
+                var exists = await _db.ProliferationYearPreferences
+                    .AsNoTracking()
+                    .AnyAsync(
+                        x => x.ProjectId == projectId && x.Source == source && x.UserId == userId,
+                        cancellationToken);
+
+                if (exists)
+                {
+                    return ProliferationPreferenceCommandResult.ConcurrencyConflict();
+                }
+
+                throw;
+            }
 
             await Audit.Events.ProliferationPreferenceSaved(
                     projectId,
