@@ -1,0 +1,140 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.Admin.IndexModel
+@{
+    ViewData["Title"] = "Proliferation data administration";
+    string? toast = TempData["ToastMessage"] as string;
+    string? toastWarning = TempData["ToastWarning"] as string;
+    string? toastError = TempData["ToastError"] as string;
+}
+
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+    <div>
+        <h1 class="h3 mb-1">Proliferation data administration</h1>
+        <p class="text-muted mb-0">Upload source feeds and download tracker exports for offline analysis.</p>
+    </div>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(toast))
+{
+    <div class="alert alert-success" role="status">@toast</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(toastWarning))
+{
+    <div class="alert alert-warning" role="status">@toastWarning</div>
+}
+
+@if (!string.IsNullOrWhiteSpace(toastError))
+{
+    <div class="alert alert-danger" role="status">@toastError</div>
+}
+
+@if (Model.PendingRejectionDownload is not null)
+{
+    <div class="alert alert-info d-flex flex-wrap justify-content-between align-items-center gap-2" role="status">
+        <span>Some rows were rejected during the last import. Download the rejection report to review the errors.</span>
+        <a class="btn btn-outline-primary"
+           asp-page-handler="DownloadRejection"
+           asp-route-token="@Model.PendingRejectionDownload.Token">
+            Download @Model.PendingRejectionDownload.FileName
+        </a>
+    </div>
+}
+
+<div class="row g-4">
+    <div class="col-12 col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h2 class="h5 mb-0">Import yearly totals</h2>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Upload CSV files from SDD (internal) or 515 (external) systems. Files must include ProjectId, Year, DirectBeneficiaries, IndirectBeneficiaries, InvestmentValue, and optional Notes columns.</p>
+
+                <form method="post" enctype="multipart/form-data" asp-page-handler="ImportYearly">
+                    <div class="mb-3">
+                        <label class="form-label" for="yearly-source">Source</label>
+                        <select class="form-select" asp-for="Yearly.Source" id="yearly-source">
+                            <option value="@ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationSource.Internal">SDD (Internal)</option>
+                            <option value="@ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationSource.External">515 (External)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" asp-for="Yearly.File">Upload CSV file</label>
+                        <input class="form-control" asp-for="Yearly.File" type="file" accept=".csv" />
+                        <span class="text-danger" asp-validation-for="Yearly.File"></span>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Import yearly data</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card h-100">
+            <div class="card-header">
+                <h2 class="h5 mb-0">Import granular metrics (SDD)</h2>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Upload monthly or quarterly totals from SDD. Files must include ProjectId, Year, Granularity, Period, and optional metric columns.</p>
+
+                <form method="post" enctype="multipart/form-data" asp-page-handler="ImportGranular">
+                    <div class="mb-3">
+                        <label class="form-label" asp-for="Granular.File">Upload CSV file</label>
+                        <input class="form-control" asp-for="Granular.File" type="file" accept=".csv" />
+                        <span class="text-danger" asp-validation-for="Granular.File"></span>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Import granular data</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="h5 mb-0">Download tracker export</h2>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Generate an Excel workbook summarising yearly, granular, effective, and variance metrics for the selected filters.</p>
+
+                <form method="post" asp-page-handler="Export">
+                    <div class="row g-3">
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" asp-for="Export.Source">Source</label>
+                            <select class="form-select" asp-for="Export.Source">
+                                <option value="">All sources</option>
+                                <option value="@ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationSource.Internal">SDD (Internal)</option>
+                                <option value="@ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationSource.External">515 (External)</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" asp-for="Export.YearFrom">Year from</label>
+                            <input class="form-control" asp-for="Export.YearFrom" type="number" min="2000" max="9999" />
+                        </div>
+                        <div class="col-12 col-md-4">
+                            <label class="form-label" asp-for="Export.YearTo">Year to</label>
+                            <input class="form-control" asp-for="Export.YearTo" type="number" min="2000" max="9999" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" asp-for="Export.SponsoringUnitId">Sponsoring unit ID</label>
+                            <input class="form-control" asp-for="Export.SponsoringUnitId" type="number" min="1" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label" asp-for="Export.SimulatorUserId">Simulator user ID</label>
+                            <input class="form-control" asp-for="Export.SimulatorUserId" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" asp-for="Export.SearchTerm">Project search</label>
+                            <input class="form-control" asp-for="Export.SearchTerm" placeholder="Search by project or unit" />
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-success">Download export</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
