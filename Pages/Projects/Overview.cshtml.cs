@@ -236,6 +236,38 @@ namespace ProjectManagement.Pages.Projects
                 .ThenBy(s => s.StageCode, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
+            var knownStageCodes = new HashSet<string>(
+                Stages.Where(s => !string.IsNullOrWhiteSpace(s.StageCode))
+                    .Select(s => s.StageCode!),
+                StringComparer.OrdinalIgnoreCase);
+
+            var placeholderAdded = false;
+            foreach (var code in StageCodes.All)
+            {
+                if (knownStageCodes.Contains(code))
+                {
+                    continue;
+                }
+
+                Stages.Add(new ProjectStage
+                {
+                    ProjectId = project.Id,
+                    StageCode = code,
+                    SortOrder = StageOrder(code),
+                    Status = StageStatus.NotStarted
+                });
+
+                placeholderAdded = true;
+            }
+
+            if (placeholderAdded)
+            {
+                Stages = Stages
+                    .OrderBy(s => StageOrder(s.StageCode))
+                    .ThenBy(s => s.StageCode, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+
             var stageLookup = projectStages
                 .Where(s => s.StageCode is not null)
                 .ToDictionary(s => s.StageCode!, s => s.Status, StringComparer.OrdinalIgnoreCase);

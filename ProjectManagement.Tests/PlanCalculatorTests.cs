@@ -26,7 +26,8 @@ public class PlanCalculatorTests
             new() { Code = StageCodes.SO, Name = "Supply Order", Sequence = 100 },
             new() { Code = StageCodes.DEVP, Name = "Development", Sequence = 110 },
             new() { Code = StageCodes.ATP, Name = "Acceptance Testing", Sequence = 120 },
-            new() { Code = StageCodes.PAYMENT, Name = "Payment", Sequence = 130 }
+            new() { Code = StageCodes.PAYMENT, Name = "Payment", Sequence = 130 },
+            new() { Code = StageCodes.TOT, Name = "Transfer of Technology", Sequence = 140, Optional = true }
         };
     }
 
@@ -48,7 +49,8 @@ public class PlanCalculatorTests
             new() { FromStageCode = StageCodes.SO, DependsOnStageCode = StageCodes.EAS },
             new() { FromStageCode = StageCodes.DEVP, DependsOnStageCode = StageCodes.SO },
             new() { FromStageCode = StageCodes.ATP, DependsOnStageCode = StageCodes.DEVP },
-            new() { FromStageCode = StageCodes.PAYMENT, DependsOnStageCode = StageCodes.ATP }
+            new() { FromStageCode = StageCodes.PAYMENT, DependsOnStageCode = StageCodes.ATP },
+            new() { FromStageCode = StageCodes.TOT, DependsOnStageCode = StageCodes.PAYMENT }
         };
     }
 
