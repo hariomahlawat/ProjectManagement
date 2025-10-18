@@ -5,6 +5,7 @@ using System.IO;
 using System.Text;
 using ClosedXML.Excel;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Models;
 using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Utilities.Reporting;
