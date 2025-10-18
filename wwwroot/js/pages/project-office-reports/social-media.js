@@ -128,6 +128,23 @@ function ensureBootstrapModal() {
   return bootstrap && typeof bootstrap.Modal === 'function' ? bootstrap : null;
 }
 
+function showModalElement(modalEl) {
+  if (!modalEl) {
+    return;
+  }
+
+  const bootstrap = ensureBootstrapModal();
+  if (bootstrap) {
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+    return;
+  }
+
+  modalEl.classList.add('show');
+  modalEl.style.display = 'block';
+  modalEl.removeAttribute('aria-hidden');
+  modalEl.setAttribute('aria-modal', 'true');
+}
+
 function ensureConfirmModalElement() {
   let modal = document.getElementById(confirmModalId);
   if (modal) {
@@ -267,10 +284,16 @@ function initConfirmations() {
   forms.forEach(attachConfirmDialog);
 }
 
+function initAutoShowModals() {
+  const modals = document.querySelectorAll('[data-social-auto-show="true"]');
+  modals.forEach(showModalElement);
+}
+
 function init() {
   initToasts();
   initConfirmations();
   initDisableOnSubmit();
+  initAutoShowModals();
 }
 
 if (document.readyState === 'loading') {

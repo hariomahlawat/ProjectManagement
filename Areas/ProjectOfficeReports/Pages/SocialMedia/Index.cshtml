@@ -189,7 +189,7 @@
     </section>
 </div>
 
-<div class="modal fade" id="exportSocialEventsModal" tabindex="-1" aria-labelledby="exportSocialEventsModalLabel" aria-hidden="true">
+<div class="modal fade" id="exportSocialEventsModal" tabindex="-1" aria-labelledby="exportSocialEventsModalLabel" aria-hidden="true" data-social-auto-show="@(showExportModal ? "true" : "false")">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
             <form method="post" class="needs-validation" novalidate data-social-disable-on-submit>
@@ -248,25 +248,5 @@
 </div>
 
 @section Scripts {
-    @if (showExportModal)
-    {
-        <script>
-            document.addEventListener('DOMContentLoaded', function () {
-                const modalEl = document.getElementById('exportSocialEventsModal');
-                if (!modalEl) {
-                    return;
-                }
-
-                const bootstrap = window.bootstrap;
-                if (bootstrap && bootstrap.Modal) {
-                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
-                } else {
-                    modalEl.classList.add('show');
-                    modalEl.style.display = 'block';
-                    modalEl.removeAttribute('aria-hidden');
-                }
-            });
-        </script>
-    }
     <script type="module" src="~/js/pages/project-office-reports/social-media.js" asp-append-version="true"></script>
 }
