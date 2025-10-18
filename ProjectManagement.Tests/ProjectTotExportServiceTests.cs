@@ -237,15 +237,14 @@ public sealed class ProjectTotExcelWorkbookBuilderTests
         Assert.Equal("Project", worksheet.Cell(1, 2).GetString());
         Assert.Equal("Project Orion", worksheet.Cell(2, 2).GetString());
         Assert.Equal("Aerospace", worksheet.Cell(2, 3).GetString());
+        Assert.Equal("lead-po", worksheet.Cell(2, 4).GetString());
         Assert.Equal("Completed", worksheet.Cell(2, 5).GetString());
+        Assert.Equal("MET signed off", worksheet.Cell(2, 8).GetString());
         Assert.Equal("Yes", worksheet.Cell(2, 10).GetString());
-        Assert.Equal("hod-1", worksheet.Cell(2, 12).GetString());
-        Assert.Contains("External insight", worksheet.Cell(2, 26).GetString());
-        Assert.Contains("Internal memo", worksheet.Cell(2, 27).GetString());
 
         var lastColumn = worksheet.LastColumnUsed();
         Assert.NotNull(lastColumn);
-        Assert.Equal(27, lastColumn!.ColumnNumber());
+        Assert.Equal(11, lastColumn!.ColumnNumber());
 
         var metadataRow = rows.Count + 3;
         Assert.Equal("Export generated", worksheet.Cell(metadataRow, 1).GetString());

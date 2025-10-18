@@ -62,23 +62,7 @@ public sealed class ProjectTotExcelWorkbookBuilder : IProjectTotExcelWorkbookBui
             "MET details",
             "MET completed on",
             "First production model manufactured",
-            "First production model manufactured on",
-            "Last approved by",
-            "Last approved on",
-            "Request state",
-            "Requested status",
-            "Requested started on",
-            "Requested completed on",
-            "Requested MET details",
-            "Requested MET completed on",
-            "Requested first production model manufactured",
-            "Requested first production model manufactured on",
-            "Request submitted by",
-            "Request submitted on",
-            "Request decided by",
-            "Request decided on",
-            "Latest external remark",
-            "Latest internal remark"
+            "First production model manufactured on"
         };
 
         for (var column = 0; column < headers.Length; column++)
@@ -113,36 +97,11 @@ public sealed class ProjectTotExcelWorkbookBuilder : IProjectTotExcelWorkbookBui
             SetDateOnlyCell(worksheet.Cell(rowNumber, 9), row.TotMetCompletedOn);
             worksheet.Cell(rowNumber, 10).Value = FormatBoolean(row.TotFirstProductionModelManufactured);
             SetDateOnlyCell(worksheet.Cell(rowNumber, 11), row.TotFirstProductionModelManufacturedOn);
-            worksheet.Cell(rowNumber, 12).Value = row.TotLastApprovedBy ?? string.Empty;
-            SetDateTimeCell(worksheet.Cell(rowNumber, 13), row.TotLastApprovedOnUtc);
-            worksheet.Cell(rowNumber, 14).Value = FormatRequestState(row.RequestState);
-            worksheet.Cell(rowNumber, 15).Value = FormatTotStatus(row.RequestedStatus);
-            SetDateOnlyCell(worksheet.Cell(rowNumber, 16), row.RequestedStartedOn);
-            SetDateOnlyCell(worksheet.Cell(rowNumber, 17), row.RequestedCompletedOn);
-            var requestedMetCell = worksheet.Cell(rowNumber, 18);
-            requestedMetCell.Value = row.RequestedMetDetails ?? string.Empty;
-            SetDateOnlyCell(worksheet.Cell(rowNumber, 19), row.RequestedMetCompletedOn);
-            worksheet.Cell(rowNumber, 20).Value = FormatBoolean(row.RequestedFirstProductionModelManufactured);
-            SetDateOnlyCell(worksheet.Cell(rowNumber, 21), row.RequestedFirstProductionModelManufacturedOn);
-            worksheet.Cell(rowNumber, 22).Value = row.RequestedBy ?? string.Empty;
-            SetDateTimeCell(worksheet.Cell(rowNumber, 23), row.RequestedOnUtc);
-            worksheet.Cell(rowNumber, 24).Value = row.DecidedBy ?? string.Empty;
-            SetDateTimeCell(worksheet.Cell(rowNumber, 25), row.DecidedOnUtc);
-            var externalRemarkCell = worksheet.Cell(rowNumber, 26);
-            externalRemarkCell.Value = FormatRemark(row.LatestExternalRemark);
-            var internalRemarkCell = worksheet.Cell(rowNumber, 27);
-            internalRemarkCell.Value = FormatRemark(row.LatestInternalRemark);
 
             metDetailsCell.Style.Alignment.WrapText = true;
-            requestedMetCell.Style.Alignment.WrapText = true;
-            externalRemarkCell.Style.Alignment.WrapText = true;
-            internalRemarkCell.Style.Alignment.WrapText = true;
         }
 
         worksheet.Column(8).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
-        worksheet.Column(18).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
-        worksheet.Column(26).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
-        worksheet.Column(27).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
     }
 
     private static void ApplyMetadata(IXLWorksheet worksheet, ProjectTotExcelWorkbookContext context)
@@ -200,21 +159,6 @@ public sealed class ProjectTotExcelWorkbookBuilder : IProjectTotExcelWorkbookBui
         {
             cell.Value = value.Value.ToDateTime(TimeOnly.MinValue);
             cell.Style.DateFormat.Format = DateFormat;
-        }
-        else
-        {
-            cell.Value = string.Empty;
-        }
-    }
-
-    private static void SetDateTimeCell(IXLCell cell, DateTime? utcValue)
-    {
-        if (utcValue.HasValue)
-        {
-            var utc = DateTime.SpecifyKind(utcValue.Value, DateTimeKind.Utc);
-            var ist = TimeZoneInfo.ConvertTimeFromUtc(utc, TimeZoneHelper.GetIst());
-            cell.Value = ist;
-            cell.Style.DateFormat.Format = DateTimeFormat;
         }
         else
         {
