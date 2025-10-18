@@ -62,7 +62,8 @@ public sealed class ProjectTotExcelWorkbookBuilder : IProjectTotExcelWorkbookBui
             "MET details",
             "MET completed on",
             "First production model manufactured",
-            "First production model manufactured on"
+            "First production model manufactured on",
+            "Latest external remark"
         };
 
         for (var column = 0; column < headers.Length; column++)
@@ -97,11 +98,15 @@ public sealed class ProjectTotExcelWorkbookBuilder : IProjectTotExcelWorkbookBui
             SetDateOnlyCell(worksheet.Cell(rowNumber, 9), row.TotMetCompletedOn);
             worksheet.Cell(rowNumber, 10).Value = FormatBoolean(row.TotFirstProductionModelManufactured);
             SetDateOnlyCell(worksheet.Cell(rowNumber, 11), row.TotFirstProductionModelManufacturedOn);
+            var externalRemarkCell = worksheet.Cell(rowNumber, 12);
+            externalRemarkCell.Value = FormatRemark(row.LatestExternalRemark);
 
             metDetailsCell.Style.Alignment.WrapText = true;
+            externalRemarkCell.Style.Alignment.WrapText = true;
         }
 
         worksheet.Column(8).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+        worksheet.Column(12).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
     }
 
     private static void ApplyMetadata(IXLWorksheet worksheet, ProjectTotExcelWorkbookContext context)
