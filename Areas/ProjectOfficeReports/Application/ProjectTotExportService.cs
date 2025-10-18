@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
+using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Utilities.Reporting;
 
@@ -32,7 +33,7 @@ public sealed class ProjectTotExportService : IProjectTotExportService
     public async Task<ProjectTotExportResult> ExportAsync(ProjectTotExportRequest request, CancellationToken cancellationToken)
     {
         var validation = Validate(request);
-        if (!validation.Success)
+        if (!validation.IsSuccessful)
         {
             return ProjectTotExportResult.Failure(validation.Error ?? "Export failed.");
         }
@@ -94,7 +95,7 @@ public sealed class ProjectTotExportService : IProjectTotExportService
         return ValidationResult.Success(filter);
     }
 
-    private sealed record ValidationResult(bool Success, string? Error, ProjectTotTrackerFilter? Filter)
+    private sealed record ValidationResult(bool IsSuccessful, string? Error, ProjectTotTrackerFilter? Filter)
     {
         public static ValidationResult Fail(string error) => new(false, error, null);
 
