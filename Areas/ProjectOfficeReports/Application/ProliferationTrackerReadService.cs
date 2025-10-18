@@ -77,7 +77,11 @@ public sealed class ProliferationTrackerReadService
                 ToDto(granularMetrics),
                 ToDto(effectiveMetrics),
                 ToDto(varianceMetrics),
-                new ProliferationPreferenceMetadata(preference.Mode, preference.PreferredYear, preference.MatchesPreferredYear)));
+                new ProliferationPreferenceMetadata(
+                    preference.Mode,
+                    preference.PreferredYear,
+                    preference.MatchesPreferredYear,
+                    preference.RowVersion)));
         }
 
         return rows;
@@ -261,7 +265,7 @@ public sealed class ProliferationTrackerReadService
         query = query.Where(p => idArray.Contains(p.ProjectId));
 
         var preferences = await query
-            .Select(p => new PreferenceSnapshot(p.ProjectId, p.Source, p.Year))
+            .Select(p => new PreferenceSnapshot(p.ProjectId, p.Source, p.Year, p.RowVersion))
             .ToListAsync(cancellationToken);
 
         var result = new Dictionary<(int, ProliferationSource), PreferenceSnapshot>();
@@ -285,21 +289,21 @@ public sealed class ProliferationTrackerReadService
             {
                 if (yearly is not null)
                 {
-                    return new PreferenceSnapshotResult(ProliferationPreferenceMode.UseYearly, preference.Year, true);
+                    return new PreferenceSnapshotResult(ProliferationPreferenceMode.UseYearly, preference.Year, true, preference.RowVersion);
                 }
 
                 if (granular is not null)
                 {
-                    return new PreferenceSnapshotResult(ProliferationPreferenceMode.UseGranular, preference.Year, true);
+                    return new PreferenceSnapshotResult(ProliferationPreferenceMode.UseGranular, preference.Year, true, preference.RowVersion);
                 }
 
-                return new PreferenceSnapshotResult(ProliferationPreferenceMode.Auto, preference.Year, true);
+                return new PreferenceSnapshotResult(ProliferationPreferenceMode.Auto, preference.Year, true, preference.RowVersion);
             }
 
-            return new PreferenceSnapshotResult(ProliferationPreferenceMode.Auto, preference.Year, false);
+            return new PreferenceSnapshotResult(ProliferationPreferenceMode.Auto, preference.Year, false, preference.RowVersion);
         }
 
-        return new PreferenceSnapshotResult(ProliferationPreferenceMode.Auto, null, false);
+        return new PreferenceSnapshotResult(ProliferationPreferenceMode.Auto, null, false, null);
     }
 
     private static MetricValues? DetermineEffective(
@@ -425,12 +429,13 @@ public sealed class ProliferationTrackerReadService
 
     private readonly record struct AggregationKey(int ProjectId, ProliferationSource Source, int Year);
 
-    private readonly record struct PreferenceSnapshot(int ProjectId, ProliferationSource Source, int Year);
+    private readonly record struct PreferenceSnapshot(int ProjectId, ProliferationSource Source, int Year, byte[] RowVersion);
 
     private readonly record struct PreferenceSnapshotResult(
         ProliferationPreferenceMode Mode,
         int? PreferredYear,
-        bool MatchesPreferredYear);
+        bool MatchesPreferredYear,
+        byte[]? RowVersion);
 }
 
 public enum ProliferationPreferenceMode
@@ -448,7 +453,8 @@ public sealed record ProliferationMetricsDto(
 public sealed record ProliferationPreferenceMetadata(
     ProliferationPreferenceMode Mode,
     int? PreferredYear,
-    bool PreferredYearMatches)
+    bool PreferredYearMatches,
+    byte[]? RowVersion)
 {
     public bool HasPreference => PreferredYear.HasValue;
 }

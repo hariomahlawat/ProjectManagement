@@ -96,6 +96,7 @@ public sealed class ProliferationTrackerReadServiceTests
         Assert.True(row.Preference.HasPreference);
         Assert.True(row.Preference.PreferredYearMatches);
         Assert.Equal(2024, row.Preference.PreferredYear);
+        Assert.NotNull(row.Preference.RowVersion);
         Assert.Equal("Wing Cmdr. Nia Hassan", row.SimulatorDisplayName);
     }
 
@@ -159,6 +160,7 @@ public sealed class ProliferationTrackerReadServiceTests
         Assert.True(row.Preference.HasPreference);
         Assert.True(row.Preference.PreferredYearMatches);
         Assert.Equal(2025, row.Preference.PreferredYear);
+        Assert.NotNull(row.Preference.RowVersion);
         Assert.Null(row.Variance);
     }
 
