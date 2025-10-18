@@ -40,6 +40,14 @@ public sealed class ProjectRemarksPanelService
             .OrderBy(option => option.Label, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        if (stageOptions.Count == 0)
+        {
+            stageOptions = StageCodes.All
+                .Select(code => new ProjectRemarksPanelViewModel.RemarkStageOption(code, BuildStageDisplayName(code)))
+                .OrderBy(option => option.Label, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
         var roleOptions = new[]
             {
                 RemarkActorRole.ProjectOfficer,

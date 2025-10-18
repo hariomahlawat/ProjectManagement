@@ -13,6 +13,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Remarks;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Projects;
 using Xunit;
@@ -77,6 +78,30 @@ public sealed class ProjectRemarksPanelServiceTests
         var viewModel = await service.BuildAsync(project, Array.Empty<ProjectStage>(), principal, CancellationToken.None);
 
         Assert.DoesNotContain(viewModel.ScopeOptions, option => option.Value == RemarkScope.TransferOfTechnology.ToString());
+    }
+
+    [Fact]
+    public async Task BuildAsync_WhenNoStages_UsesAllStageCodes()
+    {
+        await using var db = CreateContext();
+        using var userManager = CreateUserManager(db);
+        var clock = new FixedClock(DateTimeOffset.UtcNow);
+        var service = new ProjectRemarksPanelService(userManager, clock);
+
+        var user = new ApplicationUser { Id = "user-3", UserName = "user3@example.com" };
+        await userManager.CreateAsync(user);
+
+        var project = new Project
+        {
+            Id = 3,
+            Name = "Project Zenith"
+        };
+
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, user.Id) }, "TestAuth"));
+        var viewModel = await service.BuildAsync(project, Array.Empty<ProjectStage>(), principal, CancellationToken.None);
+
+        Assert.Equal(StageCodes.All.Length, viewModel.StageOptions.Count);
+        Assert.All(StageCodes.All, code => Assert.Contains(viewModel.StageOptions, option => string.Equals(option.Value, code, StringComparison.Ordinal)));
     }
 
     private static ApplicationDbContext CreateContext()

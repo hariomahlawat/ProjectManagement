@@ -546,9 +546,18 @@ public sealed class RemarkService : IRemarkService
         var normalizedRef = NormalizeStageRef(stageRef);
         var name = !string.IsNullOrWhiteSpace(stageName) ? stageName.Trim() : StageCodes.DisplayNameOf(normalizedRef);
 
-        var stageExists = await _db.ProjectStages
+        var projectStages = _db.ProjectStages
             .AsNoTracking()
-            .AnyAsync(s => s.ProjectId == projectId && s.StageCode == normalizedRef, cancellationToken);
+            .Where(s => s.ProjectId == projectId);
+
+        var hasStages = await projectStages.AnyAsync(cancellationToken);
+
+        if (!hasStages)
+        {
+            return (normalizedRef, name);
+        }
+
+        var stageExists = await projectStages.AnyAsync(s => s.StageCode == normalizedRef, cancellationToken);
 
         if (!stageExists)
         {
