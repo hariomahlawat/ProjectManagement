@@ -23,7 +23,7 @@ public sealed class ProliferationPreferenceServiceTests
 
         var result = await service.SetPreferenceAsync(
             projectId: 42,
-            source: ProliferationSource.Internal,
+            source: ProliferationSource.Sdd,
             year: 2024,
             userId: "user-1",
             expectedRowVersion: null,
@@ -32,7 +32,7 @@ public sealed class ProliferationPreferenceServiceTests
         Assert.Equal(ProliferationPreferenceChangeOutcome.Created, result.Outcome);
         var preference = Assert.IsType<ProliferationYearPreference>(result.Preference);
         Assert.Equal(42, preference.ProjectId);
-        Assert.Equal(ProliferationSource.Internal, preference.Source);
+        Assert.Equal(ProliferationSource.Sdd, preference.Source);
         Assert.Equal(2024, preference.Year);
         Assert.Equal("user-1", preference.UserId);
         Assert.Equal(clock.UtcNow, preference.CreatedAtUtc);
@@ -49,7 +49,7 @@ public sealed class ProliferationPreferenceServiceTests
         Assert.Equal("user-1", entry.UserId);
         Assert.Equal("Created", entry.Data["ChangeType"]);
         Assert.Equal("42", entry.Data["ProjectId"]);
-        Assert.Equal("Internal", entry.Data["Source"]);
+        Assert.Equal("SDD", entry.Data["Source"]);
         Assert.Equal("2024", entry.Data["Year"]);
         Assert.Equal("user-1", entry.Data["PreferenceUserId"]);
     }
@@ -64,7 +64,7 @@ public sealed class ProliferationPreferenceServiceTests
 
         var result = await service.SetPreferenceAsync(
             projectId: 77,
-            source: ProliferationSource.External,
+            source: ProliferationSource.Abw515,
             year: 2025,
             userId: "user-2",
             expectedRowVersion: Guid.NewGuid().ToByteArray(),
@@ -85,7 +85,7 @@ public sealed class ProliferationPreferenceServiceTests
         {
             Id = Guid.NewGuid(),
             ProjectId = 100,
-            Source = ProliferationSource.External,
+            Source = ProliferationSource.Abw515,
             Year = 2023,
             UserId = "user-3",
             CreatedByUserId = "user-3",
@@ -122,7 +122,7 @@ public sealed class ProliferationPreferenceServiceTests
         {
             Id = Guid.NewGuid(),
             ProjectId = 200,
-            Source = ProliferationSource.Internal,
+            Source = ProliferationSource.Sdd,
             Year = 2022,
             UserId = "user-4",
             CreatedByUserId = "user-4",
@@ -159,7 +159,7 @@ public sealed class ProliferationPreferenceServiceTests
         Assert.Equal("ProjectOfficeReports.Proliferation.PreferenceChanged", entry.Action);
         Assert.Equal("Updated", entry.Data["ChangeType"]);
         Assert.Equal("200", entry.Data["ProjectId"]);
-        Assert.Equal("Internal", entry.Data["Source"]);
+        Assert.Equal("SDD", entry.Data["Source"]);
         Assert.Equal("2025", entry.Data["Year"]);
     }
 
@@ -172,7 +172,7 @@ public sealed class ProliferationPreferenceServiceTests
         {
             Id = Guid.NewGuid(),
             ProjectId = 300,
-            Source = ProliferationSource.External,
+            Source = ProliferationSource.Abw515,
             Year = 2024,
             UserId = "user-5",
             CreatedByUserId = "user-5",
@@ -206,7 +206,7 @@ public sealed class ProliferationPreferenceServiceTests
         Assert.Equal("user-5", entry.UserId);
         Assert.Equal("Cleared", entry.Data["ChangeType"]);
         Assert.Equal("300", entry.Data["ProjectId"]);
-        Assert.Equal("External", entry.Data["Source"]);
+        Assert.Equal("515 ABW", entry.Data["Source"]);
         Assert.Equal("2024", entry.Data["Year"]);
     }
 
@@ -220,7 +220,7 @@ public sealed class ProliferationPreferenceServiceTests
 
         var result = await service.ClearPreferenceAsync(
             projectId: 999,
-            source: ProliferationSource.Internal,
+            source: ProliferationSource.Sdd,
             userId: "user-6",
             expectedRowVersion: null,
             cancellationToken: CancellationToken.None);

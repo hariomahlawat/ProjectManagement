@@ -382,9 +382,9 @@ public sealed class IndexModel : PageModel
 
         public int DistinctYears { get; init; }
 
-        public int InternalRows { get; init; }
+        public int SddRows { get; init; }
 
-        public int ExternalRows { get; init; }
+        public int Abw515Rows { get; init; }
 
         public int AutoModeCount { get; init; }
 
@@ -438,8 +438,8 @@ public sealed class IndexModel : PageModel
                 }
             }
 
-            var internalRows = items.Count(r => r.Source == ProliferationSource.Internal);
-            var externalRows = items.Count(r => r.Source == ProliferationSource.External);
+            var sddRows = items.Count(r => r.Source == ProliferationSource.Sdd);
+            var abw515Rows = items.Count(r => r.Source == ProliferationSource.Abw515);
             var autoMode = items.Count(r => r.Preference.Mode == ProliferationPreferenceMode.Auto);
             var yearlyMode = items.Count(r => r.Preference.Mode == ProliferationPreferenceMode.UseYearly);
             var granularMode = items.Count(r => r.Preference.Mode == ProliferationPreferenceMode.UseGranular);
@@ -451,8 +451,8 @@ public sealed class IndexModel : PageModel
                 TotalRows = items.Count,
                 DistinctProjects = distinctProjects,
                 DistinctYears = distinctYears,
-                InternalRows = internalRows,
-                ExternalRows = externalRows,
+                SddRows = sddRows,
+                Abw515Rows = abw515Rows,
                 AutoModeCount = autoMode,
                 YearlyModeCount = yearlyMode,
                 GranularModeCount = granularMode,

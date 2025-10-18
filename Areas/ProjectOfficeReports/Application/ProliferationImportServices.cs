@@ -94,11 +94,11 @@ public sealed class ProliferationYearlyImportService : IProliferationYearlyImpor
             throw new ArgumentException("A valid user identifier is required.", nameof(request.UploadedByUserId));
         }
 
-        if (request.Source != ProliferationSource.Internal && request.Source != ProliferationSource.External)
+        if (request.Source != ProliferationSource.Sdd && request.Source != ProliferationSource.Abw515)
         {
             return new ProliferationImportResult(0, 0, new[]
             {
-                new ProliferationImportRowError(0, "Yearly imports are only supported for internal (SDD) or external (515) sources.")
+                new ProliferationImportRowError(0, "Yearly imports are only supported for SDD or 515 ABW sources.")
             }, null);
         }
 
@@ -648,7 +648,7 @@ public sealed class ProliferationGranularImportService : IProliferationGranularI
             throw new ArgumentException("A valid user identifier is required.", nameof(request.UploadedByUserId));
         }
 
-        if (request.Source != ProliferationSource.Internal)
+        if (request.Source != ProliferationSource.Sdd)
         {
             return new ProliferationImportResult(0, 0, new[]
             {

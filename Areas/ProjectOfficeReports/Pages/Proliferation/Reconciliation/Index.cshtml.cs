@@ -42,7 +42,7 @@ public sealed class IndexModel : PageModel
             return Challenge();
         }
 
-        Source ??= ProliferationSource.Internal;
+        Source ??= ProliferationSource.Sdd;
 
         var filter = new ProliferationTrackerFilter
         {

@@ -408,7 +408,7 @@ public sealed class IndexModel : PageModel
 
         [Required]
         [Display(Name = "Source")]
-        public ProliferationSource Source { get; set; } = ProliferationSource.External;
+        public ProliferationSource Source { get; set; } = ProliferationSource.Abw515;
 
         [Range(1900, 9999)]
         [Display(Name = "Year")]

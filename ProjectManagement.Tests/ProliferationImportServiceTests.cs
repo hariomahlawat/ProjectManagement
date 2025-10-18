@@ -40,7 +40,7 @@ public sealed class ProliferationImportServiceTests
         csv.AppendLine("99,2024,abc,100,50,Invalid row");
 
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv.ToString()));
-        var request = new ProliferationYearlyImportRequest(stream, "yearly.csv", ProliferationSource.Internal, "tester");
+        var request = new ProliferationYearlyImportRequest(stream, "yearly.csv", ProliferationSource.Sdd, "tester");
 
         var result = await service.ImportAsync(request, CancellationToken.None);
 
@@ -64,7 +64,7 @@ public sealed class ProliferationImportServiceTests
                 Assert.Equal("tester", entry.UserId);
                 Assert.Equal("Import", entry.Data["Origin"]);
                 Assert.Equal("10", entry.Data["ProjectId"]);
-                Assert.Equal("Internal", entry.Data["Source"]);
+                Assert.Equal("SDD", entry.Data["Source"]);
                 Assert.Equal("2024", entry.Data["Year"]);
                 Assert.Equal("100", entry.Data["DirectBeneficiaries"]);
                 Assert.Equal("200", entry.Data["IndirectBeneficiaries"]);
@@ -78,7 +78,7 @@ public sealed class ProliferationImportServiceTests
                 Assert.Equal("2", entry.Data["ProcessedRows"]);
                 Assert.Equal("1", entry.Data["ImportedRows"]);
                 Assert.Equal("1", entry.Data["ErrorCount"]);
-                Assert.Equal("Internal", entry.Data["Source"]);
+                Assert.Equal("SDD", entry.Data["Source"]);
             });
     }
 
@@ -105,7 +105,7 @@ public sealed class ProliferationImportServiceTests
         csv.AppendLine("5,2024,Monthly,15,30,50,20,Invalid period");
 
         await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(csv.ToString()));
-        var request = new ProliferationGranularImportRequest(stream, "granular.csv", ProliferationSource.Internal, "uploader");
+        var request = new ProliferationGranularImportRequest(stream, "granular.csv", ProliferationSource.Sdd, "uploader");
 
         var result = await service.ImportAsync(request, CancellationToken.None);
 
@@ -129,7 +129,7 @@ public sealed class ProliferationImportServiceTests
                 Assert.Equal("uploader", entry.UserId);
                 Assert.Equal("Import", entry.Data["Origin"]);
                 Assert.Equal("5", entry.Data["ProjectId"]);
-                Assert.Equal("Internal", entry.Data["Source"]);
+                Assert.Equal("SDD", entry.Data["Source"]);
                 Assert.Equal("2024", entry.Data["Year"]);
                 Assert.Equal("Monthly", entry.Data["Granularity"]);
                 Assert.Equal("1", entry.Data["Period"]);

@@ -1491,7 +1491,7 @@ proliferationPreferenceApi.MapPost("/", async (
         return errorResult;
     }
 
-    if (request.Mode == ProliferationPreferenceMode.UseGranular && request.Source != ProliferationSource.External)
+    if (request.Mode == ProliferationPreferenceMode.UseGranular && request.Source != ProliferationSource.Abw515)
     {
         return Results.BadRequest(new ProblemDetails
         {

@@ -444,7 +444,7 @@ public static class Audit
             var data = new Dictionary<string, string?>
             {
                 ["ProjectId"] = projectId.ToString(CultureInfo.InvariantCulture),
-                ["Source"] = source.ToString(),
+                ["Source"] = source.ToDisplayName(),
                 ["Year"] = year?.ToString(CultureInfo.InvariantCulture),
                 ["PreferenceUserId"] = preferenceUserId,
                 ["ChangeType"] = changeType
@@ -560,7 +560,7 @@ public static class Audit
             var data = new Dictionary<string, string?>
             {
                 ["ImportType"] = importType,
-                ["Source"] = source.ToString(),
+                ["Source"] = source.ToDisplayName(),
                 ["FileName"] = fileName,
                 ["ProcessedRows"] = processedRows.ToString(CultureInfo.InvariantCulture),
                 ["ImportedRows"] = importedRows.ToString(CultureInfo.InvariantCulture),
@@ -583,7 +583,7 @@ public static class Audit
         {
             var data = new Dictionary<string, string?>
             {
-                ["Source"] = source?.ToString(),
+                ["Source"] = source?.ToDisplayName(),
                 ["YearFrom"] = yearFrom?.ToString(CultureInfo.InvariantCulture),
                 ["YearTo"] = yearTo?.ToString(CultureInfo.InvariantCulture),
                 ["SponsoringUnitId"] = sponsoringUnitId?.ToString(CultureInfo.InvariantCulture),
@@ -605,7 +605,7 @@ public static class Audit
             var data = new Dictionary<string, string?>
             {
                 ["ProjectId"] = projectId.ToString(),
-                ["Source"] = source.ToString(),
+                ["Source"] = source.ToDisplayName(),
                 ["Year"] = year.ToString(CultureInfo.InvariantCulture)
             };
 
@@ -622,7 +622,7 @@ public static class Audit
             var data = new Dictionary<string, string?>
             {
                 ["ProjectId"] = projectId.ToString(),
-                ["Source"] = source.ToString(),
+                ["Source"] = source.ToDisplayName(),
                 ["Year"] = year.ToString(CultureInfo.InvariantCulture),
                 ["Approved"] = approved ? "true" : "false"
             };
@@ -641,7 +641,7 @@ public static class Audit
             var data = new Dictionary<string, string?>
             {
                 ["ProjectId"] = projectId.ToString(),
-                ["Source"] = source.ToString(),
+                ["Source"] = source.ToDisplayName(),
                 ["Year"] = year.ToString(CultureInfo.InvariantCulture),
                 ["Granularity"] = granularity.ToString(),
                 ["Period"] = period.ToString(CultureInfo.InvariantCulture)
@@ -662,7 +662,7 @@ public static class Audit
             var data = new Dictionary<string, string?>
             {
                 ["ProjectId"] = projectId.ToString(),
-                ["Source"] = source.ToString(),
+                ["Source"] = source.ToDisplayName(),
                 ["Year"] = year.ToString(CultureInfo.InvariantCulture),
                 ["Granularity"] = granularity.ToString(),
                 ["Period"] = period.ToString(CultureInfo.InvariantCulture),
@@ -692,7 +692,7 @@ public static class Audit
             var data = new Dictionary<string, string?>
             {
                 ["ProjectId"] = projectId.ToString(CultureInfo.InvariantCulture),
-                ["Source"] = source.ToString(),
+                ["Source"] = source.ToDisplayName(),
                 ["Year"] = year.ToString(CultureInfo.InvariantCulture),
                 ["DirectBeneficiaries"] = directBeneficiaries?.ToString(CultureInfo.InvariantCulture),
                 ["IndirectBeneficiaries"] = indirectBeneficiaries?.ToString(CultureInfo.InvariantCulture),

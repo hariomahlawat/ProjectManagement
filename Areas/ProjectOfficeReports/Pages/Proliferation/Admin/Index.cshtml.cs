@@ -113,7 +113,7 @@ public sealed class IndexModel : PageModel
         var request = new ProliferationGranularImportRequest(
             stream,
             Granular.File.FileName,
-            ProliferationSource.Internal,
+            ProliferationSource.Sdd,
             userId);
 
         var result = await _granularImportService.ImportAsync(request, cancellationToken);
@@ -252,7 +252,7 @@ public sealed class IndexModel : PageModel
     public sealed class YearlyImportInput
     {
         [Required]
-        public ProliferationSource Source { get; set; } = ProliferationSource.Internal;
+        public ProliferationSource Source { get; set; } = ProliferationSource.Sdd;
 
         [Required]
         public IFormFile? File { get; set; }
