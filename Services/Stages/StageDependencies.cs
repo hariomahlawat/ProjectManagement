@@ -18,7 +18,8 @@ public static class StageDependencies
             [StageCodes.SO] = new[] { StageCodes.PNC },
             [StageCodes.DEVP] = new[] { StageCodes.SO },
             [StageCodes.ATP] = new[] { StageCodes.DEVP },
-            [StageCodes.PAYMENT] = new[] { StageCodes.ATP }
+            [StageCodes.PAYMENT] = new[] { StageCodes.ATP },
+            [StageCodes.TOT] = new[] { StageCodes.PAYMENT }
         };
 
     public static IReadOnlyList<string> RequiredPredecessors(string stageCode)

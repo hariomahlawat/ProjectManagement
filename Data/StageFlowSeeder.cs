@@ -1,3 +1,5 @@
+using System;
+using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using ProjectManagement.Models.Stages;
@@ -11,14 +13,6 @@ public static class StageFlowSeeder
         const string version = "SDD-1.0";
         using var scope = sp.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-        var templatesExist = await db.StageTemplates.AnyAsync(t => t.Version == version);
-        var depsExist = await db.StageDependencyTemplates.AnyAsync(t => t.Version == version);
-
-        if (templatesExist && depsExist)
-        {
-            return;
-        }
 
         var stages = new[]
         {
@@ -36,6 +30,7 @@ public static class StageFlowSeeder
             new StageTemplate { Version = version, Code = StageCodes.DEVP,   Name = "Development",                    Sequence = 110 },
             new StageTemplate { Version = version, Code = StageCodes.ATP,    Name = "Acceptance Testing",             Sequence = 120 },
             new StageTemplate { Version = version, Code = StageCodes.PAYMENT,   Name = "Payment",                        Sequence = 130 },
+            new StageTemplate { Version = version, Code = StageCodes.TOT, Name = "Transfer of Technology (ToT)", Sequence = 140, Optional = true },
         };
 
         var deps = new[]
@@ -45,20 +40,40 @@ public static class StageFlowSeeder
             D(StageCodes.COB, StageCodes.TEC), D(StageCodes.COB, StageCodes.BM),
             D(StageCodes.PNC, StageCodes.COB),
             D(StageCodes.EAS, StageCodes.COB), D(StageCodes.EAS, StageCodes.PNC),
-            D(StageCodes.SO, StageCodes.EAS), D(StageCodes.DEVP, StageCodes.SO), D(StageCodes.ATP, StageCodes.DEVP), D(StageCodes.PAYMENT, StageCodes.ATP)
+            D(StageCodes.SO, StageCodes.EAS), D(StageCodes.DEVP, StageCodes.SO), D(StageCodes.ATP, StageCodes.DEVP), D(StageCodes.PAYMENT, StageCodes.ATP),
+            D(StageCodes.TOT, StageCodes.PAYMENT)
         };
 
         var changesMade = false;
 
-        if (!templatesExist)
+        var existingTemplates = await db.StageTemplates
+            .Where(t => t.Version == version)
+            .ToListAsync();
+
+        var missingTemplates = stages
+            .Where(stage => !existingTemplates.Any(existing =>
+                string.Equals(existing.Code, stage.Code, StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
+
+        if (missingTemplates.Length > 0)
         {
-            await db.StageTemplates.AddRangeAsync(stages);
+            await db.StageTemplates.AddRangeAsync(missingTemplates);
             changesMade = true;
         }
 
-        if (!depsExist)
+        var existingDeps = await db.StageDependencyTemplates
+            .Where(t => t.Version == version)
+            .ToListAsync();
+
+        var missingDeps = deps
+            .Where(dep => !existingDeps.Any(existing =>
+                string.Equals(existing.FromStageCode, dep.FromStageCode, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(existing.DependsOnStageCode, dep.DependsOnStageCode, StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
+
+        if (missingDeps.Length > 0)
         {
-            await db.StageDependencyTemplates.AddRangeAsync(deps);
+            await db.StageDependencyTemplates.AddRangeAsync(missingDeps);
             changesMade = true;
         }
 
