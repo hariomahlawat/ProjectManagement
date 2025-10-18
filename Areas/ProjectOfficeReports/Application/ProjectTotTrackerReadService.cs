@@ -120,6 +120,7 @@ public sealed class ProjectTotTrackerReadService
                 p.Name,
                 p.SponsoringUnit != null ? p.SponsoringUnit.Name : null,
                 p.LeadPoUserId,
+                p.LeadPoUser != null ? p.LeadPoUser.FullName : null,
                 p.Tot != null ? p.Tot.Status : (ProjectTotStatus?)null,
                 p.Tot != null ? p.Tot.StartedOn : null,
                 p.Tot != null ? p.Tot.CompletedOn : null,
@@ -181,6 +182,10 @@ public sealed class ProjectTotTrackerReadService
                 ? snapshot.DecidedByFullName
                 : snapshot.DecidedByUserId;
 
+            var leadProjectOfficer = !string.IsNullOrWhiteSpace(snapshot.LeadPoFullName)
+                ? snapshot.LeadPoFullName
+                : snapshot.LeadPoUserId;
+
             rows.Add(new ProjectTotTrackerRow(
                 snapshot.ProjectId,
                 snapshot.ProjectName,
@@ -209,7 +214,7 @@ public sealed class ProjectTotTrackerReadService
                 snapshot.RequestRowVersion,
                 remarks?.External,
                 remarks?.Internal,
-                snapshot.LeadPoUserId));
+                leadProjectOfficer));
         }
 
         return rows;
@@ -284,6 +289,7 @@ public sealed class ProjectTotTrackerReadService
         string ProjectName,
         string? SponsoringUnit,
         string? LeadPoUserId,
+        string? LeadPoFullName,
         ProjectTotStatus? TotStatus,
         DateOnly? TotStartedOn,
         DateOnly? TotCompletedOn,
@@ -365,4 +371,4 @@ public sealed record ProjectTotTrackerRow(
     byte[]? RequestRowVersion,
     ProjectTotRemarkSummary? LatestExternalRemark,
     ProjectTotRemarkSummary? LatestInternalRemark,
-    string? LeadProjectOfficerUserId);
+    string? LeadProjectOfficer);
