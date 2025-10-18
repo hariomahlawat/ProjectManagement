@@ -19,6 +19,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Analytics;
 using ProjectManagement.Services.Scheduling;
@@ -219,6 +220,7 @@ builder.Services.AddScoped<ProjectLifecycleService>();
 builder.Services.AddScoped<ProjectTotService>();
 builder.Services.AddScoped<ProjectTotTrackerReadService>();
 builder.Services.AddScoped<ProliferationTrackerReadService>();
+builder.Services.AddScoped<ProliferationPreferenceService>();
 builder.Services.AddScoped<ProjectCommentService>();
 builder.Services.AddScoped<ProjectRemarksPanelService>();
 builder.Services.AddScoped<ProjectMediaAggregator>();
@@ -1454,6 +1456,80 @@ stageChecklistApi.MapPost("/reorder", async (
     return Results.Ok(ToDto(checklist));
 }).RequireAuthorization("Checklist.Edit");
 
+var proliferationPreferenceApi = app.MapGroup("/api/proliferation/year-preference")
+    .RequireAuthorization(new AuthorizeAttribute { Policy = ProjectOfficeReportsPolicies.ManageProliferationPreferences });
+
+proliferationPreferenceApi.MapPost("/", async (
+    ProliferationPreferenceUpdateRequest request,
+    ClaimsPrincipal user,
+    IAuthorizationService authorizationService,
+    IUserContext userContext,
+    ProliferationPreferenceService preferenceService,
+    CancellationToken cancellationToken) =>
+{
+    var authResult = await authorizationService.AuthorizeAsync(user, null, ProjectOfficeReportsPolicies.ManageProliferationPreferences);
+    if (!authResult.Succeeded)
+    {
+        return Results.Forbid();
+    }
+
+    var userId = userContext.UserId;
+    if (string.IsNullOrWhiteSpace(userId))
+    {
+        return Results.Challenge();
+    }
+
+    if (!TryParseRowVersion(request.RowVersion, out var expectedRowVersion, out var errorResult))
+    {
+        return errorResult;
+    }
+
+    if (request.Mode == ProliferationPreferenceMode.UseGranular && request.Source != ProliferationSource.External)
+    {
+        return Results.BadRequest(new ProblemDetails
+        {
+            Title = "Granular mode is not available for this data source.",
+            Detail = "Granular preferences can only be applied to SDD data sources."
+        });
+    }
+
+    ProliferationPreferenceCommandResult result = request.Mode switch
+    {
+        ProliferationPreferenceMode.Auto => await preferenceService.ClearPreferenceAsync(
+            request.ProjectId,
+            request.Source,
+            userId,
+            expectedRowVersion,
+            cancellationToken),
+        ProliferationPreferenceMode.UseYearly or ProliferationPreferenceMode.UseGranular => await preferenceService.SetPreferenceAsync(
+            request.ProjectId,
+            request.Source,
+            request.Year,
+            userId,
+            expectedRowVersion,
+            cancellationToken),
+        _ => ProliferationPreferenceCommandResult.Invalid("Unsupported preference mode.")
+    };
+
+    return result.Outcome switch
+    {
+        ProliferationPreferenceChangeOutcome.Invalid => Results.BadRequest(new ProblemDetails
+        {
+            Title = "Unable to update preference.",
+            Detail = result.Errors.FirstOrDefault()
+        }),
+        ProliferationPreferenceChangeOutcome.ConcurrencyConflict => Results.Conflict(new ProblemDetails
+        {
+            Title = "Preference conflict.",
+            Detail = result.Errors.FirstOrDefault()
+        }),
+        _ => Results.Ok(new ProliferationPreferenceUpdateResponse(
+            result.Outcome,
+            result.Preference?.Year,
+            result.Preference?.RowVersion is { Length: > 0 } rv ? Convert.ToBase64String(rv) : null))
+    };
+});
+
 var lookupApi = app.MapGroup("/api/lookups")
     .RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,HoD,Project Officer" });
 
@@ -2040,6 +2116,32 @@ static async Task<IResult> HandleNotificationOperationResultAsync(
     };
 }
 
+static bool TryParseRowVersion(string? value, out byte[]? rowVersion, out IResult? error)
+{
+    rowVersion = null;
+    error = null;
+
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        return true;
+    }
+
+    try
+    {
+        rowVersion = Convert.FromBase64String(value);
+        return true;
+    }
+    catch (FormatException)
+    {
+        error = Results.BadRequest(new ProblemDetails
+        {
+            Title = "Invalid row version.",
+            Detail = "The supplied row version token is not valid."
+        });
+        return false;
+    }
+}
+
 static async Task<IResult> SendUnreadCountAsync(
     ClaimsPrincipal principal,
     string userId,
@@ -2065,6 +2167,18 @@ static IResult MapProjectModerationResult(ProjectModerationResult result) => res
 };
 
 app.Run();
+
+record ProliferationPreferenceUpdateRequest(
+    int ProjectId,
+    ProliferationSource Source,
+    int Year,
+    ProliferationPreferenceMode Mode,
+    string? RowVersion);
+
+record ProliferationPreferenceUpdateResponse(
+    ProliferationPreferenceChangeOutcome Outcome,
+    int? PreferredYear,
+    string? RowVersion);
 
 record CalendarEventVm(
     string Id,

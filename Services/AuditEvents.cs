@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Threading.Tasks;
 using ProjectManagement.Models;
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 
 namespace ProjectManagement.Services;
 
@@ -430,6 +431,38 @@ public static class Audit
             };
 
             return new AuditEvent("ProjectOfficeReports.VisitCoverPhotoChanged", userId, data);
+        }
+
+        public static AuditEvent ProliferationPreferenceSaved(
+            int projectId,
+            ProliferationSource source,
+            int year,
+            string userId,
+            string changeType)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["Source"] = source.ToString(),
+                ["Year"] = year.ToString(),
+                ["ChangeType"] = changeType
+            };
+
+            return new AuditEvent("ProjectOfficeReports.ProliferationPreferenceSaved", userId, data);
+        }
+
+        public static AuditEvent ProliferationPreferenceCleared(
+            int projectId,
+            ProliferationSource source,
+            string userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["Source"] = source.ToString()
+            };
+
+            return new AuditEvent("ProjectOfficeReports.ProliferationPreferenceCleared", userId, data);
         }
     }
 }
