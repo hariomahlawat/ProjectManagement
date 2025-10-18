@@ -1,0 +1,237 @@
+@page
+@using ProjectManagement.Areas.ProjectOfficeReports.Domain
+@using ProjectManagement.Infrastructure
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.Yearly.IndexModel
+@{
+    ViewData["Title"] = "Yearly proliferation totals";
+    string? toast = TempData["ToastMessage"] as string;
+    string? toastWarning = TempData["ToastWarning"] as string;
+    string? toastError = TempData["ToastError"] as string;
+}
+
+<section class="container-xxl py-4">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div>
+            <h1 class="h3 mb-1">Yearly proliferation totals</h1>
+            <p class="text-muted mb-0">Submit or approve yearly metrics for completed projects.</p>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(toast))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @toast
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(toastWarning))
+    {
+        <div class="alert alert-warning alert-dismissible fade show" role="alert">
+            @toastWarning
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(toastError))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @toastError
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="row g-4">
+        <div class="col-xl-5">
+            <div class="card shadow-sm h-100">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">Submit yearly totals</h2>
+                </div>
+                <div class="card-body">
+                    <form method="post" asp-page-handler="Submit">
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                        <div class="mb-3">
+                            <label asp-for="Input.ProjectId" class="form-label"></label>
+                            <select asp-for="Input.ProjectId" class="form-select">
+                                <option value="">Select a completed project</option>
+                                @foreach (var project in Model.Projects)
+                                {
+                                    <option value="@project.Id">@project.Name</option>
+                                }
+                            </select>
+                            <span asp-validation-for="Input.ProjectId" class="text-danger"></span>
+                        </div>
+                        <div class="mb-3">
+                            <label asp-for="Input.Source" class="form-label"></label>
+                            <select asp-for="Input.Source" class="form-select">
+                                @foreach (ProliferationSource source in Enum.GetValues<ProliferationSource>())
+                                {
+                                    if (source == ProliferationSource.Unknown)
+                                    {
+                                        continue;
+                                    }
+                                    <option value="@source">@source</option>
+                                }
+                            </select>
+                            <span asp-validation-for="Input.Source" class="text-danger"></span>
+                        </div>
+                        <div class="mb-3">
+                            <label asp-for="Input.Year" class="form-label"></label>
+                            <input asp-for="Input.Year" class="form-control" type="number" min="1900" max="9999" />
+                            <span asp-validation-for="Input.Year" class="text-danger"></span>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label asp-for="Input.DirectBeneficiaries" class="form-label"></label>
+                                <input asp-for="Input.DirectBeneficiaries" class="form-control" type="number" min="0" />
+                                <span asp-validation-for="Input.DirectBeneficiaries" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="Input.IndirectBeneficiaries" class="form-label"></label>
+                                <input asp-for="Input.IndirectBeneficiaries" class="form-control" type="number" min="0" />
+                                <span asp-validation-for="Input.IndirectBeneficiaries" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="Input.InvestmentValue" class="form-label"></label>
+                                <input asp-for="Input.InvestmentValue" class="form-control" type="number" step="0.01" min="0" />
+                                <span asp-validation-for="Input.InvestmentValue" class="text-danger"></span>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <label asp-for="Input.Notes" class="form-label"></label>
+                            <textarea asp-for="Input.Notes" class="form-control" rows="3"></textarea>
+                            <span asp-validation-for="Input.Notes" class="text-danger"></span>
+                        </div>
+                        <div class="d-flex justify-content-end mt-4">
+                            <button type="submit" class="btn btn-primary">Submit for approval</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-7">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header">
+                    <h2 class="h5 mb-0">Approved yearly entries</h2>
+                </div>
+                <div class="card-body">
+                    @if (Model.ApprovedEntries.Count == 0)
+                    {
+                        <p class="text-muted mb-0">No approved yearly totals recorded yet.</p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Project</th>
+                                        <th>Source</th>
+                                        <th>Year</th>
+                                        <th class="text-end">Direct</th>
+                                        <th class="text-end">Indirect</th>
+                                        <th class="text-end">Investment (₹)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                @foreach (var entry in Model.ApprovedEntries)
+                                {
+                                    <tr>
+                                        <td>@entry.ProjectName</td>
+                                        <td>@entry.Source</td>
+                                        <td>@entry.Year</td>
+                                        <td class="text-end">@FormatInt(entry.DirectBeneficiaries)</td>
+                                        <td class="text-end">@FormatInt(entry.IndirectBeneficiaries)</td>
+                                        <td class="text-end">@FormatDecimal(entry.InvestmentValue)</td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="card shadow-sm">
+                <div class="card-header d-flex align-items-center justify-content-between">
+                    <h2 class="h5 mb-0">Pending approvals</h2>
+                    @if (Model.CanApprove)
+                    {
+                        <span class="badge bg-primary">Approver</span>
+                    }
+                </div>
+                <div class="card-body">
+                    @if (Model.PendingRequests.Count == 0)
+                    {
+                        <p class="text-muted mb-0">No yearly submissions awaiting approval.</p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle">
+                                <thead>
+                                    <tr>
+                                        <th>Project</th>
+                                        <th>Source</th>
+                                        <th>Year</th>
+                                        <th class="text-end">Direct</th>
+                                        <th class="text-end">Indirect</th>
+                                        <th class="text-end">Investment</th>
+                                        <th>Submitted</th>
+                                        @if (Model.CanApprove)
+                                        {
+                                            <th class="text-end">Actions</th>
+                                        }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                @foreach (var request in Model.PendingRequests)
+                                {
+                                    <tr>
+                                        <td>@request.ProjectName</td>
+                                        <td>@request.Source</td>
+                                        <td>@request.Year</td>
+                                        <td class="text-end">@FormatInt(request.DirectBeneficiaries)</td>
+                                        <td class="text-end">@FormatInt(request.IndirectBeneficiaries)</td>
+                                        <td class="text-end">@FormatDecimal(request.InvestmentValue)</td>
+                                        <td>
+                                            <div class="small text-muted">@request.SubmittedBy</div>
+                                            <div class="small">@IstClock.ToIst(request.SubmittedAt.UtcDateTime).ToString("dd MMM yyyy, HH:mm")</div>
+                                        </td>
+                                        @if (Model.CanApprove)
+                                        {
+                                            <td class="text-end">
+                                                <form method="post" asp-page-handler="Decide" class="d-flex flex-column gap-2">
+                                                    <input type="hidden" name="Decision.RequestId" value="@request.Id" />
+                                                    <input type="hidden" name="Decision.ProjectId" value="@request.ProjectId" />
+                                                    <input type="hidden" name="Decision.Source" value="@request.Source" />
+                                                    <input type="hidden" name="Decision.Year" value="@request.Year" />
+                                                    <input type="hidden" name="Decision.RowVersion" value="@request.RowVersionBase64" />
+                                                    <textarea class="form-control form-control-sm" name="Decision.Notes" rows="2" placeholder="Optional comment"></textarea>
+                                                    <div class="d-flex justify-content-end gap-2">
+                                                        <button type="submit" name="Decision.Approve" value="true" class="btn btn-success btn-sm">Approve</button>
+                                                        <button type="submit" name="Decision.Approve" value="false" class="btn btn-outline-danger btn-sm">Reject</button>
+                                                    </div>
+                                                </form>
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
+
+@functions {
+    private static string FormatInt(int? value) => value.HasValue ? value.Value.ToString("N0") : "—";
+    private static string FormatDecimal(decimal? value) => value.HasValue ? value.Value.ToString("N2") : "—";
+}
