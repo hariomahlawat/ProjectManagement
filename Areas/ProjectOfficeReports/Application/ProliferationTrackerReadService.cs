@@ -326,9 +326,12 @@ public sealed class ProliferationTrackerReadService
             return null;
         }
 
-        var direct = Subtract(yearly.DirectBeneficiaries, granular.DirectBeneficiaries);
-        var indirect = Subtract(yearly.IndirectBeneficiaries, granular.IndirectBeneficiaries);
-        var investment = Subtract(yearly.InvestmentValue, granular.InvestmentValue);
+        var yearlyValue = yearly.Value;
+        var granularValue = granular.Value;
+
+        var direct = Subtract(yearlyValue.DirectBeneficiaries, granularValue.DirectBeneficiaries);
+        var indirect = Subtract(yearlyValue.IndirectBeneficiaries, granularValue.IndirectBeneficiaries);
+        var investment = Subtract(yearlyValue.InvestmentValue, granularValue.InvestmentValue);
 
         if (direct is null && indirect is null && investment is null)
         {
@@ -362,7 +365,10 @@ public sealed class ProliferationTrackerReadService
     {
         return metrics is null
             ? null
-            : new ProliferationMetricsDto(metrics.DirectBeneficiaries, metrics.IndirectBeneficiaries, metrics.InvestmentValue);
+            : new ProliferationMetricsDto(
+                metrics.Value.DirectBeneficiaries,
+                metrics.Value.IndirectBeneficiaries,
+                metrics.Value.InvestmentValue);
     }
 
     private static int CompareKeys(
