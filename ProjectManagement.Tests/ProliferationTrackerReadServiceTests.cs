@@ -52,14 +52,23 @@ public sealed class ProliferationTrackerReadServiceTests
             CreatedAtUtc = DateTimeOffset.UtcNow
         });
 
-        context.ProliferationGranularYearlyView.Add(new ProliferationGranularYearly
+        context.ProliferationGranularEntries.Add(new ProliferationGranular
         {
+            Id = Guid.NewGuid(),
             ProjectId = project.Id,
+            Project = project,
             Source = ProliferationSource.Internal,
             Year = 2024,
-            DirectBeneficiaries = 100,
-            IndirectBeneficiaries = 320,
-            InvestmentValue = 400.50m
+            Granularity = ProliferationGranularity.Monthly,
+            Period = 1,
+            Metrics = new ProliferationMetrics
+            {
+                DirectBeneficiaries = 100,
+                IndirectBeneficiaries = 320,
+                InvestmentValue = 400.50m
+            },
+            CreatedByUserId = "reporter",
+            CreatedAtUtc = DateTimeOffset.UtcNow
         });
 
         context.ProliferationYearPreferences.Add(new ProliferationYearPreference
@@ -121,14 +130,23 @@ public sealed class ProliferationTrackerReadServiceTests
 
         context.Projects.Add(project);
 
-        context.ProliferationGranularYearlyView.Add(new ProliferationGranularYearly
+        context.ProliferationGranularEntries.Add(new ProliferationGranular
         {
+            Id = Guid.NewGuid(),
             ProjectId = project.Id,
+            Project = project,
             Source = ProliferationSource.External,
             Year = 2025,
-            DirectBeneficiaries = 75,
-            IndirectBeneficiaries = 190,
-            InvestmentValue = 260.00m
+            Granularity = ProliferationGranularity.Monthly,
+            Period = 1,
+            Metrics = new ProliferationMetrics
+            {
+                DirectBeneficiaries = 75,
+                IndirectBeneficiaries = 190,
+                InvestmentValue = 260.00m
+            },
+            CreatedByUserId = "reporter",
+            CreatedAtUtc = DateTimeOffset.UtcNow
         });
 
         context.ProliferationYearPreferences.Add(new ProliferationYearPreference
