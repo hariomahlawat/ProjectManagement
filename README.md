@@ -86,6 +86,7 @@ The `docs/` folder hosts deep dives for every subsystem:
 - [Razor Pages Catalogue](docs/razor-pages.md)
 - [Configuration Reference](docs/configuration-reference.md)
 - [Projects Module Storyboard](docs/projects-module.md)
+- [Project Office Reports Playbook](docs/ProjectOfficeReports_Directions.md)
 - [Timeline Pipeline](docs/timeline.md)
 - [Extending the Platform](docs/extending.md)
 - [User Journeys](docs/user-guide/README.md)

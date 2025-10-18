@@ -10,6 +10,7 @@ Use these guides to navigate the codebase and extend the platform safely. Each d
 | [Razor Pages Catalogue](razor-pages.md) | Feature-by-feature walkthrough of the UI layer, including available actions, filters, and role checks. |
 | [Configuration Reference](configuration-reference.md) | Exhaustive list of configuration keys, defaults, and environment overrides. |
 | [Projects Module Storyboard](projects-module.md) | Narrative guide to the procurement-heavy projects workspace, including personas, lifecycle, and guardrails. |
+| [Project Office Reports Playbook](ProjectOfficeReports_Directions.md) | Roles, flows, data contracts, and import/export references for Visits, Social Media, Proliferation, and future trackers managed by the project office. |
 | [Timeline Pipeline](timeline.md) | Deep dive into plan versions, approvals, and checklist integration for the project timeline editor. |
 | [Extending the Platform](extending.md) | Patterns and guardrails for adding roles, properties, services, or Razor Pages without breaking conventions. |
 | [Storyboard User Guide](user-guide/README.md) | Persona-oriented walkthrough for operators and project teams covering dashboard, tasks, calendar, celebrations, projects, admin, and notifications. |

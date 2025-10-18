@@ -277,3 +277,90 @@ If the team follows this exactly, the ProjectOfficeReports module will be clean,
 - Equipment Status Reports, etc.
 
 ---
+
+## 14. Proliferation Tracker Reference
+
+The **Proliferation tracker** measures how far project benefits (training seats, beneficiaries, capital investment) extend each year after a project closes. It combines yearly roll-ups, granular monthly/quarterly snapshots, and per-project preferences so dashboards can pick the most relevant metric. This section captures the authoritative behaviour for roles, approval checkpoints, storage models, Razor Pages, and import/export tooling.
+
+### 14.1 Role matrix and approval flow
+
+| Capability | Policy | Roles | Notes |
+| --- | --- | --- | --- |
+| View overview dashboards, export data, and query the effective metrics API | `ProjectOfficeReports.ViewProliferationTracker` | Admin, HoD, ProjectOffice, Project Office | Grants read-only access to `Areas/ProjectOfficeReports/Pages/Proliferation/*` and `/api/proliferation/effective`.【F:Areas/ProjectOfficeReports/Application/ProjectOfficeReportsPolicies.cs†L27-L52】【F:Program.cs†L1440-L1559】 |
+| Submit yearly totals, granular metrics, and adjust per-project year preferences | `ProjectOfficeReports.SubmitProliferationTracker`, `ProjectOfficeReports.ManageProliferationPreferences` | Admin, HoD, ProjectOffice, Project Office | Enables the Yearly/Granular authoring pages plus the year preference sidebar on the overview page.【F:Areas/ProjectOfficeReports/Application/ProjectOfficeReportsPolicies.cs†L33-L72】【F:Areas/ProjectOfficeReports/Pages/Proliferation/Yearly/Index.cshtml.cs†L21-L119】 |
+| Approve or reject submissions | `ProjectOfficeReports.ApproveProliferationTracker` | Admin, HoD | Unlocks the approval column on the Yearly/Granular pages and reconciliation widget. Approval resets `DecisionState` and copies metrics into the main tables.【F:Areas/ProjectOfficeReports/Application/ProjectOfficeReportsPolicies.cs†L73-L90】【F:Areas/ProjectOfficeReports/Application/ProliferationSubmissionService.cs†L92-L240】 |
+| Upload CSV imports | `ProjectOfficeReports.ManageProliferationImports` | Admin | Required to use the Administration page importers; also caches rejection CSVs for download.【F:Areas/ProjectOfficeReports/Application/ProjectOfficeReportsPolicies.cs†L91-L118】【F:Areas/ProjectOfficeReports/Pages/Proliferation/Admin/Index.cshtml.cs†L19-L226】 |
+
+```mermaid
+flowchart LR
+    A[Submitter fills Yearly/Granular form] --> B[Submission saved as Pending request]
+    B -->|HoD/Admin approves| C[Decision recorded]
+    C -->|Approved| D[Metrics promoted into reporting tables]
+    C -->|Rejected| E[Request stays archived with DecisionNotes]
+    D --> F[Overview & Effective API reflect update]
+    B -->|Admin imports CSV| G[Bulk requests created via import services]
+```
+
+Guardrails enforced during submission:
+
+- Only **completed** projects can submit proliferation updates (both yearly and granular).【F:Areas/ProjectOfficeReports/Application/ProliferationSubmissionService.cs†L55-L189】
+- Duplicate pending requests are blocked so approvers never see more than one outstanding item per project/source/period.
+- Row versions are stored as GUID byte arrays and must match when approving to avoid lost updates.
+
+### 14.2 Data model snapshot
+
+The tracker introduces seven tables plus a read-only view. Field definitions live in `Areas/ProjectOfficeReports/Domain` and the `AddProliferationReporting`/`AddProliferationApprovalRequests` migrations.
+
+| Entity | Purpose | Key fields |
+| --- | --- | --- |
+| `ProliferationYearly` | Approved yearly totals used by dashboards. | `ProjectId`, `Source`, `Year`, `Metrics.DirectBeneficiaries`, `Metrics.IndirectBeneficiaries`, `Metrics.InvestmentValue`, `Notes`, audit columns.【F:Areas/ProjectOfficeReports/Domain/ProliferationYearly.cs†L7-L36】 |
+| `ProliferationGranular` | Approved granular entries (monthly/quarterly). | `ProjectId`, `Source`, `Year`, `Granularity`, `Period`, `PeriodLabel`, `Metrics`, `Notes`, audit columns.【F:Areas/ProjectOfficeReports/Domain/ProliferationGranular.cs†L7-L41】 |
+| `ProliferationYearPreference` | Stores per-user overrides to pick yearly vs granular data. | `ProjectId`, `UserId`, `Source`, `Year`, `RowVersion` for concurrency.【F:Areas/ProjectOfficeReports/Domain/ProliferationYearPreference.cs†L7-L33】 |
+| `ProliferationYearlyRequest` | Pending yearly submissions awaiting approval. | Submission metadata, `DecisionState`, `DecisionNotes`, `RowVersion`.【F:Areas/ProjectOfficeReports/Domain/ProliferationYearlyRequest.cs†L7-L43】 |
+| `ProliferationGranularRequest` | Pending granular submissions awaiting approval. | Mirrors yearly request with `Granularity`, `Period`, `PeriodLabel`.【F:Areas/ProjectOfficeReports/Domain/ProliferationGranularRequest.cs†L7-L49】 |
+| `ProliferationYearly`/`ProliferationGranular` migrations | Add indexes for `ProjectId`, unique constraints on `(ProjectId, Source, Year)` and `(ProjectId, Source, Granularity, Period)` to guarantee idempotent approvals.【F:Migrations/20251018104405_AddProliferationReporting.cs†L15-L157】【F:Migrations/20251115000000_AddProliferationApprovalRequests.cs†L15-L150】 |
+| `vw_ProliferationGranularYearly` | Database view surfaced through `ProliferationGranularYearly` entity for yearly summaries of granular data.【F:Migrations/20251018104405_AddProliferationReporting.cs†L108-L155】【F:Areas/ProjectOfficeReports/Domain/ProliferationGranularYearly.cs†L5-L29】 |
+
+`ProliferationMetrics` is embedded in all record types so calculations stay consistent across yearly, granular, and API responses.【F:Areas/ProjectOfficeReports/Domain/ProliferationMetrics.cs†L1-L8】
+
+### 14.3 UI entry points
+
+All pages live under `Areas/ProjectOfficeReports/Pages/Proliferation`. Navigation is wired by `RoleBasedNavigationProvider` so the “Project office reports → Proliferation tracker” menu expands into the following views.【F:Services/Navigation/RoleBasedNavigationProvider.cs†L107-L152】
+
+| Page | Route | Role requirements | Highlights |
+| --- | --- | --- | --- |
+| Overview | `/ProjectOfficeReports/Proliferation/Index` | Viewer policy | Filterable table across projects with per-row context modal, export button, simulator filter, and effective metric preview. Hosts year preference panel that calls `/api/proliferation/year-preference`.| 
+| Yearly totals | `/ProjectOfficeReports/Proliferation/Yearly/Index` | Submitter policy | Form to submit yearly metrics, list of approved entries, and pending requests with approve/reject modals when the viewer also satisfies the approver policy.【F:Areas/ProjectOfficeReports/Pages/Proliferation/Yearly/Index.cshtml.cs†L21-L221】 |
+| Granular metrics | `/ProjectOfficeReports/Proliferation/Granular/Index` | Submitter policy | Mirrors yearly page but adds period selector (month/quarter) and handles guardrails for overlapping submissions. |
+| Reconciliation | `/ProjectOfficeReports/Proliferation/Reconciliation` | HoD/Admin only | Highlights differences between yearly vs granular effective totals so leadership can chase missing approvals. |
+| Administration | `/ProjectOfficeReports/Proliferation/Admin/Index` | Admin + import manager policy | Hosts CSV imports, rejection downloads, and audit snapshots. Also exposes links to the template CSVs referenced below.【F:Areas/ProjectOfficeReports/Pages/Proliferation/Admin/Index.cshtml.cs†L19-L226】 |
+
+### 14.4 Import/export guardrails
+
+**Exports**
+
+- The overview page calls `IProliferationExportService` which filters by source, year range, sponsoring unit, simulator, and search terms before handing rows to `ProliferationExcelWorkbookBuilder` for XLSX generation.【F:Areas/ProjectOfficeReports/Application/ProliferationExportService.cs†L19-L200】【F:Utilities/Reporting/ProliferationExcelWorkbookBuilder.cs†L12-L206】
+- Export filenames follow `Proliferation_{Source?}_{YearFrom}-{YearTo}_{timestamp}.xlsx` and audit logs record who generated the download.【F:Areas/ProjectOfficeReports/Application/ProliferationExportService.cs†L80-L121】
+
+**Imports**
+
+- Yearly imports accept UTF-8 CSV files containing `ProjectId,Year,DirectBeneficiaries,IndirectBeneficiaries,InvestmentValue` headers and only allow **Internal (SDD)** or **External (515)** sources.【F:Areas/ProjectOfficeReports/Application/ProliferationImportServices.cs†L39-L150】
+- Granular imports add `Granularity,Period,PeriodLabel` columns and are restricted to the **SDD** source.【F:Areas/ProjectOfficeReports/Application/ProliferationImportServices.cs†L637-L744】
+- Each parser logs malformed rows, emits per-row errors, and—when any row fails—stores a rejection CSV (same header + `Error`) in memory cache so admins can download it from the administration page.【F:Areas/ProjectOfficeReports/Application/ProliferationImportServices.cs†L161-L434】【F:Areas/ProjectOfficeReports/Pages/Proliferation/Admin/Index.cshtml.cs†L180-L226】
+- Templates live under `docs/templates/` for onboarding teams and are linked directly in the administration UI copy.
+
+Template quick links:
+
+- [Yearly CSV template](templates/proliferation-yearly-import.csv)
+- [Granular CSV template](templates/proliferation-granular-import.csv)
+
+### 14.5 API surface
+
+Two minimal APIs support the UI and future integrations:
+
+- `POST /api/proliferation/year-preference` updates (or clears) a user’s preferred year for a project/source combination. Requires the manage-preferences policy and enforces concurrency via `RowVersion` tokens.【F:Program.cs†L1446-L1537】
+- `GET /api/proliferation/effective` returns the effective metric bundle (yearly + granular + variance) for the calling user’s accessible projects with optional filters. Requires viewer policy and reuses the tracker read service filters used by the Razor Page grid.【F:Program.cs†L1541-L1569】【F:Program.cs†L2290-L2309】
+
+When extending the tracker, reuse these services instead of bypassing them—guards, audits, and concurrency handling already live inside the shared services.
+
+---
