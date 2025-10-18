@@ -45,9 +45,13 @@ public sealed class ProliferationPreferenceServiceTests
         Assert.Equal(2024, saved.Year);
 
         var entry = Assert.Single(audit.Entries);
-        Assert.Equal("ProjectOfficeReports.ProliferationPreferenceSaved", entry.Action);
+        Assert.Equal("ProjectOfficeReports.Proliferation.PreferenceChanged", entry.Action);
         Assert.Equal("user-1", entry.UserId);
         Assert.Equal("Created", entry.Data["ChangeType"]);
+        Assert.Equal("42", entry.Data["ProjectId"]);
+        Assert.Equal("Internal", entry.Data["Source"]);
+        Assert.Equal("2024", entry.Data["Year"]);
+        Assert.Equal("user-1", entry.Data["PreferenceUserId"]);
     }
 
     [Fact]
@@ -127,8 +131,11 @@ public sealed class ProliferationPreferenceServiceTests
         Assert.False(updated.RowVersion.AsSpan().SequenceEqual(originalRowVersion));
 
         var entry = Assert.Single(audit.Entries);
-        Assert.Equal("ProjectOfficeReports.ProliferationPreferenceSaved", entry.Action);
+        Assert.Equal("ProjectOfficeReports.Proliferation.PreferenceChanged", entry.Action);
         Assert.Equal("Updated", entry.Data["ChangeType"]);
+        Assert.Equal("200", entry.Data["ProjectId"]);
+        Assert.Equal("Internal", entry.Data["Source"]);
+        Assert.Equal("2025", entry.Data["Year"]);
     }
 
     [Fact]
@@ -168,8 +175,12 @@ public sealed class ProliferationPreferenceServiceTests
         Assert.Empty(await context.ProliferationYearPreferences.ToListAsync());
 
         var entry = Assert.Single(audit.Entries);
-        Assert.Equal("ProjectOfficeReports.ProliferationPreferenceCleared", entry.Action);
+        Assert.Equal("ProjectOfficeReports.Proliferation.PreferenceChanged", entry.Action);
         Assert.Equal("user-4", entry.UserId);
+        Assert.Equal("Cleared", entry.Data["ChangeType"]);
+        Assert.Equal("300", entry.Data["ProjectId"]);
+        Assert.Equal("External", entry.Data["Source"]);
+        Assert.Equal("2024", entry.Data["Year"]);
     }
 
     [Fact]

@@ -10,6 +10,7 @@ using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
+using ProjectManagement.Tests.Fakes;
 using Xunit;
 
 namespace ProjectManagement.Tests;
@@ -30,7 +31,8 @@ public sealed class ProliferationImportServiceTests
         await context.SaveChangesAsync();
 
         var clock = new FixedClock(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
-        var service = new ProliferationYearlyImportService(context, clock, NullLogger<ProliferationYearlyImportService>.Instance);
+        var audit = new RecordingAudit();
+        var service = new ProliferationYearlyImportService(context, clock, audit, NullLogger<ProliferationYearlyImportService>.Instance);
 
         var csv = new StringBuilder();
         csv.AppendLine("ProjectId,Year,DirectBeneficiaries,IndirectBeneficiaries,InvestmentValue,Notes");
@@ -53,6 +55,31 @@ public sealed class ProliferationImportServiceTests
         Assert.Equal(2024, stored.Year);
         Assert.Equal(100, stored.Metrics.DirectBeneficiaries);
         Assert.Equal("tester", stored.CreatedByUserId);
+
+        Assert.Collection(
+            audit.Entries,
+            entry =>
+            {
+                Assert.Equal("ProjectOfficeReports.Proliferation.RecordCreated", entry.Action);
+                Assert.Equal("tester", entry.UserId);
+                Assert.Equal("Import", entry.Data["Origin"]);
+                Assert.Equal("10", entry.Data["ProjectId"]);
+                Assert.Equal("Internal", entry.Data["Source"]);
+                Assert.Equal("2024", entry.Data["Year"]);
+                Assert.Equal("100", entry.Data["DirectBeneficiaries"]);
+                Assert.Equal("200", entry.Data["IndirectBeneficiaries"]);
+                Assert.Equal("123.45", entry.Data["InvestmentValue"]);
+            },
+            entry =>
+            {
+                Assert.Equal("ProjectOfficeReports.Proliferation.ImportCompleted", entry.Action);
+                Assert.Equal("tester", entry.UserId);
+                Assert.Equal("Yearly", entry.Data["ImportType"]);
+                Assert.Equal("2", entry.Data["ProcessedRows"]);
+                Assert.Equal("1", entry.Data["ImportedRows"]);
+                Assert.Equal("1", entry.Data["ErrorCount"]);
+                Assert.Equal("Internal", entry.Data["Source"]);
+            });
     }
 
     [Fact]
@@ -69,7 +96,8 @@ public sealed class ProliferationImportServiceTests
         await context.SaveChangesAsync();
 
         var clock = new FixedClock(new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero));
-        var service = new ProliferationGranularImportService(context, clock, NullLogger<ProliferationGranularImportService>.Instance);
+        var audit = new RecordingAudit();
+        var service = new ProliferationGranularImportService(context, clock, audit, NullLogger<ProliferationGranularImportService>.Instance);
 
         var csv = new StringBuilder();
         csv.AppendLine("ProjectId,Year,Granularity,Period,DirectBeneficiaries,IndirectBeneficiaries,InvestmentValue,PeriodLabel");
@@ -92,6 +120,33 @@ public sealed class ProliferationImportServiceTests
         Assert.Equal(ProliferationGranularity.Monthly, stored.Granularity);
         Assert.Equal(25, stored.Metrics.DirectBeneficiaries);
         Assert.Equal("uploader", stored.CreatedByUserId);
+
+        Assert.Collection(
+            audit.Entries,
+            entry =>
+            {
+                Assert.Equal("ProjectOfficeReports.Proliferation.RecordCreated", entry.Action);
+                Assert.Equal("uploader", entry.UserId);
+                Assert.Equal("Import", entry.Data["Origin"]);
+                Assert.Equal("5", entry.Data["ProjectId"]);
+                Assert.Equal("Internal", entry.Data["Source"]);
+                Assert.Equal("2024", entry.Data["Year"]);
+                Assert.Equal("Monthly", entry.Data["Granularity"]);
+                Assert.Equal("1", entry.Data["Period"]);
+                Assert.Equal("Jan", entry.Data["PeriodLabel"]);
+                Assert.Equal("25", entry.Data["DirectBeneficiaries"]);
+                Assert.Equal("40", entry.Data["IndirectBeneficiaries"]);
+                Assert.Equal("10.5", entry.Data["InvestmentValue"]);
+            },
+            entry =>
+            {
+                Assert.Equal("ProjectOfficeReports.Proliferation.ImportCompleted", entry.Action);
+                Assert.Equal("uploader", entry.UserId);
+                Assert.Equal("Granular", entry.Data["ImportType"]);
+                Assert.Equal("2", entry.Data["ProcessedRows"]);
+                Assert.Equal("1", entry.Data["ImportedRows"]);
+                Assert.Equal("1", entry.Data["ErrorCount"]);
+            });
     }
 
     private static ApplicationDbContext CreateContext()

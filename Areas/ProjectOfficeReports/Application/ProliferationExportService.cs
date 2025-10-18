@@ -21,17 +21,20 @@ public sealed class ProliferationExportService : IProliferationExportService
     private readonly ProliferationTrackerReadService _readService;
     private readonly IProliferationExcelWorkbookBuilder _workbookBuilder;
     private readonly IClock _clock;
+    private readonly IAuditService _audit;
     private readonly ILogger<ProliferationExportService> _logger;
 
     public ProliferationExportService(
         ProliferationTrackerReadService readService,
         IProliferationExcelWorkbookBuilder workbookBuilder,
         IClock clock,
+        IAuditService audit,
         ILogger<ProliferationExportService> logger)
     {
         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
         _workbookBuilder = workbookBuilder ?? throw new ArgumentNullException(nameof(workbookBuilder));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _audit = audit ?? throw new ArgumentNullException(nameof(audit));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -81,6 +84,18 @@ public sealed class ProliferationExportService : IProliferationExportService
             "Generated proliferation export with {RowCount} rows for user {UserId}.",
             rows.Count,
             request.RequestedByUserId);
+
+        await Audit.Events.ProliferationExportGenerated(
+                request.RequestedByUserId,
+                request.Source,
+                request.YearFrom,
+                request.YearTo,
+                request.SponsoringUnitId,
+                request.SimulatorUserId,
+                request.SearchTerm,
+                rows.Count,
+                file.FileName)
+            .WriteAsync(_audit);
 
         return ProliferationExportResult.FromFile(file);
     }
