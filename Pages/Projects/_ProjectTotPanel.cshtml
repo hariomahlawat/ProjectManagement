@@ -41,7 +41,6 @@
     var canManageTot = Model.CanManageTot;
     var pendingRequest = tot.PendingRequest;
     var hasPending = tot.HasPendingRequest;
-    var latestRemark = tot.LatestRemark;
 
     <div class="card pm-card">
         <div class="card-header pm-card-header">
@@ -97,22 +96,6 @@
                         <dd class="col-sm-7">@fact.Value</dd>
                     }
                 </dl>
-            }
-            @if (latestRemark is { } remarkSnippet)
-            {
-                <div class="border rounded p-3 bg-light small">
-                    <div class="fw-semibold mb-1">Latest ToT remark</div>
-                    @if (!string.IsNullOrWhiteSpace(remarkSnippet.AuthorDisplayName))
-                    {
-                        <div class="text-muted">by @remarkSnippet.AuthorDisplayName</div>
-                    }
-                    <div class="mt-2" style="white-space: pre-line;">@remarkSnippet.Body</div>
-                    <a class="btn btn-link btn-sm px-0 mt-3" href="#remarks-panel">Open remarks panel</a>
-                </div>
-            }
-            else
-            {
-                <p class="text-muted small mb-0">No ToT remarks yet. <a class="link-secondary" href="#remarks-panel">Open remarks panel</a> to start the conversation.</p>
             }
             @if (hasPending && pendingRequest is { } request)
             {
