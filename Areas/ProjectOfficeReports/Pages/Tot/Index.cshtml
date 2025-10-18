@@ -183,7 +183,7 @@
 </div>
 </div>
 
-<div class="modal fade" id="tot-export-modal" tabindex="-1" aria-labelledby="tot-export-modal-label" aria-hidden="true">
+<div class="modal fade" id="tot-export-modal" tabindex="-1" aria-labelledby="tot-export-modal-label" aria-hidden="true" data-tot-auto-show="@(showExportModal ? "true" : "false")">
     <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
         <div class="modal-content">
             <form method="post" asp-page-handler="Export">
@@ -377,33 +377,6 @@
         
     </div>
 }
-
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        var filterModalEl = document.getElementById('tot-filter-modal');
-        if (filterModalEl) {
-            var filterTrigger = document.querySelector('[data-bs-target="#tot-filter-modal"]');
-            if (filterTrigger) {
-                filterModalEl.addEventListener('show.bs.modal', function () {
-                    filterTrigger.setAttribute('aria-expanded', 'true');
-                });
-
-                filterModalEl.addEventListener('hidden.bs.modal', function () {
-                    filterTrigger.setAttribute('aria-expanded', 'false');
-                    filterTrigger.focus();
-                });
-            }
-
-            filterModalEl.addEventListener('shown.bs.modal', function () {
-                var searchInput = document.getElementById('tot-search-term');
-                if (searchInput) {
-                    searchInput.focus();
-                    searchInput.select();
-                }
-            });
-        }
-    });
-</script>
 
 @{ 
     var totalCount = Model.Projects.Count;
@@ -874,7 +847,7 @@
 
     @if (Model.CanSubmit)
     {
-        <div class="modal fade" id="tot-submit-modal" tabindex="-1" aria-labelledby="tot-submit-modal-label" aria-hidden="true">
+        <div class="modal fade" id="tot-submit-modal" tabindex="-1" aria-labelledby="tot-submit-modal-label" aria-hidden="true" data-tot-auto-show="@(Model.ShowSubmitModal ? "true" : "false")">
             <div class="modal-dialog modal-lg modal-dialog-scrollable">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -890,35 +863,6 @@
     }
 }
 
-@if (showExportModal)
-{
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            var exportModalEl = document.getElementById('tot-export-modal');
-            if (!exportModalEl) {
-                return;
-            }
-
-            if (typeof bootstrap !== 'undefined') {
-                bootstrap.Modal.getOrCreateInstance(exportModalEl).show();
-            } else {
-                exportModalEl.classList.add('show');
-                exportModalEl.style.display = 'block';
-                exportModalEl.removeAttribute('aria-hidden');
-            }
-        });
-    </script>
-}
-
-@if (Model.ShowSubmitModal)
-{
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            var submitModalEl = document.getElementById('tot-submit-modal');
-            if (submitModalEl && typeof bootstrap !== 'undefined') {
-                var submitModal = bootstrap.Modal.getOrCreateInstance(submitModalEl);
-                submitModal.show();
-            }
-        });
-    </script>
+@section Scripts {
+    <script type="module" src="~/js/pages/project-office-reports/tot.js" asp-append-version="true"></script>
 }
