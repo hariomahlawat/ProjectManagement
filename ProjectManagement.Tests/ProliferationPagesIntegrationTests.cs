@@ -328,8 +328,8 @@ public sealed class ProliferationPagesIntegrationTests
 
         var token = Assert.IsType<string>(page.TempData["ImportRejectionToken"]);
         Assert.Equal("rejections.csv", page.TempData["ImportRejectionFileName"]);
-        Assert.NotNull(page.PendingRejectionDownload);
-        Assert.Equal(token, page.PendingRejectionDownload?.Token);
+        Assert.NotNull(page.PendingRejection);
+        Assert.Equal(token, page.PendingRejection?.Token);
 
         Assert.True(cache.TryGetValue("ProliferationImport:" + token, out var cached));
         var rejection = Assert.IsType<ProliferationImportFile>(cached);
