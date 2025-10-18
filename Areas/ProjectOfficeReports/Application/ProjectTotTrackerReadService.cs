@@ -26,23 +26,35 @@ public sealed class ProjectTotTrackerReadService
     {
         filter ??= new ProjectTotTrackerFilter();
 
+        var snapshots = await TryLoadSnapshotsAsync(filter, includeTotDetailColumns: true, includeRequestDetailColumns: true, cancellationToken)
+            ?? await TryLoadSnapshotsAsync(filter, includeTotDetailColumns: true, includeRequestDetailColumns: false, cancellationToken)
+            ?? await TryLoadSnapshotsAsync(filter, includeTotDetailColumns: false, includeRequestDetailColumns: false, cancellationToken)
+            ?? new List<ProjectSnapshot>();
+
+        return await BuildRowsAsync(snapshots, cancellationToken);
+    }
+
+    private async Task<List<ProjectSnapshot>?> TryLoadSnapshotsAsync(
+        ProjectTotTrackerFilter filter,
+        bool includeTotDetailColumns,
+        bool includeRequestDetailColumns,
+        CancellationToken cancellationToken)
+    {
         try
         {
-            var snapshots = await BuildProjectSnapshotQuery(filter, includeExtendedColumns: true)
+            return await BuildProjectSnapshotQuery(filter, includeTotDetailColumns, includeRequestDetailColumns)
                 .ToListAsync(cancellationToken);
-            return await BuildRowsAsync(snapshots, cancellationToken);
         }
         catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UndefinedColumn)
         {
-            var snapshots = await BuildProjectSnapshotQuery(filter, includeExtendedColumns: false)
-                .ToListAsync(cancellationToken);
-            return await BuildRowsAsync(snapshots, cancellationToken);
+            return null;
         }
     }
 
     private IQueryable<ProjectSnapshot> BuildProjectSnapshotQuery(
         ProjectTotTrackerFilter filter,
-        bool includeExtendedColumns)
+        bool includeTotDetailColumns,
+        bool includeRequestDetailColumns)
     {
         var query = _db.Projects
             .AsNoTracking()
@@ -103,7 +115,7 @@ public sealed class ProjectTotTrackerReadService
 
         query = query.OrderBy(p => p.Name);
 
-            return query.Select(p => new ProjectSnapshot(
+        return query.Select(p => new ProjectSnapshot(
                 p.Id,
                 p.Name,
                 p.SponsoringUnit != null ? p.SponsoringUnit.Name : null,
@@ -111,21 +123,25 @@ public sealed class ProjectTotTrackerReadService
                 p.Tot != null ? p.Tot.Status : (ProjectTotStatus?)null,
                 p.Tot != null ? p.Tot.StartedOn : null,
                 p.Tot != null ? p.Tot.CompletedOn : null,
-                includeExtendedColumns && p.Tot != null ? p.Tot.MetDetails : null,
-                includeExtendedColumns && p.Tot != null ? p.Tot.MetCompletedOn : null,
-                includeExtendedColumns && p.Tot != null ? p.Tot.FirstProductionModelManufactured : null,
-                includeExtendedColumns && p.Tot != null ? p.Tot.FirstProductionModelManufacturedOn : null,
-                p.Tot != null ? p.Tot.LastApprovedByUserId : null,
-                p.Tot != null ? p.Tot.LastApprovedByUser != null ? p.Tot.LastApprovedByUser.FullName : null : null,
-                p.Tot != null ? p.Tot.LastApprovedOnUtc : null,
+                includeTotDetailColumns && p.Tot != null ? p.Tot.MetDetails : null,
+                includeTotDetailColumns && p.Tot != null ? p.Tot.MetCompletedOn : null,
+                includeTotDetailColumns && p.Tot != null ? p.Tot.FirstProductionModelManufactured : null,
+                includeTotDetailColumns && p.Tot != null ? p.Tot.FirstProductionModelManufacturedOn : null,
+                includeTotDetailColumns && p.Tot != null ? p.Tot.LastApprovedByUserId : null,
+                includeTotDetailColumns && p.Tot != null
+                    ? p.Tot.LastApprovedByUser != null
+                        ? p.Tot.LastApprovedByUser.FullName
+                        : null
+                    : null,
+                includeTotDetailColumns && p.Tot != null ? p.Tot.LastApprovedOnUtc : null,
                 p.TotRequest != null ? p.TotRequest.DecisionState : (ProjectTotRequestDecisionState?)null,
                 p.TotRequest != null ? p.TotRequest.ProposedStatus : (ProjectTotStatus?)null,
                 p.TotRequest != null ? p.TotRequest.ProposedStartedOn : null,
                 p.TotRequest != null ? p.TotRequest.ProposedCompletedOn : null,
-                includeExtendedColumns && p.TotRequest != null ? p.TotRequest.ProposedMetDetails : null,
-                includeExtendedColumns && p.TotRequest != null ? p.TotRequest.ProposedMetCompletedOn : null,
-                includeExtendedColumns && p.TotRequest != null ? p.TotRequest.ProposedFirstProductionModelManufactured : null,
-                includeExtendedColumns && p.TotRequest != null ? p.TotRequest.ProposedFirstProductionModelManufacturedOn : null,
+                includeRequestDetailColumns && p.TotRequest != null ? p.TotRequest.ProposedMetDetails : null,
+                includeRequestDetailColumns && p.TotRequest != null ? p.TotRequest.ProposedMetCompletedOn : null,
+                includeRequestDetailColumns && p.TotRequest != null ? p.TotRequest.ProposedFirstProductionModelManufactured : null,
+                includeRequestDetailColumns && p.TotRequest != null ? p.TotRequest.ProposedFirstProductionModelManufacturedOn : null,
                 p.TotRequest != null ? p.TotRequest.SubmittedByUserId : null,
                 p.TotRequest != null ? p.TotRequest.SubmittedByUser != null ? p.TotRequest.SubmittedByUser.FullName : null : null,
                 p.TotRequest != null ? p.TotRequest.SubmittedOnUtc : (DateTime?)null,
