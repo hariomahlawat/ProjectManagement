@@ -75,7 +75,7 @@
         _ => "pro-metric-value"
     };
 
-    string MetricVarianceClass(decimal? value)
+    string MetricVarianceClassForDecimal(decimal? value)
     {
         if (!value.HasValue)
         {
@@ -526,7 +526,7 @@
                                     <div class="pro-metric-stack">
                                         <div class="pro-metric-line"><span class="pro-metric-label">Direct</span><span class="@MetricVarianceClass(row.Variance?.DirectBeneficiaries)">@FormatVarianceInt(row.Variance?.DirectBeneficiaries)</span></div>
                                         <div class="pro-metric-line"><span class="pro-metric-label">Indirect</span><span class="@MetricVarianceClass(row.Variance?.IndirectBeneficiaries)">@FormatVarianceInt(row.Variance?.IndirectBeneficiaries)</span></div>
-                                        <div class="pro-metric-line"><span class="pro-metric-label">Investment</span><span class="@MetricVarianceClass(row.Variance?.InvestmentValue)">₹@FormatVarianceDecimal(row.Variance?.InvestmentValue)</span></div>
+                                        <div class="pro-metric-line"><span class="pro-metric-label">Investment</span><span class="@MetricVarianceClassForDecimal(row.Variance?.InvestmentValue)">₹@FormatVarianceDecimal(row.Variance?.InvestmentValue)</span></div>
                                     </div>
                                 </td>
                                 <td>
@@ -622,7 +622,7 @@
                                 <div class="pro-metric-stack">
                                     <div class="pro-metric-line"><span class="pro-metric-label">Direct</span><span class="@MetricVarianceClass(selected.Variance?.DirectBeneficiaries)">@FormatVarianceInt(selected.Variance?.DirectBeneficiaries)</span></div>
                                     <div class="pro-metric-line"><span class="pro-metric-label">Indirect</span><span class="@MetricVarianceClass(selected.Variance?.IndirectBeneficiaries)">@FormatVarianceInt(selected.Variance?.IndirectBeneficiaries)</span></div>
-                                    <div class="pro-metric-line"><span class="pro-metric-label">Investment</span><span class="@MetricVarianceClass(selected.Variance?.InvestmentValue)">₹@FormatVarianceDecimal(selected.Variance?.InvestmentValue)</span></div>
+                                    <div class="pro-metric-line"><span class="pro-metric-label">Investment</span><span class="@MetricVarianceClassForDecimal(selected.Variance?.InvestmentValue)">₹@FormatVarianceDecimal(selected.Variance?.InvestmentValue)</span></div>
                                 </div>
                             </div>
                         </div>

@@ -248,11 +248,9 @@ public sealed class IndexModel : PageModel
             .Select(p => new ProjectOption(p.Id, p.Name))
             .ToListAsync(cancellationToken);
 
-        var yearlyQuery = _db.ProliferationYearlies
+        IQueryable<ProliferationYearly> yearlyQuery = _db.ProliferationYearlies
             .AsNoTracking()
-            .Include(y => y.Project)
-            .OrderBy(y => y.Project!.Name)
-            .ThenBy(y => y.Year);
+            .Include(y => y.Project);
 
         if (ProjectId.HasValue)
         {
@@ -268,6 +266,10 @@ public sealed class IndexModel : PageModel
         {
             yearlyQuery = yearlyQuery.Where(y => y.Year == Year.Value);
         }
+
+        yearlyQuery = yearlyQuery
+            .OrderBy(y => y.Project!.Name)
+            .ThenBy(y => y.Year);
 
         ApprovedEntries = await yearlyQuery
             .Select(y => new YearlyRow(

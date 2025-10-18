@@ -425,7 +425,19 @@ public sealed class ProliferationTrackerReadService
 
     private sealed record GranularSnapshot(AggregationKey Key, MetricValues Metrics, ProjectMetadata Project);
 
-    private readonly record struct MetricValues(int? DirectBeneficiaries, int? IndirectBeneficiaries, decimal? InvestmentValue);
+    private readonly record struct MetricValues
+    {
+        public int? DirectBeneficiaries { get; init; }
+        public int? IndirectBeneficiaries { get; init; }
+        public decimal? InvestmentValue { get; init; }
+
+        public MetricValues(int? directBeneficiaries, int? indirectBeneficiaries, decimal? investmentValue)
+        {
+            DirectBeneficiaries = directBeneficiaries;
+            IndirectBeneficiaries = indirectBeneficiaries;
+            InvestmentValue = investmentValue;
+        }
+    }
 
     private readonly record struct AggregationKey(int ProjectId, ProliferationSource Source, int Year);
 

@@ -602,6 +602,8 @@ public sealed class ProliferationYearlyImportService : IProliferationYearlyImpor
     private sealed record HeaderMap(string[] Headers, Dictionary<string, int> Map)
     {
         public bool TryGetIndex(string column, out int index) => Map.TryGetValue(column, out index);
+
+        public bool ContainsKey(string column) => Map.ContainsKey(column);
     }
 
     private sealed record RejectedRow(int RowNumber, string[] Headers, string[] RawValues, string Error);
@@ -1211,6 +1213,8 @@ public sealed class ProliferationGranularImportService : IProliferationGranularI
     private sealed record HeaderMap(string[] Headers, Dictionary<string, int> Map)
     {
         public bool TryGetIndex(string column, out int index) => Map.TryGetValue(column, out index);
+
+        public bool ContainsKey(string column) => Map.ContainsKey(column);
     }
 
     private sealed record RejectedRow(int RowNumber, string[] Headers, string[] RawValues, string Error);
