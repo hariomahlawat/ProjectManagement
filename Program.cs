@@ -218,6 +218,7 @@ builder.Services.AddScoped<ProjectTimelineReadService>();
 builder.Services.AddScoped<ProjectLifecycleService>();
 builder.Services.AddScoped<ProjectTotService>();
 builder.Services.AddScoped<ProjectTotTrackerReadService>();
+builder.Services.AddScoped<ProliferationTrackerReadService>();
 builder.Services.AddScoped<ProjectCommentService>();
 builder.Services.AddScoped<ProjectRemarksPanelService>();
 builder.Services.AddScoped<ProjectMediaAggregator>();
