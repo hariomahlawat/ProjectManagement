@@ -507,8 +507,27 @@ public sealed class ProliferationPagesIntegrationTests
 
     private sealed class StubUserContext : IUserContext
     {
-        public StubUserContext(string userId) => UserId = userId;
+        public StubUserContext(string userId)
+        {
+            UserId = userId;
 
+            if (!string.IsNullOrWhiteSpace(userId))
+            {
+                var identity = new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, userId),
+                    new Claim(ClaimTypes.Name, userId)
+                }, authenticationType: "Test");
+
+                User = new ClaimsPrincipal(identity);
+            }
+            else
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity());
+            }
+        }
+
+        public ClaimsPrincipal User { get; }
         public string? UserId { get; }
         public string? UserName => UserId;
         public bool IsAuthenticated => !string.IsNullOrWhiteSpace(UserId);
