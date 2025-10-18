@@ -30,7 +30,7 @@ public sealed class ProliferationPreferenceServiceTests
             cancellationToken: CancellationToken.None);
 
         Assert.Equal(ProliferationPreferenceChangeOutcome.Created, result.Outcome);
-        var preference = Assert.NotNull(result.Preference);
+        var preference = Assert.IsType<ProliferationYearPreference>(result.Preference);
         Assert.Equal(42, preference.ProjectId);
         Assert.Equal(ProliferationSource.Internal, preference.Source);
         Assert.Equal(2024, preference.Year);
@@ -149,7 +149,7 @@ public sealed class ProliferationPreferenceServiceTests
             cancellationToken: CancellationToken.None);
 
         Assert.Equal(ProliferationPreferenceChangeOutcome.Updated, result.Outcome);
-        var updated = Assert.NotNull(result.Preference);
+        var updated = Assert.IsType<ProliferationYearPreference>(result.Preference);
         Assert.Equal(2025, updated.Year);
         Assert.Equal(clock.UtcNow, updated.LastModifiedAtUtc);
         Assert.NotEmpty(updated.RowVersion);
