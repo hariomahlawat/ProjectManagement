@@ -128,14 +128,45 @@ public sealed class RemarkServiceTests
     }
 
     [Fact]
+    public async Task CreateRemarkAsync_AllowsExternalStageWhenProjectHasNoStages()
+    {
+        await using var scope = await CreateContextAsync();
+        var db = scope.Db;
+        await SeedProjectAsync(db, 13);
+        var service = CreateService(db, FakeClock.ForIstDate(2024, 9, 18, 10, 30, 0), out _, out var metrics);
+        var actor = new RemarkActorContext(
+            "hod",
+            RemarkActorRole.HeadOfDepartment,
+            new[] { RemarkActorRole.HeadOfDepartment, RemarkActorRole.ProjectOfficer });
+
+        var request = new CreateRemarkRequest(
+            ProjectId: 13,
+            Actor: actor,
+            Type: RemarkType.External,
+            Scope: RemarkScope.General,
+            Body: "External remark",
+            EventDate: new DateOnly(2024, 9, 17),
+            StageRef: StageCodes.IPA,
+            StageNameSnapshot: null,
+            Meta: null);
+
+        var remark = await service.CreateRemarkAsync(request, CancellationToken.None);
+
+        Assert.Equal(StageCodes.IPA, remark.StageRef);
+        Assert.Equal(StageCodes.DisplayNameOf(StageCodes.IPA), remark.StageNameSnapshot);
+        Assert.Equal(1, metrics.CreatedCount);
+    }
+
+    [Fact]
     public async Task CreateRemarkAsync_ThrowsWhenStageMissing()
     {
         await using var scope = await CreateContextAsync();
         var db = scope.Db;
         await SeedProjectAsync(db, 12);
+        await SeedStageAsync(db, 12, StageCodes.FS);
         var service = CreateService(db, FakeClock.ForIstDate(2024, 9, 10, 9, 0, 0), out _, out var metrics);
         var actor = new RemarkActorContext("user-3", RemarkActorRole.ProjectOfficer, new[] { RemarkActorRole.ProjectOfficer });
-        var request = new CreateRemarkRequest(12, actor, RemarkType.Internal, RemarkScope.General, "Hello", new DateOnly(2024, 9, 9), StageCodes.IPA, null, null);
+        var request = new CreateRemarkRequest(12, actor, RemarkType.External, RemarkScope.General, "Hello", new DateOnly(2024, 9, 9), StageCodes.IPA, null, null);
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateRemarkAsync(request, CancellationToken.None));
         Assert.Equal(RemarkService.StageNotInProjectMessage, ex.Message);
