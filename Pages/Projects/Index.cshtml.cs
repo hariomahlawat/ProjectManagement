@@ -404,24 +404,50 @@ namespace ProjectManagement.Pages.Projects
 
             var projectIds = projects.Select(p => p.Id).ToArray();
 
-            var remarkAggregates = await _db.Remarks
+            var remarkQuery = _db.Remarks
                 .AsNoTracking()
-                .Where(r => projectIds.Contains(r.ProjectId) && !r.IsDeleted)
+                .Where(r => projectIds.Contains(r.ProjectId) && !r.IsDeleted);
+
+            var aggregateQuery = remarkQuery
                 .GroupBy(r => r.ProjectId)
-                .Select(g => new RemarkAggregateProjection(
-                    g.Key,
-                    g.Sum(r => r.Type == RemarkType.Internal ? 1 : 0),
-                    g.Sum(r => r.Type == RemarkType.External ? 1 : 0),
-                    g.OrderByDescending(r => r.CreatedAtUtc)
-                        .ThenByDescending(r => r.Id)
-                        .Select(r => new RemarkProjection(
-                            r.Id,
-                            r.Type,
-                            r.AuthorRole,
-                            r.AuthorUserId,
-                            r.Body,
-                            r.CreatedAtUtc))
-                        .FirstOrDefault()))
+                .Select(g => new
+                {
+                    ProjectId = g.Key,
+                    InternalCount = g.Sum(r => r.Type == RemarkType.Internal ? 1 : 0),
+                    ExternalCount = g.Sum(r => r.Type == RemarkType.External ? 1 : 0),
+                    LastCreatedAtUtc = g.Max(r => r.CreatedAtUtc)
+                });
+
+            var lastRemarkIdQuery =
+                from remark in remarkQuery
+                join aggregate in aggregateQuery
+                    on new { remark.ProjectId, remark.CreatedAtUtc }
+                    equals new { aggregate.ProjectId, aggregate.LastCreatedAtUtc }
+                group remark by remark.ProjectId
+                into g
+                select new
+                {
+                    ProjectId = g.Key,
+                    LastRemarkId = g.Max(r => r.Id)
+                };
+
+            var remarkAggregates = await (
+                from aggregate in aggregateQuery
+                join lastRemarkId in lastRemarkIdQuery
+                    on aggregate.ProjectId equals lastRemarkId.ProjectId
+                join lastRemark in remarkQuery
+                    on lastRemarkId.LastRemarkId equals lastRemark.Id
+                select new RemarkAggregateProjection(
+                    aggregate.ProjectId,
+                    aggregate.InternalCount,
+                    aggregate.ExternalCount,
+                    new RemarkProjection(
+                        lastRemark.Id,
+                        lastRemark.Type,
+                        lastRemark.AuthorRole,
+                        lastRemark.AuthorUserId,
+                        lastRemark.Body,
+                        lastRemark.CreatedAtUtc)))
                 .ToListAsync(cancellationToken);
 
             var authorLookup = await BuildAuthorLookupAsync(
