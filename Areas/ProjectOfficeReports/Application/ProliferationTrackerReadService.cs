@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
 
@@ -87,7 +88,7 @@ public sealed class ProliferationTrackerReadService
         return rows;
     }
 
-    private IQueryable<ProjectSnapshotProjection> BuildProjectQuery(ProliferationTrackerFilter filter)
+    private IQueryable<Project> BuildProjectQuery(ProliferationTrackerFilter filter)
     {
         var projectQuery = _db.Projects.AsNoTracking();
 
@@ -120,19 +121,12 @@ public sealed class ProliferationTrackerReadService
             }
         }
 
-        return projectQuery.Select(p => new ProjectSnapshotProjection(
-            p.Id,
-            p.Name,
-            p.SponsoringUnitId,
-            p.SponsoringUnit != null ? p.SponsoringUnit.Name : null,
-            p.LeadPoUserId,
-            p.LeadPoUser != null ? p.LeadPoUser.FullName : null,
-            p.LeadPoUser != null ? p.LeadPoUser.UserName : null));
+        return projectQuery;
     }
 
     private async Task<List<YearlySnapshot>> LoadYearlySnapshotsAsync(
         ProliferationTrackerFilter filter,
-        IQueryable<ProjectSnapshotProjection> projectQuery,
+        IQueryable<Project> projectQuery,
         CancellationToken cancellationToken)
     {
         var yearlyQuery = _db.ProliferationYearlies.AsNoTracking();
@@ -157,7 +151,7 @@ public sealed class ProliferationTrackerReadService
 
         return await (
                 from y in yearlyQuery
-                join p in projectQuery on y.ProjectId equals p.ProjectId
+                join p in projectQuery on y.ProjectId equals p.Id
                 select new YearlySnapshot(
                     new AggregationKey(y.ProjectId, y.Source, y.Year),
                     new MetricValues(
@@ -165,19 +159,19 @@ public sealed class ProliferationTrackerReadService
                         y.Metrics.IndirectBeneficiaries,
                         y.Metrics.InvestmentValue),
                     new ProjectMetadata(
-                        p.ProjectId,
-                        p.ProjectName,
+                        p.Id,
+                        p.Name,
                         p.SponsoringUnitId,
-                        p.SponsoringUnitName,
-                        p.SimulatorUserId,
-                        p.SimulatorFullName,
-                        p.SimulatorUserName)))
+                        p.SponsoringUnit != null ? p.SponsoringUnit.Name : null,
+                        p.LeadPoUserId,
+                        p.LeadPoUser != null ? p.LeadPoUser.FullName : null,
+                        p.LeadPoUser != null ? p.LeadPoUser.UserName : null)))
             .ToListAsync(cancellationToken);
     }
 
     private async Task<List<GranularSnapshot>> LoadGranularSnapshotsAsync(
         ProliferationTrackerFilter filter,
-        IQueryable<ProjectSnapshotProjection> projectQuery,
+        IQueryable<Project> projectQuery,
         CancellationToken cancellationToken)
     {
         var granularQuery = _db.ProliferationGranularYearlyView.AsNoTracking();
@@ -202,18 +196,18 @@ public sealed class ProliferationTrackerReadService
 
         return await (
                 from g in granularQuery
-                join p in projectQuery on g.ProjectId equals p.ProjectId
+                join p in projectQuery on g.ProjectId equals p.Id
                 select new GranularSnapshot(
                     new AggregationKey(g.ProjectId, g.Source, g.Year),
                     new MetricValues(g.DirectBeneficiaries, g.IndirectBeneficiaries, g.InvestmentValue),
                     new ProjectMetadata(
-                        p.ProjectId,
-                        p.ProjectName,
+                        p.Id,
+                        p.Name,
                         p.SponsoringUnitId,
-                        p.SponsoringUnitName,
-                        p.SimulatorUserId,
-                        p.SimulatorFullName,
-                        p.SimulatorUserName)))
+                        p.SponsoringUnit != null ? p.SponsoringUnit.Name : null,
+                        p.LeadPoUserId,
+                        p.LeadPoUser != null ? p.LeadPoUser.FullName : null,
+                        p.LeadPoUser != null ? p.LeadPoUser.UserName : null)))
             .ToListAsync(cancellationToken);
     }
 
@@ -401,15 +395,6 @@ public sealed class ProliferationTrackerReadService
             .Replace("%", "\\%", StringComparison.Ordinal)
             .Replace("_", "\\_", StringComparison.Ordinal);
     }
-
-    private sealed record ProjectSnapshotProjection(
-        int ProjectId,
-        string ProjectName,
-        int? SponsoringUnitId,
-        string? SponsoringUnitName,
-        string? SimulatorUserId,
-        string? SimulatorFullName,
-        string? SimulatorUserName);
 
     private sealed record ProjectMetadata(
         int ProjectId,
