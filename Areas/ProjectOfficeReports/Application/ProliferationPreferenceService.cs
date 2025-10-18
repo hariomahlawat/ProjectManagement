@@ -230,6 +230,11 @@ public sealed record ProliferationPreferenceCommandResult(
     ProliferationYearPreference? Preference,
     IReadOnlyList<string> Errors)
 {
+    public bool IsSuccess => Outcome is ProliferationPreferenceChangeOutcome.Created
+        or ProliferationPreferenceChangeOutcome.Updated
+        or ProliferationPreferenceChangeOutcome.Cleared
+        or ProliferationPreferenceChangeOutcome.NoChange;
+
     public static ProliferationPreferenceCommandResult Success(
         ProliferationYearPreference? preference,
         ProliferationPreferenceChangeOutcome outcome)
