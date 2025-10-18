@@ -1,10 +1,14 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using ProjectManagement.Data;
 
 #nullable disable
 
 namespace ProjectManagement.Migrations
 {
+    [DbContext(typeof(ApplicationDbContext))]
+    [Migration("20251115000000_AddProliferationApprovalRequests")]
     public partial class AddProliferationApprovalRequests : Migration
     {
         protected override void Up(MigrationBuilder migrationBuilder)
