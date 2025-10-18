@@ -202,7 +202,7 @@ public sealed class ProjectTotExcelWorkbookBuilderTests
                     null,
                     new DateTime(2024, 2, 17, 7, 0, 0, DateTimeKind.Utc),
                     RemarkType.Internal),
-                LeadProjectOfficerUserId: "lead-po")
+                LeadProjectOfficer: "Lead Project Officer")
         };
 
         var filter = new ProjectTotTrackerFilter
@@ -233,7 +233,7 @@ public sealed class ProjectTotExcelWorkbookBuilderTests
         Assert.Equal("Project", worksheet.Cell(1, 2).GetString());
         Assert.Equal("Project Orion", worksheet.Cell(2, 2).GetString());
         Assert.Equal("Aerospace", worksheet.Cell(2, 3).GetString());
-        Assert.Equal("lead-po", worksheet.Cell(2, 4).GetString());
+        Assert.Equal("Lead Project Officer", worksheet.Cell(2, 4).GetString());
         Assert.Equal("Completed", worksheet.Cell(2, 5).GetString());
         Assert.Equal("MET signed off", worksheet.Cell(2, 8).GetString());
         Assert.Equal("Yes", worksheet.Cell(2, 10).GetString());

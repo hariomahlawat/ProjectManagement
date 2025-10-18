@@ -88,7 +88,7 @@ public sealed class ProjectTotExcelWorkbookBuilder : IProjectTotExcelWorkbookBui
             worksheet.Cell(rowNumber, 1).Value = index + 1;
             worksheet.Cell(rowNumber, 2).Value = row.ProjectName;
             worksheet.Cell(rowNumber, 3).Value = row.SponsoringUnit ?? string.Empty;
-            worksheet.Cell(rowNumber, 4).Value = row.LeadProjectOfficerUserId ?? string.Empty;
+            worksheet.Cell(rowNumber, 4).Value = row.LeadProjectOfficer ?? string.Empty;
             worksheet.Cell(rowNumber, 5).Value = FormatTotStatus(row.TotStatus);
             SetDateOnlyCell(worksheet.Cell(rowNumber, 6), row.TotStartedOn);
             SetDateOnlyCell(worksheet.Cell(rowNumber, 7), row.TotCompletedOn);
