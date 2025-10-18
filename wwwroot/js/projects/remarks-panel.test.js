@@ -7,14 +7,46 @@ const path = require('node:path');
 const scriptPath = path.resolve(__dirname, 'remarks-panel.js');
 const scriptContent = fs.readFileSync(scriptPath, 'utf8');
 
-function createPanelDom() {
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function createPanelDom(config = {}) {
+    const defaultStage = typeof config.defaultStage === 'string' ? config.defaultStage : '';
+    const stageOptions = Array.isArray(config.stageOptions) ? config.stageOptions : [];
+    const stageOptionsHtml = stageOptions
+        .map((option) => {
+            if (!option) {
+                return '';
+            }
+
+            const value = escapeHtml(option.value || '');
+            const label = escapeHtml(option.label || option.value || '');
+            const isSelected = defaultStage && option.value === defaultStage ? ' selected' : '';
+            return `<option value="${value}"${isSelected}>${label}</option>`;
+        })
+        .join('');
+    const configJson = escapeHtml(JSON.stringify(config));
+
     const dom = new JSDOM(`<!DOCTYPE html><html><body>
-        <div data-panel-project-id="1" data-config="{}">
+        <div data-panel-project-id="1" data-config="${configJson}">
             <div data-remarks-items></div>
             <div data-remarks-empty></div>
             <div data-remarks-pagination></div>
             <form data-remarks-composer>
                 <textarea data-remarks-body></textarea>
+                <div data-remarks-external-fields>
+                    <input data-remarks-event-date type="date" />
+                    <select data-remarks-stage>
+                        <option value="">Not linked</option>
+                        ${stageOptionsHtml}
+                    </select>
+                </div>
+                <button type="reset" data-remarks-reset>Reset</button>
                 <button type="submit" data-remarks-submit>Submit</button>
             </form>
         </div>
@@ -305,4 +337,39 @@ test('override actor outside edit window gets dropdown actions', () => {
     const deleteItem = menu.querySelector('[data-remark-action="delete"]');
     assert.ok(editItem);
     assert.ok(deleteItem);
+});
+
+test('stage dropdown selects configured default stage', () => {
+    const config = {
+        defaultStage: 'Execution',
+        stageOptions: [
+            { value: 'Planning', label: 'Planning' },
+            { value: 'Execution', label: 'Execution' },
+            { value: 'Closure', label: 'Closure' }
+        ]
+    };
+
+    const { panel } = createPanelDom(config);
+
+    assert.ok(panel.stageSelect);
+    assert.equal(panel.stageSelect.value, 'Execution');
+});
+
+test('resetComposer restores default stage selection', () => {
+    const config = {
+        defaultStage: 'Execution',
+        stageOptions: [
+            { value: 'Planning', label: 'Planning' },
+            { value: 'Execution', label: 'Execution' },
+            { value: 'Closure', label: 'Closure' }
+        ]
+    };
+
+    const { panel } = createPanelDom(config);
+
+    assert.ok(panel.stageSelect);
+    panel.stageSelect.value = 'Planning';
+    panel.resetComposer();
+
+    assert.equal(panel.stageSelect.value, 'Execution');
 });
