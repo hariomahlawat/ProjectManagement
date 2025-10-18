@@ -80,6 +80,81 @@ public sealed class ProjectTotTrackerReadServiceTests
     }
 
     [Fact]
+    public async Task GetAsync_PrefersLeadProjectOfficerNameThenUserNameThenId()
+    {
+        await using var context = CreateContext();
+
+        var officerWithFullName = new ApplicationUser
+        {
+            Id = "po-1",
+            FullName = "Squadron Leader Mira Rao",
+            UserName = "mira.rao"
+        };
+
+        var officerWithUserNameOnly = new ApplicationUser
+        {
+            Id = "po-2",
+            FullName = string.Empty,
+            UserName = "ajay.singh"
+        };
+
+        context.Users.AddRange(officerWithFullName, officerWithUserNameOnly);
+
+        context.Projects.AddRange(
+            new Project
+            {
+                Id = 11,
+                Name = "Project Zenith",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                LeadPoUserId = officerWithFullName.Id,
+                LeadPoUser = officerWithFullName,
+                Tot = new ProjectTot
+                {
+                    ProjectId = 11,
+                    Status = ProjectTotStatus.InProgress
+                }
+            },
+            new Project
+            {
+                Id = 12,
+                Name = "Project Horizon",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                LeadPoUserId = officerWithUserNameOnly.Id,
+                LeadPoUser = officerWithUserNameOnly,
+                Tot = new ProjectTot
+                {
+                    ProjectId = 12,
+                    Status = ProjectTotStatus.InProgress
+                }
+            },
+            new Project
+            {
+                Id = 13,
+                Name = "Project Ion",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                LeadPoUserId = "po-3",
+                Tot = new ProjectTot
+                {
+                    ProjectId = 13,
+                    Status = ProjectTotStatus.InProgress
+                }
+            });
+
+        await context.SaveChangesAsync();
+
+        var service = new ProjectTotTrackerReadService(context);
+        var rows = await service.GetAsync(new ProjectTotTrackerFilter(), CancellationToken.None);
+
+        var zenith = Assert.Single(rows.Where(r => r.ProjectId == 11));
+        var horizon = Assert.Single(rows.Where(r => r.ProjectId == 12));
+        var ion = Assert.Single(rows.Where(r => r.ProjectId == 13));
+
+        Assert.Equal("Squadron Leader Mira Rao", zenith.LeadProjectOfficer);
+        Assert.Equal("ajay.singh", horizon.LeadProjectOfficer);
+        Assert.Equal("po-3", ion.LeadProjectOfficer);
+    }
+
+    [Fact]
     public async Task GetAsync_HandlesProjectsWithoutExternalRemarks()
     {
         await using var context = CreateContext();

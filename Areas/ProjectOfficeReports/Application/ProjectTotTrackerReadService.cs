@@ -121,6 +121,7 @@ public sealed class ProjectTotTrackerReadService
                 p.SponsoringUnit != null ? p.SponsoringUnit.Name : null,
                 p.LeadPoUserId,
                 p.LeadPoUser != null ? p.LeadPoUser.FullName : null,
+                p.LeadPoUser != null ? p.LeadPoUser.UserName : null,
                 p.Tot != null ? p.Tot.Status : (ProjectTotStatus?)null,
                 p.Tot != null ? p.Tot.StartedOn : null,
                 p.Tot != null ? p.Tot.CompletedOn : null,
@@ -184,7 +185,9 @@ public sealed class ProjectTotTrackerReadService
 
             var leadProjectOfficer = !string.IsNullOrWhiteSpace(snapshot.LeadPoFullName)
                 ? snapshot.LeadPoFullName
-                : snapshot.LeadPoUserId;
+                : !string.IsNullOrWhiteSpace(snapshot.LeadPoUserName)
+                    ? snapshot.LeadPoUserName
+                    : snapshot.LeadPoUserId;
 
             rows.Add(new ProjectTotTrackerRow(
                 snapshot.ProjectId,
@@ -290,6 +293,7 @@ public sealed class ProjectTotTrackerReadService
         string? SponsoringUnit,
         string? LeadPoUserId,
         string? LeadPoFullName,
+        string? LeadPoUserName,
         ProjectTotStatus? TotStatus,
         DateOnly? TotStartedOn,
         DateOnly? TotCompletedOn,
