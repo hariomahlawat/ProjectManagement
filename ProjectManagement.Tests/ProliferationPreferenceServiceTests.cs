@@ -55,20 +55,44 @@ public sealed class ProliferationPreferenceServiceTests
     }
 
     [Fact]
-    public async Task SetPreferenceAsync_WithMismatchedRowVersion_ReturnsConcurrency()
+    public async Task SetPreferenceAsync_WhenRowVersionProvidedForCreate_ReturnsConcurrencyConflict()
     {
         await using var context = CreateContext();
+        var clock = FakeClock.AtUtc(DateTimeOffset.UtcNow);
+        var audit = new RecordingAudit();
+        var service = new ProliferationPreferenceService(context, clock, audit);
+
+        var result = await service.SetPreferenceAsync(
+            projectId: 77,
+            source: ProliferationSource.External,
+            year: 2025,
+            userId: "user-2",
+            expectedRowVersion: Guid.NewGuid().ToByteArray(),
+            cancellationToken: CancellationToken.None);
+
+        Assert.Equal(ProliferationPreferenceChangeOutcome.ConcurrencyConflict, result.Outcome);
+        Assert.Null(result.Preference);
+        Assert.Empty(audit.Entries);
+        Assert.Empty(await context.ProliferationYearPreferences.ToListAsync());
+    }
+
+    [Fact]
+    public async Task SetPreferenceAsync_WhenRowVersionDoesNotMatchExisting_ReturnsConcurrencyConflict()
+    {
+        await using var context = CreateContext();
+
         var existing = new ProliferationYearPreference
         {
             Id = Guid.NewGuid(),
             ProjectId = 100,
             Source = ProliferationSource.External,
             Year = 2023,
-            UserId = "user-2",
-            CreatedByUserId = "user-2",
+            UserId = "user-3",
+            CreatedByUserId = "user-3",
             CreatedAtUtc = DateTimeOffset.UtcNow,
             RowVersion = Guid.NewGuid().ToByteArray()
         };
+
         context.ProliferationYearPreferences.Add(existing);
         await context.SaveChangesAsync();
 
@@ -76,13 +100,12 @@ public sealed class ProliferationPreferenceServiceTests
         var audit = new RecordingAudit();
         var service = new ProliferationPreferenceService(context, clock, audit);
 
-        var badRowVersion = Guid.NewGuid().ToByteArray();
         var result = await service.SetPreferenceAsync(
-            existing.ProjectId,
-            existing.Source,
+            projectId: existing.ProjectId,
+            source: existing.Source,
             year: 2024,
             userId: existing.UserId,
-            expectedRowVersion: badRowVersion,
+            expectedRowVersion: Guid.NewGuid().ToByteArray(),
             cancellationToken: CancellationToken.None);
 
         Assert.Equal(ProliferationPreferenceChangeOutcome.ConcurrencyConflict, result.Outcome);
@@ -94,19 +117,21 @@ public sealed class ProliferationPreferenceServiceTests
     public async Task SetPreferenceAsync_UpdatesExistingPreference()
     {
         await using var context = CreateContext();
+
         var existing = new ProliferationYearPreference
         {
             Id = Guid.NewGuid(),
             ProjectId = 200,
             Source = ProliferationSource.Internal,
             Year = 2022,
-            UserId = "user-3",
-            CreatedByUserId = "user-3",
+            UserId = "user-4",
+            CreatedByUserId = "user-4",
             CreatedAtUtc = DateTimeOffset.UtcNow,
             LastModifiedAtUtc = DateTimeOffset.UtcNow,
-            LastModifiedByUserId = "user-3",
+            LastModifiedByUserId = "user-4",
             RowVersion = Guid.NewGuid().ToByteArray()
         };
+
         context.ProliferationYearPreferences.Add(existing);
         await context.SaveChangesAsync();
 
@@ -142,19 +167,21 @@ public sealed class ProliferationPreferenceServiceTests
     public async Task ClearPreferenceAsync_RemovesPreferenceAndLogs()
     {
         await using var context = CreateContext();
+
         var preference = new ProliferationYearPreference
         {
             Id = Guid.NewGuid(),
             ProjectId = 300,
             Source = ProliferationSource.External,
             Year = 2024,
-            UserId = "user-4",
-            CreatedByUserId = "user-4",
+            UserId = "user-5",
+            CreatedByUserId = "user-5",
             CreatedAtUtc = DateTimeOffset.UtcNow,
             LastModifiedAtUtc = DateTimeOffset.UtcNow,
-            LastModifiedByUserId = "user-4",
+            LastModifiedByUserId = "user-5",
             RowVersion = Guid.NewGuid().ToByteArray()
         };
+
         context.ProliferationYearPreferences.Add(preference);
         await context.SaveChangesAsync();
 
@@ -176,7 +203,7 @@ public sealed class ProliferationPreferenceServiceTests
 
         var entry = Assert.Single(audit.Entries);
         Assert.Equal("ProjectOfficeReports.Proliferation.PreferenceChanged", entry.Action);
-        Assert.Equal("user-4", entry.UserId);
+        Assert.Equal("user-5", entry.UserId);
         Assert.Equal("Cleared", entry.Data["ChangeType"]);
         Assert.Equal("300", entry.Data["ProjectId"]);
         Assert.Equal("External", entry.Data["Source"]);
@@ -184,7 +211,7 @@ public sealed class ProliferationPreferenceServiceTests
     }
 
     [Fact]
-    public async Task ClearPreferenceAsync_WhenMissingPreference_ReturnsNoChange()
+    public async Task ClearPreferenceAsync_WhenMissingPreference_ReturnsNoChangeForAutoFallback()
     {
         await using var context = CreateContext();
         var clock = FakeClock.AtUtc(DateTimeOffset.UtcNow);
@@ -194,13 +221,14 @@ public sealed class ProliferationPreferenceServiceTests
         var result = await service.ClearPreferenceAsync(
             projectId: 999,
             source: ProliferationSource.Internal,
-            userId: "user-5",
+            userId: "user-6",
             expectedRowVersion: null,
             cancellationToken: CancellationToken.None);
 
         Assert.Equal(ProliferationPreferenceChangeOutcome.NoChange, result.Outcome);
         Assert.Null(result.Preference);
         Assert.Empty(audit.Entries);
+        Assert.Empty(await context.ProliferationYearPreferences.ToListAsync());
     }
 
     private static ApplicationDbContext CreateContext()
@@ -208,6 +236,7 @@ public sealed class ProliferationPreferenceServiceTests
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
+
         return new ApplicationDbContext(options);
     }
 }
