@@ -475,6 +475,7 @@ public sealed record ProliferationPreferenceMetadata(
     byte[]? RowVersion)
 {
     public bool HasPreference => PreferredYear.HasValue;
+    public bool MatchesPreferredYear => PreferredYearMatches;
 }
 
 public sealed record ProliferationTrackerRow(
