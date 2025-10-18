@@ -19,6 +19,7 @@ public static class StageCodes
     public const string ATP = "ATP";
     public const string EAS = "EAS";
     public const string PAYMENT = "PAYMENT";
+    public const string TOT = "TOT";
 
     public static readonly string[] All =
     {
@@ -35,7 +36,8 @@ public static class StageCodes
         SO,
         DEVP,
         ATP,
-        PAYMENT
+        PAYMENT,
+        TOT
     };
     private static readonly Dictionary<string, string> DisplayNames = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -52,7 +54,8 @@ public static class StageCodes
         [SO] = "Supply Order",
         [DEVP] = "Development",
         [ATP] = "Acceptance Testing/ Trials",
-        [PAYMENT] = "Payment"
+        [PAYMENT] = "Payment",
+        [TOT] = "Transfer of Technology (ToT)"
     };
 
     public static string DisplayNameOf(string code) =>
