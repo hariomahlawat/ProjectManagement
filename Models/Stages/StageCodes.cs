@@ -55,7 +55,7 @@ public static class StageCodes
         [DEVP] = "Development",
         [ATP] = "Acceptance Testing/ Trials",
         [PAYMENT] = "Payment",
-        [TOT] = "Transfer of Technology (ToT)"
+        [TOT] = "Transfer of Technology"
     };
 
     public static string DisplayNameOf(string code) =>

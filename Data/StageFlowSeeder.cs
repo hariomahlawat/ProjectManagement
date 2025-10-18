@@ -30,7 +30,7 @@ public static class StageFlowSeeder
             new StageTemplate { Version = version, Code = StageCodes.DEVP,   Name = "Development",                    Sequence = 110 },
             new StageTemplate { Version = version, Code = StageCodes.ATP,    Name = "Acceptance Testing",             Sequence = 120 },
             new StageTemplate { Version = version, Code = StageCodes.PAYMENT,   Name = "Payment",                        Sequence = 130 },
-            new StageTemplate { Version = version, Code = StageCodes.TOT, Name = "Transfer of Technology (ToT)", Sequence = 140, Optional = true },
+            new StageTemplate { Version = version, Code = StageCodes.TOT, Name = "Transfer of Technology", Sequence = 140, Optional = true },
         };
 
         var deps = new[]
@@ -50,15 +50,31 @@ public static class StageFlowSeeder
             .Where(t => t.Version == version)
             .ToListAsync();
 
-        var missingTemplates = stages
-            .Where(stage => !existingTemplates.Any(existing =>
-                string.Equals(existing.Code, stage.Code, StringComparison.OrdinalIgnoreCase)))
-            .ToArray();
-
-        if (missingTemplates.Length > 0)
+        foreach (var stage in stages)
         {
-            await db.StageTemplates.AddRangeAsync(missingTemplates);
-            changesMade = true;
+            var existing = existingTemplates
+                .FirstOrDefault(t => string.Equals(t.Code, stage.Code, StringComparison.OrdinalIgnoreCase));
+
+            if (existing is null)
+            {
+                await db.StageTemplates.AddAsync(stage);
+                changesMade = true;
+                continue;
+            }
+
+            var needsUpdate = !string.Equals(existing.Name, stage.Name, StringComparison.Ordinal)
+                || existing.Sequence != stage.Sequence
+                || existing.Optional != stage.Optional
+                || !string.Equals(existing.ParallelGroup, stage.ParallelGroup, StringComparison.Ordinal);
+
+            if (needsUpdate)
+            {
+                existing.Name = stage.Name;
+                existing.Sequence = stage.Sequence;
+                existing.Optional = stage.Optional;
+                existing.ParallelGroup = stage.ParallelGroup;
+                changesMade = true;
+            }
         }
 
         var existingDeps = await db.StageDependencyTemplates
