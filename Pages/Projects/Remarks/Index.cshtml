@@ -1,5 +1,6 @@
 @page "{projectId:int}"
 @model ProjectManagement.Pages.Projects.Remarks.IndexModel
+@using System
 @using System.Text.Json
 
 @{
@@ -119,7 +120,8 @@
                                                 <option value="">Not linked</option>
                                                 @foreach (var stage in Model.RemarksPanel.StageOptions)
                                                 {
-                                                    <option value="@stage.Value">@stage.Label</option>
+                                                    var isDefaultStage = string.Equals(stage.Value, Model.RemarksPanel.DefaultStage, StringComparison.OrdinalIgnoreCase);
+                                                    <option value="@stage.Value"@(isDefaultStage ? " selected" : string.Empty)>@stage.Label</option>
                                                 }
                                             </select>
                                         </div>

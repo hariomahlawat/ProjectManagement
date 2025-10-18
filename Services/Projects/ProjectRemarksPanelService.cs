@@ -32,13 +32,17 @@ public sealed class ProjectRemarksPanelService
         ClaimsPrincipal userPrincipal,
         CancellationToken ct)
     {
-        var stageOptions = stages
+        var stageList = stages?.ToList() ?? new List<ProjectStage>();
+
+        var stageOptions = stageList
             .Where(s => !string.IsNullOrWhiteSpace(s.StageCode))
             .Select(s => s.StageCode!)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Select(code => new ProjectRemarksPanelViewModel.RemarkStageOption(code, BuildStageDisplayName(code)))
             .OrderBy(option => option.Label, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        var defaultStage = SelectDefaultStage(stageList);
 
         if (stageOptions.Count == 0)
         {
@@ -93,6 +97,7 @@ public sealed class ProjectRemarksPanelService
                 RoleOptions = roleOptions,
                 ScopeOptions = scopeOptions,
                 DefaultScope = RemarkScope.General.ToString(),
+                DefaultStage = defaultStage,
                 Today = today
             };
         }
@@ -162,9 +167,101 @@ public sealed class ProjectRemarksPanelService
             RoleOptions = roleOptions,
             ScopeOptions = scopeOptions,
             DefaultScope = RemarkScope.General.ToString(),
+            DefaultStage = defaultStage,
             Today = today,
             ViewerOnly = viewerOnly
         };
+    }
+
+    private static string SelectDefaultStage(IReadOnlyList<ProjectStage> stages)
+    {
+        if (stages.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        ProjectStage? latestCompleted = null;
+        DateOnly? latestCompletedOn = null;
+        int latestSortOrder = int.MinValue;
+        var latestIndex = -1;
+
+        for (var index = 0; index < stages.Count; index++)
+        {
+            var stage = stages[index];
+
+            if (stage is null || string.IsNullOrWhiteSpace(stage.StageCode))
+            {
+                continue;
+            }
+
+            if (stage.Status == StageStatus.InProgress)
+            {
+                return stage.StageCode!;
+            }
+
+            if (stage.Status != StageStatus.Completed)
+            {
+                continue;
+            }
+
+            if (latestCompleted is null)
+            {
+                latestCompleted = stage;
+                latestCompletedOn = stage.CompletedOn;
+                latestSortOrder = stage.SortOrder;
+                latestIndex = index;
+                continue;
+            }
+
+            var stageCompletedOn = stage.CompletedOn;
+            var isNewer = false;
+
+            if (stageCompletedOn.HasValue && latestCompletedOn.HasValue)
+            {
+                if (stageCompletedOn.Value > latestCompletedOn.Value)
+                {
+                    isNewer = true;
+                }
+                else if (stageCompletedOn.Value == latestCompletedOn.Value)
+                {
+                    if (stage.SortOrder > latestSortOrder)
+                    {
+                        isNewer = true;
+                    }
+                    else if (stage.SortOrder == latestSortOrder && index > latestIndex)
+                    {
+                        isNewer = true;
+                    }
+                }
+            }
+            else if (stageCompletedOn.HasValue && !latestCompletedOn.HasValue)
+            {
+                isNewer = true;
+            }
+            else if (!stageCompletedOn.HasValue && !latestCompletedOn.HasValue)
+            {
+                if (stage.SortOrder > latestSortOrder)
+                {
+                    isNewer = true;
+                }
+                else if (stage.SortOrder == latestSortOrder && index > latestIndex)
+                {
+                    isNewer = true;
+                }
+            }
+
+            if (!isNewer)
+            {
+                continue;
+            }
+
+            latestCompleted = stage;
+            latestCompletedOn = stageCompletedOn;
+            latestSortOrder = stage.SortOrder;
+            latestIndex = index;
+        }
+
+        return latestCompleted?.StageCode ?? string.Empty;
     }
 
     private static RemarkActorRole SelectDefaultRemarkRole(IReadOnlyCollection<RemarkActorRole> roles)

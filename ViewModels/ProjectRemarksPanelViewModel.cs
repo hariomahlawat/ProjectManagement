@@ -41,6 +41,8 @@ public sealed class ProjectRemarksPanelViewModel
 
     public string DefaultScope { get; init; } = RemarkScope.General.ToString();
 
+    public string DefaultStage { get; init; } = string.Empty;
+
     public IReadOnlyList<RemarkRoleOption> RoleOptions { get; init; } = Array.Empty<RemarkRoleOption>();
 
     public IReadOnlyList<RemarkStageOption> StageOptions { get; init; } = Array.Empty<RemarkStageOption>();

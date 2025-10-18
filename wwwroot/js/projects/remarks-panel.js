@@ -354,6 +354,7 @@
             this.stageLabels = new Map();
             this.scopeLabels = new Map();
             this.scopeCanonicalMap = new Map();
+            this.defaultStage = typeof this.config.defaultStage === 'string' ? this.config.defaultStage : '';
             this.mentionAutocompletes = new WeakMap();
             this.mentionMaps = new WeakMap();
             this.editMentionMap = null;
@@ -452,6 +453,9 @@
                 || 'General';
             this.composerScope = this.defaultScope;
             this.cacheElements();
+            if (this.stageSelect) {
+                this.stageSelect.value = this.defaultStage || '';
+            }
             this.bindEvents();
             this.updateTypeButtons();
             this.updateTimeButtons();
@@ -2276,7 +2280,7 @@
             }
 
             if (this.stageSelect) {
-                this.stageSelect.value = '';
+                this.stageSelect.value = this.defaultStage || '';
             }
 
             this.setComposerScope(this.defaultScope);
