@@ -229,13 +229,16 @@ public sealed class IndexModel : PageModel
         await PopulatePermissionsAsync();
         await LoadFilterOptionsAsync(cancellationToken);
 
+        var userId = _userManager.GetUserId(User);
+
         var filter = new ProliferationTrackerFilter
         {
             ProjectSearchTerm = SearchTerm,
             Source = Source,
             Year = Year,
             SponsoringUnitId = SponsoringUnitId,
-            SimulatorUserId = SimulatorUserId
+            SimulatorUserId = SimulatorUserId,
+            UserId = string.IsNullOrWhiteSpace(userId) ? null : userId
         };
 
         Rows = await _trackerService.GetAsync(filter, cancellationToken);
