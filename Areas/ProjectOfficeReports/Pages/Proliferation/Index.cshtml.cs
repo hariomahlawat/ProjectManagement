@@ -270,7 +270,7 @@ public sealed class IndexModel : PageModel
         var exportResult = await _authorizationService.AuthorizeAsync(
             User,
             null,
-            ProjectOfficeReportsPolicies.SubmitProliferationTracker);
+            ProjectOfficeReportsPolicies.ViewProliferationTracker);
 
         CanExport = exportResult.Succeeded;
     }

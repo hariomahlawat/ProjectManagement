@@ -30,6 +30,7 @@ using Xunit;
 
 using AdminIndexModel = ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.Admin.IndexModel;
 using GranularIndexModel = ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.Granular.IndexModel;
+using OverviewIndexModel = ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.IndexModel;
 using ReconciliationIndexModel = ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.Reconciliation.IndexModel;
 using YearlyIndexModel = ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.Yearly.IndexModel;
 
@@ -355,6 +356,49 @@ public sealed class ProliferationPagesIntegrationTests
         Assert.Equal(ProliferationPreferenceMode.UseYearly, row.Preference.Mode);
         Assert.True(row.Preference.MatchesPreferredYear);
         Assert.Contains(2024, page.YearOptions);
+    }
+
+    [Fact]
+    public async Task OverviewPage_ExportAllowedForViewerRole()
+    {
+        await using var db = CreateContext();
+        var tracker = new ProliferationTrackerReadService(db);
+
+        var exportFile = new ProliferationExportFile(
+            "tracker.xlsx",
+            Encoding.UTF8.GetBytes("viewer-export"),
+            ProliferationExportFile.ExcelContentType);
+        var exportResult = ProliferationExportResult.FromFile(exportFile);
+        var exportService = new StubExportService(exportResult);
+
+        var auth = StubAuthorizationService.DenyPolicy(ProjectOfficeReportsPolicies.SubmitProliferationTracker);
+        var userManager = CreateUserManager(db);
+
+        var page = new OverviewIndexModel(
+            db,
+            tracker,
+            exportService,
+            auth,
+            userManager,
+            NullLogger<OverviewIndexModel>.Instance)
+        {
+            Export = new OverviewIndexModel.ExportRequestInput
+            {
+                Source = ProliferationSource.Internal,
+                YearFrom = 2022,
+                YearTo = 2024
+            }
+        };
+
+        ConfigurePage(page, CreateUserPrincipal("viewer-user"));
+
+        var result = await page.OnPostExportAsync(CancellationToken.None);
+
+        var fileResult = Assert.IsType<FileContentResult>(result);
+        Assert.Equal(ProliferationExportFile.ExcelContentType, fileResult.ContentType);
+        Assert.Equal("tracker.xlsx", fileResult.FileDownloadName);
+        Assert.Equal("viewer-export", Encoding.UTF8.GetString(fileResult.FileContents));
+        Assert.True(page.CanExport);
     }
 
     [Fact]
