@@ -38,6 +38,82 @@ namespace ProjectManagement.Tests;
 public sealed class ProliferationPagesIntegrationTests
 {
     [Fact]
+    public async Task YearlyPage_IndexLoadsApprovedEntriesAfterSchemaUpgrade()
+    {
+        await using var db = CreateContext();
+        var clock = new TestClock(new DateTimeOffset(2024, 6, 1, 0, 0, 0, TimeSpan.Zero));
+        var audit = new FakeAudit();
+        var submissionService = new ProliferationSubmissionService(
+            db,
+            clock,
+            audit,
+            NullLogger<ProliferationSubmissionService>.Instance);
+        var auth = StubAuthorizationService.AllowAll();
+        var userManager = CreateUserManager(db);
+
+        var project = new Project
+        {
+            Id = 1,
+            Name = "Schema Upgrade Project",
+            CreatedByUserId = "seed",
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            LeadPoUserId = "schema-user"
+        };
+
+        db.Projects.Add(project);
+        db.ProliferationYearlies.Add(new ProliferationYearly
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = project.Id,
+            Source = ProliferationSource.Internal,
+            Year = 2024,
+            Metrics = new ProliferationMetrics
+            {
+                DirectBeneficiaries = 75,
+                IndirectBeneficiaries = 125,
+                InvestmentValue = 7500m
+            },
+            Notes = "Imported from legacy column",
+            CreatedAtUtc = clock.UtcNow,
+            CreatedByUserId = "seed",
+            LastModifiedAtUtc = clock.UtcNow,
+            LastModifiedByUserId = "seed",
+            RowVersion = Guid.NewGuid().ToByteArray()
+        });
+
+        await db.SaveChangesAsync();
+
+        var page = new YearlyIndexModel(
+            db,
+            submissionService,
+            auth,
+            userManager,
+            NullLogger<YearlyIndexModel>.Instance);
+
+        ConfigurePage(page, CreateUserPrincipal("schema-user"));
+
+        page.ProjectId = project.Id;
+        page.Source = ProliferationSource.Internal;
+        page.Year = 2024;
+
+        await page.OnGetAsync(CancellationToken.None);
+
+        var entry = Assert.Single(page.ApprovedEntries);
+        Assert.Equal(project.Id, entry.ProjectId);
+        Assert.Equal(ProliferationSource.Internal, entry.Source);
+        Assert.Equal(75, entry.DirectBeneficiaries);
+        Assert.Equal(125, entry.IndirectBeneficiaries);
+        Assert.Equal(7500m, entry.InvestmentValue);
+        Assert.Equal("Imported from legacy column", entry.Notes);
+        Assert.Equal(ProliferationSource.Internal, page.Input.Source);
+        Assert.Equal(2024, page.Input.Year);
+        Assert.Equal(75, page.Input.DirectBeneficiaries);
+        Assert.Equal(125, page.Input.IndirectBeneficiaries);
+        Assert.Equal(7500m, page.Input.InvestmentValue);
+        Assert.Equal("Imported from legacy column", page.Input.Notes);
+    }
+
+    [Fact]
     public async Task YearlyPage_SubmitDisplaysWarningWhenGranularPreferred()
     {
         await using var db = CreateContext();
