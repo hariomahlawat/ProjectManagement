@@ -5,7 +5,7 @@
     string? toast = TempData["ToastMessage"] as string;
     string? toastWarning = TempData["ToastWarning"] as string;
     string? toastError = TempData["ToastError"] as string;
-    var hasRejection = Model.PendingRejectionDownload is not null;
+    var hasRejection = Model.PendingRejection is not null;
     const int importPipelines = 2;
     const int exportFilters = 6;
 }
@@ -55,14 +55,14 @@
             <div class="alert alert-danger" role="status">@toastError</div>
         }
 
-        @if (Model.PendingRejectionDownload is not null)
+        @if (Model.PendingRejection is not null)
         {
             <div class="alert alert-info d-flex flex-wrap justify-content-between align-items-center gap-2" role="status">
                 <span>Some rows were rejected during the last import. Download the rejection report to review the errors.</span>
                 <a class="btn btn-outline-primary"
                    asp-page-handler="DownloadRejection"
-                   asp-route-token="@Model.PendingRejectionDownload.Token">
-                    Download @Model.PendingRejectionDownload.FileName
+                   asp-route-token="@Model.PendingRejection.Token">
+                    Download @Model.PendingRejection.FileName
                 </a>
             </div>
         }

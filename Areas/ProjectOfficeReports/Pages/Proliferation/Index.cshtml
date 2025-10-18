@@ -181,7 +181,14 @@
                                 <option value="">All years</option>
                                 @foreach (var year in Model.YearOptions)
                                 {
-                                    <option value="@year" @(Model.Year == year ? "selected" : null)>@year</option>
+                                    if (Model.Year == year)
+                                    {
+                                        <option value="@year" selected>@year</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@year">@year</option>
+                                    }
                                 }
                             </select>
                         </div>
@@ -202,7 +209,14 @@
                                 <option value="">All sponsoring units</option>
                                 @foreach (var unit in Model.SponsoringUnits)
                                 {
-                                    <option value="@unit.Id" @(Model.SponsoringUnitId == unit.Id ? "selected" : null)>@unit.Name</option>
+                                    if (Model.SponsoringUnitId == unit.Id)
+                                    {
+                                        <option value="@unit.Id" selected>@unit.Name</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@unit.Id">@unit.Name</option>
+                                    }
                                 }
                             </select>
                         </div>
@@ -212,7 +226,14 @@
                                 <option value="">All simulators</option>
                                 @foreach (var simulator in Model.Simulators)
                                 {
-                                    <option value="@simulator.UserId" @(Model.SimulatorUserId == simulator.UserId ? "selected" : null)>@simulator.DisplayName</option>
+                                    if (Model.SimulatorUserId == simulator.UserId)
+                                    {
+                                        <option value="@simulator.UserId" selected>@simulator.DisplayName</option>
+                                    }
+                                    else
+                                    {
+                                        <option value="@simulator.UserId">@simulator.DisplayName</option>
+                                    }
                                 }
                             </select>
                         </div>

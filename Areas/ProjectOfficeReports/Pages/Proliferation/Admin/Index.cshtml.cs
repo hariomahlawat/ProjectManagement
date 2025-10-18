@@ -52,7 +52,7 @@ public sealed class IndexModel : PageModel
     [BindProperty]
     public ExportInput Export { get; set; } = new();
 
-    public PendingRejectionDownload? PendingRejectionDownload { get; private set; }
+    public PendingRejectionDownload? PendingRejection { get; private set; }
 
     public void OnGet()
     {
@@ -234,7 +234,7 @@ public sealed class IndexModel : PageModel
         _cache.Set(BuildCacheKey(token), file, TimeSpan.FromMinutes(15));
         TempData["ImportRejectionToken"] = token;
         TempData["ImportRejectionFileName"] = file.FileName;
-        PendingRejectionDownload = new PendingRejectionDownload(token, file.FileName);
+        PendingRejection = new PendingRejectionDownload(token, file.FileName);
     }
 
     private void LoadPendingRejection()
@@ -242,7 +242,7 @@ public sealed class IndexModel : PageModel
         if (TempData.Peek("ImportRejectionToken") is string token && !string.IsNullOrWhiteSpace(token))
         {
             var fileName = TempData.Peek("ImportRejectionFileName") as string ?? "rejection.csv";
-            PendingRejectionDownload = new PendingRejectionDownload(token, fileName);
+            PendingRejection = new PendingRejectionDownload(token, fileName);
         }
     }
 

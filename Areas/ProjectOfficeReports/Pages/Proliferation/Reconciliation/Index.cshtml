@@ -113,8 +113,16 @@
                             @foreach (var source in sources)
                             {
                                 var radioId = $"source-{(int)source}";
+                                var isChecked = Model.Source == source;
                                 <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="Source" id="@radioId" value="@source" @(Model.Source == source ? "checked" : null) />
+                                    @if (isChecked)
+                                    {
+                                        <input class="form-check-input" type="radio" name="Source" id="@radioId" value="@source" checked />
+                                    }
+                                    else
+                                    {
+                                        <input class="form-check-input" type="radio" name="Source" id="@radioId" value="@source" />
+                                    }
                                     <label class="form-check-label" for="@radioId">@source</label>
                                 </div>
                             }
@@ -126,7 +134,14 @@
                             <option value="">Latest available</option>
                             @foreach (var year in Model.YearOptions)
                             {
-                                <option value="@year" @(Model.Year == year ? "selected" : null)>@year</option>
+                                if (Model.Year == year)
+                                {
+                                    <option value="@year" selected>@year</option>
+                                }
+                                else
+                                {
+                                    <option value="@year">@year</option>
+                                }
                             }
                         </select>
                     </div>
