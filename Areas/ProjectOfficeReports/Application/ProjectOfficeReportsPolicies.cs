@@ -33,6 +33,7 @@ public static class ProjectOfficeReportsPolicies
     public const string SubmitProliferationTracker = "ProjectOfficeReports.SubmitProliferationTracker";
     public const string ApproveProliferationTracker = "ProjectOfficeReports.ApproveProliferationTracker";
     public const string ManageProliferationPreferences = "ProjectOfficeReports.ManageProliferationPreferences";
+    public const string ManageProliferationImports = "ProjectOfficeReports.ManageProliferationImports";
 
     public static AuthorizationPolicyBuilder RequireProjectOfficeManager(this AuthorizationPolicyBuilder builder)
     {
@@ -112,5 +113,15 @@ public static class ProjectOfficeReportsPolicies
         }
 
         return builder.RequireRole(ProjectOfficeRoles);
+    }
+
+    public static AuthorizationPolicyBuilder RequireProliferationImportManager(this AuthorizationPolicyBuilder builder)
+    {
+        if (builder is null)
+        {
+            throw new ArgumentNullException(nameof(builder));
+        }
+
+        return builder.RequireRole("Admin");
     }
 }

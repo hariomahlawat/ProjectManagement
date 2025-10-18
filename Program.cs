@@ -144,6 +144,8 @@ builder.Services.AddAuthorization(options =>
         policy.RequireProliferationApprover());
     options.AddPolicy(ProjectOfficeReportsPolicies.ManageProliferationPreferences, policy =>
         policy.RequireProliferationPreferenceManager());
+    options.AddPolicy(ProjectOfficeReportsPolicies.ManageProliferationImports, policy =>
+        policy.RequireProliferationImportManager());
 });
 
 builder.Services.ConfigureApplicationCookie(opt =>
@@ -186,6 +188,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(o =>
 
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IUserContext, HttpUserContext>();
 builder.Services.Configure<UserLifecycleOptions>(
@@ -222,6 +225,8 @@ builder.Services.AddScoped<ProjectTotTrackerReadService>();
 builder.Services.AddScoped<ProliferationTrackerReadService>();
 builder.Services.AddScoped<ProliferationPreferenceService>();
 builder.Services.AddScoped<ProliferationSubmissionService>();
+builder.Services.AddScoped<IProliferationYearlyImportService, ProliferationYearlyImportService>();
+builder.Services.AddScoped<IProliferationGranularImportService, ProliferationGranularImportService>();
 builder.Services.AddScoped<ProjectCommentService>();
 builder.Services.AddScoped<ProjectRemarksPanelService>();
 builder.Services.AddScoped<ProjectMediaAggregator>();
@@ -259,6 +264,7 @@ builder.Services.AddSingleton<IVisitExcelWorkbookBuilder, VisitExcelWorkbookBuil
 builder.Services.AddSingleton<IVisitPdfReportBuilder, VisitPdfReportBuilder>();
 builder.Services.AddSingleton<ISocialMediaExcelWorkbookBuilder, SocialMediaExcelWorkbookBuilder>();
 builder.Services.AddSingleton<ISocialMediaPdfReportBuilder, SocialMediaPdfReportBuilder>();
+builder.Services.AddSingleton<IProliferationExcelWorkbookBuilder, ProliferationExcelWorkbookBuilder>();
 builder.Services.AddScoped<VisitTypeService>();
 builder.Services.AddScoped<SocialMediaEventTypeService>();
 builder.Services.AddScoped<SocialMediaPlatformService>();
@@ -1531,6 +1537,44 @@ proliferationPreferenceApi.MapPost("/", async (
     };
 });
 
+var proliferationEffectiveApi = app.MapGroup("/api/proliferation/effective")
+    .RequireAuthorization(new AuthorizeAttribute { Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker });
+
+proliferationEffectiveApi.MapGet("", async (
+    [AsParameters] ProliferationEffectiveRequest request,
+    IUserContext userContext,
+    ProliferationTrackerReadService readService,
+    CancellationToken cancellationToken) =>
+{
+    var userId = userContext.UserId;
+    if (string.IsNullOrWhiteSpace(userId))
+    {
+        return Results.Challenge();
+    }
+
+    var filters = BuildEffectiveFilters(request, userId);
+    var rows = new List<ProliferationTrackerRow>();
+
+    foreach (var filter in filters)
+    {
+        var results = await readService.GetAsync(filter, cancellationToken);
+        rows.AddRange(FilterEffectiveRows(results, request.YearFrom, request.YearTo));
+    }
+
+    var response = rows.Select(r => new ProliferationEffectiveRow(
+        r.ProjectId,
+        r.ProjectName,
+        r.Source,
+        r.Year,
+        r.Yearly,
+        r.GranularSum,
+        r.Effective,
+        r.Variance,
+        r.Preference)).ToList();
+
+    return Results.Ok(response);
+});
+
 var lookupApi = app.MapGroup("/api/lookups")
     .RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,HoD,Project Officer" });
 
@@ -1959,6 +2003,68 @@ static bool MatchesRowVersion(byte[]? requestVersion, byte[] entityVersion)
        entityVersion is { Length: > 0 } current &&
        candidate.AsSpan().SequenceEqual(current);
 
+static IReadOnlyList<ProliferationTrackerFilter> BuildEffectiveFilters(ProliferationEffectiveRequest request, string userId)
+{
+    var baseFilter = new ProliferationTrackerFilter
+    {
+        ProjectId = request.ProjectId,
+        ProjectSearchTerm = request.SearchTerm,
+        Source = request.Source,
+        Year = request.Year,
+        SponsoringUnitId = request.SponsoringUnitId,
+        SimulatorUserId = request.SimulatorUserId,
+        UserId = userId
+    };
+
+    if (request.YearFrom.HasValue && request.YearTo.HasValue && request.YearFrom.Value <= request.YearTo.Value)
+    {
+        var filters = new List<ProliferationTrackerFilter>();
+        for (var year = request.YearFrom.Value; year <= request.YearTo.Value; year++)
+        {
+            filters.Add(baseFilter with { Year = year });
+        }
+
+        return filters;
+    }
+
+    if (request.YearFrom.HasValue && !request.YearTo.HasValue)
+    {
+        return new[] { baseFilter with { Year = request.YearFrom } };
+    }
+
+    if (!request.YearFrom.HasValue && request.YearTo.HasValue)
+    {
+        return new[] { baseFilter with { Year = request.YearTo } };
+    }
+
+    return new[] { baseFilter };
+}
+
+static IEnumerable<ProliferationTrackerRow> FilterEffectiveRows(
+    IReadOnlyList<ProliferationTrackerRow> rows,
+    int? yearFrom,
+    int? yearTo)
+{
+    if (rows.Count == 0)
+    {
+        return Array.Empty<ProliferationTrackerRow>();
+    }
+
+    if (!yearFrom.HasValue && !yearTo.HasValue)
+    {
+        return rows;
+    }
+
+    var min = yearFrom ?? yearTo ?? int.MinValue;
+    var max = yearTo ?? yearFrom ?? int.MaxValue;
+    if (min > max)
+    {
+        (min, max) = (max, min);
+    }
+
+    return rows.Where(r => r.Year >= min && r.Year <= max).ToList();
+}
+
 static StageChecklistTemplateDto ToDto(StageChecklistTemplate template)
 {
     var items = template.Items
@@ -2180,6 +2286,27 @@ record ProliferationPreferenceUpdateResponse(
     ProliferationPreferenceChangeOutcome Outcome,
     int? PreferredYear,
     string? RowVersion);
+
+public sealed record ProliferationEffectiveRequest(
+    int? ProjectId,
+    string? SearchTerm,
+    ProliferationSource? Source,
+    int? Year,
+    int? YearFrom,
+    int? YearTo,
+    int? SponsoringUnitId,
+    string? SimulatorUserId);
+
+public sealed record ProliferationEffectiveRow(
+    int ProjectId,
+    string ProjectName,
+    ProliferationSource Source,
+    int Year,
+    ProliferationMetricsDto? Yearly,
+    ProliferationMetricsDto? GranularSum,
+    ProliferationMetricsDto? Effective,
+    ProliferationMetricsDto? Variance,
+    ProliferationPreferenceMetadata Preference);
 
 record CalendarEventVm(
     string Id,
