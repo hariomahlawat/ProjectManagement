@@ -8,8 +8,8 @@
 
     string SourceLabel(ProliferationSource source) => source switch
     {
-        ProliferationSource.Internal => "Internal",
-        ProliferationSource.External => "External",
+        ProliferationSource.Sdd => "SDD",
+        ProliferationSource.Abw515 => "515 ABW",
         _ => "Unknown"
     };
 
@@ -197,10 +197,10 @@
                             <div class="btn-group tot-filter-btn-group w-100" role="group" aria-label="Filter projects by source">
                                 <input type="radio" class="btn-check" name="Source" id="proliferation-source-all" value="" @(Model.Source is null ? "checked" : null) />
                                 <label class="btn tot-filter-btn" for="proliferation-source-all">All sources</label>
-                                <input type="radio" class="btn-check" name="Source" id="proliferation-source-internal" value="@ProliferationSource.Internal" @(Model.Source == ProliferationSource.Internal ? "checked" : null) />
-                                <label class="btn tot-filter-btn" for="proliferation-source-internal">@SourceLabel(ProliferationSource.Internal)</label>
-                                <input type="radio" class="btn-check" name="Source" id="proliferation-source-external" value="@ProliferationSource.External" @(Model.Source == ProliferationSource.External ? "checked" : null) />
-                                <label class="btn tot-filter-btn" for="proliferation-source-external">@SourceLabel(ProliferationSource.External)</label>
+                                <input type="radio" class="btn-check" name="Source" id="proliferation-source-internal" value="@ProliferationSource.Sdd" @(Model.Source == ProliferationSource.Sdd ? "checked" : null) />
+                                <label class="btn tot-filter-btn" for="proliferation-source-internal">@SourceLabel(ProliferationSource.Sdd)</label>
+                                <input type="radio" class="btn-check" name="Source" id="proliferation-source-external" value="@ProliferationSource.Abw515" @(Model.Source == ProliferationSource.Abw515 ? "checked" : null) />
+                                <label class="btn tot-filter-btn" for="proliferation-source-external">@SourceLabel(ProliferationSource.Abw515)</label>
                             </div>
                         </div>
                         <div class="col-12 col-md-6">
@@ -270,10 +270,10 @@
                             <div class="btn-group tot-filter-btn-group w-100" role="group" aria-label="Filter exported rows by source">
                                 <input type="radio" class="btn-check" name="Export.Source" id="export-source-all" value="" @(Model.Export?.Source is null ? "checked" : null) />
                                 <label class="btn tot-filter-btn" for="export-source-all">All sources</label>
-                                <input type="radio" class="btn-check" name="Export.Source" id="export-source-internal" value="@ProliferationSource.Internal" @(Model.Export?.Source == ProliferationSource.Internal ? "checked" : null) />
-                                <label class="btn tot-filter-btn" for="export-source-internal">@SourceLabel(ProliferationSource.Internal)</label>
-                                <input type="radio" class="btn-check" name="Export.Source" id="export-source-external" value="@ProliferationSource.External" @(Model.Export?.Source == ProliferationSource.External ? "checked" : null) />
-                                <label class="btn tot-filter-btn" for="export-source-external">@SourceLabel(ProliferationSource.External)</label>
+                                <input type="radio" class="btn-check" name="Export.Source" id="export-source-internal" value="@ProliferationSource.Sdd" @(Model.Export?.Source == ProliferationSource.Sdd ? "checked" : null) />
+                                <label class="btn tot-filter-btn" for="export-source-internal">@SourceLabel(ProliferationSource.Sdd)</label>
+                                <input type="radio" class="btn-check" name="Export.Source" id="export-source-external" value="@ProliferationSource.Abw515" @(Model.Export?.Source == ProliferationSource.Abw515 ? "checked" : null) />
+                                <label class="btn tot-filter-btn" for="export-source-external">@SourceLabel(ProliferationSource.Abw515)</label>
                             </div>
                         </div>
                         <div class="col-12 col-md-6">
@@ -344,8 +344,8 @@
                         </div>
                         <div>
                             <div class="text-muted text-uppercase small fw-semibold">Sources</div>
-                            <div class="fs-3 fw-bold mb-1">@summary.InternalRows</div>
-                            <span class="badge text-bg-light text-secondary">@summary.ExternalRows external</span>
+                            <div class="fs-3 fw-bold mb-1">@summary.SddRows</div>
+                            <span class="badge text-bg-light text-secondary">@summary.Abw515Rows 515 ABW</span>
                         </div>
                     </div>
                 </div>

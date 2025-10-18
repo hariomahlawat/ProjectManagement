@@ -193,8 +193,8 @@ public sealed class ProliferationExcelWorkbookBuilder : IProliferationExcelWorkb
     {
         return source switch
         {
-            ProliferationSource.Internal => "Internal",
-            ProliferationSource.External => "External",
+            ProliferationSource.Sdd => "SDD",
+            ProliferationSource.Abw515 => "515 ABW",
             _ => source.ToString() ?? "Unknown"
         };
     }

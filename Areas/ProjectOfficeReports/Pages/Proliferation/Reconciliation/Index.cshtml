@@ -3,7 +3,7 @@
 @using System.Linq
 @{
     ViewData["Title"] = "Proliferation reconciliation";
-    var sources = new[] { ProliferationSource.Internal, ProliferationSource.External };
+    var sources = new[] { ProliferationSource.Sdd, ProliferationSource.Abw515 };
     var totalRows = Model.Rows.Count;
     var automaticCount = Model.Rows.Count(row => row.Preference.Mode == ProliferationPreferenceMode.Auto);
     var manualCount = totalRows - automaticCount;
@@ -211,7 +211,7 @@
                                     var rowVersion = RowVersionString(row.Preference);
                                     var disableAuto = !row.Preference.HasPreference;
                                     var disableYearly = !hasYearly || row.Preference.Mode == ProliferationPreferenceMode.UseYearly;
-                                    var disableGranular = !hasGranular || row.Source != ProliferationSource.External || row.Preference.Mode == ProliferationPreferenceMode.UseGranular;
+                                    var disableGranular = !hasGranular || row.Source != ProliferationSource.Abw515 || row.Preference.Mode == ProliferationPreferenceMode.UseGranular;
                                     <tr data-pro-rec-row>
                                         <td>
                                             <div class="pro-table__project">

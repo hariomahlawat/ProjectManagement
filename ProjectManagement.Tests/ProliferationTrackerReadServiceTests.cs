@@ -37,7 +37,7 @@ public sealed class ProliferationTrackerReadServiceTests
         {
             ProjectId = project.Id,
             Project = project,
-            Source = ProliferationSource.Internal,
+            Source = ProliferationSource.Sdd,
             Year = 2024,
             Metrics = new ProliferationMetrics
             {
@@ -52,7 +52,7 @@ public sealed class ProliferationTrackerReadServiceTests
         context.ProliferationGranularYearlyView.Add(new ProliferationGranularYearly
         {
             ProjectId = project.Id,
-            Source = ProliferationSource.Internal,
+            Source = ProliferationSource.Sdd,
             Year = 2024,
             DirectBeneficiaries = 110,
             IndirectBeneficiaries = 360,
@@ -65,7 +65,7 @@ public sealed class ProliferationTrackerReadServiceTests
         var rows = await service.GetAsync(new ProliferationTrackerFilter
         {
             UserId = "viewer-1",
-            Source = ProliferationSource.Internal
+            Source = ProliferationSource.Sdd
         }, CancellationToken.None);
 
         var row = Assert.Single(rows);
@@ -102,7 +102,7 @@ public sealed class ProliferationTrackerReadServiceTests
         context.ProliferationGranularYearlyView.Add(new ProliferationGranularYearly
         {
             ProjectId = project.Id,
-            Source = ProliferationSource.External,
+            Source = ProliferationSource.Abw515,
             Year = 2025,
             DirectBeneficiaries = 95,
             IndirectBeneficiaries = 210,
@@ -115,7 +115,7 @@ public sealed class ProliferationTrackerReadServiceTests
         var rows = await service.GetAsync(new ProliferationTrackerFilter
         {
             UserId = "viewer-2",
-            Source = ProliferationSource.External
+            Source = ProliferationSource.Abw515
         }, CancellationToken.None);
 
         var row = Assert.Single(rows);
@@ -153,7 +153,7 @@ public sealed class ProliferationTrackerReadServiceTests
         {
             ProjectId = project.Id,
             Project = project,
-            Source = ProliferationSource.Internal,
+            Source = ProliferationSource.Sdd,
             Year = 2023,
             Metrics = new ProliferationMetrics
             {
@@ -168,7 +168,7 @@ public sealed class ProliferationTrackerReadServiceTests
         context.ProliferationGranularYearlyView.Add(new ProliferationGranularYearly
         {
             ProjectId = project.Id,
-            Source = ProliferationSource.Internal,
+            Source = ProliferationSource.Sdd,
             Year = 2023,
             DirectBeneficiaries = 70,
             IndirectBeneficiaries = 140,
@@ -178,7 +178,7 @@ public sealed class ProliferationTrackerReadServiceTests
         context.ProliferationYearPreferences.Add(new ProliferationYearPreference
         {
             ProjectId = project.Id,
-            Source = ProliferationSource.Internal,
+            Source = ProliferationSource.Sdd,
             UserId = "viewer-3",
             Year = 2023,
             CreatedAtUtc = DateTimeOffset.UtcNow,
@@ -194,7 +194,7 @@ public sealed class ProliferationTrackerReadServiceTests
         var rows = await service.GetAsync(new ProliferationTrackerFilter
         {
             UserId = "viewer-3",
-            Source = ProliferationSource.Internal
+            Source = ProliferationSource.Sdd
         }, CancellationToken.None);
 
         var row = Assert.Single(rows);
@@ -230,7 +230,7 @@ public sealed class ProliferationTrackerReadServiceTests
         context.ProliferationGranularYearlyView.Add(new ProliferationGranularYearly
         {
             ProjectId = project.Id,
-            Source = ProliferationSource.External,
+            Source = ProliferationSource.Abw515,
             Year = 2026,
             DirectBeneficiaries = 60,
             IndirectBeneficiaries = 125,
@@ -240,7 +240,7 @@ public sealed class ProliferationTrackerReadServiceTests
         context.ProliferationYearPreferences.Add(new ProliferationYearPreference
         {
             ProjectId = project.Id,
-            Source = ProliferationSource.External,
+            Source = ProliferationSource.Abw515,
             UserId = "viewer-4",
             Year = 2026,
             CreatedAtUtc = DateTimeOffset.UtcNow,
@@ -256,7 +256,7 @@ public sealed class ProliferationTrackerReadServiceTests
         var rows = await service.GetAsync(new ProliferationTrackerFilter
         {
             UserId = "viewer-4",
-            Source = ProliferationSource.External
+            Source = ProliferationSource.Abw515
         }, CancellationToken.None);
 
         var row = Assert.Single(rows);

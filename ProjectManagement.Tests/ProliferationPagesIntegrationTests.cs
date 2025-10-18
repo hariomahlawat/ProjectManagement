@@ -66,7 +66,7 @@ public sealed class ProliferationPagesIntegrationTests
         {
             Id = Guid.NewGuid(),
             ProjectId = project.Id,
-            Source = ProliferationSource.Internal,
+            Source = ProliferationSource.Sdd,
             Year = 2024,
             Metrics = new ProliferationMetrics
             {
@@ -94,19 +94,19 @@ public sealed class ProliferationPagesIntegrationTests
         ConfigurePage(page, CreateUserPrincipal("schema-user"));
 
         page.ProjectId = project.Id;
-        page.Source = ProliferationSource.Internal;
+        page.Source = ProliferationSource.Sdd;
         page.Year = 2024;
 
         await page.OnGetAsync(CancellationToken.None);
 
         var entry = Assert.Single(page.ApprovedEntries);
         Assert.Equal(project.Id, entry.ProjectId);
-        Assert.Equal(ProliferationSource.Internal, entry.Source);
+        Assert.Equal(ProliferationSource.Sdd, entry.Source);
         Assert.Equal(75, entry.DirectBeneficiaries);
         Assert.Equal(125, entry.IndirectBeneficiaries);
         Assert.Equal(7500m, entry.InvestmentValue);
         Assert.Equal("Imported from legacy column", entry.Notes);
-        Assert.Equal(ProliferationSource.Internal, page.Input.Source);
+        Assert.Equal(ProliferationSource.Sdd, page.Input.Source);
         Assert.Equal(2024, page.Input.Year);
         Assert.Equal(75, page.Input.DirectBeneficiaries);
         Assert.Equal(125, page.Input.IndirectBeneficiaries);
@@ -152,7 +152,7 @@ public sealed class ProliferationPagesIntegrationTests
         {
             Id = Guid.NewGuid(),
             ProjectId = project.Id,
-            Source = ProliferationSource.Internal,
+            Source = ProliferationSource.Sdd,
             Year = 2024,
             Granularity = ProliferationGranularity.Monthly,
             Period = 1,
@@ -170,7 +170,7 @@ public sealed class ProliferationPagesIntegrationTests
         {
             Id = Guid.NewGuid(),
             ProjectId = project.Id,
-            Source = ProliferationSource.Internal,
+            Source = ProliferationSource.Sdd,
             UserId = "user-1",
             Year = 2024,
             CreatedAtUtc = clock.UtcNow,
@@ -194,7 +194,7 @@ public sealed class ProliferationPagesIntegrationTests
         page.Input = new YearlyIndexModel.YearlyInput
         {
             ProjectId = project.Id,
-            Source = ProliferationSource.Internal,
+            Source = ProliferationSource.Sdd,
             Year = 2024,
             DirectBeneficiaries = 100,
             IndirectBeneficiaries = 200,
@@ -238,7 +238,7 @@ public sealed class ProliferationPagesIntegrationTests
         {
             Id = Guid.NewGuid(),
             ProjectId = project.Id,
-            Source = ProliferationSource.Internal,
+            Source = ProliferationSource.Sdd,
             Year = 2024,
             Granularity = ProliferationGranularity.Quarterly,
             Period = 2,
@@ -268,7 +268,7 @@ public sealed class ProliferationPagesIntegrationTests
                 RequestId = db.ProliferationGranularRequests.Single().Id,
                 Approve = true,
                 ProjectId = project.Id,
-                Source = ProliferationSource.Internal,
+                Source = ProliferationSource.Sdd,
                 Year = 2024,
                 Granularity = ProliferationGranularity.Quarterly,
                 Period = 2,
@@ -305,7 +305,7 @@ public sealed class ProliferationPagesIntegrationTests
         {
             Id = Guid.NewGuid(),
             ProjectId = project.Id,
-            Source = ProliferationSource.Internal,
+            Source = ProliferationSource.Sdd,
             Year = 2024,
             Metrics = new ProliferationMetrics
             {
@@ -326,7 +326,7 @@ public sealed class ProliferationPagesIntegrationTests
 
         var createResult = await preferenceService.SetPreferenceAsync(
             project.Id,
-            ProliferationSource.Internal,
+            ProliferationSource.Sdd,
             2023,
             "user-2",
             null,
@@ -334,7 +334,7 @@ public sealed class ProliferationPagesIntegrationTests
 
         var updateResult = await preferenceService.SetPreferenceAsync(
             project.Id,
-            ProliferationSource.Internal,
+            ProliferationSource.Sdd,
             2024,
             "user-2",
             createResult.Preference?.RowVersion,
@@ -384,7 +384,7 @@ public sealed class ProliferationPagesIntegrationTests
         {
             Export = new OverviewIndexModel.ExportRequestInput
             {
-                Source = ProliferationSource.Internal,
+                Source = ProliferationSource.Sdd,
                 YearFrom = 2022,
                 YearTo = 2024
             }
@@ -437,7 +437,7 @@ public sealed class ProliferationPagesIntegrationTests
         var stream = new MemoryStream(Encoding.UTF8.GetBytes("data"));
         page.Yearly = new AdminIndexModel.YearlyImportInput
         {
-            Source = ProliferationSource.Internal,
+            Source = ProliferationSource.Sdd,
             File = new FormFile(stream, 0, stream.Length, "file", "yearly.csv")
         };
 
@@ -445,7 +445,7 @@ public sealed class ProliferationPagesIntegrationTests
 
         Assert.IsType<RedirectToPageResult>(result);
         Assert.Equal("Imported 1 row(s) from yearly.csv.", page.TempData["ToastMessage"]);
-        Assert.Equal("2 row(s) from Internal could not be imported.", page.TempData["ToastWarning"]);
+        Assert.Equal("2 row(s) from SDD could not be imported.", page.TempData["ToastWarning"]);
 
         var token = Assert.IsType<string>(page.TempData["ImportRejectionToken"]);
         Assert.Equal("rejections.csv", page.TempData["ImportRejectionFileName"]);
@@ -484,7 +484,7 @@ public sealed class ProliferationPagesIntegrationTests
         {
             Export = new AdminIndexModel.ExportInput
             {
-                Source = ProliferationSource.Internal,
+                Source = ProliferationSource.Sdd,
                 YearFrom = 2022,
                 YearTo = 2024,
                 SearchTerm = "solar"

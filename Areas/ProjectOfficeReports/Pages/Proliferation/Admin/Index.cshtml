@@ -77,15 +77,15 @@
                     </div>
                     <div class="card-body pro-card__body">
                         <p class="text-muted mb-0">
-                            Upload CSV files from SDD (internal) or 515 (external) systems. Files must include ProjectId, Year, DirectBeneficiaries,
+                            Upload CSV files from SDD or 515 ABW systems. Files must include ProjectId, Year, DirectBeneficiaries,
                             IndirectBeneficiaries, InvestmentValue, and optional Notes columns.
                         </p>
                         <form method="post" enctype="multipart/form-data" asp-page-handler="ImportYearly" class="pro-form mt-3">
                             <div>
                                 <label class="form-label" for="yearly-source">Source</label>
                                 <select class="form-select" asp-for="Yearly.Source" id="yearly-source">
-                                    <option value="@ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationSource.Internal">SDD (Internal)</option>
-                                    <option value="@ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationSource.External">515 (External)</option>
+                                    <option value="@ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationSource.Sdd">SDD</option>
+                                    <option value="@ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationSource.Abw515">515 ABW</option>
                                 </select>
                             </div>
                             <div>
@@ -137,8 +137,8 @@
                                     <label class="form-label" asp-for="Export.Source">Source</label>
                                     <select class="form-select" asp-for="Export.Source">
                                         <option value="">All sources</option>
-                                        <option value="@ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationSource.Internal">SDD (Internal)</option>
-                                        <option value="@ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationSource.External">515 (External)</option>
+                                        <option value="@ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationSource.Sdd">SDD</option>
+                                        <option value="@ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationSource.Abw515">515 ABW</option>
                                     </select>
                                 </div>
                                 <div class="col-12 col-md-4">
