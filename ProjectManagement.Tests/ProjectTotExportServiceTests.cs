@@ -30,8 +30,6 @@ public sealed class ProjectTotExportServiceTests
 
         var request = new ProjectTotExportRequest(
             TotStatus: null,
-            RequestState: null,
-            OnlyPendingRequests: false,
             StartedFrom: new DateOnly(2024, 5, 10),
             StartedTo: new DateOnly(2024, 5, 1),
             CompletedFrom: null,
@@ -108,8 +106,6 @@ public sealed class ProjectTotExportServiceTests
 
         var request = new ProjectTotExportRequest(
             TotStatus: ProjectTotStatus.Completed,
-            RequestState: ProjectTotRequestDecisionState.Approved,
-            OnlyPendingRequests: true,
             StartedFrom: null,
             StartedTo: null,
             CompletedFrom: new DateOnly(2024, 2, 1),
@@ -130,7 +126,7 @@ public sealed class ProjectTotExportServiceTests
         Assert.NotNull(contextSnapshot);
         Assert.Equal(new DateOnly(2024, 2, 1), contextSnapshot!.Filter.CompletedFrom);
         Assert.Equal(new DateOnly(2024, 2, 28), contextSnapshot.Filter.CompletedTo);
-        Assert.True(contextSnapshot.Filter.OnlyPendingRequests);
+        Assert.False(contextSnapshot.Filter.OnlyPendingRequests);
         Assert.Null(contextSnapshot.Filter.RequestState);
         Assert.Equal("Helios", contextSnapshot.Filter.SearchTerm);
         var row = Assert.Single(contextSnapshot.Rows);
