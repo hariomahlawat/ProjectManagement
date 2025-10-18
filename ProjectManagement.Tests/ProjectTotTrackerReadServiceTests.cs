@@ -118,6 +118,124 @@ public sealed class ProjectTotTrackerReadServiceTests
         Assert.Equal("Internal progress", row.LatestInternalRemark?.Body);
     }
 
+    [Fact]
+    public async Task GetAsync_WithStartedDateFilters_ReturnsProjectsWithinRange()
+    {
+        await using var context = CreateContext();
+        context.Projects.AddRange(
+            new Project
+            {
+                Id = 3,
+                Name = "Project Atlas",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                Tot = new ProjectTot
+                {
+                    ProjectId = 3,
+                    Status = ProjectTotStatus.InProgress,
+                    StartedOn = new DateOnly(2024, 1, 10)
+                }
+            },
+            new Project
+            {
+                Id = 4,
+                Name = "Project Beacon",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                Tot = new ProjectTot
+                {
+                    ProjectId = 4,
+                    Status = ProjectTotStatus.Completed,
+                    StartedOn = new DateOnly(2024, 1, 20),
+                    CompletedOn = new DateOnly(2024, 2, 5)
+                }
+            },
+            new Project
+            {
+                Id = 5,
+                Name = "Project Cobalt",
+                LifecycleStatus = ProjectLifecycleStatus.Completed
+            });
+
+        await context.SaveChangesAsync();
+
+        var service = new ProjectTotTrackerReadService(context);
+        var filter = new ProjectTotTrackerFilter
+        {
+            StartedFrom = new DateOnly(2024, 1, 15),
+            StartedTo = new DateOnly(2024, 1, 31)
+        };
+
+        var rows = await service.GetAsync(filter, CancellationToken.None);
+        var names = rows.Select(r => r.ProjectName).ToList();
+
+        Assert.Single(names);
+        Assert.Contains("Project Beacon", names);
+        Assert.DoesNotContain("Project Atlas", names);
+        Assert.DoesNotContain("Project Cobalt", names);
+    }
+
+    [Fact]
+    public async Task GetAsync_WithCompletedDateFilters_ReturnsProjectsWithinRange()
+    {
+        await using var context = CreateContext();
+        context.Projects.AddRange(
+            new Project
+            {
+                Id = 6,
+                Name = "Project Delta",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                Tot = new ProjectTot
+                {
+                    ProjectId = 6,
+                    Status = ProjectTotStatus.Completed,
+                    StartedOn = new DateOnly(2024, 1, 5),
+                    CompletedOn = new DateOnly(2024, 2, 20)
+                }
+            },
+            new Project
+            {
+                Id = 7,
+                Name = "Project Eclipse",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                Tot = new ProjectTot
+                {
+                    ProjectId = 7,
+                    Status = ProjectTotStatus.Completed,
+                    StartedOn = new DateOnly(2024, 1, 10),
+                    CompletedOn = new DateOnly(2024, 3, 5)
+                }
+            },
+            new Project
+            {
+                Id = 8,
+                Name = "Project Forge",
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                Tot = new ProjectTot
+                {
+                    ProjectId = 8,
+                    Status = ProjectTotStatus.Completed,
+                    StartedOn = new DateOnly(2023, 11, 1),
+                    CompletedOn = new DateOnly(2023, 12, 15)
+                }
+            });
+
+        await context.SaveChangesAsync();
+
+        var service = new ProjectTotTrackerReadService(context);
+        var filter = new ProjectTotTrackerFilter
+        {
+            CompletedFrom = new DateOnly(2024, 2, 1),
+            CompletedTo = new DateOnly(2024, 2, 28)
+        };
+
+        var rows = await service.GetAsync(filter, CancellationToken.None);
+        var ids = rows.Select(r => r.ProjectId).ToList();
+
+        Assert.Single(ids);
+        Assert.Contains(6, ids);
+        Assert.DoesNotContain(7, ids);
+        Assert.DoesNotContain(8, ids);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()

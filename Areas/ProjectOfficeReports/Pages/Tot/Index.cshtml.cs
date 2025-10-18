@@ -25,6 +25,7 @@ public sealed class IndexModel : PageModel
     private readonly ApplicationDbContext _db;
     private readonly ProjectTotTrackerReadService _trackerService;
     private readonly ProjectTotService _totService;
+    private readonly IProjectTotExportService _exportService;
     private readonly IAuthorizationService _authorizationService;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IRemarkService _remarkService;
@@ -34,6 +35,7 @@ public sealed class IndexModel : PageModel
         ApplicationDbContext db,
         ProjectTotTrackerReadService trackerService,
         ProjectTotService totService,
+        IProjectTotExportService exportService,
         IAuthorizationService authorizationService,
         UserManager<ApplicationUser> userManager,
         IRemarkService remarkService,
@@ -42,6 +44,7 @@ public sealed class IndexModel : PageModel
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _trackerService = trackerService ?? throw new ArgumentNullException(nameof(trackerService));
         _totService = totService ?? throw new ArgumentNullException(nameof(totService));
+        _exportService = exportService ?? throw new ArgumentNullException(nameof(exportService));
         _authorizationService = authorizationService ?? throw new ArgumentNullException(nameof(authorizationService));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
         _remarkService = remarkService ?? throw new ArgumentNullException(nameof(remarkService));
@@ -93,6 +96,9 @@ public sealed class IndexModel : PageModel
     [BindProperty]
     public string? DecideContextBody { get; set; }
 
+    [BindProperty]
+    public ExportRequestInput Export { get; set; } = new();
+
     public sealed class SubmitRequestInput
     {
         [HiddenInput]
@@ -121,6 +127,23 @@ public sealed class IndexModel : PageModel
         public bool Approve { get; set; }
 
         public string? RowVersion { get; set; }
+    }
+
+    public sealed class ExportRequestInput
+    {
+        public ProjectTotStatus? TotStatus { get; set; }
+
+        public ProjectTotRequestDecisionState? RequestState { get; set; }
+
+        public bool OnlyPendingRequests { get; set; }
+
+        public DateOnly? StartedFrom { get; set; }
+
+        public DateOnly? StartedTo { get; set; }
+
+        public DateOnly? CompletedFrom { get; set; }
+
+        public DateOnly? CompletedTo { get; set; }
     }
 
     public sealed class TotTrackerSummary
@@ -184,6 +207,12 @@ public sealed class IndexModel : PageModel
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         await PopulateAsync(cancellationToken);
+        Export = new ExportRequestInput
+        {
+            TotStatus = TotStatusFilter,
+            RequestState = RequestStateFilter,
+            OnlyPendingRequests = OnlyPending
+        };
     }
 
     public async Task<IActionResult> OnPostSubmitAsync(CancellationToken cancellationToken)
@@ -282,6 +311,59 @@ public sealed class IndexModel : PageModel
             OnlyPending,
             SelectedProjectId = SubmitInput.ProjectId
         });
+    }
+
+    public async Task<IActionResult> OnPostExportAsync(CancellationToken cancellationToken)
+    {
+        await PopulatePermissionsAsync();
+        if (!CanSubmit)
+        {
+            return Forbid();
+        }
+
+        if (!ModelState.IsValid)
+        {
+            await PopulateAsync(cancellationToken);
+            ViewData["ShowTotExportModal"] = true;
+            return Page();
+        }
+
+        var userId = _userManager.GetUserId(User);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Challenge();
+        }
+
+        var request = new ProjectTotExportRequest(
+            Export.TotStatus,
+            Export.RequestState,
+            Export.OnlyPendingRequests,
+            Export.StartedFrom,
+            Export.StartedTo,
+            Export.CompletedFrom,
+            Export.CompletedTo,
+            SearchTerm,
+            userId);
+
+        var result = await _exportService.ExportAsync(request, cancellationToken);
+        if (!result.Success || result.File is null)
+        {
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError(string.Empty, error);
+            }
+
+            if (result.Errors.Count > 0)
+            {
+                TempData["ToastError"] = result.Errors[0];
+            }
+
+            await PopulateAsync(cancellationToken);
+            ViewData["ShowTotExportModal"] = true;
+            return Page();
+        }
+
+        return File(result.File.Content, result.File.ContentType, result.File.FileName);
     }
 
     public async Task<IActionResult> OnPostDecideAsync(CancellationToken cancellationToken)

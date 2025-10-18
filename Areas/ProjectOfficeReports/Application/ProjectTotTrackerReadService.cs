@@ -65,6 +65,30 @@ public sealed class ProjectTotTrackerReadService
             query = query.Where(p => p.TotRequest != null && p.TotRequest.DecisionState == state);
         }
 
+        if (filter.StartedFrom.HasValue)
+        {
+            var startedFrom = filter.StartedFrom.Value;
+            query = query.Where(p => p.Tot != null && p.Tot.StartedOn.HasValue && p.Tot.StartedOn.Value >= startedFrom);
+        }
+
+        if (filter.StartedTo.HasValue)
+        {
+            var startedTo = filter.StartedTo.Value;
+            query = query.Where(p => p.Tot != null && p.Tot.StartedOn.HasValue && p.Tot.StartedOn.Value <= startedTo);
+        }
+
+        if (filter.CompletedFrom.HasValue)
+        {
+            var completedFrom = filter.CompletedFrom.Value;
+            query = query.Where(p => p.Tot != null && p.Tot.CompletedOn.HasValue && p.Tot.CompletedOn.Value >= completedFrom);
+        }
+
+        if (filter.CompletedTo.HasValue)
+        {
+            var completedTo = filter.CompletedTo.Value;
+            query = query.Where(p => p.Tot != null && p.Tot.CompletedOn.HasValue && p.Tot.CompletedOn.Value <= completedTo);
+        }
+
         if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
         {
             var term = filter.SearchTerm.Trim();
@@ -281,6 +305,10 @@ public sealed record ProjectTotTrackerFilter
     public ProjectTotRequestDecisionState? RequestState { get; init; }
     public bool OnlyPendingRequests { get; init; }
     public string? SearchTerm { get; init; }
+    public DateOnly? StartedFrom { get; init; }
+    public DateOnly? StartedTo { get; init; }
+    public DateOnly? CompletedFrom { get; init; }
+    public DateOnly? CompletedTo { get; init; }
 }
 
 public sealed record ProjectTotRemarkSummary(
