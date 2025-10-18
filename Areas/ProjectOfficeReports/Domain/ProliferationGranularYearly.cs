@@ -13,9 +13,9 @@ public class ProliferationGranularYearly
     [Range(1900, 9999)]
     public int Year { get; set; }
 
-    public int? DirectBeneficiaries { get; set; }
+    public long? DirectBeneficiaries { get; set; }
 
-    public int? IndirectBeneficiaries { get; set; }
+    public long? IndirectBeneficiaries { get; set; }
 
     public decimal? InvestmentValue { get; set; }
 }

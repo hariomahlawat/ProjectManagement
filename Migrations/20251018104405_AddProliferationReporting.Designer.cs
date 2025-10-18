@@ -225,12 +225,12 @@ namespace ProjectManagement.Migrations
 
             modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationGranularYearly", b =>
                 {
-                    b.Property<int?>("DirectBeneficiaries")
-                        .HasColumnType("integer")
+                    b.Property<long?>("DirectBeneficiaries")
+                        .HasColumnType("bigint")
                         .HasColumnName("DirectBeneficiaries");
 
-                    b.Property<int?>("IndirectBeneficiaries")
-                        .HasColumnType("integer")
+                    b.Property<long?>("IndirectBeneficiaries")
+                        .HasColumnType("bigint")
                         .HasColumnName("IndirectBeneficiaries");
 
                     b.Property<decimal?>("InvestmentValue")

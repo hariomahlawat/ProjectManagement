@@ -532,8 +532,12 @@ namespace ProjectManagement.Data
                     .HasMaxLength(64)
                     .IsRequired();
                 e.Property(x => x.Year).IsRequired();
-                e.Property(x => x.DirectBeneficiaries).HasColumnName("DirectBeneficiaries");
-                e.Property(x => x.IndirectBeneficiaries).HasColumnName("IndirectBeneficiaries");
+                e.Property(x => x.DirectBeneficiaries)
+                    .HasColumnName("DirectBeneficiaries")
+                    .HasColumnType("bigint");
+                e.Property(x => x.IndirectBeneficiaries)
+                    .HasColumnName("IndirectBeneficiaries")
+                    .HasColumnType("bigint");
                 e.Property(x => x.InvestmentValue).HasColumnName("InvestmentValue");
             });
 

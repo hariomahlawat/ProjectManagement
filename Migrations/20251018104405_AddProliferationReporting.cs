@@ -141,8 +141,8 @@ namespace ProjectManagement.Migrations
                 "SELECT \"ProjectId\",\n" +
                 "       \"Source\",\n" +
                 "       \"Year\",\n" +
-                "       COALESCE(SUM(\"DirectBeneficiaries\"), 0) AS \"DirectBeneficiaries\",\n" +
-                "       COALESCE(SUM(\"IndirectBeneficiaries\"), 0) AS \"IndirectBeneficiaries\",\n" +
+                "       COALESCE(SUM(\"DirectBeneficiaries\"), 0::bigint) AS \"DirectBeneficiaries\",\n" +
+                "       COALESCE(SUM(\"IndirectBeneficiaries\"), 0::bigint) AS \"IndirectBeneficiaries\",\n" +
                 "       COALESCE(SUM(\"InvestmentValue\"), 0::numeric) AS \"InvestmentValue\"\n" +
                 "FROM \"ProliferationGranularEntries\"\n" +
                 "GROUP BY \"ProjectId\", \"Source\", \"Year\";");
