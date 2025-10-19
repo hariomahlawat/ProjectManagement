@@ -71,6 +71,7 @@
   const lookupCache = new Map();
   const lookups = { projectCategories: [], technicalCategories: [] };
   let projectOptions = [];
+  let currentProjectLookupKey = null;
   let preferenceFetchAbort = null;
   let lastImportErrorUrl = null;
 
@@ -472,6 +473,20 @@
       renderPagination(totalCount, filterState.page, filterState.pageSize);
       const rows = data.Rows ?? data.rows ?? [];
       renderTable(rows);
+
+      const lookupKey = buildProjectLookupKey("");
+      if (lookupKey !== currentProjectLookupKey) {
+        try {
+          const options = await loadProjects("");
+          currentProjectLookupKey = lookupKey;
+          populateProjectControls(options.map((item) => ({
+            id: item.id ?? item.Id ?? item.projectId,
+            display: item.display ?? `${item.name ?? item.Name}${item.code ? ` (${item.code})` : ""}`
+          })));
+        } catch (error) {
+          console.warn("Unable to refresh project options", error);
+        }
+      }
     } catch (error) {
       console.warn("Failed to load overview", error);
       if (host) {
@@ -771,10 +786,29 @@
     }
   }
 
+  function buildProjectLookupKey(term) {
+    const trimmed = term.trim().toLowerCase();
+    return JSON.stringify({
+      term: trimmed,
+      projectCategory: filterState.projectCategory || "",
+      technicalCategory: filterState.technicalCategory || ""
+    });
+  }
+
+  function buildProjectLookupUrl(term) {
+    const params = new URLSearchParams();
+    const trimmed = term.trim();
+    if (trimmed) params.set("q", trimmed);
+    if (filterState.projectCategory) params.set("projectCategoryId", filterState.projectCategory);
+    if (filterState.technicalCategory) params.set("technicalCategoryId", filterState.technicalCategory);
+    const query = params.toString();
+    return query ? `${api.projects}?${query}` : api.projects;
+  }
+
   async function loadProjects(query = "") {
-    const key = query.trim().toLowerCase();
+    const key = buildProjectLookupKey(query);
     if (lookupCache.has(key)) return lookupCache.get(key);
-    const response = await fetch(api.projects + (query ? `?q=${encodeURIComponent(query)}` : ""), { headers: { Accept: "application/json" } });
+    const response = await fetch(buildProjectLookupUrl(query), { headers: { Accept: "application/json" } });
     if (!response.ok) throw new Error("Failed to load projects");
     const payload = await response.json();
     lookupCache.set(key, payload);
@@ -1016,6 +1050,7 @@
     wirePreferences();
     try {
       const options = await loadProjects("");
+      currentProjectLookupKey = buildProjectLookupKey("");
       populateProjectControls(options.map((item) => ({
         id: item.id ?? item.Id ?? item.projectId,
         display: item.display ?? `${item.name ?? item.Name}${item.code ? ` (${item.code})` : ""}`
