@@ -128,19 +128,6 @@ public sealed class ProliferationOverviewService
                 cancellationToken);
 
         var gridRows = BuildGridRows(projectLookup, yearlyItems, granularItems, preferenceLookup);
-        var totalRows = gridRows.Count;
-        var orderedRows = gridRows
-            .OrderByDescending(r => r.Year)
-            .ThenBy(r => r.ProjectName, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(r => r.Source)
-            .ThenBy(r => r.DataType)
-            .ThenBy(r => r.ProliferationDate ?? DateOnly.MinValue)
-            .ToList();
-
-        var pagedItems = orderedRows
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
-            .ToList();
 
         var combos = yearlyItems
             .Select(y => new Combination(y.ProjectId, y.Source, y.Year))
@@ -154,6 +141,30 @@ public sealed class ProliferationOverviewService
             var total = await _trackerReadService.GetEffectiveTotalAsync(combo.ProjectId, combo.Source, combo.Year, cancellationToken);
             totals.Add(new CombinationTotal(combo.ProjectId, combo.Source, combo.Year, total));
         }
+
+        var totalLookup = totals.ToDictionary(t => new Combination(t.ProjectId, t.Source, t.Year), t => t.Total);
+        for (var i = 0; i < gridRows.Count; i++)
+        {
+            var row = gridRows[i];
+            if (totalLookup.TryGetValue(new Combination(row.ProjectId, row.Source, row.Year), out var total))
+            {
+                gridRows[i] = row with { EffectiveTotal = total };
+            }
+        }
+
+        var totalRows = gridRows.Count;
+        var orderedRows = gridRows
+            .OrderByDescending(r => r.Year)
+            .ThenBy(r => r.ProjectName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(r => r.Source)
+            .ThenBy(r => r.DataType)
+            .ThenBy(r => r.ProliferationDate ?? DateOnly.MinValue)
+            .ToList();
+
+        var pagedItems = orderedRows
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
 
         var summary = BuildSummary(totals);
 
@@ -203,6 +214,7 @@ public sealed class ProliferationOverviewService
             preferences.TryGetValue(new PreferenceKey(item.ProjectId, item.Source, item.Year), out var mode);
 
             rows.Add(new ProliferationOverviewRow(
+                item.ProjectId,
                 item.Year,
                 project.Name,
                 project.Code,
@@ -212,6 +224,7 @@ public sealed class ProliferationOverviewService
                 null,
                 null,
                 item.TotalQuantity,
+                0,
                 item.ApprovalStatus,
                 mode,
                 item.Id));
@@ -222,6 +235,7 @@ public sealed class ProliferationOverviewService
             var project = projectLookup[item.ProjectId];
 
             rows.Add(new ProliferationOverviewRow(
+                item.ProjectId,
                 item.ProliferationDate.Year,
                 project.Name,
                 project.Code,
@@ -231,6 +245,7 @@ public sealed class ProliferationOverviewService
                 item.SimulatorName,
                 item.ProliferationDate,
                 item.Quantity,
+                0,
                 item.ApprovalStatus,
                 null,
                 item.Id));

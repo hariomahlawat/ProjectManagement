@@ -1,5 +1,14 @@
+@model bool
+
 <div class="year-preferences" id="yearPreferences" aria-live="polite">
-    <form id="yearPreferenceForm" novalidate>
+    @if (!Model)
+    {
+        <div class="alert alert-warning d-flex align-items-start gap-2 small mb-3" role="status" id="prefPermissionNotice">
+            <span aria-hidden="true">⚠️</span>
+            <div>Only proliferation approvers can change year preferences. You can still review existing settings.</div>
+        </div>
+    }
+    <form id="yearPreferenceForm" novalidate data-can-manage="@Model.ToString().ToLowerInvariant()">
         <div class="mb-3">
             <label class="form-label" for="prefProject">Project</label>
             <input id="prefProject" class="form-control" type="search" placeholder="Search completed projects" autocomplete="off" list="prefProjectOptions" />
@@ -55,7 +64,7 @@
         <div id="prefSavedAt" class="text-muted small" hidden></div>
         <div class="d-flex justify-content-end gap-2 mt-4">
             <button type="button" class="btn btn-light" id="btnPrefReset">Reset</button>
-            <button type="submit" class="btn btn-primary" id="btnSavePreference">
+            <button type="submit" class="btn btn-primary" id="btnSavePreference" @(Model ? string.Empty : "disabled aria-disabled='true'")>
                 <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" hidden></span>
                 Save preference
             </button>

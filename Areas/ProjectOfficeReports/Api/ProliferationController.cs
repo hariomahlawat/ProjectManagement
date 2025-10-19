@@ -69,11 +69,49 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             return results;
         }
 
+        [HttpGet("lookups")]
+        public async Task<ActionResult<ProliferationLookupsDto>> GetLookups(CancellationToken ct)
+        {
+            var projectCategories = await _db.ProjectCategories
+                .AsNoTracking()
+                .Where(c => c.IsActive)
+                .OrderBy(c => c.SortOrder)
+                .ThenBy(c => c.Name)
+                .Select(c => new ProliferationLookupOptionDto
+                {
+                    Id = c.Id,
+                    Name = c.Name
+                })
+                .ToListAsync(ct);
+
+            var technicalCategories = await _db.TechnicalCategories
+                .AsNoTracking()
+                .Where(c => c.IsActive)
+                .OrderBy(c => c.SortOrder)
+                .ThenBy(c => c.Name)
+                .Select(c => new ProliferationLookupOptionDto
+                {
+                    Id = c.Id,
+                    Name = c.Name
+                })
+                .ToListAsync(ct);
+
+            return new ProliferationLookupsDto
+            {
+                ProjectCategories = projectCategories,
+                TechnicalCategories = technicalCategories
+            };
+        }
+
         [HttpGet("overview")]
         public async Task<ActionResult<ProliferationOverviewDto>> GetOverview([FromQuery] ProliferationOverviewQuery q, CancellationToken ct)
         {
+            var requestedPageSize = q.PageSize;
+            var unpaged = requestedPageSize == 0;
             var page = q.Page < 1 ? 1 : q.Page;
-            var pageSize = q.PageSize < 1 ? 50 : Math.Min(q.PageSize, 200);
+            var pageSize = unpaged
+                ? 0
+                : (requestedPageSize < 1 ? 50 : Math.Min(requestedPageSize, 200));
 
             DateTime? from = q.FromDateUtc;
             DateTime? to = q.ToDateUtc;
@@ -135,45 +173,118 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                     EF.Functions.ILike(x.Granular.UnitName, like));
             }
 
-            var yearlyRowsQuery = yearlyBase.Select(x => new ProliferationOverviewRowDto
-            {
-                Year = x.Yearly.Year,
-                Project = x.Project.Name,
-                ProjectCode = x.Project.CaseFileNumber,
-                Source = x.Yearly.Source,
-                DataType = "Yearly",
-                UnitName = null,
-                SimulatorName = null,
-                DateUtc = null,
-                Quantity = x.Yearly.TotalQuantity,
-                ApprovalStatus = x.Yearly.ApprovalStatus.ToString(),
-                Mode = x.Preference != null ? x.Preference.Mode.ToString() : null
-            });
+            var yearlyRowsQuery = yearlyBase.Select(x => new OverviewRowProjection(
+                x.Project.Id,
+                x.Yearly.Year,
+                x.Project.Name,
+                x.Project.CaseFileNumber,
+                x.Yearly.Source,
+                "Yearly",
+                null,
+                null,
+                null,
+                x.Yearly.TotalQuantity,
+                x.Yearly.ApprovalStatus.ToString(),
+                x.Preference != null ? x.Preference.Mode.ToString() : null));
 
-            var granularRowsQuery = granularBase.Select(x => new ProliferationOverviewRowDto
-            {
-                Year = x.Granular.ProliferationDate.Year,
-                Project = x.Project.Name,
-                ProjectCode = x.Project.CaseFileNumber,
-                Source = x.Granular.Source,
-                DataType = "Granular",
-                UnitName = x.Granular.UnitName,
-                SimulatorName = x.Granular.SimulatorName,
-                DateUtc = x.Granular.ProliferationDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
-                Quantity = x.Granular.Quantity,
-                ApprovalStatus = x.Granular.ApprovalStatus.ToString(),
-                Mode = null
-            });
+            var granularRowsQuery = granularBase.Select(x => new OverviewRowProjection(
+                x.Project.Id,
+                x.Granular.ProliferationDate.Year,
+                x.Project.Name,
+                x.Project.CaseFileNumber,
+                x.Granular.Source,
+                "Granular",
+                x.Granular.UnitName,
+                x.Granular.SimulatorName,
+                x.Granular.ProliferationDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
+                x.Granular.Quantity,
+                x.Granular.ApprovalStatus.ToString(),
+                null));
 
             var combinedRows = yearlyRowsQuery.Concat(granularRowsQuery);
 
             var totalCount = await combinedRows.CountAsync(ct);
-            var rows = await combinedRows
+
+            if (!unpaged && pageSize == 0)
+            {
+                pageSize = 50;
+            }
+
+            if (!unpaged && pageSize > 0)
+            {
+                var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
+                if (totalPages > 0 && page > totalPages)
+                {
+                    page = totalPages;
+                }
+            }
+            else if (unpaged)
+            {
+                page = 1;
+            }
+
+            IQueryable<OverviewRowProjection> orderedRowsQuery = combinedRows
                 .OrderByDescending(r => r.Year)
                 .ThenBy(r => r.Project)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync(ct);
+                .ThenBy(r => r.Source)
+                .ThenBy(r => r.DataType)
+                .ThenBy(r => r.DateUtc);
+
+            if (!unpaged && pageSize > 0)
+            {
+                orderedRowsQuery = orderedRowsQuery
+                    .Skip((page - 1) * pageSize)
+                    .Take(pageSize);
+            }
+
+            var rowProjections = await orderedRowsQuery.ToListAsync(ct);
+
+            var combinationKeys = rowProjections
+                .Select(r => new CombinationKey(r.ProjectId, r.Source, r.Year))
+                .Distinct()
+                .ToList();
+
+            var totalsLookup = new Dictionary<CombinationKey, int>(combinationKeys.Count);
+            foreach (var combo in combinationKeys)
+            {
+                try
+                {
+                    var total = await _readSvc.GetEffectiveTotalAsync(combo.ProjectId, combo.Source, combo.Year, ct);
+                    totalsLookup[combo] = total;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Failed to compute effective proliferation total for project {ProjectId} ({Source}) in {Year}",
+                        combo.ProjectId,
+                        combo.Source,
+                        combo.Year);
+                }
+            }
+
+            var rows = rowProjections
+                .Select(r =>
+                {
+                    totalsLookup.TryGetValue(new CombinationKey(r.ProjectId, r.Source, r.Year), out var effective);
+                    return new ProliferationOverviewRowDto
+                    {
+                        ProjectId = r.ProjectId,
+                        Year = r.Year,
+                        Project = r.Project,
+                        ProjectCode = r.ProjectCode,
+                        Source = r.Source,
+                        DataType = r.DataType,
+                        UnitName = r.UnitName,
+                        SimulatorName = r.SimulatorName,
+                        DateUtc = r.DateUtc,
+                        Quantity = r.Quantity,
+                        EffectiveTotal = effective,
+                        ApprovalStatus = r.ApprovalStatus,
+                        Mode = r.Mode
+                    };
+                })
+                .ToList();
 
             var kpis = new ProliferationKpisDto();
             var completedProjectIds = await projectsQuery
@@ -273,7 +384,14 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             kpis.LastYearAbw515 = last12Granular.Where(g => g.Source == ProliferationSource.Abw515).Sum(g => g.Quantity);
             kpis.LastYearProjectsProliferated = last12Granular.Select(g => g.ProjectId).Distinct().Count();
 
-            var payload = new ProliferationOverviewDto { Kpis = kpis, TotalCount = totalCount, Rows = rows };
+            var payload = new ProliferationOverviewDto
+            {
+                Kpis = kpis,
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = unpaged ? rows.Count : pageSize,
+                Rows = rows
+            };
             return Ok(payload);
         }
 
@@ -373,7 +491,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             var payload = (ProliferationOverviewDto)ok.Value!;
 
             var sb = new StringBuilder();
-            sb.AppendLine("Year,Project,Source,DataType,UnitName,SimulatorName,Date,Quantity,ApprovalStatus,Mode");
+            sb.AppendLine("Year,Project,Source,DataType,UnitName,SimulatorName,Date,Quantity,EffectiveTotal,ApprovalStatus,Mode");
             foreach (var r in payload.Rows)
             {
                 var date = r.DateUtc?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty;
@@ -388,12 +506,29 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                     r.SimulatorName,
                     date,
                     r.Quantity.ToString(CultureInfo.InvariantCulture),
+                    r.EffectiveTotal.ToString(CultureInfo.InvariantCulture),
                     r.ApprovalStatus,
                     mode);
             }
             var bytes = Encoding.UTF8.GetBytes(sb.ToString());
             return File(bytes, "text/csv", "proliferation-export.csv");
         }
+
+        private sealed record OverviewRowProjection(
+            int ProjectId,
+            int Year,
+            string Project,
+            string? ProjectCode,
+            ProliferationSource Source,
+            string DataType,
+            string? UnitName,
+            string? SimulatorName,
+            DateTime? DateUtc,
+            int Quantity,
+            string ApprovalStatus,
+            string? Mode);
+
+        private sealed record CombinationKey(int ProjectId, ProliferationSource Source, int Year);
 
         private static void AppendCsvRow(StringBuilder sb, params string?[] values)
         {

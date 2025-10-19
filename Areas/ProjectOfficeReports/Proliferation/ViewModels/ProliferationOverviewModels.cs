@@ -30,6 +30,7 @@ public sealed record ProliferationOverviewKpiSet(
     int Abw515Quantity);
 
 public sealed record ProliferationOverviewRow(
+    int ProjectId,
     int Year,
     string ProjectName,
     string? ProjectCode,
@@ -39,6 +40,7 @@ public sealed record ProliferationOverviewRow(
     string? SimulatorName,
     DateOnly? ProliferationDate,
     int Quantity,
+    int EffectiveTotal,
     ApprovalStatus ApprovalStatus,
     YearPreferenceMode? Mode,
     Guid RecordId);

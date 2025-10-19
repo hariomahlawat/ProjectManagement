@@ -41,6 +41,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
     // One row in the results table
     public sealed class ProliferationOverviewRowDto
     {
+        public int ProjectId { get; set; }
         public int Year { get; set; }
         public string Project { get; set; } = default!;
         public string ProjectName => Project;
@@ -52,6 +53,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public DateTime? DateUtc { get; set; } // null for Yearly
         public string? ProliferationDate => DateUtc?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         public int Quantity { get; set; }
+        public int EffectiveTotal { get; set; }
         public string ApprovalStatus { get; set; } = default!;
         public string? Mode { get; set; } // only for consolidated rows in exports if needed
     }
@@ -60,7 +62,24 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
     {
         public ProliferationKpisDto Kpis { get; set; } = new();
         public int TotalCount { get; set; }
+        public int Page { get; set; }
+        public int PageSize { get; set; }
         public IReadOnlyList<ProliferationOverviewRowDto> Rows { get; set; } = Array.Empty<ProliferationOverviewRowDto>();
+    }
+
+    public sealed class ProliferationLookupOptionDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = default!;
+    }
+
+    public sealed class ProliferationLookupsDto
+    {
+        public IReadOnlyList<ProliferationLookupOptionDto> ProjectCategories { get; set; }
+            = Array.Empty<ProliferationLookupOptionDto>();
+
+        public IReadOnlyList<ProliferationLookupOptionDto> TechnicalCategories { get; set; }
+            = Array.Empty<ProliferationLookupOptionDto>();
     }
 
     public sealed class ProliferationProjectLookupDto
