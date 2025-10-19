@@ -84,7 +84,7 @@ public sealed class ProliferationCommandService
         _db.ProliferationYearlies.Add(entity);
         await _db.SaveChangesAsync(cancellationToken);
 
-        await AuditEvents.Events
+        await Audit.Events
             .ProliferationYearlyRecorded(project.Id, entity.Source, entity.Year, entity.TotalQuantity, entity.ApprovalStatus, actor.Id, "Create")
             .WriteAsync(_audit, userName: actor.UserName);
 
@@ -149,7 +149,7 @@ public sealed class ProliferationCommandService
         _db.ProliferationGranularEntries.Add(entity);
         await _db.SaveChangesAsync(cancellationToken);
 
-        await AuditEvents.Events
+        await Audit.Events
             .ProliferationGranularRecorded(project.Id, entity.Source, entity.SimulatorName, entity.UnitName, entity.ProliferationDate, entity.Quantity, entity.ApprovalStatus, actor.Id, "Create")
             .WriteAsync(_audit, userName: actor.UserName);
 
@@ -203,7 +203,7 @@ public sealed class ProliferationCommandService
 
         await _db.SaveChangesAsync(cancellationToken);
 
-        await AuditEvents.Events
+        await Audit.Events
             .ProliferationPreferenceChanged(project.Id, model.Source, model.Year, actor.Id, actor.Id, isNew ? "Created" : "Updated")
             .WriteAsync(_audit, userName: actor.UserName);
 
@@ -307,7 +307,7 @@ public sealed class ProliferationCommandService
 
         foreach (var entry in validEntries)
         {
-            await AuditEvents.Events
+            await Audit.Events
                 .ProliferationYearlyRecorded(entry.ProjectId, entry.Source, entry.Year, entry.TotalQuantity, entry.ApprovalStatus, actor.Id, "Import")
                 .WriteAsync(_audit, userName: actor.UserName);
         }
@@ -410,7 +410,7 @@ public sealed class ProliferationCommandService
 
         foreach (var entry in validEntries)
         {
-            await AuditEvents.Events
+            await Audit.Events
                 .ProliferationGranularRecorded(entry.ProjectId, entry.Source, entry.SimulatorName, entry.UnitName, entry.ProliferationDate, entry.Quantity, entry.ApprovalStatus, actor.Id, "Import")
                 .WriteAsync(_audit, userName: actor.UserName);
         }
