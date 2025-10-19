@@ -298,60 +298,66 @@
   }
 
   function wireOffcanvas() {
-    $("#btnSaveGranular")?.addEventListener("click", async (event) => {
-      event.preventDefault();
-      const form = $("#formGranular");
-      if (!validateForm(form)) return;
-      const body = {
-        ProjectId: Number($("#gProjectId")?.value),
-        SimulatorName: $("#gSimulator")?.value.trim(),
-        UnitName: $("#gUnit")?.value.trim(),
-        ProliferationDateUtc: new Date($("#gDate")?.value).toISOString(),
-        Quantity: Number($("#gQty")?.value),
-        Remarks: ($("#gRemarks")?.value || "").trim() || null
-      };
-      try {
-        const response = await fetch(api.createGranular, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body)
-        });
-        if (!response.ok) throw new Error();
-        toast("Granular entry saved");
-        bootstrap.Offcanvas.getOrCreateInstance($("#ocGranular")).hide();
-        form.reset();
-        refresh();
-      } catch {
-        toast("Failed to save granular entry", "danger");
-      }
-    });
+    const granularForm = $("#formGranular");
+    if (granularForm && !granularForm.dataset.wired) {
+      granularForm.dataset.wired = "true";
+      granularForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!validateForm(granularForm)) return;
+        const body = {
+          ProjectId: Number($("#gProjectId")?.value),
+          SimulatorName: $("#gSimulator")?.value.trim(),
+          UnitName: $("#gUnit")?.value.trim(),
+          ProliferationDateUtc: new Date($("#gDate")?.value).toISOString(),
+          Quantity: Number($("#gQty")?.value),
+          Remarks: ($("#gRemarks")?.value || "").trim() || null
+        };
+        try {
+          const response = await fetch(api.createGranular, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+          });
+          if (!response.ok) throw new Error();
+          toast("Granular entry saved");
+          bootstrap.Offcanvas.getOrCreateInstance($("#ocGranular")).hide();
+          granularForm.reset();
+          refresh();
+        } catch {
+          toast("Failed to save granular entry", "danger");
+        }
+      });
+    }
 
-    $("#btnSaveYearly")?.addEventListener("click", async (event) => {
-      event.preventDefault();
-      const form = $("#formYearly");
-      if (!validateForm(form)) return;
-      const body = {
-        ProjectId: Number($("#yProjectId")?.value),
-        Source: $("#ySource")?.value,
-        Year: Number($("#yYear")?.value),
-        TotalQuantity: Number($("#yQty")?.value),
-        Remarks: ($("#yRemarks")?.value || "").trim() || null
-      };
-      try {
-        const response = await fetch(api.createYearly, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body)
-        });
-        if (!response.ok) throw new Error();
-        toast("Yearly total saved");
-        bootstrap.Offcanvas.getOrCreateInstance($("#ocYearly")).hide();
-        form.reset();
-        refresh();
-      } catch {
-        toast("Failed to save yearly total", "danger");
-      }
-    });
+    const yearlyForm = $("#formYearly");
+    if (yearlyForm && !yearlyForm.dataset.wired) {
+      yearlyForm.dataset.wired = "true";
+      yearlyForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!validateForm(yearlyForm)) return;
+        const body = {
+          ProjectId: Number($("#yProjectId")?.value),
+          Source: Number($("#ySource")?.value),
+          Year: Number($("#yYear")?.value),
+          TotalQuantity: Number($("#yQty")?.value),
+          Remarks: ($("#yRemarks")?.value || "").trim() || null
+        };
+        try {
+          const response = await fetch(api.createYearly, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+          });
+          if (!response.ok) throw new Error();
+          toast("Yearly total saved");
+          bootstrap.Offcanvas.getOrCreateInstance($("#ocYearly")).hide();
+          yearlyForm.reset();
+          refresh();
+        } catch {
+          toast("Failed to save yearly total", "danger");
+        }
+      });
+    }
   }
 
   function wireImport() {

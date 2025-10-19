@@ -283,14 +283,16 @@ builder.Services.AddScoped<IProjectVideoService, ProjectVideoService>();
 builder.Services.AddOptions<ProjectRetentionOptions>()
     .Bind(builder.Configuration.GetSection("Projects:Retention"));
 
+var enumConverter = new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: true);
+
 builder.Services.ConfigureHttpJsonOptions(o =>
 {
-    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    o.SerializerOptions.Converters.Add(enumConverter);
 });
 
 builder.Services.AddControllers().AddJsonOptions(o =>
 {
-    o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    o.JsonSerializerOptions.Converters.Add(enumConverter);
 });
 
 // Register email sender
