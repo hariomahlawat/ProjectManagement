@@ -1,0 +1,205 @@
+:root {
+  --proliferation-gradient: linear-gradient(135deg, rgba(56, 189, 248, 0.18), rgba(129, 140, 248, 0.2));
+  --proliferation-border: rgba(15, 23, 42, 0.08);
+  --proliferation-muted: #6b7280;
+}
+
+.proliferation-dashboard {
+  background: radial-gradient(circle at top right, rgba(14, 165, 233, 0.07), transparent 55%);
+}
+
+.proliferation-dashboard .card {
+  backdrop-filter: blur(6px);
+}
+
+.proliferation-dashboard .btn i {
+  font-size: 0.875rem;
+}
+
+.proliferation-dashboard .btn.btn-primary {
+  box-shadow: 0 0.5rem 1.5rem rgba(37, 99, 235, 0.15);
+}
+
+.kpi-card {
+  background: #fff;
+  border-radius: 1rem;
+  border: 1px solid var(--proliferation-border);
+  box-shadow: 0 1rem 2.5rem rgba(15, 23, 42, 0.06);
+  padding: 1.25rem;
+  position: relative;
+  overflow: hidden;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+.kpi-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--proliferation-gradient);
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+
+.kpi-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 1.75rem 3rem rgba(15, 23, 42, 0.12);
+}
+
+.kpi-card:hover::after {
+  opacity: 1;
+}
+
+.kpi-card__title {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--proliferation-muted);
+  margin-bottom: 0.5rem;
+}
+
+.kpi-card__value {
+  font-size: clamp(1.75rem, 2.5vw, 2.5rem);
+  font-weight: 700;
+  color: #1d4ed8;
+  margin-bottom: 0.5rem;
+}
+
+.kpi-card__meta {
+  color: var(--proliferation-muted);
+  font-size: 0.875rem;
+}
+
+.analytics-card {
+  border-radius: 1rem;
+  padding: 1.25rem;
+  background: #fff;
+  border: 1px solid var(--proliferation-border);
+  box-shadow: 0 0.75rem 2rem rgba(15, 23, 42, 0.08);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.analytics-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 1.5rem 2.5rem rgba(15, 23, 42, 0.12);
+}
+
+.analytics-card__label {
+  color: var(--proliferation-muted);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.5rem;
+}
+
+.analytics-card__value {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.analytics-card__trend {
+  font-size: 0.875rem;
+}
+
+.import-dropzone {
+  border: 2px dashed var(--proliferation-border);
+  border-radius: 1rem;
+  padding: 1.75rem;
+  background: rgba(248, 250, 252, 0.75);
+  text-align: center;
+  transition: border-color 150ms ease, background 150ms ease;
+}
+
+.import-dropzone:focus,
+.import-dropzone:hover,
+.import-dropzone.drag-over {
+  border-color: #2563eb;
+  background: rgba(219, 234, 254, 0.55);
+  outline: none;
+}
+
+.import-dropzone__icon {
+  font-size: 2rem;
+  color: #2563eb;
+  margin-bottom: 0.5rem;
+}
+
+.reconciliation-panel .nav-link {
+  border-radius: 999px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.reconciliation-panel .nav-link.active {
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.reconciliation-form .alert {
+  border-radius: 0.75rem;
+}
+
+.table-responsive {
+  background: #fff;
+}
+
+.table thead th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--proliferation-muted);
+}
+
+.table tbody td {
+  vertical-align: middle;
+  font-size: 0.95rem;
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background-color: #f3f4f6;
+  border-radius: 0.75rem;
+  height: 100%;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0));
+  transform: translateX(-100%);
+  animation: shimmer 1.4s infinite;
+}
+
+.skeleton.kpi {
+  min-height: 120px;
+}
+
+.skeleton.analytics {
+  min-height: 100px;
+}
+
+.skeleton.table-row {
+  height: 52px;
+  margin-bottom: 0.75rem;
+  border-radius: 0.5rem;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (max-width: 991.98px) {
+  #filterForm {
+    margin-top: 1rem;
+  }
+
+  .proliferation-dashboard .btn-toolbar {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}

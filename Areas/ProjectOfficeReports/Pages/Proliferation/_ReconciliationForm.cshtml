@@ -1,0 +1,46 @@
+@model ProjectManagement.Areas.ProjectOfficeReports.Domain.YearPreferenceMode
+
+<form id="reconciliationForm-@Model" class="reconciliation-form needs-validation" data-mode="@Model" novalidate>
+    <div class="mb-3">
+        <label class="form-label" for="recon-project-@Model">Project ID<span class="text-danger">*</span></label>
+        <div class="input-group input-group-sm">
+            <span class="input-group-text" id="recon-project-addon-@Model"><i class="bi bi-hash" aria-hidden="true"></i></span>
+            <input type="number" class="form-control" id="recon-project-@Model" name="projectId" min="1" required aria-describedby="recon-project-help-@Model recon-project-addon-@Model" />
+        </div>
+        <div id="recon-project-help-@Model" class="form-text">Only completed projects with recorded proliferation appear in the dashboard.</div>
+        <div class="invalid-feedback">Project ID is required.</div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-sm-6">
+            <label class="form-label" for="recon-source-@Model">Source<span class="text-danger">*</span></label>
+            <select class="form-select form-select-sm" id="recon-source-@Model" name="source" required>
+                <option value="Sdd">SDD</option>
+                <option value="Abw515">515 ABW</option>
+            </select>
+            <div class="invalid-feedback">Select a source.</div>
+        </div>
+        <div class="col-sm-6">
+            <label class="form-label" for="recon-year-@Model">Year<span class="text-danger">*</span></label>
+            <input type="number" class="form-control form-control-sm" id="recon-year-@Model" name="year" min="2000" required />
+            <div class="invalid-feedback">Provide a valid year.</div>
+        </div>
+    </div>
+
+    <input type="hidden" name="mode" value="@Model" />
+
+    <div class="alert alert-info d-flex align-items-start gap-2 small mt-3" role="note">
+        <i class="bi bi-info-circle" aria-hidden="true"></i>
+        <div>
+            <strong>@Model switch { ProjectManagement.Areas.ProjectOfficeReports.Domain.YearPreferenceMode.UseGranular => "Granular", ProjectManagement.Areas.ProjectOfficeReports.Domain.YearPreferenceMode.UseYearly => "Yearly", _ => "Automatic" }</strong>
+            preference applies to the selected project, year, and source.
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 mt-4">
+        <button type="submit" class="btn btn-primary btn-sm" data-submit>
+            <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true" hidden></span>
+            Save preference
+        </button>
+    </div>
+</form>

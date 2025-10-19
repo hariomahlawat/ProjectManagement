@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Areas.ProjectOfficeReports.Api;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
@@ -25,15 +26,18 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         private readonly ApplicationDbContext _db;
         private readonly ProliferationTrackerReadService _readSvc;
         private readonly ProliferationSubmissionService _submitSvc;
+        private readonly ILogger<ProliferationController> _logger;
 
         public ProliferationController(
             ApplicationDbContext db,
             ProliferationTrackerReadService readSvc,
-            ProliferationSubmissionService submitSvc)
+            ProliferationSubmissionService submitSvc,
+            ILogger<ProliferationController> logger)
         {
             _db = db;
             _readSvc = readSvc;
             _submitSvc = submitSvc;
+            _logger = logger;
         }
 
         [HttpGet("overview")]
@@ -192,9 +196,31 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             int totalAll = 0, totalSdd = 0, totalAbw = 0;
             foreach (var item in projYears)
             {
-                var eff = await _readSvc.GetEffectiveTotalAsync(item.ProjectId, item.Source, item.Year, ct);
+                int eff;
+                try
+                {
+                    eff = await _readSvc.GetEffectiveTotalAsync(item.ProjectId, item.Source, item.Year, ct);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Failed to compute effective proliferation total for project {ProjectId} ({Source}) in {Year}",
+                        item.ProjectId,
+                        item.Source,
+                        item.Year);
+                    continue;
+                }
+
                 totalAll += eff;
-                if (item.Source == ProliferationSource.Sdd) totalSdd += eff; else totalAbw += eff;
+                if (item.Source == ProliferationSource.Sdd)
+                {
+                    totalSdd += eff;
+                }
+                else
+                {
+                    totalAbw += eff;
+                }
             }
             kpis.TotalProliferationAllTime = totalAll;
             kpis.TotalProliferationSdd = totalSdd;
@@ -213,7 +239,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
             kpis.LastYearTotalProliferation = last12Granular.Sum(g => g.Quantity);
             kpis.LastYearSdd = last12Granular.Where(g => g.Source == ProliferationSource.Sdd).Sum(g => g.Quantity);
-            kpis.LastYearAbw515 = 0;
+            kpis.LastYearAbw515 = last12Granular.Where(g => g.Source == ProliferationSource.Abw515).Sum(g => g.Quantity);
             kpis.LastYearProjectsProliferated = last12Granular.Select(g => g.ProjectId).Distinct().Count();
 
             var payload = new ProliferationOverviewDto { Kpis = kpis, TotalCount = totalCount, Rows = rows };
