@@ -41,11 +41,25 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         }
 
         [HttpGet("projects")]
-        public async Task<ActionResult<IReadOnlyList<ProliferationProjectLookupDto>>> GetEligibleProjects([FromQuery] string? q, CancellationToken ct)
+        public async Task<ActionResult<IReadOnlyList<ProliferationProjectLookupDto>>> GetEligibleProjects(
+            [FromQuery] string? q,
+            [FromQuery] int? projectCategoryId,
+            [FromQuery] int? technicalCategoryId,
+            CancellationToken ct)
         {
             var projects = _db.Projects
                 .AsNoTracking()
                 .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Completed);
+
+            if (projectCategoryId.HasValue)
+            {
+                projects = projects.Where(p => p.CategoryId == projectCategoryId.Value);
+            }
+
+            if (technicalCategoryId.HasValue)
+            {
+                projects = projects.Where(p => p.TechnicalCategoryId == technicalCategoryId.Value);
+            }
 
             if (!string.IsNullOrWhiteSpace(q))
             {
@@ -375,11 +389,26 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             var fromCutoff = DateOnly.FromDateTime(start);
             var toCutoff = DateOnly.FromDateTime(end);
 
-            var last12Granular = await _db.Set<ProliferationGranular>().AsNoTracking()
+            var last12GranularQuery = _db.Set<ProliferationGranular>().AsNoTracking()
                 .Where(g => g.ApprovalStatus == ApprovalStatus.Approved &&
                             g.ProliferationDate >= fromCutoff &&
-                            g.ProliferationDate <= toCutoff)
-                .ToListAsync(ct);
+                            g.ProliferationDate <= toCutoff);
+
+            if (completedProjectIds.Count == 0)
+            {
+                last12GranularQuery = last12GranularQuery.Where(_ => false);
+            }
+            else
+            {
+                last12GranularQuery = last12GranularQuery.Where(g => completedProjectIds.Contains(g.ProjectId));
+            }
+
+            if (q.Source.HasValue)
+            {
+                last12GranularQuery = last12GranularQuery.Where(g => g.Source == q.Source.Value);
+            }
+
+            var last12Granular = await last12GranularQuery.ToListAsync(ct);
 
             kpis.LastYearTotalProliferation = last12Granular.Sum(g => g.Quantity);
             kpis.LastYearSdd = last12Granular.Where(g => g.Source == ProliferationSource.Sdd).Sum(g => g.Quantity);
