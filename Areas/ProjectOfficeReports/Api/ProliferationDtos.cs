@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Api
@@ -13,8 +14,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public DateTime? FromDateUtc { get; set; }
         public DateTime? ToDateUtc { get; set; }
 
-        public string? ProjectCategory { get; set; }
-        public string? TechnicalCategory { get; set; }
+        public int? ProjectCategoryId { get; set; }
+        public int? TechnicalCategoryId { get; set; }
         public ProliferationSource? Source { get; set; }
         public string? Search { get; set; }
 
@@ -42,11 +43,14 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
     {
         public int Year { get; set; }
         public string Project { get; set; } = default!;
+        public string ProjectName => Project;
+        public string? ProjectCode { get; set; }
         public ProliferationSource Source { get; set; }
         public string DataType { get; set; } = default!; // "Yearly" or "Granular"
         public string? UnitName { get; set; }
         public string? SimulatorName { get; set; }
         public DateTime? DateUtc { get; set; } // null for Yearly
+        public string? ProliferationDate => DateUtc?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         public int Quantity { get; set; }
         public string ApprovalStatus { get; set; } = default!;
         public string? Mode { get; set; } // only for consolidated rows in exports if needed
