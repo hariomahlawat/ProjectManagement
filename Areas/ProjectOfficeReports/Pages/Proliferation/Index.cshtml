@@ -13,10 +13,10 @@
         <div class="col-auto">
             <div class="btn-toolbar gap-2" role="toolbar" aria-label="Proliferation actions">
                 <div class="btn-group" role="group" aria-label="Record actions">
-                    <button type="button" class="btn btn-primary" data-bs-toggle="offcanvas" data-bs-target="#ocGranular">
+                    <button type="button" class="btn btn-primary" data-entry-target="granular">
                         <span class="me-1" aria-hidden="true">+</span>Granular Entry
                     </button>
-                    <button type="button" class="btn btn-outline-primary" data-bs-toggle="offcanvas" data-bs-target="#ocYearly">
+                    <button type="button" class="btn btn-outline-primary" data-entry-target="yearly">
                         <span class="me-1" aria-hidden="true">+</span>Yearly Total
                     </button>
                 </div>
@@ -61,19 +61,7 @@
                 </div>
             </section>
 
-            <section aria-labelledby="results-heading">
-                <div class="card border-0 shadow-sm rounded-4">
-                    <div class="card-header bg-white border-0 pb-0">
-                        <h2 id="results-heading" class="h5 mb-1">Results</h2>
-                        <p class="text-muted small mb-0">Proliferation records grouped by year, project, and source.</p>
-                    </div>
-                    <div class="card-body">
-                        <div id="tableContainer" aria-live="polite" aria-busy="true">
-                            <div class="text-center text-muted py-5">Loading proliferation overview…</div>
-                        </div>
-                    </div>
-                </div>
-            </section>
+            <partial name="Partials/_EntryWorkspace" />
         </div>
         <aside class="col-12 col-xxl-3">
             <section class="card border-0 shadow-sm rounded-4" aria-labelledby="year-preferences-heading">
@@ -92,8 +80,6 @@
     </div>
 </div>
 
-<partial name="Partials/_OffcanvasGranular" />
-<partial name="Partials/_OffcanvasYearly" />
 <partial name="Partials/_ImportModal" />
 
 <div class="toast-container position-fixed top-0 end-0 p-3" id="toastHost" aria-live="polite" aria-atomic="true"></div>
