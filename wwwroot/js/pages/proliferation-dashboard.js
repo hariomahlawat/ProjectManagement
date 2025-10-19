@@ -13,6 +13,28 @@
     lookups: "/api/proliferation/lookups"
   };
 
+  const sourceLabels = new Map([
+    [1, "SDD"],
+    [2, "515 ABW"]
+  ]);
+
+  function formatSourceLabel(value) {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "number") {
+      return sourceLabels.get(value) ?? value.toString();
+    }
+    const text = String(value).trim();
+    if (!text) return "";
+    const numeric = Number(text);
+    if (Number.isFinite(numeric)) {
+      return sourceLabels.get(numeric) ?? numeric.toString();
+    }
+    const canonical = text.replace(/\s+/g, "").toLowerCase();
+    if (canonical === "sdd") return sourceLabels.get(1) ?? "SDD";
+    if (canonical === "abw515" || canonical === "515abw") return sourceLabels.get(2) ?? "515 ABW";
+    return text;
+  }
+
   function $(sel, root = document) { return root.querySelector(sel); }
   function $all(sel, root = document) { return [...root.querySelectorAll(sel)]; }
 
@@ -1021,6 +1043,11 @@
         return;
       }
       if (!validateForm(form)) return;
+      const sourceId = Number(sourceSelect.value);
+      if (!Number.isFinite(sourceId) || sourceId <= 0) {
+        toast("Select a source", "warning");
+        return;
+      }
       const submitSpinner = saveBtn?.querySelector(".spinner-border");
       if (submitSpinner) submitSpinner.hidden = false;
       if (saveBtn) saveBtn.disabled = true;
