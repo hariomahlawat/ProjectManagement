@@ -3,56 +3,198 @@
 @{
     ViewData["Title"] = "Proliferation Tracker";
 }
-<div class="kpis">
-  <div id="kpi-total-completed" class="kpi-card"></div>
-  <div id="kpi-total-prolif" class="kpi-card"></div>
-  <div id="kpi-total-sdd" class="kpi-card"></div>
-  <div id="kpi-total-abw" class="kpi-card"></div>
-</div>
 
-<h3>Proliferation in last one year</h3>
-<div class="kpis">
-  <div id="kpi-lastyear-projects" class="kpi-card"></div>
-  <div id="kpi-lastyear-total" class="kpi-card"></div>
-  <div id="kpi-lastyear-sdd" class="kpi-card"></div>
-  <div id="kpi-lastyear-abw" class="kpi-card"></div>
-</div>
-
-<div class="filters">
-  <!-- server-rendered controls; values read by JS -->
-  <select id="filter-year" multiple></select>
-  <input type="text" id="filter-daterange" />
-  <select id="filter-project-category"></select>
-  <select id="filter-technical-category"></select>
-  <select id="filter-source">
-    <option value="">All</option>
-    <option value="SDD">SDD</option>
-    <option value="ABW_515">515 ABW</option>
-  </select>
-  <input type="text" id="filter-search" placeholder="Search project, simulator, unit" />
-  <button id="btn-apply">Apply</button>
-  <button id="btn-reset">Reset</button>
-</div>
-
-<div class="actions">
-  <button id="btn-add-granular">Add Granular</button>
-  <button id="btn-add-yearly">Add Yearly</button>
-  <div class="split">
-    <button id="btn-import">Import</button>
-    <div class="menu">
-      <button id="btn-import-yearly">Yearly CSV</button>
-      <button id="btn-import-granular">Granular CSV</button>
+<div class="container-fluid px-4 py-4 proliferation-dashboard" data-page="proliferation">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+        <div>
+            <h1 class="h2 mb-1 fw-semibold">Proliferation Tracker</h1>
+            <p class="text-muted mb-0">Monitor proliferation outcomes, reconcile data sources, and keep stakeholders informed.</p>
+        </div>
+        <div class="btn-toolbar justify-content-end gap-2" role="toolbar" aria-label="Proliferation actions">
+            <div class="btn-group" role="group" aria-label="Record actions">
+                <button type="button" class="btn btn-primary btn-sm" data-action="open-granular">
+                    <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>
+                    Granular Entry
+                </button>
+                <button type="button" class="btn btn-outline-primary btn-sm" data-action="open-yearly">
+                    <i class="bi bi-calendar-plus me-1" aria-hidden="true"></i>
+                    Yearly Totals
+                </button>
+            </div>
+            <div class="btn-group" role="group" aria-label="Data import and export">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-action="open-import">
+                    <i class="bi bi-upload me-1" aria-hidden="true"></i>
+                    Import
+                </button>
+                <button type="button" class="btn btn-outline-success btn-sm" data-action="export">
+                    <i class="bi bi-download me-1" aria-hidden="true"></i>
+                    Export CSV
+                </button>
+            </div>
+            <button type="button" class="btn btn-outline-dark btn-sm" data-action="open-reconciliation">
+                <i class="bi bi-sliders me-1" aria-hidden="true"></i>
+                Reconciliation
+            </button>
+        </div>
     </div>
-  </div>
-  <button id="btn-export">Export CSV</button>
-  <button id="btn-reconcile">Reconciliation</button>
+
+    <section class="mb-4" aria-labelledby="proliferation-kpis-heading">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 id="proliferation-kpis-heading" class="h5 mb-0">Portfolio overview</h2>
+            <span class="text-muted small" id="kpi-last-updated" aria-live="polite"></span>
+        </div>
+        <div id="kpiSection" class="row g-3" aria-live="polite" aria-busy="true"></div>
+    </section>
+
+    <section class="mb-5" aria-labelledby="analytics-heading">
+        <div class="card border-0 shadow-sm rounded-4">
+            <div class="card-body p-4">
+                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+                    <div>
+                        <h2 id="analytics-heading" class="h5 mb-1">Proliferation in the last twelve months</h2>
+                        <p class="text-muted mb-0">Apply filters to explore performance by source, category, or project attributes.</p>
+                    </div>
+                    <div>
+                        <form id="filterForm" class="row g-2 align-items-end" autocomplete="off">
+                            <div class="col-12 col-sm-6 col-lg-3">
+                                <label class="form-label text-muted small" for="filter-years">Years</label>
+                                <select id="filter-years" name="years" class="form-select form-select-sm" multiple size="4" data-filter="years" aria-describedby="filter-years-help"></select>
+                                <div id="filter-years-help" class="form-text">Select up to five recent years.</div>
+                            </div>
+                            <div class="col-6 col-lg-2">
+                                <label class="form-label text-muted small" for="filter-from">From date</label>
+                                <input type="date" class="form-control form-control-sm" id="filter-from" name="from" data-filter="from" />
+                            </div>
+                            <div class="col-6 col-lg-2">
+                                <label class="form-label text-muted small" for="filter-to">To date</label>
+                                <input type="date" class="form-control form-control-sm" id="filter-to" name="to" data-filter="to" />
+                            </div>
+                            <div class="col-12 col-sm-6 col-lg-2">
+                                <label class="form-label text-muted small" for="filter-category">Project category</label>
+                                <select id="filter-category" name="projectCategory" class="form-select form-select-sm" data-filter="project-category">
+                                    <option value="">All categories</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-sm-6 col-lg-2">
+                                <label class="form-label text-muted small" for="filter-technical">Technical category</label>
+                                <select id="filter-technical" name="technicalCategory" class="form-select form-select-sm" data-filter="technical-category">
+                                    <option value="">All technical areas</option>
+                                </select>
+                            </div>
+                            <div class="col-6 col-lg-1">
+                                <label class="form-label text-muted small" for="filter-source">Source</label>
+                                <select id="filter-source" name="source" class="form-select form-select-sm" data-filter="source">
+                                    <option value="">All</option>
+                                    <option value="Sdd">SDD</option>
+                                    <option value="Abw515">515 ABW</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-lg-3">
+                                <label class="form-label text-muted small" for="filter-search">Search</label>
+                                <input type="search" class="form-control form-control-sm" id="filter-search" name="search" data-filter="search" placeholder="Search project, simulator, or unit" />
+                            </div>
+                            <div class="col-12 col-md-auto ms-auto d-flex gap-2">
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-action="reset-filters">Reset</button>
+                                <button type="submit" class="btn btn-primary btn-sm" data-action="apply-filters">
+                                    <i class="bi bi-funnel me-1" aria-hidden="true"></i>
+                                    Apply
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div id="analyticsSection" class="row g-3 mb-4" aria-live="polite" aria-busy="true"></div>
+
+                <div class="table-responsive rounded-4 border overflow-hidden" id="tableContainer" aria-live="polite" aria-busy="true">
+                    <table class="table table-hover align-middle mb-0" id="resultsTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th scope="col">Year</th>
+                                <th scope="col">Project</th>
+                                <th scope="col">Source</th>
+                                <th scope="col">Data type</th>
+                                <th scope="col">Unit</th>
+                                <th scope="col">Simulator</th>
+                                <th scope="col">Date</th>
+                                <th scope="col" class="text-end">Quantity</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Mode</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div class="d-flex justify-content-between align-items-center mt-3" id="paginationContainer" hidden>
+                    <div class="text-muted small" id="paginationSummary"></div>
+                    <nav aria-label="Proliferation results pagination">
+                        <ul class="pagination pagination-sm mb-0" id="paginationControls"></ul>
+                    </nav>
+                </div>
+            </div>
+        </div>
+    </section>
 </div>
 
-<table id="results"></table>
+<div class="position-fixed top-0 end-0 p-3" style="z-index: 1080;" aria-live="polite" aria-atomic="true">
+    <div id="toastContainer" class="toast-container"></div>
+</div>
 
-<!-- Empty containers for modal and drawer. Content is injected by external JS -->
-<div id="modal-host" aria-hidden="true"></div>
-<aside id="drawer-host" aria-hidden="true"></aside>
+<div class="offcanvas offcanvas-end" tabindex="-1" id="granularOffcanvas" aria-labelledby="granularOffcanvasLabel" data-bs-backdrop="static">
+    <div class="offcanvas-header border-bottom">
+        <div>
+            <h2 class="h5 mb-1" id="granularOffcanvasLabel">Record granular proliferation</h2>
+            <p class="text-muted mb-0 small">Submit simulator-level data. Only completed projects are eligible.</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+        <partial name="_AddGranularForm" />
+    </div>
+</div>
 
-<link rel="stylesheet" href="~/css/pages/proliferation-tracker.css" />
-<script src="~/js/pages/proliferation-tracker.js" defer></script>
+<div class="offcanvas offcanvas-end" tabindex="-1" id="yearlyOffcanvas" aria-labelledby="yearlyOffcanvasLabel" data-bs-backdrop="static">
+    <div class="offcanvas-header border-bottom">
+        <div>
+            <h2 class="h5 mb-1" id="yearlyOffcanvasLabel">Record yearly totals</h2>
+            <p class="text-muted mb-0 small">Capture high-level annual totals with optional remarks.</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+        <partial name="_AddYearlyForm" />
+    </div>
+</div>
+
+<div class="offcanvas offcanvas-end" tabindex="-1" id="reconciliationOffcanvas" aria-labelledby="reconciliationOffcanvasLabel" data-bs-backdrop="static">
+    <div class="offcanvas-header border-bottom">
+        <div>
+            <h2 class="h5 mb-1" id="reconciliationOffcanvasLabel">Reconciliation preferences</h2>
+            <p class="text-muted mb-0 small">Choose how the system resolves conflicts between yearly and granular records.</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+        <partial name="_ReconciliationPanel" />
+    </div>
+</div>
+
+<div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <h2 class="h5 mb-1" id="importModalLabel">Import proliferation data</h2>
+                    <p class="text-muted mb-0 small">Upload CSV files using the official templates.</p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <partial name="_ImportModal" />
+            </div>
+        </div>
+    </div>
+</div>
+
+<link rel="stylesheet" href="~/css/pages/proliferation-dashboard.css" asp-append-version="true" />
+<script src="~/js/pages/proliferation-dashboard.js" asp-append-version="true" defer></script>

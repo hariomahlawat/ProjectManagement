@@ -1,0 +1,24 @@
+<div class="reconciliation-panel">
+    <ul class="nav nav-pills nav-fill mb-3" id="reconciliationTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="tab-auto" data-bs-toggle="pill" data-bs-target="#pane-auto" type="button" role="tab" aria-controls="pane-auto" aria-selected="true">Auto</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-yearly" data-bs-toggle="pill" data-bs-target="#pane-yearly" type="button" role="tab" aria-controls="pane-yearly" aria-selected="false">Use yearly</button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="tab-granular" data-bs-toggle="pill" data-bs-target="#pane-granular" type="button" role="tab" aria-controls="pane-granular" aria-selected="false">Use granular</button>
+        </li>
+    </ul>
+    <div class="tab-content" id="reconciliationTabContent">
+        <div class="tab-pane fade show active" id="pane-auto" role="tabpanel" aria-labelledby="tab-auto">
+            <partial name="_ReconciliationForm" model="ProjectManagement.Areas.ProjectOfficeReports.Domain.YearPreferenceMode.Auto" />
+        </div>
+        <div class="tab-pane fade" id="pane-yearly" role="tabpanel" aria-labelledby="tab-yearly">
+            <partial name="_ReconciliationForm" model="ProjectManagement.Areas.ProjectOfficeReports.Domain.YearPreferenceMode.UseYearly" />
+        </div>
+        <div class="tab-pane fade" id="pane-granular" role="tabpanel" aria-labelledby="tab-granular">
+            <partial name="_ReconciliationForm" model="ProjectManagement.Areas.ProjectOfficeReports.Domain.YearPreferenceMode.UseGranular" />
+        </div>
+    </div>
+</div>
