@@ -428,21 +428,42 @@
     const granularSelect = $("#gProjectId");
     const yearlySelect = $("#yProjectId");
     const datalist = $("#prefProjectOptions");
+    const insertPlaceholder = (select) => {
+      const placeholder = document.createElement("option");
+      placeholder.value = "";
+      placeholder.textContent = "Select a completed project";
+      placeholder.disabled = true;
+      placeholder.selected = true;
+      select.append(placeholder);
+      return placeholder;
+    };
     if (granularSelect) {
+      const previous = granularSelect.value;
       granularSelect.innerHTML = "";
+      const placeholder = insertPlaceholder(granularSelect);
       for (const item of projectOptions) {
         const opt = document.createElement("option");
-        opt.value = item.id;
+        opt.value = String(item.id);
         opt.textContent = item.display;
+        if (previous && String(item.id) === previous) {
+          opt.selected = true;
+          placeholder.selected = false;
+        }
         granularSelect.append(opt);
       }
     }
     if (yearlySelect) {
+      const previous = yearlySelect.value;
       yearlySelect.innerHTML = "";
+      const placeholder = insertPlaceholder(yearlySelect);
       for (const item of projectOptions) {
         const opt = document.createElement("option");
-        opt.value = item.id;
+        opt.value = String(item.id);
         opt.textContent = item.display;
+        if (previous && String(item.id) === previous) {
+          opt.selected = true;
+          placeholder.selected = false;
+        }
         yearlySelect.append(opt);
       }
     }

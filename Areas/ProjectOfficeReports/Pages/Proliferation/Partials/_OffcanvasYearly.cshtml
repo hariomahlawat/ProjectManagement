@@ -7,7 +7,9 @@
     <form id="formYearly" novalidate>
       <div class="mb-3">
         <label for="yProjectId" class="form-label">Project</label>
-        <select id="yProjectId" class="form-select" required></select>
+        <select id="yProjectId" class="form-select" required>
+          <option value="" selected disabled>Select a completed project</option>
+        </select>
         <div class="invalid-feedback">Select a completed project.</div>
       </div>
       <div class="mb-3">
