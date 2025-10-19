@@ -7,7 +7,9 @@
     <form id="formGranular" novalidate>
       <div class="mb-3">
         <label for="gProjectId" class="form-label">Project</label>
-        <select id="gProjectId" class="form-select" required></select>
+        <select id="gProjectId" class="form-select" required>
+          <option value="" selected disabled>Select a completed project</option>
+        </select>
         <div class="invalid-feedback">Select a completed project.</div>
       </div>
       <div class="mb-3">
