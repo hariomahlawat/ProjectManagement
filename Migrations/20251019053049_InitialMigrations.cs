@@ -248,6 +248,71 @@ namespace ProjectManagement.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "ProliferationGranular",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    Source = table.Column<int>(type: "integer", nullable: false),
+                    SimulatorName = table.Column<string>(type: "text", nullable: false),
+                    UnitName = table.Column<string>(type: "text", nullable: false),
+                    ProliferationDate = table.Column<DateOnly>(type: "date", nullable: false),
+                    Quantity = table.Column<int>(type: "integer", nullable: false),
+                    Remarks = table.Column<string>(type: "text", nullable: true),
+                    ApprovalStatus = table.Column<int>(type: "integer", nullable: false),
+                    SubmittedByUserId = table.Column<string>(type: "text", nullable: false),
+                    ApprovedByUserId = table.Column<string>(type: "text", nullable: true),
+                    ApprovedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    CreatedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    LastUpdatedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProliferationGranular", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProliferationYearly",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    Source = table.Column<int>(type: "integer", nullable: false),
+                    Year = table.Column<int>(type: "integer", nullable: false),
+                    TotalQuantity = table.Column<int>(type: "integer", nullable: false),
+                    Remarks = table.Column<string>(type: "text", nullable: true),
+                    ApprovalStatus = table.Column<int>(type: "integer", nullable: false),
+                    SubmittedByUserId = table.Column<string>(type: "text", nullable: false),
+                    ApprovedByUserId = table.Column<string>(type: "text", nullable: true),
+                    ApprovedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    CreatedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    LastUpdatedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProliferationYearly", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProliferationYearPreference",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    Source = table.Column<int>(type: "integer", nullable: false),
+                    Year = table.Column<int>(type: "integer", nullable: false),
+                    Mode = table.Column<int>(type: "integer", nullable: false),
+                    SetByUserId = table.Column<string>(type: "text", nullable: false),
+                    SetOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProliferationYearPreference", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "SocialMediaEventTypes",
                 columns: table => new
                 {
@@ -1462,49 +1527,6 @@ namespace ProjectManagement.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "ProjectTotProgressUpdates",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    ProjectId = table.Column<int>(type: "integer", nullable: false),
-                    Body = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: false),
-                    EventDate = table.Column<DateOnly>(type: "date", nullable: true),
-                    SubmittedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
-                    SubmittedByRole = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    SubmittedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
-                    State = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
-                    DecidedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
-                    DecidedByRole = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: true),
-                    DecidedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
-                    DecisionRemarks = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
-                    PublishedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_ProjectTotProgressUpdates", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_ProjectTotProgressUpdates_AspNetUsers_DecidedByUserId",
-                        column: x => x.DecidedByUserId,
-                        principalTable: "AspNetUsers",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_ProjectTotProgressUpdates_AspNetUsers_SubmittedByUserId",
-                        column: x => x.SubmittedByUserId,
-                        principalTable: "AspNetUsers",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_ProjectTotProgressUpdates_Projects_ProjectId",
-                        column: x => x.ProjectId,
-                        principalTable: "Projects",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "ProjectTotRequests",
                 columns: table => new
                 {
@@ -1518,13 +1540,11 @@ namespace ProjectManagement.Migrations
                     ProposedMetCompletedOn = table.Column<DateOnly>(type: "date", nullable: true),
                     ProposedFirstProductionModelManufactured = table.Column<bool>(type: "boolean", nullable: true),
                     ProposedFirstProductionModelManufacturedOn = table.Column<DateOnly>(type: "date", nullable: true),
-                    ProposedRemarks = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     SubmittedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
                     SubmittedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
                     DecisionState = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
                     DecidedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
                     DecidedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
-                    DecisionRemarks = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     RowVersion = table.Column<byte[]>(type: "bytea", nullable: false)
                 },
                 constraints: table =>
@@ -1564,7 +1584,6 @@ namespace ProjectManagement.Migrations
                     MetCompletedOn = table.Column<DateOnly>(type: "date", nullable: true),
                     FirstProductionModelManufactured = table.Column<bool>(type: "boolean", nullable: true),
                     FirstProductionModelManufacturedOn = table.Column<DateOnly>(type: "date", nullable: true),
-                    Remarks = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     LastApprovedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: true),
                     LastApprovedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true)
                 },
@@ -2401,26 +2420,6 @@ namespace ProjectManagement.Migrations
                 column: "ProjectId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_ProjectTotProgressUpdates_DecidedByUserId",
-                table: "ProjectTotProgressUpdates",
-                column: "DecidedByUserId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_ProjectTotProgressUpdates_ProjectId",
-                table: "ProjectTotProgressUpdates",
-                column: "ProjectId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_ProjectTotProgressUpdates_ProjectId_State",
-                table: "ProjectTotProgressUpdates",
-                columns: new[] { "ProjectId", "State" });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_ProjectTotProgressUpdates_SubmittedByUserId",
-                table: "ProjectTotProgressUpdates",
-                column: "SubmittedByUserId");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_ProjectTotRequests_DecidedByUserId",
                 table: "ProjectTotRequests",
                 column: "DecidedByUserId");
@@ -2451,6 +2450,22 @@ namespace ProjectManagement.Migrations
                 name: "IX_ProjectVideos_ProjectId_Ordinal",
                 table: "ProjectVideos",
                 columns: new[] { "ProjectId", "Ordinal" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProliferationGranular_ProjectId_Source_ProliferationDate",
+                table: "ProliferationGranular",
+                columns: new[] { "ProjectId", "Source", "ProliferationDate" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProlifYearly_Project_Source_Year",
+                table: "ProliferationYearly",
+                columns: new[] { "ProjectId", "Source", "Year" });
+
+            migrationBuilder.CreateIndex(
+                name: "UX_ProlifYearPref_Project_Source_Year",
+                table: "ProliferationYearPreference",
+                columns: new[] { "ProjectId", "Source", "Year" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
@@ -3026,10 +3041,16 @@ namespace ProjectManagement.Migrations
                 name: "ProjectSupplyOrderFacts");
 
             migrationBuilder.DropTable(
-                name: "ProjectTotProgressUpdates");
+                name: "ProjectTotRequests");
 
             migrationBuilder.DropTable(
-                name: "ProjectTotRequests");
+                name: "ProliferationGranular");
+
+            migrationBuilder.DropTable(
+                name: "ProliferationYearly");
+
+            migrationBuilder.DropTable(
+                name: "ProliferationYearPreference");
 
             migrationBuilder.DropTable(
                 name: "RemarkAudits");

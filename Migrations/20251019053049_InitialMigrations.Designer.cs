@@ -12,7 +12,7 @@ using ProjectManagement.Data;
 namespace ProjectManagement.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20251016124046_InitialMigrations")]
+    [Migration("20251019053049_InitialMigrations")]
     partial class InitialMigrations
     {
         /// <inheritdoc />
@@ -155,6 +155,155 @@ namespace ProjectManagement.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("AspNetUserTokens", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationGranular", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ApprovalStatus")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ApprovedByUserId")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ApprovedOnUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("CreatedOnUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("LastUpdatedOnUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly>("ProliferationDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Remarks")
+                        .HasColumnType("text");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("SimulatorName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SubmittedByUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UnitName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "Source", "ProliferationDate");
+
+                    b.ToTable("ProliferationGranular", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationYearPreference", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Mode")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SetByUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("SetOnUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "Source", "Year")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProlifYearPref_Project_Source_Year");
+
+                    b.ToTable("ProliferationYearPreference", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.ProliferationYearly", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ApprovalStatus")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ApprovedByUserId")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ApprovedOnUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("CreatedOnUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<DateTime>("LastUpdatedOnUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Remarks")
+                        .HasColumnType("text");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bytea");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SubmittedByUserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("TotalQuantity")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "Source", "Year")
+                        .HasDatabaseName("IX_ProlifYearly_Project_Source_Year");
+
+                    b.ToTable("ProliferationYearly", (string)null);
                 });
 
             modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.SocialMediaEvent", b =>
@@ -592,6 +741,25 @@ namespace ProjectManagement.Migrations
                         .IsUnique();
 
                     b.ToTable("VisitTypes");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.VwProliferationGranularYearly", b =>
+                {
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalQuantity")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.ToTable((string)null);
+
+                    b.ToView("vw_ProliferationGranularYearly", (string)null);
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ApplicationUser", b =>
@@ -2565,10 +2733,6 @@ namespace ProjectManagement.Migrations
                     b.Property<int>("ProjectId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("Remarks")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
                     b.Property<DateOnly?>("StartedOn")
                         .HasColumnType("date");
 
@@ -2587,79 +2751,6 @@ namespace ProjectManagement.Migrations
                     b.ToTable("ProjectTots");
                 });
 
-            modelBuilder.Entity("ProjectManagement.Models.ProjectTotProgressUpdate", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Body")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("DecidedByRole")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<string>("DecidedByUserId")
-                        .HasMaxLength(450)
-                        .HasColumnType("character varying(450)");
-
-                    b.Property<DateTime?>("DecidedOnUtc")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("DecisionRemarks")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<DateOnly?>("EventDate")
-                        .HasColumnType("date");
-
-                    b.Property<int>("ProjectId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("PublishedOnUtc")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .HasColumnType("bytea");
-
-                    b.Property<string>("State")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<string>("SubmittedByRole")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
-
-                    b.Property<string>("SubmittedByUserId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("character varying(450)");
-
-                    b.Property<DateTime>("SubmittedOnUtc")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DecidedByUserId");
-
-                    b.HasIndex("ProjectId");
-
-                    b.HasIndex("SubmittedByUserId");
-
-                    b.HasIndex("ProjectId", "State");
-
-                    b.ToTable("ProjectTotProgressUpdates");
-                });
-
             modelBuilder.Entity("ProjectManagement.Models.ProjectTotRequest", b =>
                 {
                     b.Property<int>("Id")
@@ -2674,10 +2765,6 @@ namespace ProjectManagement.Migrations
 
                     b.Property<DateTime?>("DecidedOnUtc")
                         .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("DecisionRemarks")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
 
                     b.Property<string>("DecisionState")
                         .IsRequired()
@@ -2700,10 +2787,6 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("date");
 
                     b.Property<string>("ProposedMetDetails")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<string>("ProposedRemarks")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
@@ -4332,32 +4415,6 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Project");
                 });
 
-            modelBuilder.Entity("ProjectManagement.Models.ProjectTotProgressUpdate", b =>
-                {
-                    b.HasOne("ProjectManagement.Models.ApplicationUser", "DecidedByUser")
-                        .WithMany()
-                        .HasForeignKey("DecidedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("ProjectManagement.Models.Project", "Project")
-                        .WithMany("TotProgressUpdates")
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ProjectManagement.Models.ApplicationUser", "SubmittedByUser")
-                        .WithMany()
-                        .HasForeignKey("SubmittedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("DecidedByUser");
-
-                    b.Navigation("Project");
-
-                    b.Navigation("SubmittedByUser");
-                });
-
             modelBuilder.Entity("ProjectManagement.Models.ProjectTotRequest", b =>
                 {
                     b.HasOne("ProjectManagement.Models.ApplicationUser", "DecidedByUser")
@@ -4574,8 +4631,6 @@ namespace ProjectManagement.Migrations
                     b.Navigation("ProjectStages");
 
                     b.Navigation("Tot");
-
-                    b.Navigation("TotProgressUpdates");
 
                     b.Navigation("TotRequest");
 
