@@ -288,6 +288,11 @@ builder.Services.ConfigureHttpJsonOptions(o =>
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
 
+builder.Services.AddControllers().AddJsonOptions(o =>
+{
+    o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
+
 // Register email sender
 if (!string.IsNullOrWhiteSpace(builder.Configuration["Email:Smtp:Host"]))
 {
@@ -445,6 +450,8 @@ app.UseAuthorization();
 
 app.MapHub<NotificationsHub>("/hubs/notifications")
     .RequireAuthorization();
+
+app.MapControllers();
 
 // Calendar API endpoints
 var eventsApi = app.MapGroup("/calendar/events");
