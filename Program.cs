@@ -2296,8 +2296,6 @@ record TrashProjectRequest(string Reason);
 
 record PurgeProjectRequest(bool RemoveAssets);
 
-public partial class Program { }
-
 static IEnumerable<int> ParseInts(string? value)
 {
     if (string.IsNullOrWhiteSpace(value))
@@ -2337,3 +2335,5 @@ static ProliferationSource? ParseSource(string? value)
             _ => null
         };
 }
+
+public partial class Program { }
