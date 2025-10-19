@@ -1,0 +1,110 @@
+<section id="entryWorkspace" class="mb-4" aria-labelledby="entry-workspace-heading">
+    <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-header bg-white border-0 pb-0">
+            <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+                <div>
+                    <h2 id="entry-workspace-heading" class="h5 mb-1">Entry workspace</h2>
+                    <p class="text-muted small mb-0">Review existing proliferation records while adding granular entries or yearly totals.</p>
+                </div>
+                <p class="text-muted small mb-0">Split view keeps the list and entry forms in sync.</p>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row g-4 align-items-start">
+                <div class="col-12 col-xl-7">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3 class="h6 text-uppercase text-muted mb-0">Existing data</h3>
+                        <span class="badge rounded-pill text-bg-light" id="entryListCount" hidden>0 records</span>
+                    </div>
+                    <div id="tableContainer" class="pro-entry-list" aria-live="polite" aria-busy="true">
+                        <div class="text-center text-muted py-5">Loading proliferation overview…</div>
+                    </div>
+                </div>
+                <div class="col-12 col-xl-5">
+                    <div class="pro-entry-pane h-100 d-flex flex-column">
+                        <div class="mb-3">
+                            <h3 class="h6 mb-1">Add or edit data</h3>
+                            <p class="text-muted small mb-0">Switch between granular snapshots and yearly totals without leaving the page.</p>
+                        </div>
+                        <div class="btn-group pro-entry-toggle" role="tablist" aria-label="Entry type">
+                            <button type="button" class="btn btn-outline-primary active" data-entry-pane="granular" aria-pressed="true">Granular entry</button>
+                            <button type="button" class="btn btn-outline-primary" data-entry-pane="yearly" aria-pressed="false">Yearly total</button>
+                        </div>
+                        <div id="entrySelectionSummary" class="alert alert-light border mt-3 mb-0 small" role="status" hidden></div>
+                        <div class="pro-entry-forms mt-4 flex-grow-1">
+                            <form id="formGranular" class="pro-entry-form" data-entry-form="granular" novalidate>
+                                <div class="mb-3">
+                                    <label for="gProjectId" class="form-label">Project</label>
+                                    <select id="gProjectId" class="form-select" required data-entry-autofocus>
+                                        <option value="" selected disabled>Select a completed project</option>
+                                    </select>
+                                    <div class="invalid-feedback">Select a completed project.</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="gSimulator" class="form-label">Simulator name</label>
+                                    <input id="gSimulator" class="form-control" maxlength="200" required />
+                                </div>
+                                <div class="mb-3">
+                                    <label for="gUnit" class="form-label">Unit name</label>
+                                    <input id="gUnit" class="form-control" maxlength="200" required />
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-12 col-sm-6">
+                                        <label for="gDate" class="form-label">Proliferation date</label>
+                                        <input id="gDate" type="date" class="form-control" required />
+                                    </div>
+                                    <div class="col-12 col-sm-6">
+                                        <label for="gQty" class="form-label">Quantity</label>
+                                        <input id="gQty" type="number" min="1" class="form-control" required />
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="gRemarks" class="form-label">Remarks</label>
+                                    <textarea id="gRemarks" class="form-control" maxlength="500" rows="2"></textarea>
+                                </div>
+                                <div class="d-flex justify-content-end gap-2 mt-auto">
+                                    <button class="btn btn-light" type="reset">Reset</button>
+                                    <button class="btn btn-primary" id="btnSaveGranular" type="submit">Save granular entry</button>
+                                </div>
+                            </form>
+                            <form id="formYearly" class="pro-entry-form d-none" data-entry-form="yearly" novalidate>
+                                <div class="mb-3">
+                                    <label for="yProjectId" class="form-label">Project</label>
+                                    <select id="yProjectId" class="form-select" required data-entry-autofocus>
+                                        <option value="" selected disabled>Select a completed project</option>
+                                    </select>
+                                    <div class="invalid-feedback">Select a completed project.</div>
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-12 col-sm-6">
+                                        <label for="ySource" class="form-label">Source</label>
+                                        <select id="ySource" class="form-select" required>
+                                            <option value="1">SDD</option>
+                                            <option value="2">515 ABW</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-sm-6">
+                                        <label for="yYear" class="form-label">Year</label>
+                                        <input id="yYear" type="number" min="2000" max="3000" class="form-control" required />
+                                    </div>
+                                </div>
+                                <div class="mb-3 mt-3">
+                                    <label for="yQty" class="form-label">Total quantity</label>
+                                    <input id="yQty" type="number" min="0" class="form-control" required />
+                                </div>
+                                <div class="mb-3">
+                                    <label for="yRemarks" class="form-label">Remarks</label>
+                                    <textarea id="yRemarks" class="form-control" maxlength="500" rows="2"></textarea>
+                                </div>
+                                <div class="d-flex justify-content-end gap-2 mt-auto">
+                                    <button class="btn btn-light" type="reset">Reset</button>
+                                    <button class="btn btn-primary" id="btnSaveYearly" type="submit">Save yearly total</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

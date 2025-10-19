@@ -46,6 +46,15 @@
     }
   };
 
+  function escapeAttr(value) {
+    if (value === null || value === undefined) return "";
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
   const filterState = {
     years: [],
     from: null,
@@ -137,6 +146,19 @@
     if (ts) ts.textContent = `Updated ${stamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
   }
 
+  function updateEntryCount(count) {
+    const badge = $("#entryListCount");
+    if (!badge) return;
+    if (!count) {
+      badge.hidden = true;
+      badge.textContent = "";
+      return;
+    }
+    const total = Number(count);
+    badge.textContent = `${total.toLocaleString()} ${total === 1 ? "record" : "records"}`;
+    badge.hidden = false;
+  }
+
   function renderTable(rows) {
     const host = $("#tableContainer");
     if (!host) return;
@@ -147,6 +169,8 @@
         <div>No records match the current filters. Try adjusting filters or reset.</div>
       </div>`;
       host.removeAttribute("aria-busy");
+      updateEntryCount(0);
+      updateSelectionSummary(null);
       return;
     }
 
@@ -167,25 +191,146 @@
         </tr>
       </thead>`;
 
-    const body = rows.map((row) => `
-      <tr>
-        <td>${row.Year ?? row.year ?? ""}</td>
-        <td>${row.Project ?? row.ProjectName ?? row.project ?? row.projectName ?? ""}</td>
-        <td>${row.Source ?? row.source ?? ""}</td>
-        <td>${row.DataType ?? row.dataType ?? ""}</td>
-        <td>${row.UnitName ?? row.unitName ?? ""}</td>
-        <td>${row.SimulatorName ?? row.simulatorName ?? ""}</td>
-        <td>${fmt.date(row.DateUtc ?? row.dateUtc ?? row.ProliferationDate ?? row.proliferationDate)}</td>
-        <td class="text-end">${fmt.number(row.Quantity ?? row.quantity)}</td>
-        <td class="text-end">${fmt.number(row.EffectiveTotal ?? row.effectiveTotal)}</td>
-        <td>${row.ApprovalStatus ?? row.approvalStatus ?? ""}</td>
-        <td>${row.Mode ?? row.mode ?? "—"}</td>
-      </tr>`).join("");
+    const body = rows.map((row) => {
+      const project = row.Project ?? row.ProjectName ?? row.project ?? row.projectName ?? "";
+      const source = row.Source ?? row.source ?? "";
+      const typeLabel = row.DataType ?? row.dataType ?? "";
+      const pane = typeLabel.toLowerCase().includes("year") ? "yearly" : "granular";
+      const unit = row.UnitName ?? row.unitName ?? "";
+      const simulator = row.SimulatorName ?? row.simulatorName ?? "";
+      const dateRaw = row.DateUtc ?? row.dateUtc ?? row.ProliferationDate ?? row.proliferationDate ?? "";
+      const quantity = row.Quantity ?? row.quantity ?? 0;
+      const effective = row.EffectiveTotal ?? row.effectiveTotal;
+      const approval = row.ApprovalStatus ?? row.approvalStatus ?? "";
+      const mode = row.Mode ?? row.mode ?? "—";
+      const year = row.Year ?? row.year ?? "";
+      const attrs = [
+        `data-entry-type="${pane}"`,
+        `data-entry-project="${escapeAttr(project)}"`,
+        `data-entry-source="${escapeAttr(source)}"`,
+        `data-entry-year="${escapeAttr(year)}"`,
+        `data-entry-date="${escapeAttr(dateRaw)}"`,
+        `data-entry-quantity="${escapeAttr(quantity)}"`,
+        `data-entry-unit="${escapeAttr(unit)}"`,
+        `data-entry-simulator="${escapeAttr(simulator)}"`
+      ].join(" ");
+      return `
+      <tr ${attrs}>
+        <td>${year}</td>
+        <td>${project}</td>
+        <td>${source}</td>
+        <td>${typeLabel}</td>
+        <td>${unit}</td>
+        <td>${simulator}</td>
+        <td>${fmt.date(dateRaw)}</td>
+        <td class="text-end">${fmt.number(quantity)}</td>
+        <td class="text-end">${fmt.number(effective)}</td>
+        <td>${approval}</td>
+        <td>${mode}</td>
+      </tr>`;
+    }).join("");
 
     host.innerHTML = `<div class="table-responsive">
-      <table class="table table-hover align-middle mb-0">${header}<tbody>${body}</tbody></table>
+      <table class="table table-hover align-middle mb-0 table-proliferation">${header}<tbody>${body}</tbody></table>
     </div>`;
     host.setAttribute("aria-busy", "false");
+    updateEntryCount(rows.length);
+    updateSelectionSummary(null);
+    wireEntryTable();
+  }
+
+  function clearEntrySelection() {
+    $all("#tableContainer tbody tr").forEach((row) => row.classList.remove("is-selected"));
+    updateSelectionSummary(null);
+  }
+
+  function updateSelectionSummary(row) {
+    const summary = $("#entrySelectionSummary");
+    if (!summary) return;
+    if (!row) {
+      summary.hidden = true;
+      summary.textContent = "";
+      return;
+    }
+    const project = row.dataset.entryProject || "—";
+    const type = row.dataset.entryType === "yearly" ? "yearly total" : "granular entry";
+    const quantity = Number(row.dataset.entryQuantity || 0).toLocaleString();
+    const details = [];
+    if (row.dataset.entryType === "yearly" && row.dataset.entryYear) {
+      details.push(`Year ${row.dataset.entryYear}`);
+    }
+    if (row.dataset.entryType !== "yearly" && row.dataset.entryDate) {
+      details.push(`Date ${fmt.date(row.dataset.entryDate)}`);
+    }
+    if (row.dataset.entrySource) {
+      details.push(`Source ${row.dataset.entrySource}`);
+    }
+    if (row.dataset.entryUnit) {
+      details.push(`Unit ${row.dataset.entryUnit}`);
+    }
+    if (row.dataset.entrySimulator) {
+      details.push(`Simulator ${row.dataset.entrySimulator}`);
+    }
+    details.push(`Quantity ${quantity}`);
+    summary.innerHTML = `<strong>${project}</strong> ${type}.<br><span class="text-muted">${details.join(" · ")}</span>`;
+    summary.hidden = false;
+  }
+
+  function wireEntryTable() {
+    const rows = $all("#tableContainer tbody tr");
+    if (!rows.length) {
+      clearEntrySelection();
+      return;
+    }
+    rows.forEach((row) => {
+      row.addEventListener("click", () => {
+        rows.forEach((r) => r.classList.remove("is-selected"));
+        row.classList.add("is-selected");
+        const target = row.dataset.entryType === "yearly" ? "yearly" : "granular";
+        activateEntryPane(target, { focus: false });
+        updateSelectionSummary(row);
+      });
+    });
+  }
+
+  function activateEntryPane(name, options = {}) {
+    const target = name === "yearly" ? "yearly" : "granular";
+    const forms = $all("[data-entry-form]");
+    forms.forEach((form) => {
+      const isMatch = form.dataset.entryForm === target;
+      form.classList.toggle("d-none", !isMatch);
+      form.setAttribute("aria-hidden", String(!isMatch));
+      if (!isMatch) form.classList.remove("was-validated");
+    });
+    const toggles = $all("[data-entry-pane]");
+    toggles.forEach((btn) => {
+      const active = btn.dataset.entryPane === target;
+      btn.classList.toggle("active", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+    if (options.focus !== false) {
+      const host = document.querySelector(`[data-entry-form="${target}"]`);
+      const focusTarget = host?.querySelector("[data-entry-autofocus]");
+      if (focusTarget) focusTarget.focus();
+    }
+  }
+
+  function wireEntryPaneToggle() {
+    $all("[data-entry-pane]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        activateEntryPane(btn.dataset.entryPane);
+      });
+    });
+  }
+
+  function wireEntryShortcuts() {
+    $all("[data-entry-target]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const target = btn.dataset.entryTarget;
+        activateEntryPane(target);
+        $("#entryWorkspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
   }
 
   function buildQuery(filters) {
@@ -297,13 +442,15 @@
     return false;
   }
 
-  function wireOffcanvas() {
+  function wireEntryForms() {
     const granularForm = $("#formGranular");
     if (granularForm && !granularForm.dataset.wired) {
       granularForm.dataset.wired = "true";
       granularForm.addEventListener("submit", async (event) => {
         event.preventDefault();
         if (!validateForm(granularForm)) return;
+        const submitButton = granularForm.querySelector("[type='submit']");
+        if (submitButton) submitButton.disabled = true;
         const body = {
           ProjectId: Number($("#gProjectId")?.value),
           SimulatorName: $("#gSimulator")?.value.trim(),
@@ -320,12 +467,18 @@
           });
           if (!response.ok) throw new Error();
           toast("Granular entry saved");
-          bootstrap.Offcanvas.getOrCreateInstance($("#ocGranular")).hide();
           granularForm.reset();
+          activateEntryPane("granular");
+          clearEntrySelection();
           refresh();
         } catch {
           toast("Failed to save granular entry", "danger");
+        } finally {
+          if (submitButton) submitButton.disabled = false;
         }
+      });
+      granularForm.addEventListener("reset", () => {
+        granularForm.classList.remove("was-validated");
       });
     }
 
@@ -335,6 +488,8 @@
       yearlyForm.addEventListener("submit", async (event) => {
         event.preventDefault();
         if (!validateForm(yearlyForm)) return;
+        const submitButton = yearlyForm.querySelector("[type='submit']");
+        if (submitButton) submitButton.disabled = true;
         const body = {
           ProjectId: Number($("#yProjectId")?.value),
           Source: Number($("#ySource")?.value),
@@ -350,12 +505,18 @@
           });
           if (!response.ok) throw new Error();
           toast("Yearly total saved");
-          bootstrap.Offcanvas.getOrCreateInstance($("#ocYearly")).hide();
           yearlyForm.reset();
+          activateEntryPane("yearly");
+          clearEntrySelection();
           refresh();
         } catch {
           toast("Failed to save yearly total", "danger");
+        } finally {
+          if (submitButton) submitButton.disabled = false;
         }
+      });
+      yearlyForm.addEventListener("reset", () => {
+        yearlyForm.classList.remove("was-validated");
       });
     }
   }
@@ -634,7 +795,10 @@
   document.addEventListener("DOMContentLoaded", async () => {
     populateYears();
     wireFilters();
-    wireOffcanvas();
+    wireEntryForms();
+    wireEntryPaneToggle();
+    wireEntryShortcuts();
+    activateEntryPane("granular", { focus: false });
     wireImport();
     wireToolbar();
     wirePreferences();
