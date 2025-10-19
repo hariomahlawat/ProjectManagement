@@ -106,8 +106,12 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         [HttpGet("overview")]
         public async Task<ActionResult<ProliferationOverviewDto>> GetOverview([FromQuery] ProliferationOverviewQuery q, CancellationToken ct)
         {
+            var requestedPageSize = q.PageSize;
+            var unpaged = requestedPageSize == 0;
             var page = q.Page < 1 ? 1 : q.Page;
-            var pageSize = q.PageSize < 1 ? 50 : Math.Min(q.PageSize, 200);
+            var pageSize = unpaged
+                ? 0
+                : (requestedPageSize < 1 ? 50 : Math.Min(requestedPageSize, 200));
 
             DateTime? from = q.FromDateUtc;
             DateTime? to = q.ToDateUtc;
@@ -219,7 +223,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 page = 1;
             }
 
-            var orderedRowsQuery = combinedRows
+            IQueryable<OverviewRowProjection> orderedRowsQuery = combinedRows
                 .OrderByDescending(r => r.Year)
                 .ThenBy(r => r.Project)
                 .ThenBy(r => r.Source)
