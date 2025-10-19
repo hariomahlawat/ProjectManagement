@@ -2050,32 +2050,6 @@ static async Task<IResult> HandleNotificationOperationResultAsync(
     };
 }
 
-static bool TryParseRowVersion(string? value, out byte[]? rowVersion, out IResult? error)
-{
-    rowVersion = null;
-    error = null;
-
-    if (string.IsNullOrWhiteSpace(value))
-    {
-        return true;
-    }
-
-    try
-    {
-        rowVersion = Convert.FromBase64String(value);
-        return true;
-    }
-    catch (FormatException)
-    {
-        error = Results.BadRequest(new ProblemDetails
-        {
-            Title = "Invalid row version.",
-            Detail = "The supplied row version token is not valid."
-        });
-        return false;
-    }
-}
-
 static async Task<IResult> SendUnreadCountAsync(
     ClaimsPrincipal principal,
     string userId,
