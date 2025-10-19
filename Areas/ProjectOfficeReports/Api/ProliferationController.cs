@@ -184,8 +184,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 null,
                 null,
                 x.Yearly.TotalQuantity,
-                x.Yearly.ApprovalStatus.ToString(),
-                x.Preference != null ? x.Preference.Mode.ToString() : null));
+                x.Yearly.ApprovalStatus,
+                x.Preference != null ? (YearPreferenceMode?)x.Preference.Mode : null));
 
             var granularRowsQuery = granularBase.Select(x => new OverviewRowProjection(
                 x.Project.Id,
@@ -196,9 +196,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 "Granular",
                 x.Granular.UnitName,
                 x.Granular.SimulatorName,
-                x.Granular.ProliferationDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc),
+                x.Granular.ProliferationDate,
                 x.Granular.Quantity,
-                x.Granular.ApprovalStatus.ToString(),
+                x.Granular.ApprovalStatus,
                 null));
 
             var combinedRows = yearlyRowsQuery.Concat(granularRowsQuery);
@@ -228,7 +228,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 .ThenBy(r => r.Project)
                 .ThenBy(r => r.Source)
                 .ThenBy(r => r.DataType)
-                .ThenBy(r => r.DateUtc);
+                .ThenBy(r => r.Date);
 
             if (!unpaged && pageSize > 0)
             {
@@ -277,11 +277,13 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                         DataType = r.DataType,
                         UnitName = r.UnitName,
                         SimulatorName = r.SimulatorName,
-                        DateUtc = r.DateUtc,
+                        DateUtc = r.Date.HasValue
+                            ? r.Date.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc)
+                            : null,
                         Quantity = r.Quantity,
                         EffectiveTotal = effective,
-                        ApprovalStatus = r.ApprovalStatus,
-                        Mode = r.Mode
+                        ApprovalStatus = r.ApprovalStatus.ToString(),
+                        Mode = r.Mode?.ToString()
                     };
                 })
                 .ToList();
@@ -523,10 +525,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             string DataType,
             string? UnitName,
             string? SimulatorName,
-            DateTime? DateUtc,
+            DateOnly? Date,
             int Quantity,
-            string ApprovalStatus,
-            string? Mode);
+            ApprovalStatus ApprovalStatus,
+            YearPreferenceMode? Mode);
 
         private sealed record CombinationKey(int ProjectId, ProliferationSource Source, int Year);
 
