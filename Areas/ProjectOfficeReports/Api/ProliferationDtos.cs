@@ -63,6 +63,14 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public IReadOnlyList<ProliferationOverviewRowDto> Rows { get; set; } = Array.Empty<ProliferationOverviewRowDto>();
     }
 
+    public sealed class ProliferationProjectLookupDto
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = default!;
+        public string? Code { get; set; }
+        public string Display => string.IsNullOrWhiteSpace(Code) ? Name : $"{Name} ({Code})";
+    }
+
     // Create Yearly
     public sealed class ProliferationYearlyCreateDto
     {

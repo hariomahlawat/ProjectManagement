@@ -1,0 +1,39 @@
+<div class="offcanvas offcanvas-end" tabindex="-1" id="ocGranular" aria-labelledby="ocGranularLabel">
+  <div class="offcanvas-header">
+    <h5 id="ocGranularLabel" class="offcanvas-title">Add granular entry</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+  </div>
+  <div class="offcanvas-body">
+    <form id="formGranular" novalidate>
+      <div class="mb-3">
+        <label for="gProjectId" class="form-label">Project</label>
+        <select id="gProjectId" class="form-select" required></select>
+        <div class="invalid-feedback">Select a completed project.</div>
+      </div>
+      <div class="mb-3">
+        <label for="gSimulator" class="form-label">Simulator name</label>
+        <input id="gSimulator" class="form-control" maxlength="200" required />
+      </div>
+      <div class="mb-3">
+        <label for="gUnit" class="form-label">Unit name</label>
+        <input id="gUnit" class="form-control" maxlength="200" required />
+      </div>
+      <div class="mb-3">
+        <label for="gDate" class="form-label">Proliferation date</label>
+        <input id="gDate" type="date" class="form-control" required />
+      </div>
+      <div class="mb-3">
+        <label for="gQty" class="form-label">Quantity</label>
+        <input id="gQty" type="number" min="1" class="form-control" required />
+      </div>
+      <div class="mb-3">
+        <label for="gRemarks" class="form-label">Remarks</label>
+        <textarea id="gRemarks" class="form-control" maxlength="500" rows="2"></textarea>
+      </div>
+      <div class="d-flex justify-content-end gap-2">
+        <button class="btn btn-light" type="button" data-bs-dismiss="offcanvas">Cancel</button>
+        <button class="btn btn-primary" id="btnSaveGranular" type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>

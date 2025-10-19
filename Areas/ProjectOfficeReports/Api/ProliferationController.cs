@@ -40,6 +40,35 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             _logger = logger;
         }
 
+        [HttpGet("projects")]
+        public async Task<ActionResult<IReadOnlyList<ProliferationProjectLookupDto>>> GetEligibleProjects([FromQuery] string? q, CancellationToken ct)
+        {
+            var projects = _db.Projects
+                .AsNoTracking()
+                .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Completed);
+
+            if (!string.IsNullOrWhiteSpace(q))
+            {
+                var term = $"%{q.Trim()}%";
+                projects = projects.Where(p =>
+                    EF.Functions.ILike(p.Name, term) ||
+                    (p.CaseFileNumber != null && EF.Functions.ILike(p.CaseFileNumber, term)));
+            }
+
+            var results = await projects
+                .OrderBy(p => p.Name)
+                .Take(25)
+                .Select(p => new ProliferationProjectLookupDto
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    Code = p.CaseFileNumber
+                })
+                .ToListAsync(ct);
+
+            return results;
+        }
+
         [HttpGet("overview")]
         public async Task<ActionResult<ProliferationOverviewDto>> GetOverview([FromQuery] ProliferationOverviewQuery q, CancellationToken ct)
         {
@@ -270,6 +299,37 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
             var result = await _submitSvc.CreateGranularAsync(dto, User, ct);
             return result.Success ? Ok() : BadRequest(result.Error);
+        }
+
+        [HttpGet("year-preference")]
+        public async Task<ActionResult<ProliferationYearPreferenceDto>> GetYearPreference([FromQuery] int projectId, [FromQuery] ProliferationSource source, [FromQuery] int year, CancellationToken ct)
+        {
+            if (projectId <= 0)
+            {
+                return BadRequest("ProjectId is required.");
+            }
+
+            if (year < 2000)
+            {
+                return BadRequest("Year is required.");
+            }
+
+            var preference = await _db.Set<ProliferationYearPreference>()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.ProjectId == projectId && p.Source == source && p.Year == year, ct);
+
+            if (preference is null)
+            {
+                return NotFound();
+            }
+
+            return new ProliferationYearPreferenceDto
+            {
+                ProjectId = preference.ProjectId,
+                Source = preference.Source,
+                Year = preference.Year,
+                Mode = preference.Mode
+            };
         }
 
         [HttpPost("year-preference")]
