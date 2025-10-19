@@ -33,12 +33,20 @@ public class ProliferationTrackerReadServiceTests
             RowVersion = new byte[] { 1 }
         });
 
-        context.ProliferationGranularYearlyView.Add(new VwProliferationGranularYearly
+        context.ProliferationGranularEntries.Add(new ProliferationGranular
         {
+            Id = Guid.NewGuid(),
             ProjectId = 1,
             Source = ProliferationSource.Sdd,
-            Year = 2024,
-            TotalQuantity = 20
+            SimulatorName = "Sim",
+            UnitName = "Unit",
+            ProliferationDate = new DateOnly(2024, 1, 1),
+            Quantity = 20,
+            ApprovalStatus = ApprovalStatus.Approved,
+            SubmittedByUserId = "user-1",
+            CreatedOnUtc = DateTime.UtcNow,
+            LastUpdatedOnUtc = DateTime.UtcNow,
+            RowVersion = new byte[] { 1 }
         });
 
         await context.SaveChangesAsync();
@@ -47,7 +55,7 @@ public class ProliferationTrackerReadServiceTests
         var granularTotal = await service.GetEffectiveTotalAsync(1, ProliferationSource.Sdd, 2024, CancellationToken.None);
         Assert.Equal(20, granularTotal);
 
-        context.Set<VwProliferationGranularYearly>().RemoveRange(context.ProliferationGranularYearlyView);
+        context.ProliferationGranularEntries.RemoveRange(context.ProliferationGranularEntries);
         await context.SaveChangesAsync();
 
         var yearlyTotal = await service.GetEffectiveTotalAsync(1, ProliferationSource.Sdd, 2024, CancellationToken.None);
@@ -78,12 +86,20 @@ public class ProliferationTrackerReadServiceTests
             RowVersion = new byte[] { 1 }
         });
 
-        context.ProliferationGranularYearlyView.Add(new VwProliferationGranularYearly
+        context.ProliferationGranularEntries.Add(new ProliferationGranular
         {
+            Id = Guid.NewGuid(),
             ProjectId = 2,
             Source = ProliferationSource.Sdd,
-            Year = 2025,
-            TotalQuantity = 80
+            SimulatorName = "Sim",
+            UnitName = "Unit",
+            ProliferationDate = new DateOnly(2025, 1, 1),
+            Quantity = 80,
+            ApprovalStatus = ApprovalStatus.Approved,
+            SubmittedByUserId = "user-2",
+            CreatedOnUtc = DateTime.UtcNow,
+            LastUpdatedOnUtc = DateTime.UtcNow,
+            RowVersion = new byte[] { 1 }
         });
 
         context.ProliferationYearPreferences.Add(new ProliferationYearPreference
@@ -146,12 +162,20 @@ public class ProliferationTrackerReadServiceTests
             RowVersion = new byte[] { 1 }
         });
 
-        context.ProliferationGranularYearlyView.Add(new VwProliferationGranularYearly
+        context.ProliferationGranularEntries.Add(new ProliferationGranular
         {
+            Id = Guid.NewGuid(),
             ProjectId = 3,
             Source = ProliferationSource.Abw515,
-            Year = 2026,
-            TotalQuantity = 90
+            SimulatorName = "Sim",
+            UnitName = "Unit",
+            ProliferationDate = new DateOnly(2026, 1, 1),
+            Quantity = 90,
+            ApprovalStatus = ApprovalStatus.Approved,
+            SubmittedByUserId = "user-3",
+            CreatedOnUtc = DateTime.UtcNow,
+            LastUpdatedOnUtc = DateTime.UtcNow,
+            RowVersion = new byte[] { 1 }
         });
 
         await context.SaveChangesAsync();

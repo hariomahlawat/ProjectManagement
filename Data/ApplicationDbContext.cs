@@ -91,7 +91,6 @@ namespace ProjectManagement.Data
         public DbSet<ProliferationYearly> ProliferationYearlies => Set<ProliferationYearly>();
         public DbSet<ProliferationGranular> ProliferationGranularEntries => Set<ProliferationGranular>();
         public DbSet<ProliferationYearPreference> ProliferationYearPreferences => Set<ProliferationYearPreference>();
-        public DbSet<VwProliferationGranularYearly> ProliferationGranularYearlyView => Set<VwProliferationGranularYearly>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -400,11 +399,6 @@ namespace ProjectManagement.Data
                     .HasDatabaseName("UX_ProlifYearPref_Project_Source_Year");
             });
 
-            builder.Entity<VwProliferationGranularYearly>(b =>
-            {
-                b.HasNoKey();
-                b.ToView("vw_ProliferationGranularYearly");
-            });
 
             builder.Entity<SocialMediaEventType>(e =>
             {

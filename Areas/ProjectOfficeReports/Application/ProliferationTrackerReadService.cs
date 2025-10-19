@@ -21,10 +21,14 @@ public sealed class ProliferationTrackerReadService
             .Select(x => (int?)x.TotalQuantity)
             .FirstOrDefaultAsync(cancellationToken) ?? 0;
 
-        var granularSum = await _db.Set<VwProliferationGranularYearly>()
-            .Where(x => x.ProjectId == projectId && x.Source == source && x.Year == year)
-            .Select(x => x.TotalQuantity)
-            .FirstOrDefaultAsync(cancellationToken);
+        var granularSum = await _db.Set<ProliferationGranular>()
+            .Where(x =>
+                x.ProjectId == projectId &&
+                x.Source == source &&
+                x.ApprovalStatus == ApprovalStatus.Approved &&
+                x.ProliferationDate.Year == year)
+            .Select(x => (int?)x.Quantity)
+            .SumAsync(cancellationToken) ?? 0;
 
         if (source == ProliferationSource.Abw515)
         {
