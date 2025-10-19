@@ -204,29 +204,141 @@
       }
 
       const data = await response.json();
-      const summary = data.summary ?? data.Summary ?? null;
-      const grid = data.grid ?? data.Grid ?? null;
-      renderKpis(summary);
-      renderTable(grid);
+      const overview = normalizeOverviewResponse(data);
+      renderKpis(overview.kpis);
+      renderTable(overview.rows);
     } catch (error) {
       console.error(error);
       renderError();
     }
   }
 
-  function renderKpis(summary) {
-    const totals = (summary?.totals ?? summary?.Totals) ?? { projects: 0, totalQuantity: 0, sddQuantity: 0, abw515Quantity: 0 };
-    const lastYear = (summary?.lastTwelveMonths ?? summary?.LastTwelveMonths) ?? { projects: 0, totalQuantity: 0, sddQuantity: 0, abw515Quantity: 0 };
+  function normalizeOverviewResponse(payload) {
+    const summary = payload?.summary ?? payload?.Summary ?? null;
+    const grid = payload?.grid ?? payload?.Grid ?? null;
+    const kpisSource = payload?.Kpis ?? payload?.kpis ?? null;
 
-    setKpi('kpi-total-completed', totals.projects, 'Projects with data');
-    setKpi('kpi-total-prolif', totals.totalQuantity, 'Total quantity');
-    setKpi('kpi-total-sdd', totals.sddQuantity, 'SDD quantity');
-    setKpi('kpi-total-abw', totals.abw515Quantity, '515 ABW quantity');
+    const totals = summary ? summary.totals ?? summary.Totals ?? null : null;
+    const lastYear = summary ? summary.lastTwelveMonths ?? summary.LastTwelveMonths ?? null : null;
 
-    setKpi('kpi-lastyear-projects', lastYear.projects, 'Projects (last year)');
-    setKpi('kpi-lastyear-total', lastYear.totalQuantity, 'Total (last year)');
-    setKpi('kpi-lastyear-sdd', lastYear.sddQuantity, 'SDD (last year)');
-    setKpi('kpi-lastyear-abw', lastYear.abw515Quantity, '515 ABW (last year)');
+    const selectNumber = (...candidates) => {
+      for (const candidate of candidates) {
+        if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+          return candidate;
+        }
+        if (typeof candidate === 'string' && candidate.trim() !== '') {
+          const parsed = Number(candidate);
+          if (!Number.isNaN(parsed)) {
+            return parsed;
+          }
+        }
+      }
+      return 0;
+    };
+
+    const kpis = {
+      totalCompletedProjects: selectNumber(
+        kpisSource?.TotalCompletedProjects,
+        kpisSource?.totalCompletedProjects,
+        totals?.projects,
+        totals?.Projects
+      ),
+      totalProliferationAllTime: selectNumber(
+        kpisSource?.TotalProliferationAllTime,
+        kpisSource?.totalProliferationAllTime,
+        totals?.totalQuantity,
+        totals?.TotalQuantity
+      ),
+      totalProliferationSdd: selectNumber(
+        kpisSource?.TotalProliferationSdd,
+        kpisSource?.totalProliferationSdd,
+        totals?.sddQuantity,
+        totals?.SddQuantity
+      ),
+      totalProliferationAbw515: selectNumber(
+        kpisSource?.TotalProliferationAbw515,
+        kpisSource?.totalProliferationAbw515,
+        totals?.abw515Quantity,
+        totals?.Abw515Quantity
+      ),
+      lastYearProjectsProliferated: selectNumber(
+        kpisSource?.LastYearProjectsProliferated,
+        kpisSource?.lastYearProjectsProliferated,
+        lastYear?.projects,
+        lastYear?.Projects
+      ),
+      lastYearTotalProliferation: selectNumber(
+        kpisSource?.LastYearTotalProliferation,
+        kpisSource?.lastYearTotalProliferation,
+        lastYear?.totalQuantity,
+        lastYear?.TotalQuantity
+      ),
+      lastYearSdd: selectNumber(
+        kpisSource?.LastYearSdd,
+        kpisSource?.lastYearSdd,
+        lastYear?.sddQuantity,
+        lastYear?.SddQuantity
+      ),
+      lastYearAbw515: selectNumber(
+        kpisSource?.LastYearAbw515,
+        kpisSource?.lastYearAbw515,
+        lastYear?.abw515Quantity,
+        lastYear?.Abw515Quantity
+      )
+    };
+
+    let rows = payload?.Rows ?? payload?.rows ?? null;
+    if (!Array.isArray(rows)) {
+      if (rows && typeof rows === 'object') {
+        const items = rows.items ?? rows.Items;
+        rows = Array.isArray(items) ? items : [];
+      } else if (grid) {
+        if (Array.isArray(grid)) {
+          rows = grid;
+        } else if (typeof grid === 'object') {
+          const items = grid.items ?? grid.Items;
+          rows = Array.isArray(items) ? items : [];
+        } else {
+          rows = [];
+        }
+      } else {
+        rows = [];
+      }
+    }
+
+    return {
+      kpis,
+      rows: Array.isArray(rows) ? rows : [],
+      totalCount: selectNumber(
+        payload?.TotalCount,
+        payload?.totalCount,
+        grid?.totalCount,
+        grid?.TotalCount
+      )
+    };
+  }
+
+  function renderKpis(kpis) {
+    const metrics = kpis ?? {
+      totalCompletedProjects: 0,
+      totalProliferationAllTime: 0,
+      totalProliferationSdd: 0,
+      totalProliferationAbw515: 0,
+      lastYearProjectsProliferated: 0,
+      lastYearTotalProliferation: 0,
+      lastYearSdd: 0,
+      lastYearAbw515: 0
+    };
+
+    setKpi('kpi-total-completed', metrics.totalCompletedProjects, 'Projects with data');
+    setKpi('kpi-total-prolif', metrics.totalProliferationAllTime, 'Total quantity');
+    setKpi('kpi-total-sdd', metrics.totalProliferationSdd, 'SDD quantity');
+    setKpi('kpi-total-abw', metrics.totalProliferationAbw515, '515 ABW quantity');
+
+    setKpi('kpi-lastyear-projects', metrics.lastYearProjectsProliferated, 'Projects (last year)');
+    setKpi('kpi-lastyear-total', metrics.lastYearTotalProliferation, 'Total (last year)');
+    setKpi('kpi-lastyear-sdd', metrics.lastYearSdd, 'SDD (last year)');
+    setKpi('kpi-lastyear-abw', metrics.lastYearAbw515, '515 ABW (last year)');
   }
 
   function setKpi(elementId, value, label) {
@@ -283,7 +395,7 @@
     return value.toString();
   }
 
-  function renderTable(grid) {
+  function renderTable(rows) {
     const table = document.getElementById('results');
     if (!table) {
       return;
@@ -300,7 +412,13 @@
     thead.append(headerRow);
 
     const tbody = document.createElement('tbody');
-    const items = grid?.items ?? grid?.Items ?? [];
+    const items = Array.isArray(rows)
+      ? rows
+      : Array.isArray(rows?.items)
+        ? rows.items
+        : Array.isArray(rows?.Items)
+          ? rows.Items
+          : [];
     items.forEach((row) => {
       const tr = document.createElement('tr');
       const projectCell = resolveProjectDisplay(row);

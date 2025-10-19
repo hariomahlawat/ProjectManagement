@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Text;
+using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -287,12 +288,56 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             sb.AppendLine("Year,Project,Source,DataType,UnitName,SimulatorName,Date,Quantity,ApprovalStatus,Mode");
             foreach (var r in payload.Rows)
             {
-                var date = r.DateUtc?.ToString("yyyy-MM-dd") ?? "";
-                var mode = r.Mode ?? "";
-                sb.AppendLine($"{r.Year},\"{r.Project}\",{r.Source},{r.DataType},\"{r.UnitName}\",\"{r.SimulatorName}\",{date},{r.Quantity},{r.ApprovalStatus},{mode}");
+                var date = r.DateUtc?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty;
+                var mode = r.Mode ?? string.Empty;
+                AppendCsvRow(
+                    sb,
+                    r.Year.ToString(CultureInfo.InvariantCulture),
+                    r.Project,
+                    r.Source.ToString(),
+                    r.DataType,
+                    r.UnitName,
+                    r.SimulatorName,
+                    date,
+                    r.Quantity.ToString(CultureInfo.InvariantCulture),
+                    r.ApprovalStatus,
+                    mode);
             }
             var bytes = Encoding.UTF8.GetBytes(sb.ToString());
             return File(bytes, "text/csv", "proliferation-export.csv");
+        }
+
+        private static void AppendCsvRow(StringBuilder sb, params string?[] values)
+        {
+            if (values == null || values.Length == 0)
+            {
+                sb.AppendLine();
+                return;
+            }
+
+            for (var i = 0; i < values.Length; i++)
+            {
+                if (i > 0)
+                {
+                    sb.Append(',');
+                }
+
+                sb.Append(EscapeCsv(values[i]));
+            }
+
+            sb.AppendLine();
+        }
+
+        private static string EscapeCsv(string? value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return string.Empty;
+            }
+
+            var sanitized = value.Replace("\"", "\"\"");
+            var needsQuotes = sanitized.IndexOfAny(new[] { ',', '\n', '\r', '"' }) >= 0;
+            return needsQuotes ? $"\"{sanitized}\"" : sanitized;
         }
     }
 }
