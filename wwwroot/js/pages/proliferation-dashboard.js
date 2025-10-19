@@ -13,6 +13,28 @@
     lookups: "/api/proliferation/lookups"
   };
 
+  const sourceLabels = new Map([
+    [1, "SDD"],
+    [2, "515 ABW"]
+  ]);
+
+  function formatSourceLabel(value) {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "number") {
+      return sourceLabels.get(value) ?? value.toString();
+    }
+    const text = String(value).trim();
+    if (!text) return "";
+    const numeric = Number(text);
+    if (Number.isFinite(numeric)) {
+      return sourceLabels.get(numeric) ?? numeric.toString();
+    }
+    const canonical = text.replace(/\s+/g, "").toLowerCase();
+    if (canonical === "sdd") return sourceLabels.get(1) ?? "SDD";
+    if (canonical === "abw515" || canonical === "515abw") return sourceLabels.get(2) ?? "515 ABW";
+    return text;
+  }
+
   function $(sel, root = document) { return root.querySelector(sel); }
   function $all(sel, root = document) { return [...root.querySelectorAll(sel)]; }
 
@@ -60,7 +82,8 @@
     years: [],
     from: null,
     to: null,
-    source: "",
+    sourceId: null,
+    sourceLabel: "",
     projectCategory: "",
     technicalCategory: "",
     search: "",
@@ -78,7 +101,14 @@
   function collectFilters() {
     const byYearToggle = $("#fltByYear");
     const byYear = byYearToggle ? byYearToggle.checked : true;
-    filterState.source = $("#fltSource")?.value ?? "";
+    const sourceRaw = $("#fltSource")?.value ?? "";
+    if (sourceRaw) {
+      const parsed = Number(sourceRaw);
+      filterState.sourceId = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+    } else {
+      filterState.sourceId = null;
+    }
+    filterState.sourceLabel = formatSourceLabel(filterState.sourceId);
     const projectCategoryRaw = $("#fltProjectCat")?.value ?? "";
     const technicalCategoryRaw = $("#fltTechCat")?.value ?? "";
     filterState.projectCategory = projectCategoryRaw;
@@ -105,7 +135,7 @@
       Years: filterState.years,
       FromDateUtc: filterState.from,
       ToDateUtc: filterState.to,
-      Source: filterState.source || null,
+      Source: filterState.sourceId,
       ProjectCategoryId: Number.isFinite(projectCategoryId) ? projectCategoryId : null,
       TechnicalCategoryId: Number.isFinite(technicalCategoryId) ? technicalCategoryId : null,
       Search: filterState.search || null,
@@ -142,7 +172,7 @@
     const chips = [];
     if (filterState.years.length) chips.push({ label: "Years", value: filterState.years.join(", ") });
     if (filterState.from || filterState.to) chips.push({ label: "Range", value: `${filterState.from?.slice(0, 10) || "…"} → ${filterState.to?.slice(0, 10) || "…"}` });
-    if (filterState.source) chips.push({ label: "Source", value: filterState.source });
+    if (filterState.sourceLabel) chips.push({ label: "Source", value: filterState.sourceLabel });
     const projectLabel = resolveProjectCategoryLabel(filterState.projectCategory);
     if (projectLabel) chips.push({ label: "Project category", value: projectLabel });
     const technicalLabel = resolveTechnicalCategoryLabel(filterState.technicalCategory);
@@ -283,7 +313,7 @@
 
     const body = rows.map((row) => {
       const project = row.Project ?? row.ProjectName ?? row.project ?? row.projectName ?? "";
-      const source = row.Source ?? row.source ?? "";
+      const sourceLabel = formatSourceLabel(row.Source ?? row.source ?? "");
       const typeLabel = row.DataType ?? row.dataType ?? "";
       const pane = typeLabel.toLowerCase().includes("year") ? "yearly" : "granular";
       const unit = row.UnitName ?? row.unitName ?? "";
@@ -297,7 +327,7 @@
       const attrs = [
         `data-entry-type="${pane}"`,
         `data-entry-project="${escapeAttr(project)}"`,
-        `data-entry-source="${escapeAttr(source)}"`,
+        `data-entry-source="${escapeAttr(sourceLabel)}"`,
         `data-entry-year="${escapeAttr(year)}"`,
         `data-entry-date="${escapeAttr(dateRaw)}"`,
         `data-entry-quantity="${escapeAttr(quantity)}"`,
@@ -308,7 +338,7 @@
       <tr ${attrs}>
         <td>${year}</td>
         <td>${project}</td>
-        <td>${source}</td>
+        <td>${sourceLabel}</td>
         <td>${typeLabel}</td>
         <td>${unit}</td>
         <td>${simulator}</td>
@@ -427,7 +457,9 @@
     if (filters.Years?.length) filters.Years.forEach((y) => params.append("Years", y));
     if (filters.FromDateUtc) params.set("FromDateUtc", filters.FromDateUtc);
     if (filters.ToDateUtc) params.set("ToDateUtc", filters.ToDateUtc);
-    if (filters.Source) params.set("Source", filters.Source);
+    if (filters.Source !== null && filters.Source !== undefined) {
+      params.set("Source", filters.Source);
+    }
     if (filters.ProjectCategoryId) params.set("ProjectCategoryId", filters.ProjectCategoryId);
     if (filters.TechnicalCategoryId) params.set("TechnicalCategoryId", filters.TechnicalCategoryId);
     if (filters.Search) params.set("Search", filters.Search);
@@ -885,10 +917,11 @@
 
   async function refreshPreferenceSummary() {
     const projectId = Number($("#prefProjectId")?.value);
-    const source = $("#prefSource")?.value;
+    const sourceRaw = $("#prefSource")?.value ?? "";
+    const sourceId = Number(sourceRaw);
     const year = Number($("#prefYear")?.value);
     const current = $("#prefCurrentMode");
-    if (!projectId || !source || !year || !current) {
+    if (!projectId || !Number.isFinite(sourceId) || sourceId <= 0 || !year || !current) {
       if (current) current.hidden = true;
       return;
     }
@@ -898,7 +931,7 @@
     preferenceFetchAbort = ctrl;
 
     try {
-      const response = await fetch(`${api.getPref}?projectId=${projectId}&source=${encodeURIComponent(source)}&year=${year}`, { signal: ctrl.signal });
+      const response = await fetch(`${api.getPref}?projectId=${projectId}&source=${sourceId}&year=${year}`, { signal: ctrl.signal });
       if (response.status === 404) {
         current.textContent = "Current mode: Auto (default)";
         current.hidden = false;
@@ -977,12 +1010,17 @@
         return;
       }
       if (!validateForm(form)) return;
+      const sourceId = Number(sourceSelect.value);
+      if (!Number.isFinite(sourceId) || sourceId <= 0) {
+        toast("Select a source", "warning");
+        return;
+      }
       const submitSpinner = saveBtn?.querySelector(".spinner-border");
       if (submitSpinner) submitSpinner.hidden = false;
       if (saveBtn) saveBtn.disabled = true;
       const payload = {
         ProjectId: projectId,
-        Source: sourceSelect.value,
+        Source: sourceId,
         Year: Number(yearInput.value),
         Mode: form.querySelector("input[name='prefMode']:checked")?.value || "Auto"
       };
