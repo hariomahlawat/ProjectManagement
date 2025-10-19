@@ -248,14 +248,16 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 .ThenBy(r => r.DataType)
                 .ThenBy(r => r.Date);
 
+            var pagedRowsQuery = orderedRowsQuery.AsQueryable();
+
             if (!unpaged && pageSize > 0)
             {
-                orderedRowsQuery = orderedRowsQuery
+                pagedRowsQuery = pagedRowsQuery
                     .Skip((page - 1) * pageSize)
                     .Take(pageSize);
             }
 
-            var rowProjections = (await orderedRowsQuery.ToListAsync(ct))
+            var rowProjections = (await pagedRowsQuery.ToListAsync(ct))
                 .Select(r => new OverviewRowProjection(
                     r.ProjectId,
                     r.Year,
