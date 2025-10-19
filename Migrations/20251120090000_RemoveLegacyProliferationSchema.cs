@@ -16,10 +16,113 @@ namespace ProjectManagement.Migrations
             migrationBuilder.Sql("DROP TABLE IF EXISTS \"ProliferationGranularEntries\" CASCADE;");
             migrationBuilder.Sql("DROP TABLE IF EXISTS \"ProliferationYearlies\" CASCADE;");
             migrationBuilder.Sql("DROP TABLE IF EXISTS \"ProliferationYearPreferences\" CASCADE;");
+
+            migrationBuilder.CreateTable(
+                name: "ProliferationYearly",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    Source = table.Column<int>(type: "integer", nullable: false),
+                    Year = table.Column<int>(type: "integer", nullable: false),
+                    TotalQuantity = table.Column<int>(type: "integer", nullable: false),
+                    Remarks = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    ApprovalStatus = table.Column<int>(type: "integer", nullable: false),
+                    SubmittedByUserId = table.Column<string>(type: "text", nullable: false),
+                    ApprovedByUserId = table.Column<string>(type: "text", nullable: true),
+                    ApprovedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    CreatedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    LastUpdatedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProliferationYearly", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProliferationGranular",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    Source = table.Column<int>(type: "integer", nullable: false),
+                    SimulatorName = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    UnitName = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    ProliferationDate = table.Column<DateOnly>(type: "date", nullable: false),
+                    Quantity = table.Column<int>(type: "integer", nullable: false),
+                    Remarks = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    ApprovalStatus = table.Column<int>(type: "integer", nullable: false),
+                    SubmittedByUserId = table.Column<string>(type: "text", nullable: false),
+                    ApprovedByUserId = table.Column<string>(type: "text", nullable: true),
+                    ApprovedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
+                    CreatedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    LastUpdatedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProliferationGranular", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ProliferationYearPreference",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    ProjectId = table.Column<int>(type: "integer", nullable: false),
+                    Source = table.Column<int>(type: "integer", nullable: false),
+                    Year = table.Column<int>(type: "integer", nullable: false),
+                    Mode = table.Column<int>(type: "integer", nullable: false),
+                    SetByUserId = table.Column<string>(type: "text", nullable: false),
+                    SetOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProliferationYearPreference", x => x.Id);
+                });
+
+            migrationBuilder.Sql(
+                "CREATE VIEW \"vw_ProliferationGranularYearly\" AS\n" +
+                "SELECT\n" +
+                "  \"ProjectId\",\n" +
+                "  \"Source\",\n" +
+                "  EXTRACT(YEAR FROM \"ProliferationDate\")::int AS \"Year\",\n" +
+                "  COALESCE(SUM(\"Quantity\"), 0) AS \"TotalQuantity\"\n" +
+                "FROM \"ProliferationGranular\"\n" +
+                "WHERE \"ApprovalStatus\" = 1\n" +
+                "GROUP BY \"ProjectId\", \"Source\", EXTRACT(YEAR FROM \"ProliferationDate\");");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProlifYearly_Project_Source_Year",
+                table: "ProliferationYearly",
+                columns: new[] { "ProjectId", "Source", "Year" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ProliferationGranular_ProjectId_Source_ProliferationDate",
+                table: "ProliferationGranular",
+                columns: new[] { "ProjectId", "Source", "ProliferationDate" });
+
+            migrationBuilder.CreateIndex(
+                name: "UX_ProlifYearPref_Project_Source_Year",
+                table: "ProliferationYearPreference",
+                columns: new[] { "ProjectId", "Source", "Year" },
+                unique: true);
         }
 
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql("DROP VIEW IF EXISTS \"vw_ProliferationGranularYearly\";");
+
+            migrationBuilder.DropTable(
+                name: "ProliferationYearPreference");
+
+            migrationBuilder.DropTable(
+                name: "ProliferationGranular");
+
+            migrationBuilder.DropTable(
+                name: "ProliferationYearly");
+
             migrationBuilder.CreateTable(
                 name: "ProliferationGranularEntries",
                 columns: table => new

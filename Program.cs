@@ -2269,35 +2269,6 @@ static IResult MapProjectModerationResult(ProjectModerationResult result) => res
     _ => Results.BadRequest()
 };
 
-app.Run();
-
-record CalendarEventVm(
-    string Id,
-    Guid SeriesId,
-    string Title,
-    DateTimeOffset Start,
-    DateTimeOffset End,
-    bool AllDay,
-    string Category,
-    string? Location,
-    bool IsRecurring,
-    bool IsCelebration,
-    Guid? CelebrationId,
-    string? TaskUrl);
-
-record CalendarHolidayVm(
-    string Date,
-    string Name,
-    bool? SkipWeekends,
-    DateTimeOffset StartUtc,
-    DateTimeOffset EndUtc);
-
-record TrashProjectRequest(string Reason);
-
-record PurgeProjectRequest(bool RemoveAssets);
-
-public partial class Program { }
-
 static IEnumerable<int> ParseInts(string? value)
 {
     if (string.IsNullOrWhiteSpace(value))
@@ -2334,6 +2305,35 @@ static ProliferationSource? ParseSource(string? value)
             "SDD" => ProliferationSource.Sdd,
             "ABW515" => ProliferationSource.Abw515,
             "515ABW" => ProliferationSource.Abw515,
-            _ => null
+            _ => (ProliferationSource?)null
         };
 }
+
+app.Run();
+
+record CalendarEventVm(
+    string Id,
+    Guid SeriesId,
+    string Title,
+    DateTimeOffset Start,
+    DateTimeOffset End,
+    bool AllDay,
+    string Category,
+    string? Location,
+    bool IsRecurring,
+    bool IsCelebration,
+    Guid? CelebrationId,
+    string? TaskUrl);
+
+record CalendarHolidayVm(
+    string Date,
+    string Name,
+    bool? SkipWeekends,
+    DateTimeOffset StartUtc,
+    DateTimeOffset EndUtc);
+
+record TrashProjectRequest(string Reason);
+
+record PurgeProjectRequest(bool RemoveAssets);
+
+public partial class Program { }
