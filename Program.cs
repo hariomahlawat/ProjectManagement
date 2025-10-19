@@ -138,14 +138,6 @@ builder.Services.AddAuthorization(options =>
         policy.RequireTotTrackerApprover());
     options.AddPolicy(ProjectOfficeReportsPolicies.ViewProliferationTracker, policy =>
         policy.RequireProliferationViewer());
-    options.AddPolicy(ProjectOfficeReportsPolicies.SubmitProliferationTracker, policy =>
-        policy.RequireProliferationSubmitter());
-    options.AddPolicy(ProjectOfficeReportsPolicies.ApproveProliferationTracker, policy =>
-        policy.RequireProliferationApprover());
-    options.AddPolicy(ProjectOfficeReportsPolicies.ManageProliferationPreferences, policy =>
-        policy.RequireProliferationPreferenceManager());
-    options.AddPolicy(ProjectOfficeReportsPolicies.ManageProliferationImports, policy =>
-        policy.RequireProliferationImportManager());
 });
 
 builder.Services.ConfigureApplicationCookie(opt =>
@@ -223,10 +215,6 @@ builder.Services.AddScoped<ProjectLifecycleService>();
 builder.Services.AddScoped<ProjectTotService>();
 builder.Services.AddScoped<ProjectTotTrackerReadService>();
 builder.Services.AddScoped<ProliferationTrackerReadService>();
-builder.Services.AddScoped<ProliferationPreferenceService>();
-builder.Services.AddScoped<ProliferationSubmissionService>();
-builder.Services.AddScoped<IProliferationYearlyImportService, ProliferationYearlyImportService>();
-builder.Services.AddScoped<IProliferationGranularImportService, ProliferationGranularImportService>();
 builder.Services.AddScoped<ProjectCommentService>();
 builder.Services.AddScoped<ProjectRemarksPanelService>();
 builder.Services.AddScoped<ProjectMediaAggregator>();
@@ -264,7 +252,6 @@ builder.Services.AddSingleton<IVisitExcelWorkbookBuilder, VisitExcelWorkbookBuil
 builder.Services.AddSingleton<IVisitPdfReportBuilder, VisitPdfReportBuilder>();
 builder.Services.AddSingleton<ISocialMediaExcelWorkbookBuilder, SocialMediaExcelWorkbookBuilder>();
 builder.Services.AddSingleton<ISocialMediaPdfReportBuilder, SocialMediaPdfReportBuilder>();
-builder.Services.AddSingleton<IProliferationExcelWorkbookBuilder, ProliferationExcelWorkbookBuilder>();
 builder.Services.AddScoped<VisitTypeService>();
 builder.Services.AddScoped<SocialMediaEventTypeService>();
 builder.Services.AddScoped<SocialMediaPlatformService>();
@@ -1463,116 +1450,18 @@ stageChecklistApi.MapPost("/reorder", async (
     return Results.Ok(ToDto(checklist));
 }).RequireAuthorization("Checklist.Edit");
 
-var proliferationPreferenceApi = app.MapGroup("/api/proliferation/year-preference")
-    .RequireAuthorization(new AuthorizeAttribute { Policy = ProjectOfficeReportsPolicies.ManageProliferationPreferences });
-
-proliferationPreferenceApi.MapPost("/", async (
-    ProliferationPreferenceUpdateRequest request,
-    ClaimsPrincipal user,
-    IAuthorizationService authorizationService,
-    IUserContext userContext,
-    ProliferationPreferenceService preferenceService,
-    CancellationToken cancellationToken) =>
-{
-    var authResult = await authorizationService.AuthorizeAsync(user, null, ProjectOfficeReportsPolicies.ManageProliferationPreferences);
-    if (!authResult.Succeeded)
-    {
-        return Results.Forbid();
-    }
-
-    var userId = userContext.UserId;
-    if (string.IsNullOrWhiteSpace(userId))
-    {
-        return Results.Challenge();
-    }
-
-    if (!TryParseRowVersion(request.RowVersion, out var expectedRowVersion, out var errorResult))
-    {
-        return errorResult;
-    }
-
-    if (request.Mode == ProliferationPreferenceMode.UseGranular && request.Source != ProliferationSource.Abw515)
-    {
-        return Results.BadRequest(new ProblemDetails
-        {
-            Title = "Granular mode is not available for this data source.",
-            Detail = "Granular preferences can only be applied to SDD data sources."
-        });
-    }
-
-    ProliferationPreferenceCommandResult result = request.Mode switch
-    {
-        ProliferationPreferenceMode.Auto => await preferenceService.ClearPreferenceAsync(
-            request.ProjectId,
-            request.Source,
-            userId,
-            expectedRowVersion,
-            cancellationToken),
-        ProliferationPreferenceMode.UseYearly or ProliferationPreferenceMode.UseGranular => await preferenceService.SetPreferenceAsync(
-            request.ProjectId,
-            request.Source,
-            request.Year,
-            userId,
-            expectedRowVersion,
-            cancellationToken),
-        _ => ProliferationPreferenceCommandResult.Invalid("Unsupported preference mode.")
-    };
-
-    return result.Outcome switch
-    {
-        ProliferationPreferenceChangeOutcome.Invalid => Results.BadRequest(new ProblemDetails
-        {
-            Title = "Unable to update preference.",
-            Detail = result.Errors.FirstOrDefault()
-        }),
-        ProliferationPreferenceChangeOutcome.ConcurrencyConflict => Results.Conflict(new ProblemDetails
-        {
-            Title = "Preference conflict.",
-            Detail = result.Errors.FirstOrDefault()
-        }),
-        _ => Results.Ok(new ProliferationPreferenceUpdateResponse(
-            result.Outcome,
-            result.Preference?.Year,
-            result.Preference?.RowVersion is { Length: > 0 } rv ? Convert.ToBase64String(rv) : null))
-    };
-});
-
 var proliferationEffectiveApi = app.MapGroup("/api/proliferation/effective")
     .RequireAuthorization(new AuthorizeAttribute { Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker });
 
 proliferationEffectiveApi.MapGet("", async (
-    [AsParameters] ProliferationEffectiveRequest request,
-    IUserContext userContext,
+    int projectId,
+    ProliferationSource source,
+    int year,
     ProliferationTrackerReadService readService,
     CancellationToken cancellationToken) =>
 {
-    var userId = userContext.UserId;
-    if (string.IsNullOrWhiteSpace(userId))
-    {
-        return Results.Challenge();
-    }
-
-    var filters = BuildEffectiveFilters(request, userId);
-    var rows = new List<ProliferationTrackerRow>();
-
-    foreach (var filter in filters)
-    {
-        var results = await readService.GetAsync(filter, cancellationToken);
-        rows.AddRange(FilterEffectiveRows(results, request.YearFrom, request.YearTo));
-    }
-
-    var response = rows.Select(r => new ProliferationEffectiveRow(
-        r.ProjectId,
-        r.ProjectName,
-        r.Source,
-        r.Year,
-        r.Yearly,
-        r.GranularSum,
-        r.Effective,
-        r.Variance,
-        r.Preference)).ToList();
-
-    return Results.Ok(response);
+    var total = await readService.GetEffectiveTotalAsync(projectId, source, year, cancellationToken);
+    return Results.Ok(new { projectId, source, year, total });
 });
 
 var lookupApi = app.MapGroup("/api/lookups")
@@ -2003,68 +1892,6 @@ static bool MatchesRowVersion(byte[]? requestVersion, byte[] entityVersion)
        entityVersion is { Length: > 0 } current &&
        candidate.AsSpan().SequenceEqual(current);
 
-static IReadOnlyList<ProliferationTrackerFilter> BuildEffectiveFilters(ProliferationEffectiveRequest request, string userId)
-{
-    var baseFilter = new ProliferationTrackerFilter
-    {
-        ProjectId = request.ProjectId,
-        ProjectSearchTerm = request.SearchTerm,
-        Source = request.Source,
-        Year = request.Year,
-        SponsoringUnitId = request.SponsoringUnitId,
-        SimulatorUserId = request.SimulatorUserId,
-        UserId = userId
-    };
-
-    if (request.YearFrom.HasValue && request.YearTo.HasValue && request.YearFrom.Value <= request.YearTo.Value)
-    {
-        var filters = new List<ProliferationTrackerFilter>();
-        for (var year = request.YearFrom.Value; year <= request.YearTo.Value; year++)
-        {
-            filters.Add(baseFilter with { Year = year });
-        }
-
-        return filters;
-    }
-
-    if (request.YearFrom.HasValue && !request.YearTo.HasValue)
-    {
-        return new[] { baseFilter with { Year = request.YearFrom } };
-    }
-
-    if (!request.YearFrom.HasValue && request.YearTo.HasValue)
-    {
-        return new[] { baseFilter with { Year = request.YearTo } };
-    }
-
-    return new[] { baseFilter };
-}
-
-static IEnumerable<ProliferationTrackerRow> FilterEffectiveRows(
-    IReadOnlyList<ProliferationTrackerRow> rows,
-    int? yearFrom,
-    int? yearTo)
-{
-    if (rows.Count == 0)
-    {
-        return Array.Empty<ProliferationTrackerRow>();
-    }
-
-    if (!yearFrom.HasValue && !yearTo.HasValue)
-    {
-        return rows;
-    }
-
-    var min = yearFrom ?? yearTo ?? int.MinValue;
-    var max = yearTo ?? yearFrom ?? int.MaxValue;
-    if (min > max)
-    {
-        (min, max) = (max, min);
-    }
-
-    return rows.Where(r => r.Year >= min && r.Year <= max).ToList();
-}
-
 static StageChecklistTemplateDto ToDto(StageChecklistTemplate template)
 {
     var items = template.Items
@@ -2274,39 +2101,6 @@ static IResult MapProjectModerationResult(ProjectModerationResult result) => res
 };
 
 app.Run();
-
-record ProliferationPreferenceUpdateRequest(
-    int ProjectId,
-    ProliferationSource Source,
-    int Year,
-    ProliferationPreferenceMode Mode,
-    string? RowVersion);
-
-record ProliferationPreferenceUpdateResponse(
-    ProliferationPreferenceChangeOutcome Outcome,
-    int? PreferredYear,
-    string? RowVersion);
-
-public sealed record ProliferationEffectiveRequest(
-    int? ProjectId,
-    string? SearchTerm,
-    ProliferationSource? Source,
-    int? Year,
-    int? YearFrom,
-    int? YearTo,
-    int? SponsoringUnitId,
-    string? SimulatorUserId);
-
-public sealed record ProliferationEffectiveRow(
-    int ProjectId,
-    string ProjectName,
-    ProliferationSource Source,
-    int Year,
-    ProliferationMetricsDto? Yearly,
-    ProliferationMetricsDto? GranularSum,
-    ProliferationMetricsDto? Effective,
-    ProliferationMetricsDto? Variance,
-    ProliferationPreferenceMetadata Preference);
 
 record CalendarEventVm(
     string Id,
