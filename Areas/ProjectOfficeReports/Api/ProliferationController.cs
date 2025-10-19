@@ -107,7 +107,12 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public async Task<ActionResult<ProliferationOverviewDto>> GetOverview([FromQuery] ProliferationOverviewQuery q, CancellationToken ct)
         {
             var page = q.Page < 1 ? 1 : q.Page;
-            var pageSize = q.PageSize < 1 ? 50 : Math.Min(q.PageSize, 200);
+            var unpaged = q.PageSize == 0;
+            var pageSize = unpaged
+                ? 50
+                : q.PageSize < 1
+                    ? 50
+                    : Math.Min(q.PageSize, 200);
 
             DateTime? from = q.FromDateUtc;
             DateTime? to = q.ToDateUtc;
