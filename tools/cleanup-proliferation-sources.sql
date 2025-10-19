@@ -1,0 +1,60 @@
+-- Post-deployment cleanup script for proliferation Source columns.
+-- Run the statements that match your database provider after applying the
+-- 20251104120000_ForceNumericProliferationSource migration. The queries are
+-- idempotent and only touch rows where Source is still stored as text.
+
+-- PostgreSQL --------------------------------------------------------------
+-- UPDATE "ProliferationYearly"
+-- SET "Source" = CASE
+--         WHEN regexp_replace(CAST("Source" AS TEXT), '\s+', '', 'g') ~ '^[0-9]+$' THEN CAST("Source" AS INTEGER)
+--         WHEN lower(btrim(CAST("Source" AS TEXT))) = 'sdd' THEN 1
+--         WHEN regexp_replace(lower(CAST("Source" AS TEXT)), '[^a-z0-9]', '', 'g') IN ('abw515', '515abw') THEN 2
+--         ELSE "Source"
+--     END
+-- WHERE CAST("Source" AS TEXT) !~ '^[0-9]+$';
+--
+-- UPDATE "ProliferationGranular"
+-- SET "Source" = CASE
+--         WHEN regexp_replace(CAST("Source" AS TEXT), '\s+', '', 'g') ~ '^[0-9]+$' THEN CAST("Source" AS INTEGER)
+--         WHEN lower(btrim(CAST("Source" AS TEXT))) = 'sdd' THEN 1
+--         WHEN regexp_replace(lower(CAST("Source" AS TEXT)), '[^a-z0-9]', '', 'g') IN ('abw515', '515abw') THEN 2
+--         ELSE "Source"
+--     END
+-- WHERE CAST("Source" AS TEXT) !~ '^[0-9]+$';
+--
+-- UPDATE "ProliferationYearPreference"
+-- SET "Source" = CASE
+--         WHEN regexp_replace(CAST("Source" AS TEXT), '\s+', '', 'g') ~ '^[0-9]+$' THEN CAST("Source" AS INTEGER)
+--         WHEN lower(btrim(CAST("Source" AS TEXT))) = 'sdd' THEN 1
+--         WHEN regexp_replace(lower(CAST("Source" AS TEXT)), '[^a-z0-9]', '', 'g') IN ('abw515', '515abw') THEN 2
+--         ELSE "Source"
+--     END
+-- WHERE CAST("Source" AS TEXT) !~ '^[0-9]+$';
+
+-- SQL Server -------------------------------------------------------------
+-- UPDATE [ProliferationYearly]
+-- SET [Source] = CASE
+--         WHEN TRY_CONVERT(int, [Source]) IS NOT NULL THEN TRY_CONVERT(int, [Source])
+--         WHEN LOWER(LTRIM(RTRIM(CAST([Source] AS nvarchar(32))))) = 'sdd' THEN 1
+--         WHEN REPLACE(REPLACE(LOWER(CAST([Source] AS nvarchar(32))), '-', ''), ' ', '') IN ('abw515', '515abw') THEN 2
+--         ELSE [Source]
+--     END
+-- WHERE TRY_CONVERT(int, [Source]) IS NULL;
+--
+-- UPDATE [ProliferationGranular]
+-- SET [Source] = CASE
+--         WHEN TRY_CONVERT(int, [Source]) IS NOT NULL THEN TRY_CONVERT(int, [Source])
+--         WHEN LOWER(LTRIM(RTRIM(CAST([Source] AS nvarchar(32))))) = 'sdd' THEN 1
+--         WHEN REPLACE(REPLACE(LOWER(CAST([Source] AS nvarchar(32))), '-', ''), ' ', '') IN ('abw515', '515abw') THEN 2
+--         ELSE [Source]
+--     END
+-- WHERE TRY_CONVERT(int, [Source]) IS NULL;
+--
+-- UPDATE [ProliferationYearPreference]
+-- SET [Source] = CASE
+--         WHEN TRY_CONVERT(int, [Source]) IS NOT NULL THEN TRY_CONVERT(int, [Source])
+--         WHEN LOWER(LTRIM(RTRIM(CAST([Source] AS nvarchar(32))))) = 'sdd' THEN 1
+--         WHEN REPLACE(REPLACE(LOWER(CAST([Source] AS nvarchar(32))), '-', ''), ' ', '') IN ('abw515', '515abw') THEN 2
+--         ELSE [Source]
+--     END
+-- WHERE TRY_CONVERT(int, [Source]) IS NULL;
