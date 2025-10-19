@@ -319,7 +319,7 @@ The tracker introduces seven tables plus a read-only view. Field definitions liv
 | `ProliferationYearlyRequest` | Pending yearly submissions awaiting approval. | Submission metadata, `DecisionState`, `DecisionNotes`, `RowVersion`.【F:Areas/ProjectOfficeReports/Domain/ProliferationYearlyRequest.cs†L7-L43】 |
 | `ProliferationGranularRequest` | Pending granular submissions awaiting approval. | Mirrors yearly request with `Granularity`, `Period`, `PeriodLabel`.【F:Areas/ProjectOfficeReports/Domain/ProliferationGranularRequest.cs†L7-L49】 |
 | `ProliferationYearly`/`ProliferationGranular` migrations | Add indexes for `ProjectId`, unique constraints on `(ProjectId, Source, Year)` and `(ProjectId, Source, Granularity, Period)` to guarantee idempotent approvals.【F:Migrations/20251018104405_AddProliferationReporting.cs†L15-L157】【F:Migrations/20251115000000_AddProliferationApprovalRequests.cs†L15-L150】 |
-| `vw_ProliferationGranularYearly` | Database view surfaced through `ProliferationGranularYearly` entity for yearly summaries of granular data.【F:Migrations/20251018104405_AddProliferationReporting.cs†L108-L155】【F:Areas/ProjectOfficeReports/Domain/ProliferationGranularYearly.cs†L5-L29】 |
+| Granular yearly rollup | Computed dynamically by grouping approved `ProliferationGranular` rows when calculating KPIs and effective totals. |
 
 `ProliferationMetrics` is embedded in all record types so calculations stay consistent across yearly, granular, and API responses.【F:Areas/ProjectOfficeReports/Domain/ProliferationMetrics.cs†L1-L8】
 

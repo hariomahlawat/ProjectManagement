@@ -186,21 +186,23 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             var yearlyCombosQuery = _db.Set<ProliferationYearly>().AsNoTracking()
                 .Where(y => completedProjectIds.Contains(y.ProjectId) && y.ApprovalStatus == ApprovalStatus.Approved);
 
-            var granularCombosQuery = _db.ProliferationGranularYearlyView.AsNoTracking()
-                .Where(g => completedProjectIds.Contains(g.ProjectId));
+            var granularCombosQuery = _db.Set<ProliferationGranular>().AsNoTracking()
+                .Where(g => completedProjectIds.Contains(g.ProjectId) && g.ApprovalStatus == ApprovalStatus.Approved);
 
             if (fromDateOnly.HasValue && toDateOnly.HasValue)
             {
                 var startYear = fromDateOnly.Value.Year;
                 var endYear = toDateOnly.Value.Year;
                 yearlyCombosQuery = yearlyCombosQuery.Where(y => y.Year >= startYear && y.Year <= endYear);
-                granularCombosQuery = granularCombosQuery.Where(g => g.Year >= startYear && g.Year <= endYear);
+                granularCombosQuery = granularCombosQuery.Where(g =>
+                    g.ProliferationDate >= fromDateOnly.Value &&
+                    g.ProliferationDate <= toDateOnly.Value);
             }
             else if (q.Years is { Length: > 0 })
             {
                 var years = q.Years.ToHashSet();
                 yearlyCombosQuery = yearlyCombosQuery.Where(y => years.Contains(y.Year));
-                granularCombosQuery = granularCombosQuery.Where(g => years.Contains(g.Year));
+                granularCombosQuery = granularCombosQuery.Where(g => years.Contains(g.ProliferationDate.Year));
             }
 
             if (q.Source.HasValue)
@@ -214,7 +216,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 .ToListAsync(ct);
 
             var granularCombos = await granularCombosQuery
-                .Select(g => new { g.ProjectId, g.Source, g.Year })
+                .Select(g => new { g.ProjectId, g.Source, Year = g.ProliferationDate.Year })
                 .ToListAsync(ct);
 
             var projYears = yearlyCombos
