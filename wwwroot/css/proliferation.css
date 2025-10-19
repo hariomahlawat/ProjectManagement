@@ -1,0 +1,35 @@
+.kpi-card {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.kpi-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.08) !important;
+}
+
+#tableContainer .table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+#filterBar .badge {
+    font-weight: 500;
+}
+
+.offcanvas .form-label {
+    font-weight: 500;
+}
+
+.placeholder-glow .placeholder {
+    background-color: rgba(108, 117, 125, 0.2);
+}
+
+.year-preferences .list-group-item {
+    border-color: rgba(0, 0, 0, 0.05);
+}
+
+.year-preferences .list-group-item:hover,
+.year-preferences .list-group-item:focus-within {
+    background-color: rgba(13, 110, 253, 0.05);
+}

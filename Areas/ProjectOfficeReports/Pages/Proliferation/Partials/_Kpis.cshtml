@@ -1,0 +1,60 @@
+@* KPI tiles: all-time + last-12-months. Data is injected by JS. *@
+<div class="row g-3" id="kpi-alltime" aria-live="polite">
+  <div class="col-12">
+    <h6 class="text-muted mb-2">All time</h6>
+  </div>
+  <div class="col-12 col-md-3">
+    <div class="card kpi-card border-0 shadow-sm rounded-4 p-3">
+      <div class="text-muted small">Total completed projects</div>
+      <div id="kpiTotalCompletedProjects" class="fs-3 fw-bold">—</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-3">
+    <div class="card kpi-card border-0 shadow-sm rounded-4 p-3">
+      <div class="text-muted small">Total proliferation (effective)</div>
+      <div id="kpiTotalEffectiveAll" class="fs-3 fw-bold">—</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-3">
+    <div class="card kpi-card border-0 shadow-sm rounded-4 p-3">
+      <div class="text-muted small">Proliferation by SDD</div>
+      <div id="kpiTotalEffectiveSdd" class="fs-3 fw-bold">—</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-3">
+    <div class="card kpi-card border-0 shadow-sm rounded-4 p-3">
+      <div class="text-muted small">Proliferation by 515 ABW</div>
+      <div id="kpiTotalEffectiveAbw" class="fs-3 fw-bold">—</div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mt-3" id="kpi-lastyear" aria-live="polite">
+  <div class="col-12">
+    <h6 class="text-muted mb-2">Proliferation in the last twelve months</h6>
+  </div>
+  <div class="col-12 col-md-3">
+    <div class="card kpi-card border-0 shadow-sm rounded-4 p-3">
+      <div class="text-muted small">Projects proliferated</div>
+      <div id="kpiLastYearProjects" class="fs-3 fw-bold">—</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-3">
+    <div class="card kpi-card border-0 shadow-sm rounded-4 p-3">
+      <div class="text-muted small">Total proliferation (qty)</div>
+      <div id="kpiLastYearTotal" class="fs-3 fw-bold">—</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-3">
+    <div class="card kpi-card border-0 shadow-sm rounded-4 p-3">
+      <div class="text-muted small">SDD</div>
+      <div id="kpiLastYearSdd" class="fs-3 fw-bold">—</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-3">
+    <div class="card kpi-card border-0 shadow-sm rounded-4 p-3">
+      <div class="text-muted small">515 ABW</div>
+      <div id="kpiLastYearAbw" class="fs-3 fw-bold">—</div>
+    </div>
+  </div>
+</div>
