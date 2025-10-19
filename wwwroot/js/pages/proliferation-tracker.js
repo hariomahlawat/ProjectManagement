@@ -247,6 +247,42 @@
     element.append(valueElement, labelElement);
   }
 
+  function resolveProjectDisplay(row) {
+    const name = row.projectName ?? row.ProjectName ?? row.project ?? row.Project ?? '';
+    const code = row.projectCode ?? row.ProjectCode ?? '';
+    return code ? `${name} (${code})` : name;
+  }
+
+  function formatDate(value) {
+    if (value == null || value === '') {
+      return '—';
+    }
+
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return value.toISOString().slice(0, 10);
+    }
+
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed === '') {
+        return '—';
+      }
+
+      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        return trimmed;
+      }
+
+      const parsed = new Date(trimmed);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toISOString().slice(0, 10);
+      }
+
+      return trimmed;
+    }
+
+    return value.toString();
+  }
+
   function renderTable(grid) {
     const table = document.getElementById('results');
     if (!table) {
@@ -267,15 +303,13 @@
     const items = grid?.items ?? grid?.Items ?? [];
     items.forEach((row) => {
       const tr = document.createElement('tr');
-      const projectName = row.projectName ?? row.ProjectName ?? '';
-      const projectCode = row.projectCode ?? row.ProjectCode ?? '';
-      const projectCell = `${projectName}${projectCode ? ` (${projectCode})` : ''}`;
-
+      const projectCell = resolveProjectDisplay(row);
       const source = row.source ?? row.Source ?? '';
       const dataType = row.dataType ?? row.DataType ?? '';
       const unitName = row.unitName ?? row.UnitName ?? '—';
       const simulatorName = row.simulatorName ?? row.SimulatorName ?? '—';
-      const proliferationDate = row.proliferationDate ?? row.ProliferationDate ?? '—';
+      const rawDate = row.proliferationDate ?? row.ProliferationDate ?? row.dateUtc ?? row.DateUtc ?? null;
+      const proliferationDate = formatDate(rawDate);
       const quantity = row.quantity ?? row.Quantity ?? 0;
       const approvalStatus = row.approvalStatus ?? row.ApprovalStatus ?? '';
       const mode = row.mode ?? row.Mode ?? '—';

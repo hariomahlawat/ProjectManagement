@@ -50,6 +50,16 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 .AsNoTracking()
                 .Where(p => !p.IsDeleted && !p.IsArchived);
 
+            if (q.ProjectCategoryId.HasValue)
+            {
+                projectsQuery = projectsQuery.Where(p => p.CategoryId == q.ProjectCategoryId.Value);
+            }
+
+            if (q.TechnicalCategoryId.HasValue)
+            {
+                projectsQuery = projectsQuery.Where(p => p.TechnicalCategoryId == q.TechnicalCategoryId.Value);
+            }
+
             var yearlyBase = from y in _db.Set<ProliferationYearly>().AsNoTracking()
                              join p in projectsQuery on y.ProjectId equals p.Id
                              join pref in _db.Set<ProliferationYearPreference>().AsNoTracking()
@@ -95,6 +105,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             {
                 Year = x.Yearly.Year,
                 Project = x.Project.Name,
+                ProjectCode = x.Project.CaseFileNumber,
                 Source = x.Yearly.Source,
                 DataType = "Yearly",
                 UnitName = null,
@@ -109,6 +120,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             {
                 Year = x.Granular.ProliferationDate.Year,
                 Project = x.Project.Name,
+                ProjectCode = x.Project.CaseFileNumber,
                 Source = x.Granular.Source,
                 DataType = "Granular",
                 UnitName = x.Granular.UnitName,
@@ -137,14 +149,38 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
             kpis.TotalCompletedProjects = completedProjectIds.Count;
 
-            var yearlyCombos = await _db.Set<ProliferationYearly>().AsNoTracking()
-                .Where(y => completedProjectIds.Contains(y.ProjectId) && y.ApprovalStatus == ApprovalStatus.Approved)
+            var yearlyCombosQuery = _db.Set<ProliferationYearly>().AsNoTracking()
+                .Where(y => completedProjectIds.Contains(y.ProjectId) && y.ApprovalStatus == ApprovalStatus.Approved);
+
+            var granularCombosQuery = _db.ProliferationGranularYearlyView.AsNoTracking()
+                .Where(g => completedProjectIds.Contains(g.ProjectId));
+
+            if (fromDateOnly.HasValue && toDateOnly.HasValue)
+            {
+                var startYear = fromDateOnly.Value.Year;
+                var endYear = toDateOnly.Value.Year;
+                yearlyCombosQuery = yearlyCombosQuery.Where(y => y.Year >= startYear && y.Year <= endYear);
+                granularCombosQuery = granularCombosQuery.Where(g => g.Year >= startYear && g.Year <= endYear);
+            }
+            else if (q.Years is { Length: > 0 })
+            {
+                var years = q.Years.ToHashSet();
+                yearlyCombosQuery = yearlyCombosQuery.Where(y => years.Contains(y.Year));
+                granularCombosQuery = granularCombosQuery.Where(g => years.Contains(g.Year));
+            }
+
+            if (q.Source.HasValue)
+            {
+                yearlyCombosQuery = yearlyCombosQuery.Where(y => y.Source == q.Source);
+                granularCombosQuery = granularCombosQuery.Where(g => g.Source == q.Source);
+            }
+
+            var yearlyCombos = await yearlyCombosQuery
                 .Select(y => new { y.ProjectId, y.Source, y.Year })
                 .ToListAsync(ct);
 
-            var granularCombos = await _db.Set<ProliferationGranular>().AsNoTracking()
-                .Where(g => completedProjectIds.Contains(g.ProjectId) && g.ApprovalStatus == ApprovalStatus.Approved)
-                .Select(g => new { g.ProjectId, g.Source, Year = g.ProliferationDate.Year })
+            var granularCombos = await granularCombosQuery
+                .Select(g => new { g.ProjectId, g.Source, g.Year })
                 .ToListAsync(ct);
 
             var projYears = yearlyCombos
