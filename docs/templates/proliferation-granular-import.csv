@@ -1,2 +1,2 @@
-ProjectId,Year,Granularity,Period,PeriodLabel,DirectBeneficiaries,IndirectBeneficiaries,InvestmentValue,Notes
-101,2024,Monthly,4,April,60,150,1250000,"Training sessions conducted across all partner campuses"
+ProjectCode,SimulatorName,UnitName,ProliferationDate(YYYY-MM-DD),Quantity,Remarks
+ALPHA-100,Smart Simulator,Unit 1,2024-04-15,60,"Training sessions conducted across all partner campuses"

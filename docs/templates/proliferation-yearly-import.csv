@@ -1,2 +1,2 @@
-ProjectId,Year,DirectBeneficiaries,IndirectBeneficiaries,InvestmentValue,Notes
-101,2024,120,450,2750000,"Optional narrative about reach expansion"
+ProjectCode,Source,Year,TotalQuantity,Remarks
+ALPHA-100,SDD,2024,120,"Optional narrative about reach expansion"
