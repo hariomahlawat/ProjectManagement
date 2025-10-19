@@ -17,11 +17,13 @@
       projectCategoryId: null,
       technicalCategoryId: null,
       source: '',
+      project: '',
       search: ''
     },
     page: 1,
     pageSize: 25,
-    totalCount: 0
+    totalCount: 0,
+    rows: []
   };
 
   const elements = {};
@@ -54,18 +56,20 @@
     elements.importStatus = document.getElementById('importStatus');
     elements.importFileInput = document.getElementById('import-file');
     elements.importDropzone = document.querySelector('[data-dropzone]');
+    elements.rowContextModal = document.getElementById('rowContextModal');
+    elements.rowContextDetails = document.getElementById('rowContextDetails');
+    elements.rowContextSubtitle = document.getElementById('rowContextModalSubtitle');
   }
 
   function instantiateComponents() {
     const granularOffcanvasEl = document.getElementById('granularOffcanvas');
     const yearlyOffcanvasEl = document.getElementById('yearlyOffcanvas');
-    const reconciliationOffcanvasEl = document.getElementById('reconciliationOffcanvas');
     const importModalEl = document.getElementById('importModal');
 
     bootstrapComponents.granularOffcanvas = granularOffcanvasEl ? new bootstrap.Offcanvas(granularOffcanvasEl) : null;
     bootstrapComponents.yearlyOffcanvas = yearlyOffcanvasEl ? new bootstrap.Offcanvas(yearlyOffcanvasEl) : null;
-    bootstrapComponents.reconciliationOffcanvas = reconciliationOffcanvasEl ? new bootstrap.Offcanvas(reconciliationOffcanvasEl) : null;
     bootstrapComponents.importModal = importModalEl ? new bootstrap.Modal(importModalEl) : null;
+    bootstrapComponents.rowContextModal = elements.rowContextModal ? new bootstrap.Modal(elements.rowContextModal) : null;
   }
 
   function populateYearOptions() {
@@ -113,13 +117,6 @@
       button.addEventListener('click', () => {
         resetForm(document.getElementById('yearlyForm'));
         bootstrapComponents.yearlyOffcanvas?.show();
-      });
-    });
-
-    document.querySelectorAll('[data-action="open-reconciliation"]').forEach((button) => {
-      button.addEventListener('click', () => {
-        document.querySelectorAll('#reconciliationOffcanvas form').forEach(resetForm);
-        bootstrapComponents.reconciliationOffcanvas?.show();
       });
     });
 
@@ -192,12 +189,11 @@
       }
     });
 
-    document.querySelectorAll('#reconciliationOffcanvas form').forEach((form) => {
+    document.querySelectorAll('.preferences-sidebar form').forEach((form) => {
       setupJsonForm(form, endpoints.setPreference, transformPreferenceForm, {
         successMessage: null,
         onSuccess: () => {
           showToast('Preference saved', 'success');
-          bootstrapComponents.reconciliationOffcanvas?.hide();
           loadOverview();
         }
       });
@@ -259,7 +255,7 @@
     for (let i = 0; i < 6; i += 1) {
       const row = document.createElement('tr');
       const cell = document.createElement('td');
-      cell.colSpan = 10;
+      cell.colSpan = 12;
       const skeleton = document.createElement('div');
       skeleton.className = 'skeleton table-row';
       cell.append(skeleton);
@@ -285,9 +281,10 @@
       const payload = await response.json();
       const data = normalizeOverviewResponse(payload);
       state.totalCount = data.totalCount ?? 0;
+      state.rows = Array.isArray(data.rows) ? data.rows : [];
       renderKpis(data.kpis);
       renderAnalytics(data.kpis);
-      renderTable(data.rows);
+      renderTable(state.rows);
       renderPagination();
       updateLastUpdated();
     } catch (error) {
@@ -382,7 +379,7 @@
     if (items.length === 0) {
       elements.tableBody.innerHTML = `
         <tr>
-          <td colspan="10" class="text-center py-5 text-muted">
+          <td colspan="12" class="text-center py-5 text-muted">
             <i class="bi bi-clipboard-data mb-2" aria-hidden="true"></i>
             <div>No records match the selected filters.</div>
           </td>
@@ -391,25 +388,40 @@
       return;
     }
 
-    elements.tableBody.innerHTML = items.map((row) => {
-      const projectCode = row.projectCode ? ` <span class="text-muted">(${escapeHtml(row.projectCode)})</span>` : '';
+    elements.tableBody.innerHTML = items.map((row, index) => {
+      const projectCode = row.projectCode ? `<span class="text-muted">(${escapeHtml(row.projectCode)})</span>` : '';
       const dateDisplay = row.proliferationDate || row.dateUtc ? formatDate(row.proliferationDate || row.dateUtc) : '—';
       const mode = row.mode || '—';
+      const effectiveTotal = getEffectiveTotal(row);
+      const effectiveLabel = formatNumber(effectiveTotal);
+      const projectName = row.project || row.projectName || '';
+      const subtitle = projectCode ? `<div class="text-muted small">${projectCode}</div>` : '';
       return `
         <tr>
           <td>${escapeHtml(row.year)}</td>
-          <td>${escapeHtml(row.project || row.projectName || '')}${projectCode}</td>
+          <td>
+            <div class="fw-semibold">${escapeHtml(projectName)}</div>
+            ${subtitle}
+          </td>
           <td>${escapeHtml(row.source)}</td>
           <td>${escapeHtml(row.dataType)}</td>
           <td>${escapeHtml(row.unitName || '—')}</td>
           <td>${escapeHtml(row.simulatorName || '—')}</td>
           <td>${escapeHtml(dateDisplay)}</td>
           <td class="text-end">${formatNumber(row.quantity)}</td>
+          <td class="text-end"><span class="effective-badge"><i class="bi bi-graph-up"></i>${effectiveLabel}</span></td>
           <td>${escapeHtml(row.approvalStatus || '—')}</td>
           <td>${escapeHtml(mode)}</td>
+          <td class="text-center">
+            <button type="button" class="context-trigger" data-action="show-context" data-row-index="${index}" aria-label="View context for ${escapeHtml(projectName || 'record')}">
+              <i class="bi bi-info-circle" aria-hidden="true"></i>
+            </button>
+          </td>
         </tr>
       `;
     }).join('');
+
+    attachRowContextHandlers(items);
   }
 
   function renderPagination() {
@@ -475,7 +487,7 @@
     if (elements.tableBody) {
       elements.tableBody.innerHTML = `
         <tr>
-          <td colspan="10" class="text-center py-5 text-muted">
+          <td colspan="12" class="text-center py-5 text-muted">
             Unable to load proliferation overview. Please try again later.
           </td>
         </tr>
@@ -504,6 +516,7 @@
     const projectCategoryInput = elements.filterForm.querySelector('[data-filter="project-category"]');
     const technicalCategoryInput = elements.filterForm.querySelector('[data-filter="technical-category"]');
     const sourceInput = elements.filterForm.querySelector('[data-filter="source"]');
+    const projectInput = elements.filterForm.querySelector('[data-filter="project"]');
     const searchInput = elements.filterForm.querySelector('[data-filter="search"]');
 
     state.filters.from = (data.get('from') || fromInput?.value || '').toString();
@@ -515,6 +528,7 @@
     state.filters.projectCategoryId = projectCategory ? parseInt(projectCategory, 10) : null;
     state.filters.technicalCategoryId = technicalCategory ? parseInt(technicalCategory, 10) : null;
     state.filters.source = (data.get('source') || sourceInput?.value || '').toString();
+    state.filters.project = (data.get('project') || projectInput?.value || '').toString().trim();
     state.filters.search = (data.get('search') || searchInput?.value || '').toString().trim();
   }
 
@@ -531,6 +545,7 @@
       projectCategoryId: null,
       technicalCategoryId: null,
       source: '',
+      project: '',
       search: ''
     };
     state.page = 1;
@@ -563,14 +578,82 @@
       query.set('Source', state.filters.source);
     }
 
-    if (state.filters.search) {
-      query.set('Search', state.filters.search);
+    const combinedSearch = [state.filters.project, state.filters.search]
+      .map((value) => value?.trim())
+      .filter((value) => value);
+
+    if (combinedSearch.length > 0) {
+      query.set('Search', combinedSearch.join(' '));
     }
 
     query.set('Page', state.page.toString());
     query.set('PageSize', state.pageSize.toString());
 
     return query.toString();
+  }
+
+  function attachRowContextHandlers(items) {
+    if (!elements.tableBody) return;
+    elements.tableBody.querySelectorAll('[data-action="show-context"]').forEach((button) => {
+      button.addEventListener('click', () => {
+        const index = Number(button.getAttribute('data-row-index'));
+        if (Number.isNaN(index) || !items[index]) {
+          return;
+        }
+        openRowContext(items[index]);
+      });
+    });
+  }
+
+  function openRowContext(row) {
+    if (!elements.rowContextDetails || !bootstrapComponents.rowContextModal) return;
+
+    const fragments = [
+      createDefinition('Project', `${row.project || row.projectName || '—'}${row.projectCode ? ` (${row.projectCode})` : ''}`),
+      createDefinition('Source', row.source),
+      createDefinition('Data type', row.dataType),
+      createDefinition('Year', row.year),
+      createDefinition('Proliferation date', formatDate(row.proliferationDate || row.dateUtc)),
+      createDefinition('Unit', row.unitName || '—'),
+      createDefinition('Simulator', row.simulatorName || '—'),
+      createDefinition('Quantity', formatNumber(row.quantity)),
+      createDefinition('Effective total', formatNumber(getEffectiveTotal(row))),
+      createDefinition('Status', row.approvalStatus || '—'),
+      createDefinition('Mode', row.mode || '—')
+    ];
+
+    elements.rowContextDetails.innerHTML = fragments.join('');
+    if (elements.rowContextSubtitle) {
+      const subtitle = `${formatDate(row.proliferationDate || row.dateUtc)} • ${row.source}`;
+      elements.rowContextSubtitle.textContent = subtitle.trim().replace(/^•\s*/, '');
+    }
+
+    bootstrapComponents.rowContextModal.show();
+  }
+
+  function createDefinition(label, value) {
+    const safeLabel = escapeHtml(label ?? '');
+    const safeValue = escapeHtml(value ?? '—');
+    return `
+      <dt class="col-sm-4">${safeLabel}</dt>
+      <dd class="col-sm-8 mb-3">${safeValue}</dd>
+    `;
+  }
+
+  function getEffectiveTotal(row) {
+    if (!row || typeof row !== 'object') {
+      return 0;
+    }
+
+    if (typeof row.effectiveTotal === 'number') {
+      return row.effectiveTotal;
+    }
+
+    if (row.effective && typeof row.effective.total === 'number') {
+      return row.effective.total;
+    }
+
+    return typeof row.quantity === 'number' ? row.quantity : Number(row.quantity) || 0;
   }
 
   function setupJsonForm(formIdOrElement, endpoint, transform, options = {}) {

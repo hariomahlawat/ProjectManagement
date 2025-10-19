@@ -31,109 +31,128 @@
                     Export CSV
                 </button>
             </div>
-            <button type="button" class="btn btn-outline-dark btn-sm" data-action="open-reconciliation">
-                <i class="bi bi-sliders me-1" aria-hidden="true"></i>
-                Reconciliation
-            </button>
         </div>
     </div>
-
-    <section class="mb-4" aria-labelledby="proliferation-kpis-heading">
-        <div class="d-flex justify-content-between align-items-center mb-3">
-            <h2 id="proliferation-kpis-heading" class="h5 mb-0">Portfolio overview</h2>
-            <span class="text-muted small" id="kpi-last-updated" aria-live="polite"></span>
-        </div>
-        <div id="kpiSection" class="row g-3" aria-live="polite" aria-busy="true"></div>
-    </section>
-
-    <section class="mb-5" aria-labelledby="analytics-heading">
-        <div class="card border-0 shadow-sm rounded-4">
-            <div class="card-body p-4">
-                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
-                    <div>
-                        <h2 id="analytics-heading" class="h5 mb-1">Proliferation in the last twelve months</h2>
-                        <p class="text-muted mb-0">Apply filters to explore performance by source, category, or project attributes.</p>
+    <div class="row g-4 align-items-start">
+        <aside class="col-12 col-xl-3 order-1 order-xl-2">
+            <section class="preferences-sidebar card border-0 shadow-sm rounded-4" aria-labelledby="preferences-heading">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-center justify-content-between mb-3">
+                        <h2 id="preferences-heading" class="h5 mb-0">Year preferences</h2>
+                        <span class="badge text-bg-light">Live</span>
                     </div>
-                    <div>
-                        <form id="filterForm" class="row g-2 align-items-end" autocomplete="off">
-                            <div class="col-12 col-sm-6 col-lg-3">
-                                <label class="form-label text-muted small" for="filter-years">Years</label>
-                                <select id="filter-years" name="years" class="form-select form-select-sm" multiple size="4" data-filter="years" aria-describedby="filter-years-help"></select>
-                                <div id="filter-years-help" class="form-text">Select up to five recent years.</div>
+                    <p class="text-muted small mb-4">
+                        Choose how yearly totals reconcile with granular submissions for each project and source.
+                    </p>
+                    <partial name="_ReconciliationPanel" />
+                </div>
+            </section>
+        </aside>
+        <div class="col-12 col-xl-9 order-2 order-xl-1">
+            <section class="mb-4" aria-labelledby="proliferation-kpis-heading">
+                <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center mb-3 gap-2">
+                    <h2 id="proliferation-kpis-heading" class="h5 mb-0">Portfolio overview</h2>
+                    <span class="text-muted small" id="kpi-last-updated" aria-live="polite"></span>
+                </div>
+                <div id="kpiSection" class="row g-3" aria-live="polite" aria-busy="true"></div>
+            </section>
+
+            <section class="mb-5" aria-labelledby="analytics-heading">
+                <div class="card border-0 shadow-sm rounded-4">
+                    <div class="card-body p-4">
+                        <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+                            <div>
+                                <h2 id="analytics-heading" class="h5 mb-1">Proliferation in the last twelve months</h2>
+                                <p class="text-muted mb-0">Apply filters to explore performance by source, category, or project attributes.</p>
                             </div>
-                            <div class="col-6 col-lg-2">
-                                <label class="form-label text-muted small" for="filter-from">From date</label>
-                                <input type="date" class="form-control form-control-sm" id="filter-from" name="from" data-filter="from" />
+                            <div>
+                                <form id="filterForm" class="row g-2 align-items-end" autocomplete="off">
+                                    <div class="col-12 col-sm-6 col-lg-3">
+                                        <label class="form-label text-muted small" for="filter-years">Years</label>
+                                        <select id="filter-years" name="years" class="form-select form-select-sm" multiple size="4" data-filter="years" aria-describedby="filter-years-help"></select>
+                                        <div id="filter-years-help" class="form-text">Select up to five recent years.</div>
+                                    </div>
+                                    <div class="col-6 col-lg-2">
+                                        <label class="form-label text-muted small" for="filter-from">From date</label>
+                                        <input type="date" class="form-control form-control-sm" id="filter-from" name="from" data-filter="from" />
+                                    </div>
+                                    <div class="col-6 col-lg-2">
+                                        <label class="form-label text-muted small" for="filter-to">To date</label>
+                                        <input type="date" class="form-control form-control-sm" id="filter-to" name="to" data-filter="to" />
+                                    </div>
+                                    <div class="col-12 col-sm-6 col-lg-3">
+                                        <label class="form-label text-muted small" for="filter-project">Project / Simulator</label>
+                                        <input type="search" class="form-control form-control-sm" id="filter-project" name="project" data-filter="project" placeholder="Filter completed projects" />
+                                    </div>
+                                    <div class="col-12 col-sm-6 col-lg-2">
+                                        <label class="form-label text-muted small" for="filter-category">Project category</label>
+                                        <select id="filter-category" name="projectCategory" class="form-select form-select-sm" data-filter="project-category">
+                                            <option value="">All categories</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-sm-6 col-lg-2">
+                                        <label class="form-label text-muted small" for="filter-technical">Technical category</label>
+                                        <select id="filter-technical" name="technicalCategory" class="form-select form-select-sm" data-filter="technical-category">
+                                            <option value="">All technical areas</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-6 col-lg-1">
+                                        <label class="form-label text-muted small" for="filter-source">Source</label>
+                                        <select id="filter-source" name="source" class="form-select form-select-sm" data-filter="source">
+                                            <option value="">All</option>
+                                            <option value="Sdd">SDD</option>
+                                            <option value="Abw515">515 ABW</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-12 col-lg-3">
+                                        <label class="form-label text-muted small" for="filter-search">Keyword search</label>
+                                        <input type="search" class="form-control form-control-sm" id="filter-search" name="search" data-filter="search" placeholder="Notes, units, or remarks" />
+                                    </div>
+                                    <div class="col-12 col-md-auto ms-auto d-flex gap-2">
+                                        <button type="button" class="btn btn-outline-secondary btn-sm" data-action="reset-filters">Reset</button>
+                                        <button type="submit" class="btn btn-primary btn-sm" data-action="apply-filters">
+                                            <i class="bi bi-funnel me-1" aria-hidden="true"></i>
+                                            Apply
+                                        </button>
+                                    </div>
+                                </form>
                             </div>
-                            <div class="col-6 col-lg-2">
-                                <label class="form-label text-muted small" for="filter-to">To date</label>
-                                <input type="date" class="form-control form-control-sm" id="filter-to" name="to" data-filter="to" />
-                            </div>
-                            <div class="col-12 col-sm-6 col-lg-2">
-                                <label class="form-label text-muted small" for="filter-category">Project category</label>
-                                <select id="filter-category" name="projectCategory" class="form-select form-select-sm" data-filter="project-category">
-                                    <option value="">All categories</option>
-                                </select>
-                            </div>
-                            <div class="col-12 col-sm-6 col-lg-2">
-                                <label class="form-label text-muted small" for="filter-technical">Technical category</label>
-                                <select id="filter-technical" name="technicalCategory" class="form-select form-select-sm" data-filter="technical-category">
-                                    <option value="">All technical areas</option>
-                                </select>
-                            </div>
-                            <div class="col-6 col-lg-1">
-                                <label class="form-label text-muted small" for="filter-source">Source</label>
-                                <select id="filter-source" name="source" class="form-select form-select-sm" data-filter="source">
-                                    <option value="">All</option>
-                                    <option value="Sdd">SDD</option>
-                                    <option value="Abw515">515 ABW</option>
-                                </select>
-                            </div>
-                            <div class="col-12 col-lg-3">
-                                <label class="form-label text-muted small" for="filter-search">Search</label>
-                                <input type="search" class="form-control form-control-sm" id="filter-search" name="search" data-filter="search" placeholder="Search project, simulator, or unit" />
-                            </div>
-                            <div class="col-12 col-md-auto ms-auto d-flex gap-2">
-                                <button type="button" class="btn btn-outline-secondary btn-sm" data-action="reset-filters">Reset</button>
-                                <button type="submit" class="btn btn-primary btn-sm" data-action="apply-filters">
-                                    <i class="bi bi-funnel me-1" aria-hidden="true"></i>
-                                    Apply
-                                </button>
-                            </div>
-                        </form>
+                        </div>
+
+                        <div id="analyticsSection" class="row g-3 mb-4" aria-live="polite" aria-busy="true"></div>
+
+                        <div class="table-responsive rounded-4 border overflow-hidden" id="tableContainer" aria-live="polite" aria-busy="true">
+                            <table class="table table-hover align-middle mb-0" id="resultsTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th scope="col">Year</th>
+                                        <th scope="col">Project</th>
+                                        <th scope="col">Source</th>
+                                        <th scope="col">Data type</th>
+                                        <th scope="col">Unit</th>
+                                        <th scope="col">Simulator</th>
+                                        <th scope="col">Date</th>
+                                        <th scope="col" class="text-end">Quantity</th>
+                                        <th scope="col" class="text-end">Effective total</th>
+                                        <th scope="col">Status</th>
+                                        <th scope="col">Mode</th>
+                                        <th scope="col" class="text-center">Context</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center mt-3" id="paginationContainer" hidden>
+                            <div class="text-muted small" id="paginationSummary"></div>
+                            <nav aria-label="Proliferation results pagination">
+                                <ul class="pagination pagination-sm mb-0" id="paginationControls"></ul>
+                            </nav>
+                        </div>
                     </div>
                 </div>
-
-                <div id="analyticsSection" class="row g-3 mb-4" aria-live="polite" aria-busy="true"></div>
-
-                <div class="table-responsive rounded-4 border overflow-hidden" id="tableContainer" aria-live="polite" aria-busy="true">
-                    <table class="table table-hover align-middle mb-0" id="resultsTable">
-                        <thead class="table-light">
-                            <tr>
-                                <th scope="col">Year</th>
-                                <th scope="col">Project</th>
-                                <th scope="col">Source</th>
-                                <th scope="col">Data type</th>
-                                <th scope="col">Unit</th>
-                                <th scope="col">Simulator</th>
-                                <th scope="col">Date</th>
-                                <th scope="col" class="text-end">Quantity</th>
-                                <th scope="col">Status</th>
-                                <th scope="col">Mode</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-                <div class="d-flex justify-content-between align-items-center mt-3" id="paginationContainer" hidden>
-                    <div class="text-muted small" id="paginationSummary"></div>
-                    <nav aria-label="Proliferation results pagination">
-                        <ul class="pagination pagination-sm mb-0" id="paginationControls"></ul>
-                    </nav>
-                </div>
-            </div>
+            </section>
         </div>
-    </section>
+    </div>
 </div>
 
 <div class="position-fixed top-0 end-0 p-3" style="z-index: 1080;" aria-live="polite" aria-atomic="true">
@@ -166,19 +185,6 @@
     </div>
 </div>
 
-<div class="offcanvas offcanvas-end" tabindex="-1" id="reconciliationOffcanvas" aria-labelledby="reconciliationOffcanvasLabel" data-bs-backdrop="static">
-    <div class="offcanvas-header border-bottom">
-        <div>
-            <h2 class="h5 mb-1" id="reconciliationOffcanvasLabel">Reconciliation preferences</h2>
-            <p class="text-muted mb-0 small">Choose how the system resolves conflicts between yearly and granular records.</p>
-        </div>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-    </div>
-    <div class="offcanvas-body">
-        <partial name="_ReconciliationPanel" />
-    </div>
-</div>
-
 <div class="modal fade" id="importModal" tabindex="-1" aria-labelledby="importModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -191,6 +197,23 @@
             </div>
             <div class="modal-body">
                 <partial name="_ImportModal" />
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="rowContextModal" tabindex="-1" aria-labelledby="rowContextModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <div>
+                    <h2 class="h5 mb-1" id="rowContextModalLabel">Record context</h2>
+                    <p class="text-muted small mb-0" id="rowContextModalSubtitle"></p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <dl class="row row-context-details mb-0" id="rowContextDetails"></dl>
             </div>
         </div>
     </div>
