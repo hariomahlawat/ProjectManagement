@@ -9,7 +9,8 @@
     exportCsv: "/api/proliferation/export",
     setPref: "/api/proliferation/year-preference",
     getPref: "/api/proliferation/year-preference",
-    projects: "/api/proliferation/projects"
+    projects: "/api/proliferation/projects",
+    lookups: "/api/proliferation/lookups"
   };
 
   function $(sel, root = document) { return root.querySelector(sel); }
@@ -68,15 +69,19 @@
   };
 
   const lookupCache = new Map();
+  const lookups = { projectCategories: [], technicalCategories: [] };
   let projectOptions = [];
   let preferenceFetchAbort = null;
+  let lastImportErrorUrl = null;
 
   function collectFilters() {
     const byYearToggle = $("#fltByYear");
     const byYear = byYearToggle ? byYearToggle.checked : true;
     filterState.source = $("#fltSource")?.value ?? "";
-    filterState.projectCategory = $("#fltProjectCat")?.value ?? "";
-    filterState.technicalCategory = $("#fltTechCat")?.value ?? "";
+    const projectCategoryRaw = $("#fltProjectCat")?.value ?? "";
+    const technicalCategoryRaw = $("#fltTechCat")?.value ?? "";
+    filterState.projectCategory = projectCategoryRaw;
+    filterState.technicalCategory = technicalCategoryRaw;
     filterState.search = ($("#fltSearch")?.value ?? "").trim();
 
     if (byYear) {
@@ -92,17 +97,41 @@
     }
 
     renderChips();
+    const projectCategoryId = projectCategoryRaw ? Number(projectCategoryRaw) : NaN;
+    const technicalCategoryId = technicalCategoryRaw ? Number(technicalCategoryRaw) : NaN;
+
     return {
       Years: filterState.years,
       FromDateUtc: filterState.from,
       ToDateUtc: filterState.to,
       Source: filterState.source || null,
-      ProjectCategory: filterState.projectCategory || null,
-      TechnicalCategory: filterState.technicalCategory || null,
+      ProjectCategoryId: Number.isFinite(projectCategoryId) ? projectCategoryId : null,
+      TechnicalCategoryId: Number.isFinite(technicalCategoryId) ? technicalCategoryId : null,
       Search: filterState.search || null,
       Page: filterState.page,
       PageSize: filterState.pageSize
     };
+  }
+
+  function resolveLookupLabel(source, value) {
+    const id = Number(value);
+    if (!Number.isFinite(id)) return null;
+    const match = source.find((item) => {
+      const itemId = item.id ?? item.Id;
+      if (Number.isFinite(itemId)) return itemId === id;
+      const parsed = Number(itemId);
+      return Number.isFinite(parsed) && parsed === id;
+    });
+    if (!match) return null;
+    return match.name ?? match.Name ?? null;
+  }
+
+  function resolveProjectCategoryLabel(value) {
+    return resolveLookupLabel(lookups.projectCategories, value);
+  }
+
+  function resolveTechnicalCategoryLabel(value) {
+    return resolveLookupLabel(lookups.technicalCategories, value);
   }
 
   function renderChips() {
@@ -113,8 +142,10 @@
     if (filterState.years.length) chips.push({ label: "Years", value: filterState.years.join(", ") });
     if (filterState.from || filterState.to) chips.push({ label: "Range", value: `${filterState.from?.slice(0, 10) || "…"} → ${filterState.to?.slice(0, 10) || "…"}` });
     if (filterState.source) chips.push({ label: "Source", value: filterState.source });
-    if (filterState.projectCategory) chips.push({ label: "Project category", value: filterState.projectCategory });
-    if (filterState.technicalCategory) chips.push({ label: "Technical", value: filterState.technicalCategory });
+    const projectLabel = resolveProjectCategoryLabel(filterState.projectCategory);
+    if (projectLabel) chips.push({ label: "Project category", value: projectLabel });
+    const technicalLabel = resolveTechnicalCategoryLabel(filterState.technicalCategory);
+    if (technicalLabel) chips.push({ label: "Technical", value: technicalLabel });
     if (filterState.search) chips.push({ label: "Search", value: `"${filterState.search}"` });
 
     for (const chip of chips) {
@@ -146,17 +177,76 @@
     if (ts) ts.textContent = `Updated ${stamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
   }
 
-  function updateEntryCount(count) {
+  function updateEntrySummary(totalCount, page, pageSize) {
     const badge = $("#entryListCount");
-    if (!badge) return;
-    if (!count) {
-      badge.hidden = true;
-      badge.textContent = "";
+    const summary = $("#entryPagingSummary");
+    const container = $("#entryPagination");
+    const safePage = Number.isFinite(page) && page > 0 ? page : 1;
+    const safeSize = Number.isFinite(pageSize) && pageSize > 0 ? pageSize : (totalCount || 1);
+    const start = totalCount === 0 ? 0 : (safePage - 1) * safeSize + 1;
+    const end = totalCount === 0 ? 0 : Math.min(totalCount, safePage * safeSize);
+    const rangeText = totalCount === 0
+      ? "No records to display"
+      : `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${totalCount.toLocaleString()} records`;
+
+    if (badge) {
+      if (totalCount === 0) {
+        badge.hidden = true;
+        badge.textContent = "";
+      } else {
+        badge.hidden = false;
+        badge.textContent = rangeText;
+      }
+    }
+
+    if (summary) {
+      summary.textContent = rangeText;
+      summary.hidden = false;
+    }
+
+    if (container) {
+      container.hidden = totalCount === 0;
+    }
+  }
+
+  function renderPagination(totalCount, page, pageSize) {
+    const pager = $("#entryPager");
+    if (!pager) return;
+    const safePage = Number.isFinite(page) && page > 0 ? page : 1;
+    const safeSize = Number.isFinite(pageSize) && pageSize > 0 ? pageSize : (totalCount || 1);
+    const totalPages = safeSize > 0 ? Math.max(1, Math.ceil(totalCount / safeSize)) : 1;
+
+    if (totalCount === 0 || totalPages <= 1) {
+      pager.innerHTML = "";
       return;
     }
-    const total = Number(count);
-    badge.textContent = `${total.toLocaleString()} ${total === 1 ? "record" : "records"}`;
-    badge.hidden = false;
+
+    const prevPage = Math.max(1, safePage - 1);
+    const nextPage = Math.min(totalPages, safePage + 1);
+    const prevDisabled = safePage <= 1;
+    const nextDisabled = safePage >= totalPages;
+
+    pager.innerHTML = `
+      <li class="page-item ${prevDisabled ? "disabled" : ""}">
+        <button type="button" class="page-link" data-page="${prevPage}" ${prevDisabled ? "disabled" : ""}>Previous</button>
+      </li>
+      <li class="page-item disabled"><span class="page-link">Page ${safePage} of ${totalPages}</span></li>
+      <li class="page-item ${nextDisabled ? "disabled" : ""}">
+        <button type="button" class="page-link" data-page="${nextPage}" ${nextDisabled ? "disabled" : ""}>Next</button>
+      </li>`;
+  }
+
+  function wirePagination() {
+    const pager = $("#entryPager");
+    if (!pager) return;
+    pager.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-page]");
+      if (!button || button.disabled) return;
+      const targetPage = Number(button.dataset.page);
+      if (!Number.isFinite(targetPage) || targetPage < 1 || targetPage === filterState.page) return;
+      filterState.page = targetPage;
+      refresh();
+    });
   }
 
   function renderTable(rows) {
@@ -169,7 +259,6 @@
         <div>No records match the current filters. Try adjusting filters or reset.</div>
       </div>`;
       host.removeAttribute("aria-busy");
-      updateEntryCount(0);
       updateSelectionSummary(null);
       return;
     }
@@ -200,7 +289,7 @@
       const simulator = row.SimulatorName ?? row.simulatorName ?? "";
       const dateRaw = row.DateUtc ?? row.dateUtc ?? row.ProliferationDate ?? row.proliferationDate ?? "";
       const quantity = row.Quantity ?? row.quantity ?? 0;
-      const effective = row.EffectiveTotal ?? row.effectiveTotal;
+      const effective = row.EffectiveTotal ?? row.effectiveTotal ?? quantity;
       const approval = row.ApprovalStatus ?? row.approvalStatus ?? "";
       const mode = row.Mode ?? row.mode ?? "—";
       const year = row.Year ?? row.year ?? "";
@@ -234,7 +323,6 @@
       <table class="table table-hover align-middle mb-0 table-proliferation">${header}<tbody>${body}</tbody></table>
     </div>`;
     host.setAttribute("aria-busy", "false");
-    updateEntryCount(rows.length);
     updateSelectionSummary(null);
     wireEntryTable();
   }
@@ -339,8 +427,8 @@
     if (filters.FromDateUtc) params.set("FromDateUtc", filters.FromDateUtc);
     if (filters.ToDateUtc) params.set("ToDateUtc", filters.ToDateUtc);
     if (filters.Source) params.set("Source", filters.Source);
-    if (filters.ProjectCategory) params.set("ProjectCategoryId", filters.ProjectCategory);
-    if (filters.TechnicalCategory) params.set("TechnicalCategoryId", filters.TechnicalCategory);
+    if (filters.ProjectCategoryId) params.set("ProjectCategoryId", filters.ProjectCategoryId);
+    if (filters.TechnicalCategoryId) params.set("TechnicalCategoryId", filters.TechnicalCategoryId);
     if (filters.Search) params.set("Search", filters.Search);
     params.set("Page", filters.Page ?? 1);
     params.set("PageSize", filters.PageSize ?? 50);
@@ -375,7 +463,15 @@
       const filters = collectFilters();
       const data = await fetchOverview(filters);
       renderKpis(data.Kpis ?? data.kpis);
-      renderTable(data.Rows ?? data.rows ?? []);
+      const totalCount = Number(data.TotalCount ?? data.totalCount ?? 0);
+      const page = Number(data.Page ?? data.page ?? filters.Page ?? filterState.page);
+      const pageSize = Number(data.PageSize ?? data.pageSize ?? filterState.pageSize);
+      filterState.page = Number.isFinite(page) && page > 0 ? page : 1;
+      filterState.pageSize = Number.isFinite(pageSize) && pageSize > 0 ? pageSize : filterState.pageSize;
+      updateEntrySummary(totalCount, filterState.page, filterState.pageSize);
+      renderPagination(totalCount, filterState.page, filterState.pageSize);
+      const rows = data.Rows ?? data.rows ?? [];
+      renderTable(rows);
     } catch (error) {
       console.warn("Failed to load overview", error);
       if (host) {
@@ -384,6 +480,8 @@
         </div>`;
         host.setAttribute("aria-busy", "false");
       }
+      updateEntrySummary(0, filterState.page, filterState.pageSize);
+      renderPagination(0, filterState.page, filterState.pageSize);
       toast("Unable to load proliferation overview. Please try again later.", "danger");
     }
   }
@@ -416,6 +514,7 @@
       $("#fltYearsWrap")?.classList.remove("d-none");
       $("#fltFromWrap")?.classList.add("d-none");
       $("#fltToWrap")?.classList.add("d-none");
+      filterState.page = 1;
       refresh();
     });
 
@@ -542,10 +641,45 @@
         const response = await fetch(endpoint, { method: "POST", body: fd });
         if (!response.ok) throw new Error();
         const payload = await response.json();
+        const accepted = Number(payload.Accepted ?? payload.accepted ?? 0);
+        const rejected = Number(payload.Rejected ?? payload.rejected ?? 0);
         bar.style.width = "100%";
         bar.textContent = "Done";
-        $("#impResult").innerHTML = `<div class="alert alert-light border">Imported: <strong>${payload.Accepted ?? payload.accepted ?? 0}</strong>, Rejected: <strong>${payload.Rejected ?? payload.rejected ?? 0}</strong></div>`;
-        toast("Import finished");
+        const resultHost = $("#impResult");
+        if (resultHost) {
+          resultHost.innerHTML = `<div class="alert alert-light border">Imported: <strong>${accepted}</strong>, Rejected: <strong>${rejected}</strong></div>`;
+        }
+        if (lastImportErrorUrl) {
+          URL.revokeObjectURL(lastImportErrorUrl);
+          lastImportErrorUrl = null;
+        }
+        const errorCsv = payload.ErrorCsvBase64 ?? payload.errorCsvBase64;
+        if (errorCsv && resultHost) {
+          try {
+            const binary = atob(errorCsv);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i += 1) {
+              bytes[i] = binary.charCodeAt(i);
+            }
+            const blob = new Blob([bytes], { type: "text/csv" });
+            lastImportErrorUrl = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = lastImportErrorUrl;
+            link.download = `proliferation-import-errors-${new Date().toISOString().slice(0, 10)}.csv`;
+            link.className = "btn btn-link btn-sm p-0";
+            link.textContent = "Download rejection report";
+            const wrapper = document.createElement("div");
+            wrapper.className = "mt-2";
+            wrapper.append(link);
+            resultHost.append(wrapper);
+            toast("Some rows were rejected. Download the report for details.", "warning");
+          } catch (err) {
+            console.warn("Unable to prepare rejection report", err);
+          }
+        }
+        if (!errorCsv) {
+          toast("Import finished");
+        }
         refresh();
       } catch {
         bar.style.width = "100%";
@@ -568,6 +702,8 @@
   function wireToolbar() {
     $("#btnExport")?.addEventListener("click", () => {
       const filters = collectFilters();
+      filters.Page = 1;
+      filters.PageSize = 0;
       window.location.href = api.exportCsv + buildQuery(filters);
     });
   }
@@ -578,6 +714,61 @@
       window.clearTimeout(timer);
       timer = window.setTimeout(() => fn(...args), delay);
     };
+  }
+
+  function populateCategoryFilters() {
+    const projectSelect = $("#fltProjectCat");
+    if (projectSelect) {
+      const previous = projectSelect.value;
+      projectSelect.innerHTML = "<option value=\"\">All categories</option>";
+      for (const item of lookups.projectCategories) {
+        const id = Number(item.id ?? item.Id);
+        const name = item.name ?? item.Name ?? "";
+        if (!Number.isFinite(id)) continue;
+        const option = document.createElement("option");
+        option.value = String(id);
+        option.textContent = name;
+        projectSelect.append(option);
+      }
+      if (previous) {
+        projectSelect.value = previous;
+      } else if (filterState.projectCategory) {
+        projectSelect.value = filterState.projectCategory;
+      }
+    }
+
+    const technicalSelect = $("#fltTechCat");
+    if (technicalSelect) {
+      const previous = technicalSelect.value;
+      technicalSelect.innerHTML = "<option value=\"\">All technical</option>";
+      for (const item of lookups.technicalCategories) {
+        const id = Number(item.id ?? item.Id);
+        const name = item.name ?? item.Name ?? "";
+        if (!Number.isFinite(id)) continue;
+        const option = document.createElement("option");
+        option.value = String(id);
+        option.textContent = name;
+        technicalSelect.append(option);
+      }
+      if (previous) {
+        technicalSelect.value = previous;
+      } else if (filterState.technicalCategory) {
+        technicalSelect.value = filterState.technicalCategory;
+      }
+    }
+  }
+
+  async function loadLookups() {
+    try {
+      const response = await fetch(api.lookups, { headers: { Accept: "application/json" } });
+      if (!response.ok) throw new Error("Failed to load lookups");
+      const data = await response.json();
+      lookups.projectCategories = data.ProjectCategories ?? data.projectCategories ?? [];
+      lookups.technicalCategories = data.TechnicalCategories ?? data.technicalCategories ?? [];
+      populateCategoryFilters();
+    } catch (error) {
+      console.warn("Unable to load category lookups", error);
+    }
   }
 
   async function loadProjects(query = "") {
@@ -701,6 +892,7 @@
     const savedAt = $("#prefSavedAt");
     const resetBtn = $("#btnPrefReset");
     const saveBtn = $("#btnSavePreference");
+    const canManage = form?.dataset.canManage === "true";
 
     const searchProjects = debounce(async () => {
       const term = projectInput.value.trim();
@@ -741,6 +933,10 @@
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (!canManage) {
+        toast("You do not have permission to update year preferences.", "warning");
+        return;
+      }
       const projectId = Number(projectIdInput.value);
       if (!projectId) {
         toast("Select a completed project", "warning");
@@ -749,7 +945,7 @@
       if (!validateForm(form)) return;
       const submitSpinner = saveBtn?.querySelector(".spinner-border");
       if (submitSpinner) submitSpinner.hidden = false;
-      saveBtn.disabled = true;
+      if (saveBtn) saveBtn.disabled = true;
       const payload = {
         ProjectId: projectId,
         Source: sourceSelect.value,
@@ -762,7 +958,21 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
-        if (!response.ok) throw new Error();
+        if (!response.ok) {
+          let message = "Unable to save preference";
+          if (response.status === 403) {
+            message = "You do not have permission to update year preferences.";
+          } else {
+            try {
+              const text = await response.text();
+              if (text) message = text;
+            } catch {
+              // ignore
+            }
+          }
+          toast(message, response.status === 400 ? "warning" : "danger");
+          return;
+        }
         toast("Preference saved");
         const now = new Date();
         if (savedAt) {
@@ -775,7 +985,7 @@
         toast("Unable to save preference", "danger");
       } finally {
         if (submitSpinner) submitSpinner.hidden = true;
-        saveBtn.disabled = false;
+        if (saveBtn) saveBtn.disabled = false;
       }
     });
   }
@@ -794,6 +1004,7 @@
 
   document.addEventListener("DOMContentLoaded", async () => {
     populateYears();
+    await loadLookups();
     wireFilters();
     wireEntryForms();
     wireEntryPaneToggle();
@@ -801,6 +1012,7 @@
     activateEntryPane("granular", { focus: false });
     wireImport();
     wireToolbar();
+    wirePagination();
     wirePreferences();
     try {
       const options = await loadProjects("");
