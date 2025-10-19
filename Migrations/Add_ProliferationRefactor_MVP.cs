@@ -65,6 +65,8 @@ namespace ProjectManagement.Migrations
                 },
                 constraints: t => { t.PrimaryKey("PK_ProliferationYearPreference", x => x.Id); });
 
+            m.Sql(@"DROP VIEW IF EXISTS ""vw_ProliferationGranularYearly"";");
+
             m.Sql(@"
 CREATE VIEW ""vw_ProliferationGranularYearly"" AS
 SELECT
