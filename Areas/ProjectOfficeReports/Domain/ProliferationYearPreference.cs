@@ -1,40 +1,14 @@
-using System;
-using System.ComponentModel.DataAnnotations;
-using ProjectManagement.Models;
-
-namespace ProjectManagement.Areas.ProjectOfficeReports.Domain;
-
-public class ProliferationYearPreference
+namespace ProjectManagement.Areas.ProjectOfficeReports.Domain
 {
-    public Guid Id { get; set; }
+    public class ProliferationYearPreference
+    {
+        public Guid Id { get; set; }
+        public int ProjectId { get; set; }
+        public ProliferationSource Source { get; set; }
+        public int Year { get; set; }
+        public YearPreferenceMode Mode { get; set; } = YearPreferenceMode.Auto;
 
-    [Required]
-    public int ProjectId { get; set; }
-
-    public Project? Project { get; set; }
-
-    [Required]
-    [MaxLength(450)]
-    public string UserId { get; set; } = string.Empty;
-
-    public ApplicationUser? User { get; set; }
-
-    [Required]
-    public ProliferationSource Source { get; set; }
-
-    [Range(1900, 9999)]
-    public int Year { get; set; }
-
-    [Required]
-    [MaxLength(450)]
-    public string CreatedByUserId { get; set; } = string.Empty;
-
-    public DateTimeOffset CreatedAtUtc { get; set; }
-
-    [MaxLength(450)]
-    public string? LastModifiedByUserId { get; set; }
-
-    public DateTimeOffset? LastModifiedAtUtc { get; set; }
-
-    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+        public string SetByUserId { get; set; } = default!;
+        public DateTime SetOnUtc { get; set; }
+    }
 }

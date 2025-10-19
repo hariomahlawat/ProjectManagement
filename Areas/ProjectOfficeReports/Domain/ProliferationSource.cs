@@ -1,8 +1,8 @@
-namespace ProjectManagement.Areas.ProjectOfficeReports.Domain;
-
-public enum ProliferationSource
+namespace ProjectManagement.Areas.ProjectOfficeReports.Domain
 {
-    Unknown = 0,
-    Sdd = 1,
-    Abw515 = 2
+    public enum ProliferationSource
+    {
+        Sdd = 1,
+        Abw515 = 2
+    }
 }

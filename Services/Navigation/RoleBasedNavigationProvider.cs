@@ -98,58 +98,11 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Page = "/SocialMedia/Index"
             });
 
-            var proliferationChildren = new List<NavigationItem>
-            {
-                new()
-                {
-                    Text = "Overview",
-                    Area = "ProjectOfficeReports",
-                    Page = "/Proliferation/Index"
-                },
-                new()
-                {
-                    Text = "Yearly totals",
-                    Area = "ProjectOfficeReports",
-                    Page = "/Proliferation/Yearly/Index"
-                },
-                new()
-                {
-                    Text = "Granular metrics",
-                    Area = "ProjectOfficeReports",
-                    Page = "/Proliferation/Granular/Index"
-                }
-            };
-
-            var hoDOrAdminRoles = new[] { "HoD", "Admin" };
-
-            if (roleSet.Contains("HoD") || roleSet.Contains("Admin"))
-            {
-                proliferationChildren.Add(new NavigationItem
-                {
-                    Text = "Reconciliation",
-                    Area = "ProjectOfficeReports",
-                    Page = "/Proliferation/Reconciliation",
-                    RequiredRoles = hoDOrAdminRoles
-                });
-            }
-
-            if (roleSet.Contains("Admin"))
-            {
-                proliferationChildren.Add(new NavigationItem
-                {
-                    Text = "Administration",
-                    Area = "ProjectOfficeReports",
-                    Page = "/Proliferation/Admin/Index",
-                    RequiredRoles = new[] { "Admin" }
-                });
-            }
-
             projectOfficeReportsChildren.Add(new NavigationItem
             {
                 Text = "Proliferation tracker",
                 Area = "ProjectOfficeReports",
-                Page = "/Proliferation/Index",
-                Children = proliferationChildren
+                Page = "/Proliferation/Index"
             });
         }
 

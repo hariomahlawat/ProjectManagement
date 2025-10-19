@@ -90,10 +90,8 @@ namespace ProjectManagement.Data
         public DbSet<SocialMediaEventPhoto> SocialMediaEventPhotos => Set<SocialMediaEventPhoto>();
         public DbSet<ProliferationYearly> ProliferationYearlies => Set<ProliferationYearly>();
         public DbSet<ProliferationGranular> ProliferationGranularEntries => Set<ProliferationGranular>();
-        public DbSet<ProliferationYearlyRequest> ProliferationYearlyRequests => Set<ProliferationYearlyRequest>();
-        public DbSet<ProliferationGranularRequest> ProliferationGranularRequests => Set<ProliferationGranularRequest>();
         public DbSet<ProliferationYearPreference> ProliferationYearPreferences => Set<ProliferationYearPreference>();
-        public DbSet<ProliferationGranularYearly> ProliferationGranularYearlyView => Set<ProliferationGranularYearly>();
+        public DbSet<VwProliferationGranularYearly> ProliferationGranularYearlyView => Set<VwProliferationGranularYearly>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -376,293 +374,36 @@ namespace ProjectManagement.Data
                 }
             });
 
-            builder.Entity<ProliferationYearly>(e =>
+            builder.Entity<ProliferationYearly>(b =>
             {
-                ConfigureRowVersion(e);
-                e.Property(x => x.ProjectId).IsRequired();
-                e.Property(x => x.Source)
-                    .HasConversion<string>()
-                    .HasMaxLength(64)
-                    .IsRequired();
-                e.Property(x => x.Year).IsRequired();
-                e.Property(x => x.Notes).HasMaxLength(2000);
-                e.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
-                e.Property(x => x.LastModifiedByUserId).HasMaxLength(450);
-                e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
-                e.Property(x => x.LastModifiedAtUtc);
+                b.ToTable("ProliferationYearly");
+                b.HasKey(x => x.Id);
+                b.Property(x => x.RowVersion).IsRowVersion();
+                b.HasIndex(x => new { x.ProjectId, x.Source, x.Year })
+                    .HasDatabaseName("IX_ProlifYearly_Project_Source_Year");
+            });
 
-                if (Database.IsNpgsql())
-                {
-                    e.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone");
-                    e.Property(x => x.LastModifiedAtUtc).HasColumnType("timestamp with time zone");
-                }
+            builder.Entity<ProliferationGranular>(b =>
+            {
+                b.ToTable("ProliferationGranular");
+                b.HasKey(x => x.Id);
+                b.Property(x => x.RowVersion).IsRowVersion();
+                b.HasIndex(x => new { x.ProjectId, x.Source, x.ProliferationDate });
+            });
 
-                e.HasIndex(x => x.ProjectId).HasDatabaseName("IX_ProliferationYearly_ProjectId");
-                e.HasIndex(x => new { x.ProjectId, x.Source, x.Year })
+            builder.Entity<ProliferationYearPreference>(b =>
+            {
+                b.ToTable("ProliferationYearPreference");
+                b.HasKey(x => x.Id);
+                b.HasIndex(x => new { x.ProjectId, x.Source, x.Year })
                     .IsUnique()
-                    .HasDatabaseName("UX_ProliferationYearly_Project_Source_Year");
-
-                e.HasOne(x => x.Project)
-                    .WithMany()
-                    .HasForeignKey(x => x.ProjectId)
-                    .OnDelete(DeleteBehavior.Cascade);
-
-                if (Database.IsSqlServer())
-                {
-                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
-                }
-                else if (!Database.IsNpgsql())
-                {
-                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
-                }
-
-                e.OwnsOne(x => x.Metrics, owned =>
-                {
-                    owned.Property(x => x.DirectBeneficiaries).HasColumnName("DirectBeneficiaries");
-                    owned.Property(x => x.IndirectBeneficiaries).HasColumnName("IndirectBeneficiaries");
-                    owned.Property(x => x.InvestmentValue).HasColumnName("InvestmentValue");
-                });
+                    .HasDatabaseName("UX_ProlifYearPref_Project_Source_Year");
             });
 
-            builder.Entity<ProliferationGranular>(e =>
+            builder.Entity<VwProliferationGranularYearly>(b =>
             {
-                ConfigureRowVersion(e);
-                e.Property(x => x.ProjectId).IsRequired();
-                e.Property(x => x.Source)
-                    .HasConversion<string>()
-                    .HasMaxLength(64)
-                    .IsRequired();
-                e.Property(x => x.Year).IsRequired();
-                e.Property(x => x.Granularity)
-                    .HasConversion<string>()
-                    .HasMaxLength(32)
-                    .IsRequired();
-                e.Property(x => x.Period).IsRequired();
-                e.Property(x => x.PeriodLabel).HasMaxLength(200);
-                e.Property(x => x.Notes).HasMaxLength(2000);
-                e.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
-                e.Property(x => x.LastModifiedByUserId).HasMaxLength(450);
-                e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
-                e.Property(x => x.LastModifiedAtUtc);
-
-                if (Database.IsNpgsql())
-                {
-                    e.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone");
-                    e.Property(x => x.LastModifiedAtUtc).HasColumnType("timestamp with time zone");
-                }
-
-                e.HasIndex(x => new { x.ProjectId, x.Year })
-                    .HasDatabaseName("IX_ProliferationGranular_ProjectId_Year");
-
-                e.HasIndex(x => new { x.ProjectId, x.Source, x.Year, x.Granularity, x.Period })
-                    .HasDatabaseName("IX_ProliferationGranular_Project_Source_Period");
-
-                e.HasOne(x => x.Project)
-                    .WithMany()
-                    .HasForeignKey(x => x.ProjectId)
-                    .OnDelete(DeleteBehavior.Cascade);
-
-                if (Database.IsSqlServer())
-                {
-                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
-                }
-                else if (!Database.IsNpgsql())
-                {
-                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
-                }
-
-                e.OwnsOne(x => x.Metrics, owned =>
-                {
-                    owned.Property(x => x.DirectBeneficiaries).HasColumnName("DirectBeneficiaries");
-                    owned.Property(x => x.IndirectBeneficiaries).HasColumnName("IndirectBeneficiaries");
-                    owned.Property(x => x.InvestmentValue).HasColumnName("InvestmentValue");
-                });
-            });
-
-            builder.Entity<ProliferationYearlyRequest>(e =>
-            {
-                ConfigureRowVersion(e);
-                e.Property(x => x.ProjectId).IsRequired();
-                e.Property(x => x.Source)
-                    .HasConversion<string>()
-                    .HasMaxLength(64)
-                    .IsRequired();
-                e.Property(x => x.Year).IsRequired();
-                e.Property(x => x.Notes).HasMaxLength(2000);
-                e.Property(x => x.DecisionNotes).HasMaxLength(2000);
-                e.Property(x => x.SubmittedByUserId).HasMaxLength(450).IsRequired();
-                e.Property(x => x.DecidedByUserId).HasMaxLength(450);
-                e.Property(x => x.DecisionState)
-                    .HasConversion<string>()
-                    .HasMaxLength(32)
-                    .IsRequired();
-
-                if (Database.IsNpgsql())
-                {
-                    e.Property(x => x.SubmittedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
-                    e.Property(x => x.SubmittedAtUtc).HasColumnType("timestamp with time zone");
-                    e.Property(x => x.DecidedAtUtc).HasColumnType("timestamp with time zone");
-                }
-                else if (Database.IsSqlServer())
-                {
-                    e.Property(x => x.SubmittedAtUtc).HasDefaultValueSql("GETUTCDATE()");
-                }
-                else
-                {
-                    e.Property(x => x.SubmittedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
-                }
-
-                e.HasIndex(x => new { x.ProjectId, x.Source, x.Year })
-                    .IsUnique()
-                    .HasDatabaseName("UX_ProliferationYearlyRequest_Project_Source_Year");
-
-                e.HasOne(x => x.Project)
-                    .WithMany()
-                    .HasForeignKey(x => x.ProjectId)
-                    .OnDelete(DeleteBehavior.Cascade);
-
-                e.HasOne(x => x.SubmittedByUser)
-                    .WithMany()
-                    .HasForeignKey(x => x.SubmittedByUserId)
-                    .OnDelete(DeleteBehavior.Restrict);
-
-                e.HasOne(x => x.DecidedByUser)
-                    .WithMany()
-                    .HasForeignKey(x => x.DecidedByUserId)
-                    .OnDelete(DeleteBehavior.Restrict);
-
-                e.OwnsOne(x => x.Metrics, owned =>
-                {
-                    owned.Property(x => x.DirectBeneficiaries).HasColumnName("DirectBeneficiaries");
-                    owned.Property(x => x.IndirectBeneficiaries).HasColumnName("IndirectBeneficiaries");
-                    owned.Property(x => x.InvestmentValue).HasColumnName("InvestmentValue");
-                });
-            });
-
-            builder.Entity<ProliferationGranularRequest>(e =>
-            {
-                ConfigureRowVersion(e);
-                e.Property(x => x.ProjectId).IsRequired();
-                e.Property(x => x.Source)
-                    .HasConversion<string>()
-                    .HasMaxLength(64)
-                    .IsRequired();
-                e.Property(x => x.Year).IsRequired();
-                e.Property(x => x.Granularity)
-                    .HasConversion<string>()
-                    .HasMaxLength(32)
-                    .IsRequired();
-                e.Property(x => x.Period).IsRequired();
-                e.Property(x => x.PeriodLabel).HasMaxLength(200);
-                e.Property(x => x.Notes).HasMaxLength(2000);
-                e.Property(x => x.DecisionNotes).HasMaxLength(2000);
-                e.Property(x => x.SubmittedByUserId).HasMaxLength(450).IsRequired();
-                e.Property(x => x.DecidedByUserId).HasMaxLength(450);
-                e.Property(x => x.DecisionState)
-                    .HasConversion<string>()
-                    .HasMaxLength(32)
-                    .IsRequired();
-
-                if (Database.IsNpgsql())
-                {
-                    e.Property(x => x.SubmittedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
-                    e.Property(x => x.SubmittedAtUtc).HasColumnType("timestamp with time zone");
-                    e.Property(x => x.DecidedAtUtc).HasColumnType("timestamp with time zone");
-                }
-                else if (Database.IsSqlServer())
-                {
-                    e.Property(x => x.SubmittedAtUtc).HasDefaultValueSql("GETUTCDATE()");
-                }
-                else
-                {
-                    e.Property(x => x.SubmittedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
-                }
-
-                e.HasIndex(x => new { x.ProjectId, x.Source, x.Year, x.Granularity, x.Period })
-                    .IsUnique()
-                    .HasDatabaseName("UX_ProliferationGranularRequest_Project_Source_Period");
-
-                e.HasOne(x => x.Project)
-                    .WithMany()
-                    .HasForeignKey(x => x.ProjectId)
-                    .OnDelete(DeleteBehavior.Cascade);
-
-                e.HasOne(x => x.SubmittedByUser)
-                    .WithMany()
-                    .HasForeignKey(x => x.SubmittedByUserId)
-                    .OnDelete(DeleteBehavior.Restrict);
-
-                e.HasOne(x => x.DecidedByUser)
-                    .WithMany()
-                    .HasForeignKey(x => x.DecidedByUserId)
-                    .OnDelete(DeleteBehavior.Restrict);
-
-                e.OwnsOne(x => x.Metrics, owned =>
-                {
-                    owned.Property(x => x.DirectBeneficiaries).HasColumnName("DirectBeneficiaries");
-                    owned.Property(x => x.IndirectBeneficiaries).HasColumnName("IndirectBeneficiaries");
-                    owned.Property(x => x.InvestmentValue).HasColumnName("InvestmentValue");
-                });
-            });
-
-            builder.Entity<ProliferationYearPreference>(e =>
-            {
-                ConfigureRowVersion(e);
-                e.Property(x => x.ProjectId).IsRequired();
-                e.Property(x => x.UserId).HasMaxLength(450).IsRequired();
-                e.Property(x => x.Source)
-                    .HasConversion<string>()
-                    .HasMaxLength(64)
-                    .IsRequired();
-                e.Property(x => x.Year).IsRequired();
-                e.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
-                e.Property(x => x.LastModifiedByUserId).HasMaxLength(450);
-                e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
-                e.Property(x => x.LastModifiedAtUtc);
-
-                if (Database.IsNpgsql())
-                {
-                    e.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone");
-                    e.Property(x => x.LastModifiedAtUtc).HasColumnType("timestamp with time zone");
-                }
-
-                e.HasIndex(x => new { x.ProjectId, x.Source, x.UserId })
-                    .IsUnique()
-                    .HasDatabaseName("UX_ProliferationYearPreference_Project_Source_User");
-
-                e.HasOne(x => x.Project)
-                    .WithMany()
-                    .HasForeignKey(x => x.ProjectId)
-                    .OnDelete(DeleteBehavior.Cascade);
-
-                e.HasOne(x => x.User)
-                    .WithMany()
-                    .HasForeignKey(x => x.UserId)
-                    .OnDelete(DeleteBehavior.Cascade);
-
-                if (Database.IsSqlServer())
-                {
-                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
-                }
-                else if (!Database.IsNpgsql())
-                {
-                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
-                }
-            });
-
-            builder.Entity<ProliferationGranularYearly>(e =>
-            {
-                e.HasNoKey();
-                e.ToView("vw_ProliferationGranularYearly");
-                e.Property(x => x.ProjectId).IsRequired();
-                e.Property(x => x.Source)
-                    .HasConversion<string>()
-                    .HasMaxLength(64)
-                    .IsRequired();
-                e.Property(x => x.Year).IsRequired();
-                e.Property(x => x.DirectBeneficiaries).HasColumnName("DirectBeneficiaries");
-                e.Property(x => x.IndirectBeneficiaries).HasColumnName("IndirectBeneficiaries");
-                e.Property(x => x.InvestmentValue).HasColumnName("InvestmentValue");
+                b.HasNoKey();
+                b.ToView("vw_ProliferationGranularYearly");
             });
 
             builder.Entity<SocialMediaEventType>(e =>
