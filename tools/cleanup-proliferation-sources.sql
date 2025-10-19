@@ -1,60 +1,94 @@
 -- Post-deployment cleanup script for proliferation Source columns.
 -- Run the statements that match your database provider after applying the
--- 20251104120000_ForceNumericProliferationSource migration. The queries are
--- idempotent and only touch rows where Source is still stored as text.
+-- 20251104120000_ForceNumericProliferationSource migration. Execute only the
+-- block for your provider; each statement is idempotent and ignores rows that
+-- are already stored as integers.
 
 -- PostgreSQL --------------------------------------------------------------
--- UPDATE "ProliferationYearly"
+-- UPDATE "ProliferationYearly" AS tgt
 -- SET "Source" = CASE
---         WHEN regexp_replace(CAST("Source" AS TEXT), '\s+', '', 'g') ~ '^[0-9]+$' THEN CAST("Source" AS INTEGER)
---         WHEN lower(btrim(CAST("Source" AS TEXT))) = 'sdd' THEN 1
---         WHEN regexp_replace(lower(CAST("Source" AS TEXT)), '[^a-z0-9]', '', 'g') IN ('abw515', '515abw') THEN 2
---         ELSE "Source"
+--         WHEN src.trimmed ~ '^[0-9]+$' THEN src.trimmed::integer
+--         WHEN src.canonical LIKE 'sdd%' THEN 1
+--         WHEN src.canonical LIKE 'abw515%' OR src.canonical LIKE '515abw%' THEN 2
+--         ELSE tgt."Source"
 --     END
--- WHERE CAST("Source" AS TEXT) !~ '^[0-9]+$';
+-- FROM (
+--     SELECT "Id",
+--            regexp_replace(CAST("Source" AS TEXT), '\s+', '', 'g') AS trimmed,
+--            regexp_replace(lower(CAST("Source" AS TEXT)), '[^a-z0-9]', '', 'g') AS canonical
+--     FROM "ProliferationYearly"
+--     WHERE CAST("Source" AS TEXT) !~ '^[0-9]+$'
+-- ) AS src
+-- WHERE tgt."Id" = src."Id";
 --
--- UPDATE "ProliferationGranular"
+-- UPDATE "ProliferationGranular" AS tgt
 -- SET "Source" = CASE
---         WHEN regexp_replace(CAST("Source" AS TEXT), '\s+', '', 'g') ~ '^[0-9]+$' THEN CAST("Source" AS INTEGER)
---         WHEN lower(btrim(CAST("Source" AS TEXT))) = 'sdd' THEN 1
---         WHEN regexp_replace(lower(CAST("Source" AS TEXT)), '[^a-z0-9]', '', 'g') IN ('abw515', '515abw') THEN 2
---         ELSE "Source"
+--         WHEN src.trimmed ~ '^[0-9]+$' THEN src.trimmed::integer
+--         WHEN src.canonical LIKE 'sdd%' THEN 1
+--         WHEN src.canonical LIKE 'abw515%' OR src.canonical LIKE '515abw%' THEN 2
+--         ELSE tgt."Source"
 --     END
--- WHERE CAST("Source" AS TEXT) !~ '^[0-9]+$';
+-- FROM (
+--     SELECT "Id",
+--            regexp_replace(CAST("Source" AS TEXT), '\s+', '', 'g') AS trimmed,
+--            regexp_replace(lower(CAST("Source" AS TEXT)), '[^a-z0-9]', '', 'g') AS canonical
+--     FROM "ProliferationGranular"
+--     WHERE CAST("Source" AS TEXT) !~ '^[0-9]+$'
+-- ) AS src
+-- WHERE tgt."Id" = src."Id";
 --
--- UPDATE "ProliferationYearPreference"
+-- UPDATE "ProliferationYearPreference" AS tgt
 -- SET "Source" = CASE
---         WHEN regexp_replace(CAST("Source" AS TEXT), '\s+', '', 'g') ~ '^[0-9]+$' THEN CAST("Source" AS INTEGER)
---         WHEN lower(btrim(CAST("Source" AS TEXT))) = 'sdd' THEN 1
---         WHEN regexp_replace(lower(CAST("Source" AS TEXT)), '[^a-z0-9]', '', 'g') IN ('abw515', '515abw') THEN 2
---         ELSE "Source"
+--         WHEN src.trimmed ~ '^[0-9]+$' THEN src.trimmed::integer
+--         WHEN src.canonical LIKE 'sdd%' THEN 1
+--         WHEN src.canonical LIKE 'abw515%' OR src.canonical LIKE '515abw%' THEN 2
+--         ELSE tgt."Source"
 --     END
--- WHERE CAST("Source" AS TEXT) !~ '^[0-9]+$';
+-- FROM (
+--     SELECT "Id",
+--            regexp_replace(CAST("Source" AS TEXT), '\s+', '', 'g') AS trimmed,
+--            regexp_replace(lower(CAST("Source" AS TEXT)), '[^a-z0-9]', '', 'g') AS canonical
+--     FROM "ProliferationYearPreference"
+--     WHERE CAST("Source" AS TEXT) !~ '^[0-9]+$'
+-- ) AS src
+-- WHERE tgt."Id" = src."Id";
 
 -- SQL Server -------------------------------------------------------------
--- UPDATE [ProliferationYearly]
+-- UPDATE tgt
 -- SET [Source] = CASE
---         WHEN TRY_CONVERT(int, [Source]) IS NOT NULL THEN TRY_CONVERT(int, [Source])
---         WHEN LOWER(LTRIM(RTRIM(CAST([Source] AS nvarchar(32))))) = 'sdd' THEN 1
---         WHEN REPLACE(REPLACE(LOWER(CAST([Source] AS nvarchar(32))), '-', ''), ' ', '') IN ('abw515', '515abw') THEN 2
---         ELSE [Source]
+--         WHEN TRY_CONVERT(int, tgt.[Source]) IS NOT NULL THEN TRY_CONVERT(int, tgt.[Source])
+--         WHEN src.Canonical LIKE 'sdd%' THEN 1
+--         WHEN src.Canonical LIKE 'abw515%' OR src.Canonical LIKE '515abw%' THEN 2
+--         ELSE tgt.[Source]
 --     END
--- WHERE TRY_CONVERT(int, [Source]) IS NULL;
+-- FROM [ProliferationYearly] AS tgt
+-- CROSS APPLY (
+--     SELECT REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(CAST(tgt.[Source] AS nvarchar(64))), '-', ''), ' ', ''), '_', ''), '(', ''), ')', ''), '/', '') AS Canonical
+-- ) AS src
+-- WHERE TRY_CONVERT(int, tgt.[Source]) IS NULL;
 --
--- UPDATE [ProliferationGranular]
+-- UPDATE tgt
 -- SET [Source] = CASE
---         WHEN TRY_CONVERT(int, [Source]) IS NOT NULL THEN TRY_CONVERT(int, [Source])
---         WHEN LOWER(LTRIM(RTRIM(CAST([Source] AS nvarchar(32))))) = 'sdd' THEN 1
---         WHEN REPLACE(REPLACE(LOWER(CAST([Source] AS nvarchar(32))), '-', ''), ' ', '') IN ('abw515', '515abw') THEN 2
---         ELSE [Source]
+--         WHEN TRY_CONVERT(int, tgt.[Source]) IS NOT NULL THEN TRY_CONVERT(int, tgt.[Source])
+--         WHEN src.Canonical LIKE 'sdd%' THEN 1
+--         WHEN src.Canonical LIKE 'abw515%' OR src.Canonical LIKE '515abw%' THEN 2
+--         ELSE tgt.[Source]
 --     END
--- WHERE TRY_CONVERT(int, [Source]) IS NULL;
+-- FROM [ProliferationGranular] AS tgt
+-- CROSS APPLY (
+--     SELECT REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(CAST(tgt.[Source] AS nvarchar(64))), '-', ''), ' ', ''), '_', ''), '(', ''), ')', ''), '/', '') AS Canonical
+-- ) AS src
+-- WHERE TRY_CONVERT(int, tgt.[Source]) IS NULL;
 --
--- UPDATE [ProliferationYearPreference]
+-- UPDATE tgt
 -- SET [Source] = CASE
---         WHEN TRY_CONVERT(int, [Source]) IS NOT NULL THEN TRY_CONVERT(int, [Source])
---         WHEN LOWER(LTRIM(RTRIM(CAST([Source] AS nvarchar(32))))) = 'sdd' THEN 1
---         WHEN REPLACE(REPLACE(LOWER(CAST([Source] AS nvarchar(32))), '-', ''), ' ', '') IN ('abw515', '515abw') THEN 2
---         ELSE [Source]
+--         WHEN TRY_CONVERT(int, tgt.[Source]) IS NOT NULL THEN TRY_CONVERT(int, tgt.[Source])
+--         WHEN src.Canonical LIKE 'sdd%' THEN 1
+--         WHEN src.Canonical LIKE 'abw515%' OR src.Canonical LIKE '515abw%' THEN 2
+--         ELSE tgt.[Source]
 --     END
--- WHERE TRY_CONVERT(int, [Source]) IS NULL;
+-- FROM [ProliferationYearPreference] AS tgt
+-- CROSS APPLY (
+--     SELECT REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(CAST(tgt.[Source] AS nvarchar(64))), '-', ''), ' ', ''), '_', ''), '(', ''), ')', ''), '/', '') AS Canonical
+-- ) AS src
+-- WHERE TRY_CONVERT(int, tgt.[Source]) IS NULL;

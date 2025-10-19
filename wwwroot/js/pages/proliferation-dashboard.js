@@ -88,10 +88,10 @@
       return { id: numeric, label };
     }
     const canonical = text.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (canonical === "sdd") {
+    if (canonical.startsWith("sdd")) {
       return { id: 1, label: SOURCE_LABELS.get(1) ?? "SDD" };
     }
-    if (canonical === "abw515" || canonical === "515abw") {
+    if (canonical.startsWith("abw515") || canonical.startsWith("515abw")) {
       return { id: 2, label: SOURCE_LABELS.get(2) ?? "515 ABW" };
     }
     return null;

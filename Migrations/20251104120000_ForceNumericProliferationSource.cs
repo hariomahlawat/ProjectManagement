@@ -39,105 +39,159 @@ namespace ProjectManagement.Migrations
             {
                 migrationBuilder.Sql(
                     """
-                    UPDATE "ProliferationYearly"
+                    UPDATE "ProliferationYearly" AS tgt
                     SET "Source_tmp" = CASE
-                        WHEN regexp_replace(CAST("Source" AS TEXT), '\\s+', '', 'g') ~ '^[0-9]+$' THEN CAST("Source" AS INTEGER)
-                        WHEN lower(btrim(CAST("Source" AS TEXT))) = 'sdd' THEN 1
-                        WHEN regexp_replace(lower(CAST("Source" AS TEXT)), '[^a-z0-9]', '', 'g') IN ('abw515', '515abw') THEN 2
+                        WHEN src.trimmed ~ '^[0-9]+$' THEN src.trimmed::integer
+                        WHEN src.canonical LIKE 'sdd%' THEN 1
+                        WHEN src.canonical LIKE 'abw515%' OR src.canonical LIKE '515abw%' THEN 2
                         ELSE NULL
-                    END;
+                    END
+                    FROM (
+                        SELECT "Id",
+                               regexp_replace(CAST("Source" AS TEXT), '\\s+', '', 'g') AS trimmed,
+                               regexp_replace(lower(CAST("Source" AS TEXT)), '[^a-z0-9]', '', 'g') AS canonical
+                        FROM "ProliferationYearly"
+                    ) AS src
+                    WHERE tgt."Id" = src."Id";
                     """);
 
                 migrationBuilder.Sql(
                     """
-                    UPDATE "ProliferationGranular"
+                    UPDATE "ProliferationGranular" AS tgt
                     SET "Source_tmp" = CASE
-                        WHEN regexp_replace(CAST("Source" AS TEXT), '\\s+', '', 'g') ~ '^[0-9]+$' THEN CAST("Source" AS INTEGER)
-                        WHEN lower(btrim(CAST("Source" AS TEXT))) = 'sdd' THEN 1
-                        WHEN regexp_replace(lower(CAST("Source" AS TEXT)), '[^a-z0-9]', '', 'g') IN ('abw515', '515abw') THEN 2
+                        WHEN src.trimmed ~ '^[0-9]+$' THEN src.trimmed::integer
+                        WHEN src.canonical LIKE 'sdd%' THEN 1
+                        WHEN src.canonical LIKE 'abw515%' OR src.canonical LIKE '515abw%' THEN 2
                         ELSE NULL
-                    END;
+                    END
+                    FROM (
+                        SELECT "Id",
+                               regexp_replace(CAST("Source" AS TEXT), '\\s+', '', 'g') AS trimmed,
+                               regexp_replace(lower(CAST("Source" AS TEXT)), '[^a-z0-9]', '', 'g') AS canonical
+                        FROM "ProliferationGranular"
+                    ) AS src
+                    WHERE tgt."Id" = src."Id";
                     """);
 
                 migrationBuilder.Sql(
                     """
-                    UPDATE "ProliferationYearPreference"
+                    UPDATE "ProliferationYearPreference" AS tgt
                     SET "Source_tmp" = CASE
-                        WHEN regexp_replace(CAST("Source" AS TEXT), '\\s+', '', 'g') ~ '^[0-9]+$' THEN CAST("Source" AS INTEGER)
-                        WHEN lower(btrim(CAST("Source" AS TEXT))) = 'sdd' THEN 1
-                        WHEN regexp_replace(lower(CAST("Source" AS TEXT)), '[^a-z0-9]', '', 'g') IN ('abw515', '515abw') THEN 2
+                        WHEN src.trimmed ~ '^[0-9]+$' THEN src.trimmed::integer
+                        WHEN src.canonical LIKE 'sdd%' THEN 1
+                        WHEN src.canonical LIKE 'abw515%' OR src.canonical LIKE '515abw%' THEN 2
                         ELSE NULL
-                    END;
+                    END
+                    FROM (
+                        SELECT "Id",
+                               regexp_replace(CAST("Source" AS TEXT), '\\s+', '', 'g') AS trimmed,
+                               regexp_replace(lower(CAST("Source" AS TEXT)), '[^a-z0-9]', '', 'g') AS canonical
+                        FROM "ProliferationYearPreference"
+                    ) AS src
+                    WHERE tgt."Id" = src."Id";
                     """);
             }
             else if (migrationBuilder.ActiveProvider == "Microsoft.EntityFrameworkCore.SqlServer")
             {
                 migrationBuilder.Sql(
                     """
-                    UPDATE [ProliferationYearly]
+                    UPDATE tgt
                     SET [Source_tmp] = CASE
-                        WHEN TRY_CONVERT(int, [Source]) IS NOT NULL THEN TRY_CONVERT(int, [Source])
-                        WHEN LOWER(LTRIM(RTRIM(CAST([Source] AS nvarchar(32))))) = 'sdd' THEN 1
-                        WHEN REPLACE(REPLACE(LOWER(CAST([Source] AS nvarchar(32))), '-', ''), ' ', '') IN ('abw515', '515abw') THEN 2
+                        WHEN TRY_CONVERT(int, tgt.[Source]) IS NOT NULL THEN TRY_CONVERT(int, tgt.[Source])
+                        WHEN src.Canonical LIKE 'sdd%' THEN 1
+                        WHEN src.Canonical LIKE 'abw515%' OR src.Canonical LIKE '515abw%' THEN 2
                         ELSE NULL
-                    END;
+                    END
+                    FROM [ProliferationYearly] AS tgt
+                    CROSS APPLY (
+                        SELECT REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(CAST(tgt.[Source] AS nvarchar(64))), '-', ''), ' ', ''), '_', ''), '(', ''), ')', ''), '/', '') AS Canonical
+                    ) AS src;
                     """);
 
                 migrationBuilder.Sql(
                     """
-                    UPDATE [ProliferationGranular]
+                    UPDATE tgt
                     SET [Source_tmp] = CASE
-                        WHEN TRY_CONVERT(int, [Source]) IS NOT NULL THEN TRY_CONVERT(int, [Source])
-                        WHEN LOWER(LTRIM(RTRIM(CAST([Source] AS nvarchar(32))))) = 'sdd' THEN 1
-                        WHEN REPLACE(REPLACE(LOWER(CAST([Source] AS nvarchar(32))), '-', ''), ' ', '') IN ('abw515', '515abw') THEN 2
+                        WHEN TRY_CONVERT(int, tgt.[Source]) IS NOT NULL THEN TRY_CONVERT(int, tgt.[Source])
+                        WHEN src.Canonical LIKE 'sdd%' THEN 1
+                        WHEN src.Canonical LIKE 'abw515%' OR src.Canonical LIKE '515abw%' THEN 2
                         ELSE NULL
-                    END;
+                    END
+                    FROM [ProliferationGranular] AS tgt
+                    CROSS APPLY (
+                        SELECT REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(CAST(tgt.[Source] AS nvarchar(64))), '-', ''), ' ', ''), '_', ''), '(', ''), ')', ''), '/', '') AS Canonical
+                    ) AS src;
                     """);
 
                 migrationBuilder.Sql(
                     """
-                    UPDATE [ProliferationYearPreference]
+                    UPDATE tgt
                     SET [Source_tmp] = CASE
-                        WHEN TRY_CONVERT(int, [Source]) IS NOT NULL THEN TRY_CONVERT(int, [Source])
-                        WHEN LOWER(LTRIM(RTRIM(CAST([Source] AS nvarchar(32))))) = 'sdd' THEN 1
-                        WHEN REPLACE(REPLACE(LOWER(CAST([Source] AS nvarchar(32))), '-', ''), ' ', '') IN ('abw515', '515abw') THEN 2
+                        WHEN TRY_CONVERT(int, tgt.[Source]) IS NOT NULL THEN TRY_CONVERT(int, tgt.[Source])
+                        WHEN src.Canonical LIKE 'sdd%' THEN 1
+                        WHEN src.Canonical LIKE 'abw515%' OR src.Canonical LIKE '515abw%' THEN 2
                         ELSE NULL
-                    END;
+                    END
+                    FROM [ProliferationYearPreference] AS tgt
+                    CROSS APPLY (
+                        SELECT REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(LOWER(CAST(tgt.[Source] AS nvarchar(64))), '-', ''), ' ', ''), '_', ''), '(', ''), ')', ''), '/', '') AS Canonical
+                    ) AS src;
                     """);
             }
             else
             {
                 migrationBuilder.Sql(
                     """
-                    UPDATE "ProliferationYearly"
+                    UPDATE "ProliferationYearly" AS tgt
                     SET "Source_tmp" = CASE
-                        WHEN CAST("Source" AS TEXT) GLOB '[0-9][0-9]*' THEN CAST("Source" AS INTEGER)
-                        WHEN LOWER(TRIM(CAST("Source" AS TEXT))) = 'sdd' THEN 1
-                        WHEN REPLACE(REPLACE(LOWER(CAST("Source" AS TEXT)), '-', ''), ' ', '') IN ('abw515', '515abw') THEN 2
+                        WHEN src.trimmed GLOB '[0-9][0-9]*' THEN CAST(src.trimmed AS INTEGER)
+                        WHEN src.canonical LIKE 'sdd%' THEN 1
+                        WHEN src.canonical LIKE 'abw515%' OR src.canonical LIKE '515abw%' THEN 2
                         ELSE NULL
-                    END;
+                    END
+                    FROM (
+                        SELECT "Id",
+                               replace(replace(replace(replace(replace(replace(lower(CAST("Source" AS TEXT)), '-', ''), ' ', ''), '_', ''), '(', ''), ')', ''), '/', '') AS canonical,
+                               replace(CAST("Source" AS TEXT), ' ', '') AS trimmed
+                        FROM "ProliferationYearly"
+                    ) AS src
+                    WHERE tgt."Id" = src."Id";
                     """);
 
                 migrationBuilder.Sql(
                     """
-                    UPDATE "ProliferationGranular"
+                    UPDATE "ProliferationGranular" AS tgt
                     SET "Source_tmp" = CASE
-                        WHEN CAST("Source" AS TEXT) GLOB '[0-9][0-9]*' THEN CAST("Source" AS INTEGER)
-                        WHEN LOWER(TRIM(CAST("Source" AS TEXT))) = 'sdd' THEN 1
-                        WHEN REPLACE(REPLACE(LOWER(CAST("Source" AS TEXT)), '-', ''), ' ', '') IN ('abw515', '515abw') THEN 2
+                        WHEN src.trimmed GLOB '[0-9][0-9]*' THEN CAST(src.trimmed AS INTEGER)
+                        WHEN src.canonical LIKE 'sdd%' THEN 1
+                        WHEN src.canonical LIKE 'abw515%' OR src.canonical LIKE '515abw%' THEN 2
                         ELSE NULL
-                    END;
+                    END
+                    FROM (
+                        SELECT "Id",
+                               replace(replace(replace(replace(replace(replace(lower(CAST("Source" AS TEXT)), '-', ''), ' ', ''), '_', ''), '(', ''), ')', ''), '/', '') AS canonical,
+                               replace(CAST("Source" AS TEXT), ' ', '') AS trimmed
+                        FROM "ProliferationGranular"
+                    ) AS src
+                    WHERE tgt."Id" = src."Id";
                     """);
 
                 migrationBuilder.Sql(
                     """
-                    UPDATE "ProliferationYearPreference"
+                    UPDATE "ProliferationYearPreference" AS tgt
                     SET "Source_tmp" = CASE
-                        WHEN CAST("Source" AS TEXT) GLOB '[0-9][0-9]*' THEN CAST("Source" AS INTEGER)
-                        WHEN LOWER(TRIM(CAST("Source" AS TEXT))) = 'sdd' THEN 1
-                        WHEN REPLACE(REPLACE(LOWER(CAST("Source" AS TEXT)), '-', ''), ' ', '') IN ('abw515', '515abw') THEN 2
+                        WHEN src.trimmed GLOB '[0-9][0-9]*' THEN CAST(src.trimmed AS INTEGER)
+                        WHEN src.canonical LIKE 'sdd%' THEN 1
+                        WHEN src.canonical LIKE 'abw515%' OR src.canonical LIKE '515abw%' THEN 2
                         ELSE NULL
-                    END;
+                    END
+                    FROM (
+                        SELECT "Id",
+                               replace(replace(replace(replace(replace(replace(lower(CAST("Source" AS TEXT)), '-', ''), ' ', ''), '_', ''), '(', ''), ')', ''), '/', '') AS canonical,
+                               replace(CAST("Source" AS TEXT), ' ', '') AS trimmed
+                        FROM "ProliferationYearPreference"
+                    ) AS src
+                    WHERE tgt."Id" = src."Id";
                     """);
             }
 
