@@ -334,8 +334,8 @@ All pages live under `Areas/ProjectOfficeReports/Pages/Proliferation`. Navigatio
 
 ### 14.4 Export guardrails
 
-- The overview page calls `IProliferationExportService` which filters by source, year range, sponsoring unit, simulator, and search terms before handing rows to `ProliferationExcelWorkbookBuilder` for XLSX generation.【F:Areas/ProjectOfficeReports/Application/ProliferationExportService.cs†L19-L200】【F:Utilities/Reporting/ProliferationExcelWorkbookBuilder.cs†L12-L206】
-- Export filenames follow `Proliferation_{Source?}_{YearFrom}-{YearTo}_{timestamp}.xlsx` and audit logs record who generated the download.【F:Areas/ProjectOfficeReports/Application/ProliferationExportService.cs†L80-L121】
+- The overview page calls `IProliferationExportService`, which mirrors the grid filters (years or date range, source, project and technical categories, and search) before handing rows to `ProliferationExcelWorkbookBuilder` for XLSX generation with filter metadata.【F:Areas/ProjectOfficeReports/Application/ProliferationExportService.cs†L19-L232】【F:Utilities/Reporting/ProliferationExcelWorkbookBuilder.cs†L12-L118】
+- Export filenames follow `proliferation-overview-{source}-{range}-{timestamp}.xlsx`, and audits capture the filters, row count, and filename for traceability.【F:Areas/ProjectOfficeReports/Application/ProliferationExportService.cs†L77-L152】【F:Services/AuditEvents.cs†L456-L479】
 
 ### 14.5 API surface
 
