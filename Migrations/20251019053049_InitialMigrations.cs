@@ -265,7 +265,7 @@ namespace ProjectManagement.Migrations
                     ApprovedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
                     CreatedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
                     LastUpdatedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
-                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -288,7 +288,7 @@ namespace ProjectManagement.Migrations
                     ApprovedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: true),
                     CreatedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
                     LastUpdatedOnUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
-                    RowVersion = table.Column<byte[]>(type: "bytea", rowVersion: true, nullable: false)
+                    RowVersion = table.Column<byte[]>(type: "bytea", nullable: false)
                 },
                 constraints: table =>
                 {
