@@ -52,7 +52,7 @@ public sealed class ProliferationExportService : IProliferationExportService
         }
 
         var validation = await ValidateAsync(request, cancellationToken);
-        if (!validation.Success)
+        if (!validation.Succeeded)
         {
             return ProliferationExportResult.Failure(validation.Error ?? "Export failed.");
         }
@@ -355,7 +355,7 @@ public sealed class ProliferationExportService : IProliferationExportService
         return string.IsNullOrEmpty(cleaned) ? fallback : cleaned;
     }
 
-    private sealed record ValidationResult(bool Success, NormalizedFilters? Filters, string? Error)
+    private sealed record ValidationResult(bool Succeeded, NormalizedFilters? Filters, string? Error)
     {
         public static ValidationResult Fail(string error) => new(false, null, error);
 
