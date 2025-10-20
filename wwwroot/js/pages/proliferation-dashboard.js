@@ -2,8 +2,6 @@
 (() => {
   const api = {
     overview: "/api/proliferation/overview",
-    createYearly: "/api/proliferation/yearly",
-    createGranular: "/api/proliferation/granular",
     exportCsv: "/api/proliferation/export",
     setPref: "/api/proliferation/year-preference",
     getPref: "/api/proliferation/year-preference",
@@ -351,102 +349,6 @@
       <table class="table table-hover align-middle mb-0 table-proliferation">${header}<tbody>${body}</tbody></table>
     </div>`;
     host.setAttribute("aria-busy", "false");
-    updateSelectionSummary(null);
-    wireEntryTable();
-  }
-
-  function clearEntrySelection() {
-    $all("#tableContainer tbody tr").forEach((row) => row.classList.remove("is-selected"));
-    updateSelectionSummary(null);
-  }
-
-  function updateSelectionSummary(row) {
-    const summary = $("#entrySelectionSummary");
-    if (!summary) return;
-    if (!row) {
-      summary.hidden = true;
-      summary.textContent = "";
-      return;
-    }
-    const project = row.dataset.entryProject || "—";
-    const type = row.dataset.entryType === "yearly" ? "yearly total" : "granular entry";
-    const quantity = Number(row.dataset.entryQuantity || 0).toLocaleString();
-    const details = [];
-    if (row.dataset.entryType === "yearly" && row.dataset.entryYear) {
-      details.push(`Year ${row.dataset.entryYear}`);
-    }
-    if (row.dataset.entryType !== "yearly" && row.dataset.entryDate) {
-      details.push(`Date ${fmt.date(row.dataset.entryDate)}`);
-    }
-    if (row.dataset.entrySource) {
-      details.push(`Source ${row.dataset.entrySource}`);
-    }
-    if (row.dataset.entryUnit) {
-      details.push(`Unit ${row.dataset.entryUnit}`);
-    }
-    if (row.dataset.entrySimulator) {
-      details.push(`Simulator ${row.dataset.entrySimulator}`);
-    }
-    details.push(`Quantity ${quantity}`);
-    summary.innerHTML = `<strong>${project}</strong> ${type}.<br><span class="text-muted">${details.join(" · ")}</span>`;
-    summary.hidden = false;
-  }
-
-  function wireEntryTable() {
-    const rows = $all("#tableContainer tbody tr");
-    if (!rows.length) {
-      clearEntrySelection();
-      return;
-    }
-    rows.forEach((row) => {
-      row.addEventListener("click", () => {
-        rows.forEach((r) => r.classList.remove("is-selected"));
-        row.classList.add("is-selected");
-        const target = row.dataset.entryType === "yearly" ? "yearly" : "granular";
-        activateEntryPane(target, { focus: false });
-        updateSelectionSummary(row);
-      });
-    });
-  }
-
-  function activateEntryPane(name, options = {}) {
-    const target = name === "yearly" ? "yearly" : "granular";
-    const forms = $all("[data-entry-form]");
-    forms.forEach((form) => {
-      const isMatch = form.dataset.entryForm === target;
-      form.classList.toggle("d-none", !isMatch);
-      form.setAttribute("aria-hidden", String(!isMatch));
-      if (!isMatch) form.classList.remove("was-validated");
-    });
-    const toggles = $all("[data-entry-pane]");
-    toggles.forEach((btn) => {
-      const active = btn.dataset.entryPane === target;
-      btn.classList.toggle("active", active);
-      btn.setAttribute("aria-pressed", active ? "true" : "false");
-    });
-    if (options.focus !== false) {
-      const host = document.querySelector(`[data-entry-form="${target}"]`);
-      const focusTarget = host?.querySelector("[data-entry-autofocus]");
-      if (focusTarget) focusTarget.focus();
-    }
-  }
-
-  function wireEntryPaneToggle() {
-    $all("[data-entry-pane]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        activateEntryPane(btn.dataset.entryPane);
-      });
-    });
-  }
-
-  function wireEntryShortcuts() {
-    $all("[data-entry-target]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const target = btn.dataset.entryTarget;
-        activateEntryPane(target);
-        $("#entryWorkspace")?.scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-    });
   }
 
   function buildQuery(filters) {
@@ -585,85 +487,6 @@
     return false;
   }
 
-  function wireEntryForms() {
-    const granularForm = $("#formGranular");
-    if (granularForm && !granularForm.dataset.wired) {
-      granularForm.dataset.wired = "true";
-      granularForm.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        if (!validateForm(granularForm)) return;
-        const submitButton = granularForm.querySelector("[type='submit']");
-        if (submitButton) submitButton.disabled = true;
-        const body = {
-          ProjectId: Number($("#gProjectId")?.value),
-          SimulatorName: $("#gSimulator")?.value.trim(),
-          UnitName: $("#gUnit")?.value.trim(),
-          ProliferationDateUtc: new Date($("#gDate")?.value).toISOString(),
-          Quantity: Number($("#gQty")?.value),
-          Remarks: ($("#gRemarks")?.value || "").trim() || null
-        };
-        try {
-          const response = await fetch(api.createGranular, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body)
-          });
-          if (!response.ok) throw new Error();
-          toast("Granular entry saved");
-          granularForm.reset();
-          activateEntryPane("granular");
-          clearEntrySelection();
-          refresh();
-        } catch {
-          toast("Failed to save granular entry", "danger");
-        } finally {
-          if (submitButton) submitButton.disabled = false;
-        }
-      });
-      granularForm.addEventListener("reset", () => {
-        granularForm.classList.remove("was-validated");
-      });
-    }
-
-    const yearlyForm = $("#formYearly");
-    if (yearlyForm && !yearlyForm.dataset.wired) {
-      yearlyForm.dataset.wired = "true";
-      yearlyForm.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        if (!validateForm(yearlyForm)) return;
-        const submitButton = yearlyForm.querySelector("[type='submit']");
-        if (submitButton) submitButton.disabled = true;
-        const body = {
-          ProjectId: Number($("#yProjectId")?.value),
-          Source: Number($("#ySource")?.value),
-          Year: Number($("#yYear")?.value),
-          TotalQuantity: Number($("#yQty")?.value),
-          Remarks: ($("#yRemarks")?.value || "").trim() || null
-        };
-        try {
-          const response = await fetch(api.createYearly, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body)
-          });
-          if (!response.ok) throw new Error();
-          toast("Yearly total saved");
-          yearlyForm.reset();
-          activateEntryPane("yearly");
-          clearEntrySelection();
-          refresh();
-        } catch {
-          toast("Failed to save yearly total", "danger");
-        } finally {
-          if (submitButton) submitButton.disabled = false;
-        }
-      });
-      yearlyForm.addEventListener("reset", () => {
-        yearlyForm.classList.remove("was-validated");
-      });
-    }
-  }
-
   function wireToolbar() {
     $("#btnExport")?.addEventListener("click", () => {
       const filters = collectFilters();
@@ -767,56 +590,14 @@
 
   function populateProjectControls(options) {
     projectOptions = options || [];
-    const granularSelect = $("#gProjectId");
-    const yearlySelect = $("#yProjectId");
     const datalist = $("#prefProjectOptions");
-    const insertPlaceholder = (select) => {
-      const placeholder = document.createElement("option");
-      placeholder.value = "";
-      placeholder.textContent = "Select a completed project";
-      placeholder.disabled = true;
-      placeholder.selected = true;
-      select.append(placeholder);
-      return placeholder;
-    };
-    if (granularSelect) {
-      const previous = granularSelect.value;
-      granularSelect.innerHTML = "";
-      const placeholder = insertPlaceholder(granularSelect);
-      for (const item of projectOptions) {
-        const opt = document.createElement("option");
-        opt.value = String(item.id);
-        opt.textContent = item.display;
-        if (previous && String(item.id) === previous) {
-          opt.selected = true;
-          placeholder.selected = false;
-        }
-        granularSelect.append(opt);
-      }
-    }
-    if (yearlySelect) {
-      const previous = yearlySelect.value;
-      yearlySelect.innerHTML = "";
-      const placeholder = insertPlaceholder(yearlySelect);
-      for (const item of projectOptions) {
-        const opt = document.createElement("option");
-        opt.value = String(item.id);
-        opt.textContent = item.display;
-        if (previous && String(item.id) === previous) {
-          opt.selected = true;
-          placeholder.selected = false;
-        }
-        yearlySelect.append(opt);
-      }
-    }
-    if (datalist) {
-      datalist.innerHTML = "";
-      for (const item of projectOptions) {
-        const opt = document.createElement("option");
-        opt.value = item.display;
-        opt.dataset.id = item.id;
-        datalist.append(opt);
-      }
+    if (!datalist) return;
+    datalist.innerHTML = "";
+    for (const item of projectOptions) {
+      const opt = document.createElement("option");
+      opt.value = item.display;
+      opt.dataset.id = item.id;
+      datalist.append(opt);
     }
   }
 
@@ -996,10 +777,6 @@
     populateYears();
     await loadLookups();
     wireFilters();
-    wireEntryForms();
-    wireEntryPaneToggle();
-    wireEntryShortcuts();
-    activateEntryPane("granular", { focus: false });
     wireToolbar();
     wirePagination();
     wirePreferences();
