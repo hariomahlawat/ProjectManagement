@@ -13,12 +13,12 @@
         <div class="col-auto">
             <div class="btn-toolbar gap-2" role="toolbar" aria-label="Proliferation actions">
                 <div class="btn-group" role="group" aria-label="Record actions">
-                    <button type="button" class="btn btn-primary" data-entry-target="granular">
+                    <a class="btn btn-primary" asp-area="ProjectOfficeReports" asp-page="/Proliferation/Manage" asp-fragment="granular">
                         <span class="me-1" aria-hidden="true">+</span>Granular Entry
-                    </button>
-                    <button type="button" class="btn btn-outline-primary" data-entry-target="yearly">
+                    </a>
+                    <a class="btn btn-outline-primary" asp-area="ProjectOfficeReports" asp-page="/Proliferation/Manage" asp-fragment="yearly">
                         <span class="me-1" aria-hidden="true">+</span>Yearly Total
-                    </button>
+                    </a>
                 </div>
                 <div class="btn-group" role="group" aria-label="Data actions">
                     <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#mdlImport">

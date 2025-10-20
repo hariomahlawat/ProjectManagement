@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Navigation;
 
@@ -103,6 +104,14 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Text = "Proliferation tracker",
                 Area = "ProjectOfficeReports",
                 Page = "/Proliferation/Index"
+            });
+
+            projectOfficeReportsChildren.Add(new NavigationItem
+            {
+                Text = "Proliferation manager",
+                Area = "ProjectOfficeReports",
+                Page = "/Proliferation/Manage",
+                AuthorizationPolicy = ProjectOfficeReportsPolicies.SubmitProliferationTracker
             });
         }
 

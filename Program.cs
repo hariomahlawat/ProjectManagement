@@ -209,6 +209,7 @@ builder.Services.AddScoped<PlanApprovalService>();
 builder.Services.AddScoped<INavigationProvider, RoleBasedNavigationProvider>();
 builder.Services.AddScoped<ProliferationOverviewService>();
 builder.Services.AddScoped<ProliferationSubmissionService>();
+builder.Services.AddScoped<ProliferationManageService>();
 builder.Services.AddScoped<StageRulesService>();
 builder.Services.AddScoped<StageProgressService>();
 builder.Services.AddScoped<IStageValidationService, StageValidationService>();

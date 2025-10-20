@@ -15,6 +15,7 @@ using ProjectManagement.Areas.ProjectOfficeReports.Api;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Models;
+using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 {
@@ -26,18 +27,104 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         private readonly ApplicationDbContext _db;
         private readonly ProliferationTrackerReadService _readSvc;
         private readonly ProliferationSubmissionService _submitSvc;
+        private readonly ProliferationManageService _manageSvc;
         private readonly ILogger<ProliferationController> _logger;
 
         public ProliferationController(
             ApplicationDbContext db,
             ProliferationTrackerReadService readSvc,
             ProliferationSubmissionService submitSvc,
+            ProliferationManageService manageSvc,
             ILogger<ProliferationController> logger)
         {
             _db = db;
             _readSvc = readSvc;
             _submitSvc = submitSvc;
+            _manageSvc = manageSvc;
             _logger = logger;
+        }
+
+        [HttpGet("list")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.SubmitProliferationTracker)]
+        public async Task<ActionResult<ProliferationManageListResponseDto>> GetManageList([FromQuery] ProliferationManageListQueryDto query, CancellationToken ct)
+        {
+            var kind = ParseKind(query.Kind);
+            var request = new ProliferationManageListRequest(query.ProjectId, query.Source, query.Year, kind, query.Page, query.PageSize);
+            var result = await _manageSvc.GetListAsync(request, ct);
+
+            var items = result.Items
+                .Select(item => new ProliferationManageListItemDto
+                {
+                    Id = item.Id,
+                    Kind = item.Kind == ProliferationRecordKind.Yearly ? "yearly" : "granular",
+                    ProjectId = item.ProjectId,
+                    ProjectName = item.ProjectName,
+                    ProjectCode = item.ProjectCode,
+                    Source = item.Source,
+                    SourceLabel = item.SourceLabel,
+                    Year = item.Year,
+                    Month = item.ProliferationDate?.Month,
+                    ProliferationDateUtc = item.ProliferationDate?.ToDateTime(TimeOnly.MinValue),
+                    Quantity = item.Quantity,
+                    ApprovalStatus = item.ApprovalStatus.ToString()
+                })
+                .ToList();
+
+            var payload = new ProliferationManageListResponseDto
+            {
+                Total = result.Total,
+                Page = result.Page,
+                PageSize = result.PageSize,
+                Items = items
+            };
+
+            return Ok(payload);
+        }
+
+        [HttpGet("yearly/{id:guid}")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.SubmitProliferationTracker)]
+        public async Task<ActionResult<ProliferationYearlyDetailDto>> GetYearly(Guid id, CancellationToken ct)
+        {
+            var detail = await _manageSvc.GetYearlyAsync(id, ct);
+            if (detail is null)
+            {
+                return NotFound();
+            }
+
+            return new ProliferationYearlyDetailDto
+            {
+                Id = detail.Id,
+                ProjectId = detail.ProjectId,
+                Source = detail.Source,
+                Year = detail.Year,
+                TotalQuantity = detail.TotalQuantity,
+                Remarks = detail.Remarks,
+                RowVersion = Convert.ToBase64String(detail.RowVersion)
+            };
+        }
+
+        [HttpGet("granular/{id:guid}")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.SubmitProliferationTracker)]
+        public async Task<ActionResult<ProliferationGranularDetailDto>> GetGranular(Guid id, CancellationToken ct)
+        {
+            var detail = await _manageSvc.GetGranularAsync(id, ct);
+            if (detail is null)
+            {
+                return NotFound();
+            }
+
+            return new ProliferationGranularDetailDto
+            {
+                Id = detail.Id,
+                ProjectId = detail.ProjectId,
+                Source = detail.Source,
+                ProliferationDateUtc = detail.ProliferationDate.ToDateTime(TimeOnly.MinValue),
+                SimulatorName = detail.SimulatorName,
+                UnitName = detail.UnitName,
+                Quantity = detail.Quantity,
+                Remarks = detail.Remarks,
+                RowVersion = Convert.ToBase64String(detail.RowVersion)
+            };
         }
 
         [HttpGet("projects")]
@@ -472,6 +559,38 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             return result.Success ? Ok() : BadRequest(result.Error);
         }
 
+        [HttpPut("yearly/{id:guid}")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.SubmitProliferationTracker)]
+        public async Task<IActionResult> UpdateYearly(Guid id, [FromBody] ProliferationYearlyUpdateDto dto, CancellationToken ct)
+        {
+            var result = await _submitSvc.UpdateYearlyAsync(id, dto, User, ct);
+            return ToActionResult(result);
+        }
+
+        [HttpPut("granular/{id:guid}")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.SubmitProliferationTracker)]
+        public async Task<IActionResult> UpdateGranular(Guid id, [FromBody] ProliferationGranularUpdateDto dto, CancellationToken ct)
+        {
+            var result = await _submitSvc.UpdateGranularAsync(id, dto, User, ct);
+            return ToActionResult(result);
+        }
+
+        [HttpDelete("yearly/{id:guid}")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.SubmitProliferationTracker)]
+        public async Task<IActionResult> DeleteYearly(Guid id, [FromQuery] string? rowVersion, CancellationToken ct)
+        {
+            var result = await _submitSvc.DeleteYearlyAsync(id, rowVersion, User, ct);
+            return ToActionResult(result, noContent: true);
+        }
+
+        [HttpDelete("granular/{id:guid}")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.SubmitProliferationTracker)]
+        public async Task<IActionResult> DeleteGranular(Guid id, [FromQuery] string? rowVersion, CancellationToken ct)
+        {
+            var result = await _submitSvc.DeleteGranularAsync(id, rowVersion, User, ct);
+            return ToActionResult(result, noContent: true);
+        }
+
         [HttpGet("year-preference")]
         public async Task<ActionResult<ProliferationYearPreferenceDto>> GetYearPreference([FromQuery] int projectId, [FromQuery] ProliferationSource source, [FromQuery] int year, CancellationToken ct)
         {
@@ -563,6 +682,41 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             }
             var bytes = Encoding.UTF8.GetBytes(sb.ToString());
             return File(bytes, "text/csv", "proliferation-export.csv");
+        }
+
+        private IActionResult ToActionResult(ServiceResult result, bool noContent = false)
+        {
+            if (result.Success)
+            {
+                return noContent ? NoContent() : Ok();
+            }
+
+            if (string.Equals(result.Error, "Record not found.", StringComparison.OrdinalIgnoreCase))
+            {
+                return NotFound();
+            }
+
+            return BadRequest(result.Error);
+        }
+
+        private static ProliferationRecordKind? ParseKind(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return null;
+            }
+
+            if (string.Equals(value, "yearly", StringComparison.OrdinalIgnoreCase))
+            {
+                return ProliferationRecordKind.Yearly;
+            }
+
+            if (string.Equals(value, "granular", StringComparison.OrdinalIgnoreCase))
+            {
+                return ProliferationRecordKind.Granular;
+            }
+
+            return null;
         }
 
         private sealed record OverviewRowProjection(
