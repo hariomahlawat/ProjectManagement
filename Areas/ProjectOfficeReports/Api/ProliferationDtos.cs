@@ -91,7 +91,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
     }
 
     // Create Yearly
-    public sealed class ProliferationYearlyCreateDto
+    public class ProliferationYearlyCreateDto
     {
         [Required] public int ProjectId { get; set; }
         [Required] public ProliferationSource Source { get; set; } // Sdd or Abw515
@@ -101,7 +101,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
     }
 
     // Create Granular (SDD only)
-    public sealed class ProliferationGranularCreateDto
+    public class ProliferationGranularCreateDto
     {
         [Required] public int ProjectId { get; set; }
         [Required] public ProliferationSource Source { get; set; } = ProliferationSource.Sdd;
