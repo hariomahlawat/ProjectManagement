@@ -377,7 +377,7 @@ namespace ProjectManagement.Data
             {
                 b.ToTable("ProliferationYearly");
                 b.HasKey(x => x.Id);
-                b.Property(x => x.RowVersion).IsRowVersion();
+                ConfigureRowVersion(b);
                 b.Property(x => x.Source).HasConversion<int>();
                 b.HasIndex(x => new { x.ProjectId, x.Source, x.Year })
                     .HasDatabaseName("IX_ProlifYearly_Project_Source_Year");
@@ -387,7 +387,7 @@ namespace ProjectManagement.Data
             {
                 b.ToTable("ProliferationGranular");
                 b.HasKey(x => x.Id);
-                b.Property(x => x.RowVersion).IsRowVersion();
+                ConfigureRowVersion(b);
                 b.Property(x => x.Source).HasConversion<int>();
                 b.HasIndex(x => new { x.ProjectId, x.Source, x.ProliferationDate });
             });
