@@ -194,12 +194,10 @@ public sealed class ProliferationExportService : IProliferationExportService
                              on new { y.ProjectId, y.Source, y.Year } equals new { pref.ProjectId, pref.Source, pref.Year }
                              into prefJoin
                          from pref in prefJoin.DefaultIfEmpty()
-                         where y.ApprovalStatus == ApprovalStatus.Approved
                          select new { Yearly = y, Project = p, Preference = pref };
 
         var granularBase = from g in _db.Set<ProliferationGranular>().AsNoTracking()
                            join p in projectsQuery on g.ProjectId equals p.Id
-                           where g.ApprovalStatus == ApprovalStatus.Approved
                            select new { Granular = g, Project = p };
 
         if (filters.Years.Count > 0)
