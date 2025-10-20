@@ -121,14 +121,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         [Required] public YearPreferenceMode Mode { get; set; } // Auto, UseYearly, UseGranular
     }
 
-    // Import results
-    public sealed class ImportResultDto
-    {
-        public int Accepted { get; set; }
-        public int Rejected { get; set; }
-        public string? ErrorCsvBase64 { get; set; } // row-level errors as CSV (optional)
-    }
-
     public sealed class ProliferationManageListQueryDto
     {
         public int? ProjectId { get; set; }

@@ -280,7 +280,7 @@ If the team follows this exactly, the ProjectOfficeReports module will be clean,
 
 ## 14. Proliferation Tracker Reference
 
-The **Proliferation tracker** measures how far project benefits (training seats, beneficiaries, capital investment) extend each year after a project closes. It combines yearly roll-ups, granular monthly/quarterly snapshots, and per-project preferences so dashboards can pick the most relevant metric. This section captures the authoritative behaviour for roles, approval checkpoints, storage models, Razor Pages, and import/export tooling.
+The **Proliferation tracker** measures how far project benefits (training seats, beneficiaries, capital investment) extend each year after a project closes. It combines yearly roll-ups, granular monthly/quarterly snapshots, and per-project preferences so dashboards can pick the most relevant metric. This section captures the authoritative behaviour for roles, approval checkpoints, storage models, Razor Pages, and export tooling.
 
 ### 14.1 Role matrix and approval flow
 
@@ -289,7 +289,6 @@ The **Proliferation tracker** measures how far project benefits (training seats,
 | View overview dashboards, export data, and query the effective metrics API | `ProjectOfficeReports.ViewProliferationTracker` | Admin, HoD, ProjectOffice, Project Office | Grants read-only access to `Areas/ProjectOfficeReports/Pages/Proliferation/*` and `/api/proliferation/effective`.【F:Areas/ProjectOfficeReports/Application/ProjectOfficeReportsPolicies.cs†L27-L52】【F:Program.cs†L1440-L1559】 |
 | Submit yearly totals, granular metrics, and adjust per-project year preferences | `ProjectOfficeReports.SubmitProliferationTracker`, `ProjectOfficeReports.ManageProliferationPreferences` | Admin, HoD, ProjectOffice, Project Office | Enables the Yearly/Granular authoring pages plus the year preference sidebar on the overview page.【F:Areas/ProjectOfficeReports/Application/ProjectOfficeReportsPolicies.cs†L33-L72】【F:Areas/ProjectOfficeReports/Pages/Proliferation/Yearly/Index.cshtml.cs†L21-L119】 |
 | Approve or reject submissions | `ProjectOfficeReports.ApproveProliferationTracker` | Admin, HoD | Unlocks the approval column on the Yearly/Granular pages and reconciliation widget. Approval resets `DecisionState` and copies metrics into the main tables.【F:Areas/ProjectOfficeReports/Application/ProjectOfficeReportsPolicies.cs†L73-L90】【F:Areas/ProjectOfficeReports/Application/ProliferationSubmissionService.cs†L92-L240】 |
-| Upload CSV imports | `ProjectOfficeReports.ManageProliferationImports` | Admin | Required to use the Administration page importers; also caches rejection CSVs for download.【F:Areas/ProjectOfficeReports/Application/ProjectOfficeReportsPolicies.cs†L91-L118】【F:Areas/ProjectOfficeReports/Pages/Proliferation/Admin/Index.cshtml.cs†L19-L226】 |
 
 ```mermaid
 flowchart LR
@@ -298,7 +297,6 @@ flowchart LR
     C -->|Approved| D[Metrics promoted into reporting tables]
     C -->|Rejected| E[Request stays archived with DecisionNotes]
     D --> F[Overview & Effective API reflect update]
-    B -->|Admin imports CSV| G[Bulk requests created via import services]
 ```
 
 Guardrails enforced during submission:
@@ -333,26 +331,11 @@ All pages live under `Areas/ProjectOfficeReports/Pages/Proliferation`. Navigatio
 | Yearly totals | `/ProjectOfficeReports/Proliferation/Yearly/Index` | Submitter policy | Form to submit yearly metrics, list of approved entries, and pending requests with approve/reject modals when the viewer also satisfies the approver policy.【F:Areas/ProjectOfficeReports/Pages/Proliferation/Yearly/Index.cshtml.cs†L21-L221】 |
 | Granular metrics | `/ProjectOfficeReports/Proliferation/Granular/Index` | Submitter policy | Mirrors yearly page but adds period selector (month/quarter) and handles guardrails for overlapping submissions. |
 | Reconciliation | `/ProjectOfficeReports/Proliferation/Reconciliation` | HoD/Admin only | Highlights differences between yearly vs granular effective totals so leadership can chase missing approvals. |
-| Administration | `/ProjectOfficeReports/Proliferation/Admin/Index` | Admin + import manager policy | Hosts CSV imports, rejection downloads, and audit snapshots. Also exposes links to the template CSVs referenced below.【F:Areas/ProjectOfficeReports/Pages/Proliferation/Admin/Index.cshtml.cs†L19-L226】 |
 
-### 14.4 Import/export guardrails
-
-**Exports**
+### 14.4 Export guardrails
 
 - The overview page calls `IProliferationExportService` which filters by source, year range, sponsoring unit, simulator, and search terms before handing rows to `ProliferationExcelWorkbookBuilder` for XLSX generation.【F:Areas/ProjectOfficeReports/Application/ProliferationExportService.cs†L19-L200】【F:Utilities/Reporting/ProliferationExcelWorkbookBuilder.cs†L12-L206】
 - Export filenames follow `Proliferation_{Source?}_{YearFrom}-{YearTo}_{timestamp}.xlsx` and audit logs record who generated the download.【F:Areas/ProjectOfficeReports/Application/ProliferationExportService.cs†L80-L121】
-
-**Imports**
-
-- Yearly imports accept UTF-8 CSV files containing `ProjectId,Year,DirectBeneficiaries,IndirectBeneficiaries,InvestmentValue` headers and only allow **Internal (SDD)** or **External (515)** sources.【F:Areas/ProjectOfficeReports/Application/ProliferationImportServices.cs†L39-L150】
-- Granular imports add `Granularity,Period,PeriodLabel` columns and are restricted to the **SDD** source.【F:Areas/ProjectOfficeReports/Application/ProliferationImportServices.cs†L637-L744】
-- Each parser logs malformed rows, emits per-row errors, and—when any row fails—stores a rejection CSV (same header + `Error`) in memory cache so admins can download it from the administration page.【F:Areas/ProjectOfficeReports/Application/ProliferationImportServices.cs†L161-L434】【F:Areas/ProjectOfficeReports/Pages/Proliferation/Admin/Index.cshtml.cs†L180-L226】
-- Templates live under `docs/templates/` for onboarding teams and are linked directly in the administration UI copy.
-
-Template quick links:
-
-- [Yearly CSV template](templates/proliferation-yearly-import.csv)
-- [Granular CSV template](templates/proliferation-granular-import.csv)
 
 ### 14.5 API surface
 

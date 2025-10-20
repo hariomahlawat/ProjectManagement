@@ -68,6 +68,3 @@ public sealed record ProliferationPreferenceRequestModel(
     int Year,
     YearPreferenceMode Mode);
 
-public sealed record ProliferationImportError(int RowNumber, string Message);
-
-public sealed record ProliferationImportResult(IReadOnlyList<ProliferationImportError> Errors);
