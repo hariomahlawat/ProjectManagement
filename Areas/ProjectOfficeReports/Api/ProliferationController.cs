@@ -120,7 +120,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 ProjectId = detail.ProjectId,
                 Source = detail.Source,
                 ProliferationDateUtc = detail.ProliferationDate.ToDateTime(TimeOnly.MinValue),
-                SimulatorName = detail.SimulatorName,
                 UnitName = detail.UnitName,
                 Quantity = detail.Quantity,
                 Remarks = detail.Remarks,
@@ -271,7 +270,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 yearlyBase = yearlyBase.Where(x => EF.Functions.ILike(x.Project.Name, like));
                 granularBase = granularBase.Where(x =>
                     EF.Functions.ILike(x.Project.Name, like) ||
-                    EF.Functions.ILike(x.Granular.SimulatorName, like) ||
                     EF.Functions.ILike(x.Granular.UnitName, like));
             }
 
@@ -284,7 +282,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 Source = x.Yearly.Source,
                 DataType = "Yearly",
                 UnitName = (string?)null,
-                SimulatorName = (string?)null,
                 Date = (DateOnly?)null,
                 Quantity = x.Yearly.TotalQuantity,
                 ApprovalStatus = x.Yearly.ApprovalStatus,
@@ -300,7 +297,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 Source = x.Granular.Source,
                 DataType = "Granular",
                 UnitName = (string?)x.Granular.UnitName,
-                SimulatorName = (string?)x.Granular.SimulatorName,
                 Date = (DateOnly?)x.Granular.ProliferationDate,
                 Quantity = x.Granular.Quantity,
                 ApprovalStatus = x.Granular.ApprovalStatus,
@@ -354,7 +350,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                     r.Source,
                     r.DataType,
                     r.UnitName,
-                    r.SimulatorName,
                     r.Date,
                     r.Quantity,
                     r.ApprovalStatus,
@@ -398,7 +393,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                         Source = r.Source,
                         DataType = r.DataType,
                         UnitName = r.UnitName,
-                        SimulatorName = r.SimulatorName,
                         DateUtc = r.Date.HasValue
                             ? r.Date.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc)
                             : null,
@@ -710,7 +704,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             ProliferationSource Source,
             string DataType,
             string? UnitName,
-            string? SimulatorName,
             DateOnly? Date,
             int Quantity,
             ApprovalStatus ApprovalStatus,

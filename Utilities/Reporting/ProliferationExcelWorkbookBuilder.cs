@@ -26,7 +26,6 @@ public sealed record ProliferationExcelRow(
     ProliferationSource Source,
     string DataType,
     string? UnitName,
-    string? SimulatorName,
     DateOnly? Date,
     int Quantity,
     int EffectiveTotal,
@@ -71,7 +70,6 @@ public sealed class ProliferationExcelWorkbookBuilder : IProliferationExcelWorkb
             "Source",
             "Data type",
             "Unit",
-            "Simulator",
             "Date",
             "Quantity",
             "Effective total",
@@ -110,29 +108,27 @@ public sealed class ProliferationExcelWorkbookBuilder : IProliferationExcelWorkb
             worksheet.Cell(rowNumber, 3).Value = row.Source.ToDisplayName();
             worksheet.Cell(rowNumber, 4).Value = row.DataType;
             worksheet.Cell(rowNumber, 5).Value = row.UnitName ?? string.Empty;
-            worksheet.Cell(rowNumber, 6).Value = row.SimulatorName ?? string.Empty;
             if (row.Date.HasValue)
             {
-                worksheet.Cell(rowNumber, 7).Value = row.Date.Value.ToDateTime(TimeOnly.MinValue);
-                worksheet.Cell(rowNumber, 7).Style.DateFormat.Format = "yyyy-MM-dd";
+                worksheet.Cell(rowNumber, 6).Value = row.Date.Value.ToDateTime(TimeOnly.MinValue);
+                worksheet.Cell(rowNumber, 6).Style.DateFormat.Format = "yyyy-MM-dd";
             }
-            worksheet.Cell(rowNumber, 8).Value = row.Quantity;
-            worksheet.Cell(rowNumber, 9).Value = row.EffectiveTotal;
-            worksheet.Cell(rowNumber, 10).Value = row.ApprovalStatus;
-            worksheet.Cell(rowNumber, 11).Value = row.PreferenceMode?.ToString() ?? "Auto";
+            worksheet.Cell(rowNumber, 7).Value = row.Quantity;
+            worksheet.Cell(rowNumber, 8).Value = row.EffectiveTotal;
+            worksheet.Cell(rowNumber, 9).Value = row.ApprovalStatus;
+            worksheet.Cell(rowNumber, 10).Value = row.PreferenceMode?.ToString() ?? "Auto";
         }
 
-        worksheet.Columns(2, 6).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+        worksheet.Columns(2, 5).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
         worksheet.Column(2).Style.Alignment.WrapText = true;
-        worksheet.Column(6).Style.Alignment.WrapText = true;
     }
 
     private static void ApplyMetadata(IXLWorksheet worksheet, ProliferationExcelWorkbookContext context)
     {
         var lastRow = Math.Max(2, context.Rows.Count + 1);
-        worksheet.Columns(1, 11).AdjustToContents(1, lastRow);
+        worksheet.Columns(1, 10).AdjustToContents(1, lastRow);
 
-        foreach (var column in worksheet.Columns(1, 11))
+        foreach (var column in worksheet.Columns(1, 10))
         {
             if (column.Width > 60)
             {

@@ -241,7 +241,6 @@ public sealed class ProliferationExportService : IProliferationExportService
             granularBase = granularBase.Where(x =>
                 EF.Functions.ILike(x.Project.Name, like) ||
                 (x.Project.CaseFileNumber != null && EF.Functions.ILike(x.Project.CaseFileNumber, like)) ||
-                EF.Functions.ILike(x.Granular.SimulatorName, like) ||
                 EF.Functions.ILike(x.Granular.UnitName, like));
         }
 
@@ -254,7 +253,6 @@ public sealed class ProliferationExportService : IProliferationExportService
             Source = x.Yearly.Source,
             DataType = "Yearly",
             UnitName = (string?)null,
-            SimulatorName = (string?)null,
             Date = (DateOnly?)null,
             Quantity = x.Yearly.TotalQuantity,
             ApprovalStatus = x.Yearly.ApprovalStatus,
@@ -272,7 +270,6 @@ public sealed class ProliferationExportService : IProliferationExportService
             Source = x.Granular.Source,
             DataType = "Granular",
             UnitName = (string?)x.Granular.UnitName,
-            SimulatorName = (string?)x.Granular.SimulatorName,
             Date = (DateOnly?)x.Granular.ProliferationDate,
             Quantity = x.Granular.Quantity,
             ApprovalStatus = x.Granular.ApprovalStatus,
@@ -293,7 +290,6 @@ public sealed class ProliferationExportService : IProliferationExportService
                 r.Source,
                 r.DataType,
                 r.UnitName,
-                r.SimulatorName,
                 r.Date,
                 r.Quantity,
                 r.ApprovalStatus,
@@ -324,7 +320,6 @@ public sealed class ProliferationExportService : IProliferationExportService
                 projection.Source,
                 projection.DataType,
                 projection.UnitName,
-                projection.SimulatorName,
                 projection.Date,
                 projection.Quantity,
                 effective,
@@ -406,7 +401,6 @@ public sealed class ProliferationExportService : IProliferationExportService
         ProliferationSource Source,
         string DataType,
         string? UnitName,
-        string? SimulatorName,
         DateOnly? Date,
         int Quantity,
         ApprovalStatus ApprovalStatus,

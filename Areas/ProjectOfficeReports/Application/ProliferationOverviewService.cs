@@ -113,7 +113,6 @@ public sealed class ProliferationOverviewService
 
             granularItems = granularItems
                 .Where(g => MatchesSearch(projectLookup[g.ProjectId], likeTerm) ||
-                            g.SimulatorName.Contains(likeTerm, StringComparison.OrdinalIgnoreCase) ||
                             g.UnitName.Contains(likeTerm, StringComparison.OrdinalIgnoreCase) ||
                             (!string.IsNullOrWhiteSpace(g.Remarks) && g.Remarks!.Contains(likeTerm, StringComparison.OrdinalIgnoreCase)))
                 .ToList();
@@ -222,7 +221,6 @@ public sealed class ProliferationOverviewService
                 "Yearly",
                 null,
                 null,
-                null,
                 item.TotalQuantity,
                 0,
                 item.ApprovalStatus,
@@ -242,7 +240,6 @@ public sealed class ProliferationOverviewService
                 item.Source,
                 "Granular",
                 item.UnitName,
-                item.SimulatorName,
                 item.ProliferationDate,
                 item.Quantity,
                 0,

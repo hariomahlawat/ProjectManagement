@@ -677,7 +677,6 @@
           <th scope="col">Source</th>
           <th scope="col">Data type</th>
           <th scope="col">Unit</th>
-          <th scope="col">Simulator</th>
           <th scope="col">Date</th>
           <th scope="col" class="text-end">Quantity</th>
           <th scope="col" class="text-end">Effective total</th>
@@ -692,7 +691,6 @@
       const typeLabel = row.DataType ?? row.dataType ?? "";
       const pane = typeLabel.toLowerCase().includes("year") ? "yearly" : "granular";
       const unit = row.UnitName ?? row.unitName ?? "";
-      const simulator = row.SimulatorName ?? row.simulatorName ?? "";
       const dateRaw = row.DateUtc ?? row.dateUtc ?? row.ProliferationDate ?? row.proliferationDate ?? "";
       const quantity = row.Quantity ?? row.quantity ?? 0;
       const effective = row.EffectiveTotal ?? row.effectiveTotal ?? quantity;
@@ -706,8 +704,7 @@
         `data-entry-year="${escapeAttr(year)}"`,
         `data-entry-date="${escapeAttr(dateRaw)}"`,
         `data-entry-quantity="${escapeAttr(quantity)}"`,
-        `data-entry-unit="${escapeAttr(unit)}"`,
-        `data-entry-simulator="${escapeAttr(simulator)}"`
+        `data-entry-unit="${escapeAttr(unit)}"`
       ].join(" ");
       return `
       <tr ${attrs}>
@@ -716,7 +713,6 @@
         <td>${sourceLabel}</td>
         <td>${typeLabel}</td>
         <td>${unit}</td>
-        <td>${simulator}</td>
         <td>${fmt.date(dateRaw)}</td>
         <td class="text-end">${fmt.number(quantity)}</td>
         <td class="text-end">${fmt.number(effective)}</td>

@@ -181,7 +181,6 @@ public sealed class ProliferationManageService
             entity.ProjectId,
             entity.Source,
             entity.ProliferationDate,
-            entity.SimulatorName,
             entity.UnitName,
             entity.Quantity,
             entity.Remarks,

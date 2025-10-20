@@ -547,8 +547,8 @@ public static class Audit
 
         public static AuditEvent ProliferationGranularRecorded(
             int projectId,
+            string projectName,
             ProliferationSource source,
-            string simulatorName,
             string unitName,
             DateOnly proliferationDate,
             int quantity,
@@ -559,8 +559,8 @@ public static class Audit
             var data = new Dictionary<string, string?>
             {
                 ["ProjectId"] = projectId.ToString(CultureInfo.InvariantCulture),
+                ["ProjectName"] = projectName,
                 ["Source"] = source.ToDisplayName(),
-                ["SimulatorName"] = simulatorName,
                 ["UnitName"] = unitName,
                 ["ProliferationDate"] = proliferationDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 ["Quantity"] = quantity.ToString(CultureInfo.InvariantCulture),
