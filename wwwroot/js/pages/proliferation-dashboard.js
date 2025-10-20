@@ -285,7 +285,6 @@
         <div>No records match the current filters. Try adjusting filters or reset.</div>
       </div>`;
       host.removeAttribute("aria-busy");
-      updateSelectionSummary(null);
       return;
     }
 
