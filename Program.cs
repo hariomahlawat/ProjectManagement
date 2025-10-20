@@ -145,8 +145,6 @@ builder.Services.AddAuthorization(options =>
         policy.RequireProliferationApprover());
     options.AddPolicy(ProjectOfficeReportsPolicies.ManageProliferationPreferences, policy =>
         policy.RequireProliferationPreferenceManager());
-    options.AddPolicy(ProjectOfficeReportsPolicies.ManageProliferationImports, policy =>
-        policy.RequireProliferationImportManager());
 });
 
 builder.Services.ConfigureApplicationCookie(opt =>

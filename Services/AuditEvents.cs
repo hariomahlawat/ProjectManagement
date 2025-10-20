@@ -453,28 +453,6 @@ public static class Audit
             return new AuditEvent("ProjectOfficeReports.Proliferation.PreferenceChanged", actorUserId, data);
         }
 
-        public static AuditEvent ProliferationImportCompleted(
-            string userId,
-            string importType,
-            ProliferationSource source,
-            string? fileName,
-            int processedRows,
-            int importedRows,
-            int errorCount)
-        {
-            var data = new Dictionary<string, string?>
-            {
-                ["ImportType"] = importType,
-                ["Source"] = source.ToDisplayName(),
-                ["FileName"] = fileName,
-                ["ProcessedRows"] = processedRows.ToString(CultureInfo.InvariantCulture),
-                ["ImportedRows"] = importedRows.ToString(CultureInfo.InvariantCulture),
-                ["ErrorCount"] = errorCount.ToString(CultureInfo.InvariantCulture)
-            };
-
-            return new AuditEvent("ProjectOfficeReports.Proliferation.ImportCompleted", userId, data);
-        }
-
         public static AuditEvent ProliferationExportGenerated(
             string userId,
             ProliferationSource? source,

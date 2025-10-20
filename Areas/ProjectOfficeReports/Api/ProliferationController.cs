@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
@@ -15,7 +14,6 @@ using ProjectManagement.Areas.ProjectOfficeReports.Api;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Models;
-using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 {
@@ -631,26 +629,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
             var ok = await _submitSvc.SetYearPreferenceAsync(dto, User, ct);
             return ok.Success ? Ok() : BadRequest(ok.Error);
-        }
-
-        [HttpPost("import/yearly")]
-        [Authorize(Policy = ProjectOfficeReportsPolicies.SubmitProliferationTracker)]
-        public async Task<ActionResult<ImportResultDto>> ImportYearly([FromForm] IFormFile file, CancellationToken ct)
-        {
-            if (file == null || file.Length == 0) return BadRequest("File required");
-            using var stream = file.OpenReadStream();
-            var result = await _submitSvc.ImportYearlyCsvAsync(stream, User, ct);
-            return Ok(result);
-        }
-
-        [HttpPost("import/granular")]
-        [Authorize(Policy = ProjectOfficeReportsPolicies.SubmitProliferationTracker)]
-        public async Task<ActionResult<ImportResultDto>> ImportGranular([FromForm] IFormFile file, CancellationToken ct)
-        {
-            if (file == null || file.Length == 0) return BadRequest("File required");
-            using var stream = file.OpenReadStream();
-            var result = await _submitSvc.ImportGranularCsvAsync(stream, User, ct);
-            return Ok(result);
         }
 
         [HttpGet("export")]
