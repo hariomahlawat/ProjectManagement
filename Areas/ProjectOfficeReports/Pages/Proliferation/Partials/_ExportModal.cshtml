@@ -10,8 +10,8 @@
                     <input type="hidden" name="Page" value="1" />
                     <input type="hidden" name="PageSize" value="0" />
 
-                    <div class="row g-3 align-items-end">
-                        <div class="col-12 col-md-4">
+                    <div class="row g-3 align-items-start">
+                        <div class="col-12">
                             <label class="form-label">Date filter</label>
                             <div class="btn-group w-100" role="group" aria-label="Export date filter mode">
                                 <input type="radio" class="btn-check" name="ExportFilterMode" id="expModeAll" value="all" autocomplete="off" checked>
@@ -25,37 +25,37 @@
                             </div>
                         </div>
 
-                        <div class="col-12 col-md-4" id="expYearsWrap">
+                        <div class="col-12 col-md-6 col-lg-4" id="expYearsWrap">
                             <label for="expYears" class="form-label">Years</label>
                             <select id="expYears" name="Years" class="form-select" multiple aria-describedby="expYearsHelp">
                             </select>
                             <div id="expYearsHelp" class="form-text">Choose one or more years, pick a range, or export everything.</div>
                         </div>
 
-                        <div class="col-12 col-md-4 d-none" id="expYearFromWrap">
+                        <div class="col-12 col-md-6 col-lg-4 d-none" id="expYearFromWrap">
                             <label for="expYearFrom" class="form-label">From year</label>
                             <select id="expYearFrom" class="form-select" aria-describedby="expYearRangeHelp">
                             </select>
                         </div>
 
-                        <div class="col-12 col-md-4 d-none" id="expYearToWrap">
+                        <div class="col-12 col-md-6 col-lg-4 d-none" id="expYearToWrap">
                             <label for="expYearTo" class="form-label">To year</label>
                             <select id="expYearTo" class="form-select" aria-describedby="expYearRangeHelp">
                             </select>
                             <div id="expYearRangeHelp" class="form-text">Select the inclusive start and end years for export.</div>
                         </div>
 
-                        <div class="col-12 col-md-4 d-none" id="expFromWrap">
+                        <div class="col-12 col-md-6 col-lg-4 d-none" id="expFromWrap">
                             <label for="expFrom" class="form-label">From date</label>
                             <input id="expFrom" name="FromDateUtc" type="date" class="form-control" />
                         </div>
 
-                        <div class="col-12 col-md-4 d-none" id="expToWrap">
+                        <div class="col-12 col-md-6 col-lg-4 d-none" id="expToWrap">
                             <label for="expTo" class="form-label">To date</label>
                             <input id="expTo" name="ToDateUtc" type="date" class="form-control" />
                         </div>
 
-                        <div class="col-12 col-md-4">
+                        <div class="col-12 col-md-6 col-lg-4">
                             <label for="expSource" class="form-label">Source</label>
                             <select id="expSource" name="Source" class="form-select">
                                 <option value="">All sources</option>
@@ -64,14 +64,14 @@
                             </select>
                         </div>
 
-                        <div class="col-12 col-md-4">
+                        <div class="col-12 col-md-6 col-lg-4">
                             <label for="expProjectCat" class="form-label">Project category</label>
                             <select id="expProjectCat" name="ProjectCategoryId" class="form-select">
                                 <option value="">All categories</option>
                             </select>
                         </div>
 
-                        <div class="col-12 col-md-4">
+                        <div class="col-12 col-md-6 col-lg-4">
                             <label for="expTechCat" class="form-label">Technical category</label>
                             <select id="expTechCat" name="TechnicalCategoryId" class="form-select">
                                 <option value="">All technical</option>
