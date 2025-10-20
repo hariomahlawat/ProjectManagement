@@ -262,6 +262,7 @@ builder.Services.AddSingleton<IVisitExcelWorkbookBuilder, VisitExcelWorkbookBuil
 builder.Services.AddSingleton<IVisitPdfReportBuilder, VisitPdfReportBuilder>();
 builder.Services.AddSingleton<ISocialMediaExcelWorkbookBuilder, SocialMediaExcelWorkbookBuilder>();
 builder.Services.AddSingleton<ISocialMediaPdfReportBuilder, SocialMediaPdfReportBuilder>();
+builder.Services.AddSingleton<IProliferationExcelWorkbookBuilder, ProliferationExcelWorkbookBuilder>();
 builder.Services.AddScoped<VisitTypeService>();
 builder.Services.AddScoped<SocialMediaEventTypeService>();
 builder.Services.AddScoped<SocialMediaPlatformService>();

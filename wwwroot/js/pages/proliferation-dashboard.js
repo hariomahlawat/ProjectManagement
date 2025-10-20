@@ -2,7 +2,7 @@
 (() => {
   const api = {
     overview: "/api/proliferation/overview",
-    exportCsv: "/api/proliferation/export",
+    export: "/api/proliferation/export",
     setPref: "/api/proliferation/year-preference",
     getPref: "/api/proliferation/year-preference",
     projects: "/api/proliferation/projects",
@@ -92,6 +92,7 @@
   let projectOptions = [];
   let currentProjectLookupKey = null;
   let preferenceFetchAbort = null;
+  let exportModalInstance = null;
 
   function collectFilters() {
     const byYearToggle = $("#fltByYear");
@@ -179,6 +180,246 @@
       badge.className = "badge rounded-pill text-bg-light me-1";
       badge.textContent = `${chip.label}: ${chip.value}`;
       host.append(badge);
+    }
+  }
+
+  function setExportMode(mode, { preserveValues = false } = {}) {
+    const yearsWrap = $("#expYearsWrap");
+    const fromWrap = $("#expFromWrap");
+    const toWrap = $("#expToWrap");
+    const form = $("#proliferationExportForm");
+
+    if (mode === "years") {
+      yearsWrap?.classList.remove("d-none");
+      fromWrap?.classList.add("d-none");
+      toWrap?.classList.add("d-none");
+      if (!preserveValues) {
+        if (form) {
+          const fromInput = form.querySelector("#expFrom");
+          const toInput = form.querySelector("#expTo");
+          if (fromInput) fromInput.value = "";
+          if (toInput) toInput.value = "";
+        }
+      }
+    } else {
+      yearsWrap?.classList.add("d-none");
+      fromWrap?.classList.remove("d-none");
+      toWrap?.classList.remove("d-none");
+      if (!preserveValues) {
+        const yearsSelect = $("#expYears");
+        if (yearsSelect) {
+          $all("option", yearsSelect).forEach((opt) => { opt.selected = false; });
+        }
+      }
+    }
+  }
+
+  function populateExportModal() {
+    const modal = $("#proliferationExportModal");
+    if (!modal) return;
+    const form = $("#proliferationExportForm");
+    form?.classList.remove("was-validated");
+    const validation = $("#expValidationMessage");
+    if (validation) {
+      validation.classList.add("d-none");
+      validation.textContent = "";
+    }
+
+    const modeYearsRadio = $("#expModeYears");
+    const modeRangeRadio = $("#expModeRange");
+    const hasYears = filterState.years.length > 0;
+    const hasRange = Boolean(filterState.from || filterState.to);
+
+    if (modeYearsRadio) modeYearsRadio.checked = hasYears || !hasRange;
+    if (modeRangeRadio) modeRangeRadio.checked = hasRange && !hasYears;
+    setExportMode(modeYearsRadio?.checked ? "years" : "range", { preserveValues: true });
+
+    const yearsSelect = $("#expYears");
+    if (yearsSelect) {
+      const selectedYears = new Set(filterState.years.map((y) => String(y)));
+      $all("option", yearsSelect).forEach((opt) => {
+        opt.selected = selectedYears.has(opt.value);
+      });
+    }
+
+    const fromInput = $("#expFrom");
+    const toInput = $("#expTo");
+    if (fromInput) {
+      fromInput.value = filterState.from ? filterState.from.slice(0, 10) : "";
+    }
+    if (toInput) {
+      toInput.value = filterState.to ? filterState.to.slice(0, 10) : "";
+    }
+
+    const sourceSelect = $("#expSource");
+    if (sourceSelect) {
+      sourceSelect.value = filterState.sourceId ? String(filterState.sourceId) : "";
+    }
+
+    const projectCat = $("#expProjectCat");
+    if (projectCat) {
+      projectCat.value = filterState.projectCategory || "";
+    }
+
+    const techCat = $("#expTechCat");
+    if (techCat) {
+      techCat.value = filterState.technicalCategory || "";
+    }
+
+    const searchInput = $("#expSearch");
+    if (searchInput) {
+      searchInput.value = filterState.search || "";
+    }
+  }
+
+  function buildExportQueryFromForm() {
+    const params = new URLSearchParams();
+    const modeYears = $("#expModeYears")?.checked ?? true;
+    const yearsSelect = $("#expYears");
+    const fromInput = $("#expFrom");
+    const toInput = $("#expTo");
+    const sourceSelect = $("#expSource");
+    const projectSelect = $("#expProjectCat");
+    const techSelect = $("#expTechCat");
+    const searchInput = $("#expSearch");
+
+    if (modeYears && yearsSelect) {
+      $all("option:checked", yearsSelect).forEach((opt) => {
+        if (opt.value) params.append("Years", opt.value);
+      });
+    }
+
+    if (!modeYears) {
+      const fromValue = fromInput?.value ?? "";
+      const toValue = toInput?.value ?? "";
+      if (fromValue) params.set("FromDateUtc", fromValue);
+      if (toValue) params.set("ToDateUtc", toValue);
+    }
+
+    const sourceVal = sourceSelect?.value ?? "";
+    if (sourceVal) params.set("Source", sourceVal);
+
+    const projectVal = projectSelect?.value ?? "";
+    if (projectVal) params.set("ProjectCategoryId", projectVal);
+
+    const techVal = techSelect?.value ?? "";
+    if (techVal) params.set("TechnicalCategoryId", techVal);
+
+    const searchVal = (searchInput?.value ?? "").trim();
+    if (searchVal) params.set("Search", searchVal);
+
+    params.set("Page", "1");
+    params.set("PageSize", "0");
+    return params;
+  }
+
+  function parseContentDisposition(value) {
+    if (!value) return null;
+    const match = /filename\*=UTF-8''([^;]+)/i.exec(value);
+    if (match && match[1]) {
+      return decodeURIComponent(match[1]);
+    }
+    const fallback = /filename="?([^";]+)"?/i.exec(value);
+    return fallback && fallback[1] ? fallback[1] : null;
+  }
+
+  async function submitExportRequest() {
+    const form = $("#proliferationExportForm");
+    if (!form) return;
+    const validation = $("#expValidationMessage");
+    const modeYears = $("#expModeYears")?.checked ?? true;
+    const yearsSelect = $("#expYears");
+    const fromInput = $("#expFrom");
+    const toInput = $("#expTo");
+    const confirmBtn = $("#confirmExportBtn");
+    const spinner = confirmBtn?.querySelector(".spinner-border");
+
+    const selectedYears = yearsSelect ? $all("option:checked", yearsSelect) : [];
+    const fromVal = fromInput?.value ?? "";
+    const toVal = toInput?.value ?? "";
+
+    const errors = [];
+    if (modeYears) {
+      if (selectedYears.length === 0) {
+        errors.push("Select at least one year or switch to a date range.");
+      }
+    } else {
+      if (!fromVal && !toVal) {
+        errors.push("Provide a from or to date when exporting by range.");
+      }
+      if (fromVal && toVal && fromVal > toVal) {
+        errors.push("The date range is invalid.");
+      }
+    }
+
+    if (validation) {
+      if (errors.length) {
+        validation.textContent = errors.join(" ");
+        validation.classList.remove("d-none");
+      } else {
+        validation.classList.add("d-none");
+        validation.textContent = "";
+      }
+    }
+
+    if (errors.length) {
+      return;
+    }
+
+    const params = buildExportQueryFromForm();
+    try {
+      if (spinner) spinner.classList.remove("d-none");
+      if (confirmBtn) confirmBtn.disabled = true;
+      const response = await fetch(`${api.export}?${params.toString()}`, {
+        headers: { Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }
+      });
+      if (!response.ok) {
+        let message = "Unable to generate export.";
+        try {
+          const text = await response.text();
+          if (text) message = text;
+        } catch {
+          // ignore
+        }
+        if (validation) {
+          validation.textContent = message;
+          validation.classList.remove("d-none");
+        }
+        toast(message, response.status === 400 ? "warning" : "danger");
+        return;
+      }
+
+      const blob = await response.blob();
+      if (blob.size === 0) {
+        toast("The export did not contain any rows.", "warning");
+        return;
+      }
+
+      const disposition = response.headers.get("Content-Disposition");
+      const fileName = parseContentDisposition(disposition) || "proliferation-export.xlsx";
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      toast("Preparing download…", "success");
+      if (exportModalInstance) {
+        exportModalInstance.hide();
+      }
+    } catch (error) {
+      console.warn("Export request failed", error);
+      const message = "Unable to generate export. Please try again later.";
+      if (validation) {
+        validation.textContent = message;
+        validation.classList.remove("d-none");
+      }
+      toast(message, "danger");
+    } finally {
+      if (spinner) spinner.classList.add("d-none");
+      if (confirmBtn) confirmBtn.disabled = false;
     }
   }
 
@@ -488,11 +729,13 @@
   }
 
   function wireToolbar() {
-    $("#btnExport")?.addEventListener("click", () => {
-      const filters = collectFilters();
-      filters.Page = 1;
-      filters.PageSize = 0;
-      window.location.href = api.exportCsv + buildQuery(filters);
+    const button = $("#btnExport");
+    const modalElement = $("#proliferationExportModal");
+    if (!button || !modalElement) return;
+    button.addEventListener("click", () => {
+      populateExportModal();
+      exportModalInstance = bootstrap.Modal.getOrCreateInstance(modalElement);
+      exportModalInstance.show();
     });
   }
 
@@ -504,46 +747,39 @@
     };
   }
 
-  function populateCategoryFilters() {
-    const projectSelect = $("#fltProjectCat");
-    if (projectSelect) {
-      const previous = projectSelect.value;
-      projectSelect.innerHTML = "<option value=\"\">All categories</option>";
-      for (const item of lookups.projectCategories) {
-        const id = Number(item.id ?? item.Id);
-        const name = item.name ?? item.Name ?? "";
-        if (!Number.isFinite(id)) continue;
-        const option = document.createElement("option");
-        option.value = String(id);
-        option.textContent = name;
-        projectSelect.append(option);
-      }
-      if (previous) {
-        projectSelect.value = previous;
-      } else if (filterState.projectCategory) {
-        projectSelect.value = filterState.projectCategory;
-      }
-    }
+  function wireExportModal() {
+    const modalElement = $("#proliferationExportModal");
+    if (!modalElement) return;
+    modalElement.addEventListener("show.bs.modal", populateExportModal);
+    $("#expModeYears")?.addEventListener("change", () => setExportMode("years"));
+    $("#expModeRange")?.addEventListener("change", () => setExportMode("range"));
+    $("#confirmExportBtn")?.addEventListener("click", submitExportRequest);
+  }
 
-    const technicalSelect = $("#fltTechCat");
-    if (technicalSelect) {
-      const previous = technicalSelect.value;
-      technicalSelect.innerHTML = "<option value=\"\">All technical</option>";
-      for (const item of lookups.technicalCategories) {
+  function populateCategoryFilters() {
+    const fill = (select, items, defaultLabel, stateValue) => {
+      if (!select) return;
+      const previous = select.value;
+      select.innerHTML = `<option value="">${defaultLabel}</option>`;
+      for (const item of items) {
         const id = Number(item.id ?? item.Id);
         const name = item.name ?? item.Name ?? "";
         if (!Number.isFinite(id)) continue;
         const option = document.createElement("option");
         option.value = String(id);
         option.textContent = name;
-        technicalSelect.append(option);
+        select.append(option);
       }
-      if (previous) {
-        technicalSelect.value = previous;
-      } else if (filterState.technicalCategory) {
-        technicalSelect.value = filterState.technicalCategory;
+      const target = stateValue || previous;
+      if (target) {
+        select.value = target;
       }
-    }
+    };
+
+    fill($("#fltProjectCat"), lookups.projectCategories, "All categories", filterState.projectCategory);
+    fill($("#expProjectCat"), lookups.projectCategories, "All categories", filterState.projectCategory);
+    fill($("#fltTechCat"), lookups.technicalCategories, "All technical", filterState.technicalCategory);
+    fill($("#expTechCat"), lookups.technicalCategories, "All technical", filterState.technicalCategory);
   }
 
   async function loadLookups() {
@@ -762,14 +998,17 @@
   }
 
   function populateYears() {
-    const select = $("#fltYears");
-    if (!select) return;
+    const selects = [$("#fltYears"), $("#expYears")].filter(Boolean);
+    if (selects.length === 0) return;
     const current = new Date().getUTCFullYear();
-    for (let y = current; y >= current - 5; y -= 1) {
-      const option = document.createElement("option");
-      option.value = String(y);
-      option.textContent = String(y);
-      select.append(option);
+    for (const select of selects) {
+      select.innerHTML = "";
+      for (let y = current; y >= current - 5; y -= 1) {
+        const option = document.createElement("option");
+        option.value = String(y);
+        option.textContent = String(y);
+        select.append(option);
+      }
     }
   }
 
@@ -777,6 +1016,7 @@
     populateYears();
     await loadLookups();
     wireFilters();
+    wireExportModal();
     wireToolbar();
     wirePagination();
     wirePreferences();

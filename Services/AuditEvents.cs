@@ -455,22 +455,32 @@ public static class Audit
 
         public static AuditEvent ProliferationExportGenerated(
             string userId,
+            IReadOnlyCollection<int>? years,
+            DateOnly? fromDate,
+            DateOnly? toDate,
             ProliferationSource? source,
-            int? yearFrom,
-            int? yearTo,
-            int? sponsoringUnitId,
-            string? simulatorUserId,
+            string? sourceLabel,
+            int? projectCategoryId,
+            string? projectCategoryName,
+            int? technicalCategoryId,
+            string? technicalCategoryName,
             string? searchTerm,
             int rowCount,
             string fileName)
         {
             var data = new Dictionary<string, string?>
             {
-                ["Source"] = source?.ToDisplayName(),
-                ["YearFrom"] = yearFrom?.ToString(CultureInfo.InvariantCulture),
-                ["YearTo"] = yearTo?.ToString(CultureInfo.InvariantCulture),
-                ["SponsoringUnitId"] = sponsoringUnitId?.ToString(CultureInfo.InvariantCulture),
-                ["SimulatorUserId"] = simulatorUserId,
+                ["Years"] = years is { Count: > 0 }
+                    ? string.Join(",", years)
+                    : null,
+                ["FromDate"] = fromDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                ["ToDate"] = toDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                ["Source"] = source?.ToDisplayName() ?? sourceLabel,
+                ["SourceValue"] = source?.ToString(),
+                ["ProjectCategoryId"] = projectCategoryId?.ToString(CultureInfo.InvariantCulture),
+                ["ProjectCategoryName"] = projectCategoryName,
+                ["TechnicalCategoryId"] = technicalCategoryId?.ToString(CultureInfo.InvariantCulture),
+                ["TechnicalCategoryName"] = technicalCategoryName,
                 ["SearchTerm"] = searchTerm,
                 ["RowCount"] = rowCount.ToString(CultureInfo.InvariantCulture),
                 ["FileName"] = fileName

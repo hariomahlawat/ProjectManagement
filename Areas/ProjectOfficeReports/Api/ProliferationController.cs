@@ -1,10 +1,9 @@
 using System;
 using System.Linq;
-using System.Text;
-using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -26,6 +25,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         private readonly ProliferationTrackerReadService _readSvc;
         private readonly ProliferationSubmissionService _submitSvc;
         private readonly ProliferationManageService _manageSvc;
+        private readonly IProliferationExportService _exportService;
         private readonly ILogger<ProliferationController> _logger;
 
         public ProliferationController(
@@ -33,12 +33,14 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             ProliferationTrackerReadService readSvc,
             ProliferationSubmissionService submitSvc,
             ProliferationManageService manageSvc,
+            IProliferationExportService exportService,
             ILogger<ProliferationController> logger)
         {
             _db = db;
             _readSvc = readSvc;
             _submitSvc = submitSvc;
             _manageSvc = manageSvc;
+            _exportService = exportService;
             _logger = logger;
         }
 
@@ -634,32 +636,34 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         [HttpGet("export")]
         public async Task<IActionResult> Export([FromQuery] ProliferationOverviewQuery q, CancellationToken ct)
         {
-            var overview = await GetOverview(q, ct);
-            if (overview.Result is not OkObjectResult ok) return overview.Result!;
-            var payload = (ProliferationOverviewDto)ok.Value!;
-
-            var sb = new StringBuilder();
-            sb.AppendLine("Year,Project,Source,DataType,UnitName,SimulatorName,Date,Quantity,EffectiveTotal,ApprovalStatus,Mode");
-            foreach (var r in payload.Rows)
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId))
             {
-                var date = r.DateUtc?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? string.Empty;
-                var mode = r.Mode ?? string.Empty;
-                AppendCsvRow(
-                    sb,
-                    r.Year.ToString(CultureInfo.InvariantCulture),
-                    r.Project,
-                    r.Source.ToString(),
-                    r.DataType,
-                    r.UnitName,
-                    r.SimulatorName,
-                    date,
-                    r.Quantity.ToString(CultureInfo.InvariantCulture),
-                    r.EffectiveTotal.ToString(CultureInfo.InvariantCulture),
-                    r.ApprovalStatus,
-                    mode);
+                return Challenge();
             }
-            var bytes = Encoding.UTF8.GetBytes(sb.ToString());
-            return File(bytes, "text/csv", "proliferation-export.csv");
+
+            DateOnly? from = q.FromDateUtc.HasValue ? DateOnly.FromDateTime(q.FromDateUtc.Value) : null;
+            DateOnly? to = q.ToDateUtc.HasValue ? DateOnly.FromDateTime(q.ToDateUtc.Value) : null;
+            IReadOnlyCollection<int>? years = q.Years is { Length: > 0 } ? q.Years.ToList() : null;
+
+            var request = new ProliferationExportRequest(
+                Years: years,
+                FromDate: from,
+                ToDate: to,
+                Source: q.Source,
+                ProjectCategoryId: q.ProjectCategoryId,
+                TechnicalCategoryId: q.TechnicalCategoryId,
+                Search: q.Search,
+                RequestedByUserId: userId);
+
+            var result = await _exportService.ExportAsync(request, ct);
+            if (!result.Success || result.File is null)
+            {
+                var message = result.Errors.FirstOrDefault() ?? "Export failed.";
+                return BadRequest(message);
+            }
+
+            return File(result.File.Content, result.File.ContentType, result.File.FileName);
         }
 
         private IActionResult ToActionResult(ServiceResult result, bool noContent = false)
@@ -713,37 +717,5 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
         private sealed record CombinationKey(int ProjectId, ProliferationSource Source, int Year);
 
-        private static void AppendCsvRow(StringBuilder sb, params string?[] values)
-        {
-            if (values == null || values.Length == 0)
-            {
-                sb.AppendLine();
-                return;
-            }
-
-            for (var i = 0; i < values.Length; i++)
-            {
-                if (i > 0)
-                {
-                    sb.Append(',');
-                }
-
-                sb.Append(EscapeCsv(values[i]));
-            }
-
-            sb.AppendLine();
-        }
-
-        private static string EscapeCsv(string? value)
-        {
-            if (string.IsNullOrEmpty(value))
-            {
-                return string.Empty;
-            }
-
-            var sanitized = value.Replace("\"", "\"\"");
-            var needsQuotes = sanitized.IndexOfAny(new[] { ',', '\n', '\r', '"' }) >= 0;
-            return needsQuotes ? $"\"{sanitized}\"" : sanitized;
-        }
     }
 }
