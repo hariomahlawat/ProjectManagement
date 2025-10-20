@@ -87,6 +87,15 @@
     pageSize: 50
   };
 
+  const exportState = {
+    mode: "years",
+    years: [],
+    fromDate: "",
+    toDate: "",
+    yearStart: "",
+    yearEnd: ""
+  };
+
   const lookupCache = new Map();
   const lookups = { projectCategories: [], technicalCategories: [] };
   let projectOptions = [];
@@ -184,32 +193,48 @@
   }
 
   function setExportMode(mode, { preserveValues = false } = {}) {
+    exportState.mode = mode;
     const yearsWrap = $("#expYearsWrap");
+    const yearFromWrap = $("#expYearFromWrap");
+    const yearToWrap = $("#expYearToWrap");
     const fromWrap = $("#expFromWrap");
     const toWrap = $("#expToWrap");
     const form = $("#proliferationExportForm");
 
-    if (mode === "years") {
-      yearsWrap?.classList.remove("d-none");
-      fromWrap?.classList.add("d-none");
-      toWrap?.classList.add("d-none");
-      if (!preserveValues) {
-        if (form) {
-          const fromInput = form.querySelector("#expFrom");
-          const toInput = form.querySelector("#expTo");
-          if (fromInput) fromInput.value = "";
-          if (toInput) toInput.value = "";
-        }
-      }
-    } else {
-      yearsWrap?.classList.add("d-none");
-      fromWrap?.classList.remove("d-none");
-      toWrap?.classList.remove("d-none");
-      if (!preserveValues) {
-        const yearsSelect = $("#expYears");
+    const showYears = mode === "years";
+    const showYearRange = mode === "yearRange";
+    const showDateRange = mode === "range";
+
+    yearsWrap?.classList.toggle("d-none", !showYears);
+    yearFromWrap?.classList.toggle("d-none", !showYearRange);
+    yearToWrap?.classList.toggle("d-none", !showYearRange);
+    fromWrap?.classList.toggle("d-none", !showDateRange);
+    toWrap?.classList.toggle("d-none", !showDateRange);
+
+    if (!preserveValues) {
+      const yearsSelect = $("#expYears");
+      const yearFromSelect = $("#expYearFrom");
+      const yearToSelect = $("#expYearTo");
+      const fromInput = form?.querySelector("#expFrom");
+      const toInput = form?.querySelector("#expTo");
+
+      if (showYears) {
+        if (yearFromSelect) yearFromSelect.value = "";
+        if (yearToSelect) yearToSelect.value = "";
+        if (fromInput) fromInput.value = "";
+        if (toInput) toInput.value = "";
+      } else if (showYearRange) {
         if (yearsSelect) {
           $all("option", yearsSelect).forEach((opt) => { opt.selected = false; });
         }
+        if (fromInput) fromInput.value = "";
+        if (toInput) toInput.value = "";
+      } else if (showDateRange) {
+        if (yearsSelect) {
+          $all("option", yearsSelect).forEach((opt) => { opt.selected = false; });
+        }
+        if (yearFromSelect) yearFromSelect.value = "";
+        if (yearToSelect) yearToSelect.value = "";
       }
     }
   }
@@ -226,29 +251,63 @@
     }
 
     const modeYearsRadio = $("#expModeYears");
+    const modeYearRangeRadio = $("#expModeYearRange");
     const modeRangeRadio = $("#expModeRange");
-    const hasYears = filterState.years.length > 0;
-    const hasRange = Boolean(filterState.from || filterState.to);
 
-    if (modeYearsRadio) modeYearsRadio.checked = hasYears || !hasRange;
-    if (modeRangeRadio) modeRangeRadio.checked = hasRange && !hasYears;
-    setExportMode(modeYearsRadio?.checked ? "years" : "range", { preserveValues: true });
+    const hasExportYears = exportState.years.length > 0;
+    const hasFilterYears = filterState.years.length > 0;
+    const hasAnyYears = hasExportYears || hasFilterYears;
+    const hasYearRange = Boolean(exportState.yearStart && exportState.yearEnd);
+    const hasAnyRange = Boolean(exportState.fromDate || exportState.toDate || filterState.from || filterState.to);
+
+    let mode = exportState.mode || "years";
+    if (hasYearRange) {
+      mode = "yearRange";
+    } else if (mode === "yearRange") {
+      mode = hasAnyYears ? "years" : (hasAnyRange ? "range" : "years");
+    } else if (mode === "years" && !hasAnyYears && hasAnyRange) {
+      mode = "range";
+    } else if (mode === "range" && !hasAnyRange && hasAnyYears) {
+      mode = "years";
+    }
+
+    if (!hasAnyYears && !hasAnyRange && mode === "range") {
+      mode = "years";
+    }
+    if (!mode) mode = "years";
+
+    if (modeYearsRadio) modeYearsRadio.checked = mode === "years";
+    if (modeYearRangeRadio) modeYearRangeRadio.checked = mode === "yearRange";
+    if (modeRangeRadio) modeRangeRadio.checked = mode === "range";
+    setExportMode(mode, { preserveValues: true });
 
     const yearsSelect = $("#expYears");
     if (yearsSelect) {
-      const selectedYears = new Set(filterState.years.map((y) => String(y)));
+      const prefillYears = (hasExportYears ? exportState.years : filterState.years.map((y) => String(y))) || [];
+      const selectedYears = new Set(prefillYears.map((y) => String(y)));
       $all("option", yearsSelect).forEach((opt) => {
         opt.selected = selectedYears.has(opt.value);
       });
     }
 
+    const yearFromSelect = $("#expYearFrom");
+    const yearToSelect = $("#expYearTo");
+    if (yearFromSelect) {
+      yearFromSelect.value = exportState.yearStart || "";
+    }
+    if (yearToSelect) {
+      yearToSelect.value = exportState.yearEnd || "";
+    }
+
     const fromInput = $("#expFrom");
     const toInput = $("#expTo");
     if (fromInput) {
-      fromInput.value = filterState.from ? filterState.from.slice(0, 10) : "";
+      const savedFrom = exportState.fromDate || (filterState.from ? filterState.from.slice(0, 10) : "");
+      fromInput.value = savedFrom;
     }
     if (toInput) {
-      toInput.value = filterState.to ? filterState.to.slice(0, 10) : "";
+      const savedTo = exportState.toDate || (filterState.to ? filterState.to.slice(0, 10) : "");
+      toInput.value = savedTo;
     }
 
     const sourceSelect = $("#expSource");
@@ -274,27 +333,56 @@
 
   function buildExportQueryFromForm() {
     const params = new URLSearchParams();
-    const modeYears = $("#expModeYears")?.checked ?? true;
+    const modeControl = document.querySelector("input[name='ExportFilterMode']:checked");
+    const mode = modeControl?.value ?? "years";
     const yearsSelect = $("#expYears");
     const fromInput = $("#expFrom");
     const toInput = $("#expTo");
+    const yearFromSelect = $("#expYearFrom");
+    const yearToSelect = $("#expYearTo");
     const sourceSelect = $("#expSource");
     const projectSelect = $("#expProjectCat");
     const techSelect = $("#expTechCat");
     const searchInput = $("#expSearch");
 
-    if (modeYears && yearsSelect) {
-      $all("option:checked", yearsSelect).forEach((opt) => {
-        if (opt.value) params.append("Years", opt.value);
-      });
-    }
-
-    if (!modeYears) {
+    if (mode === "years" && yearsSelect) {
+      const selectedYears = $all("option:checked", yearsSelect)
+        .map((opt) => opt.value)
+        .filter((value) => value);
+      selectedYears.forEach((value) => params.append("Years", value));
+      exportState.years = selectedYears;
+      exportState.yearStart = "";
+      exportState.yearEnd = "";
+      exportState.fromDate = "";
+      exportState.toDate = "";
+    } else if (mode === "range") {
       const fromValue = fromInput?.value ?? "";
       const toValue = toInput?.value ?? "";
       if (fromValue) params.set("FromDateUtc", fromValue);
       if (toValue) params.set("ToDateUtc", toValue);
+      exportState.years = [];
+      exportState.yearStart = "";
+      exportState.yearEnd = "";
+      exportState.fromDate = fromValue;
+      exportState.toDate = toValue;
+    } else if (mode === "yearRange") {
+      const startValue = yearFromSelect?.value ?? "";
+      const endValue = yearToSelect?.value ?? "";
+      exportState.years = [];
+      exportState.fromDate = "";
+      exportState.toDate = "";
+      exportState.yearStart = startValue;
+      exportState.yearEnd = endValue;
+      const startYear = parseInt(startValue, 10);
+      const endYear = parseInt(endValue, 10);
+      if (Number.isFinite(startYear) && Number.isFinite(endYear) && startYear <= endYear) {
+        for (let year = startYear; year <= endYear; year += 1) {
+          params.append("Years", String(year));
+        }
+      }
     }
+
+    exportState.mode = mode;
 
     const sourceVal = sourceSelect?.value ?? "";
     if (sourceVal) params.set("Source", sourceVal);
@@ -327,28 +415,43 @@
     const form = $("#proliferationExportForm");
     if (!form) return;
     const validation = $("#expValidationMessage");
-    const modeYears = $("#expModeYears")?.checked ?? true;
+    const modeControl = document.querySelector("input[name='ExportFilterMode']:checked");
+    const mode = modeControl?.value ?? "years";
     const yearsSelect = $("#expYears");
     const fromInput = $("#expFrom");
     const toInput = $("#expTo");
+    const yearFromSelect = $("#expYearFrom");
+    const yearToSelect = $("#expYearTo");
     const confirmBtn = $("#confirmExportBtn");
     const spinner = confirmBtn?.querySelector(".spinner-border");
 
     const selectedYears = yearsSelect ? $all("option:checked", yearsSelect) : [];
     const fromVal = fromInput?.value ?? "";
     const toVal = toInput?.value ?? "";
+    const yearFromVal = yearFromSelect?.value ?? "";
+    const yearToVal = yearToSelect?.value ?? "";
 
     const errors = [];
-    if (modeYears) {
+    if (mode === "years") {
       if (selectedYears.length === 0) {
         errors.push("Select at least one year or switch to a date range.");
       }
-    } else {
+    } else if (mode === "range") {
       if (!fromVal && !toVal) {
         errors.push("Provide a from or to date when exporting by range.");
       }
       if (fromVal && toVal && fromVal > toVal) {
         errors.push("The date range is invalid.");
+      }
+    } else if (mode === "yearRange") {
+      if (!yearFromVal || !yearToVal) {
+        errors.push("Select both a start and end year for the export range.");
+      } else {
+        const startYear = parseInt(yearFromVal, 10);
+        const endYear = parseInt(yearToVal, 10);
+        if (Number.isFinite(startYear) && Number.isFinite(endYear) && startYear > endYear) {
+          errors.push("The year range is invalid. Ensure the start year is not after the end year.");
+        }
       }
     }
 
@@ -752,6 +855,7 @@
     if (!modalElement) return;
     modalElement.addEventListener("show.bs.modal", populateExportModal);
     $("#expModeYears")?.addEventListener("change", () => setExportMode("years"));
+    $("#expModeYearRange")?.addEventListener("change", () => setExportMode("yearRange"));
     $("#expModeRange")?.addEventListener("change", () => setExportMode("range"));
     $("#confirmExportBtn")?.addEventListener("click", submitExportRequest);
   }
@@ -998,15 +1102,30 @@
   }
 
   function populateYears() {
-    const selects = [$("#fltYears"), $("#expYears")].filter(Boolean);
+    const selects = [$("#fltYears"), $("#expYears"), $("#expYearFrom"), $("#expYearTo")].filter(Boolean);
     if (selects.length === 0) return;
     const current = new Date().getUTCFullYear();
     for (const select of selects) {
+      const isMultiple = select.multiple;
+      const previous = isMultiple
+        ? new Set($all("option:checked", select).map((opt) => opt.value))
+        : select.value;
       select.innerHTML = "";
+      if (!isMultiple) {
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "Select year";
+        select.append(placeholder);
+      }
       for (let y = current; y >= current - 5; y -= 1) {
         const option = document.createElement("option");
         option.value = String(y);
         option.textContent = String(y);
+        if (isMultiple) {
+          option.selected = previous.has(option.value);
+        } else if (previous === option.value) {
+          option.selected = true;
+        }
         select.append(option);
       }
     }
