@@ -12,6 +12,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Areas.ProjectOfficeReports.Api;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 using ProjectManagement.Models;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Api
