@@ -232,6 +232,8 @@ namespace ProjectManagement.Migrations
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     Name = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: false),
+                    CreatedByUserId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
                     ParentId = table.Column<int>(type: "integer", nullable: true),
                     IsActive = table.Column<bool>(type: "boolean", nullable: false, defaultValue: true),
                     SortOrder = table.Column<int>(type: "integer", nullable: false, defaultValue: 0)
@@ -254,8 +256,7 @@ namespace ProjectManagement.Migrations
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     ProjectId = table.Column<int>(type: "integer", nullable: false),
                     Source = table.Column<int>(type: "integer", nullable: false),
-                    SimulatorName = table.Column<string>(type: "text", nullable: false),
-                    UnitName = table.Column<string>(type: "text", nullable: false),
+                    UnitName = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
                     ProliferationDate = table.Column<DateOnly>(type: "date", nullable: false),
                     Quantity = table.Column<int>(type: "integer", nullable: false),
                     Remarks = table.Column<string>(type: "text", nullable: true),
@@ -492,6 +493,8 @@ namespace ProjectManagement.Migrations
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     Name = table.Column<string>(type: "character varying(120)", maxLength: 120, nullable: false),
+                    CreatedByUserId = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
                     ParentId = table.Column<int>(type: "integer", nullable: true),
                     IsActive = table.Column<bool>(type: "boolean", nullable: false, defaultValue: true),
                     SortOrder = table.Column<int>(type: "integer", nullable: false, defaultValue: 0)

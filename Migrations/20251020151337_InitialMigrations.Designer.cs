@@ -12,8 +12,8 @@ using ProjectManagement.Data;
 namespace ProjectManagement.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20251020133100_ProlifirationMigrations")]
-    partial class ProlifirationMigrations
+    [Migration("20251020151337_InitialMigrations")]
+    partial class InitialMigrations
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
