@@ -4,8 +4,6 @@
     overview: "/api/proliferation/overview",
     createYearly: "/api/proliferation/yearly",
     createGranular: "/api/proliferation/granular",
-    importYearly: "/api/proliferation/import/yearly",
-    importGranular: "/api/proliferation/import/granular",
     exportCsv: "/api/proliferation/export",
     setPref: "/api/proliferation/year-preference",
     getPref: "/api/proliferation/year-preference",
@@ -96,7 +94,6 @@
   let projectOptions = [];
   let currentProjectLookupKey = null;
   let preferenceFetchAbort = null;
-  let lastImportErrorUrl = null;
 
   function collectFilters() {
     const byYearToggle = $("#fltByYear");
@@ -667,85 +664,6 @@
     }
   }
 
-  function wireImport() {
-    $("#btnRunImport")?.addEventListener("click", async () => {
-      const type = $("#impType")?.value || "yearly";
-      const file = $("#impFile")?.files?.[0];
-      if (!file) {
-        toast("Choose a CSV file to import", "warning");
-        return;
-      }
-      const bar = $("#impProgress .progress-bar");
-      const host = $("#impProgress");
-      host?.classList.remove("d-none");
-      host?.setAttribute("aria-hidden", "false");
-      bar.style.width = "30%";
-      bar.textContent = "Uploading…";
-      const fd = new FormData();
-      fd.append("file", file);
-      const endpoint = type === "granular" ? api.importGranular : api.importYearly;
-      try {
-        const response = await fetch(endpoint, { method: "POST", body: fd });
-        if (!response.ok) throw new Error();
-        const payload = await response.json();
-        const accepted = Number(payload.Accepted ?? payload.accepted ?? 0);
-        const rejected = Number(payload.Rejected ?? payload.rejected ?? 0);
-        bar.style.width = "100%";
-        bar.textContent = "Done";
-        const resultHost = $("#impResult");
-        if (resultHost) {
-          resultHost.innerHTML = `<div class="alert alert-light border">Imported: <strong>${accepted}</strong>, Rejected: <strong>${rejected}</strong></div>`;
-        }
-        if (lastImportErrorUrl) {
-          URL.revokeObjectURL(lastImportErrorUrl);
-          lastImportErrorUrl = null;
-        }
-        const errorCsv = payload.ErrorCsvBase64 ?? payload.errorCsvBase64;
-        if (errorCsv && resultHost) {
-          try {
-            const binary = atob(errorCsv);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i += 1) {
-              bytes[i] = binary.charCodeAt(i);
-            }
-            const blob = new Blob([bytes], { type: "text/csv" });
-            lastImportErrorUrl = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = lastImportErrorUrl;
-            link.download = `proliferation-import-errors-${new Date().toISOString().slice(0, 10)}.csv`;
-            link.className = "btn btn-link btn-sm p-0";
-            link.textContent = "Download rejection report";
-            const wrapper = document.createElement("div");
-            wrapper.className = "mt-2";
-            wrapper.append(link);
-            resultHost.append(wrapper);
-            toast("Some rows were rejected. Download the report for details.", "warning");
-          } catch (err) {
-            console.warn("Unable to prepare rejection report", err);
-          }
-        }
-        if (!errorCsv) {
-          toast("Import finished");
-        }
-        refresh();
-      } catch {
-        bar.style.width = "100%";
-        bar.classList.add("bg-danger");
-        bar.textContent = "Failed";
-        toast("Import failed", "danger");
-      } finally {
-        setTimeout(() => {
-          bar.style.width = "0%";
-          bar.classList.remove("bg-danger");
-          bar.textContent = "0%";
-          host?.classList.add("d-none");
-          host?.setAttribute("aria-hidden", "true");
-          $("#impFile").value = "";
-        }, 800);
-      }
-    });
-  }
-
   function wireToolbar() {
     $("#btnExport")?.addEventListener("click", () => {
       const filters = collectFilters();
@@ -1082,7 +1000,6 @@
     wireEntryPaneToggle();
     wireEntryShortcuts();
     activateEntryPane("granular", { focus: false });
-    wireImport();
     wireToolbar();
     wirePagination();
     wirePreferences();

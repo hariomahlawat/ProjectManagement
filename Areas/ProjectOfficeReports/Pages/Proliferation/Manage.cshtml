@@ -5,8 +5,17 @@
 }
 
 <div class="container-xxl my-4" data-page="proliferation-manage">
-    <h2 class="mb-2">Proliferation Manager</h2>
-    <p class="text-muted">Review existing entries and add or edit yearly totals and granular records.</p>
+    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
+        <div>
+            <h2 class="mb-2">Proliferation Manager</h2>
+            <p class="text-muted mb-0">Review existing entries and add or edit yearly totals and granular records.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-success" data-bs-toggle="modal" data-bs-target="#mdlImport">
+                Import CSV
+            </button>
+        </div>
+    </div>
 
     <div class="row g-4 align-items-start">
         <div class="col-lg-7" id="pf-list-col">
@@ -17,6 +26,8 @@
         </div>
     </div>
 </div>
+
+<partial name="Partials/_ImportModal" />
 
 <div class="toast-container position-fixed top-0 end-0 p-3" id="toastHost" aria-live="polite" aria-atomic="true"></div>
 
