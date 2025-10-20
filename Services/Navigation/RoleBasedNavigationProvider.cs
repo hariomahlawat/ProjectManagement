@@ -105,14 +105,6 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Area = "ProjectOfficeReports",
                 Page = "/Proliferation/Index"
             });
-
-            projectOfficeReportsChildren.Add(new NavigationItem
-            {
-                Text = "Proliferation manager",
-                Area = "ProjectOfficeReports",
-                Page = "/Proliferation/Manage",
-                AuthorizationPolicy = ProjectOfficeReportsPolicies.SubmitProliferationTracker
-            });
         }
 
         if (roleSet.Contains("Admin"))
