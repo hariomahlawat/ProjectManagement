@@ -14,7 +14,9 @@
     saveYearly: (id) => (id ? `/api/proliferation/yearly/${id}` : '/api/proliferation/yearly'),
     saveGranular: (id) => (id ? `/api/proliferation/granular/${id}` : '/api/proliferation/granular'),
     deleteYearly: (id, rowVersion) => `/api/proliferation/yearly/${id}?rowVersion=${encodeURIComponent(rowVersion)}`,
-    deleteGranular: (id, rowVersion) => `/api/proliferation/granular/${id}?rowVersion=${encodeURIComponent(rowVersion)}`
+    deleteGranular: (id, rowVersion) => `/api/proliferation/granular/${id}?rowVersion=${encodeURIComponent(rowVersion)}`,
+    importYearly: '/api/proliferation/import/yearly',
+    importGranular: '/api/proliferation/import/granular'
   };
 
   const listEl = document.querySelector('#pf-list');
@@ -66,6 +68,8 @@
   };
 
   const toastHost = document.querySelector('#toastHost');
+
+  let lastImportErrorUrl = null;
 
   function toast(message, variant = 'success') {
     if (!message || !toastHost) return;
@@ -542,6 +546,132 @@
 
   window.addEventListener('hashchange', handleHashChange);
 
+  function hideImportProgress(immediate = false) {
+    const host = document.querySelector('#impProgress');
+    const bar = host?.querySelector('.progress-bar') ?? null;
+    const apply = () => {
+      if (bar) {
+        bar.style.width = '0%';
+        bar.classList.remove('bg-danger');
+        bar.textContent = '0%';
+      }
+      if (host) {
+        host.classList.add('d-none');
+        host.setAttribute('aria-hidden', 'true');
+      }
+      const fileInput = document.querySelector('#impFile');
+      if (fileInput) fileInput.value = '';
+    };
+    if (immediate) {
+      apply();
+    } else {
+      window.setTimeout(apply, 800);
+    }
+  }
+
+  function resetImportModal() {
+    hideImportProgress(true);
+    const resultHost = document.querySelector('#impResult');
+    if (resultHost) {
+      resultHost.innerHTML = '';
+    }
+    if (lastImportErrorUrl) {
+      URL.revokeObjectURL(lastImportErrorUrl);
+      lastImportErrorUrl = null;
+    }
+  }
+
+  function wireImport() {
+    const runButton = document.querySelector('#btnRunImport');
+    if (!runButton || runButton.dataset.wired) return;
+    runButton.dataset.wired = 'true';
+
+    const modal = document.querySelector('#mdlImport');
+    modal?.addEventListener('hidden.bs.modal', () => {
+      resetImportModal();
+    });
+
+    runButton.addEventListener('click', async () => {
+      const typeSelect = document.querySelector('#impType');
+      const fileInput = document.querySelector('#impFile');
+      const progressHost = document.querySelector('#impProgress');
+      const bar = progressHost?.querySelector('.progress-bar');
+      const resultHost = document.querySelector('#impResult');
+      if (resultHost) resultHost.innerHTML = '';
+      const type = typeSelect?.value || 'yearly';
+      const file = fileInput?.files?.[0];
+      if (!file) {
+        toast('Choose a CSV file to import', 'warning');
+        return;
+      }
+      progressHost?.classList.remove('d-none');
+      progressHost?.setAttribute('aria-hidden', 'false');
+      if (bar) {
+        bar.style.width = '30%';
+        bar.classList.remove('bg-danger');
+        bar.textContent = 'Uploading…';
+      }
+      const formData = new FormData();
+      formData.append('file', file);
+      const endpoint = type === 'granular' ? api.importGranular : api.importYearly;
+      try {
+        const response = await fetch(endpoint, { method: 'POST', body: formData });
+        if (!response.ok) throw new Error('Import failed');
+        const payload = await response.json();
+        const accepted = Number(payload.Accepted ?? payload.accepted ?? 0);
+        const rejected = Number(payload.Rejected ?? payload.rejected ?? 0);
+        if (bar) {
+          bar.style.width = '100%';
+          bar.textContent = 'Done';
+        }
+        if (resultHost) {
+          resultHost.innerHTML = `<div class="alert alert-light border">Imported: <strong>${accepted}</strong>, Rejected: <strong>${rejected}</strong></div>`;
+        }
+        if (lastImportErrorUrl) {
+          URL.revokeObjectURL(lastImportErrorUrl);
+          lastImportErrorUrl = null;
+        }
+        const errorCsv = payload.ErrorCsvBase64 ?? payload.errorCsvBase64;
+        if (errorCsv && resultHost) {
+          try {
+            const binary = atob(errorCsv);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i += 1) {
+              bytes[i] = binary.charCodeAt(i);
+            }
+            const blob = new Blob([bytes], { type: 'text/csv' });
+            lastImportErrorUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = lastImportErrorUrl;
+            link.download = `proliferation-import-errors-${new Date().toISOString().slice(0, 10)}.csv`;
+            link.className = 'btn btn-link btn-sm p-0';
+            link.textContent = 'Download rejection report';
+            const wrapper = document.createElement('div');
+            wrapper.className = 'mt-2';
+            wrapper.append(link);
+            resultHost.append(wrapper);
+            toast('Some rows were rejected. Download the report for details.', 'warning');
+          } catch (err) {
+            console.warn('Unable to prepare rejection report', err); // eslint-disable-line no-console
+          }
+        }
+        if (!errorCsv) {
+          toast('Import finished');
+        }
+        fetchList();
+      } catch (error) {
+        if (bar) {
+          bar.style.width = '100%';
+          bar.classList.add('bg-danger');
+          bar.textContent = 'Failed';
+        }
+        toast('Import failed', 'danger');
+      } finally {
+        hideImportProgress();
+      }
+    });
+  }
+
   function initFilters() {
     loadFiltersFromStorage();
     applyFiltersToInputs();
@@ -569,6 +699,7 @@
   }
 
   function init() {
+    wireImport();
     initFilters();
     handleHashChange();
     fetchList();
