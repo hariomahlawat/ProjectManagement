@@ -245,40 +245,59 @@ public sealed class ProliferationExportService : IProliferationExportService
                 EF.Functions.ILike(x.Granular.UnitName, like));
         }
 
-        var yearlyRowsQuery = yearlyBase.Select(x => new RowProjection(
-            x.Project.Id,
-            x.Yearly.Year,
-            x.Project.Name,
-            x.Project.CaseFileNumber,
-            x.Yearly.Source,
-            "Yearly",
-            null,
-            null,
-            null,
-            x.Yearly.TotalQuantity,
-            x.Yearly.ApprovalStatus,
-            x.Preference != null ? x.Preference.Mode : (YearPreferenceMode?)null));
+        var yearlyRowsQuery = yearlyBase.Select(x => new
+        {
+            ProjectId = x.Project.Id,
+            Year = x.Yearly.Year,
+            Project = x.Project.Name,
+            ProjectCode = x.Project.CaseFileNumber,
+            Source = x.Yearly.Source,
+            DataType = "Yearly",
+            UnitName = (string?)null,
+            SimulatorName = (string?)null,
+            Date = (DateOnly?)null,
+            Quantity = x.Yearly.TotalQuantity,
+            ApprovalStatus = x.Yearly.ApprovalStatus,
+            PreferenceMode = x.Preference != null
+                ? (YearPreferenceMode?)x.Preference.Mode
+                : (YearPreferenceMode?)null
+        });
 
-        var granularRowsQuery = granularBase.Select(x => new RowProjection(
-            x.Project.Id,
-            x.Granular.ProliferationDate.Year,
-            x.Project.Name,
-            x.Project.CaseFileNumber,
-            x.Granular.Source,
-            "Granular",
-            x.Granular.UnitName,
-            x.Granular.SimulatorName,
-            x.Granular.ProliferationDate,
-            x.Granular.Quantity,
-            x.Granular.ApprovalStatus,
-            null));
+        var granularRowsQuery = granularBase.Select(x => new
+        {
+            ProjectId = x.Project.Id,
+            Year = x.Granular.ProliferationDate.Year,
+            Project = x.Project.Name,
+            ProjectCode = x.Project.CaseFileNumber,
+            Source = x.Granular.Source,
+            DataType = "Granular",
+            UnitName = (string?)x.Granular.UnitName,
+            SimulatorName = (string?)x.Granular.SimulatorName,
+            Date = (DateOnly?)x.Granular.ProliferationDate,
+            Quantity = x.Granular.Quantity,
+            ApprovalStatus = x.Granular.ApprovalStatus,
+            PreferenceMode = (YearPreferenceMode?)null
+        });
 
         var combinedQuery = yearlyRowsQuery.Concat(granularRowsQuery)
             .OrderByDescending(r => r.Year)
             .ThenBy(r => r.Project)
             .ThenBy(r => r.Source)
             .ThenBy(r => r.DataType)
-            .ThenBy(r => r.Date);
+            .ThenBy(r => r.Date)
+            .Select(r => new RowProjection(
+                r.ProjectId,
+                r.Year,
+                r.Project,
+                r.ProjectCode,
+                r.Source,
+                r.DataType,
+                r.UnitName,
+                r.SimulatorName,
+                r.Date,
+                r.Quantity,
+                r.ApprovalStatus,
+                r.PreferenceMode));
 
         var projections = await combinedQuery.ToListAsync(cancellationToken);
 
