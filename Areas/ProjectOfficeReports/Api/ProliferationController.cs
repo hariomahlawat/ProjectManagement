@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -550,8 +551,21 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             if (proj.LifecycleStatus != ProjectLifecycleStatus.Completed)
                 return BadRequest("Only completed projects are eligible");
 
-            var result = await _submitSvc.CreateGranularAsync(dto, User, ct);
-            return result.Success ? Ok() : BadRequest(result.Error);
+            try
+            {
+                var result = await _submitSvc.CreateGranularAsync(dto, User, ct);
+                return result.Success ? Ok() : BadRequest(result.Error);
+            }
+            catch (DbUpdateException ex)
+            {
+                var root = ex.GetBaseException();
+                _logger.LogError(ex, "Granular save failed. {Message}", root.Message);
+
+                return Problem(
+                    title: "Database update failed",
+                    detail: root.Message,
+                    statusCode: StatusCodes.Status400BadRequest);
+            }
         }
 
         [HttpPut("yearly/{id:guid}")]
