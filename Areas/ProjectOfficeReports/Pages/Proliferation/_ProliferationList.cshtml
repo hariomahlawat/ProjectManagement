@@ -1,0 +1,45 @@
+@model ProliferationListBootVm
+
+<div class="card shadow-sm" data-default-year="@Model.CurrentYear" data-page-size="@Model.DefaultPageSize">
+    <div class="card-header d-flex flex-wrap align-items-center gap-2">
+        <label class="visually-hidden" for="pf-project-filter">Project</label>
+        <select class="form-select form-select-sm" id="pf-project-filter">
+            <option value="">All projects</option>
+            @foreach (var project in Model.CompletedProjects)
+            {
+                <option value="@project.Id">@project.DisplayName</option>
+            }
+        </select>
+
+        <label class="visually-hidden" for="pf-source-filter">Source</label>
+        <select class="form-select form-select-sm" id="pf-source-filter">
+            <option value="">All sources</option>
+            @foreach (var source in Model.SourceOptions)
+            {
+                <option value="@source.Value">@source.Label</option>
+            }
+        </select>
+
+        <label class="visually-hidden" for="pf-kind-filter">Type</label>
+        <select class="form-select form-select-sm" id="pf-kind-filter">
+            <option value="">All types</option>
+            <option value="yearly">Yearly</option>
+            <option value="granular">Granular</option>
+        </select>
+
+        <label class="visually-hidden" for="pf-year-filter">Year</label>
+        <input class="form-control form-control-sm" id="pf-year-filter" type="number" placeholder="Year" min="2000" max="3000" />
+        <button class="btn btn-sm btn-outline-secondary" id="pf-refresh" type="button">Refresh</button>
+    </div>
+
+    <div class="list-group list-group-flush" id="pf-list" role="listbox" aria-live="polite">
+        <div class="list-group-item text-muted" data-placeholder>Use the filters to load entries.</div>
+    </div>
+
+    <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div id="pf-count" class="small text-muted" aria-live="polite"></div>
+        <nav aria-label="Proliferation pagination">
+            <ul class="pagination pagination-sm mb-0" id="pf-pager"></ul>
+        </nav>
+    </div>
+</div>

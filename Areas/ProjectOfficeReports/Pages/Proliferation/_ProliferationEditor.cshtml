@@ -1,0 +1,78 @@
+@model ProliferationEditorBootVm
+
+<div class="card shadow-sm" id="pf-editor" data-current-year="@Model.CurrentYear">
+    <div class="card-header">
+        <ul class="nav nav-tabs card-header-tabs" id="pf-editor-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-granular" data-target="granular" type="button" role="tab">Granular Entry</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-yearly" data-target="yearly" type="button" role="tab">Yearly Total</button>
+            </li>
+        </ul>
+    </div>
+    <div class="card-body">
+        <form id="pf-form" novalidate>
+            <input type="hidden" id="pf-id" />
+            <input type="hidden" id="pf-kind" value="granular" />
+            <input type="hidden" id="pf-row-version" />
+
+            <div class="mb-3">
+                <label class="form-label" for="pf-project">Project</label>
+                <select id="pf-project" class="form-select">
+                    @foreach (var project in Model.CompletedProjects)
+                    {
+                        <option value="@project.Id">@project.DisplayName</option>
+                    }
+                </select>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" for="pf-source">Source</label>
+                <select id="pf-source" class="form-select">
+                    @foreach (var source in Model.SourceOptions)
+                    {
+                        <option value="@source.Value">@source.Label</option>
+                    }
+                </select>
+            </div>
+
+            <div class="row g-3">
+                <div class="col-sm-6">
+                    <label class="form-label" for="pf-year">Year</label>
+                    <input id="pf-year" type="number" class="form-control" min="2000" max="3000" value="@Model.CurrentYear" />
+                </div>
+                <div class="col-sm-6 granular-only">
+                    <label class="form-label" for="pf-date">Proliferation date</label>
+                    <input id="pf-date" type="date" class="form-control" />
+                </div>
+            </div>
+
+            <div class="granular-only mt-3">
+                <label class="form-label" for="pf-simulator">Simulator name</label>
+                <input id="pf-simulator" type="text" class="form-control" maxlength="200" />
+            </div>
+
+            <div class="granular-only mt-3">
+                <label class="form-label" for="pf-unit">Unit name</label>
+                <input id="pf-unit" type="text" class="form-control" maxlength="200" />
+            </div>
+
+            <div class="mt-3">
+                <label class="form-label" for="pf-qty">Quantity</label>
+                <input id="pf-qty" type="number" min="0" class="form-control" />
+            </div>
+
+            <div class="mt-3">
+                <label class="form-label" for="pf-remarks">Remarks</label>
+                <textarea id="pf-remarks" class="form-control" rows="3" maxlength="500"></textarea>
+            </div>
+
+            <div class="mt-4 d-flex gap-2">
+                <button class="btn btn-primary" id="pf-save" type="submit">Save</button>
+                <button class="btn btn-outline-secondary" id="pf-reset" type="button">Reset</button>
+                <button class="btn btn-outline-danger ms-auto" id="pf-delete" type="button" disabled>Delete</button>
+            </div>
+        </form>
+    </div>
+</div>

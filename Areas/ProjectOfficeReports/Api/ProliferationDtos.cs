@@ -104,6 +104,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
     public sealed class ProliferationGranularCreateDto
     {
         [Required] public int ProjectId { get; set; }
+        [Required] public ProliferationSource Source { get; set; } = ProliferationSource.Sdd;
         [Required, MaxLength(200)] public string SimulatorName { get; set; } = default!;
         [Required, MaxLength(200)] public string UnitName { get; set; } = default!;
         [Required] public DateTime ProliferationDateUtc { get; set; }
@@ -126,5 +127,75 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public int Accepted { get; set; }
         public int Rejected { get; set; }
         public string? ErrorCsvBase64 { get; set; } // row-level errors as CSV (optional)
+    }
+
+    public sealed class ProliferationManageListQueryDto
+    {
+        public int? ProjectId { get; set; }
+        public ProliferationSource? Source { get; set; }
+        public int? Year { get; set; }
+        public string? Kind { get; set; }
+        public int Page { get; set; } = 1;
+        public int PageSize { get; set; } = 25;
+    }
+
+    public sealed class ProliferationManageListItemDto
+    {
+        public Guid Id { get; set; }
+        public string Kind { get; set; } = default!;
+        public int ProjectId { get; set; }
+        public string ProjectName { get; set; } = default!;
+        public string? ProjectCode { get; set; }
+        public ProliferationSource Source { get; set; }
+        public string SourceLabel { get; set; } = default!;
+        public int Year { get; set; }
+        public int? Month { get; set; }
+        public DateTime? ProliferationDateUtc { get; set; }
+        public int Quantity { get; set; }
+        public string ApprovalStatus { get; set; } = default!;
+    }
+
+    public sealed class ProliferationManageListResponseDto
+    {
+        public int Total { get; set; }
+        public int Page { get; set; }
+        public int PageSize { get; set; }
+        public IReadOnlyList<ProliferationManageListItemDto> Items { get; set; } = Array.Empty<ProliferationManageListItemDto>();
+    }
+
+    public sealed class ProliferationYearlyDetailDto
+    {
+        public Guid Id { get; set; }
+        public int ProjectId { get; set; }
+        public ProliferationSource Source { get; set; }
+        public int Year { get; set; }
+        public int TotalQuantity { get; set; }
+        public string? Remarks { get; set; }
+        public string RowVersion { get; set; } = default!;
+    }
+
+    public sealed class ProliferationGranularDetailDto
+    {
+        public Guid Id { get; set; }
+        public int ProjectId { get; set; }
+        public ProliferationSource Source { get; set; }
+        public DateTime ProliferationDateUtc { get; set; }
+        public string SimulatorName { get; set; } = default!;
+        public string UnitName { get; set; } = default!;
+        public int Quantity { get; set; }
+        public string? Remarks { get; set; }
+        public string RowVersion { get; set; } = default!;
+    }
+
+    public sealed class ProliferationYearlyUpdateDto : ProliferationYearlyCreateDto
+    {
+        [Required]
+        public string RowVersion { get; set; } = default!;
+    }
+
+    public sealed class ProliferationGranularUpdateDto : ProliferationGranularCreateDto
+    {
+        [Required]
+        public string RowVersion { get; set; } = default!;
     }
 }

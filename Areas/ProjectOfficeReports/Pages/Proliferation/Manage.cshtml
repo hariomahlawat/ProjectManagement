@@ -1,0 +1,25 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.ManageModel
+@{
+    ViewData["Title"] = "Proliferation Manager";
+}
+
+<div class="container-xxl my-4" data-page="proliferation-manage">
+    <h2 class="mb-2">Proliferation Manager</h2>
+    <p class="text-muted">Review existing entries and add or edit yearly totals and granular records.</p>
+
+    <div class="row g-4 align-items-start">
+        <div class="col-lg-7" id="pf-list-col">
+            <partial name="_ProliferationList" model="Model.ListBoot" />
+        </div>
+        <div class="col-lg-5" id="pf-editor-col">
+            <partial name="_ProliferationEditor" model="Model.EditorBoot" />
+        </div>
+    </div>
+</div>
+
+<div class="toast-container position-fixed top-0 end-0 p-3" id="toastHost" aria-live="polite" aria-atomic="true"></div>
+
+@section Scripts {
+    <script src="~/js/pages/proliferation-manage.js" asp-append-version="true" defer></script>
+}
