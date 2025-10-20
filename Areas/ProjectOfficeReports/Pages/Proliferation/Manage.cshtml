@@ -30,6 +30,25 @@
     </div>
 </div>
 
+<div class="modal fade" id="pf-delete-modal" tabindex="-1" aria-labelledby="pf-delete-modal-label" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title" id="pf-delete-modal-label">Delete proliferation entry</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cancel deletion"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-2">Are you sure you want to delete the <span data-confirm-type>selected record</span> for <span data-confirm-project>this project</span>?</p>
+                <p class="text-muted mb-0">This will remove data for <span data-confirm-date>the selected date</span>. This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" data-confirm-cancel>Cancel</button>
+                <button type="button" class="btn btn-danger" data-confirm-accept>Delete entry</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="toast-container position-fixed top-0 end-0 p-3" id="toastHost" aria-live="polite" aria-atomic="true"></div>
 
 @section Scripts {
