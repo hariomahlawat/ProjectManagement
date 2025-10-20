@@ -5,7 +5,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Domain
         public Guid Id { get; set; }
         public int ProjectId { get; set; }
         public ProliferationSource Source { get; set; } = ProliferationSource.Sdd;
-        public string SimulatorName { get; set; } = default!;
         public string UnitName { get; set; } = default!;
         public DateOnly ProliferationDate { get; set; }
         public int Quantity { get; set; }

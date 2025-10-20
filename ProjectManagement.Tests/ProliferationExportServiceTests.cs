@@ -110,7 +110,6 @@ public sealed class ProliferationExportServiceTests
             Id = Guid.NewGuid(),
             ProjectId = project.Id,
             Source = ProliferationSource.Sdd,
-            SimulatorName = "Trainer",
             UnitName = "Alpha",
             ProliferationDate = new DateOnly(2024, 3, 15),
             Quantity = 70,
@@ -156,7 +155,7 @@ public sealed class ProliferationExportServiceTests
             Source: ProliferationSource.Sdd,
             ProjectCategoryId: projectCategory.Id,
             TechnicalCategoryId: technicalCategory.Id,
-            Search: "Trainer",
+            Search: "Alpha",
             RequestedByUserId: "user-9");
 
         var result = await service.ExportAsync(request, CancellationToken.None);
@@ -181,17 +180,16 @@ public sealed class ProliferationExportServiceTests
         Assert.Equal("SDD", firstDataRow.Cell(3).GetString());
         Assert.Equal("Granular", firstDataRow.Cell(4).GetString());
         Assert.Equal("Alpha", firstDataRow.Cell(5).GetString());
-        Assert.Equal("Trainer", firstDataRow.Cell(6).GetString());
-        Assert.Equal(new DateTime(2024, 3, 15), firstDataRow.Cell(7).GetDateTime().Date);
+        Assert.Equal(new DateTime(2024, 3, 15), firstDataRow.Cell(6).GetDateTime().Date);
+        Assert.Equal(70, firstDataRow.Cell(7).GetValue<int>());
         Assert.Equal(70, firstDataRow.Cell(8).GetValue<int>());
-        Assert.Equal(70, firstDataRow.Cell(9).GetValue<int>());
-        Assert.Equal("Approved", firstDataRow.Cell(10).GetString());
-        Assert.Equal("UseGranular", firstDataRow.Cell(11).GetString());
+        Assert.Equal("Approved", firstDataRow.Cell(9).GetString());
+        Assert.Equal("UseGranular", firstDataRow.Cell(10).GetString());
 
         var secondDataRow = worksheet.Row(3);
         Assert.Equal("Yearly", secondDataRow.Cell(4).GetString());
-        Assert.Equal(120, secondDataRow.Cell(8).GetValue<int>());
-        Assert.Equal(70, secondDataRow.Cell(9).GetValue<int>());
+        Assert.Equal(120, secondDataRow.Cell(7).GetValue<int>());
+        Assert.Equal(70, secondDataRow.Cell(8).GetValue<int>());
 
         Assert.Equal("Export generated", worksheet.Cell(5, 1).GetString());
         Assert.Equal("Requested by", worksheet.Cell(6, 1).GetString());
@@ -207,7 +205,7 @@ public sealed class ProliferationExportServiceTests
         Assert.Equal("Technical category", worksheet.Cell(11, 1).GetString());
         Assert.Equal("Simulation", worksheet.Cell(11, 2).GetString());
         Assert.Equal("Search", worksheet.Cell(12, 1).GetString());
-        Assert.Equal("Trainer", worksheet.Cell(12, 2).GetString());
+        Assert.Equal("Alpha", worksheet.Cell(12, 2).GetString());
 
         var entry = Assert.Single(audit.Entries);
         Assert.Equal("ProjectOfficeReports.Proliferation.ExportGenerated", entry.Action);
@@ -219,7 +217,7 @@ public sealed class ProliferationExportServiceTests
         Assert.Equal("Readiness", entry.Data["ProjectCategoryName"]);
         Assert.Equal("7", entry.Data["TechnicalCategoryId"]);
         Assert.Equal("Simulation", entry.Data["TechnicalCategoryName"]);
-        Assert.Equal("Trainer", entry.Data["SearchTerm"]);
+        Assert.Equal("Alpha", entry.Data["SearchTerm"]);
         Assert.Equal("2", entry.Data["RowCount"]);
         Assert.Equal(file.FileName, entry.Data["FileName"]);
     }

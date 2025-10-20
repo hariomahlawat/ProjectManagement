@@ -131,11 +131,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 return ServiceResult.Fail("Only completed projects may record proliferation data.");
             }
 
-            string simulator;
             string unit;
             try
             {
-                simulator = RequireValue(dto.SimulatorName, nameof(dto.SimulatorName), 200);
                 unit = RequireValue(dto.UnitName, nameof(dto.UnitName), 200);
             }
             catch (ValidationException ex)
@@ -170,7 +168,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 Id = Guid.NewGuid(),
                 ProjectId = project.Id,
                 Source = dto.Source,
-                SimulatorName = simulator,
                 UnitName = unit,
                 ProliferationDate = date,
                 Quantity = dto.Quantity,
@@ -196,7 +193,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             await _db.SaveChangesAsync(ct);
 
             await Audit.Events
-                .ProliferationGranularRecorded(project.Id, entity.Source, entity.SimulatorName, entity.UnitName, entity.ProliferationDate, entity.Quantity, entity.ApprovalStatus, actor.Id, "Create")
+                .ProliferationGranularRecorded(project.Id, project.Name, entity.Source, entity.UnitName, entity.ProliferationDate, entity.Quantity, entity.ApprovalStatus, actor.Id, "Create")
                 .WriteAsync(_audit, userName: actor.UserName);
 
             return ServiceResult.Ok();
@@ -374,11 +371,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 return ServiceResult.Fail("Granular entries support only the SDD source.");
             }
 
-            string simulator;
             string unit;
             try
             {
-                simulator = RequireValue(dto.SimulatorName, nameof(dto.SimulatorName), 200);
                 unit = RequireValue(dto.UnitName, nameof(dto.UnitName), 200);
             }
             catch (ValidationException ex)
@@ -410,7 +405,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
             entity.ProjectId = project.Id;
             entity.Source = dto.Source;
-            entity.SimulatorName = simulator;
             entity.UnitName = unit;
             entity.ProliferationDate = date;
             entity.Quantity = dto.Quantity;
@@ -429,7 +423,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             }
 
             await Audit.Events
-                .ProliferationGranularRecorded(entity.ProjectId, entity.Source, entity.SimulatorName, entity.UnitName, entity.ProliferationDate, entity.Quantity, entity.ApprovalStatus, actor.Id, "Update")
+                .ProliferationGranularRecorded(entity.ProjectId, project.Name, entity.Source, entity.UnitName, entity.ProliferationDate, entity.Quantity, entity.ApprovalStatus, actor.Id, "Update")
                 .WriteAsync(_audit, userName: actor.UserName);
 
             return ServiceResult.Ok();
@@ -508,8 +502,14 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
                 return ServiceResult.Fail("The record was modified by another user. Refresh and try again.");
             }
 
+            var project = await _db.Projects
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == entity.ProjectId, ct);
+
+            var projectName = project?.Name ?? "(unknown)";
+
             await Audit.Events
-                .ProliferationGranularRecorded(entity.ProjectId, entity.Source, entity.SimulatorName, entity.UnitName, entity.ProliferationDate, entity.Quantity, entity.ApprovalStatus, actor.Id, "Delete")
+                .ProliferationGranularRecorded(entity.ProjectId, projectName, entity.Source, entity.UnitName, entity.ProliferationDate, entity.Quantity, entity.ApprovalStatus, actor.Id, "Delete")
                 .WriteAsync(_audit, userName: actor.UserName);
 
             return ServiceResult.Ok();

@@ -18,7 +18,7 @@
             <input type="hidden" id="pf-row-version" />
 
             <div class="mb-3">
-                <label class="form-label" for="pf-project">Project</label>
+                <label class="form-label" for="pf-project">Project name / simulator name</label>
                 <select id="pf-project" class="form-select">
                     @foreach (var project in Model.CompletedProjects)
                     {
@@ -46,11 +46,6 @@
                     <label class="form-label" for="pf-date">Proliferation date</label>
                     <input id="pf-date" type="date" class="form-control" />
                 </div>
-            </div>
-
-            <div class="granular-only mt-3">
-                <label class="form-label" for="pf-simulator">Simulator name</label>
-                <input id="pf-simulator" type="text" class="form-control" maxlength="200" />
             </div>
 
             <div class="granular-only mt-3">

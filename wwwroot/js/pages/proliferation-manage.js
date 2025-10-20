@@ -48,7 +48,6 @@
     source: document.querySelector('#pf-source'),
     year: document.querySelector('#pf-year'),
     date: document.querySelector('#pf-date'),
-    simulator: document.querySelector('#pf-simulator'),
     unit: document.querySelector('#pf-unit'),
     qty: document.querySelector('#pf-qty'),
     remarks: document.querySelector('#pf-remarks'),
@@ -353,7 +352,6 @@
       el.classList.toggle('d-none', !isGranular);
     });
     if (editor.date) editor.date.required = isGranular;
-    if (editor.simulator) editor.simulator.required = isGranular;
     if (editor.unit) editor.unit.required = isGranular;
     if (editor.qty) editor.qty.min = isGranular ? 1 : 0;
     enforceSourceForKind(target);
@@ -387,13 +385,11 @@
       if (iso && iso.length >= 4) {
         editor.year.value = iso.slice(0, 4);
       }
-      editor.simulator.value = detail.simulatorName ?? '';
       editor.unit.value = detail.unitName ?? '';
       editor.qty.value = detail.quantity ?? '';
       setTab('granular');
     } else {
       editor.date.value = '';
-      editor.simulator.value = '';
       editor.unit.value = '';
       editor.qty.value = detail.totalQuantity ?? '';
       setTab('yearly');
@@ -462,16 +458,14 @@
 
     const dateValue = editor.date?.value ?? '';
     if (!dateValue) return null;
-    const simulator = editor.simulator?.value?.trim();
     const unit = editor.unit?.value?.trim();
     const quantity = Number(editor.qty?.value ?? '');
-    if (!simulator || !unit) return null;
+    if (!unit) return null;
     if (!Number.isFinite(quantity) || quantity <= 0) return null;
 
     const payload = {
       projectId,
       source,
-      simulatorName: simulator,
       unitName: unit,
       proliferationDateUtc: `${dateValue}T00:00:00Z`,
       quantity,
@@ -525,7 +519,6 @@
     editor.remarks.value = '';
     if (editor.year) editor.year.value = String(defaults.year);
     if (editor.date) editor.date.value = '';
-    if (editor.simulator) editor.simulator.value = '';
     if (editor.unit) editor.unit.value = '';
     editor.btnDelete && (editor.btnDelete.disabled = true);
     setTab(preferredKind, { updateHash: false });

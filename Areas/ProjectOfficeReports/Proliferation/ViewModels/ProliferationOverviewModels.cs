@@ -37,7 +37,6 @@ public sealed record ProliferationOverviewRow(
     ProliferationSource Source,
     string DataType,
     string? UnitName,
-    string? SimulatorName,
     DateOnly? ProliferationDate,
     int Quantity,
     int EffectiveTotal,
@@ -56,7 +55,6 @@ public sealed record ProliferationYearlyRequestModel(
 
 public sealed record ProliferationGranularRequestModel(
     int ProjectId,
-    string SimulatorName,
     string UnitName,
     DateOnly ProliferationDate,
     int Quantity,

@@ -63,7 +63,6 @@ public sealed record ProliferationGranularDetail(
     int ProjectId,
     ProliferationSource Source,
     DateOnly ProliferationDate,
-    string SimulatorName,
     string UnitName,
     int Quantity,
     string? Remarks,

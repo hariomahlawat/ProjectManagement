@@ -192,10 +192,6 @@ namespace ProjectManagement.Migrations
                         .IsRequired()
                         .HasColumnType("bytea");
 
-                    b.Property<string>("SimulatorName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<int>("Source")
                         .HasColumnType("integer");
 

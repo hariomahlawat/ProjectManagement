@@ -49,7 +49,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public ProliferationSource Source { get; set; }
         public string DataType { get; set; } = default!; // "Yearly" or "Granular"
         public string? UnitName { get; set; }
-        public string? SimulatorName { get; set; }
         public DateTime? DateUtc { get; set; } // null for Yearly
         public string? ProliferationDate => DateUtc?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         public int Quantity { get; set; }
@@ -105,7 +104,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
     {
         [Required] public int ProjectId { get; set; }
         [Required] public ProliferationSource Source { get; set; } = ProliferationSource.Sdd;
-        [Required, MaxLength(200)] public string SimulatorName { get; set; } = default!;
         [Required, MaxLength(200)] public string UnitName { get; set; } = default!;
         [Required] public DateTime ProliferationDateUtc { get; set; }
         [Range(1, int.MaxValue)] public int Quantity { get; set; }
@@ -172,7 +170,6 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public int ProjectId { get; set; }
         public ProliferationSource Source { get; set; }
         public DateTime ProliferationDateUtc { get; set; }
-        public string SimulatorName { get; set; } = default!;
         public string UnitName { get; set; } = default!;
         public int Quantity { get; set; }
         public string? Remarks { get; set; }
