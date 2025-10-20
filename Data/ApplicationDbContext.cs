@@ -389,6 +389,7 @@ namespace ProjectManagement.Data
                 b.HasKey(x => x.Id);
                 ConfigureRowVersion(b);
                 b.Property(x => x.Source).HasConversion<int>();
+                b.Property(x => x.UnitName).HasMaxLength(200);
                 b.HasIndex(x => new { x.ProjectId, x.Source, x.ProliferationDate });
             });
 
