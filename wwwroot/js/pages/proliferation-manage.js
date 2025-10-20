@@ -1,5 +1,7 @@
 /* global bootstrap */
 (() => {
+  const Modal = window.bootstrap?.Modal ?? null;
+
   const listCard = document.querySelector('[data-page-size][data-default-year]');
   const editorCard = document.querySelector('#pf-editor');
   if (!listCard || !editorCard) {
@@ -65,6 +67,21 @@
   };
 
   const toastHost = document.querySelector('#toastHost');
+
+  const deleteModalElements = (() => {
+    const element = document.querySelector('#pf-delete-modal');
+    if (!element) return null;
+    return {
+      element,
+      project: element.querySelector('[data-confirm-project]'),
+      date: element.querySelector('[data-confirm-date]'),
+      type: element.querySelector('[data-confirm-type]'),
+      confirm: element.querySelector('[data-confirm-accept]'),
+      cancel: element.querySelector('[data-confirm-cancel]')
+    };
+  })();
+
+  let deleteModalTrigger = null;
 
   function toast(message, variant = 'success') {
     if (!message || !toastHost) return;
@@ -158,6 +175,96 @@
       return text.split(' ')[0];
     }
     return text;
+  }
+
+  function confirmDeletion(details = {}) {
+    const fallbackType = details.type === 'yearly' ? 'yearly total' : 'record';
+    const fallbackProject = details.project ? ` for ${details.project}` : '';
+    const fallbackDate = details.dateOrYear ? ` (${details.dateOrYear})` : '';
+    const fallbackMessage = `Are you sure you want to delete this ${fallbackType}${fallbackProject}${fallbackDate}?`;
+
+    if (!deleteModalElements?.element || !deleteModalElements?.confirm || !Modal) {
+      return Promise.resolve(window.confirm(fallbackMessage));
+    }
+
+    const instance = Modal.getOrCreateInstance(deleteModalElements.element, {
+      backdrop: 'static',
+      keyboard: true,
+      focus: true
+    });
+
+    deleteModalTrigger = null;
+    const trigger = details.trigger;
+    if (trigger instanceof HTMLElement) {
+      deleteModalTrigger = trigger;
+    } else if (document.activeElement instanceof HTMLElement) {
+      deleteModalTrigger = document.activeElement;
+    }
+
+    if (deleteModalElements.type) {
+      const typeLabel = details.type === 'yearly' ? 'yearly total' : 'record';
+      deleteModalElements.type.textContent = typeLabel;
+    }
+    if (deleteModalElements.project) {
+      deleteModalElements.project.textContent = details.project || 'this project';
+    }
+    if (deleteModalElements.date) {
+      deleteModalElements.date.textContent = details.dateOrYear || 'the selected period';
+    }
+
+    if (deleteModalElements.cancel) {
+      deleteModalElements.cancel.disabled = false;
+    }
+    deleteModalElements.confirm.disabled = false;
+
+    return new Promise(resolve => {
+      let settled = false;
+
+      const cleanup = () => {
+        deleteModalElements.confirm.removeEventListener('click', handleConfirm);
+        deleteModalElements.element.removeEventListener('hidden.bs.modal', handleHidden);
+        deleteModalElements.element.removeEventListener('shown.bs.modal', handleShown);
+      };
+
+      const handleHidden = () => {
+        cleanup();
+        if (deleteModalElements.cancel) {
+          deleteModalElements.cancel.disabled = false;
+        }
+        deleteModalElements.confirm.disabled = false;
+        if (!settled) {
+          settled = true;
+          resolve(false);
+        }
+        if (deleteModalTrigger && typeof deleteModalTrigger.focus === 'function') {
+          deleteModalTrigger.focus();
+        }
+        deleteModalTrigger = null;
+      };
+
+      const handleConfirm = () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        deleteModalElements.confirm.disabled = true;
+        if (deleteModalElements.cancel) {
+          deleteModalElements.cancel.disabled = true;
+        }
+        resolve(true);
+        instance.hide();
+      };
+
+      const handleShown = () => {
+        deleteModalElements.confirm.focus();
+      };
+
+      deleteModalElements.confirm.addEventListener('click', handleConfirm);
+      deleteModalElements.element.addEventListener('hidden.bs.modal', handleHidden, { once: true });
+      deleteModalElements.element.addEventListener('shown.bs.modal', handleShown, { once: true });
+
+      instance.show();
+    });
   }
 
   async function fetchList() {
@@ -492,7 +599,16 @@
       toast('The record is out of date. Reload the entry before deleting.', 'warning');
       return;
     }
-    const confirmed = window.confirm('Are you sure you want to delete this entry?');
+    const projectText = editor.project?.selectedOptions?.[0]?.text?.trim() || '';
+    const dateOrYear = kind === 'yearly'
+      ? (editor.year?.value?.trim() || '')
+      : formatDate(editor.date?.value || '');
+    const confirmed = await confirmDeletion({
+      project: projectText,
+      type: kind,
+      dateOrYear,
+      trigger: editor.btnDelete
+    });
     if (!confirmed) return;
     editor.btnDelete.disabled = true;
     try {
