@@ -193,7 +193,9 @@
   }
 
   function setExportMode(mode, { preserveValues = false } = {}) {
-    exportState.mode = mode;
+    const allowedModes = new Set(["all", "years", "yearRange", "range"]);
+    const effectiveMode = allowedModes.has(mode) ? mode : "all";
+    exportState.mode = effectiveMode;
     const yearsWrap = $("#expYearsWrap");
     const yearFromWrap = $("#expYearFromWrap");
     const yearToWrap = $("#expYearToWrap");
@@ -201,9 +203,9 @@
     const toWrap = $("#expToWrap");
     const form = $("#proliferationExportForm");
 
-    const showYears = mode === "years";
-    const showYearRange = mode === "yearRange";
-    const showDateRange = mode === "range";
+    const showYears = effectiveMode === "years";
+    const showYearRange = effectiveMode === "yearRange";
+    const showDateRange = effectiveMode === "range";
 
     yearsWrap?.classList.toggle("d-none", !showYears);
     yearFromWrap?.classList.toggle("d-none", !showYearRange);
@@ -235,6 +237,22 @@
         }
         if (yearFromSelect) yearFromSelect.value = "";
         if (yearToSelect) yearToSelect.value = "";
+      } else {
+        if (yearsSelect) {
+          $all("option", yearsSelect).forEach((opt) => { opt.selected = false; });
+        }
+        if (yearFromSelect) yearFromSelect.value = "";
+        if (yearToSelect) yearToSelect.value = "";
+        if (fromInput) fromInput.value = "";
+        if (toInput) toInput.value = "";
+      }
+    }
+
+    if (effectiveMode === "all") {
+      const validation = $("#expValidationMessage");
+      if (validation) {
+        validation.classList.add("d-none");
+        validation.textContent = "";
       }
     }
   }
@@ -250,6 +268,7 @@
       validation.textContent = "";
     }
 
+    const modeAllRadio = $("#expModeAll");
     const modeYearsRadio = $("#expModeYears");
     const modeYearRangeRadio = $("#expModeYearRange");
     const modeRangeRadio = $("#expModeRange");
@@ -260,22 +279,27 @@
     const hasYearRange = Boolean(exportState.yearStart && exportState.yearEnd);
     const hasAnyRange = Boolean(exportState.fromDate || exportState.toDate || filterState.from || filterState.to);
 
-    let mode = exportState.mode || "years";
-    if (hasYearRange) {
-      mode = "yearRange";
-    } else if (mode === "yearRange") {
-      mode = hasAnyYears ? "years" : (hasAnyRange ? "range" : "years");
-    } else if (mode === "years" && !hasAnyYears && hasAnyRange) {
-      mode = "range";
-    } else if (mode === "range" && !hasAnyRange && hasAnyYears) {
-      mode = "years";
+    const allowedModes = new Set(["all", "years", "yearRange", "range"]);
+    let mode = allowedModes.has(exportState.mode) ? exportState.mode : null;
+
+    if (mode === "yearRange" && !hasYearRange) mode = null;
+    if (mode === "range" && !hasAnyRange) mode = null;
+    if (mode === "years" && !hasAnyYears) mode = null;
+    if (mode === "all" && (hasAnyYears || hasYearRange || hasAnyRange)) mode = null;
+
+    if (!mode) {
+      if (hasYearRange) {
+        mode = "yearRange";
+      } else if (hasAnyYears) {
+        mode = "years";
+      } else if (hasAnyRange) {
+        mode = "range";
+      } else {
+        mode = "all";
+      }
     }
 
-    if (!hasAnyYears && !hasAnyRange && mode === "range") {
-      mode = "years";
-    }
-    if (!mode) mode = "years";
-
+    if (modeAllRadio) modeAllRadio.checked = mode === "all";
     if (modeYearsRadio) modeYearsRadio.checked = mode === "years";
     if (modeYearRangeRadio) modeYearRangeRadio.checked = mode === "yearRange";
     if (modeRangeRadio) modeRangeRadio.checked = mode === "range";
@@ -334,7 +358,7 @@
   function buildExportQueryFromForm() {
     const params = new URLSearchParams();
     const modeControl = document.querySelector("input[name='ExportFilterMode']:checked");
-    const mode = modeControl?.value ?? "years";
+    const mode = modeControl?.value ?? "all";
     const yearsSelect = $("#expYears");
     const fromInput = $("#expFrom");
     const toInput = $("#expTo");
@@ -345,7 +369,16 @@
     const techSelect = $("#expTechCat");
     const searchInput = $("#expSearch");
 
-    if (mode === "years" && yearsSelect) {
+    const allowedModes = new Set(["all", "years", "range", "yearRange"]);
+    const effectiveMode = allowedModes.has(mode) ? mode : "all";
+
+    if (effectiveMode === "all") {
+      exportState.years = [];
+      exportState.yearStart = "";
+      exportState.yearEnd = "";
+      exportState.fromDate = "";
+      exportState.toDate = "";
+    } else if (effectiveMode === "years" && yearsSelect) {
       const selectedYears = $all("option:checked", yearsSelect)
         .map((opt) => opt.value)
         .filter((value) => value);
@@ -355,7 +388,7 @@
       exportState.yearEnd = "";
       exportState.fromDate = "";
       exportState.toDate = "";
-    } else if (mode === "range") {
+    } else if (effectiveMode === "range") {
       const fromValue = fromInput?.value ?? "";
       const toValue = toInput?.value ?? "";
       if (fromValue) params.set("FromDateUtc", fromValue);
@@ -365,7 +398,7 @@
       exportState.yearEnd = "";
       exportState.fromDate = fromValue;
       exportState.toDate = toValue;
-    } else if (mode === "yearRange") {
+    } else if (effectiveMode === "yearRange") {
       const startValue = yearFromSelect?.value ?? "";
       const endValue = yearToSelect?.value ?? "";
       exportState.years = [];
@@ -382,7 +415,7 @@
       }
     }
 
-    exportState.mode = mode;
+    exportState.mode = effectiveMode;
 
     const sourceVal = sourceSelect?.value ?? "";
     if (sourceVal) params.set("Source", sourceVal);
@@ -416,7 +449,7 @@
     if (!form) return;
     const validation = $("#expValidationMessage");
     const modeControl = document.querySelector("input[name='ExportFilterMode']:checked");
-    const mode = modeControl?.value ?? "years";
+    const mode = modeControl?.value ?? "all";
     const yearsSelect = $("#expYears");
     const fromInput = $("#expFrom");
     const toInput = $("#expTo");
@@ -432,18 +465,21 @@
     const yearToVal = yearToSelect?.value ?? "";
 
     const errors = [];
-    if (mode === "years") {
+    const allowedModes = new Set(["all", "years", "range", "yearRange"]);
+    const effectiveMode = allowedModes.has(mode) ? mode : "all";
+
+    if (effectiveMode === "years") {
       if (selectedYears.length === 0) {
-        errors.push("Select at least one year or switch to a date range.");
+        errors.push("Select at least one year, choose a range, or export everything.");
       }
-    } else if (mode === "range") {
+    } else if (effectiveMode === "range") {
       if (!fromVal && !toVal) {
         errors.push("Provide a from or to date when exporting by range.");
       }
       if (fromVal && toVal && fromVal > toVal) {
         errors.push("The date range is invalid.");
       }
-    } else if (mode === "yearRange") {
+    } else if (effectiveMode === "yearRange") {
       if (!yearFromVal || !yearToVal) {
         errors.push("Select both a start and end year for the export range.");
       } else {
@@ -854,6 +890,7 @@
     const modalElement = $("#proliferationExportModal");
     if (!modalElement) return;
     modalElement.addEventListener("show.bs.modal", populateExportModal);
+    $("#expModeAll")?.addEventListener("change", () => setExportMode("all"));
     $("#expModeYears")?.addEventListener("change", () => setExportMode("years"));
     $("#expModeYearRange")?.addEventListener("change", () => setExportMode("yearRange"));
     $("#expModeRange")?.addEventListener("change", () => setExportMode("range"));
