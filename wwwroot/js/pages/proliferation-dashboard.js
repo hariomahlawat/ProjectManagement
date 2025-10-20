@@ -615,6 +615,119 @@
     }
   }
 
+  function updateSelectionSummary(selection) {
+    const host = $("#entrySelectionSummary") || null;
+    const placeholder = host?.querySelector("[data-selection-empty]") || $("#entrySelectionEmpty") || null;
+    const detailSection = host?.querySelector("[data-selection-details]") || $("#entrySelectionDetails") || null;
+    const fields = {
+      project: host?.querySelector("[data-selection-project]") || $("[data-selection-project]") || null,
+      source: host?.querySelector("[data-selection-source]") || $("[data-selection-source]") || null,
+      dataType: host?.querySelector("[data-selection-data-type]") || $("[data-selection-data-type]") || null,
+      year: host?.querySelector("[data-selection-year]") || $("[data-selection-year]") || null,
+      date: host?.querySelector("[data-selection-date]") || $("[data-selection-date]") || null,
+      quantity: host?.querySelector("[data-selection-quantity]") || $("[data-selection-quantity]") || null,
+      unit: host?.querySelector("[data-selection-unit]") || $("[data-selection-unit]") || null,
+      mode: host?.querySelector("[data-selection-mode]") || $("[data-selection-mode]") || null,
+      summary: host?.querySelector("[data-selection-summary]") || $("[data-selection-summary]") || null
+    };
+
+    const knownNodes = [host, placeholder, detailSection, ...Object.values(fields)].filter(Boolean);
+    if (knownNodes.length === 0) return;
+
+    const clearFields = () => {
+      Object.values(fields).forEach((node) => {
+        if (node) {
+          if (node.tagName === "INPUT" || node.tagName === "TEXTAREA") {
+            node.value = "";
+          } else {
+            node.textContent = "";
+          }
+        }
+      });
+    };
+
+    const normalizeSelection = (value) => {
+      if (!value) return null;
+      if (value instanceof Element) {
+        const { dataset } = value;
+        const parseQuantity = (input) => {
+          if (input === null || input === undefined || input === "") return null;
+          const numeric = Number(input);
+          return Number.isFinite(numeric) ? numeric : input;
+        };
+        return {
+          project: dataset.entryProject ?? value.getAttribute("data-entry-project") ?? "",
+          source: dataset.entrySource ?? value.getAttribute("data-entry-source") ?? "",
+          dataType: dataset.entryType ?? value.getAttribute("data-entry-type") ?? "",
+          year: dataset.entryYear ?? value.getAttribute("data-entry-year") ?? "",
+          date: dataset.entryDate ?? value.getAttribute("data-entry-date") ?? "",
+          quantity: parseQuantity(dataset.entryQuantity ?? value.getAttribute("data-entry-quantity")),
+          unit: dataset.entryUnit ?? value.getAttribute("data-entry-unit") ?? "",
+          mode: dataset.entryMode ?? value.getAttribute("data-entry-mode") ?? ""
+        };
+      }
+      if (typeof value === "object") {
+        return {
+          project: value.project ?? value.Project ?? "",
+          source: value.source ?? value.Source ?? "",
+          dataType: value.dataType ?? value.DataType ?? "",
+          year: value.year ?? value.Year ?? "",
+          date: value.date ?? value.Date ?? value.dateUtc ?? value.DateUtc ?? "",
+          quantity: value.quantity ?? value.Quantity ?? null,
+          unit: value.unit ?? value.Unit ?? value.unitName ?? value.UnitName ?? "",
+          mode: value.mode ?? value.Mode ?? ""
+        };
+      }
+      return null;
+    };
+
+    const normalized = normalizeSelection(selection);
+
+    if (!normalized) {
+      if (host) host.hidden = true;
+      if (detailSection) detailSection.hidden = true;
+      if (placeholder) placeholder.hidden = false;
+      clearFields();
+      return;
+    }
+
+    if (host) host.hidden = false;
+    if (placeholder) placeholder.hidden = true;
+    if (detailSection) detailSection.hidden = false;
+
+    clearFields();
+
+    if (fields.project) fields.project.textContent = normalized.project || "";
+    if (fields.source) fields.source.textContent = normalized.source ? formatSourceLabel(normalized.source) : "";
+    if (fields.dataType) fields.dataType.textContent = normalized.dataType || "";
+    if (fields.year) fields.year.textContent = normalized.year || "";
+    if (fields.date) fields.date.textContent = normalized.date ? fmt.date(normalized.date) : "";
+    if (fields.mode) fields.mode.textContent = normalized.mode || "";
+
+    const quantityValue = normalized.quantity;
+    if (fields.quantity) {
+      if (quantityValue === null || quantityValue === undefined || quantityValue === "") {
+        fields.quantity.textContent = "";
+      } else if (typeof quantityValue === "number") {
+        fields.quantity.textContent = fmt.number(quantityValue);
+      } else {
+        fields.quantity.textContent = String(quantityValue);
+      }
+    }
+
+    if (fields.unit) fields.unit.textContent = normalized.unit || "";
+
+    if (fields.summary) {
+      const parts = [];
+      if (normalized.project) parts.push(normalized.project);
+      const sourceLabel = normalized.source ? formatSourceLabel(normalized.source) : "";
+      if (sourceLabel) parts.push(sourceLabel);
+      if (normalized.year) parts.push(`Year ${normalized.year}`);
+      if (normalized.dataType) parts.push(normalized.dataType);
+      fields.summary.textContent = parts.join(" · ");
+    }
+  }
+
   function renderPagination(totalCount, page, pageSize) {
     const pager = $("#entryPager");
     if (!pager) return;
