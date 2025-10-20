@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using ClosedXML.Excel;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
@@ -221,6 +222,73 @@ public sealed class ProliferationExportServiceTests
         Assert.Equal("Trainer", entry.Data["SearchTerm"]);
         Assert.Equal("2", entry.Data["RowCount"]);
         Assert.Equal(file.FileName, entry.Data["FileName"]);
+    }
+
+    [Fact]
+    public async Task ExportAsync_WithYearFilter_RelationalProvider_Succeeds()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        using var context = new ApplicationDbContext(options);
+        await context.Database.EnsureCreatedAsync();
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 6, 1, 10, 0, 0, TimeSpan.Zero));
+        var audit = new RecordingAudit();
+
+        var project = new Project
+        {
+            Id = 100,
+            Name = "Relational Project",
+            CreatedByUserId = "seed",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
+        };
+
+        var yearly = new ProliferationYearly
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = project.Id,
+            Source = ProliferationSource.Sdd,
+            Year = 2024,
+            TotalQuantity = 10,
+            ApprovalStatus = ApprovalStatus.Approved,
+            SubmittedByUserId = "seed",
+            CreatedOnUtc = clock.UtcNow.UtcDateTime,
+            LastUpdatedOnUtc = clock.UtcNow.UtcDateTime,
+            RowVersion = Guid.NewGuid().ToByteArray()
+        };
+
+        context.Projects.Add(project);
+        context.ProliferationYearlies.Add(yearly);
+        await context.SaveChangesAsync();
+
+        var tracker = new ProliferationTrackerReadService(context);
+        var service = new ProliferationExportService(
+            context,
+            tracker,
+            new ProliferationExcelWorkbookBuilder(),
+            clock,
+            audit,
+            NullLogger<ProliferationExportService>.Instance);
+
+        var request = new ProliferationExportRequest(
+            Years: new[] { 2024 },
+            FromDate: null,
+            ToDate: null,
+            Source: null,
+            ProjectCategoryId: null,
+            TechnicalCategoryId: null,
+            Search: null,
+            RequestedByUserId: "relational-user");
+
+        var result = await service.ExportAsync(request, CancellationToken.None);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.File);
     }
 
     private static ApplicationDbContext CreateContext()

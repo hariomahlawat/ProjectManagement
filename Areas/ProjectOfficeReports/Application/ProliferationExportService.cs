@@ -204,9 +204,9 @@ public sealed class ProliferationExportService : IProliferationExportService
 
         if (filters.Years.Count > 0)
         {
-            var yearsSet = filters.Years.ToHashSet();
-            yearlyBase = yearlyBase.Where(x => yearsSet.Contains(x.Yearly.Year));
-            granularBase = granularBase.Where(x => yearsSet.Contains(x.Granular.ProliferationDate.Year));
+            var years = filters.Years.ToArray();
+            yearlyBase = yearlyBase.Where(x => years.Contains(x.Yearly.Year));
+            granularBase = granularBase.Where(x => years.Contains(x.Granular.ProliferationDate.Year));
         }
         else
         {
