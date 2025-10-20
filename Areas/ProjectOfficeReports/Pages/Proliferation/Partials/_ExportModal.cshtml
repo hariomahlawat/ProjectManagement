@@ -14,7 +14,9 @@
                         <div class="col-12 col-md-4">
                             <label class="form-label">Date filter</label>
                             <div class="btn-group w-100" role="group" aria-label="Export date filter mode">
-                                <input type="radio" class="btn-check" name="ExportFilterMode" id="expModeYears" value="years" autocomplete="off" checked>
+                                <input type="radio" class="btn-check" name="ExportFilterMode" id="expModeAll" value="all" autocomplete="off" checked>
+                                <label class="btn btn-outline-secondary" for="expModeAll">All time</label>
+                                <input type="radio" class="btn-check" name="ExportFilterMode" id="expModeYears" value="years" autocomplete="off">
                                 <label class="btn btn-outline-secondary" for="expModeYears">Years</label>
                                 <input type="radio" class="btn-check" name="ExportFilterMode" id="expModeYearRange" value="yearRange" autocomplete="off">
                                 <label class="btn btn-outline-secondary" for="expModeYearRange">Year range</label>
@@ -27,7 +29,7 @@
                             <label for="expYears" class="form-label">Years</label>
                             <select id="expYears" name="Years" class="form-select" multiple aria-describedby="expYearsHelp">
                             </select>
-                            <div id="expYearsHelp" class="form-text">Choose one or more recent years.</div>
+                            <div id="expYearsHelp" class="form-text">Choose one or more years, pick a range, or export everything.</div>
                         </div>
 
                         <div class="col-12 col-md-4 d-none" id="expYearFromWrap">
