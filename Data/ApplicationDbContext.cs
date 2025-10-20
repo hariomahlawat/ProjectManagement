@@ -975,6 +975,8 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => new { x.ParentId, x.Name }).IsUnique();
                 e.Property(x => x.SortOrder).HasDefaultValue(0);
                 e.Property(x => x.IsActive).HasDefaultValue(true);
+                e.Property(x => x.CreatedByUserId).HasMaxLength(64).IsRequired();
+                e.Property(x => x.CreatedAt);
                 e.HasOne(x => x.Parent)
                     .WithMany(x => x.Children)
                     .HasForeignKey(x => x.ParentId)
@@ -987,6 +989,8 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => new { x.ParentId, x.Name }).IsUnique();
                 e.Property(x => x.SortOrder).HasDefaultValue(0);
                 e.Property(x => x.IsActive).HasDefaultValue(true);
+                e.Property(x => x.CreatedByUserId).HasMaxLength(64).IsRequired();
+                e.Property(x => x.CreatedAt);
                 e.HasOne(x => x.Parent)
                     .WithMany(x => x.Children)
                     .HasForeignKey(x => x.ParentId)
