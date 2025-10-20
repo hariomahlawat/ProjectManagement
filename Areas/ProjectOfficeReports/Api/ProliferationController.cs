@@ -100,7 +100,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 Year = detail.Year,
                 TotalQuantity = detail.TotalQuantity,
                 Remarks = detail.Remarks,
-                RowVersion = Convert.ToBase64String(detail.RowVersion)
+                RowVersion = EncodeRowVersion(detail.RowVersion)
             };
         }
 
@@ -123,7 +123,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 UnitName = detail.UnitName,
                 Quantity = detail.Quantity,
                 Remarks = detail.Remarks,
-                RowVersion = Convert.ToBase64String(detail.RowVersion)
+                RowVersion = EncodeRowVersion(detail.RowVersion)
             };
         }
 
@@ -695,6 +695,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
             return null;
         }
+
+        private static string EncodeRowVersion(byte[]? rowVersion)
+            => rowVersion is { Length: > 0 } ? Convert.ToBase64String(rowVersion) : string.Empty;
 
         private sealed record OverviewRowProjection(
             int ProjectId,

@@ -146,14 +146,14 @@ public sealed class ProliferationManageService
 
     public async Task<ProliferationYearlyDetail?> GetYearlyAsync(Guid id, CancellationToken ct)
     {
-        var entity = await _db.ProliferationYearlies
-            .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == id, ct);
+        var entity = await _db.ProliferationYearlies.FirstOrDefaultAsync(x => x.Id == id, ct);
 
         if (entity is null)
         {
             return null;
         }
+
+        await EnsureRowVersionAsync(entity, ct);
 
         return new ProliferationYearlyDetail(
             entity.Id,
@@ -167,14 +167,14 @@ public sealed class ProliferationManageService
 
     public async Task<ProliferationGranularDetail?> GetGranularAsync(Guid id, CancellationToken ct)
     {
-        var entity = await _db.ProliferationGranularEntries
-            .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == id, ct);
+        var entity = await _db.ProliferationGranularEntries.FirstOrDefaultAsync(x => x.Id == id, ct);
 
         if (entity is null)
         {
             return null;
         }
+
+        await EnsureRowVersionAsync(entity, ct);
 
         return new ProliferationGranularDetail(
             entity.Id,
@@ -195,6 +195,23 @@ public sealed class ProliferationManageService
             .OrderBy(p => p.Name)
             .Select(p => new ProliferationCompletedProjectOption(p.Id, p.BuildDisplayName()))
             .ToListAsync(ct);
+    }
+
+    private async Task EnsureRowVersionAsync<TEntity>(TEntity entity, CancellationToken ct) where TEntity : class
+    {
+        var entry = _db.Entry(entity);
+        var property = entry.Property<byte[]>(nameof(Project.RowVersion));
+
+        if (property.CurrentValue is { Length: > 0 })
+        {
+            return;
+        }
+
+        property.CurrentValue = Guid.NewGuid().ToByteArray();
+        property.IsModified = true;
+
+        await _db.SaveChangesAsync(ct);
+        await entry.ReloadAsync(ct);
     }
 
     private static IReadOnlyList<ProliferationSourceOptionVm> GetSourceOptions()
