@@ -116,7 +116,7 @@ public sealed class ProliferationExcelWorkbookBuilder : IProliferationExcelWorkb
             worksheet.Cell(rowNumber, 7).Value = row.Quantity;
             worksheet.Cell(rowNumber, 8).Value = row.EffectiveTotal;
             worksheet.Cell(rowNumber, 9).Value = row.ApprovalStatus;
-            worksheet.Cell(rowNumber, 10).Value = row.PreferenceMode?.ToString() ?? "Auto";
+            worksheet.Cell(rowNumber, 10).Value = row.PreferenceMode?.ToString() ?? YearPreferenceMode.UseYearlyAndGranular.ToString();
         }
 
         worksheet.Columns(2, 5).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;

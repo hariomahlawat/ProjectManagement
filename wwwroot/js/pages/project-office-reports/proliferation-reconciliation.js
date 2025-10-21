@@ -2,7 +2,8 @@
   const modeMap = {
     auto: 'Auto',
     yearly: 'UseYearly',
-    granular: 'UseGranular'
+    granular: 'UseGranular',
+    combined: 'UseYearlyAndGranular'
   };
 
   function ensureBootstrap() {

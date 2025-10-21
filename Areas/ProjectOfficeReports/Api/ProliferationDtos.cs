@@ -116,7 +116,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         [Required] public int ProjectId { get; set; }
         [Required] public ProliferationSource Source { get; set; } // Sdd only configurable
         [Range(2000, 3000)] public int Year { get; set; }
-        [Required] public YearPreferenceMode Mode { get; set; } // Auto, UseYearly, UseGranular
+        [Required] public YearPreferenceMode Mode { get; set; } // Auto, UseYearly, UseGranular, UseYearlyAndGranular
     }
 
     public sealed class ProliferationManageListQueryDto

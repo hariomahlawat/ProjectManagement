@@ -4,6 +4,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Domain
     {
         Auto = 0,
         UseYearly = 1,
-        UseGranular = 2
+        UseGranular = 2,
+        UseYearlyAndGranular = 3
     }
 }

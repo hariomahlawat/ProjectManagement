@@ -9,7 +9,7 @@ namespace ProjectManagement.Tests;
 public class ProliferationTrackerReadServiceTests
 {
     [Fact]
-    public async Task GetEffectiveTotalAsync_ReturnsGranularWhenAvailable_ElseYearly()
+    public async Task GetEffectiveTotalAsync_DefaultsToCombinedTotals()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -51,8 +51,8 @@ public class ProliferationTrackerReadServiceTests
         await context.SaveChangesAsync();
 
         var service = new ProliferationTrackerReadService(context);
-        var granularTotal = await service.GetEffectiveTotalAsync(1, ProliferationSource.Sdd, 2024, CancellationToken.None);
-        Assert.Equal(20, granularTotal);
+        var combinedTotal = await service.GetEffectiveTotalAsync(1, ProliferationSource.Sdd, 2024, CancellationToken.None);
+        Assert.Equal(30, combinedTotal);
 
         context.ProliferationGranularEntries.RemoveRange(context.ProliferationGranularEntries);
         await context.SaveChangesAsync();
@@ -134,6 +134,81 @@ public class ProliferationTrackerReadServiceTests
 
         var granularPreferred = await service.GetEffectiveTotalAsync(2, ProliferationSource.Sdd, 2025, CancellationToken.None);
         Assert.Equal(80, granularPreferred);
+
+        context.ProliferationYearPreferences.RemoveRange(context.ProliferationYearPreferences);
+        context.ProliferationYearPreferences.Add(new ProliferationYearPreference
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = 2,
+            Source = ProliferationSource.Sdd,
+            Year = 2025,
+            Mode = YearPreferenceMode.UseYearlyAndGranular,
+            SetByUserId = "pref-user",
+            SetOnUtc = DateTime.UtcNow
+        });
+
+        await context.SaveChangesAsync();
+
+        var combinedPreferred = await service.GetEffectiveTotalAsync(2, ProliferationSource.Sdd, 2025, CancellationToken.None);
+        Assert.Equal(130, combinedPreferred);
+    }
+
+    [Fact]
+    public async Task GetEffectiveTotalAsync_HonorsAutoPreference()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var context = new ApplicationDbContext(options);
+        await context.Database.EnsureCreatedAsync();
+
+        context.ProliferationYearlies.Add(new ProliferationYearly
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = 9,
+            Source = ProliferationSource.Sdd,
+            Year = 2027,
+            TotalQuantity = 40,
+            ApprovalStatus = ApprovalStatus.Approved,
+            SubmittedByUserId = "user-9",
+            CreatedOnUtc = DateTime.UtcNow,
+            LastUpdatedOnUtc = DateTime.UtcNow,
+            RowVersion = new byte[] { 1 }
+        });
+
+        context.ProliferationGranularEntries.Add(new ProliferationGranular
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = 9,
+            Source = ProliferationSource.Sdd,
+            UnitName = "Unit",
+            ProliferationDate = new DateOnly(2027, 5, 1),
+            Quantity = 15,
+            ApprovalStatus = ApprovalStatus.Approved,
+            SubmittedByUserId = "user-9",
+            CreatedOnUtc = DateTime.UtcNow,
+            LastUpdatedOnUtc = DateTime.UtcNow,
+            RowVersion = new byte[] { 1 }
+        });
+
+        context.ProliferationYearPreferences.Add(new ProliferationYearPreference
+        {
+            Id = Guid.NewGuid(),
+            ProjectId = 9,
+            Source = ProliferationSource.Sdd,
+            Year = 2027,
+            Mode = YearPreferenceMode.Auto,
+            SetByUserId = "pref",
+            SetOnUtc = DateTime.UtcNow
+        });
+
+        await context.SaveChangesAsync();
+
+        var service = new ProliferationTrackerReadService(context);
+        var result = await service.GetEffectiveTotalAsync(9, ProliferationSource.Sdd, 2027, CancellationToken.None);
+
+        Assert.Equal(15, result);
     }
 
     [Fact]

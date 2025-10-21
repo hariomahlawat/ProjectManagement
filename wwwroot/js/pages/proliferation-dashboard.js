@@ -96,6 +96,14 @@
     yearEnd: ""
   };
 
+  const defaultPreferenceMode = "UseYearlyAndGranular";
+  const abwSourceId = 2;
+  const preferenceLabels = new Map([
+    ["UseYearlyAndGranular", "Use yearly + granular"],
+    ["Auto", "Auto"],
+    ["UseYearly", "Use yearly"],
+    ["UseGranular", "Use granular"]
+  ]);
   const lookupCache = new Map();
   const lookups = { projectCategories: [], technicalCategories: [] };
   let projectOptions = [];
@@ -1100,6 +1108,18 @@
     return exact ? Number(exact.id) : null;
   }
 
+  function formatPreferenceLabel(mode, sourceId) {
+    if (!mode) {
+      if (sourceId === abwSourceId) {
+        return preferenceLabels.get("Auto") ?? "Auto";
+      }
+      return preferenceLabels.get(defaultPreferenceMode) ?? defaultPreferenceMode;
+    }
+
+    const normalized = String(mode);
+    return preferenceLabels.get(normalized) ?? normalized.replace(/([A-Z])/g, " $1").trim();
+  }
+
   async function refreshPreferenceSummary() {
     const projectId = Number($("#prefProjectId")?.value);
     const sourceRaw = $("#prefSource")?.value ?? "";
@@ -1118,14 +1138,15 @@
     try {
       const response = await fetch(`${api.getPref}?projectId=${projectId}&source=${sourceId}&year=${year}`, { signal: ctrl.signal });
       if (response.status === 404) {
-        current.textContent = "Current mode: Auto (default)";
+        const label = formatPreferenceLabel(null, sourceId);
+        current.textContent = `Current mode: ${label} (default)`;
         current.hidden = false;
         return;
       }
       if (!response.ok) throw new Error();
       const data = await response.json();
-      const mode = data.Mode ?? data.mode ?? "Auto";
-      current.textContent = `Current mode: ${mode.replace(/([A-Z])/g, " $1").trim()}`;
+      const mode = data.Mode ?? data.mode ?? defaultPreferenceMode;
+      current.textContent = `Current mode: ${formatPreferenceLabel(mode, sourceId)}`;
       current.hidden = false;
     } catch (error) {
       if (error.name === "AbortError") return;
@@ -1170,7 +1191,23 @@
       refreshPreferenceSummary();
     });
 
-    sourceSelect?.addEventListener("change", refreshPreferenceSummary);
+    const setPreferenceMode = (mode) => {
+      $all("input[name='prefMode']", form).forEach((radio) => {
+        radio.checked = radio.value === mode;
+      });
+    };
+
+    setPreferenceMode(defaultPreferenceMode);
+
+    sourceSelect?.addEventListener("change", () => {
+      const selectedMode = form.querySelector("input[name='prefMode']:checked")?.value;
+      if (Number(sourceSelect.value) === abwSourceId) {
+        setPreferenceMode("Auto");
+      } else if (selectedMode === "Auto") {
+        setPreferenceMode(defaultPreferenceMode);
+      }
+      refreshPreferenceSummary();
+    });
     yearInput?.addEventListener("change", refreshPreferenceSummary);
 
     resetBtn?.addEventListener("click", () => {
@@ -1180,7 +1217,7 @@
       yearInput.value = "";
       savedAt.hidden = true;
       $("#prefCurrentMode").hidden = true;
-      $all("input[name='prefMode']").forEach((radio) => { radio.checked = radio.value === "Auto"; });
+      setPreferenceMode(defaultPreferenceMode);
     });
 
     form.addEventListener("submit", async (event) => {
@@ -1207,7 +1244,7 @@
         ProjectId: projectId,
         Source: sourceId,
         Year: Number(yearInput.value),
-        Mode: form.querySelector("input[name='prefMode']:checked")?.value || "Auto"
+        Mode: form.querySelector("input[name='prefMode']:checked")?.value || defaultPreferenceMode
       };
       try {
         const response = await fetch(api.setPref, {
