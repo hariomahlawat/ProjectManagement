@@ -62,6 +62,22 @@
     number: (value) => {
       if (value === null || value === undefined) return "0";
       return Number(value).toLocaleString();
+    },
+    dateTime: (value) => {
+      if (!value) return "—";
+      const d = new Date(value);
+      if (Number.isNaN(d.getTime())) return String(value);
+      try {
+        return new Intl.DateTimeFormat(undefined, {
+          year: "numeric",
+          month: "short",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit"
+        }).format(d);
+      } catch (error) {
+        return d.toISOString().replace("T", " ").slice(0, 16);
+      }
     }
   };
 
@@ -72,6 +88,16 @@
       .replace(/"/g, "&quot;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
+  }
+
+  function escapeHtml(value) {
+    if (value === null || value === undefined) return "";
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   const filterState = {
@@ -110,6 +136,13 @@
   let preferenceFetchAbort = null;
   let exportModalInstance = null;
   const mixedCoverage = new Map();
+  const manageNavigation = {
+    url: "/ProjectOfficeReports/Proliferation/Manage",
+    filtersKey: "proliferation-manage-filters",
+    overridesKey: "proliferation-manage-preference-overrides",
+    anchor: "pf-overrides-card"
+  };
+  let tableInteractionsBound = false;
 
   function collectFilters() {
     const projectSelect = $("#pf-filter-project");
@@ -799,7 +832,9 @@
     const projectId = Number($("#prefProjectId")?.value);
     const sourceId = Number($("#prefSource")?.value);
     const year = Number($("#prefYear")?.value);
-    const valid = Number.isFinite(projectId) && projectId > 0 && Number.isFinite(sourceId) && sourceId > 0 && Number.isFinite(year);
+    const valid = Number.isFinite(projectId) && projectId > 0 &&
+      Number.isFinite(sourceId) && sourceId > 0 &&
+      Number.isFinite(year);
     if (!valid) {
       indicator.hidden = true;
       return;
@@ -808,6 +843,116 @@
     const coverage = mixedCoverage.get(buildMixedKey(projectId, sourceId, year));
     const hasMixed = Boolean(coverage?.yearly && coverage?.granular);
     indicator.hidden = !hasMixed;
+  }
+
+  function persistManageNavigation(projectId, sourceId, year) {
+    const projectNumeric = Number(projectId);
+    const sourceNumeric = Number(sourceId);
+    const yearNumeric = Number(year);
+    const projectValue = Number.isFinite(projectNumeric) && projectNumeric > 0 ? String(projectNumeric) : "";
+    const sourceValue = Number.isFinite(sourceNumeric) && sourceNumeric > 0 ? String(sourceNumeric) : "";
+    const yearValue = Number.isFinite(yearNumeric) ? String(yearNumeric) : "";
+
+    try {
+      const rawFilters = sessionStorage.getItem(manageNavigation.filtersKey);
+      const existingFilters = rawFilters ? JSON.parse(rawFilters) : {};
+      const payload = existingFilters && typeof existingFilters === "object"
+        ? { ...existingFilters }
+        : {};
+      payload.projectId = projectValue;
+      payload.source = sourceValue;
+      payload.year = yearValue;
+      sessionStorage.setItem(manageNavigation.filtersKey, JSON.stringify(payload));
+    } catch (error) {
+      // ignore persistence issues
+    }
+
+    try {
+      const rawOverrides = sessionStorage.getItem(manageNavigation.overridesKey);
+      const existingOverrides = rawOverrides ? JSON.parse(rawOverrides) : {};
+      const overridesPayload = existingOverrides && typeof existingOverrides === "object"
+        ? { ...existingOverrides }
+        : {};
+      overridesPayload.projectId = projectValue;
+      overridesPayload.source = sourceValue;
+      overridesPayload.year = yearValue;
+      overridesPayload.search = "";
+      overridesPayload.collapsed = false;
+      sessionStorage.setItem(manageNavigation.overridesKey, JSON.stringify(overridesPayload));
+    } catch (error) {
+      // ignore persistence issues
+    }
+  }
+
+  function navigateToManage(projectId, sourceId, year) {
+    const projectNumeric = Number(projectId);
+    const sourceNumeric = Number(sourceId);
+    const yearNumeric = Number(year);
+    if (!Number.isFinite(projectNumeric) || projectNumeric <= 0 ||
+        !Number.isFinite(sourceNumeric) || sourceNumeric <= 0 ||
+        !Number.isFinite(yearNumeric)) {
+      return;
+    }
+
+    persistManageNavigation(projectNumeric, sourceNumeric, yearNumeric);
+
+    const anchorId = manageNavigation.anchor ? manageNavigation.anchor.replace(/^#/, "") : "";
+    const fallbackHref = anchorId ? `${manageNavigation.url}#${anchorId}` : manageNavigation.url;
+
+    try {
+      const url = new URL(manageNavigation.url, window.location.origin);
+      if (anchorId) {
+        url.hash = anchorId;
+      }
+      window.location.href = url.toString();
+    } catch (error) {
+      window.location.href = fallbackHref;
+    }
+  }
+
+  function renderPreferenceBadge(projectId, sourceId, year, mode) {
+    const projectNumeric = Number(projectId);
+    const sourceNumeric = Number(sourceId);
+    const yearNumeric = Number(year);
+    const hasContext = Number.isFinite(projectNumeric) && projectNumeric > 0 &&
+      Number.isFinite(sourceNumeric) && sourceNumeric > 0 &&
+      Number.isFinite(yearNumeric);
+
+    const modeLabel = formatPreferenceLabel(mode || null, Number.isFinite(sourceNumeric) ? sourceNumeric : null) || "—";
+    const isOverride = Boolean(mode);
+    const statusText = isOverride ? "Override" : "Default";
+    const summary = `${statusText}: ${modeLabel}`;
+
+    if (!hasContext) {
+      return {
+        html: `<span class="pf-pref-badge pf-pref-badge--${isOverride ? "override" : "default"} pf-pref-badge--static" aria-disabled="true"><span class="pf-pref-badge__status">${escapeHtml(statusText)}</span><span class="pf-pref-badge__mode">${escapeHtml(modeLabel)}</span></span>`,
+        summary
+      };
+    }
+
+    const anchorId = manageNavigation.anchor ? manageNavigation.anchor.replace(/^#/, "") : "";
+    const href = anchorId ? `${manageNavigation.url}#${anchorId}` : manageNavigation.url;
+    const ariaLabel = `${statusText} preference — ${modeLabel}. Open proliferation manager.`;
+
+    const attrs = [
+      'data-pref-badge="true"',
+      `data-pref-project="${escapeAttr(String(projectNumeric))}"`,
+      `data-pref-source="${escapeAttr(String(sourceNumeric))}"`,
+      `data-pref-year="${escapeAttr(String(yearNumeric))}"`
+    ].join(" ");
+
+    const html = `<a href="${escapeAttr(href)}" class="pf-pref-badge ${isOverride ? "pf-pref-badge--override" : "pf-pref-badge--default"}" ${attrs} title="${escapeAttr(ariaLabel)}" aria-label="${escapeAttr(ariaLabel)}"><span class="pf-pref-badge__status">${escapeHtml(statusText)}</span><span class="pf-pref-badge__mode">${escapeHtml(modeLabel)}</span></a>`;
+    return { html, summary };
+  }
+
+  function handleTableInteraction(event) {
+    const badge = event.target.closest('[data-pref-badge]');
+    if (!badge) return;
+    event.preventDefault();
+    const projectId = Number(badge.getAttribute('data-pref-project'));
+    const sourceId = Number(badge.getAttribute('data-pref-source'));
+    const year = Number(badge.getAttribute('data-pref-year'));
+    navigateToManage(projectId, sourceId, year);
   }
 
   function renderTable(rows) {
@@ -829,31 +974,54 @@
     const header = `
       <thead class="table-light">
         <tr>
-          <th scope="col">Year</th>
           <th scope="col">Project</th>
           <th scope="col">Source</th>
-          <th scope="col">Data type</th>
+          <th scope="col" class="text-nowrap">Year</th>
+          <th scope="col" class="text-nowrap">Date</th>
           <th scope="col">Unit</th>
-          <th scope="col">Date</th>
-          <th scope="col" class="text-end">Quantity</th>
-          <th scope="col" class="text-end">Effective total</th>
-          <th scope="col">Status</th>
-          <th scope="col">Mode</th>
+          <th scope="col" class="text-end text-nowrap">Quantity</th>
+          <th scope="col" class="text-end text-nowrap">Effective total</th>
+          <th scope="col">Preference</th>
+          <th scope="col" class="text-nowrap">Last updated</th>
+          <th scope="col">Data type</th>
+          <th scope="col">Approval</th>
         </tr>
       </thead>`;
 
     const body = rows.map((row) => {
+      const projectId = row.ProjectId ?? row.projectId ?? row.ProjectID ?? row.projectID;
       const project = row.Project ?? row.ProjectName ?? row.project ?? row.projectName ?? "";
-      const sourceLabel = formatSourceLabel(row.Source ?? row.source ?? "");
+      const sourceRaw = row.Source ?? row.source ?? row.SourceValue ?? row.sourceValue ?? "";
+      const sourceLabel = formatSourceLabel(sourceRaw);
+      let sourceId = Number(sourceRaw);
+      if (!Number.isFinite(sourceId)) {
+        const canonicalSource = String(sourceRaw).trim().toLowerCase();
+        if (canonicalSource === "sdd") {
+          sourceId = 1;
+        } else if (canonicalSource === "515 abw" || canonicalSource === "abw515" || canonicalSource === "515abw") {
+          sourceId = 2;
+        }
+      }
       const typeLabel = row.DataType ?? row.dataType ?? "";
-      const pane = typeLabel.toLowerCase().includes("year") ? "yearly" : "granular";
+      const pane = typeof typeLabel === "string" && typeLabel.toLowerCase().includes("year") ? "yearly" : "granular";
       const unit = row.UnitName ?? row.unitName ?? "";
       const dateRaw = row.DateUtc ?? row.dateUtc ?? row.ProliferationDate ?? row.proliferationDate ?? "";
-      const quantity = row.Quantity ?? row.quantity ?? 0;
-      const effective = row.EffectiveTotal ?? row.effectiveTotal ?? quantity;
+      const quantityRaw = row.Quantity ?? row.quantity ?? 0;
+      const quantityValue = Number(quantityRaw);
+      const quantity = Number.isFinite(quantityValue) ? quantityValue : Number(quantityRaw) || 0;
+      const effectiveRaw = row.EffectiveTotal ?? row.effectiveTotal ?? quantity;
+      const effectiveValue = Number(effectiveRaw);
+      const effective = Number.isFinite(effectiveValue) ? effectiveValue : quantity;
       const approval = row.ApprovalStatus ?? row.approvalStatus ?? "";
-      const mode = row.Mode ?? row.mode ?? "—";
+      const modeRaw = row.Mode ?? row.mode ?? null;
       const year = row.Year ?? row.year ?? "";
+      const lastUpdatedRaw = row.LastUpdatedOnUtc ?? row.lastUpdatedOnUtc ??
+        row.LastUpdatedUtc ?? row.lastUpdatedUtc ??
+        row.LastModifiedOnUtc ?? row.lastModifiedOnUtc ??
+        row.LastUpdated ?? row.lastUpdated ?? "";
+      const preferenceInfo = renderPreferenceBadge(projectId, sourceId, year, modeRaw);
+      const preferenceCell = preferenceInfo?.html ?? "—";
+      const preferenceSummary = preferenceInfo?.summary ?? "";
       const attrs = [
         `data-entry-type="${pane}"`,
         `data-entry-project="${escapeAttr(project)}"`,
@@ -861,20 +1029,22 @@
         `data-entry-year="${escapeAttr(year)}"`,
         `data-entry-date="${escapeAttr(dateRaw)}"`,
         `data-entry-quantity="${escapeAttr(quantity)}"`,
-        `data-entry-unit="${escapeAttr(unit)}"`
+        `data-entry-unit="${escapeAttr(unit)}"`,
+        `data-entry-mode="${escapeAttr(preferenceSummary)}"`
       ].join(" ");
       return `
       <tr ${attrs}>
-        <td>${year}</td>
-        <td>${project}</td>
+        <td class="table-proliferation__project">${project}</td>
         <td>${sourceLabel}</td>
+        <td class="text-nowrap">${year || "—"}</td>
+        <td class="text-nowrap">${fmt.date(dateRaw)}</td>
+        <td>${unit || "—"}</td>
+        <td class="text-end text-nowrap">${fmt.number(quantity)}</td>
+        <td class="text-end text-nowrap">${fmt.number(effective)}</td>
+        <td class="pf-pref-cell">${preferenceCell}</td>
+        <td class="text-nowrap">${fmt.dateTime(lastUpdatedRaw)}</td>
         <td>${typeLabel}</td>
-        <td>${unit}</td>
-        <td>${fmt.date(dateRaw)}</td>
-        <td class="text-end">${fmt.number(quantity)}</td>
-        <td class="text-end">${fmt.number(effective)}</td>
         <td>${approval}</td>
-        <td>${mode}</td>
       </tr>`;
     }).join("");
 
@@ -882,6 +1052,10 @@
       <table class="table table-hover align-middle mb-0 table-proliferation">${header}<tbody>${body}</tbody></table>
     </div>`;
     host.setAttribute("aria-busy", "false");
+    if (!tableInteractionsBound) {
+      host.addEventListener("click", handleTableInteraction);
+      tableInteractionsBound = true;
+    }
   }
 
   function buildQuery(filters) {
