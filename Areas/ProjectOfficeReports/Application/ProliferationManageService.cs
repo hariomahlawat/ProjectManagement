@@ -196,12 +196,15 @@ public sealed class ProliferationManageService
 
     private async Task<IReadOnlyList<ProliferationCompletedProjectOption>> GetCompletedProjectsAsync(CancellationToken ct)
     {
-        return await _db.Projects
+        var projects = await _db.Projects
             .AsNoTracking()
             .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Completed)
             .OrderBy(p => p.Name)
-            .Select(p => new ProliferationCompletedProjectOption(p.Id, p.BuildDisplayName()))
             .ToListAsync(ct);
+
+        return projects
+            .Select(p => new ProliferationCompletedProjectOption(p.Id, p.BuildDisplayName()))
+            .ToList();
     }
 
     private async Task EnsureRowVersionAsync<TEntity>(TEntity entity, CancellationToken ct) where TEntity : class
