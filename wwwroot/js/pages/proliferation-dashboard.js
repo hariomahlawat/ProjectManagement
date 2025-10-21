@@ -221,6 +221,7 @@
       }
 
       renderChips();
+      updateFilterSummary();
       persistFilterState();
     } catch (error) {
       console.warn("Ignoring stored proliferation filters", error);
@@ -293,6 +294,7 @@
     filterState.search = (searchInput?.value ?? "").trim();
 
     renderChips();
+    updateFilterSummary();
 
     const yearNumber = parseInt(filterState.year, 10);
     const sourceValue = filterState.sourceId;
@@ -310,6 +312,61 @@
 
     persistFilterState();
     return filters;
+  }
+
+  function buildFilterSummary() {
+    const projectLabel = (filterState.projectLabel || "").trim();
+    let projectPart = projectLabel;
+    if (!projectPart && filterState.projectId) {
+      projectPart = `Project ${filterState.projectId}`;
+    }
+    if (!projectPart) {
+      projectPart = "All projects";
+    }
+
+    const sourceLabel = (filterState.sourceLabel || "").trim();
+    let sourcePart = sourceLabel;
+    if (!sourcePart && Number.isFinite(filterState.sourceId)) {
+      sourcePart = formatSourceLabel(filterState.sourceId);
+    }
+    if (!sourcePart) {
+      sourcePart = "All sources";
+    }
+
+    const typeRaw = (filterState.type || "").trim();
+    const normalizedType = typeRaw.toLowerCase();
+    let typePart = "";
+    if (normalizedType) {
+      if (normalizedType === "granular") {
+        typePart = "Granular data";
+      } else if (normalizedType === "yearly") {
+        typePart = "Yearly data";
+      } else {
+        typePart = typeRaw.charAt(0).toUpperCase() + typeRaw.slice(1);
+      }
+    }
+
+    const yearRaw = (filterState.year || "").trim();
+    const yearPart = yearRaw || "All years";
+
+    const searchRaw = (filterState.search || "").trim();
+
+    const parts = [projectPart, sourcePart];
+    if (typePart) {
+      parts.push(typePart);
+    }
+    parts.push(yearPart);
+    if (searchRaw) {
+      parts.push(`Search “${searchRaw}”`);
+    }
+
+    return parts.join(" • ");
+  }
+
+  function updateFilterSummary() {
+    const host = $("#pf-filter-summary");
+    if (!host) return;
+    host.textContent = buildFilterSummary();
   }
 
   function renderChips() {
@@ -1505,6 +1562,7 @@
       }
       const selectedLabel = filterSelect.options[filterSelect.selectedIndex]?.textContent?.trim();
       filterState.projectLabel = filterSelect.value ? selectedLabel || "Selected project" : "";
+      updateFilterSummary();
     }
   }
 
