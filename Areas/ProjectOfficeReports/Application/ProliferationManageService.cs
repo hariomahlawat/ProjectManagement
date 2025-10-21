@@ -36,6 +36,13 @@ public sealed class ProliferationManageService
         return new ProliferationEditorBootVm(projects, GetSourceOptions(), year);
     }
 
+    public async Task<ProliferationPreferenceOverridesBootVm> GetPreferenceOverridesBootAsync(CancellationToken ct)
+    {
+        var projects = await GetCompletedProjectsAsync(ct);
+        var year = DateTime.UtcNow.Year;
+        return new ProliferationPreferenceOverridesBootVm(projects, GetSourceOptions(), year);
+    }
+
     public async Task<PagedResult<ProliferationManageListItem>> GetListAsync(
         ProliferationManageListRequest request,
         CancellationToken ct)

@@ -153,6 +153,35 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public IReadOnlyList<ProliferationManageListItemDto> Items { get; set; } = Array.Empty<ProliferationManageListItemDto>();
     }
 
+    public sealed class ProliferationPreferenceOverrideQueryDto
+    {
+        public int? ProjectId { get; set; }
+        public ProliferationSource? Source { get; set; }
+        public int? Year { get; set; }
+        public string? Search { get; set; }
+    }
+
+    public sealed class ProliferationPreferenceOverrideDto
+    {
+        public Guid Id { get; set; }
+        public int ProjectId { get; set; }
+        public string ProjectName { get; set; } = default!;
+        public string? ProjectCode { get; set; }
+        public ProliferationSource Source { get; set; }
+        public int SourceValue { get; set; }
+        public string SourceLabel { get; set; } = default!;
+        public int Year { get; set; }
+        public YearPreferenceMode Mode { get; set; }
+        public string ModeLabel { get; set; } = default!;
+        public YearPreferenceMode EffectiveMode { get; set; }
+        public string EffectiveModeLabel { get; set; } = default!;
+        public string SetByUserId { get; set; } = default!;
+        public string SetByDisplayName { get; set; } = default!;
+        public DateTime SetOnUtc { get; set; }
+        public bool HasApprovedYearly { get; set; }
+        public bool HasApprovedGranular { get; set; }
+    }
+
     public sealed class ProliferationYearlyDetailDto
     {
         public Guid Id { get; set; }
