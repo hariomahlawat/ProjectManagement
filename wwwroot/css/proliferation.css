@@ -166,6 +166,85 @@
     background-color: rgba(13, 110, 253, 0.05);
 }
 
+.pf-command-bar {
+    position: sticky;
+    top: calc(var(--pm-shell-offset, 0px) + 0.5rem);
+    z-index: 1015;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem 0;
+    margin-bottom: 1.5rem;
+    background: var(--bs-body-bg);
+    border-bottom: 1px solid var(--bs-border-color);
+    box-shadow: 0 0.25rem 0.75rem -0.5rem rgba(15, 23, 42, 0.35);
+}
+
+.pf-command-bar__details {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.pf-command-bar__title-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.pf-command-bar__title {
+    font-weight: 600;
+}
+
+.pf-command-bar__scope {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    background: var(--bs-primary-bg-subtle);
+    color: var(--bs-primary-text-emphasis);
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.015em;
+    text-transform: uppercase;
+}
+
+.pf-command-bar__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.9rem;
+    color: var(--bs-secondary-color);
+}
+
+.pf-command-bar__actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.5rem;
+}
+
+.pf-command-bar__actions .btn {
+    min-width: 7rem;
+}
+
+@media (min-width: 768px) {
+    .pf-command-bar {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .pf-command-bar__actions {
+        justify-content: flex-end;
+    }
+}
+
 .pf-manage-layout {
     display: flex;
     flex-direction: column;
@@ -173,7 +252,8 @@
 }
 
 .pf-manage-column,
-.pf-manage-stack {
+.pf-manage-stack,
+.pf-manage-rail {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
@@ -192,13 +272,32 @@
 @media (min-width: 992px) {
     .pf-manage-layout {
         display: grid;
-        grid-template-columns: minmax(22rem, 32%) minmax(0, 1fr);
+        grid-template-columns: minmax(20rem, 35%) minmax(0, 1fr);
         align-items: start;
+    }
+
+    .pf-manage-column--rail {
+        grid-column: 1 / -1;
     }
 }
 
-@media (min-width: 1400px) {
+@media (min-width: 1280px) {
     .pf-manage-layout {
-        grid-template-columns: minmax(26rem, 30%) minmax(0, 1fr);
+        grid-template-columns: minmax(20rem, 28%) minmax(0, 1fr) minmax(18rem, 24%);
+    }
+
+    .pf-manage-column--rail {
+        grid-column: auto;
+        position: sticky;
+        top: calc(var(--pm-shell-offset, 0px) + 6.75rem);
+        align-self: start;
+    }
+
+    .pf-manage-layout.pf-manage-layout--rail-collapsed {
+        grid-template-columns: minmax(22rem, 32%) minmax(0, 1fr) minmax(14rem, 18%);
+    }
+
+    .pf-manage-layout--rail-collapsed .pf-manage-column--rail {
+        max-width: 20rem;
     }
 }

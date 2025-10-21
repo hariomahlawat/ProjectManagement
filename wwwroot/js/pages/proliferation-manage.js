@@ -6,6 +6,11 @@
   const listCard = document.querySelector('#pf-list-card');
   const overridesCard = document.querySelector('#pf-overrides-card');
   const editorCard = document.querySelector('#pf-editor');
+  const manageLayout = document.querySelector('#pf-manage-layout');
+  const commandElements = {
+    scope: document.querySelector('[data-command-scope]'),
+    updated: document.querySelector('[data-command-updated-value]')
+  };
   if (!listCard || !editorCard) {
     return;
   }
@@ -165,7 +170,7 @@
     year: overridesCard ? overridesCard.querySelector('#pf-overrides-year') : null,
     search: overridesCard ? overridesCard.querySelector('#pf-overrides-search') : null,
     refresh: overridesCard ? overridesCard.querySelector('#pf-overrides-refresh') : null,
-    export: overridesCard ? overridesCard.querySelector('#pf-overrides-export') : null
+    export: document.querySelector('#pf-overrides-export')
   };
   const overridesOverviewUrl = overridesCard?.dataset?.overviewUrl ?? '';
   const overridesExportUrl = overridesCard?.dataset?.exportUrl ?? '';
@@ -400,25 +405,28 @@
   }
 
   function setOverridesCollapsed(collapsed, persist = true) {
-    if (!overridesElements.collapse) return;
-    const instance = Collapse?.getOrCreateInstance(overridesElements.collapse, { toggle: false }) ?? null;
-    if (instance) {
-      if (collapsed) {
-        instance.hide();
+    if (overridesElements.collapse) {
+      const instance = Collapse?.getOrCreateInstance(overridesElements.collapse, { toggle: false }) ?? null;
+      if (instance) {
+        if (collapsed) {
+          instance.hide();
+        } else {
+          instance.show();
+        }
       } else {
-        instance.show();
+        overridesElements.collapse.classList.toggle('show', !collapsed);
       }
-    } else {
-      overridesElements.collapse.classList.toggle('show', !collapsed);
+
+      const expandedLabel = overridesElements.toggle?.querySelector('[data-expanded-text]') ?? null;
+      const collapsedLabel = overridesElements.toggle?.querySelector('[data-collapsed-text]') ?? null;
+      if (expandedLabel && collapsedLabel) {
+        expandedLabel.classList.toggle('d-none', collapsed);
+        collapsedLabel.classList.toggle('d-none', !collapsed);
+      }
+      overridesElements.toggle?.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
     }
 
-    const expandedLabel = overridesElements.toggle?.querySelector('[data-expanded-text]') ?? null;
-    const collapsedLabel = overridesElements.toggle?.querySelector('[data-collapsed-text]') ?? null;
-    if (expandedLabel && collapsedLabel) {
-      expandedLabel.classList.toggle('d-none', collapsed);
-      collapsedLabel.classList.toggle('d-none', !collapsed);
-    }
-    overridesElements.toggle?.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    manageLayout?.classList.toggle('pf-manage-layout--rail-collapsed', Boolean(collapsed));
 
     if (persist) {
       overridesState.collapsed = collapsed;
@@ -439,6 +447,28 @@
       hour: '2-digit',
       minute: '2-digit'
     });
+  }
+
+  function getScopeLabel(kind) {
+    return kind === 'yearly' ? 'Yearly total' : 'Granular entry';
+  }
+
+  function setCommandScope(kind) {
+    if (!commandElements.scope) return;
+    const normalized = kind === 'yearly' ? 'yearly' : 'granular';
+    commandElements.scope.textContent = getScopeLabel(normalized);
+    commandElements.scope.dataset.scope = normalized;
+  }
+
+  function setCommandUpdated(value) {
+    if (!commandElements.updated) return;
+    const text = value ? formatDateTime(value) : '';
+    commandElements.updated.textContent = text || '—';
+    if (value) {
+      commandElements.updated.setAttribute('data-timestamp', value);
+    } else {
+      commandElements.updated.removeAttribute('data-timestamp');
+    }
   }
 
   function applyFiltersToInputs() {
@@ -1119,10 +1149,12 @@
     if (overridesElements.collapse && Collapse) {
       overridesElements.collapse.addEventListener('shown.bs.collapse', () => {
         overridesState.collapsed = false;
+        manageLayout?.classList.remove('pf-manage-layout--rail-collapsed');
         saveOverrideState();
       });
       overridesElements.collapse.addEventListener('hidden.bs.collapse', () => {
         overridesState.collapsed = true;
+        manageLayout?.classList.add('pf-manage-layout--rail-collapsed');
         saveOverrideState();
       });
     }
@@ -1212,8 +1244,10 @@
       const subtitleParts = [sourceLabel, dateText].filter(Boolean);
       const approval = item.approvalStatus ? `Status: ${item.approvalStatus}` : '';
       const subtitle = [subtitleParts.join(' · '), approval].filter(Boolean).join(' • ');
+      const updatedValue = item.lastUpdatedOnUtc ?? '';
+      const updatedAttr = updatedValue ? ` data-updated="${updatedValue}"` : '';
       return `
-        <button class="list-group-item list-group-item-action" data-id="${item.id}" data-kind="${kind}" type="button">
+        <button class="list-group-item list-group-item-action" data-id="${item.id}" data-kind="${kind}"${updatedAttr} type="button">
           <div class="d-flex justify-content-between align-items-start gap-3">
             <div>
               <div class="fw-semibold">${project}</div>
@@ -1314,7 +1348,10 @@
     const id = button.getAttribute('data-id');
     const kind = button.getAttribute('data-kind');
     if (!id || !kind) return;
-    loadIntoEditor(kind, id).catch((err) => {
+    const metadata = {
+      updated: button.dataset.updated || ''
+    };
+    loadIntoEditor(kind, id, metadata).catch((err) => {
       toast(err.message || 'Unable to load entry', 'danger');
     });
   });
@@ -1356,6 +1393,7 @@
     if (editor.unit) editor.unit.required = isGranular;
     if (editor.qty) editor.qty.min = isGranular ? 1 : 0;
     enforceSourceForKind(target);
+    setCommandScope(target);
     if (updateHash) {
       const newHash = `#${target}`;
       if (window.location.hash !== newHash) {
@@ -1367,7 +1405,7 @@
   document.querySelector('#tab-granular')?.addEventListener('click', () => setTab('granular'));
   document.querySelector('#tab-yearly')?.addEventListener('click', () => setTab('yearly'));
 
-  async function loadIntoEditor(kind, id) {
+  async function loadIntoEditor(kind, id, metadata = {}) {
     const endpoint = kind === 'yearly' ? api.yearly(id) : api.granular(id);
     const response = await fetch(endpoint, { headers: { Accept: 'application/json' } });
     if (!response.ok) {
@@ -1397,6 +1435,8 @@
     }
     editor.remarks.value = detail.remarks ?? '';
     editor.btnDelete.disabled = false;
+    const updatedValue = typeof metadata === 'object' && metadata ? metadata.updated || '' : '';
+    setCommandUpdated(updatedValue);
   }
 
   editor.form?.addEventListener('submit', async (event) => {
@@ -1532,6 +1572,7 @@
     if (editor.unit) editor.unit.value = '';
     editor.btnDelete && (editor.btnDelete.disabled = true);
     setTab(preferredKind, { updateHash: false });
+    setCommandUpdated('');
   }
 
   function getHashKind() {
@@ -1609,6 +1650,7 @@
   function init() {
     initFilters();
     applyBootEditorDefaults();
+    setCommandUpdated('');
     initOverrides();
     const hashKind = getHashKind();
     const bootKind = bootDefaults.editor?.kind || bootDefaults.filters?.kind || '';

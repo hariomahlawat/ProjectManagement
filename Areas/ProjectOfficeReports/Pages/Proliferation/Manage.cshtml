@@ -1,12 +1,7 @@
 @page
-@using Microsoft.AspNetCore.Mvc.ViewFeatures
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.ManageModel
 @{
     ViewData["Title"] = "Proliferation Manager";
-    var overridesViewData = new ViewDataDictionary(ViewData)
-    {
-        ["OverridesModel"] = Model.OverridesBoot
-    };
 }
 
 <div class="container-xxl my-4" data-page="proliferation-manage">
@@ -18,20 +13,38 @@
         </ol>
     </nav>
 
-    <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-4">
-        <div>
-            <h2 class="mb-2">Proliferation Manager</h2>
-            <p class="text-muted mb-0">Review existing entries and add or edit yearly totals and granular records.</p>
+    <div class="pf-command-bar" data-command-bar>
+        <div class="pf-command-bar__details">
+            <div class="pf-command-bar__title-row">
+                <h2 class="pf-command-bar__title mb-0">Proliferation Manager</h2>
+                <span class="pf-command-bar__scope" data-command-scope>Granular entry</span>
+            </div>
+            <div class="pf-command-bar__meta">
+                <span class="pf-command-bar__timestamp">Last updated:</span>
+                <span class="pf-command-bar__timestamp-value" data-command-updated-value>—</span>
+            </div>
+        </div>
+        <div class="pf-command-bar__actions">
+            <button class="btn btn-primary" id="pf-save" type="submit" form="pf-form">Save</button>
+            <button class="btn btn-outline-danger" id="pf-delete" type="button" disabled>Delete</button>
+            <button class="btn btn-outline-secondary" id="pf-overrides-export" type="button" aria-disabled="true" disabled>Export CSV</button>
         </div>
     </div>
+
+    <p class="text-muted mb-4">Review existing entries and add or edit yearly totals and granular records.</p>
 
     <div class="pf-manage-layout" id="pf-manage-layout">
         <section class="pf-manage-column pf-manage-column--list" id="pf-list-panel">
             <partial name="_ProliferationList" model="Model.ListBoot" />
         </section>
         <section class="pf-manage-column pf-manage-column--detail" id="pf-detail-panel">
-            <partial name="_ProliferationEditor" model="Model.EditorBoot" view-data="overridesViewData" />
+            <partial name="_ProliferationEditor" model="Model.EditorBoot" />
         </section>
+        <aside class="pf-manage-column pf-manage-column--rail" id="pf-rail-panel">
+            <div class="pf-manage-rail">
+                <partial name="_PreferenceOverrides" model="Model.OverridesBoot" />
+            </div>
+        </aside>
     </div>
 </div>
 
