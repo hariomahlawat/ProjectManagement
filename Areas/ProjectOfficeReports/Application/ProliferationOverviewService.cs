@@ -455,9 +455,9 @@ public sealed class ProliferationOverviewService
             YearPreferenceMode.Auto => granular.Total > 0 ? YearPreferenceMode.UseGranular : YearPreferenceMode.UseYearly,
             YearPreferenceMode.UseYearly => YearPreferenceMode.UseYearly,
             YearPreferenceMode.UseGranular => YearPreferenceMode.UseGranular,
-            YearPreferenceMode.UseYearlyAndGranular => granular.HasAny && yearly.HasAny
+            YearPreferenceMode.UseYearlyAndGranular => granular.HasApproved && yearly.HasApproved
                 ? YearPreferenceMode.UseYearlyAndGranular
-                : granular.HasAny
+                : granular.HasApproved
                     ? YearPreferenceMode.UseGranular
                     : YearPreferenceMode.UseYearly,
             _ => configured
