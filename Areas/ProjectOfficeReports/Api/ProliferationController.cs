@@ -69,6 +69,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                     ProjectCode = item.ProjectCode,
                     Source = item.Source,
                     SourceLabel = item.SourceLabel,
+                    UnitName = item.UnitName,
                     Year = item.Year,
                     Month = item.ProliferationDate?.Month,
                     ProliferationDateUtc = item.ProliferationDate?.ToDateTime(TimeOnly.MinValue),

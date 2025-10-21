@@ -138,6 +138,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public string? ProjectCode { get; set; }
         public ProliferationSource Source { get; set; }
         public string SourceLabel { get; set; } = default!;
+        public string? UnitName { get; set; }
         public int Year { get; set; }
         public int? Month { get; set; }
         public DateTime? ProliferationDateUtc { get; set; }
