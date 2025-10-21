@@ -126,7 +126,7 @@ public sealed class ProliferationManageService
 
         var results = await combined
             .OrderByDescending(x => x.ProliferationDate
-                ?? (DateOnly?)NpgsqlDbFunctionsExtensions.MakeDate(EF.Functions, x.Year, 1, 1))
+                ?? new DateOnly(x.Year, 1, 1))
             .ThenByDescending(x => x.LastUpdatedOnUtc)
             .ThenBy(x => x.ProjectName)
             .Skip(skip)
