@@ -1,9 +1,10 @@
 @model ProliferationPreferenceOverridesBootVm
 @{
     var overviewUrl = Url.Page("/Proliferation/Index", new { area = "ProjectOfficeReports" }) ?? string.Empty;
+    var exportUrl = Url.Action("ExportPreferenceOverrides", "Proliferation", new { area = "ProjectOfficeReports" }) ?? string.Empty;
 }
 
-<div class="card shadow-sm" id="pf-overrides-card" data-default-year="@Model.CurrentYear" data-overview-url="@overviewUrl">
+<div class="card shadow-sm" id="pf-overrides-card" data-default-year="@Model.CurrentYear" data-overview-url="@overviewUrl" data-export-url="@exportUrl">
     <div class="card-header d-flex flex-wrap align-items-center gap-2">
         <div class="d-flex flex-wrap align-items-center gap-2 flex-grow-1">
             <label class="visually-hidden" for="pf-overrides-project">Project</label>
@@ -64,6 +65,11 @@
 
     <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
         <div id="pf-overrides-summary" class="small text-muted" aria-live="polite"></div>
-        <button class="btn btn-sm btn-outline-secondary d-none" id="pf-overrides-reset" type="button">Reset filters</button>
+        <div class="d-flex flex-wrap gap-2">
+            <button class="btn btn-sm btn-outline-primary" id="pf-overrides-export" type="button">
+                Export CSV
+            </button>
+            <button class="btn btn-sm btn-outline-secondary d-none" id="pf-overrides-reset" type="button">Reset filters</button>
+        </div>
     </div>
 </div>
