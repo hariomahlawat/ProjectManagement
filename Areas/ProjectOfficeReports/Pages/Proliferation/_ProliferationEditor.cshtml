@@ -14,7 +14,6 @@
         _ => string.Empty
     };
 
-    var overridesModel = ViewData["OverridesModel"] as ProliferationPreferenceOverridesBootVm;
 }
 
 <div class="pf-manage-stack">
@@ -92,17 +91,10 @@
                     <textarea id="pf-remarks" class="form-control" rows="3" maxlength="500"></textarea>
                 </div>
 
-                <div class="mt-4 d-flex flex-wrap gap-2">
-                    <button class="btn btn-primary" id="pf-save" type="submit">Save</button>
+                <div class="mt-4 d-flex flex-wrap justify-content-end gap-2">
                     <button class="btn btn-outline-secondary" id="pf-reset" type="button">Reset</button>
-                    <button class="btn btn-outline-danger ms-auto" id="pf-delete" type="button" disabled>Delete</button>
                 </div>
             </form>
         </div>
     </div>
-
-    @if (overridesModel is not null)
-    {
-        <partial name="_PreferenceOverrides" model="overridesModel" />
-    }
 </div>
