@@ -8,6 +8,7 @@ using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using Npgsql.EntityFrameworkCore.PostgreSQL;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
 
@@ -124,7 +125,8 @@ public sealed class ProliferationManageService
         var skip = (page - 1) * pageSize;
 
         var results = await combined
-            .OrderByDescending(x => x.ProliferationDate ?? new DateOnly(x.Year, 1, 1))
+            .OrderByDescending(x => x.ProliferationDate
+                ?? (DateOnly?)NpgsqlDbFunctionsExtensions.MakeDate(EF.Functions, x.Year, 1, 1))
             .ThenByDescending(x => x.LastUpdatedOnUtc)
             .ThenBy(x => x.ProjectName)
             .Skip(skip)
