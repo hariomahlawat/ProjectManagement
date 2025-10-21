@@ -178,8 +178,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public string SetByUserId { get; set; } = default!;
         public string SetByDisplayName { get; set; } = default!;
         public DateTime SetOnUtc { get; set; }
-        public bool HasApprovedYearly { get; set; }
-        public bool HasApprovedGranular { get; set; }
+        public bool HasYearly { get; set; }
+        public bool HasGranular { get; set; }
+        public int EffectiveTotal { get; set; }
     }
 
     public sealed class ProliferationYearlyDetailDto

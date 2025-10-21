@@ -142,8 +142,9 @@ public class ProliferationOverviewServicePreferenceTests
         var autoOverride = Assert.Single(allOverrides.Where(x => x.ProjectId == 1));
         Assert.Equal(YearPreferenceMode.Auto, autoOverride.Mode);
         Assert.Equal(YearPreferenceMode.UseGranular, autoOverride.EffectiveMode);
-        Assert.True(autoOverride.HasApprovedGranular);
-        Assert.True(autoOverride.HasApprovedYearly);
+        Assert.True(autoOverride.HasGranular);
+        Assert.True(autoOverride.HasYearly);
+        Assert.Equal(15, autoOverride.EffectiveTotal);
         Assert.Equal("Alice Example", autoOverride.SetByDisplayName);
 
         var filtered = await service.GetPreferenceOverridesAsync(
@@ -152,7 +153,7 @@ public class ProliferationOverviewServicePreferenceTests
         var filteredRow = Assert.Single(filtered);
         Assert.Equal(2, filteredRow.ProjectId);
         Assert.Equal(YearPreferenceMode.UseYearly, filteredRow.EffectiveMode);
-        Assert.False(filteredRow.HasApprovedGranular);
+        Assert.False(filteredRow.HasGranular);
 
         var none = await service.GetPreferenceOverridesAsync(
             new ProliferationPreferenceOverrideRequest(null, null, null, "gamma"),

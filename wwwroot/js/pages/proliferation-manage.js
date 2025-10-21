@@ -338,6 +338,9 @@
   function normalizeOverrideRow(row) {
     if (!row || typeof row !== 'object') return null;
     const sourceValue = Number(row.sourceValue ?? row.source);
+    const effectiveTotalRaw = Number(row.effectiveTotal ?? row.EffectiveTotal);
+    const modeRaw = row.mode ?? row.Mode;
+    const effectiveModeRaw = row.effectiveMode ?? row.EffectiveMode;
     return {
       id: String(row.id ?? ''),
       projectId: row.projectId ?? '',
@@ -347,15 +350,16 @@
       sourceValue: Number.isFinite(sourceValue) ? sourceValue : null,
       sourceLabel: row.sourceLabel ?? String(row.source ?? ''),
       year: row.year ?? '',
-      mode: row.mode ?? '',
-      modeLabel: row.modeLabel ?? String(row.mode ?? ''),
-      effectiveMode: row.effectiveMode ?? '',
-      effectiveModeLabel: row.effectiveModeLabel ?? String(row.effectiveMode ?? ''),
+      mode: typeof modeRaw === 'string' ? modeRaw : String(modeRaw ?? ''),
+      modeLabel: row.modeLabel ?? String(modeRaw ?? ''),
+      effectiveMode: typeof effectiveModeRaw === 'string' ? effectiveModeRaw : String(effectiveModeRaw ?? ''),
+      effectiveModeLabel: row.effectiveModeLabel ?? String(effectiveModeRaw ?? ''),
       setByUserId: row.setByUserId ?? '',
       setByDisplayName: row.setByDisplayName ?? row.setByUserId ?? '',
       setOnUtc: row.setOnUtc ?? '',
-      hasApprovedYearly: Boolean(row.hasApprovedYearly),
-      hasApprovedGranular: Boolean(row.hasApprovedGranular)
+      hasYearly: Boolean(row.hasYearly ?? row.hasApprovedYearly),
+      hasGranular: Boolean(row.hasGranular ?? row.hasApprovedGranular),
+      effectiveTotal: Number.isFinite(effectiveTotalRaw) ? effectiveTotalRaw : null
     };
   }
 
@@ -364,49 +368,118 @@
     overridesRows.clear();
 
     if (!rows || rows.length === 0) {
-      overridesElements.tableBody.innerHTML = '<tr><td colspan="8" class="text-muted">No overrides found.</td></tr>';
+      overridesElements.tableBody.innerHTML = '<tr><td colspan="6" class="text-muted">No overrides found.</td></tr>';
       if (overridesElements.summary) {
         overridesElements.summary.textContent = 'No overrides configured.';
       }
       return;
     }
 
-    const markup = rows.map((raw) => {
-      const row = normalizeOverrideRow(raw);
-      if (!row || !row.id) {
-        return '';
-      }
-      overridesRows.set(row.id, row);
+    const normalizedRows = rows
+      .map((raw) => {
+        const row = normalizeOverrideRow(raw);
+        if (!row || !row.id) return null;
+        overridesRows.set(row.id, row);
+        return row;
+      })
+      .filter(Boolean);
+
+    normalizedRows.sort((a, b) => {
+      const coverageScore = (value) => {
+        if (value.hasYearly && value.hasGranular) return 0;
+        if (value.hasGranular) return 1;
+        if (value.hasYearly) return 2;
+        return 3;
+      };
+      const coverageDiff = coverageScore(a) - coverageScore(b);
+      if (coverageDiff !== 0) return coverageDiff;
+      const modeDiff = String(a.modeLabel).localeCompare(String(b.modeLabel), undefined, { sensitivity: 'base' });
+      if (modeDiff !== 0) return modeDiff;
+      const dateA = a.setOnUtc ? new Date(a.setOnUtc).getTime() : 0;
+      const dateB = b.setOnUtc ? new Date(b.setOnUtc).getTime() : 0;
+      return dateB - dateA;
+    });
+
+    const stats = {
+      both: 0,
+      granularOnly: 0,
+      yearlyOnly: 0,
+      none: 0,
+      autoFallback: 0
+    };
+
+    const markup = normalizedRows.map((row) => {
       const projectCode = row.projectCode ? `<div class="small text-muted">${row.projectCode}</div>` : '';
+      const scope = `<div class="small text-muted">${row.sourceLabel} · ${row.year}</div>`;
       const updated = formatDateTime(row.setOnUtc);
+      const coverageBadges = [];
+      if (row.hasYearly && row.hasGranular) {
+        stats.both += 1;
+        coverageBadges.push('<span class="badge text-bg-success">Yearly + Granular present</span>');
+      } else if (row.hasGranular) {
+        stats.granularOnly += 1;
+        coverageBadges.push('<span class="badge text-bg-primary">Granular present</span>');
+        coverageBadges.push('<span class="badge text-bg-light text-wrap">No yearly total</span>');
+      } else if (row.hasYearly) {
+        stats.yearlyOnly += 1;
+        coverageBadges.push('<span class="badge text-bg-primary">Yearly present</span>');
+        coverageBadges.push('<span class="badge text-bg-light text-wrap">No granular data</span>');
+      } else {
+        stats.none += 1;
+        coverageBadges.push('<span class="badge text-bg-warning text-dark">No approved data</span>');
+      }
+
+      if (row.mode === 'Auto' && !row.hasGranular) {
+        stats.autoFallback += 1;
+        coverageBadges.push('<span class="badge text-bg-warning text-dark">Auto fallback</span>');
+      }
+
+      const effectiveTotal = Number.isFinite(row.effectiveTotal) ? row.effectiveTotal : null;
+      const effectiveTotalDisplay = effectiveTotal === null ? '—' : effectiveTotal.toLocaleString();
       const actions = `
         <div class="btn-group btn-group-sm" role="group">
-          <button type="button" class="btn btn-outline-secondary" data-action="view" data-id="${row.id}">View</button>
-          <button type="button" class="btn btn-outline-secondary" data-action="edit" data-id="${row.id}">Edit</button>
+          <button type="button" class="btn btn-outline-secondary" data-action="focus-list" data-id="${row.id}">List</button>
+          <button type="button" class="btn btn-outline-secondary" data-action="prefill" data-id="${row.id}">Editor</button>
+          <button type="button" class="btn btn-outline-secondary" data-action="overview" data-id="${row.id}">Overview</button>
           <button type="button" class="btn btn-outline-danger" data-action="clear" data-id="${row.id}">Clear</button>
         </div>`;
+
       return `
         <tr>
           <td>
             <div class="fw-semibold">${row.projectName}</div>
             ${projectCode}
           </td>
-          <td>${row.sourceLabel}</td>
-          <td>${row.year}</td>
-          <td>${row.modeLabel}</td>
-          <td>${row.effectiveModeLabel}</td>
-          <td>${row.setByDisplayName}</td>
-          <td>${updated}</td>
+          <td>${scope}</td>
+          <td>
+            <div class="d-flex flex-wrap gap-1">${coverageBadges.join('')}</div>
+          </td>
+          <td>
+            <div class="fw-semibold">${row.modeLabel}</div>
+            <div class="small text-muted">Effective: ${row.effectiveModeLabel}</div>
+            <div class="small">Total in play: <span class="fw-semibold">${effectiveTotalDisplay}</span></div>
+          </td>
+          <td>
+            <div class="fw-semibold">${row.setByDisplayName}</div>
+            <div class="small text-muted">${updated}</div>
+          </td>
           <td class="text-end">${actions}</td>
         </tr>`;
-    }).filter(Boolean).join('');
+    }).join('');
 
-    overridesElements.tableBody.innerHTML = markup || '<tr><td colspan="8" class="text-muted">No overrides found.</td></tr>';
+    overridesElements.tableBody.innerHTML = markup || '<tr><td colspan="6" class="text-muted">No overrides found.</td></tr>';
     if (overridesElements.summary) {
       const count = overridesRows.size;
+      const pieces = [];
+      if (stats.both) pieces.push(`${stats.both} with both data types`);
+      if (stats.granularOnly) pieces.push(`${stats.granularOnly} granular-only`);
+      if (stats.yearlyOnly) pieces.push(`${stats.yearlyOnly} yearly-only`);
+      if (stats.none) pieces.push(`${stats.none} without approved data`);
+      if (stats.autoFallback) pieces.push(`${stats.autoFallback} auto fallback`);
+      const detail = pieces.length ? ` (${pieces.join(', ')})` : '';
       overridesElements.summary.textContent = count === 1
-        ? '1 override loaded.'
-        : `${count} overrides loaded.`;
+        ? `1 override loaded${detail}.`
+        : `${count} overrides loaded${detail}.`;
     }
   }
 
@@ -418,7 +491,7 @@
     if (overridesState.filters.year) params.set('year', overridesState.filters.year);
     if (overridesState.filters.search) params.set('search', overridesState.filters.search);
 
-    overridesElements.tableBody.innerHTML = '<tr><td colspan="8" class="text-muted">Loading…</td></tr>';
+    overridesElements.tableBody.innerHTML = '<tr><td colspan="6" class="text-muted">Loading…</td></tr>';
     if (overridesElements.summary) {
       overridesElements.summary.textContent = '';
     }
@@ -433,7 +506,7 @@
       const rows = Array.isArray(data) ? data : [];
       renderOverrides(rows);
     } catch (error) {
-      overridesElements.tableBody.innerHTML = '<tr><td colspan="8" class="text-danger">Failed to load overrides.</td></tr>';
+      overridesElements.tableBody.innerHTML = '<tr><td colspan="6" class="text-danger">Failed to load overrides.</td></tr>';
       if (overridesElements.summary) {
         overridesElements.summary.textContent = '';
       }
@@ -459,6 +532,47 @@
     }
   }
 
+  function ensureFilterOption(select, value, label) {
+    if (!select || value === undefined || value === null) return;
+    const stringValue = String(value);
+    if (hasOption(select, stringValue)) return;
+    const option = document.createElement('option');
+    option.value = stringValue;
+    option.textContent = label ?? stringValue;
+    select.append(option);
+  }
+
+  function focusListFromOverride(row) {
+    if (!row) return;
+    const projectValue = row.projectId ? String(row.projectId) : '';
+    const sourceValue = row.sourceValue !== null && row.sourceValue !== undefined
+      ? String(row.sourceValue)
+      : '';
+    const yearValue = row.year ? String(row.year) : '';
+
+    if (filterInputs.project && projectValue) {
+      ensureFilterOption(filterInputs.project, projectValue, row.projectName);
+      filterInputs.project.value = projectValue;
+    }
+    if (filterInputs.source && sourceValue) {
+      filterInputs.source.value = sourceValue;
+    }
+    if (filterInputs.year) {
+      filterInputs.year.value = yearValue;
+    }
+
+    filters.projectId = projectValue;
+    filters.source = sourceValue;
+    filters.year = yearValue;
+    filters.kind = '';
+    pager.page = 1;
+    applyFiltersToInputs();
+    saveFilters();
+    fetchList();
+    listCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    toast('List filters updated for this override.', 'info');
+  }
+
   function prefillEditorFromOverride(row) {
     if (!row) return;
     resetEditor('yearly');
@@ -476,6 +590,7 @@
     }
     setTab('yearly');
     editor.project?.focus();
+    editorCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     toast('Editor prefilled from override.', 'info');
   }
 
@@ -704,10 +819,12 @@
         toast('Override details not found. Refresh and try again.', 'warning');
         return;
       }
-      if (action === 'view') {
+      if (action === 'overview') {
         openOverview(row, '#overview');
-      } else if (action === 'edit') {
+      } else if (action === 'prefill') {
         prefillEditorFromOverride(row);
+      } else if (action === 'focus-list') {
+        focusListFromOverride(row);
       } else if (action === 'clear') {
         clearOverride(row);
       }

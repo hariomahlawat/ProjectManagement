@@ -110,6 +110,7 @@
   let currentProjectLookupKey = null;
   let preferenceFetchAbort = null;
   let exportModalInstance = null;
+  const mixedCoverage = new Map();
 
   function collectFilters() {
     const byYearToggle = $("#fltByYear");
@@ -776,9 +777,61 @@
     });
   }
 
+  function buildMixedKey(projectId, sourceId, year) {
+    return `${projectId ?? ""}|${sourceId ?? ""}|${year ?? ""}`;
+  }
+
+  function updateMixedCoverage(rows) {
+    mixedCoverage.clear();
+    if (!Array.isArray(rows)) {
+      updateMixedIndicator();
+      return;
+    }
+
+    for (const row of rows) {
+      const projectId = Number(row.ProjectId ?? row.projectId);
+      const sourceId = Number(row.Source ?? row.source);
+      const year = Number(row.Year ?? row.year);
+      if (!Number.isFinite(projectId) || !Number.isFinite(sourceId) || !Number.isFinite(year)) {
+        continue;
+      }
+      const dataType = String(row.DataType ?? row.dataType ?? "").toLowerCase();
+      if (!dataType) continue;
+      const key = buildMixedKey(projectId, sourceId, year);
+      const entry = mixedCoverage.get(key) ?? { yearly: false, granular: false };
+      if (dataType.includes("year")) {
+        entry.yearly = true;
+      } else if (dataType.includes("granular")) {
+        entry.granular = true;
+      }
+      mixedCoverage.set(key, entry);
+    }
+
+    updateMixedIndicator();
+  }
+
+  function updateMixedIndicator() {
+    const indicator = $("#prefOverrideHint");
+    if (!indicator) return;
+    const projectId = Number($("#prefProjectId")?.value);
+    const sourceId = Number($("#prefSource")?.value);
+    const year = Number($("#prefYear")?.value);
+    const valid = Number.isFinite(projectId) && projectId > 0 && Number.isFinite(sourceId) && sourceId > 0 && Number.isFinite(year);
+    if (!valid) {
+      indicator.hidden = true;
+      return;
+    }
+
+    const coverage = mixedCoverage.get(buildMixedKey(projectId, sourceId, year));
+    const hasMixed = Boolean(coverage?.yearly && coverage?.granular);
+    indicator.hidden = !hasMixed;
+  }
+
   function renderTable(rows) {
     const host = $("#tableContainer");
     if (!host) return;
+
+    updateMixedCoverage(rows);
 
     if (!rows || !rows.length) {
       host.innerHTML = `<div class="alert alert-light border d-flex align-items-center" role="status">
@@ -923,6 +976,8 @@
         </div>`;
         host.setAttribute("aria-busy", "false");
       }
+      mixedCoverage.clear();
+      updateMixedIndicator();
       updateEntrySummary(0, filterState.page, filterState.pageSize);
       renderPagination(0, filterState.page, filterState.pageSize);
       toast("Unable to load proliferation overview. Please try again later.", "danger");
@@ -1126,6 +1181,7 @@
     const sourceId = Number(sourceRaw);
     const year = Number($("#prefYear")?.value);
     const current = $("#prefCurrentMode");
+    updateMixedIndicator();
     if (!projectId || !Number.isFinite(sourceId) || sourceId <= 0 || !year || !current) {
       if (current) current.hidden = true;
       return;
@@ -1183,6 +1239,7 @@
     projectInput?.addEventListener("input", () => {
       projectIdInput.value = "";
       searchProjects();
+      updateMixedIndicator();
     });
 
     projectInput?.addEventListener("change", () => {
@@ -1218,6 +1275,7 @@
       savedAt.hidden = true;
       $("#prefCurrentMode").hidden = true;
       setPreferenceMode(defaultPreferenceMode);
+      updateMixedIndicator();
     });
 
     form.addEventListener("submit", async (event) => {
