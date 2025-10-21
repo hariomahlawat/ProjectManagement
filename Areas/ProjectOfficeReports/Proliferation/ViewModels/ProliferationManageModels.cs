@@ -74,6 +74,8 @@ public sealed record ProliferationPreferenceOverrideItem(
     YearPreferenceMode EffectiveMode,
     bool HasYearly,
     bool HasGranular,
+    bool HasApprovedYearly,
+    bool HasApprovedGranular,
     int EffectiveTotal);
 
 public sealed record ProliferationYearlyDetail(

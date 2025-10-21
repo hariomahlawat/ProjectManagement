@@ -180,6 +180,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public DateTime SetOnUtc { get; set; }
         public bool HasYearly { get; set; }
         public bool HasGranular { get; set; }
+        public bool HasApprovedYearly { get; set; }
+        public bool HasApprovedGranular { get; set; }
         public int EffectiveTotal { get; set; }
     }
 
