@@ -713,14 +713,10 @@
   function renderKpis(kpis) {
     const data = kpis || {};
     const map = new Map([
-      ["#kpiTotalCompletedProjects", data.TotalCompletedProjects ?? data.totalCompletedProjects],
-      ["#kpiTotalEffectiveAll", data.TotalProliferationAllTime ?? data.totalProliferationAllTime],
-      ["#kpiTotalEffectiveSdd", data.TotalProliferationSdd ?? data.totalProliferationSdd],
-      ["#kpiTotalEffectiveAbw", data.TotalProliferationAbw515 ?? data.totalProliferationAbw515],
+      ["#kpiAllTimeCompletedProjects", data.TotalCompletedProjects ?? data.totalCompletedProjects],
+      ["#kpiAllTimeEffective", data.TotalProliferationAllTime ?? data.totalProliferationAllTime],
       ["#kpiLastYearProjects", data.LastYearProjectsProliferated ?? data.lastYearProjectsProliferated],
-      ["#kpiLastYearTotal", data.LastYearTotalProliferation ?? data.lastYearTotalProliferation],
-      ["#kpiLastYearSdd", data.LastYearSdd ?? data.lastYearSdd],
-      ["#kpiLastYearAbw", data.LastYearAbw515 ?? data.lastYearAbw515]
+      ["#kpiLastYearTotal", data.LastYearTotalProliferation ?? data.lastYearTotalProliferation]
     ]);
     map.forEach((value, selector) => {
       const el = $(selector);
