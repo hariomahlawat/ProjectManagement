@@ -787,14 +787,15 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 return string.Empty;
             }
 
-            var needsEscaping = value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r');
+            const char quote = '"';
+            var needsEscaping = value.Contains(',') || value.Contains(quote) || value.IndexOfAny(new[] { '\r', '\n' }) >= 0;
             if (!needsEscaping)
             {
                 return value;
             }
 
-            var escaped = value.Replace("\"", "\"\"");
-            return $"\"{escaped}\"";
+            var escaped = value.Replace(quote.ToString(), new string(quote, 2));
+            return $"{quote}{escaped}{quote}";
         }
 
         private static ProliferationRecordKind? ParseKind(string? value)
