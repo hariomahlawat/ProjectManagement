@@ -47,48 +47,55 @@
 
                 <div class="mb-3">
                     <label class="form-label" for="pf-project">Project name / simulator name</label>
-                    <select id="pf-project" class="form-select">
+                    <select id="pf-project" class="form-select" aria-describedby="pf-project-error" required>
                         @foreach (var project in Model.CompletedProjects)
                         {
                             <option value="@project.Id">@project.DisplayName</option>
                         }
                     </select>
+                    <div class="form-text text-danger small d-none" id="pf-project-error" data-field-error="project" aria-live="polite"></div>
                 </div>
 
                 <div class="mb-3">
                     <label class="form-label" for="pf-source">Source</label>
-                    <select id="pf-source" class="form-select">
+                    <select id="pf-source" class="form-select" aria-describedby="pf-source-error" required>
                         @foreach (var source in Model.SourceOptions)
                         {
                             <option value="@source.Value">@source.Label</option>
                         }
                     </select>
+                    <div class="form-text text-danger small d-none" id="pf-source-error" data-field-error="source" aria-live="polite"></div>
                 </div>
 
                 <div class="row g-3">
                     <div class="col-sm-6">
                         <label class="form-label" for="pf-year">Year</label>
-                        <input id="pf-year" type="number" class="form-control" min="2000" max="3000" value="@Model.CurrentYear" />
+                        <input id="pf-year" type="number" class="form-control" min="2000" max="3000" value="@Model.CurrentYear" aria-describedby="pf-year-error" required />
+                        <div class="form-text text-danger small d-none" id="pf-year-error" data-field-error="year" aria-live="polite"></div>
                     </div>
                     <div class="col-sm-6 granular-only">
                         <label class="form-label" for="pf-date">Proliferation date</label>
-                        <input id="pf-date" type="date" class="form-control" />
+                        <input id="pf-date" type="date" class="form-control" aria-describedby="pf-date-error" />
+                        <div class="form-text text-danger small d-none" id="pf-date-error" data-field-error="date" aria-live="polite"></div>
                     </div>
                 </div>
 
                 <div class="granular-only mt-3">
                     <label class="form-label" for="pf-unit">Unit name</label>
-                    <input id="pf-unit" type="text" class="form-control" maxlength="200" />
+                    <input id="pf-unit" type="text" class="form-control" maxlength="200" aria-describedby="pf-unit-error" />
+                    <div class="form-text text-danger small d-none" id="pf-unit-error" data-field-error="unit" aria-live="polite"></div>
                 </div>
 
                 <div class="mt-3">
                     <label class="form-label" for="pf-qty">Quantity</label>
-                    <input id="pf-qty" type="number" min="0" class="form-control" />
+                    <input id="pf-qty" type="number" min="0" class="form-control" aria-describedby="pf-qty-error" required />
+                    <div class="form-text text-danger small d-none" id="pf-qty-error" data-field-error="qty" aria-live="polite"></div>
                 </div>
 
                 <div class="mt-3">
                     <label class="form-label" for="pf-remarks">Remarks</label>
-                    <textarea id="pf-remarks" class="form-control" rows="3" maxlength="500"></textarea>
+                    <textarea id="pf-remarks" class="form-control" rows="3" maxlength="500" aria-describedby="pf-remarks-help"></textarea>
+                    <div class="form-text text-muted small" id="pf-remarks-help">Optional</div>
                 </div>
 
                 <div class="mt-4 d-flex flex-wrap justify-content-end gap-2">
