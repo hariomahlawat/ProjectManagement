@@ -40,7 +40,7 @@ All runtime knobs are stored in `appsettings*.json` or environment variables. Hi
 - **Todo retention** – `Todo:RetentionDays` defines how long completed items stay before purge.【F:appsettings.json†L29-L31】
 - **Notifications** – `Notifications:Retention:*` drives the retention worker sweep cadence and per-user cap.【F:appsettings.json†L32-L37】
 - **Uploads** – `ProjectPhotos:*` and `ProjectDocuments:*` control storage limits, derivative presets, and virus-scan requirements.【F:appsettings.json†L38-L65】  When the configured upload root cannot be created (for example, due to file-system permissions), the app falls back to a user-writable directory: `%LOCALAPPDATA%\ProjectManagement\uploads` on Windows or `<content-root>/uploads` on other operating systems. Set the `PM_UPLOAD_ROOT` environment variable or `ProjectPhotos:StorageRoot` configuration value to force a specific location. If the fallback cannot be created either, startup will fail with guidance to set `PM_UPLOAD_ROOT` explicitly.
-- **Security headers** – `SecurityHeaders:ContentSecurityPolicy:ConnectSources` adds additional origins for websocket/API calls when reverse proxies are involved.【F:Program.cs†L229-L310】
+- **Security headers** – `SecurityHeaders:ContentSecurityPolicy:ConnectSources` appends extra origins to the default ``'self' wss: ws:`` connect-src directive so reverse proxies and analytics endpoints can be whitelisted without breaking SignalR diagnostics.【F:Program.cs†L229-L310】
 
 A complete reference, including environment variable overrides, is available in [docs/configuration-reference.md](docs/configuration-reference.md).
 

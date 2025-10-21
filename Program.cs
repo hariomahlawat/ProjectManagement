@@ -2038,19 +2038,26 @@ static string[] ResolveDevelopmentLoopbackOrigins(IConfiguration configuration)
 
 static string BuildConnectSrcDirective(IConfiguration configuration)
 {
-    var sources = configuration
+    var additionalSources = configuration
         .GetSection("SecurityHeaders:ContentSecurityPolicy:ConnectSources")
         .Get<string[]>() ?? Array.Empty<string>();
 
-    var normalizedSources = sources
+    var normalizedSources = additionalSources
         .Select(source => source?.Trim())
         .Where(source => !string.IsNullOrWhiteSpace(source))
         .Distinct(StringComparer.Ordinal)
         .ToArray();
 
-    return normalizedSources.Length == 0
-        ? "'self'"
-        : $"'self' {string.Join(" ", normalizedSources)}";
+    var sources = new List<string>
+    {
+        "'self'",
+        "wss:",
+        "ws:"
+    };
+
+    sources.AddRange(normalizedSources);
+
+    return string.Join(" ", sources.Distinct(StringComparer.Ordinal));
 }
 
 static async Task<IResult> HandleNotificationOperationResultAsync(

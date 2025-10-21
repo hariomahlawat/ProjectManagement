@@ -79,7 +79,7 @@ This document lists every supported configuration value, its default, and how th
 
 | Key | Default | Purpose |
 | --- | --- | --- |
-| `SecurityHeaders:ContentSecurityPolicy:ConnectSources` | `[]` | Extra origins appended to the Content Security Policy `connect-src` directive, typically for reverse proxies or analytics endpoints.【F:appsettings.json†L66-L70】【F:Program.cs†L229-L310】 |
+| `SecurityHeaders:ContentSecurityPolicy:ConnectSources` | `[]` | Extra origins appended to the Content Security Policy `connect-src` directive (which already allows ``'self' wss: ws:`` for SignalR). Use this when reverse proxies or analytics endpoints need websocket/API access.【F:appsettings.json†L66-L70】【F:Program.cs†L229-L310】 |
 | `ASPNETCORE_FORWARDEDHEADERS_ENABLED` (implicit) | — | When deploying behind a proxy, ensure forwarded headers are enabled; the app clears known networks so only explicit proxy config is used.【F:Program.cs†L125-L148】 |
 
 ## Calendar
