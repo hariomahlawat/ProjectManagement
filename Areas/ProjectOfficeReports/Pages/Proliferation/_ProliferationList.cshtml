@@ -1,6 +1,6 @@
 @model ProliferationListBootVm
 
-<div class="card shadow-sm" data-default-year="@Model.CurrentYear" data-page-size="@Model.DefaultPageSize">
+<div class="card shadow-sm" id="pf-list-card" data-default-year="@Model.CurrentYear" data-page-size="@Model.DefaultPageSize">
     <div class="card-header d-flex flex-wrap align-items-center gap-2">
         <label class="visually-hidden" for="pf-project-filter">Project</label>
         <select class="form-select form-select-sm" id="pf-project-filter">

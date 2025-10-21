@@ -20,10 +20,12 @@ public sealed class ManageModel : PageModel
 
     public ProliferationListBootVm ListBoot { get; private set; } = default!;
     public ProliferationEditorBootVm EditorBoot { get; private set; } = default!;
+    public ProliferationPreferenceOverridesBootVm OverridesBoot { get; private set; } = default!;
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         ListBoot = await _manageService.GetListBootAsync(cancellationToken);
         EditorBoot = await _manageService.GetEditorBootAsync(cancellationToken);
+        OverridesBoot = await _manageService.GetPreferenceOverridesBootAsync(cancellationToken);
     }
 }

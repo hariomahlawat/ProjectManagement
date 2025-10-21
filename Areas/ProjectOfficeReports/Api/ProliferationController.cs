@@ -27,6 +27,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         private readonly ProliferationTrackerReadService _readSvc;
         private readonly ProliferationSubmissionService _submitSvc;
         private readonly ProliferationManageService _manageSvc;
+        private readonly ProliferationOverviewService _overviewSvc;
         private readonly IProliferationExportService _exportService;
         private readonly ILogger<ProliferationController> _logger;
 
@@ -35,6 +36,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             ProliferationTrackerReadService readSvc,
             ProliferationSubmissionService submitSvc,
             ProliferationManageService manageSvc,
+            ProliferationOverviewService overviewSvc,
             IProliferationExportService exportService,
             ILogger<ProliferationController> logger)
         {
@@ -42,6 +44,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             _readSvc = readSvc;
             _submitSvc = submitSvc;
             _manageSvc = manageSvc;
+            _overviewSvc = overviewSvc;
             _exportService = exportService;
             _logger = logger;
         }
@@ -79,6 +82,41 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 PageSize = result.PageSize,
                 Items = items
             };
+
+            return Ok(payload);
+        }
+
+        [HttpGet("preferences/overrides")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ManageProliferationPreferences)]
+        public async Task<ActionResult<IReadOnlyList<ProliferationPreferenceOverrideDto>>> GetPreferenceOverrides(
+            [FromQuery] ProliferationPreferenceOverrideQueryDto query,
+            CancellationToken ct)
+        {
+            var request = new ProliferationPreferenceOverrideRequest(query.ProjectId, query.Source, query.Year, query.Search);
+            var overrides = await _overviewSvc.GetPreferenceOverridesAsync(request, ct);
+
+            var payload = overrides
+                .Select(item => new ProliferationPreferenceOverrideDto
+                {
+                    Id = item.Id,
+                    ProjectId = item.ProjectId,
+                    ProjectName = item.ProjectName,
+                    ProjectCode = item.ProjectCode,
+                    Source = item.Source,
+                    SourceValue = (int)item.Source,
+                    SourceLabel = item.Source.ToDisplayName(),
+                    Year = item.Year,
+                    Mode = item.Mode,
+                    ModeLabel = item.Mode.ToString(),
+                    EffectiveMode = item.EffectiveMode,
+                    EffectiveModeLabel = item.EffectiveMode.ToString(),
+                    SetByUserId = item.SetByUserId,
+                    SetByDisplayName = item.SetByDisplayName,
+                    SetOnUtc = item.SetOnUtc,
+                    HasApprovedYearly = item.HasApprovedYearly,
+                    HasApprovedGranular = item.HasApprovedGranular
+                })
+                .ToList();
 
             return Ok(payload);
         }

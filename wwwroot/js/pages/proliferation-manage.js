@@ -1,22 +1,27 @@
 /* global bootstrap */
 (() => {
   const Modal = window.bootstrap?.Modal ?? null;
+  const Collapse = window.bootstrap?.Collapse ?? null;
 
-  const listCard = document.querySelector('[data-page-size][data-default-year]');
+  const listCard = document.querySelector('#pf-list-card');
+  const overridesCard = document.querySelector('#pf-overrides-card');
   const editorCard = document.querySelector('#pf-editor');
   if (!listCard || !editorCard) {
     return;
   }
 
   const storageKey = 'proliferation-manage-filters';
+  const overridesStorageKey = 'proliferation-manage-preference-overrides';
   const api = {
     list: '/api/proliferation/list',
+    overrides: '/api/proliferation/preferences/overrides',
     yearly: (id) => `/api/proliferation/yearly/${id}`,
     granular: (id) => `/api/proliferation/granular/${id}`,
     saveYearly: (id) => (id ? `/api/proliferation/yearly/${id}` : '/api/proliferation/yearly'),
     saveGranular: (id) => (id ? `/api/proliferation/granular/${id}` : '/api/proliferation/granular'),
     deleteYearly: (id, rowVersion) => `/api/proliferation/yearly/${id}?rowVersion=${encodeURIComponent(rowVersion)}`,
-    deleteGranular: (id, rowVersion) => `/api/proliferation/granular/${id}?rowVersion=${encodeURIComponent(rowVersion)}`
+    deleteGranular: (id, rowVersion) => `/api/proliferation/granular/${id}?rowVersion=${encodeURIComponent(rowVersion)}`,
+    setPreference: '/api/proliferation/year-preference'
   };
 
   const listEl = document.querySelector('#pf-list');
@@ -67,6 +72,32 @@
   };
 
   const toastHost = document.querySelector('#toastHost');
+
+  const overridesElements = {
+    card: overridesCard,
+    collapse: overridesCard ? overridesCard.querySelector('#pf-overrides-collapse') : null,
+    toggle: overridesCard ? overridesCard.querySelector('#pf-overrides-collapse-toggle') : null,
+    tableBody: overridesCard ? overridesCard.querySelector('#pf-overrides-body') : null,
+    summary: overridesCard ? overridesCard.querySelector('#pf-overrides-summary') : null,
+    reset: overridesCard ? overridesCard.querySelector('#pf-overrides-reset') : null,
+    project: overridesCard ? overridesCard.querySelector('#pf-overrides-project') : null,
+    source: overridesCard ? overridesCard.querySelector('#pf-overrides-source') : null,
+    year: overridesCard ? overridesCard.querySelector('#pf-overrides-year') : null,
+    search: overridesCard ? overridesCard.querySelector('#pf-overrides-search') : null,
+    refresh: overridesCard ? overridesCard.querySelector('#pf-overrides-refresh') : null
+  };
+  const overridesOverviewUrl = overridesCard?.dataset?.overviewUrl ?? '';
+  const overridesState = {
+    filters: {
+      projectId: '',
+      source: '',
+      year: '',
+      search: ''
+    },
+    collapsed: false
+  };
+  const overridesRows = new Map();
+  let overridesSearchTimer = null;
 
   const deleteModalElements = (() => {
     const element = document.querySelector('#pf-delete-modal');
@@ -133,6 +164,112 @@
     }
   }
 
+  function loadOverrideStateFromStorage() {
+    if (!overridesCard) return;
+    try {
+      const raw = sessionStorage.getItem(overridesStorageKey);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (typeof saved === 'object' && saved) {
+        overridesState.filters.projectId = saved.projectId ?? '';
+        overridesState.filters.source = saved.source ?? '';
+        overridesState.filters.year = saved.year ?? '';
+        overridesState.filters.search = saved.search ?? '';
+        overridesState.collapsed = Boolean(saved.collapsed);
+      }
+    } catch (error) {
+      console.warn('Unable to read preference override filters', error); // eslint-disable-line no-console
+    }
+  }
+
+  function saveOverrideState() {
+    if (!overridesCard) return;
+    try {
+      const payload = {
+        projectId: overridesState.filters.projectId,
+        source: overridesState.filters.source,
+        year: overridesState.filters.year,
+        search: overridesState.filters.search,
+        collapsed: overridesState.collapsed
+      };
+      sessionStorage.setItem(overridesStorageKey, JSON.stringify(payload));
+    } catch (error) {
+      console.warn('Unable to persist preference override filters', error); // eslint-disable-line no-console
+    }
+  }
+
+  function applyOverrideFiltersToInputs() {
+    if (!overridesCard) return;
+    if (overridesElements.project) {
+      overridesElements.project.value = hasOption(overridesElements.project, overridesState.filters.projectId)
+        ? overridesState.filters.projectId
+        : '';
+    }
+    if (overridesElements.source) {
+      overridesElements.source.value = hasOption(overridesElements.source, overridesState.filters.source)
+        ? overridesState.filters.source
+        : '';
+    }
+    if (overridesElements.year) {
+      overridesElements.year.value = overridesState.filters.year ?? '';
+    }
+    if (overridesElements.search) {
+      overridesElements.search.value = overridesState.filters.search ?? '';
+    }
+  }
+
+  function overridesFiltersActive() {
+    const { projectId, source, year, search } = overridesState.filters;
+    return Boolean(projectId || source || year || search);
+  }
+
+  function updateOverridesResetVisibility() {
+    if (!overridesElements.reset) return;
+    overridesElements.reset.classList.toggle('d-none', !overridesFiltersActive());
+  }
+
+  function setOverridesCollapsed(collapsed, persist = true) {
+    if (!overridesElements.collapse) return;
+    const instance = Collapse?.getOrCreateInstance(overridesElements.collapse, { toggle: false }) ?? null;
+    if (instance) {
+      if (collapsed) {
+        instance.hide();
+      } else {
+        instance.show();
+      }
+    } else {
+      overridesElements.collapse.classList.toggle('show', !collapsed);
+    }
+
+    const expandedLabel = overridesElements.toggle?.querySelector('[data-expanded-text]') ?? null;
+    const collapsedLabel = overridesElements.toggle?.querySelector('[data-collapsed-text]') ?? null;
+    if (expandedLabel && collapsedLabel) {
+      expandedLabel.classList.toggle('d-none', collapsed);
+      collapsedLabel.classList.toggle('d-none', !collapsed);
+    }
+    overridesElements.toggle?.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+
+    if (persist) {
+      overridesState.collapsed = collapsed;
+      saveOverrideState();
+    }
+  }
+
+  function formatDateTime(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return String(value);
+    }
+    return date.toLocaleString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
   function applyFiltersToInputs() {
     if (filterInputs.project) {
       filterInputs.project.value = hasOption(filterInputs.project, filters.projectId) ? filters.projectId : '';
@@ -175,6 +312,202 @@
       return text.split(' ')[0];
     }
     return text;
+  }
+
+  function updateOverridesFilter(key, rawValue) {
+    if (!overridesCard) return;
+    const value = rawValue ?? '';
+    overridesState.filters[key] = value;
+    saveOverrideState();
+    updateOverridesResetVisibility();
+    fetchOverrides();
+  }
+
+  function resetOverridesFilters() {
+    if (!overridesCard) return;
+    overridesState.filters.projectId = '';
+    overridesState.filters.source = '';
+    overridesState.filters.year = '';
+    overridesState.filters.search = '';
+    saveOverrideState();
+    applyOverrideFiltersToInputs();
+    updateOverridesResetVisibility();
+    fetchOverrides();
+  }
+
+  function normalizeOverrideRow(row) {
+    if (!row || typeof row !== 'object') return null;
+    const sourceValue = Number(row.sourceValue ?? row.source);
+    return {
+      id: String(row.id ?? ''),
+      projectId: row.projectId ?? '',
+      projectName: row.projectName ?? 'Unknown project',
+      projectCode: row.projectCode ?? '',
+      source: row.source,
+      sourceValue: Number.isFinite(sourceValue) ? sourceValue : null,
+      sourceLabel: row.sourceLabel ?? String(row.source ?? ''),
+      year: row.year ?? '',
+      mode: row.mode ?? '',
+      modeLabel: row.modeLabel ?? String(row.mode ?? ''),
+      effectiveMode: row.effectiveMode ?? '',
+      effectiveModeLabel: row.effectiveModeLabel ?? String(row.effectiveMode ?? ''),
+      setByUserId: row.setByUserId ?? '',
+      setByDisplayName: row.setByDisplayName ?? row.setByUserId ?? '',
+      setOnUtc: row.setOnUtc ?? '',
+      hasApprovedYearly: Boolean(row.hasApprovedYearly),
+      hasApprovedGranular: Boolean(row.hasApprovedGranular)
+    };
+  }
+
+  function renderOverrides(rows) {
+    if (!overridesElements.tableBody) return;
+    overridesRows.clear();
+
+    if (!rows || rows.length === 0) {
+      overridesElements.tableBody.innerHTML = '<tr><td colspan="8" class="text-muted">No overrides found.</td></tr>';
+      if (overridesElements.summary) {
+        overridesElements.summary.textContent = 'No overrides configured.';
+      }
+      return;
+    }
+
+    const markup = rows.map((raw) => {
+      const row = normalizeOverrideRow(raw);
+      if (!row || !row.id) {
+        return '';
+      }
+      overridesRows.set(row.id, row);
+      const projectCode = row.projectCode ? `<div class="small text-muted">${row.projectCode}</div>` : '';
+      const updated = formatDateTime(row.setOnUtc);
+      const actions = `
+        <div class="btn-group btn-group-sm" role="group">
+          <button type="button" class="btn btn-outline-secondary" data-action="view" data-id="${row.id}">View</button>
+          <button type="button" class="btn btn-outline-secondary" data-action="edit" data-id="${row.id}">Edit</button>
+          <button type="button" class="btn btn-outline-danger" data-action="clear" data-id="${row.id}">Clear</button>
+        </div>`;
+      return `
+        <tr>
+          <td>
+            <div class="fw-semibold">${row.projectName}</div>
+            ${projectCode}
+          </td>
+          <td>${row.sourceLabel}</td>
+          <td>${row.year}</td>
+          <td>${row.modeLabel}</td>
+          <td>${row.effectiveModeLabel}</td>
+          <td>${row.setByDisplayName}</td>
+          <td>${updated}</td>
+          <td class="text-end">${actions}</td>
+        </tr>`;
+    }).filter(Boolean).join('');
+
+    overridesElements.tableBody.innerHTML = markup || '<tr><td colspan="8" class="text-muted">No overrides found.</td></tr>';
+    if (overridesElements.summary) {
+      const count = overridesRows.size;
+      overridesElements.summary.textContent = count === 1
+        ? '1 override loaded.'
+        : `${count} overrides loaded.`;
+    }
+  }
+
+  async function fetchOverrides() {
+    if (!overridesCard || !overridesElements.tableBody) return;
+    const params = new URLSearchParams();
+    if (overridesState.filters.projectId) params.set('projectId', overridesState.filters.projectId);
+    if (overridesState.filters.source) params.set('source', overridesState.filters.source);
+    if (overridesState.filters.year) params.set('year', overridesState.filters.year);
+    if (overridesState.filters.search) params.set('search', overridesState.filters.search);
+
+    overridesElements.tableBody.innerHTML = '<tr><td colspan="8" class="text-muted">Loading…</td></tr>';
+    if (overridesElements.summary) {
+      overridesElements.summary.textContent = '';
+    }
+
+    try {
+      const response = await fetch(`${api.overrides}?${params.toString()}`, { headers: { Accept: 'application/json' } });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || 'Unable to load overrides');
+      }
+      const data = await response.json();
+      const rows = Array.isArray(data) ? data : [];
+      renderOverrides(rows);
+    } catch (error) {
+      overridesElements.tableBody.innerHTML = '<tr><td colspan="8" class="text-danger">Failed to load overrides.</td></tr>';
+      if (overridesElements.summary) {
+        overridesElements.summary.textContent = '';
+      }
+      toast(error.message || 'Unable to load overrides', 'danger');
+    }
+  }
+
+  function openOverview(row, anchor = '') {
+    if (!row || !overridesOverviewUrl) return;
+    try {
+      const url = new URL(overridesOverviewUrl, window.location.origin);
+      if (row.projectId) url.searchParams.set('projectId', row.projectId);
+      if (Number.isFinite(row.sourceValue) && row.sourceValue !== null) {
+        url.searchParams.set('source', String(row.sourceValue));
+      }
+      if (row.year) url.searchParams.set('year', row.year);
+      if (anchor) {
+        url.hash = anchor.startsWith('#') ? anchor : `#${anchor}`;
+      }
+      window.open(url.toString(), '_blank', 'noopener');
+    } catch (error) {
+      toast('Unable to open overview.', 'danger');
+    }
+  }
+
+  function prefillEditorFromOverride(row) {
+    if (!row) return;
+    resetEditor('yearly');
+    if (editor.project && hasOption(editor.project, row.projectId)) {
+      editor.project.value = String(row.projectId);
+    }
+    if (editor.source && row.sourceValue !== null && row.sourceValue !== undefined) {
+      const sourceValue = String(row.sourceValue);
+      if (hasOption(editor.source, sourceValue)) {
+        editor.source.value = sourceValue;
+      }
+    }
+    if (editor.year) {
+      editor.year.value = String(row.year ?? defaults.year);
+    }
+    setTab('yearly');
+    editor.project?.focus();
+    toast('Editor prefilled from override.', 'info');
+  }
+
+  async function clearOverride(row) {
+    if (!row) return;
+    const confirmed = window.confirm('Clear this preference override and return to defaults?');
+    if (!confirmed) return;
+    try {
+      const payload = {
+        projectId: row.projectId,
+        source: row.sourceValue ?? row.source,
+        year: row.year,
+        mode: 'UseYearlyAndGranular'
+      };
+      const response = await fetch(api.setPreference, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        if (response.status === 403) {
+          openOverview(row, '#preferences');
+          throw new Error(text || 'You do not have permission to change preferences. Try updating them from the overview.');
+        }
+        throw new Error(text || 'Unable to clear override');
+      }
+      toast('Preference override cleared.', 'success');
+      fetchOverrides();
+    } catch (error) {
+      toast(error.message || 'Unable to clear override', 'danger');
+    }
   }
 
   function confirmDeletion(details = {}) {
@@ -301,6 +634,86 @@
       renderCount();
       toast(error.message || 'Unable to load list', 'danger');
     }
+  }
+
+  function initOverrides() {
+    if (!overridesCard) return;
+    loadOverrideStateFromStorage();
+    applyOverrideFiltersToInputs();
+    updateOverridesResetVisibility();
+    setOverridesCollapsed(overridesState.collapsed, false);
+
+    if (overridesElements.collapse && Collapse) {
+      overridesElements.collapse.addEventListener('shown.bs.collapse', () => {
+        overridesState.collapsed = false;
+        saveOverrideState();
+      });
+      overridesElements.collapse.addEventListener('hidden.bs.collapse', () => {
+        overridesState.collapsed = true;
+        saveOverrideState();
+      });
+    }
+
+    overridesElements.toggle?.addEventListener('click', () => {
+      setOverridesCollapsed(!overridesState.collapsed);
+    });
+
+    overridesElements.project?.addEventListener('change', (event) => {
+      updateOverridesFilter('projectId', event.target.value);
+    });
+    overridesElements.source?.addEventListener('change', (event) => {
+      updateOverridesFilter('source', event.target.value);
+    });
+    overridesElements.year?.addEventListener('change', (event) => {
+      const raw = (event.target.value || '').trim();
+      if (raw && !/^[0-9]{4}$/.test(raw)) {
+        toast('Year must be a four digit number.', 'warning');
+        event.target.value = '';
+        updateOverridesFilter('year', '');
+        return;
+      }
+      updateOverridesFilter('year', raw);
+    });
+
+    overridesElements.search?.addEventListener('input', (event) => {
+      const raw = (event.target.value || '').trim();
+      if (overridesSearchTimer) {
+        clearTimeout(overridesSearchTimer);
+      }
+      overridesSearchTimer = setTimeout(() => {
+        updateOverridesFilter('search', raw);
+      }, 250);
+    });
+
+    overridesElements.refresh?.addEventListener('click', () => {
+      fetchOverrides();
+    });
+
+    overridesElements.reset?.addEventListener('click', () => {
+      resetOverridesFilters();
+    });
+
+    overridesElements.tableBody?.addEventListener('click', (event) => {
+      const button = event.target.closest('button[data-action][data-id]');
+      if (!button) return;
+      const id = button.getAttribute('data-id');
+      const action = button.getAttribute('data-action');
+      if (!id || !action) return;
+      const row = overridesRows.get(id);
+      if (!row) {
+        toast('Override details not found. Refresh and try again.', 'warning');
+        return;
+      }
+      if (action === 'view') {
+        openOverview(row, '#overview');
+      } else if (action === 'edit') {
+        prefillEditorFromOverride(row);
+      } else if (action === 'clear') {
+        clearOverride(row);
+      }
+    });
+
+    fetchOverrides();
   }
 
   function renderList(items) {
@@ -679,6 +1092,7 @@
 
   function init() {
     initFilters();
+    initOverrides();
     handleHashChange();
     fetchList();
   }

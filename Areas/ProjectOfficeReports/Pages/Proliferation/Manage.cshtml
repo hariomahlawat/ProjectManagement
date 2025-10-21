@@ -23,6 +23,9 @@
     <div class="row g-4 align-items-start">
         <div class="col-lg-7" id="pf-list-col">
             <partial name="_ProliferationList" model="Model.ListBoot" />
+            <div class="mt-4">
+                <partial name="_PreferenceOverrides" model="Model.OverridesBoot" />
+            </div>
         </div>
         <div class="col-lg-5" id="pf-editor-col">
             <partial name="_ProliferationEditor" model="Model.EditorBoot" />

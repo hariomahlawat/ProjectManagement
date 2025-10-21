@@ -1,0 +1,69 @@
+@model ProliferationPreferenceOverridesBootVm
+@{
+    var overviewUrl = Url.Page("/Proliferation/Index", new { area = "ProjectOfficeReports" }) ?? string.Empty;
+}
+
+<div class="card shadow-sm" id="pf-overrides-card" data-default-year="@Model.CurrentYear" data-overview-url="@overviewUrl">
+    <div class="card-header d-flex flex-wrap align-items-center gap-2">
+        <div class="d-flex flex-wrap align-items-center gap-2 flex-grow-1">
+            <label class="visually-hidden" for="pf-overrides-project">Project</label>
+            <select class="form-select form-select-sm" id="pf-overrides-project">
+                <option value="">All projects</option>
+                @foreach (var project in Model.CompletedProjects)
+                {
+                    <option value="@project.Id">@project.DisplayName</option>
+                }
+            </select>
+
+            <label class="visually-hidden" for="pf-overrides-source">Source</label>
+            <select class="form-select form-select-sm" id="pf-overrides-source">
+                <option value="">All sources</option>
+                @foreach (var source in Model.SourceOptions)
+                {
+                    <option value="@source.Value">@source.Label</option>
+                }
+            </select>
+
+            <label class="visually-hidden" for="pf-overrides-year">Year</label>
+            <input class="form-control form-control-sm" id="pf-overrides-year" type="number" placeholder="Year" min="2000" max="3000" />
+
+            <label class="visually-hidden" for="pf-overrides-search">Search overrides</label>
+            <input class="form-control form-control-sm" id="pf-overrides-search" type="search" placeholder="Search…" />
+
+            <button class="btn btn-sm btn-outline-secondary" id="pf-overrides-refresh" type="button">Refresh</button>
+        </div>
+        <button class="btn btn-sm btn-link text-decoration-none" id="pf-overrides-collapse-toggle" type="button" aria-expanded="true">
+            <span data-expanded-text>Hide</span>
+            <span data-collapsed-text class="d-none">Show</span>
+        </button>
+    </div>
+
+    <div class="collapse show" id="pf-overrides-collapse">
+        <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0" aria-live="polite">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">Project</th>
+                        <th scope="col">Source</th>
+                        <th scope="col">Year</th>
+                        <th scope="col">Mode</th>
+                        <th scope="col">Effective</th>
+                        <th scope="col">Set by</th>
+                        <th scope="col">Updated</th>
+                        <th scope="col" class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="pf-overrides-body">
+                    <tr data-placeholder>
+                        <td colspan="8" class="text-muted">Use the filters to load overrides.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <div id="pf-overrides-summary" class="small text-muted" aria-live="polite"></div>
+        <button class="btn btn-sm btn-outline-secondary d-none" id="pf-overrides-reset" type="button">Reset filters</button>
+    </div>
+</div>

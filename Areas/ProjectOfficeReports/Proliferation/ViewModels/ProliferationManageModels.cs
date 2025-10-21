@@ -26,6 +26,11 @@ public sealed record ProliferationEditorBootVm(
     IReadOnlyList<ProliferationSourceOptionVm> SourceOptions,
     int CurrentYear);
 
+public sealed record ProliferationPreferenceOverridesBootVm(
+    IReadOnlyList<ProliferationCompletedProjectOption> CompletedProjects,
+    IReadOnlyList<ProliferationSourceOptionVm> SourceOptions,
+    int CurrentYear);
+
 public sealed record ProliferationManageListRequest(
     int? ProjectId,
     ProliferationSource? Source,
@@ -33,6 +38,12 @@ public sealed record ProliferationManageListRequest(
     ProliferationRecordKind? Kind,
     int Page,
     int PageSize);
+
+public sealed record ProliferationPreferenceOverrideRequest(
+    int? ProjectId,
+    ProliferationSource? Source,
+    int? Year,
+    string? Search);
 
 public sealed record ProliferationManageListItem(
     Guid Id,
@@ -48,6 +59,21 @@ public sealed record ProliferationManageListItem(
     ApprovalStatus ApprovalStatus,
     DateTime CreatedOnUtc,
     DateTime LastUpdatedOnUtc);
+
+public sealed record ProliferationPreferenceOverrideItem(
+    Guid Id,
+    int ProjectId,
+    string ProjectName,
+    string? ProjectCode,
+    ProliferationSource Source,
+    int Year,
+    YearPreferenceMode Mode,
+    string SetByUserId,
+    string SetByDisplayName,
+    DateTime SetOnUtc,
+    YearPreferenceMode EffectiveMode,
+    bool HasApprovedYearly,
+    bool HasApprovedGranular);
 
 public sealed record ProliferationYearlyDetail(
     Guid Id,
