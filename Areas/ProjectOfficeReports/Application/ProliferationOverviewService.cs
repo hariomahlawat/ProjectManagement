@@ -288,22 +288,24 @@ public sealed class ProliferationOverviewService
             x => new PreferenceKey(x.ProjectId, x.Source, x.Year),
             x => new AggregateTotals(x.Total, x.Count > 0));
 
+        var preferenceLookup = new Dictionary<PreferenceKey, YearPreferenceMode>(combos.Count);
+        foreach (var projection in projections)
+        {
+            var key = new PreferenceKey(projection.Preference.ProjectId, projection.Preference.Source, projection.Preference.Year);
+            preferenceLookup[key] = projection.Preference.Mode;
+        }
+
         var effectiveTotals = new Dictionary<PreferenceKey, int>(combos.Count);
         foreach (var combo in combos)
         {
-            try
-            {
-                var total = await _trackerReadService.GetEffectiveTotalAsync(
-                    combo.ProjectId,
-                    combo.Source,
-                    combo.Year,
-                    cancellationToken);
-                effectiveTotals[combo] = total;
-            }
-            catch
-            {
-                // ignore failures and fall back to zero
-            }
+            var key = new PreferenceKey(combo.ProjectId, combo.Source, combo.Year);
+            var yearlyInfo = yearlyLookup.TryGetValue(key, out var yearly) ? yearly : default;
+            var granularInfo = granularLookup.TryGetValue(key, out var granular) ? granular : default;
+            var preference = preferenceLookup.TryGetValue(key, out var mode)
+                ? mode
+                : YearPreferenceMode.UseYearlyAndGranular;
+
+            effectiveTotals[key] = ResolveEffectiveTotal(combo.Source, preference, yearlyInfo, granularInfo);
         }
 
         var results = projections
@@ -459,6 +461,29 @@ public sealed class ProliferationOverviewService
                     ? YearPreferenceMode.UseGranular
                     : YearPreferenceMode.UseYearly,
             _ => configured
+        };
+    }
+
+    private static int ResolveEffectiveTotal(
+        ProliferationSource source,
+        YearPreferenceMode preference,
+        AggregateTotals yearly,
+        AggregateTotals granular)
+    {
+        if (source == ProliferationSource.Abw515)
+        {
+            return yearly.Total;
+        }
+
+        var effectiveMode = ResolveEffectiveMode(preference, yearly, granular);
+
+        return effectiveMode switch
+        {
+            YearPreferenceMode.UseYearly => yearly.Total,
+            YearPreferenceMode.UseGranular => granular.Total,
+            YearPreferenceMode.UseYearlyAndGranular => yearly.Total + granular.Total,
+            YearPreferenceMode.Auto => granular.Total > 0 ? granular.Total : yearly.Total,
+            _ => yearly.Total + granular.Total
         };
     }
 
