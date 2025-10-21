@@ -116,11 +116,21 @@ public sealed class ProliferationExcelWorkbookBuilder : IProliferationExcelWorkb
             worksheet.Cell(rowNumber, 7).Value = row.Quantity;
             worksheet.Cell(rowNumber, 8).Value = row.EffectiveTotal;
             worksheet.Cell(rowNumber, 9).Value = row.ApprovalStatus;
-            worksheet.Cell(rowNumber, 10).Value = row.PreferenceMode?.ToString() ?? YearPreferenceMode.UseYearlyAndGranular.ToString();
+            var preferenceMode = row.PreferenceMode ?? GetDefaultPreferenceMode(row.Source);
+            worksheet.Cell(rowNumber, 10).Value = preferenceMode.ToString();
         }
 
         worksheet.Columns(2, 5).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
         worksheet.Column(2).Style.Alignment.WrapText = true;
+    }
+
+    private static YearPreferenceMode GetDefaultPreferenceMode(ProliferationSource source)
+    {
+        return source switch
+        {
+            ProliferationSource.Abw515 => YearPreferenceMode.UseYearly,
+            _ => YearPreferenceMode.UseYearlyAndGranular
+        };
     }
 
     private static void ApplyMetadata(IXLWorksheet worksheet, ProliferationExcelWorkbookContext context)
