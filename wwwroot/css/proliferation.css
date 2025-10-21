@@ -127,3 +127,40 @@
 .year-preferences .list-group-item:focus-within {
     background-color: rgba(13, 110, 253, 0.05);
 }
+
+.pf-manage-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.pf-manage-column,
+.pf-manage-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    min-width: 0;
+}
+
+.pf-manage-results .list-group-item {
+    transition: background-color 0.15s ease;
+}
+
+.pf-manage-results .list-group-item:hover,
+.pf-manage-results .list-group-item:focus-visible {
+    background-color: rgba(var(--bs-primary-rgb), 0.05);
+}
+
+@media (min-width: 992px) {
+    .pf-manage-layout {
+        display: grid;
+        grid-template-columns: minmax(22rem, 32%) minmax(0, 1fr);
+        align-items: start;
+    }
+}
+
+@media (min-width: 1400px) {
+    .pf-manage-layout {
+        grid-template-columns: minmax(26rem, 30%) minmax(0, 1fr);
+    }
+}

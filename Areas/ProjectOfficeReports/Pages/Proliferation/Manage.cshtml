@@ -1,7 +1,12 @@
+@using Microsoft.AspNetCore.Mvc.ViewFeatures
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.ManageModel
 @{
     ViewData["Title"] = "Proliferation Manager";
+    var overridesViewData = new ViewDataDictionary(ViewData)
+    {
+        ["OverridesModel"] = Model.OverridesBoot
+    };
 }
 
 <div class="container-xxl my-4" data-page="proliferation-manage">
@@ -20,16 +25,13 @@
         </div>
     </div>
 
-    <div class="row g-4 align-items-start">
-        <div class="col-lg-7" id="pf-list-col">
+    <div class="pf-manage-layout" id="pf-manage-layout">
+        <section class="pf-manage-column pf-manage-column--list" id="pf-list-panel">
             <partial name="_ProliferationList" model="Model.ListBoot" />
-            <div class="mt-4">
-                <partial name="_PreferenceOverrides" model="Model.OverridesBoot" />
-            </div>
-        </div>
-        <div class="col-lg-5" id="pf-editor-col">
-            <partial name="_ProliferationEditor" model="Model.EditorBoot" />
-        </div>
+        </section>
+        <section class="pf-manage-column pf-manage-column--detail" id="pf-detail-panel">
+            <partial name="_ProliferationEditor" model="Model.EditorBoot" view-data="overridesViewData" />
+        </section>
     </div>
 </div>
 

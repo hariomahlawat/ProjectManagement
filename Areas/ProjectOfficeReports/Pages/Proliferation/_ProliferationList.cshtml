@@ -30,18 +30,29 @@
     );
 }
 
-<div class="card shadow-sm" id="pf-list-card"
+<div class="card shadow-sm pf-manage-card pf-manage-card--list" id="pf-list-card"
      data-default-year="@Model.CurrentYear"
      data-page-size="@Model.DefaultPageSize"
      data-boot-project-id="@defaultProjectId"
      data-boot-source="@defaultSource"
      data-boot-year="@defaultYear"
      data-boot-kind="@defaultKind">
-    <div class="card-header">
+    <div class="card-header border-0 pb-0">
+        <div class="d-flex flex-column gap-1">
+            <h3 class="card-title h5 mb-0">Find proliferation records</h3>
+            <p class="card-subtitle text-muted small mb-0">Use the filters below to browse existing entries.</p>
+        </div>
+    </div>
+    <div class="card-body pt-3">
         <partial name="Partials/_FilterToolbar" model="toolbarModel" />
     </div>
-
-    <div class="list-group list-group-flush" id="pf-list" role="listbox" aria-live="polite">
+    <div class="card-body border-top">
+        <div class="d-flex flex-column gap-1">
+            <h4 class="h6 mb-0">Results</h4>
+            <p class="text-muted small mb-0">Select a record to load it in the editor.</p>
+        </div>
+    </div>
+    <div class="list-group list-group-flush pf-manage-results" id="pf-list" role="listbox" aria-live="polite">
         <div class="list-group-item text-muted" data-placeholder>Use the filters to load entries.</div>
     </div>
 

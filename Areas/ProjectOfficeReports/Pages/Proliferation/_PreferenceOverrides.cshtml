@@ -17,12 +17,25 @@
     var exportUrl = Url.Action("ExportPreferenceOverrides", "Proliferation", new { area = "ProjectOfficeReports" }) ?? string.Empty;
 }
 
-<div class="card shadow-sm" id="pf-overrides-card" data-default-year="@Model.CurrentYear" data-overview-url="@overviewUrl" data-export-url="@exportUrl"
+<div class="card shadow-sm pf-manage-card pf-manage-card--overrides" id="pf-overrides-card" data-default-year="@Model.CurrentYear" data-overview-url="@overviewUrl" data-export-url="@exportUrl"
      data-boot-project-id="@defaultProjectId" data-boot-source="@defaultSource" data-boot-year="@defaultYear" data-boot-kind="@defaultKind">
-    <div class="card-header d-flex flex-wrap align-items-center gap-2">
-        <div class="d-flex flex-wrap align-items-center gap-2 flex-grow-1">
+    <div class="card-header border-0 pb-0">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3">
+            <div>
+                <h3 class="card-title h5 mb-0">Preference overrides</h3>
+                <p class="card-subtitle text-muted small mb-0">Review override coverage and jump to projects that need attention.</p>
+            </div>
+            <button class="btn btn-sm btn-link text-decoration-none" id="pf-overrides-collapse-toggle" type="button" aria-expanded="true">
+                <span data-expanded-text>Hide table</span>
+                <span data-collapsed-text class="d-none">Show table</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="card-body pt-3">
+        <div class="d-flex flex-wrap align-items-center gap-2 w-100">
             <label class="visually-hidden" for="pf-overrides-project">Project</label>
-            <select class="form-select form-select-sm" id="pf-overrides-project">
+            <select class="form-select form-select-sm flex-fill" id="pf-overrides-project">
                 <option value="">All projects</option>
                 @foreach (var project in Model.CompletedProjects)
                 {
@@ -31,7 +44,7 @@
             </select>
 
             <label class="visually-hidden" for="pf-overrides-source">Source</label>
-            <select class="form-select form-select-sm" id="pf-overrides-source">
+            <select class="form-select form-select-sm flex-fill" id="pf-overrides-source">
                 <option value="">All sources</option>
                 @foreach (var source in Model.SourceOptions)
                 {
@@ -40,38 +53,36 @@
             </select>
 
             <label class="visually-hidden" for="pf-overrides-year">Year</label>
-            <input class="form-control form-control-sm" id="pf-overrides-year" type="number" placeholder="Year" min="2000" max="3000" />
+            <input class="form-control form-control-sm flex-fill" id="pf-overrides-year" type="number" placeholder="Year" min="2000" max="3000" />
 
             <label class="visually-hidden" for="pf-overrides-search">Search overrides</label>
-            <input class="form-control form-control-sm" id="pf-overrides-search" type="search" placeholder="Search…" />
+            <input class="form-control form-control-sm flex-grow-1" id="pf-overrides-search" type="search" placeholder="Search…" />
 
             <button class="btn btn-sm btn-outline-secondary" id="pf-overrides-refresh" type="button">Refresh</button>
         </div>
-        <button class="btn btn-sm btn-link text-decoration-none" id="pf-overrides-collapse-toggle" type="button" aria-expanded="true">
-            <span data-expanded-text>Hide</span>
-            <span data-collapsed-text class="d-none">Show</span>
-        </button>
     </div>
 
     <div class="collapse show" id="pf-overrides-collapse">
-        <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0" aria-live="polite">
-                <thead class="table-light">
-                    <tr>
-                        <th scope="col">Project</th>
-                        <th scope="col">Scope</th>
-                        <th scope="col">Data coverage</th>
-                        <th scope="col">Preference</th>
-                        <th scope="col">Updated</th>
-                        <th scope="col" class="text-end">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="pf-overrides-body">
-                    <tr data-placeholder>
-                        <td colspan="6" class="text-muted">Use the filters to load overrides.</td>
-                    </tr>
-                </tbody>
-            </table>
+        <div class="card-body border-top p-0">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0" aria-live="polite">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">Project</th>
+                            <th scope="col">Scope</th>
+                            <th scope="col">Data coverage</th>
+                            <th scope="col">Preference</th>
+                            <th scope="col">Updated</th>
+                            <th scope="col" class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pf-overrides-body">
+                        <tr data-placeholder>
+                            <td colspan="6" class="text-muted">Use the filters to load overrides.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
