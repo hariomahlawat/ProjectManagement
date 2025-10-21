@@ -124,9 +124,9 @@ public sealed class ProliferationManageService
         var skip = (page - 1) * pageSize;
 
         var results = await combined
-            .OrderByDescending(x => x.ProliferationDate != null)
+            .OrderByDescending(x => x.Year)
+            .ThenByDescending(x => x.ProliferationDate != null)
             .ThenByDescending(x => x.ProliferationDate)
-            .ThenByDescending(x => x.Year)
             .ThenByDescending(x => x.LastUpdatedOnUtc)
             .ThenBy(x => x.ProjectName)
             .Skip(skip)
