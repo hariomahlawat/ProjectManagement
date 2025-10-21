@@ -2,7 +2,7 @@
 
 <div class="pf-filter-toolbar" id="pf-filter-toolbar" data-filter-context="@Model.Context">
     <div class="d-flex flex-wrap align-items-center gap-2 w-100">
-        <div class="flex-grow-1 flex-md-grow-0" style="min-width: 160px;">
+        <div class="flex-grow-1 flex-md-grow-0 pf-min-w-160">
             <label class="visually-hidden" for="pf-filter-project">Project</label>
             <select class="form-select form-select-sm" id="pf-filter-project" aria-label="Filter by project">
                 <option value="">All projects</option>
@@ -12,7 +12,7 @@
                 }
             </select>
         </div>
-        <div class="flex-grow-1 flex-md-grow-0" style="min-width: 140px;">
+        <div class="flex-grow-1 flex-md-grow-0 pf-min-w-140">
             <label class="visually-hidden" for="pf-filter-source">Source</label>
             <select class="form-select form-select-sm" id="pf-filter-source" aria-label="Filter by source">
                 <option value="">All sources</option>
@@ -22,7 +22,7 @@
                 }
             </select>
         </div>
-        <div class="flex-grow-1 flex-md-grow-0" style="min-width: 140px;">
+        <div class="flex-grow-1 flex-md-grow-0 pf-min-w-140">
             <label class="visually-hidden" for="pf-filter-type">Type</label>
             <select class="form-select form-select-sm" id="pf-filter-type" aria-label="Filter by type">
                 @foreach (var type in Model.Types)
@@ -31,11 +31,11 @@
                 }
             </select>
         </div>
-        <div class="flex-grow-1 flex-md-grow-0" style="min-width: 120px;">
+        <div class="flex-grow-1 flex-md-grow-0 pf-min-w-120">
             <label class="visually-hidden" for="pf-filter-year">Year</label>
             <input class="form-control form-control-sm" id="pf-filter-year" type="number" inputmode="numeric" min="2000" max="3000" placeholder="Year" aria-label="Filter by year" />
         </div>
-        <div class="flex-grow-1" style="min-width: 200px;">
+        <div class="flex-grow-1 pf-min-w-200">
             <label class="visually-hidden" for="pf-filter-search">Search</label>
             <input class="form-control form-control-sm" id="pf-filter-search" type="search" placeholder="@Model.SearchPlaceholder" aria-label="Search proliferation records" />
         </div>

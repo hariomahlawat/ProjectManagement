@@ -1309,7 +1309,7 @@
     const host = $("#tableContainer");
     if (host) {
       host.innerHTML = `<div class="placeholder-glow">
-        <div class="placeholder col-12" style="height: 140px;"></div>
+        <div class="placeholder col-12 pf-table-skeleton"></div>
       </div>`;
       host.setAttribute("aria-busy", "true");
     }
