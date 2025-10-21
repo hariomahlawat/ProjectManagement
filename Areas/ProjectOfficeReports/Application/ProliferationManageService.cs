@@ -66,6 +66,7 @@ public sealed class ProliferationManageService
                               ProjectName = p.Name,
                               ProjectCode = p.CaseFileNumber,
                               Source = y.Source,
+                              UnitName = null,
                               Year = y.Year,
                               ProliferationDate = null,
                               Quantity = y.TotalQuantity,
@@ -84,6 +85,7 @@ public sealed class ProliferationManageService
                                 ProjectName = p.Name,
                                 ProjectCode = p.CaseFileNumber,
                                 Source = g.Source,
+                                UnitName = g.UnitName,
                                 Year = g.ProliferationDate.Year,
                                 ProliferationDate = g.ProliferationDate,
                                 Quantity = g.Quantity,
@@ -142,6 +144,7 @@ public sealed class ProliferationManageService
                 x.ProjectCode,
                 x.Source,
                 x.Source.ToDisplayName(),
+                x.UnitName,
                 x.Year,
                 x.ProliferationDate,
                 x.Quantity,
@@ -241,6 +244,7 @@ public sealed class ProliferationManageService
         public string ProjectName { get; init; } = default!;
         public string? ProjectCode { get; init; }
         public ProliferationSource Source { get; init; }
+        public string? UnitName { get; init; }
         public int Year { get; init; }
         public DateOnly? ProliferationDate { get; init; }
         public int Quantity { get; init; }

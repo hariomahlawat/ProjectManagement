@@ -53,6 +53,7 @@ public sealed record ProliferationManageListItem(
     string? ProjectCode,
     ProliferationSource Source,
     string SourceLabel,
+    string? UnitName,
     int Year,
     DateOnly? ProliferationDate,
     int Quantity,
