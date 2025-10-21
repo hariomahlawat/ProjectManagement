@@ -145,6 +145,255 @@
     btnDelete: document.querySelector('#pf-delete')
   };
 
+  const fieldErrors = {
+    project: document.querySelector('[data-field-error="project"]'),
+    source: document.querySelector('[data-field-error="source"]'),
+    year: document.querySelector('[data-field-error="year"]'),
+    date: document.querySelector('[data-field-error="date"]'),
+    unit: document.querySelector('[data-field-error="unit"]'),
+    qty: document.querySelector('[data-field-error="qty"]')
+  };
+
+  const fieldStates = {
+    project: { input: editor.project, error: fieldErrors.project, touched: false },
+    source: { input: editor.source, error: fieldErrors.source, touched: false },
+    year: { input: editor.year, error: fieldErrors.year, touched: false },
+    date: { input: editor.date, error: fieldErrors.date, touched: false },
+    unit: { input: editor.unit, error: fieldErrors.unit, touched: false },
+    qty: { input: editor.qty, error: fieldErrors.qty, touched: false }
+  };
+
+  const saveButtonState = {
+    defaultContent: editor.btnSave ? editor.btnSave.innerHTML : 'Save',
+    busy: false,
+    successTimer: null
+  };
+
+  function getFieldState(name) {
+    return fieldStates[name] ?? null;
+  }
+
+  function getActiveFieldNames() {
+    const base = ['project', 'source', 'year', 'qty'];
+    if (editor.kind?.value === 'yearly') {
+      return base;
+    }
+    return [...base, 'date', 'unit'];
+  }
+
+  function getFieldError(name) {
+    const isYearly = editor.kind?.value === 'yearly';
+    const isGranular = !isYearly;
+    switch (name) {
+      case 'project': {
+        const value = Number(editor.project?.value ?? '');
+        if (!Number.isFinite(value) || value <= 0) {
+          return 'Select a project.';
+        }
+        return '';
+      }
+      case 'source': {
+        const value = Number(editor.source?.value ?? '');
+        if (!Number.isFinite(value) || value <= 0) {
+          return 'Select a source.';
+        }
+        return '';
+      }
+      case 'year': {
+        const raw = (editor.year?.value ?? '').toString().trim();
+        if (!raw) {
+          return 'Enter a year.';
+        }
+        if (!/^[0-9]{4}$/.test(raw)) {
+          return 'Enter a four-digit year.';
+        }
+        const value = Number(raw);
+        if (value < 2000 || value > 3000) {
+          return 'Year must be between 2000 and 3000.';
+        }
+        return '';
+      }
+      case 'date': {
+        if (!isGranular) {
+          return '';
+        }
+        const value = (editor.date?.value ?? '').toString().trim();
+        if (!value) {
+          return 'Select a proliferation date.';
+        }
+        return '';
+      }
+      case 'unit': {
+        if (!isGranular) {
+          return '';
+        }
+        const value = editor.unit?.value?.trim() ?? '';
+        if (!value) {
+          return 'Enter a unit name.';
+        }
+        return '';
+      }
+      case 'qty': {
+        const raw = (editor.qty?.value ?? '').toString().trim();
+        if (!raw) {
+          return 'Enter a quantity.';
+        }
+        const value = Number(raw);
+        if (!Number.isFinite(value)) {
+          return 'Enter a valid quantity.';
+        }
+        if (isGranular && value <= 0) {
+          return 'Quantity must be greater than zero.';
+        }
+        if (isYearly && value < 0) {
+          return 'Quantity cannot be negative.';
+        }
+        return '';
+      }
+      default:
+        return '';
+    }
+  }
+
+  function applyFieldError(name, error, display = false) {
+    const state = getFieldState(name);
+    if (!state) return;
+    const shouldShow = Boolean(error) && display;
+    const { error: errorEl, input } = state;
+    if (errorEl) {
+      if (shouldShow) {
+        errorEl.textContent = error;
+        errorEl.classList.remove('d-none');
+      } else {
+        errorEl.textContent = '';
+        errorEl.classList.add('d-none');
+      }
+    }
+    if (input) {
+      if (shouldShow) {
+        input.setAttribute('aria-invalid', 'true');
+      } else {
+        input.removeAttribute('aria-invalid');
+      }
+    }
+  }
+
+  function validateField(name, options = {}) {
+    const display = options.display === true;
+    const error = getFieldError(name);
+    applyFieldError(name, error, display);
+    return !error;
+  }
+
+  function clearValidationState() {
+    Object.keys(fieldStates).forEach((name) => {
+      const state = getFieldState(name);
+      if (!state) return;
+      state.touched = false;
+      applyFieldError(name, '', false);
+    });
+  }
+
+  function updateSaveButtonState() {
+    if (!editor.btnSave) return;
+    if (saveButtonState.busy) {
+      editor.btnSave.disabled = true;
+      return;
+    }
+    const activeNames = getActiveFieldNames();
+    const activeSet = new Set(activeNames);
+    Object.keys(fieldStates).forEach((name) => {
+      if (!activeSet.has(name)) {
+        const state = getFieldState(name);
+        if (!state) return;
+        state.touched = false;
+        applyFieldError(name, '', false);
+      }
+    });
+    let formValid = true;
+    activeNames.forEach((name) => {
+      const state = getFieldState(name);
+      if (!state) return;
+      const display = Boolean(state.touched);
+      const valid = validateField(name, { display });
+      if (!valid) {
+        formValid = false;
+      }
+    });
+    editor.btnSave.disabled = !formValid;
+  }
+
+  function validateForm(options = {}) {
+    const { focus = false } = options;
+    const fields = getActiveFieldNames();
+    let firstInvalid = null;
+    fields.forEach((name) => {
+      const state = getFieldState(name);
+      if (!state) return;
+      state.touched = true;
+      const valid = validateField(name, { display: true });
+      if (!valid && !firstInvalid) {
+        firstInvalid = state.input;
+      }
+    });
+    updateSaveButtonState();
+    if (focus && firstInvalid && typeof firstInvalid.focus === 'function') {
+      try {
+        firstInvalid.focus({ preventScroll: true });
+      } catch (err) {
+        firstInvalid.focus();
+      }
+    }
+    return !firstInvalid;
+  }
+
+  function attachValidationHandlers(name) {
+    const state = getFieldState(name);
+    if (!state?.input) return;
+    const events = state.input.tagName === 'SELECT' ? ['change', 'blur'] : ['input', 'change', 'blur'];
+    events.forEach((eventName) => {
+      state.input.addEventListener(eventName, () => {
+        state.touched = true;
+        validateField(name, { display: true });
+        updateSaveButtonState();
+      });
+    });
+  }
+
+  function setSaveButtonState(state) {
+    if (!editor.btnSave) return;
+    window.clearTimeout(saveButtonState.successTimer);
+    if (state === 'loading') {
+      saveButtonState.busy = true;
+      editor.btnSave.disabled = true;
+      editor.btnSave.setAttribute('aria-busy', 'true');
+      editor.btnSave.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span><span>Saving…</span>';
+      return;
+    }
+    if (state === 'success') {
+      saveButtonState.busy = false;
+      editor.btnSave.disabled = true;
+      editor.btnSave.setAttribute('aria-busy', 'false');
+      editor.btnSave.innerHTML = '<span class="me-1" aria-hidden="true">✓</span><span>Saved</span>';
+      saveButtonState.successTimer = window.setTimeout(() => {
+        setSaveButtonState('idle');
+        updateSaveButtonState();
+      }, 1500);
+      return;
+    }
+    saveButtonState.busy = false;
+    editor.btnSave.setAttribute('aria-busy', 'false');
+    editor.btnSave.innerHTML = saveButtonState.defaultContent || 'Save';
+    updateSaveButtonState();
+  }
+
+  ['project', 'source', 'year', 'date', 'unit', 'qty'].forEach((name) => {
+    attachValidationHandlers(name);
+  });
+
+  clearValidationState();
+  setSaveButtonState('idle');
+
   const filterInputs = {
     project: document.querySelector('#pf-filter-project'),
     source: document.querySelector('#pf-filter-source'),
@@ -1400,6 +1649,7 @@
         window.history.replaceState(null, '', newHash);
       }
     }
+    updateSaveButtonState();
   }
 
   document.querySelector('#tab-granular')?.addEventListener('click', () => setTab('granular'));
@@ -1437,12 +1687,19 @@
     editor.btnDelete.disabled = false;
     const updatedValue = typeof metadata === 'object' && metadata ? metadata.updated || '' : '';
     setCommandUpdated(updatedValue);
+    clearValidationState();
+    setSaveButtonState('idle');
+    updateSaveButtonState();
   }
 
   editor.form?.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!editor.btnSave) return;
-    editor.btnSave.disabled = true;
+    const isValid = validateForm({ focus: true });
+    if (!isValid) {
+      return;
+    }
+    setSaveButtonState('loading');
     try {
       const kind = editor.kind.value === 'yearly' ? 'yearly' : 'granular';
       const id = editor.id.value || null;
@@ -1464,10 +1721,10 @@
       toast('Entry saved successfully.', 'success');
       await fetchList();
       resetEditor(kind === 'yearly' ? 'yearly' : 'granular');
+      setSaveButtonState('success');
     } catch (error) {
+      setSaveButtonState('idle');
       toast(error.message || 'Unable to save entry', 'danger');
-    } finally {
-      editor.btnSave.disabled = false;
     }
   });
 
@@ -1571,8 +1828,10 @@
     if (editor.date) editor.date.value = '';
     if (editor.unit) editor.unit.value = '';
     editor.btnDelete && (editor.btnDelete.disabled = true);
+    clearValidationState();
     setTab(preferredKind, { updateHash: false });
     setCommandUpdated('');
+    setSaveButtonState('idle');
   }
 
   function getHashKind() {
