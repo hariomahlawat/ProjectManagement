@@ -92,7 +92,8 @@ public class ProliferationControllerPreferenceTests
         var row = Assert.Single(payload);
         Assert.Equal("Project Gamma", row.ProjectName);
         Assert.Equal(YearPreferenceMode.UseGranular, row.EffectiveMode);
-        Assert.True(row.HasApprovedGranular);
+        Assert.True(row.HasGranular);
+        Assert.Equal(20, row.EffectiveTotal);
     }
 
     [Fact]

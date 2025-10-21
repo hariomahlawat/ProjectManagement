@@ -288,6 +288,24 @@ public sealed class ProliferationOverviewService
             x => new PreferenceKey(x.ProjectId, x.Source, x.Year),
             x => new AggregateTotals(x.Total, x.Count > 0));
 
+        var effectiveTotals = new Dictionary<PreferenceKey, int>(combos.Count);
+        foreach (var combo in combos)
+        {
+            try
+            {
+                var total = await _trackerReadService.GetEffectiveTotalAsync(
+                    combo.ProjectId,
+                    combo.Source,
+                    combo.Year,
+                    cancellationToken);
+                effectiveTotals[combo] = total;
+            }
+            catch
+            {
+                // ignore failures and fall back to zero
+            }
+        }
+
         var results = projections
             .Select(x =>
             {
@@ -296,6 +314,7 @@ public sealed class ProliferationOverviewService
                 var granularInfo = granularLookup.TryGetValue(key, out var g) ? g : default;
                 var effective = ResolveEffectiveMode(x.Preference.Mode, yearlyInfo, granularInfo);
                 var displayName = BuildDisplayName(x.SetByFullName, x.SetByUserName, x.Preference.SetByUserId);
+                var effectiveTotal = effectiveTotals.TryGetValue(key, out var total) ? total : 0;
 
                 return new ProliferationPreferenceOverrideItem(
                     x.Preference.Id,
@@ -310,7 +329,8 @@ public sealed class ProliferationOverviewService
                     x.Preference.SetOnUtc,
                     effective,
                     yearlyInfo.HasAny,
-                    granularInfo.HasAny);
+                    granularInfo.HasAny,
+                    effectiveTotal);
             })
             .ToList();
 

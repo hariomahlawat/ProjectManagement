@@ -115,8 +115,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                     SetByUserId = item.SetByUserId,
                     SetByDisplayName = item.SetByDisplayName,
                     SetOnUtc = item.SetOnUtc,
-                    HasApprovedYearly = item.HasApprovedYearly,
-                    HasApprovedGranular = item.HasApprovedGranular
+                    HasYearly = item.HasYearly,
+                    HasGranular = item.HasGranular,
+                    EffectiveTotal = item.EffectiveTotal
                 })
                 .ToList();
 

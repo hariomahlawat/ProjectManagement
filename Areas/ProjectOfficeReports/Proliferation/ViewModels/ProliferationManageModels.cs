@@ -72,8 +72,9 @@ public sealed record ProliferationPreferenceOverrideItem(
     string SetByDisplayName,
     DateTime SetOnUtc,
     YearPreferenceMode EffectiveMode,
-    bool HasApprovedYearly,
-    bool HasApprovedGranular);
+    bool HasYearly,
+    bool HasGranular,
+    int EffectiveTotal);
 
 public sealed record ProliferationYearlyDetail(
     Guid Id,
