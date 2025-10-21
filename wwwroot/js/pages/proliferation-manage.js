@@ -84,9 +84,11 @@
     source: overridesCard ? overridesCard.querySelector('#pf-overrides-source') : null,
     year: overridesCard ? overridesCard.querySelector('#pf-overrides-year') : null,
     search: overridesCard ? overridesCard.querySelector('#pf-overrides-search') : null,
-    refresh: overridesCard ? overridesCard.querySelector('#pf-overrides-refresh') : null
+    refresh: overridesCard ? overridesCard.querySelector('#pf-overrides-refresh') : null,
+    export: overridesCard ? overridesCard.querySelector('#pf-overrides-export') : null
   };
   const overridesOverviewUrl = overridesCard?.dataset?.overviewUrl ?? '';
+  const overridesExportUrl = overridesCard?.dataset?.exportUrl ?? '';
   const overridesState = {
     filters: {
       projectId: '',
@@ -228,6 +230,14 @@
     overridesElements.reset.classList.toggle('d-none', !overridesFiltersActive());
   }
 
+  function updateOverridesExportAvailability(enabled) {
+    if (!overridesElements.export) return;
+    const shouldDisable = !enabled;
+    overridesElements.export.disabled = shouldDisable;
+    overridesElements.export.setAttribute('aria-disabled', shouldDisable ? 'true' : 'false');
+    overridesElements.export.classList.toggle('disabled', shouldDisable);
+  }
+
   function setOverridesCollapsed(collapsed, persist = true) {
     if (!overridesElements.collapse) return;
     const instance = Collapse?.getOrCreateInstance(overridesElements.collapse, { toggle: false }) ?? null;
@@ -363,6 +373,48 @@
     };
   }
 
+  function findLatestOverrideRow() {
+    let latest = null;
+    overridesRows.forEach((row) => {
+      if (!row?.setOnUtc) return;
+      const timestamp = new Date(row.setOnUtc).getTime();
+      if (!Number.isFinite(timestamp)) return;
+      if (!latest || timestamp > latest.timestamp) {
+        latest = { timestamp, row };
+      }
+    });
+    return latest?.row ?? null;
+  }
+
+  function updateOverridesSummary() {
+    if (!overridesElements.summary) return;
+    const count = overridesRows.size;
+    if (count === 0) {
+      overridesElements.summary.textContent = 'No overrides configured.';
+      return;
+    }
+
+    let summary = count === 1 ? '1 override loaded.' : `${count} overrides loaded.`;
+    const latestRow = findLatestOverrideRow();
+    if (latestRow) {
+      const when = formatDateTime(latestRow.setOnUtc);
+      const actor = latestRow.setByDisplayName || latestRow.setByUserId || '';
+      let detail = '';
+      if (when && actor) {
+        detail = `Last updated ${when} by ${actor}`;
+      } else if (when) {
+        detail = `Last updated ${when}`;
+      } else if (actor) {
+        detail = `Last updated by ${actor}`;
+      }
+      if (detail) {
+        summary = `${summary} ${detail}.`;
+      }
+    }
+
+    overridesElements.summary.textContent = summary;
+  }
+
   function renderOverrides(rows) {
     if (!overridesElements.tableBody) return;
     overridesRows.clear();
@@ -372,6 +424,9 @@
       if (overridesElements.summary) {
         overridesElements.summary.textContent = 'No overrides configured.';
       }
+      overridesElements.tableBody.innerHTML = '<tr><td colspan="8" class="text-muted">No overrides found.</td></tr>';
+      updateOverridesSummary();
+      updateOverridesExportAvailability(false);
       return;
     }
 
@@ -436,6 +491,9 @@
 
       const effectiveTotal = Number.isFinite(row.effectiveTotal) ? row.effectiveTotal : null;
       const effectiveTotalDisplay = effectiveTotal === null ? '—' : effectiveTotal.toLocaleString();
+      const setById = row.setByUserId && row.setByUserId !== row.setByDisplayName
+        ? `<div class="small text-muted">ID: ${row.setByUserId}</div>`
+        : '';
       const actions = `
         <div class="btn-group btn-group-sm" role="group">
           <button type="button" class="btn btn-outline-secondary" data-action="focus-list" data-id="${row.id}">List</button>
@@ -463,6 +521,15 @@
             <div class="fw-semibold">${row.setByDisplayName}</div>
             <div class="small text-muted">${updated}</div>
           </td>
+          <td>${row.sourceLabel}</td>
+          <td>${row.year}</td>
+          <td>${row.modeLabel}</td>
+          <td>${row.effectiveModeLabel}</td>
+          <td>
+            <div class="fw-semibold">${row.setByDisplayName}</div>
+            ${setById}
+          </td>
+          <td>${updated}</td>
           <td class="text-end">${actions}</td>
         </tr>`;
     }).join('');
@@ -481,6 +548,9 @@
         ? `1 override loaded${detail}.`
         : `${count} overrides loaded${detail}.`;
     }
+    overridesElements.tableBody.innerHTML = markup || '<tr><td colspan="8" class="text-muted">No overrides found.</td></tr>';
+    updateOverridesSummary();
+    updateOverridesExportAvailability(overridesRows.size > 0);
   }
 
   async function fetchOverrides() {
@@ -495,6 +565,7 @@
     if (overridesElements.summary) {
       overridesElements.summary.textContent = '';
     }
+    updateOverridesExportAvailability(false);
 
     try {
       const response = await fetch(`${api.overrides}?${params.toString()}`, { headers: { Accept: 'application/json' } });
@@ -510,7 +581,34 @@
       if (overridesElements.summary) {
         overridesElements.summary.textContent = '';
       }
+      updateOverridesExportAvailability(false);
       toast(error.message || 'Unable to load overrides', 'danger');
+    }
+  }
+
+  function exportOverrides() {
+    if (!overridesExportUrl) {
+      toast('Export is unavailable right now. Refresh and try again.', 'warning');
+      return;
+    }
+
+    try {
+      const url = new URL(overridesExportUrl, window.location.origin);
+      if (overridesState.filters.projectId) url.searchParams.set('projectId', overridesState.filters.projectId);
+      if (overridesState.filters.source) url.searchParams.set('source', overridesState.filters.source);
+      if (overridesState.filters.year) url.searchParams.set('year', overridesState.filters.year);
+      if (overridesState.filters.search) url.searchParams.set('search', overridesState.filters.search);
+
+      const link = document.createElement('a');
+      link.href = url.toString();
+      link.target = '_blank';
+      link.rel = 'noopener';
+      link.setAttribute('download', '');
+      document.body.append(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      toast('Unable to start export. Please try again.', 'danger');
     }
   }
 
@@ -806,6 +904,10 @@
 
     overridesElements.reset?.addEventListener('click', () => {
       resetOverridesFilters();
+    });
+
+    overridesElements.export?.addEventListener('click', () => {
+      exportOverrides();
     });
 
     overridesElements.tableBody?.addEventListener('click', (event) => {

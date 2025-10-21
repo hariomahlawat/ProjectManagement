@@ -3,6 +3,8 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Text;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -120,6 +122,56 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 .ToList();
 
             return Ok(payload);
+        }
+
+        [HttpGet("preferences/overrides/export")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ManageProliferationPreferences)]
+        public async Task<IActionResult> ExportPreferenceOverrides(
+            [FromQuery] ProliferationPreferenceOverrideQueryDto query,
+            CancellationToken ct)
+        {
+            var request = new ProliferationPreferenceOverrideRequest(query.ProjectId, query.Source, query.Year, query.Search);
+            var overrides = await _overviewSvc.GetPreferenceOverridesAsync(request, ct);
+
+            var builder = new StringBuilder();
+            builder.AppendLine(string.Join(',', new[]
+            {
+                "Project",
+                "Project Code",
+                "Source",
+                "Year",
+                "Configured Mode",
+                "Effective Mode",
+                "Has Approved Yearly",
+                "Has Approved Granular",
+                "Set By",
+                "Set By User ID",
+                "Updated On (UTC)"
+            }));
+
+            foreach (var item in overrides.OrderByDescending(o => o.SetOnUtc))
+            {
+                var updated = item.SetOnUtc.ToString("yyyy-MM-dd HH:mm:ss 'UTC'", CultureInfo.InvariantCulture);
+                builder.AppendLine(string.Join(',', new[]
+                {
+                    CsvEscape(item.ProjectName),
+                    CsvEscape(item.ProjectCode),
+                    CsvEscape(item.Source.ToDisplayName()),
+                    CsvEscape(item.Year.ToString(CultureInfo.InvariantCulture)),
+                    CsvEscape(item.Mode.ToString()),
+                    CsvEscape(item.EffectiveMode.ToString()),
+                    CsvEscape(item.HasApprovedYearly ? "Yes" : "No"),
+                    CsvEscape(item.HasApprovedGranular ? "Yes" : "No"),
+                    CsvEscape(item.SetByDisplayName),
+                    CsvEscape(item.SetByUserId),
+                    CsvEscape(updated)
+                }));
+            }
+
+            var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+            var fileName = $"proliferation-preference-overrides-{timestamp}.csv";
+            var buffer = Encoding.UTF8.GetBytes(builder.ToString());
+            return File(buffer, "text/csv", fileName);
         }
 
         [HttpGet("yearly/{id:guid}")]
@@ -727,6 +779,23 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             }
 
             return BadRequest(result.Error);
+        }
+
+        private static string CsvEscape(string? value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return string.Empty;
+            }
+
+            var needsEscaping = value.Contains(',') || value.Contains('"') || value.Contains('\n') || value.Contains('\r');
+            if (!needsEscaping)
+            {
+                return value;
+            }
+
+            var escaped = value.Replace("\"", "\"\"");
+            return $"\"{escaped}\"";
         }
 
         private static ProliferationRecordKind? ParseKind(string? value)
