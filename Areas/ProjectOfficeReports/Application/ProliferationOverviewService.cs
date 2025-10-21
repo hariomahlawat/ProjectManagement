@@ -248,8 +248,7 @@ public sealed class ProliferationOverviewService
 
         var yearlyTotals = await _db.ProliferationYearlies
             .AsNoTracking()
-            .Where(y => y.ApprovalStatus == ApprovalStatus.Approved &&
-                        projectIds.Contains(y.ProjectId) &&
+            .Where(y => projectIds.Contains(y.ProjectId) &&
                         sources.Contains(y.Source) &&
                         years.Contains(y.Year))
             .GroupBy(y => new { y.ProjectId, y.Source, y.Year })
@@ -258,15 +257,15 @@ public sealed class ProliferationOverviewService
                 g.Key.ProjectId,
                 g.Key.Source,
                 g.Key.Year,
-                Total = g.Sum(y => y.TotalQuantity),
+                ApprovedTotal = g.Sum(y => y.ApprovalStatus == ApprovalStatus.Approved ? y.TotalQuantity : 0),
+                ApprovedCount = g.Count(y => y.ApprovalStatus == ApprovalStatus.Approved),
                 Count = g.Count()
             })
             .ToListAsync(cancellationToken);
 
         var granularTotals = await _db.ProliferationGranularEntries
             .AsNoTracking()
-            .Where(g => g.ApprovalStatus == ApprovalStatus.Approved &&
-                        projectIds.Contains(g.ProjectId) &&
+            .Where(g => projectIds.Contains(g.ProjectId) &&
                         sources.Contains(g.Source) &&
                         years.Contains(g.ProliferationDate.Year))
             .GroupBy(g => new { g.ProjectId, g.Source, Year = g.ProliferationDate.Year })
@@ -275,18 +274,19 @@ public sealed class ProliferationOverviewService
                 g.Key.ProjectId,
                 g.Key.Source,
                 g.Key.Year,
-                Total = g.Sum(x => x.Quantity),
+                ApprovedTotal = g.Sum(x => x.ApprovalStatus == ApprovalStatus.Approved ? x.Quantity : 0),
+                ApprovedCount = g.Count(x => x.ApprovalStatus == ApprovalStatus.Approved),
                 Count = g.Count()
             })
             .ToListAsync(cancellationToken);
 
         var yearlyLookup = yearlyTotals.ToDictionary(
             x => new PreferenceKey(x.ProjectId, x.Source, x.Year),
-            x => new AggregateTotals(x.Total, x.Count > 0));
+            x => new AggregateTotals(x.ApprovedTotal, x.Count > 0, x.ApprovedCount > 0));
 
         var granularLookup = granularTotals.ToDictionary(
             x => new PreferenceKey(x.ProjectId, x.Source, x.Year),
-            x => new AggregateTotals(x.Total, x.Count > 0));
+            x => new AggregateTotals(x.ApprovedTotal, x.Count > 0, x.ApprovedCount > 0));
 
         var effectiveTotals = new Dictionary<PreferenceKey, int>(combos.Count);
         foreach (var combo in combos)
@@ -330,6 +330,8 @@ public sealed class ProliferationOverviewService
                     effective,
                     yearlyInfo.HasAny,
                     granularInfo.HasAny,
+                    yearlyInfo.HasApproved,
+                    granularInfo.HasApproved,
                     effectiveTotal);
             })
             .ToList();
@@ -484,7 +486,7 @@ public sealed class ProliferationOverviewService
         string? SetByFullName,
         string? SetByUserName);
 
-    private readonly record struct AggregateTotals(int Total, bool HasAny);
+    private readonly record struct AggregateTotals(int Total, bool HasAny, bool HasApproved);
 
     private readonly record struct ProjectInfo(int Id, string Name, string? Code);
 
