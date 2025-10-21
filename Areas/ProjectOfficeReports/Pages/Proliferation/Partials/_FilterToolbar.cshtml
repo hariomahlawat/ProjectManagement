@@ -1,0 +1,47 @@
+@model ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels.ProliferationFilterToolbarModel
+
+<div class="pf-filter-toolbar" id="pf-filter-toolbar" data-filter-context="@Model.Context">
+    <div class="d-flex flex-wrap align-items-center gap-2 w-100">
+        <div class="flex-grow-1 flex-md-grow-0" style="min-width: 160px;">
+            <label class="visually-hidden" for="pf-filter-project">Project</label>
+            <select class="form-select form-select-sm" id="pf-filter-project" aria-label="Filter by project">
+                <option value="">All projects</option>
+                @foreach (var project in Model.Projects)
+                {
+                    <option value="@project.Value">@project.Label</option>
+                }
+            </select>
+        </div>
+        <div class="flex-grow-1 flex-md-grow-0" style="min-width: 140px;">
+            <label class="visually-hidden" for="pf-filter-source">Source</label>
+            <select class="form-select form-select-sm" id="pf-filter-source" aria-label="Filter by source">
+                <option value="">All sources</option>
+                @foreach (var source in Model.Sources)
+                {
+                    <option value="@source.Value">@source.Label</option>
+                }
+            </select>
+        </div>
+        <div class="flex-grow-1 flex-md-grow-0" style="min-width: 140px;">
+            <label class="visually-hidden" for="pf-filter-type">Type</label>
+            <select class="form-select form-select-sm" id="pf-filter-type" aria-label="Filter by type">
+                @foreach (var type in Model.Types)
+                {
+                    <option value="@type.Value">@type.Label</option>
+                }
+            </select>
+        </div>
+        <div class="flex-grow-1 flex-md-grow-0" style="min-width: 120px;">
+            <label class="visually-hidden" for="pf-filter-year">Year</label>
+            <input class="form-control form-control-sm" id="pf-filter-year" type="number" inputmode="numeric" min="2000" max="3000" placeholder="Year" aria-label="Filter by year" />
+        </div>
+        <div class="flex-grow-1" style="min-width: 200px;">
+            <label class="visually-hidden" for="pf-filter-search">Search</label>
+            <input class="form-control form-control-sm" id="pf-filter-search" type="search" placeholder="@Model.SearchPlaceholder" aria-label="Search proliferation records" />
+        </div>
+        <div class="ms-auto">
+            <button class="btn btn-link btn-sm text-decoration-none" type="button" id="pf-filter-reset">Reset filters</button>
+        </div>
+    </div>
+    <div class="d-flex flex-wrap gap-2 mt-2" id="pf-filter-chips" aria-live="polite" aria-label="Active filters"></div>
+</div>

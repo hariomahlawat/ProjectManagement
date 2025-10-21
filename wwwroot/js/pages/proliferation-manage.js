@@ -32,7 +32,8 @@
     projectId: '',
     source: '',
     year: '',
-    kind: ''
+    kind: '',
+    search: ''
   };
 
   const pager = {
@@ -64,12 +65,15 @@
   };
 
   const filterInputs = {
-    project: document.querySelector('#pf-project-filter'),
-    source: document.querySelector('#pf-source-filter'),
-    year: document.querySelector('#pf-year-filter'),
-    kind: document.querySelector('#pf-kind-filter'),
-    refresh: document.querySelector('#pf-refresh')
+    project: document.querySelector('#pf-filter-project'),
+    source: document.querySelector('#pf-filter-source'),
+    year: document.querySelector('#pf-filter-year'),
+    kind: document.querySelector('#pf-filter-type'),
+    search: document.querySelector('#pf-filter-search'),
+    reset: document.querySelector('#pf-filter-reset'),
+    chips: document.querySelector('#pf-filter-chips')
   };
+  let filterSearchTimer = null;
 
   const toastHost = document.querySelector('#toastHost');
 
@@ -142,6 +146,7 @@
         filters.source = saved.source ?? '';
         filters.year = saved.year ?? '';
         filters.kind = saved.kind ?? '';
+        filters.search = saved.search ?? '';
         if (Number.isFinite(saved.pageSize) && saved.pageSize > 0) {
           pager.pageSize = saved.pageSize;
         }
@@ -158,6 +163,7 @@
         source: filters.source,
         year: filters.year,
         kind: filters.kind,
+        search: filters.search,
         pageSize: pager.pageSize
       };
       sessionStorage.setItem(storageKey, JSON.stringify(payload));
@@ -293,6 +299,9 @@
     if (filterInputs.year) {
       filterInputs.year.value = filters.year ?? '';
     }
+    if (filterInputs.search) {
+      filterInputs.search.value = filters.search ?? '';
+    }
   }
 
   function hasOption(select, value) {
@@ -300,11 +309,110 @@
     return Array.from(select.options).some((opt) => opt.value === String(value));
   }
 
+  function getOptionLabel(select, value) {
+    if (!select || !value) return '';
+    const option = Array.from(select.options).find((opt) => opt.value === String(value));
+    return option ? option.textContent.trim() : '';
+  }
+
+  function renderFilterChips() {
+    const host = filterInputs.chips;
+    if (!host) return;
+    host.innerHTML = '';
+    const chips = [];
+    if (filters.projectId) {
+      const label = getOptionLabel(filterInputs.project, filters.projectId) || `Project ${filters.projectId}`;
+      chips.push({ key: 'project', label: 'Project', value: label });
+    }
+    if (filters.source) {
+      const label = getOptionLabel(filterInputs.source, filters.source) || filters.source;
+      chips.push({ key: 'source', label: 'Source', value: label });
+    }
+    if (filters.kind) {
+      const label = getOptionLabel(filterInputs.kind, filters.kind) || (filters.kind === 'granular' ? 'Granular' : 'Yearly');
+      chips.push({ key: 'kind', label: 'Type', value: label });
+    }
+    if (filters.year) {
+      chips.push({ key: 'year', label: 'Year', value: filters.year });
+    }
+    if (filters.search) {
+      chips.push({ key: 'search', label: 'Search', value: `"${filters.search}"` });
+    }
+
+    for (const chip of chips) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-2';
+      button.dataset.filterKey = chip.key;
+      const labelSpan = document.createElement('span');
+      labelSpan.textContent = `${chip.label}: ${chip.value}`;
+      const closeSpan = document.createElement('span');
+      closeSpan.setAttribute('aria-hidden', 'true');
+      closeSpan.textContent = '×';
+      const srSpan = document.createElement('span');
+      srSpan.className = 'visually-hidden';
+      srSpan.textContent = `Remove ${chip.label.toLowerCase()} filter`;
+      button.append(labelSpan, closeSpan, srSpan);
+      host.append(button);
+    }
+  }
+
   function updateFilter(key, value) {
-    filters[key] = value ?? '';
+    const normalized = value ?? '';
+    if (filters[key] === normalized) return;
+    filters[key] = normalized;
     pager.page = 1;
     saveFilters();
+    renderFilterChips();
     fetchList();
+  }
+
+  function resetFilters() {
+    filters.projectId = '';
+    filters.source = '';
+    filters.year = '';
+    filters.kind = '';
+    filters.search = '';
+    pager.page = 1;
+    applyFiltersToInputs();
+    if (filterSearchTimer) {
+      clearTimeout(filterSearchTimer);
+      filterSearchTimer = null;
+    }
+    saveFilters();
+    renderFilterChips();
+    fetchList();
+  }
+
+  function clearFilter(key) {
+    switch (key) {
+      case 'project':
+        if (filterInputs.project) filterInputs.project.value = '';
+        updateFilter('projectId', '');
+        break;
+      case 'source':
+        if (filterInputs.source) filterInputs.source.value = '';
+        updateFilter('source', '');
+        break;
+      case 'kind':
+        if (filterInputs.kind) filterInputs.kind.value = '';
+        updateFilter('kind', '');
+        break;
+      case 'year':
+        if (filterInputs.year) filterInputs.year.value = '';
+        updateFilter('year', '');
+        break;
+      case 'search':
+        if (filterInputs.search) filterInputs.search.value = '';
+        if (filterSearchTimer) {
+          clearTimeout(filterSearchTimer);
+          filterSearchTimer = null;
+        }
+        updateFilter('search', '');
+        break;
+      default:
+        break;
+    }
   }
 
   function formatNumber(value) {
@@ -663,9 +771,15 @@
     filters.source = sourceValue;
     filters.year = yearValue;
     filters.kind = '';
+    filters.search = '';
     pager.page = 1;
     applyFiltersToInputs();
+    if (filterSearchTimer) {
+      clearTimeout(filterSearchTimer);
+      filterSearchTimer = null;
+    }
     saveFilters();
+    renderFilterChips();
     fetchList();
     listCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     toast('List filters updated for this override.', 'info');
@@ -820,6 +934,7 @@
     if (filters.source) params.set('source', filters.source);
     if (filters.year) params.set('year', filters.year);
     if (filters.kind) params.set('kind', filters.kind);
+    if (filters.search) params.set('search', filters.search);
     params.set('page', String(pager.page));
     params.set('pageSize', String(pager.pageSize));
 
@@ -1286,13 +1401,21 @@
   function initFilters() {
     loadFiltersFromStorage();
     applyFiltersToInputs();
-    ['project', 'source', 'kind'].forEach((key) => {
-      const input = filterInputs[key];
+    renderFilterChips();
+
+    const mappings = new Map([
+      ['project', 'projectId'],
+      ['source', 'source'],
+      ['kind', 'kind']
+    ]);
+    mappings.forEach((filterKey, inputKey) => {
+      const input = filterInputs[inputKey];
       if (!input) return;
       input.addEventListener('change', (event) => {
-        updateFilter(key === 'project' ? 'projectId' : key, event.target.value);
+        updateFilter(filterKey, event.target.value);
       });
     });
+
     filterInputs.year?.addEventListener('change', (event) => {
       const value = (event.target.value || '').trim();
       if (value && !/^[0-9]{4}$/.test(value)) {
@@ -1303,9 +1426,30 @@
       }
       updateFilter('year', value);
     });
-    filterInputs.refresh?.addEventListener('click', () => {
-      pager.page = 1;
-      fetchList();
+
+    if (filterInputs.search) {
+      filterInputs.search.addEventListener('input', (event) => {
+        const raw = (event.target.value || '').trim();
+        if (filterSearchTimer) {
+          clearTimeout(filterSearchTimer);
+        }
+        filterSearchTimer = setTimeout(() => {
+          updateFilter('search', raw);
+          filterSearchTimer = null;
+        }, 250);
+      });
+    }
+
+    filterInputs.reset?.addEventListener('click', () => {
+      resetFilters();
+    });
+
+    filterInputs.chips?.addEventListener('click', (event) => {
+      const button = event.target.closest('button[data-filter-key]');
+      if (!button) return;
+      const { filterKey } = button.dataset;
+      if (!filterKey) return;
+      clearFilter(filterKey);
     });
   }
 

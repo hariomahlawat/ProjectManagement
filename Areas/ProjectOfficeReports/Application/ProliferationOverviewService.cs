@@ -38,6 +38,11 @@ public sealed class ProliferationOverviewService
             .AsNoTracking()
             .Where(p => !p.IsDeleted && !p.IsArchived && p.LifecycleStatus == ProjectLifecycleStatus.Completed);
 
+        if (request.ProjectId.HasValue)
+        {
+            projectsQuery = projectsQuery.Where(p => p.Id == request.ProjectId.Value);
+        }
+
         if (request.ProjectCategoryId.HasValue)
         {
             projectsQuery = projectsQuery.Where(p => p.CategoryId == request.ProjectCategoryId.Value);
@@ -64,6 +69,8 @@ public sealed class ProliferationOverviewService
 
         var yearsFilter = request.Years is { Count: > 0 } ? new HashSet<int>(request.Years) : null;
         var likeTerm = NormalizeSearch(request.Search);
+        var includeYearly = request.Kind is null or ProliferationRecordKind.Yearly;
+        var includeGranular = request.Kind is null or ProliferationRecordKind.Granular;
 
         var yearlyQuery = _db.ProliferationYearlies
             .AsNoTracking()
@@ -101,8 +108,12 @@ public sealed class ProliferationOverviewService
             }
         }
 
-        var yearlyItems = await yearlyQuery.ToListAsync(cancellationToken);
-        var granularItems = await granularQuery.ToListAsync(cancellationToken);
+        var yearlyItems = includeYearly
+            ? await yearlyQuery.ToListAsync(cancellationToken)
+            : new List<ProliferationYearly>();
+        var granularItems = includeGranular
+            ? await granularQuery.ToListAsync(cancellationToken)
+            : new List<ProliferationGranular>();
 
         if (!string.IsNullOrEmpty(likeTerm))
         {

@@ -115,6 +115,19 @@ public sealed class ProliferationManageService
             granularQuery = granularQuery.Where(x => x.Year == year);
         }
 
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var trimmed = request.Search.Trim();
+            var like = $"%{trimmed}%";
+            yearlyQuery = yearlyQuery.Where(x =>
+                EF.Functions.ILike(x.ProjectName, like) ||
+                (x.ProjectCode != null && EF.Functions.ILike(x.ProjectCode, like)));
+            granularQuery = granularQuery.Where(x =>
+                EF.Functions.ILike(x.ProjectName, like) ||
+                (x.ProjectCode != null && EF.Functions.ILike(x.ProjectCode, like)) ||
+                (x.UnitName != null && EF.Functions.ILike(x.UnitName, like)));
+        }
+
         IQueryable<ManageProjection> combined = request.Kind switch
         {
             ProliferationRecordKind.Yearly => yearlyQuery,

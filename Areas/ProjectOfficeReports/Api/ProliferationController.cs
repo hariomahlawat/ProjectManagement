@@ -56,7 +56,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public async Task<ActionResult<ProliferationManageListResponseDto>> GetManageList([FromQuery] ProliferationManageListQueryDto query, CancellationToken ct)
         {
             var kind = ParseKind(query.Kind);
-            var request = new ProliferationManageListRequest(query.ProjectId, query.Source, query.Year, kind, query.Page, query.PageSize);
+            var request = new ProliferationManageListRequest(query.ProjectId, query.Source, query.Year, kind, query.Search, query.Page, query.PageSize);
             var result = await _manageSvc.GetListAsync(request, ct);
 
             var items = result.Items
@@ -321,6 +321,11 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 .AsNoTracking()
                 .Where(p => !p.IsDeleted && !p.IsArchived);
 
+            if (q.ProjectId.HasValue)
+            {
+                projectsQuery = projectsQuery.Where(p => p.Id == q.ProjectId.Value);
+            }
+
             if (q.ProjectCategoryId.HasValue)
             {
                 projectsQuery = projectsQuery.Where(p => p.CategoryId == q.ProjectCategoryId.Value);
@@ -343,6 +348,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                                join p in projectsQuery on g.ProjectId equals p.Id
                                where g.ApprovalStatus == ApprovalStatus.Approved
                                select new { Granular = g, Project = p };
+
+            var kind = ParseKind(q.Kind);
 
             if (fromDateOnly.HasValue && toDateOnly.HasValue)
             {
@@ -369,6 +376,15 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 granularBase = granularBase.Where(x =>
                     EF.Functions.ILike(x.Project.Name, like) ||
                     EF.Functions.ILike(x.Granular.UnitName, like));
+            }
+
+            if (kind == ProliferationRecordKind.Yearly)
+            {
+                granularBase = granularBase.Where(_ => false);
+            }
+            else if (kind == ProliferationRecordKind.Granular)
+            {
+                yearlyBase = yearlyBase.Where(_ => false);
             }
 
             var yearlyRawQuery = yearlyBase.Select(x => new
@@ -515,6 +531,15 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
             var granularCombosQuery = _db.Set<ProliferationGranular>().AsNoTracking()
                 .Where(g => completedProjectIds.Contains(g.ProjectId) && g.ApprovalStatus == ApprovalStatus.Approved);
+
+            if (kind == ProliferationRecordKind.Yearly)
+            {
+                granularCombosQuery = granularCombosQuery.Where(_ => false);
+            }
+            else if (kind == ProliferationRecordKind.Granular)
+            {
+                yearlyCombosQuery = yearlyCombosQuery.Where(_ => false);
+            }
 
             if (fromDateOnly.HasValue && toDateOnly.HasValue)
             {

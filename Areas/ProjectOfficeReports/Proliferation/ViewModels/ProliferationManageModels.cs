@@ -36,6 +36,7 @@ public sealed record ProliferationManageListRequest(
     ProliferationSource? Source,
     int? Year,
     ProliferationRecordKind? Kind,
+    string? Search,
     int Page,
     int PageSize);
 
