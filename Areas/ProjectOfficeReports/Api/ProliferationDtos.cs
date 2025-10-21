@@ -14,6 +14,8 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public DateTime? FromDateUtc { get; set; }
         public DateTime? ToDateUtc { get; set; }
 
+        public int? ProjectId { get; set; }
+        public string? Kind { get; set; }
         public int? ProjectCategoryId { get; set; }
         public int? TechnicalCategoryId { get; set; }
         public ProliferationSource? Source { get; set; }
@@ -125,6 +127,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public ProliferationSource? Source { get; set; }
         public int? Year { get; set; }
         public string? Kind { get; set; }
+        public string? Search { get; set; }
         public int Page { get; set; } = 1;
         public int PageSize { get; set; } = 25;
     }

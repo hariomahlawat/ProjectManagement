@@ -1,68 +1,17 @@
-@* Filters with a mutually-exclusive mode switch and removable chips *@
-<div class="row g-2 align-items-end" id="filterBar">
-  <div class="col-12 col-lg-2">
-    <label class="form-label">Filter mode</label>
-    <div class="btn-group w-100" role="group" aria-label="Filter mode">
-      <input type="radio" class="btn-check" name="fltMode" id="fltByYear" autocomplete="off" checked>
-      <label class="btn btn-outline-secondary" for="fltByYear">Years</label>
-      <input type="radio" class="btn-check" name="fltMode" id="fltByDate" autocomplete="off">
-      <label class="btn btn-outline-secondary" for="fltByDate">Date range</label>
-    </div>
-  </div>
+@using System
+@using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels
 
-  <div class="col-12 col-lg-2" id="fltYearsWrap">
-    <label for="fltYears" class="form-label">Years</label>
-    <select id="fltYears" class="form-select" multiple aria-describedby="fltYearsHelp">
-      @* JS will populate typical recent years *@
-    </select>
-    <div id="fltYearsHelp" class="form-text">Select up to five recent years.</div>
-  </div>
+@{
+    var toolbarModel = ProliferationFilterToolbarModel.Create(
+        context: "overview",
+        projects: Array.Empty<ProliferationFilterOption>(),
+        sources: ProliferationFilterOption.FromPairs(new[]
+        {
+            ("1", "SDD"),
+            ("2", "515 ABW")
+        }),
+        searchPlaceholder: "Search projects, units, or remarks"
+    );
+}
 
-  <div class="col-6 col-lg-2 d-none" id="fltFromWrap">
-    <label for="fltFrom" class="form-label">From date</label>
-    <input id="fltFrom" class="form-control" type="date" />
-  </div>
-  <div class="col-6 col-lg-2 d-none" id="fltToWrap">
-    <label for="fltTo" class="form-label">To date</label>
-    <input id="fltTo" class="form-control" type="date" />
-  </div>
-
-  <div class="col-12 col-lg-2">
-    <label for="fltSource" class="form-label">Source</label>
-    <select id="fltSource" class="form-select">
-      <option value="">All sources</option>
-      <option value="1">SDD</option>
-      <option value="2">515 ABW</option>
-    </select>
-  </div>
-
-  <div class="col-12 col-lg-2">
-    <label for="fltProjectCat" class="form-label">Project category</label>
-    <select id="fltProjectCat" class="form-select">
-      <option value="">All categories</option>
-    </select>
-  </div>
-
-  <div class="col-12 col-lg-2">
-    <label for="fltTechCat" class="form-label">Technical category</label>
-    <select id="fltTechCat" class="form-select">
-      <option value="">All technical</option>
-    </select>
-  </div>
-
-  <div class="col-12 col-lg-3">
-    <label for="fltSearch" class="form-label">Search</label>
-    <input id="fltSearch" class="form-control" placeholder="Project, simulator, or unit" />
-  </div>
-
-  <div class="col-12 col-lg-2 d-flex gap-2">
-    <button id="btnReset" class="btn btn-light w-50" type="button">Reset</button>
-    <button id="btnApply" class="btn btn-primary w-50" type="button">
-      <span class="me-1" aria-hidden="true">🔎</span>Apply
-    </button>
-  </div>
-
-  <div class="col-12 mt-2" id="activeChips" aria-live="polite" aria-label="Active filters">
-    @* Chips are injected here *@
-  </div>
-</div>
+<partial name="_FilterToolbar" model="toolbarModel" />

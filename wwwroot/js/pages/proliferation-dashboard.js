@@ -75,13 +75,12 @@
   }
 
   const filterState = {
-    years: [],
-    from: null,
-    to: null,
+    projectId: "",
+    projectLabel: "",
     sourceId: null,
     sourceLabel: "",
-    projectCategory: "",
-    technicalCategory: "",
+    type: "",
+    year: "",
     search: "",
     page: 1,
     pageSize: 50
@@ -113,9 +112,22 @@
   const mixedCoverage = new Map();
 
   function collectFilters() {
-    const byYearToggle = $("#fltByYear");
-    const byYear = byYearToggle ? byYearToggle.checked : true;
-    const sourceRaw = $("#fltSource")?.value ?? "";
+    const projectSelect = $("#pf-filter-project");
+    const sourceSelect = $("#pf-filter-source");
+    const typeSelect = $("#pf-filter-type");
+    const yearInput = $("#pf-filter-year");
+    const searchInput = $("#pf-filter-search");
+
+    const projectValue = projectSelect?.value ?? "";
+    filterState.projectId = projectValue;
+    if (projectSelect) {
+      const label = projectSelect.options[projectSelect.selectedIndex]?.textContent?.trim();
+      filterState.projectLabel = projectValue ? label || "Selected project" : "";
+    } else {
+      filterState.projectLabel = "";
+    }
+
+    const sourceRaw = sourceSelect?.value ?? "";
     if (sourceRaw) {
       const parsed = Number(sourceRaw);
       filterState.sourceId = Number.isFinite(parsed) && parsed > 0 ? parsed : null;
@@ -123,81 +135,64 @@
       filterState.sourceId = null;
     }
     filterState.sourceLabel = formatSourceLabel(filterState.sourceId);
-    const projectCategoryRaw = $("#fltProjectCat")?.value ?? "";
-    const technicalCategoryRaw = $("#fltTechCat")?.value ?? "";
-    filterState.projectCategory = projectCategoryRaw;
-    filterState.technicalCategory = technicalCategoryRaw;
-    filterState.search = ($("#fltSearch")?.value ?? "").trim();
-
-    if (byYear) {
-      filterState.years = $all("#fltYears option:checked").map((opt) => parseInt(opt.value, 10)).filter(Number.isFinite);
-      filterState.from = null;
-      filterState.to = null;
-    } else {
-      const fromVal = $("#fltFrom")?.value ?? "";
-      const toVal = $("#fltTo")?.value ?? "";
-      filterState.from = fromVal ? new Date(fromVal).toISOString() : null;
-      filterState.to = toVal ? new Date(toVal).toISOString() : null;
-      filterState.years = [];
-    }
+    filterState.type = typeSelect?.value ?? "";
+    filterState.year = (yearInput?.value ?? "").trim();
+    filterState.search = (searchInput?.value ?? "").trim();
 
     renderChips();
-    const projectCategoryId = projectCategoryRaw ? Number(projectCategoryRaw) : NaN;
-    const technicalCategoryId = technicalCategoryRaw ? Number(technicalCategoryRaw) : NaN;
+
+    const yearNumber = parseInt(filterState.year, 10);
+    const sourceValue = filterState.sourceId;
+    const projectNumber = Number(filterState.projectId);
 
     return {
-      Years: filterState.years,
-      FromDateUtc: filterState.from,
-      ToDateUtc: filterState.to,
-      Source: filterState.sourceId,
-      ProjectCategoryId: Number.isFinite(projectCategoryId) ? projectCategoryId : null,
-      TechnicalCategoryId: Number.isFinite(technicalCategoryId) ? technicalCategoryId : null,
+      Years: Number.isFinite(yearNumber) ? [yearNumber] : [],
+      Source: sourceValue,
+      ProjectId: Number.isFinite(projectNumber) && projectNumber > 0 ? projectNumber : null,
+      Kind: filterState.type || null,
       Search: filterState.search || null,
       Page: filterState.page,
       PageSize: filterState.pageSize
     };
   }
 
-  function resolveLookupLabel(source, value) {
-    const id = Number(value);
-    if (!Number.isFinite(id)) return null;
-    const match = source.find((item) => {
-      const itemId = item.id ?? item.Id;
-      if (Number.isFinite(itemId)) return itemId === id;
-      const parsed = Number(itemId);
-      return Number.isFinite(parsed) && parsed === id;
-    });
-    if (!match) return null;
-    return match.name ?? match.Name ?? null;
-  }
-
-  function resolveProjectCategoryLabel(value) {
-    return resolveLookupLabel(lookups.projectCategories, value);
-  }
-
-  function resolveTechnicalCategoryLabel(value) {
-    return resolveLookupLabel(lookups.technicalCategories, value);
-  }
-
   function renderChips() {
-    const host = $("#activeChips");
+    const host = $("#pf-filter-chips");
     if (!host) return;
     host.innerHTML = "";
     const chips = [];
-    if (filterState.years.length) chips.push({ label: "Years", value: filterState.years.join(", ") });
-    if (filterState.from || filterState.to) chips.push({ label: "Range", value: `${filterState.from?.slice(0, 10) || "…"} → ${filterState.to?.slice(0, 10) || "…"}` });
-    if (filterState.sourceLabel) chips.push({ label: "Source", value: filterState.sourceLabel });
-    const projectLabel = resolveProjectCategoryLabel(filterState.projectCategory);
-    if (projectLabel) chips.push({ label: "Project category", value: projectLabel });
-    const technicalLabel = resolveTechnicalCategoryLabel(filterState.technicalCategory);
-    if (technicalLabel) chips.push({ label: "Technical", value: technicalLabel });
-    if (filterState.search) chips.push({ label: "Search", value: `"${filterState.search}"` });
+    if (filterState.projectId && filterState.projectLabel) {
+      chips.push({ key: "project", label: "Project", value: filterState.projectLabel });
+    }
+    if (filterState.sourceId && filterState.sourceLabel) {
+      chips.push({ key: "source", label: "Source", value: filterState.sourceLabel });
+    }
+    if (filterState.type) {
+      const typeLabel = filterState.type === "granular" ? "Granular" : filterState.type === "yearly" ? "Yearly" : filterState.type;
+      chips.push({ key: "type", label: "Type", value: typeLabel });
+    }
+    if (filterState.year) {
+      chips.push({ key: "year", label: "Year", value: filterState.year });
+    }
+    if (filterState.search) {
+      chips.push({ key: "search", label: "Search", value: `"${filterState.search}"` });
+    }
 
     for (const chip of chips) {
-      const badge = document.createElement("span");
-      badge.className = "badge rounded-pill text-bg-light me-1";
-      badge.textContent = `${chip.label}: ${chip.value}`;
-      host.append(badge);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "btn btn-sm btn-outline-secondary d-inline-flex align-items-center gap-2";
+      button.dataset.filterKey = chip.key;
+      const labelSpan = document.createElement("span");
+      labelSpan.textContent = `${chip.label}: ${chip.value}`;
+      const closeSpan = document.createElement("span");
+      closeSpan.setAttribute("aria-hidden", "true");
+      closeSpan.textContent = "×";
+      const srSpan = document.createElement("span");
+      srSpan.className = "visually-hidden";
+      srSpan.textContent = `Remove ${chip.label.toLowerCase()} filter`;
+      button.append(labelSpan, closeSpan, srSpan);
+      host.append(button);
     }
   }
 
@@ -283,10 +278,10 @@
     const modeRangeRadio = $("#expModeRange");
 
     const hasExportYears = exportState.years.length > 0;
-    const hasFilterYears = filterState.years.length > 0;
+    const hasFilterYears = Boolean(filterState.year);
     const hasAnyYears = hasExportYears || hasFilterYears;
     const hasYearRange = Boolean(exportState.yearStart && exportState.yearEnd);
-    const hasAnyRange = Boolean(exportState.fromDate || exportState.toDate || filterState.from || filterState.to);
+    const hasAnyRange = Boolean(exportState.fromDate || exportState.toDate);
 
     const allowedModes = new Set(["all", "years", "yearRange", "range"]);
     let mode = allowedModes.has(exportState.mode) ? exportState.mode : null;
@@ -316,7 +311,7 @@
 
     const yearsSelect = $("#expYears");
     if (yearsSelect) {
-      const prefillYears = (hasExportYears ? exportState.years : filterState.years.map((y) => String(y))) || [];
+      const prefillYears = (hasExportYears ? exportState.years : (filterState.year ? [filterState.year] : [])) || [];
       const selectedYears = new Set(prefillYears.map((y) => String(y)));
       $all("option", yearsSelect).forEach((opt) => {
         opt.selected = selectedYears.has(opt.value);
@@ -335,27 +330,15 @@
     const fromInput = $("#expFrom");
     const toInput = $("#expTo");
     if (fromInput) {
-      const savedFrom = exportState.fromDate || (filterState.from ? filterState.from.slice(0, 10) : "");
-      fromInput.value = savedFrom;
+      fromInput.value = exportState.fromDate || "";
     }
     if (toInput) {
-      const savedTo = exportState.toDate || (filterState.to ? filterState.to.slice(0, 10) : "");
-      toInput.value = savedTo;
+      toInput.value = exportState.toDate || "";
     }
 
     const sourceSelect = $("#expSource");
     if (sourceSelect) {
       sourceSelect.value = filterState.sourceId ? String(filterState.sourceId) : "";
-    }
-
-    const projectCat = $("#expProjectCat");
-    if (projectCat) {
-      projectCat.value = filterState.projectCategory || "";
-    }
-
-    const techCat = $("#expTechCat");
-    if (techCat) {
-      techCat.value = filterState.technicalCategory || "";
     }
 
     const searchInput = $("#expSearch");
@@ -904,13 +887,11 @@
   function buildQuery(filters) {
     const params = new URLSearchParams();
     if (filters.Years?.length) filters.Years.forEach((y) => params.append("Years", y));
-    if (filters.FromDateUtc) params.set("FromDateUtc", filters.FromDateUtc);
-    if (filters.ToDateUtc) params.set("ToDateUtc", filters.ToDateUtc);
     if (filters.Source !== null && filters.Source !== undefined) {
       params.set("Source", filters.Source);
     }
-    if (filters.ProjectCategoryId) params.set("ProjectCategoryId", filters.ProjectCategoryId);
-    if (filters.TechnicalCategoryId) params.set("TechnicalCategoryId", filters.TechnicalCategoryId);
+    if (filters.ProjectId) params.set("ProjectId", filters.ProjectId);
+    if (filters.Kind) params.set("Kind", filters.Kind);
     if (filters.Search) params.set("Search", filters.Search);
     params.set("Page", filters.Page ?? 1);
     params.set("PageSize", filters.PageSize ?? 50);
@@ -984,48 +965,77 @@
     }
   }
 
+  function clearFilter(key) {
+    const projectSelect = $("#pf-filter-project");
+    const sourceSelect = $("#pf-filter-source");
+    const typeSelect = $("#pf-filter-type");
+    const yearInput = $("#pf-filter-year");
+    const searchInput = $("#pf-filter-search");
+
+    switch (key) {
+      case "project":
+        if (projectSelect) projectSelect.value = "";
+        break;
+      case "source":
+        if (sourceSelect) sourceSelect.value = "";
+        break;
+      case "type":
+        if (typeSelect) typeSelect.value = "";
+        break;
+      case "year":
+        if (yearInput) yearInput.value = "";
+        break;
+      case "search":
+        if (searchInput) searchInput.value = "";
+        break;
+      default:
+        break;
+    }
+  }
+
+  function handleFilterChange({ preservePage = false } = {}) {
+    if (!preservePage) {
+      filterState.page = 1;
+    }
+    collectFilters();
+    refresh();
+  }
+
   function wireFilters() {
-    $("#btnApply")?.addEventListener("click", () => {
-      filterState.page = 1;
-      refresh();
+    const projectSelect = $("#pf-filter-project");
+    const sourceSelect = $("#pf-filter-source");
+    const typeSelect = $("#pf-filter-type");
+    const yearInput = $("#pf-filter-year");
+    const searchInput = $("#pf-filter-search");
+    const resetButton = $("#pf-filter-reset");
+    const chipsHost = $("#pf-filter-chips");
+
+    projectSelect?.addEventListener("change", () => handleFilterChange());
+    sourceSelect?.addEventListener("change", () => handleFilterChange());
+    typeSelect?.addEventListener("change", () => handleFilterChange());
+    yearInput?.addEventListener("change", () => handleFilterChange());
+
+    if (searchInput) {
+      const onSearchInput = debounce(() => handleFilterChange(), 300);
+      searchInput.addEventListener("input", onSearchInput);
+    }
+
+    resetButton?.addEventListener("click", () => {
+      clearFilter("project");
+      clearFilter("source");
+      clearFilter("type");
+      clearFilter("year");
+      clearFilter("search");
+      handleFilterChange();
     });
 
-    $("#btnReset")?.addEventListener("click", () => {
-      const byYearRadio = $("#fltByYear");
-      const byDateRadio = $("#fltByDate");
-      if (byYearRadio) byYearRadio.checked = true;
-      if (byDateRadio) byDateRadio.checked = false;
-      const yearSelect = $("#fltYears");
-      if (yearSelect) yearSelect.selectedIndex = -1;
-      const fromInput = $("#fltFrom");
-      const toInput = $("#fltTo");
-      if (fromInput) fromInput.value = "";
-      if (toInput) toInput.value = "";
-      const sourceSelect = $("#fltSource");
-      if (sourceSelect) sourceSelect.value = "";
-      const projectCatSelect = $("#fltProjectCat");
-      if (projectCatSelect) projectCatSelect.value = "";
-      const techCatSelect = $("#fltTechCat");
-      if (techCatSelect) techCatSelect.value = "";
-      const searchInput = $("#fltSearch");
-      if (searchInput) searchInput.value = "";
-      $("#fltYearsWrap")?.classList.remove("d-none");
-      $("#fltFromWrap")?.classList.add("d-none");
-      $("#fltToWrap")?.classList.add("d-none");
-      filterState.page = 1;
-      refresh();
-    });
-
-    $("#fltByYear")?.addEventListener("change", () => {
-      $("#fltYearsWrap")?.classList.remove("d-none");
-      $("#fltFromWrap")?.classList.add("d-none");
-      $("#fltToWrap")?.classList.add("d-none");
-    });
-
-    $("#fltByDate")?.addEventListener("change", () => {
-      $("#fltYearsWrap")?.classList.add("d-none");
-      $("#fltFromWrap")?.classList.remove("d-none");
-      $("#fltToWrap")?.classList.remove("d-none");
+    chipsHost?.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-filter-key]");
+      if (!button) return;
+      const { filterKey } = button.dataset;
+      if (!filterKey) return;
+      clearFilter(filterKey);
+      handleFilterChange();
     });
   }
 
@@ -1069,8 +1079,8 @@
     $("#confirmExportBtn")?.addEventListener("click", submitExportRequest);
   }
 
-  function populateCategoryFilters() {
-    const fill = (select, items, defaultLabel, stateValue) => {
+  function populateExportLookups() {
+    const fill = (select, items, defaultLabel) => {
       if (!select) return;
       const previous = select.value;
       select.innerHTML = `<option value="">${defaultLabel}</option>`;
@@ -1083,16 +1093,13 @@
         option.textContent = name;
         select.append(option);
       }
-      const target = stateValue || previous;
-      if (target) {
-        select.value = target;
+      if (previous) {
+        select.value = previous;
       }
     };
 
-    fill($("#fltProjectCat"), lookups.projectCategories, "All categories", filterState.projectCategory);
-    fill($("#expProjectCat"), lookups.projectCategories, "All categories", filterState.projectCategory);
-    fill($("#fltTechCat"), lookups.technicalCategories, "All technical", filterState.technicalCategory);
-    fill($("#expTechCat"), lookups.technicalCategories, "All technical", filterState.technicalCategory);
+    fill($("#expProjectCat"), lookups.projectCategories, "All categories");
+    fill($("#expTechCat"), lookups.technicalCategories, "All technical");
   }
 
   async function loadLookups() {
@@ -1102,27 +1109,20 @@
       const data = await response.json();
       lookups.projectCategories = data.ProjectCategories ?? data.projectCategories ?? [];
       lookups.technicalCategories = data.TechnicalCategories ?? data.technicalCategories ?? [];
-      populateCategoryFilters();
+      populateExportLookups();
     } catch (error) {
       console.warn("Unable to load category lookups", error);
     }
   }
 
   function buildProjectLookupKey(term) {
-    const trimmed = term.trim().toLowerCase();
-    return JSON.stringify({
-      term: trimmed,
-      projectCategory: filterState.projectCategory || "",
-      technicalCategory: filterState.technicalCategory || ""
-    });
+    return term.trim().toLowerCase();
   }
 
   function buildProjectLookupUrl(term) {
     const params = new URLSearchParams();
     const trimmed = term.trim();
     if (trimmed) params.set("q", trimmed);
-    if (filterState.projectCategory) params.set("projectCategoryId", filterState.projectCategory);
-    if (filterState.technicalCategory) params.set("technicalCategoryId", filterState.technicalCategory);
     const query = params.toString();
     return query ? `${api.projects}?${query}` : api.projects;
   }
@@ -1140,13 +1140,35 @@
   function populateProjectControls(options) {
     projectOptions = options || [];
     const datalist = $("#prefProjectOptions");
-    if (!datalist) return;
-    datalist.innerHTML = "";
-    for (const item of projectOptions) {
-      const opt = document.createElement("option");
-      opt.value = item.display;
-      opt.dataset.id = item.id;
-      datalist.append(opt);
+    if (datalist) {
+      datalist.innerHTML = "";
+      for (const item of projectOptions) {
+        const opt = document.createElement("option");
+        opt.value = item.display;
+        opt.dataset.id = item.id;
+        datalist.append(opt);
+      }
+    }
+
+    const filterSelect = $("#pf-filter-project");
+    if (filterSelect) {
+      const previous = filterSelect.value;
+      const target = filterState.projectId || previous;
+      filterSelect.innerHTML = "<option value=\"\">All projects</option>";
+      for (const item of projectOptions) {
+        const option = document.createElement("option");
+        option.value = String(item.id);
+        option.textContent = item.display;
+        filterSelect.append(option);
+      }
+      if (target) {
+        filterSelect.value = String(target);
+        if (filterSelect.value !== String(target)) {
+          filterSelect.value = "";
+        }
+      }
+      const selectedLabel = filterSelect.options[filterSelect.selectedIndex]?.textContent?.trim();
+      filterState.projectLabel = filterSelect.value ? selectedLabel || "Selected project" : "";
     }
   }
 
@@ -1343,7 +1365,7 @@
   }
 
   function populateYears() {
-    const selects = [$("#fltYears"), $("#expYears"), $("#expYearFrom"), $("#expYearTo")].filter(Boolean);
+    const selects = [$("#expYears"), $("#expYearFrom"), $("#expYearTo")].filter(Boolean);
     if (selects.length === 0) return;
     const current = new Date().getUTCFullYear();
     for (const select of selects) {

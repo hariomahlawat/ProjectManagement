@@ -8,6 +8,8 @@ public sealed record ProliferationOverviewRequest(
     IReadOnlyCollection<int>? Years,
     DateOnly? DateFrom,
     DateOnly? DateTo,
+    int? ProjectId,
+    ProliferationRecordKind? Kind,
     int? ProjectCategoryId,
     int? TechnicalCategoryId,
     ProliferationSource? Source,

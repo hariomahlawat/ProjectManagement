@@ -1,35 +1,27 @@
 @model ProliferationListBootVm
 
+@using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels
+
+@{
+    var projectOptions = Model.CompletedProjects
+        .Select(p => new ProliferationFilterOption(p.Id.ToString(), p.DisplayName))
+        .ToList();
+
+    var sourceOptions = Model.SourceOptions
+        .Select(s => new ProliferationFilterOption(s.Value.ToString(), s.Label))
+        .ToList();
+
+    var toolbarModel = ProliferationFilterToolbarModel.Create(
+        context: "manage",
+        projects: projectOptions,
+        sources: sourceOptions,
+        searchPlaceholder: "Search projects or remarks"
+    );
+}
+
 <div class="card shadow-sm" id="pf-list-card" data-default-year="@Model.CurrentYear" data-page-size="@Model.DefaultPageSize">
-    <div class="card-header d-flex flex-wrap align-items-center gap-2">
-        <label class="visually-hidden" for="pf-project-filter">Project</label>
-        <select class="form-select form-select-sm" id="pf-project-filter">
-            <option value="">All projects</option>
-            @foreach (var project in Model.CompletedProjects)
-            {
-                <option value="@project.Id">@project.DisplayName</option>
-            }
-        </select>
-
-        <label class="visually-hidden" for="pf-source-filter">Source</label>
-        <select class="form-select form-select-sm" id="pf-source-filter">
-            <option value="">All sources</option>
-            @foreach (var source in Model.SourceOptions)
-            {
-                <option value="@source.Value">@source.Label</option>
-            }
-        </select>
-
-        <label class="visually-hidden" for="pf-kind-filter">Type</label>
-        <select class="form-select form-select-sm" id="pf-kind-filter">
-            <option value="">All types</option>
-            <option value="yearly">Yearly</option>
-            <option value="granular">Granular</option>
-        </select>
-
-        <label class="visually-hidden" for="pf-year-filter">Year</label>
-        <input class="form-control form-control-sm" id="pf-year-filter" type="number" placeholder="Year" min="2000" max="3000" />
-        <button class="btn btn-sm btn-outline-secondary" id="pf-refresh" type="button">Refresh</button>
+    <div class="card-header">
+        <partial name="Partials/_FilterToolbar" model="toolbarModel" />
     </div>
 
     <div class="list-group list-group-flush" id="pf-list" role="listbox" aria-live="polite">
