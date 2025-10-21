@@ -845,13 +845,16 @@
     indicator.hidden = !hasMixed;
   }
 
-  function persistManageNavigation(projectId, sourceId, year) {
+  function persistManageNavigation(projectId, sourceId, year, kind) {
     const projectNumeric = Number(projectId);
     const sourceNumeric = Number(sourceId);
     const yearNumeric = Number(year);
     const projectValue = Number.isFinite(projectNumeric) && projectNumeric > 0 ? String(projectNumeric) : "";
     const sourceValue = Number.isFinite(sourceNumeric) && sourceNumeric > 0 ? String(sourceNumeric) : "";
     const yearValue = Number.isFinite(yearNumeric) ? String(yearNumeric) : "";
+    const kindValue = typeof kind === "string" && (kind.toLowerCase() === "yearly" || kind.toLowerCase() === "granular")
+      ? kind.toLowerCase()
+      : "";
 
     try {
       const rawFilters = sessionStorage.getItem(manageNavigation.filtersKey);
@@ -862,6 +865,7 @@
       payload.projectId = projectValue;
       payload.source = sourceValue;
       payload.year = yearValue;
+      payload.kind = kindValue;
       sessionStorage.setItem(manageNavigation.filtersKey, JSON.stringify(payload));
     } catch (error) {
       // ignore persistence issues
@@ -884,30 +888,41 @@
     }
   }
 
-  function navigateToManage(projectId, sourceId, year) {
+  function navigateToManage(projectId, sourceId, year, kind, href) {
     const projectNumeric = Number(projectId);
     const sourceNumeric = Number(sourceId);
     const yearNumeric = Number(year);
+    const kindText = typeof kind === "string" ? kind.toLowerCase() : "";
+    const kindValue = kindText === "yearly" || kindText === "granular" ? kindText : "";
     if (!Number.isFinite(projectNumeric) || projectNumeric <= 0 ||
         !Number.isFinite(sourceNumeric) || sourceNumeric <= 0 ||
         !Number.isFinite(yearNumeric)) {
       return;
     }
 
-    persistManageNavigation(projectNumeric, sourceNumeric, yearNumeric);
+    persistManageNavigation(projectNumeric, sourceNumeric, yearNumeric, kindValue);
 
-    const anchorId = manageNavigation.anchor ? manageNavigation.anchor.replace(/^#/, "") : "";
-    const fallbackHref = anchorId ? `${manageNavigation.url}#${anchorId}` : manageNavigation.url;
-
-    try {
-      const url = new URL(manageNavigation.url, window.location.origin);
-      if (anchorId) {
-        url.hash = anchorId;
-      }
-      window.location.href = url.toString();
-    } catch (error) {
-      window.location.href = fallbackHref;
+    if (href) {
+      window.location.href = href;
+      return;
     }
+
+    const params = new URLSearchParams();
+    params.set('projectId', String(projectNumeric));
+    params.set('source', String(sourceNumeric));
+    params.set('year', String(yearNumeric));
+    if (kindValue) {
+      params.set('kind', kindValue);
+    }
+
+    const base = manageNavigation.url;
+    const anchorId = manageNavigation.anchor ? manageNavigation.anchor.replace(/^#/, '') : '';
+    const query = params.toString();
+    let destination = query ? `${base}?${query}` : base;
+    if (anchorId) {
+      destination = `${destination}#${anchorId}`;
+    }
+    window.location.href = destination;
   }
 
   function renderPreferenceBadge(projectId, sourceId, year, mode) {
@@ -918,10 +933,17 @@
       Number.isFinite(sourceNumeric) && sourceNumeric > 0 &&
       Number.isFinite(yearNumeric);
 
-    const modeLabel = formatPreferenceLabel(mode || null, Number.isFinite(sourceNumeric) ? sourceNumeric : null) || "—";
-    const isOverride = Boolean(mode);
+    const normalizedMode = typeof mode === "string" && mode ? mode : mode && typeof mode.toString === "function" ? mode.toString() : "";
+    const modeLabel = formatPreferenceLabel(normalizedMode || null, Number.isFinite(sourceNumeric) ? sourceNumeric : null) || "—";
+    const isOverride = Boolean(normalizedMode && normalizedMode !== "UseYearlyAndGranular");
     const statusText = isOverride ? "Override" : "Default";
     const summary = `${statusText}: ${modeLabel}`;
+
+    const linkKind = normalizedMode === "UseYearly"
+      ? "yearly"
+      : normalizedMode === "UseGranular"
+        ? "granular"
+        : "";
 
     if (!hasContext) {
       return {
@@ -930,15 +952,31 @@
       };
     }
 
+    const params = new URLSearchParams();
+    params.set('projectId', String(projectNumeric));
+    params.set('source', String(sourceNumeric));
+    params.set('year', String(yearNumeric));
+    if (linkKind) {
+      params.set('kind', linkKind);
+    }
+
     const anchorId = manageNavigation.anchor ? manageNavigation.anchor.replace(/^#/, "") : "";
-    const href = anchorId ? `${manageNavigation.url}#${anchorId}` : manageNavigation.url;
+    let href = manageNavigation.url;
+    const query = params.toString();
+    if (query) {
+      href = `${href}?${query}`;
+    }
+    if (anchorId) {
+      href = `${href}#${anchorId}`;
+    }
     const ariaLabel = `${statusText} preference — ${modeLabel}. Open proliferation manager.`;
 
     const attrs = [
       'data-pref-badge="true"',
       `data-pref-project="${escapeAttr(String(projectNumeric))}"`,
       `data-pref-source="${escapeAttr(String(sourceNumeric))}"`,
-      `data-pref-year="${escapeAttr(String(yearNumeric))}"`
+      `data-pref-year="${escapeAttr(String(yearNumeric))}"`,
+      `data-pref-kind="${escapeAttr(linkKind)}"`
     ].join(" ");
 
     const html = `<a href="${escapeAttr(href)}" class="pf-pref-badge ${isOverride ? "pf-pref-badge--override" : "pf-pref-badge--default"}" ${attrs} title="${escapeAttr(ariaLabel)}" aria-label="${escapeAttr(ariaLabel)}"><span class="pf-pref-badge__status">${escapeHtml(statusText)}</span><span class="pf-pref-badge__mode">${escapeHtml(modeLabel)}</span></a>`;
@@ -952,7 +990,9 @@
     const projectId = Number(badge.getAttribute('data-pref-project'));
     const sourceId = Number(badge.getAttribute('data-pref-source'));
     const year = Number(badge.getAttribute('data-pref-year'));
-    navigateToManage(projectId, sourceId, year);
+    const kind = badge.getAttribute('data-pref-kind') || '';
+    const href = badge.getAttribute('href');
+    navigateToManage(projectId, sourceId, year, kind, href);
   }
 
   function renderTable(rows) {

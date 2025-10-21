@@ -36,16 +36,92 @@
     search: ''
   };
 
+  function sanitizeId(value) {
+    const text = String(value ?? '').trim();
+    return /^[0-9]+$/.test(text) ? text : '';
+  }
+
+  function sanitizeKind(value) {
+    const text = String(value ?? '').trim().toLowerCase();
+    return text === 'yearly' || text === 'granular' ? text : '';
+  }
+
+  function sanitizeYear(value) {
+    const text = String(value ?? '').trim();
+    return /^[0-9]{4}$/.test(text) ? text : '';
+  }
+
   const pager = {
     page: 1,
     pageSize: Number(listCard.dataset.pageSize) || 25,
     total: 0
   };
 
+  const bootDefaults = (() => {
+    const listProject = sanitizeId(listCard?.dataset?.bootProjectId);
+    const listSource = sanitizeId(listCard?.dataset?.bootSource);
+    const listYear = sanitizeYear(listCard?.dataset?.bootYear);
+    const listKind = sanitizeKind(listCard?.dataset?.bootKind);
+
+    const editorProject = sanitizeId(editorCard?.dataset?.bootProjectId);
+    const editorSource = sanitizeId(editorCard?.dataset?.bootSource);
+    const editorYear = sanitizeYear(editorCard?.dataset?.bootYear);
+    const editorKind = sanitizeKind(editorCard?.dataset?.bootKind);
+
+    const overridesProject = sanitizeId(overridesCard?.dataset?.bootProjectId);
+    const overridesSource = sanitizeId(overridesCard?.dataset?.bootSource);
+    const overridesYear = sanitizeYear(overridesCard?.dataset?.bootYear);
+    const overridesKind = sanitizeKind(overridesCard?.dataset?.bootKind);
+
+    return {
+      filters: {
+        projectId: listProject || editorProject || '',
+        source: listSource || editorSource || '',
+        year: listYear || editorYear || '',
+        kind: sanitizeKind(listKind || editorKind || overridesKind)
+      },
+      editor: {
+        projectId: editorProject || listProject || '',
+        source: editorSource || listSource || '',
+        year: editorYear || listYear || '',
+        kind: sanitizeKind(editorKind || listKind)
+      },
+      overrides: {
+        projectId: overridesProject || listProject || editorProject || '',
+        source: overridesSource || listSource || editorSource || '',
+        year: overridesYear || listYear || editorYear || '',
+        kind: sanitizeKind(overridesKind || listKind || editorKind)
+      }
+    };
+  })();
+
+  const deepLinkContext = (() => {
+    const context = bootDefaults.filters || {};
+    const projectId = context.projectId || '';
+    const source = context.source || '';
+    const year = context.year || '';
+    const kind = context.kind || '';
+    if (!projectId && !source && !year && !kind) {
+      return null;
+    }
+    return { projectId, source, year, kind };
+  })();
+
+  let bootFocusPending = false;
+  let bootEventEmitted = false;
+
   const defaults = {
     year: Number(editorCard.dataset.currentYear) || new Date().getUTCFullYear(),
-    granularSource: '1'
+    granularSource: '1',
+    boot: bootDefaults
   };
+
+  if (bootDefaults.editor?.year) {
+    const parsedYear = Number(bootDefaults.editor.year);
+    if (Number.isFinite(parsedYear)) {
+      defaults.year = parsedYear;
+    }
+  }
 
   const editor = {
     form: document.querySelector('#pf-form'),
@@ -134,6 +210,85 @@
     const instance = bootstrap?.Toast?.getOrCreateInstance(wrapper, { delay: 3500 }) ?? null;
     wrapper.addEventListener('hidden.bs.toast', () => wrapper.remove(), { once: true });
     instance?.show();
+  }
+
+  function emitDeepLinkEvent(action, detail = {}) {
+    if (!deepLinkContext || !action) return;
+    try {
+      const payload = { action, ...deepLinkContext, ...detail };
+      window.dispatchEvent(new CustomEvent('proliferation:manage:deeplink', { detail: payload }));
+    } catch (error) {
+      // Ignore analytics issues to avoid blocking UX
+    }
+  }
+
+  function applyBootFilterDefaults() {
+    const context = bootDefaults.filters || {};
+    const projectId = context.projectId || '';
+    const source = context.source || '';
+    const year = context.year || '';
+    const kind = context.kind || '';
+    if (!projectId && !source && !year && !kind) {
+      return;
+    }
+    filters.projectId = projectId;
+    filters.source = source;
+    filters.year = year;
+    filters.kind = kind;
+    filters.search = '';
+    pager.page = 1;
+    bootFocusPending = true;
+    if (!bootEventEmitted) {
+      emitDeepLinkEvent('boot');
+      bootEventEmitted = true;
+    }
+    saveFilters();
+  }
+
+  function applyBootEditorDefaults() {
+    const context = bootDefaults.editor || {};
+    if (editor.project && context.projectId && hasOption(editor.project, context.projectId)) {
+      editor.project.value = context.projectId;
+    }
+    if (editor.source && context.source && hasOption(editor.source, context.source)) {
+      editor.source.value = context.source;
+    }
+    if (editor.year && context.year) {
+      editor.year.value = context.year;
+    }
+  }
+
+  function applyBootOverridesDefaults() {
+    if (!overridesCard) return;
+    const context = bootDefaults.overrides || {};
+    const projectId = context.projectId || '';
+    const source = context.source || '';
+    const year = context.year || '';
+    if (!projectId && !source && !year) {
+      return;
+    }
+    overridesState.filters.projectId = projectId;
+    overridesState.filters.source = source;
+    overridesState.filters.year = year;
+    overridesState.filters.search = '';
+    overridesState.collapsed = false;
+    saveOverrideState();
+  }
+
+  function applyBootFocusIfNeeded() {
+    if (!bootFocusPending || !listEl) return;
+    const targetKind = bootDefaults.filters?.kind || '';
+    const selector = targetKind ? `[data-kind="${targetKind}"]` : '[data-id]';
+    const button = listEl.querySelector(selector) || listEl.querySelector('[data-id]');
+    if (!button) {
+      return;
+    }
+    bootFocusPending = false;
+    window.requestAnimationFrame(() => {
+      if (typeof button.focus === 'function') {
+        button.focus();
+      }
+    });
   }
 
   function loadFiltersFromStorage() {
@@ -831,6 +986,13 @@
         throw new Error(text || 'Unable to clear override');
       }
       toast('Preference override cleared.', 'success');
+      emitDeepLinkEvent('override-cleared', {
+        targetProjectId: row.projectId ? String(row.projectId) : '',
+        targetSource: row.sourceValue !== null && row.sourceValue !== undefined
+          ? String(row.sourceValue)
+          : String(row.source ?? ''),
+        targetYear: row.year ? String(row.year) : ''
+      });
       fetchOverrides();
     } catch (error) {
       toast(error.message || 'Unable to clear override', 'danger');
@@ -967,6 +1129,7 @@
   function initOverrides() {
     if (!overridesCard) return;
     loadOverrideStateFromStorage();
+    applyBootOverridesDefaults();
     applyOverrideFiltersToInputs();
     updateOverridesResetVisibility();
     setOverridesCollapsed(overridesState.collapsed, false);
@@ -1054,6 +1217,7 @@
     if (!listEl) return;
     if (!items || items.length === 0) {
       listEl.innerHTML = '<div class="list-group-item text-muted" data-placeholder>No records found.</div>';
+      applyBootFocusIfNeeded();
       return;
     }
 
@@ -1081,6 +1245,7 @@
     });
 
     listEl.innerHTML = rows.join('');
+    applyBootFocusIfNeeded();
   }
 
   function renderCount() {
@@ -1387,19 +1552,25 @@
     setTab(preferredKind, { updateHash: false });
   }
 
-  function handleHashChange() {
+  function getHashKind() {
     const hash = window.location.hash.replace('#', '').toLowerCase();
-    if (hash === 'yearly') {
-      setTab('yearly', { updateHash: false });
-    } else {
-      setTab('granular', { updateHash: false });
+    if (hash === 'yearly' || hash === 'granular') {
+      return hash;
     }
+    return '';
+  }
+
+  function handleHashChange() {
+    const kind = getHashKind();
+    if (!kind) return;
+    setTab(kind, { updateHash: false });
   }
 
   window.addEventListener('hashchange', handleHashChange);
 
   function initFilters() {
     loadFiltersFromStorage();
+    applyBootFilterDefaults();
     applyFiltersToInputs();
     renderFilterChips();
 
@@ -1455,8 +1626,17 @@
 
   function init() {
     initFilters();
+    applyBootEditorDefaults();
     initOverrides();
-    handleHashChange();
+    const hashKind = getHashKind();
+    const bootKind = bootDefaults.editor?.kind || bootDefaults.filters?.kind || '';
+    if (hashKind) {
+      setTab(hashKind, { updateHash: false });
+    } else if (bootKind) {
+      setTab(bootKind, { updateHash: false });
+    } else {
+      setTab('granular', { updateHash: false });
+    }
     fetchList();
   }
 

@@ -22,25 +22,65 @@ public sealed class ProliferationManageService
         _db = db ?? throw new ArgumentNullException(nameof(db));
     }
 
-    public async Task<ProliferationListBootVm> GetListBootAsync(CancellationToken ct)
+    public async Task<ProliferationListBootVm> GetListBootAsync(
+        int? projectId,
+        ProliferationSource? source,
+        int? year,
+        ProliferationRecordKind? kind,
+        CancellationToken ct)
     {
         var projects = await GetCompletedProjectsAsync(ct);
-        var year = DateTime.UtcNow.Year;
-        return new ProliferationListBootVm(projects, GetSourceOptions(), DefaultPageSize, year);
+        var currentYear = DateTime.UtcNow.Year;
+        var defaults = NormalizeDefaults(projectId, source, year, kind);
+        return new ProliferationListBootVm(projects, GetSourceOptions(), DefaultPageSize, currentYear, defaults);
     }
 
-    public async Task<ProliferationEditorBootVm> GetEditorBootAsync(CancellationToken ct)
+    public async Task<ProliferationEditorBootVm> GetEditorBootAsync(
+        int? projectId,
+        ProliferationSource? source,
+        int? year,
+        ProliferationRecordKind? kind,
+        CancellationToken ct)
     {
         var projects = await GetCompletedProjectsAsync(ct);
-        var year = DateTime.UtcNow.Year;
-        return new ProliferationEditorBootVm(projects, GetSourceOptions(), year);
+        var currentYear = DateTime.UtcNow.Year;
+        var defaults = NormalizeDefaults(projectId, source, year, kind);
+        return new ProliferationEditorBootVm(projects, GetSourceOptions(), currentYear, defaults);
     }
 
-    public async Task<ProliferationPreferenceOverridesBootVm> GetPreferenceOverridesBootAsync(CancellationToken ct)
+    public async Task<ProliferationPreferenceOverridesBootVm> GetPreferenceOverridesBootAsync(
+        int? projectId,
+        ProliferationSource? source,
+        int? year,
+        ProliferationRecordKind? kind,
+        CancellationToken ct)
     {
         var projects = await GetCompletedProjectsAsync(ct);
-        var year = DateTime.UtcNow.Year;
-        return new ProliferationPreferenceOverridesBootVm(projects, GetSourceOptions(), year);
+        var currentYear = DateTime.UtcNow.Year;
+        var defaults = NormalizeDefaults(projectId, source, year, kind);
+        return new ProliferationPreferenceOverridesBootVm(projects, GetSourceOptions(), currentYear, defaults);
+    }
+
+    private static ProliferationManageBootDefaults NormalizeDefaults(
+        int? projectId,
+        ProliferationSource? source,
+        int? year,
+        ProliferationRecordKind? kind)
+    {
+        var normalizedProjectId = projectId.HasValue && projectId.Value > 0 ? projectId : null;
+        var normalizedSource = source.HasValue && Enum.IsDefined(typeof(ProliferationSource), source.Value)
+            ? source
+            : null;
+        var normalizedYear = year is >= 2000 and <= 3000 ? year : null;
+        var normalizedKind = kind is ProliferationRecordKind.Yearly or ProliferationRecordKind.Granular
+            ? kind
+            : null;
+
+        return new ProliferationManageBootDefaults(
+            normalizedProjectId,
+            normalizedSource,
+            normalizedYear,
+            normalizedKind);
     }
 
     public async Task<PagedResult<ProliferationManageListItem>> GetListAsync(

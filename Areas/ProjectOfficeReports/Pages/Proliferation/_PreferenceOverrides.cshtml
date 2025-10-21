@@ -1,10 +1,24 @@
+@using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels
+
 @model ProliferationPreferenceOverridesBootVm
 @{
+    var defaults = Model.Defaults;
+    var defaultProjectId = defaults.ProjectId?.ToString() ?? string.Empty;
+    var defaultSource = defaults.Source.HasValue ? ((int)defaults.Source.Value).ToString() : string.Empty;
+    var defaultYear = defaults.Year?.ToString() ?? string.Empty;
+    var defaultKind = defaults.Kind switch
+    {
+        ProliferationRecordKind.Yearly => "yearly",
+        ProliferationRecordKind.Granular => "granular",
+        _ => string.Empty
+    };
+
     var overviewUrl = Url.Page("/Proliferation/Index", new { area = "ProjectOfficeReports" }) ?? string.Empty;
     var exportUrl = Url.Action("ExportPreferenceOverrides", "Proliferation", new { area = "ProjectOfficeReports" }) ?? string.Empty;
 }
 
-<div class="card shadow-sm" id="pf-overrides-card" data-default-year="@Model.CurrentYear" data-overview-url="@overviewUrl" data-export-url="@exportUrl">
+<div class="card shadow-sm" id="pf-overrides-card" data-default-year="@Model.CurrentYear" data-overview-url="@overviewUrl" data-export-url="@exportUrl"
+     data-boot-project-id="@defaultProjectId" data-boot-source="@defaultSource" data-boot-year="@defaultYear" data-boot-kind="@defaultKind">
     <div class="card-header d-flex flex-wrap align-items-center gap-2">
         <div class="d-flex flex-wrap align-items-center gap-2 flex-grow-1">
             <label class="visually-hidden" for="pf-overrides-project">Project</label>
