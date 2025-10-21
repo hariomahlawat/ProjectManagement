@@ -222,6 +222,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         }
 
         [HttpGet("projects")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
         public async Task<ActionResult<IReadOnlyList<ProliferationProjectLookupDto>>> GetEligibleProjects(
             [FromQuery] string? q,
             [FromQuery] int? projectCategoryId,
@@ -265,6 +266,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         }
 
         [HttpGet("lookups")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
         public async Task<ActionResult<ProliferationLookupsDto>> GetLookups(CancellationToken ct)
         {
             var projectCategories = await _db.ProjectCategories
@@ -299,6 +301,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         }
 
         [HttpGet("overview")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
         public async Task<ActionResult<ProliferationOverviewDto>> GetOverview([FromQuery] ProliferationOverviewQuery q, CancellationToken ct)
         {
             var requestedPageSize = q.PageSize;
@@ -694,6 +697,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         }
 
         [HttpGet("year-preference")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
         public async Task<ActionResult<ProliferationYearPreferenceDto>> GetYearPreference([FromQuery] int projectId, [FromQuery] ProliferationSource source, [FromQuery] int year, CancellationToken ct)
         {
             if (projectId <= 0)
@@ -736,6 +740,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         }
 
         [HttpGet("export")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ViewProliferationTracker)]
         public async Task<IActionResult> Export([FromQuery] ProliferationOverviewQuery q, CancellationToken ct)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
