@@ -112,6 +112,126 @@
     pageSize: 50
   };
 
+  const filterStorageConfig = {
+    key: "proliferation-dashboard-filter-state",
+    version: 1
+  };
+
+  function getSessionStorage() {
+    try {
+      return window.sessionStorage;
+    } catch {
+      return null;
+    }
+  }
+
+  function persistFilterState() {
+    const storage = getSessionStorage();
+    if (!storage) return;
+    const payload = {
+      version: filterStorageConfig.version,
+      state: {
+        projectId: filterState.projectId || "",
+        projectLabel: filterState.projectLabel || "",
+        sourceId: Number.isFinite(filterState.sourceId) ? filterState.sourceId : null,
+        type: filterState.type || "",
+        year: filterState.year || "",
+        search: filterState.search || "",
+        page: Number.isFinite(filterState.page) && filterState.page > 0 ? filterState.page : 1,
+        pageSize: Number.isFinite(filterState.pageSize) && filterState.pageSize > 0 ? filterState.pageSize : 50
+      }
+    };
+    try {
+      storage.setItem(filterStorageConfig.key, JSON.stringify(payload));
+    } catch {
+      // ignore write failures
+    }
+  }
+
+  function restoreFilterStateFromStorage() {
+    const storage = getSessionStorage();
+    if (!storage) return;
+    let raw;
+    try {
+      raw = storage.getItem(filterStorageConfig.key);
+    } catch {
+      return;
+    }
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw);
+      const version = parsed?.version ?? parsed?.v;
+      if (version !== filterStorageConfig.version) {
+        storage.removeItem(filterStorageConfig.key);
+        return;
+      }
+      const state = parsed?.state;
+      if (!state || typeof state !== "object") {
+        storage.removeItem(filterStorageConfig.key);
+        return;
+      }
+      const sanitizeString = (value) => (typeof value === "string" ? value : "");
+      const sanitizeNumber = (value, { allowZero = false } = {}) => {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric)) return null;
+        if (!allowZero && numeric <= 0) return null;
+        return numeric;
+      };
+
+      const restored = {
+        projectId: sanitizeString(state.projectId),
+        projectLabel: sanitizeString(state.projectLabel),
+        sourceId: sanitizeNumber(state.sourceId, { allowZero: false }),
+        type: sanitizeString(state.type),
+        year: sanitizeString(state.year),
+        search: sanitizeString(state.search),
+        page: sanitizeNumber(state.page, { allowZero: false }) ?? 1,
+        pageSize: sanitizeNumber(state.pageSize, { allowZero: false }) ?? 50
+      };
+
+      filterState.projectId = restored.projectId;
+      filterState.projectLabel = restored.projectLabel;
+      filterState.sourceId = restored.sourceId;
+      filterState.sourceLabel = formatSourceLabel(filterState.sourceId);
+      filterState.type = restored.type;
+      filterState.year = restored.year;
+      filterState.search = restored.search;
+      filterState.page = restored.page;
+      filterState.pageSize = restored.pageSize;
+
+      const projectSelect = $("#pf-filter-project");
+      if (projectSelect) {
+        projectSelect.value = filterState.projectId || "";
+      }
+      const sourceSelect = $("#pf-filter-source");
+      if (sourceSelect) {
+        sourceSelect.value = Number.isFinite(filterState.sourceId) ? String(filterState.sourceId) : "";
+      }
+      const typeSelect = $("#pf-filter-type");
+      if (typeSelect) {
+        typeSelect.value = filterState.type || "";
+      }
+      const yearInput = $("#pf-filter-year");
+      if (yearInput) {
+        yearInput.value = filterState.year || "";
+      }
+      const searchInput = $("#pf-filter-search");
+      if (searchInput) {
+        searchInput.value = filterState.search || "";
+      }
+
+      renderChips();
+      persistFilterState();
+    } catch (error) {
+      console.warn("Ignoring stored proliferation filters", error);
+      try {
+        storage.removeItem(filterStorageConfig.key);
+      } catch {
+        // ignore
+      }
+    }
+  }
+
   const exportState = {
     mode: "years",
     years: [],
@@ -178,7 +298,7 @@
     const sourceValue = filterState.sourceId;
     const projectNumber = Number(filterState.projectId);
 
-    return {
+    const filters = {
       Years: Number.isFinite(yearNumber) ? [yearNumber] : [],
       Source: sourceValue,
       ProjectId: Number.isFinite(projectNumber) && projectNumber > 0 ? projectNumber : null,
@@ -187,6 +307,9 @@
       Page: filterState.page,
       PageSize: filterState.pageSize
     };
+
+    persistFilterState();
+    return filters;
   }
 
   function renderChips() {
@@ -789,6 +912,7 @@
       const targetPage = Number(button.dataset.page);
       if (!Number.isFinite(targetPage) || targetPage < 1 || targetPage === filterState.page) return;
       filterState.page = targetPage;
+      persistFilterState();
       refresh();
     });
   }
@@ -1163,6 +1287,7 @@
           console.warn("Unable to refresh project options", error);
         }
       }
+      persistFilterState();
     } catch (error) {
       console.warn("Failed to load overview", error);
       if (host) {
@@ -1176,6 +1301,7 @@
       updateEntrySummary(0, filterState.page, filterState.pageSize);
       renderPagination(0, filterState.page, filterState.pageSize);
       toast("Unable to load proliferation overview. Please try again later.", "danger");
+      persistFilterState();
     }
   }
 
@@ -1610,6 +1736,7 @@
 
   document.addEventListener("DOMContentLoaded", async () => {
     populateYears();
+    restoreFilterStateFromStorage();
     await loadLookups();
     wireFilters();
     wireExportModal();
