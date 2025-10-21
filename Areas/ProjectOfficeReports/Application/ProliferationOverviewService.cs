@@ -200,7 +200,9 @@ public sealed class ProliferationOverviewService
             query = query.Where(p => p.Year == request.Year.Value);
         }
 
-        var baseQuery = from pref in query
+        var orderedQuery = query.OrderByDescending(pref => pref.SetOnUtc);
+
+        var baseQuery = from pref in orderedQuery
                         join project in _db.Projects.AsNoTracking() on pref.ProjectId equals project.Id
                         where !project.IsDeleted && !project.IsArchived
                         join user in _db.Users.AsNoTracking() on pref.SetByUserId equals user.Id into userJoin
@@ -223,9 +225,7 @@ public sealed class ProliferationOverviewService
                 (x.SetByUserName != null && EF.Functions.ILike(x.SetByUserName, like)));
         }
 
-        var projections = await baseQuery
-            .OrderByDescending(x => x.Preference.SetOnUtc)
-            .ToListAsync(cancellationToken);
+        var projections = await baseQuery.ToListAsync(cancellationToken);
 
         if (projections.Count == 0)
         {
