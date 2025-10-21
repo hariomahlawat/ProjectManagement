@@ -1210,7 +1210,13 @@ body {
 
 /* ---------- Header & footer ---------- */
 .pm-header .navbar {
-    padding-inline: 0;
+    padding-inline: clamp(1rem, 4vw, 3rem);
+}
+
+@media (min-width: 992px) {
+    .pm-header .navbar {
+        padding-inline: clamp(1.5rem, 5vw, 4rem);
+    }
 }
 
 .pm-header .navbar-brand {
