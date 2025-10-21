@@ -127,3 +127,80 @@
 .year-preferences .list-group-item:focus-within {
     background-color: rgba(13, 110, 253, 0.05);
 }
+
+.pf-manage-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.pf-manage-panel {
+    min-width: 0;
+}
+
+.pf-editor-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.pf-panel-card .card-header,
+.pf-panel-card .card-body,
+.pf-panel-card .card-footer {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+}
+
+.pf-panel-card .card-header {
+    padding-top: 1.25rem;
+}
+
+.pf-panel-card .card-body,
+.pf-panel-card .card-footer {
+    padding-bottom: 1.25rem;
+}
+
+.pf-panel-heading .card-subtitle {
+    margin-bottom: 0;
+}
+
+.pf-editor-tabs {
+    flex-wrap: wrap;
+}
+
+#pf-overrides-filters .form-label {
+    margin-bottom: 0.25rem;
+}
+
+@media (min-width: 992px) {
+    .pf-manage-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 0.45fr) minmax(0, 0.55fr);
+        align-items: flex-start;
+    }
+
+    .pf-editor-tabs {
+        justify-content: flex-end;
+    }
+}
+
+@media (min-width: 1400px) {
+    .pf-manage-layout {
+        grid-template-columns: minmax(0, 0.4fr) minmax(0, 0.6fr);
+    }
+}
+
+@media (max-width: 575.98px) {
+    .pf-panel-card .card-header,
+    .pf-panel-card .card-body,
+    .pf-panel-card .card-footer {
+        padding-left: 1.25rem;
+        padding-right: 1.25rem;
+    }
+}
+
+@media (min-width: 576px) {
+    .w-sm-auto {
+        width: auto !important;
+    }
+}

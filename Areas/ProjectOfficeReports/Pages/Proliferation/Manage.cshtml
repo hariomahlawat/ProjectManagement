@@ -20,16 +20,17 @@
         </div>
     </div>
 
-    <div class="row g-4 align-items-start">
-        <div class="col-lg-7" id="pf-list-col">
+    @{
+        ViewData["ProliferationOverrides"] = Model.OverridesBoot;
+    }
+
+    <div class="pf-manage-layout" data-pf-manage-layout>
+        <section class="pf-manage-panel pf-manage-panel--list" id="pf-list-panel" aria-label="Filters and proliferation results">
             <partial name="_ProliferationList" model="Model.ListBoot" />
-            <div class="mt-4">
-                <partial name="_PreferenceOverrides" model="Model.OverridesBoot" />
-            </div>
-        </div>
-        <div class="col-lg-5" id="pf-editor-col">
-            <partial name="_ProliferationEditor" model="Model.EditorBoot" />
-        </div>
+        </section>
+        <section class="pf-manage-panel pf-manage-panel--detail" id="pf-detail-panel" aria-label="Editor and preference overrides">
+            <partial name="_ProliferationEditor" model="Model.EditorBoot" view-data="ViewData" />
+        </section>
     </div>
 </div>
 

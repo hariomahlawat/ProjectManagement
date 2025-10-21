@@ -3,12 +3,18 @@
   const Modal = window.bootstrap?.Modal ?? null;
   const Collapse = window.bootstrap?.Collapse ?? null;
 
-  const listCard = document.querySelector('#pf-list-card');
-  const overridesCard = document.querySelector('#pf-overrides-card');
-  const editorCard = document.querySelector('#pf-editor');
+  const layoutRoot = document.querySelector('[data-pf-manage-layout]');
+  const listPanel = layoutRoot?.querySelector('#pf-list-panel') ?? document.querySelector('#pf-list-panel');
+  const detailPanel = layoutRoot?.querySelector('#pf-detail-panel') ?? document.querySelector('#pf-detail-panel');
+  const listCard = listPanel?.querySelector('#pf-list-card') ?? document.querySelector('#pf-list-card');
+  const editorCard = detailPanel?.querySelector('#pf-editor') ?? document.querySelector('#pf-editor');
+  const overridesCard = detailPanel?.querySelector('#pf-overrides-card') ?? document.querySelector('#pf-overrides-card');
   if (!listCard || !editorCard) {
     return;
   }
+
+  const listScrollTarget = listPanel ?? listCard;
+  const detailScrollTarget = detailPanel ?? editorCard;
 
   const storageKey = 'proliferation-manage-filters';
   const overridesStorageKey = 'proliferation-manage-preference-overrides';
@@ -936,7 +942,7 @@
     saveFilters();
     renderFilterChips();
     fetchList();
-    listCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    listScrollTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     toast('List filters updated for this override.', 'info');
   }
 
@@ -957,7 +963,7 @@
     }
     setTab('yearly');
     editor.project?.focus();
-    editorCard?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    detailScrollTarget?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     toast('Editor prefilled from override.', 'info');
   }
 

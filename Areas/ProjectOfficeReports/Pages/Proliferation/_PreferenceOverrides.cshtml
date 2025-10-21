@@ -17,71 +17,88 @@
     var exportUrl = Url.Action("ExportPreferenceOverrides", "Proliferation", new { area = "ProjectOfficeReports" }) ?? string.Empty;
 }
 
-<div class="card shadow-sm" id="pf-overrides-card" data-default-year="@Model.CurrentYear" data-overview-url="@overviewUrl" data-export-url="@exportUrl"
+<div class="card shadow-sm pf-panel-card pf-panel-card--overrides" id="pf-overrides-card" data-default-year="@Model.CurrentYear" data-overview-url="@overviewUrl" data-export-url="@exportUrl"
      data-boot-project-id="@defaultProjectId" data-boot-source="@defaultSource" data-boot-year="@defaultYear" data-boot-kind="@defaultKind">
-    <div class="card-header d-flex flex-wrap align-items-center gap-2">
-        <div class="d-flex flex-wrap align-items-center gap-2 flex-grow-1">
-            <label class="visually-hidden" for="pf-overrides-project">Project</label>
-            <select class="form-select form-select-sm" id="pf-overrides-project">
-                <option value="">All projects</option>
-                @foreach (var project in Model.CompletedProjects)
-                {
-                    <option value="@project.Id">@project.DisplayName</option>
-                }
-            </select>
-
-            <label class="visually-hidden" for="pf-overrides-source">Source</label>
-            <select class="form-select form-select-sm" id="pf-overrides-source">
-                <option value="">All sources</option>
-                @foreach (var source in Model.SourceOptions)
-                {
-                    <option value="@source.Value">@source.Label</option>
-                }
-            </select>
-
-            <label class="visually-hidden" for="pf-overrides-year">Year</label>
-            <input class="form-control form-control-sm" id="pf-overrides-year" type="number" placeholder="Year" min="2000" max="3000" />
-
-            <label class="visually-hidden" for="pf-overrides-search">Search overrides</label>
-            <input class="form-control form-control-sm" id="pf-overrides-search" type="search" placeholder="Search…" />
-
-            <button class="btn btn-sm btn-outline-secondary" id="pf-overrides-refresh" type="button">Refresh</button>
+    <div class="card-header border-0 pb-0">
+        <div class="d-flex flex-wrap align-items-start gap-3">
+            <div class="pf-panel-heading flex-grow-1">
+                <h3 class="card-title h5 mb-1">Preference overrides</h3>
+                <p class="card-subtitle text-muted small mb-0">Review override coverage and adjust preferences without leaving the editor.</p>
+            </div>
+            <button class="btn btn-sm btn-link text-decoration-none" id="pf-overrides-collapse-toggle" type="button" aria-expanded="true" aria-controls="pf-overrides-collapse">
+                <span data-expanded-text>Hide</span>
+                <span data-collapsed-text class="d-none">Show</span>
+            </button>
         </div>
-        <button class="btn btn-sm btn-link text-decoration-none" id="pf-overrides-collapse-toggle" type="button" aria-expanded="true">
-            <span data-expanded-text>Hide</span>
-            <span data-collapsed-text class="d-none">Show</span>
-        </button>
+    </div>
+
+    <div class="card-body pt-3 pb-0">
+        <div class="row g-2 g-md-3 align-items-end" id="pf-overrides-filters">
+            <div class="col-12 col-md-6 col-xl-4">
+                <label class="form-label small text-uppercase text-muted fw-semibold" for="pf-overrides-project">Project</label>
+                <select class="form-select form-select-sm" id="pf-overrides-project">
+                    <option value="">All projects</option>
+                    @foreach (var project in Model.CompletedProjects)
+                    {
+                        <option value="@project.Id">@project.DisplayName</option>
+                    }
+                </select>
+            </div>
+            <div class="col-12 col-sm-6 col-xl-3">
+                <label class="form-label small text-uppercase text-muted fw-semibold" for="pf-overrides-source">Source</label>
+                <select class="form-select form-select-sm" id="pf-overrides-source">
+                    <option value="">All sources</option>
+                    @foreach (var source in Model.SourceOptions)
+                    {
+                        <option value="@source.Value">@source.Label</option>
+                    }
+                </select>
+            </div>
+            <div class="col-6 col-sm-4 col-xl-2">
+                <label class="form-label small text-uppercase text-muted fw-semibold" for="pf-overrides-year">Year</label>
+                <input class="form-control form-control-sm" id="pf-overrides-year" type="number" placeholder="Year" min="2000" max="3000" />
+            </div>
+            <div class="col-12 col-sm-8 col-xl-3">
+                <label class="form-label small text-uppercase text-muted fw-semibold" for="pf-overrides-search">Search</label>
+                <input class="form-control form-control-sm" id="pf-overrides-search" type="search" placeholder="Search overrides" />
+            </div>
+            <div class="col-12 col-sm-auto">
+                <button class="btn btn-sm btn-outline-secondary w-100 w-sm-auto" id="pf-overrides-refresh" type="button">Refresh</button>
+            </div>
+        </div>
     </div>
 
     <div class="collapse show" id="pf-overrides-collapse">
-        <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0" aria-live="polite">
-                <thead class="table-light">
-                    <tr>
-                        <th scope="col">Project</th>
-                        <th scope="col">Scope</th>
-                        <th scope="col">Data coverage</th>
-                        <th scope="col">Preference</th>
-                        <th scope="col">Updated</th>
-                        <th scope="col" class="text-end">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="pf-overrides-body">
-                    <tr data-placeholder>
-                        <td colspan="6" class="text-muted">Use the filters to load overrides.</td>
-                    </tr>
-                </tbody>
-            </table>
+        <div class="card-body pt-3">
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0" aria-live="polite">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">Project</th>
+                            <th scope="col">Scope</th>
+                            <th scope="col">Data coverage</th>
+                            <th scope="col">Preference</th>
+                            <th scope="col">Updated</th>
+                            <th scope="col" class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pf-overrides-body">
+                        <tr data-placeholder>
+                            <td colspan="6" class="text-muted">Use the filters to load overrides.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
-    </div>
 
-    <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <div id="pf-overrides-summary" class="small text-muted" aria-live="polite"></div>
-        <div class="d-flex flex-wrap gap-2">
-            <button class="btn btn-sm btn-outline-primary" id="pf-overrides-export" type="button">
-                Export CSV
-            </button>
-            <button class="btn btn-sm btn-outline-secondary d-none" id="pf-overrides-reset" type="button">Reset filters</button>
+        <div class="card-footer border-0 pt-0 d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div id="pf-overrides-summary" class="small text-muted" aria-live="polite"></div>
+            <div class="d-flex flex-wrap gap-2">
+                <button class="btn btn-sm btn-outline-primary" id="pf-overrides-export" type="button">
+                    Export CSV
+                </button>
+                <button class="btn btn-sm btn-outline-secondary d-none" id="pf-overrides-reset" type="button">Reset filters</button>
+            </div>
         </div>
     </div>
 </div>
