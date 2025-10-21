@@ -649,7 +649,7 @@
     return latest?.row ?? null;
   }
 
-  function updateOverridesSummary() {
+  function updateOverridesSummary(stats = null) {
     if (!overridesElements.summary) return;
     const count = overridesRows.size;
     if (count === 0) {
@@ -657,24 +657,36 @@
       return;
     }
 
-    let summary = count === 1 ? '1 override loaded.' : `${count} overrides loaded.`;
+    const detailParts = [];
+    if (stats) {
+      const breakdown = [];
+      if (stats.both) breakdown.push(`${stats.both} with both data types`);
+      if (stats.granularOnly) breakdown.push(`${stats.granularOnly} granular-only`);
+      if (stats.yearlyOnly) breakdown.push(`${stats.yearlyOnly} yearly-only`);
+      if (stats.none) breakdown.push(`${stats.none} without approved data`);
+      if (stats.autoFallback) breakdown.push(`${stats.autoFallback} auto fallback`);
+      if (breakdown.length) {
+        detailParts.push(`Breakdown: ${breakdown.join(', ')}.`);
+      }
+    }
+
     const latestRow = findLatestOverrideRow();
     if (latestRow) {
       const when = formatDateTime(latestRow.setOnUtc);
       const actor = latestRow.setByDisplayName || latestRow.setByUserId || '';
-      let detail = '';
       if (when && actor) {
-        detail = `Last updated ${when} by ${actor}`;
+        detailParts.push(`Last updated ${when} by ${actor}.`);
       } else if (when) {
-        detail = `Last updated ${when}`;
+        detailParts.push(`Last updated ${when}.`);
       } else if (actor) {
-        detail = `Last updated by ${actor}`;
-      }
-      if (detail) {
-        summary = `${summary} ${detail}.`;
+        detailParts.push(`Last updated by ${actor}.`);
       }
     }
 
+    let summary = count === 1 ? '1 override loaded.' : `${count} overrides loaded.`;
+    if (detailParts.length) {
+      summary = `${summary} ${detailParts.join(' ')}`;
+    }
     overridesElements.summary.textContent = summary;
   }
 
@@ -684,10 +696,6 @@
 
     if (!rows || rows.length === 0) {
       overridesElements.tableBody.innerHTML = '<tr><td colspan="6" class="text-muted">No overrides found.</td></tr>';
-      if (overridesElements.summary) {
-        overridesElements.summary.textContent = 'No overrides configured.';
-      }
-      overridesElements.tableBody.innerHTML = '<tr><td colspan="8" class="text-muted">No overrides found.</td></tr>';
       updateOverridesSummary();
       updateOverridesExportAvailability(false);
       return;
@@ -754,9 +762,6 @@
 
       const effectiveTotal = Number.isFinite(row.effectiveTotal) ? row.effectiveTotal : null;
       const effectiveTotalDisplay = effectiveTotal === null ? '—' : effectiveTotal.toLocaleString();
-      const setById = row.setByUserId && row.setByUserId !== row.setByDisplayName
-        ? `<div class="small text-muted">ID: ${row.setByUserId}</div>`
-        : '';
       const actions = `
         <div class="btn-group btn-group-sm" role="group">
           <button type="button" class="btn btn-outline-secondary" data-action="focus-list" data-id="${row.id}">List</button>
@@ -784,35 +789,12 @@
             <div class="fw-semibold">${row.setByDisplayName}</div>
             <div class="small text-muted">${updated}</div>
           </td>
-          <td>${row.sourceLabel}</td>
-          <td>${row.year}</td>
-          <td>${row.modeLabel}</td>
-          <td>${row.effectiveModeLabel}</td>
-          <td>
-            <div class="fw-semibold">${row.setByDisplayName}</div>
-            ${setById}
-          </td>
-          <td>${updated}</td>
           <td class="text-end">${actions}</td>
         </tr>`;
     }).join('');
 
     overridesElements.tableBody.innerHTML = markup || '<tr><td colspan="6" class="text-muted">No overrides found.</td></tr>';
-    if (overridesElements.summary) {
-      const count = overridesRows.size;
-      const pieces = [];
-      if (stats.both) pieces.push(`${stats.both} with both data types`);
-      if (stats.granularOnly) pieces.push(`${stats.granularOnly} granular-only`);
-      if (stats.yearlyOnly) pieces.push(`${stats.yearlyOnly} yearly-only`);
-      if (stats.none) pieces.push(`${stats.none} without approved data`);
-      if (stats.autoFallback) pieces.push(`${stats.autoFallback} auto fallback`);
-      const detail = pieces.length ? ` (${pieces.join(', ')})` : '';
-      overridesElements.summary.textContent = count === 1
-        ? `1 override loaded${detail}.`
-        : `${count} overrides loaded${detail}.`;
-    }
-    overridesElements.tableBody.innerHTML = markup || '<tr><td colspan="8" class="text-muted">No overrides found.</td></tr>';
-    updateOverridesSummary();
+    updateOverridesSummary(stats);
     updateOverridesExportAvailability(overridesRows.size > 0);
   }
 
