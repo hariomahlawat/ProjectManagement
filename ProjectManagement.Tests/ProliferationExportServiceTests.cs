@@ -190,6 +190,7 @@ public sealed class ProliferationExportServiceTests
         Assert.Equal("Yearly", secondDataRow.Cell(4).GetString());
         Assert.Equal(120, secondDataRow.Cell(7).GetValue<int>());
         Assert.Equal(70, secondDataRow.Cell(8).GetValue<int>());
+        Assert.Equal("UseYearlyAndGranular", secondDataRow.Cell(10).GetString());
 
         Assert.Equal("Export generated", worksheet.Cell(5, 1).GetString());
         Assert.Equal("Requested by", worksheet.Cell(6, 1).GetString());

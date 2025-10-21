@@ -38,13 +38,15 @@ public sealed class ProliferationTrackerReadService
         var preference = await _db.Set<ProliferationYearPreference>()
             .Where(x => x.ProjectId == projectId && x.Source == source && x.Year == year)
             .Select(x => (YearPreferenceMode?)x.Mode)
-            .FirstOrDefaultAsync(cancellationToken) ?? YearPreferenceMode.Auto;
+            .FirstOrDefaultAsync(cancellationToken) ?? YearPreferenceMode.UseYearlyAndGranular;
 
         return preference switch
         {
             YearPreferenceMode.UseYearly => yearly,
             YearPreferenceMode.UseGranular => granularSum,
-            _ => granularSum > 0 ? granularSum : yearly
+            YearPreferenceMode.Auto => granularSum > 0 ? granularSum : yearly,
+            YearPreferenceMode.UseYearlyAndGranular => yearly + granularSum,
+            _ => yearly + granularSum
         };
     }
 }

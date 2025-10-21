@@ -34,10 +34,17 @@
             <legend id="prefModeLegend" class="form-label">Preference</legend>
             <div class="list-group">
                 <label class="list-group-item list-group-item-action d-flex align-items-start gap-2">
-                    <input class="form-check-input mt-1" type="radio" name="prefMode" value="Auto" checked>
+                    <input class="form-check-input mt-1" type="radio" name="prefMode" value="UseYearlyAndGranular" checked>
+                    <div>
+                        <span class="fw-semibold">Use yearly + granular</span>
+                        <div class="text-muted small">Always add approved yearly totals and granular entries for this project-year.</div>
+                    </div>
+                </label>
+                <label class="list-group-item list-group-item-action d-flex align-items-start gap-2">
+                    <input class="form-check-input mt-1" type="radio" name="prefMode" value="Auto">
                     <div>
                         <span class="fw-semibold">Auto</span>
-                        <div class="text-muted small">Use granular when available, otherwise yearly totals.</div>
+                        <div class="text-muted small">Prefer granular totals when present; fall back to yearly.</div>
                     </div>
                 </label>
                 <label class="list-group-item list-group-item-action d-flex align-items-start gap-2">

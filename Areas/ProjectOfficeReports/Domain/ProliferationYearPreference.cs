@@ -6,7 +6,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Domain
         public int ProjectId { get; set; }
         public ProliferationSource Source { get; set; }
         public int Year { get; set; }
-        public YearPreferenceMode Mode { get; set; } = YearPreferenceMode.Auto;
+        public YearPreferenceMode Mode { get; set; } = YearPreferenceMode.UseYearlyAndGranular;
 
         public string SetByUserId { get; set; } = default!;
         public DateTime SetOnUtc { get; set; }
