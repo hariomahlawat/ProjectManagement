@@ -1172,6 +1172,30 @@
     navigateToManage(projectId, sourceId, year, kind, href);
   }
 
+  const tableHeaderHtml = `
+      <thead class="table-light">
+        <tr>
+          <th scope="col">Project</th>
+          <th scope="col">Source</th>
+          <th scope="col" class="text-nowrap">Year / Date</th>
+          <th scope="col" class="text-end text-nowrap">Quantity / Total</th>
+          <th scope="col">Preference</th>
+          <th scope="col" class="text-nowrap">Updated</th>
+        </tr>
+      </thead>`;
+
+  function buildSkeletonRows(count = 6) {
+    return Array.from({ length: count }, () => `
+        <tr aria-hidden="true">
+          <td><div class="skeleton table-row w-100"></div></td>
+          <td><div class="skeleton table-row w-100"></div></td>
+          <td><div class="skeleton table-row w-100"></div></td>
+          <td><div class="skeleton table-row w-100"></div></td>
+          <td><div class="skeleton table-row w-100"></div></td>
+          <td><div class="skeleton table-row w-100"></div></td>
+        </tr>`).join("");
+  }
+
   function renderTable(rows) {
     const host = $("#tableContainer");
     if (!host) return;
@@ -1179,31 +1203,25 @@
     updateMixedCoverage(rows);
 
     if (!rows || !rows.length) {
-      host.innerHTML = `<div class="alert alert-light border d-flex align-items-center" role="status">
+      const emptyRows = Array.from({ length: 4 }, () => `
+          <tr>${'<td class="py-4">&nbsp;</td>'.repeat(6)}</tr>`).join("");
+      host.innerHTML = `<div class="table-responsive">
+        <table class="table table-hover align-middle mb-0 table-proliferation">${tableHeaderHtml}<tbody>${emptyRows}</tbody></table>
+      </div>
+      <div class="alert alert-light border d-flex align-items-center mt-3" role="status">
         <div class="me-2" aria-hidden="true">ℹ️</div>
-        <div>No records match the current filters. Try adjusting filters or reset.</div>
+        <div class="flex-grow-1">No records match the current filters.</div>
+        <button type="button" class="btn btn-link btn-sm" data-action="pf-clear-filters">Clear filters</button>
       </div>`;
       host.removeAttribute("aria-busy");
       updateSelectionSummary(null);
+      const resetButton = $("#pf-filter-reset");
+      const clearFiltersButton = host.querySelector('[data-action="pf-clear-filters"]');
+      if (resetButton && clearFiltersButton) {
+        clearFiltersButton.addEventListener("click", () => resetButton.click());
+      }
       return;
     }
-
-    const header = `
-      <thead class="table-light">
-        <tr>
-          <th scope="col">Project</th>
-          <th scope="col">Source</th>
-          <th scope="col" class="text-nowrap">Year</th>
-          <th scope="col" class="text-nowrap">Date</th>
-          <th scope="col">Unit</th>
-          <th scope="col" class="text-end text-nowrap">Quantity</th>
-          <th scope="col" class="text-end text-nowrap">Effective total</th>
-          <th scope="col">Preference</th>
-          <th scope="col" class="text-nowrap">Last updated</th>
-          <th scope="col">Data type</th>
-          <th scope="col">Approval</th>
-        </tr>
-      </thead>`;
 
     const body = rows.map((row) => {
       const projectId = row.ProjectId ?? row.projectId ?? row.ProjectID ?? row.projectID;
@@ -1229,7 +1247,6 @@
       const effectiveRaw = row.EffectiveTotal ?? row.effectiveTotal ?? quantity;
       const effectiveValue = Number(effectiveRaw);
       const effective = Number.isFinite(effectiveValue) ? effectiveValue : quantity;
-      const approval = row.ApprovalStatus ?? row.approvalStatus ?? "";
       const modeRaw = row.Mode ?? row.mode ?? null;
       const year = row.Year ?? row.year ?? "";
       const lastUpdatedRaw = row.LastUpdatedOnUtc ?? row.lastUpdatedOnUtc ??
@@ -1239,6 +1256,18 @@
       const preferenceInfo = renderPreferenceBadge(projectId, sourceId, year, modeRaw);
       const preferenceCell = preferenceInfo?.html ?? "—";
       const preferenceSummary = preferenceInfo?.summary ?? "";
+      const yearDisplay = year || "—";
+      const dateDisplay = fmt.date(dateRaw);
+      const quantityDisplay = fmt.number(quantity);
+      const effectiveDisplay = fmt.number(effective);
+      const projectDisplay = escapeHtml(project);
+      const sourceDisplay = escapeHtml(sourceLabel);
+      const approval = row.ApprovalStatus ?? row.approvalStatus ?? "";
+      const metadataParts = [];
+      if (typeLabel) metadataParts.push(escapeHtml(typeLabel));
+      if (approval) metadataParts.push(escapeHtml(approval));
+      const metadataDisplay = metadataParts.join(" · ");
+      const lastUpdatedDisplay = fmt.dateTime(lastUpdatedRaw);
       const attrs = [
         `data-entry-type="${pane}"`,
         `data-entry-project="${escapeAttr(project)}"`,
@@ -1251,22 +1280,26 @@
       ].join(" ");
       return `
       <tr ${attrs}>
-        <td class="table-proliferation__project">${project}</td>
-        <td>${sourceLabel}</td>
-        <td class="text-nowrap">${year || "—"}</td>
-        <td class="text-nowrap">${fmt.date(dateRaw)}</td>
-        <td>${unit || "—"}</td>
-        <td class="text-end text-nowrap">${fmt.number(quantity)}</td>
-        <td class="text-end text-nowrap">${fmt.number(effective)}</td>
+        <td class="table-proliferation__project">${projectDisplay}</td>
+        <td>${sourceDisplay}</td>
+        <td class="text-nowrap">
+          <div>${escapeHtml(yearDisplay)}</div>
+          <div class="text-muted small">${escapeHtml(dateDisplay)}</div>
+        </td>
+        <td class="text-end text-nowrap">
+          <div class="fw-semibold">${escapeHtml(quantityDisplay)}</div>
+          <div class="text-muted small">${escapeHtml(effectiveDisplay)}</div>
+        </td>
         <td class="pf-pref-cell">${preferenceCell}</td>
-        <td class="text-nowrap">${fmt.dateTime(lastUpdatedRaw)}</td>
-        <td>${typeLabel}</td>
-        <td>${approval}</td>
+        <td class="text-nowrap">
+          <div>${escapeHtml(lastUpdatedDisplay)}</div>
+          ${metadataDisplay ? `<div class="text-muted small">${metadataDisplay}</div>` : ""}
+        </td>
       </tr>`;
     }).join("");
 
     host.innerHTML = `<div class="table-responsive">
-      <table class="table table-hover align-middle mb-0 table-proliferation">${header}<tbody>${body}</tbody></table>
+      <table class="table table-hover align-middle mb-0 table-proliferation">${tableHeaderHtml}<tbody>${body}</tbody></table>
     </div>`;
     host.setAttribute("aria-busy", "false");
     if (!tableInteractionsBound) {
@@ -1308,8 +1341,9 @@
   async function refresh() {
     const host = $("#tableContainer");
     if (host) {
-      host.innerHTML = `<div class="placeholder-glow">
-        <div class="placeholder col-12 pf-table-skeleton"></div>
+      const skeletonRows = buildSkeletonRows(6);
+      host.innerHTML = `<div class="table-responsive">
+        <table class="table table-hover align-middle mb-0 table-proliferation">${tableHeaderHtml}<tbody>${skeletonRows}</tbody></table>
       </div>`;
       host.setAttribute("aria-busy", "true");
     }
