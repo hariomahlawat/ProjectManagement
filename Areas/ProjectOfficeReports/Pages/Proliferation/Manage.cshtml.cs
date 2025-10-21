@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation;
@@ -22,10 +23,15 @@ public sealed class ManageModel : PageModel
     public ProliferationEditorBootVm EditorBoot { get; private set; } = default!;
     public ProliferationPreferenceOverridesBootVm OverridesBoot { get; private set; } = default!;
 
-    public async Task OnGetAsync(CancellationToken cancellationToken)
+    public async Task OnGetAsync(
+        int? projectId,
+        ProliferationSource? source,
+        int? year,
+        ProliferationRecordKind? kind,
+        CancellationToken cancellationToken)
     {
-        ListBoot = await _manageService.GetListBootAsync(cancellationToken);
-        EditorBoot = await _manageService.GetEditorBootAsync(cancellationToken);
-        OverridesBoot = await _manageService.GetPreferenceOverridesBootAsync(cancellationToken);
+        ListBoot = await _manageService.GetListBootAsync(projectId, source, year, kind, cancellationToken);
+        EditorBoot = await _manageService.GetEditorBootAsync(projectId, source, year, kind, cancellationToken);
+        OverridesBoot = await _manageService.GetPreferenceOverridesBootAsync(projectId, source, year, kind, cancellationToken);
     }
 }

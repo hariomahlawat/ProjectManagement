@@ -1,8 +1,19 @@
-@model ProliferationListBootVm
-
 @using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels
 
+@model ProliferationListBootVm
+
 @{
+    var defaults = Model.Defaults;
+    var defaultProjectId = defaults.ProjectId?.ToString() ?? string.Empty;
+    var defaultSource = defaults.Source.HasValue ? ((int)defaults.Source.Value).ToString() : string.Empty;
+    var defaultYear = defaults.Year?.ToString() ?? string.Empty;
+    var defaultKind = defaults.Kind switch
+    {
+        ProliferationRecordKind.Yearly => "yearly",
+        ProliferationRecordKind.Granular => "granular",
+        _ => string.Empty
+    };
+
     var projectOptions = Model.CompletedProjects
         .Select(p => new ProliferationFilterOption(p.Id.ToString(), p.DisplayName))
         .ToList();
@@ -19,7 +30,13 @@
     );
 }
 
-<div class="card shadow-sm" id="pf-list-card" data-default-year="@Model.CurrentYear" data-page-size="@Model.DefaultPageSize">
+<div class="card shadow-sm" id="pf-list-card"
+     data-default-year="@Model.CurrentYear"
+     data-page-size="@Model.DefaultPageSize"
+     data-boot-project-id="@defaultProjectId"
+     data-boot-source="@defaultSource"
+     data-boot-year="@defaultYear"
+     data-boot-kind="@defaultKind">
     <div class="card-header">
         <partial name="Partials/_FilterToolbar" model="toolbarModel" />
     </div>

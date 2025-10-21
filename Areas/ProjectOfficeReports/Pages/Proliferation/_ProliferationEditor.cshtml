@@ -1,6 +1,26 @@
+@using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels
+
 @model ProliferationEditorBootVm
 
-<div class="card shadow-sm" id="pf-editor" data-current-year="@Model.CurrentYear">
+@{
+    var defaults = Model.Defaults;
+    var defaultProjectId = defaults.ProjectId?.ToString() ?? string.Empty;
+    var defaultSource = defaults.Source.HasValue ? ((int)defaults.Source.Value).ToString() : string.Empty;
+    var defaultYear = defaults.Year?.ToString() ?? string.Empty;
+    var defaultKind = defaults.Kind switch
+    {
+        ProliferationRecordKind.Yearly => "yearly",
+        ProliferationRecordKind.Granular => "granular",
+        _ => string.Empty
+    };
+}
+
+<div class="card shadow-sm" id="pf-editor"
+     data-current-year="@Model.CurrentYear"
+     data-boot-project-id="@defaultProjectId"
+     data-boot-source="@defaultSource"
+     data-boot-year="@defaultYear"
+     data-boot-kind="@defaultKind">
     <div class="card-header">
         <ul class="nav nav-tabs card-header-tabs" id="pf-editor-tabs" role="tablist">
             <li class="nav-item" role="presentation">

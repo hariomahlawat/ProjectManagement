@@ -15,21 +15,30 @@ public sealed record ProliferationCompletedProjectOption(int Id, string DisplayN
 
 public sealed record ProliferationSourceOptionVm(int Value, string Label);
 
+public sealed record ProliferationManageBootDefaults(
+    int? ProjectId,
+    ProliferationSource? Source,
+    int? Year,
+    ProliferationRecordKind? Kind);
+
 public sealed record ProliferationListBootVm(
     IReadOnlyList<ProliferationCompletedProjectOption> CompletedProjects,
     IReadOnlyList<ProliferationSourceOptionVm> SourceOptions,
     int DefaultPageSize,
-    int CurrentYear);
+    int CurrentYear,
+    ProliferationManageBootDefaults Defaults);
 
 public sealed record ProliferationEditorBootVm(
     IReadOnlyList<ProliferationCompletedProjectOption> CompletedProjects,
     IReadOnlyList<ProliferationSourceOptionVm> SourceOptions,
-    int CurrentYear);
+    int CurrentYear,
+    ProliferationManageBootDefaults Defaults);
 
 public sealed record ProliferationPreferenceOverridesBootVm(
     IReadOnlyList<ProliferationCompletedProjectOption> CompletedProjects,
     IReadOnlyList<ProliferationSourceOptionVm> SourceOptions,
-    int CurrentYear);
+    int CurrentYear,
+    ProliferationManageBootDefaults Defaults);
 
 public sealed record ProliferationManageListRequest(
     int? ProjectId,
