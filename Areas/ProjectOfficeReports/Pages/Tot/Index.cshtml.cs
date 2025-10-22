@@ -476,11 +476,19 @@ public sealed class IndexModel : PageModel
 
         if (!result.IsSuccess)
         {
-            ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "Unable to complete the Transfer of Technology decision.");
+            var message = result.ErrorMessage ?? "Unable to complete the Transfer of Technology decision.";
+            ModelState.AddModelError(string.Empty, message);
             var approveChoice = DecideInput.Approve;
             await PopulateAsync(cancellationToken);
             DecideInput.Approve = approveChoice;
             DecideContextBody = decisionContext;
+
+            if (result.Status is ProjectTotRequestActionStatus.Conflict or ProjectTotRequestActionStatus.ValidationFailed)
+            {
+                HighlightDecisionCard = true;
+                DecisionAlertMessage = message;
+            }
+
             return Page();
         }
 
