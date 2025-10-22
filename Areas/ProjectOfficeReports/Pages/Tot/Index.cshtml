@@ -78,7 +78,9 @@
     var showExportModal = ViewData["ShowTotExportModal"] as bool? ?? false;
     var hasProjects = Model.Projects.Count > 0;
     var exportTotStatus = Model.Export?.TotStatus;
-    var isListView = Model.ViewMode == IndexModel.ViewModeOption.List;
+    var isListView = Model.ViewMode == ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.ViewModeOption.List;
+    const string CardsViewModeName = nameof(ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.ViewModeOption.Cards);
+    const string ListViewModeName = nameof(ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.ViewModeOption.List);
     var toastMessage = TempData["Toast"] as string;
     var toastError = TempData["ToastError"] as string;
 }
@@ -424,7 +426,7 @@
                asp-route-SearchTerm="@Model.SearchTerm"
                asp-route-OnlyPending="@Model.OnlyPending"
                asp-route-SelectedProjectId="@Model.SelectedProjectId"
-               asp-route-ViewMode="@nameof(IndexModel.ViewModeOption.Cards)">
+               asp-route-ViewMode="@CardsViewModeName">
                 <span class="d-none d-sm-inline">Card view</span>
                 <span class="d-sm-none">Cards</span>
             </a>
@@ -435,7 +437,7 @@
                asp-route-SearchTerm="@Model.SearchTerm"
                asp-route-OnlyPending="@Model.OnlyPending"
                asp-route-SelectedProjectId="@Model.SelectedProjectId"
-               asp-route-ViewMode="@nameof(IndexModel.ViewModeOption.List)">
+               asp-route-ViewMode="@ListViewModeName">
                 <span class="d-none d-sm-inline">List view</span>
                 <span class="d-sm-none">List</span>
             </a>
@@ -451,7 +453,7 @@
             {
                 if (isListView)
                 {
-                    <div class="tot-project-table" role="table">
+                    <div class="tot-project-table" role="grid">
                         <div class="tot-project-table-header" role="row">
                             <div class="tot-project-table-heading col-project" role="columnheader">Project</div>
                             <div class="tot-project-table-heading col-status" role="columnheader">Status</div>
@@ -465,11 +467,11 @@
                                 var latestRemark = row.LatestExternalRemark ?? row.LatestInternalRemark;
                                 var accentClass = row.RequestState is { } requestState ? RequestStateAccentClass(requestState) : string.Empty;
                                 <article class="tot-project-table-row @accentClass @(isSelected ? "is-selected" : string.Empty)" role="row">
-                                    <div class="tot-project-table-cell col-project" role="cell">
+                                    <div class="tot-project-table-cell col-project" role="gridcell">
                                         <div class="tot-project-table-title">@row.ProjectName</div>
                                         <div class="tot-project-table-unit">@row.SponsoringUnit</div>
                                     </div>
-                                    <div class="tot-project-table-cell col-status" role="cell">
+                                    <div class="tot-project-table-cell col-status" role="gridcell">
                                         <div class="tot-project-table-status">
                                             @if (row.TotStatus is { } status)
                                             {
@@ -490,7 +492,7 @@
                                             }
                                         </div>
                                     </div>
-                                    <div class="tot-project-table-cell col-remark" role="cell">
+                                    <div class="tot-project-table-cell col-remark" role="gridcell">
                                         @if (latestRemark is not null)
                                         {
                                             var createdText = FormatTimestamp(latestRemark.CreatedAtUtc);
@@ -512,13 +514,13 @@
                                             <div class="text-muted">No ToT remarks yet.</div>
                                         }
                                     </div>
-                                    <div class="tot-project-table-cell col-actions" role="cell">
+                                    <div class="tot-project-table-cell col-actions" role="gridcell">
                                         <a class="btn btn-sm btn-outline-primary"
                                            asp-route-TotStatusFilter="@Model.TotStatusFilter"
                                            asp-route-RequestStateFilter="@Model.RequestStateFilter"
                                            asp-route-SearchTerm="@Model.SearchTerm"
                                            asp-route-OnlyPending="@Model.OnlyPending"
-                                           asp-route-ViewMode="@nameof(IndexModel.ViewModeOption.List)"
+                                           asp-route-ViewMode="@ListViewModeName"
                                            asp-route-SelectedProjectId="@row.ProjectId">
                                             View details
                                         </a>
@@ -589,7 +591,7 @@
                                    asp-route-RequestStateFilter="@Model.RequestStateFilter"
                                    asp-route-SearchTerm="@Model.SearchTerm"
                                    asp-route-OnlyPending="@Model.OnlyPending"
-                                   asp-route-ViewMode="@nameof(IndexModel.ViewModeOption.Cards)"
+                                   asp-route-ViewMode="@CardsViewModeName"
                                    asp-route-SelectedProjectId="@row.ProjectId">
                                     View details
                                 </a>
