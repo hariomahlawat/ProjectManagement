@@ -363,10 +363,167 @@ body {
     border-bottom: 1px solid rgba(15, 23, 42, .08);
 }
 
-.tot-project-list {
+.tot-project-view-toggle .btn {
+    min-width: 6.5rem;
+}
+
+.tot-project-list.is-card {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(18.5rem, 1fr));
     gap: 1.25rem;
+}
+
+.tot-project-list.is-list {
+    display: block;
+}
+
+.tot-project-table {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+}
+
+.tot-project-table-header {
+    display: grid;
+    grid-template-columns: minmax(14rem, 1.3fr) minmax(10rem, .9fr) minmax(16rem, 1.5fr) minmax(8rem, .6fr);
+    align-items: center;
+    font-size: .75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--pm-text-secondary, rgba(15, 23, 42, .65));
+    padding: 0 1rem;
+}
+
+.tot-project-table-body {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+}
+
+.tot-project-table-row {
+    --tot-project-accent: rgba(15, 23, 42, .18);
+    --tot-project-ring: rgba(15, 23, 42, .08);
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(14rem, 1.3fr) minmax(10rem, .9fr) minmax(16rem, 1.5fr) minmax(8rem, .6fr);
+    gap: 1rem;
+    align-items: center;
+    padding: 1.125rem 1.25rem;
+    border-radius: .9rem;
+    border: 1px solid rgba(15, 23, 42, .08);
+    border-left-width: .45rem;
+    border-left-color: var(--tot-project-accent);
+    background-color: var(--bs-body-bg, #ffffff);
+    box-shadow: 0 0 0 1px var(--tot-project-ring), 0 1px 2px rgba(15, 23, 42, .05);
+    transition: box-shadow .2s ease, transform .2s ease;
+}
+
+.tot-project-table-row:hover {
+    box-shadow: 0 0 0 1px var(--tot-project-ring), 0 12px 24px -12px rgba(15, 23, 42, .25);
+    transform: translateY(-1px);
+}
+
+.tot-project-table-row.is-selected {
+    box-shadow: 0 0 0 2px rgba(13, 110, 253, .25), 0 0 0 1px var(--tot-project-ring), 0 1px 2px rgba(15, 23, 42, .05);
+}
+
+.tot-project-table-row.is-pending {
+    --tot-project-accent: var(--bs-info, #0dcaf0);
+    --tot-project-ring: rgba(13, 202, 240, .18);
+}
+
+.tot-project-table-row.is-approved {
+    --tot-project-accent: var(--bs-success, #198754);
+    --tot-project-ring: rgba(25, 135, 84, .18);
+}
+
+.tot-project-table-row.is-rejected {
+    --tot-project-accent: var(--bs-danger, #dc3545);
+    --tot-project-ring: rgba(220, 53, 69, .2);
+}
+
+.tot-project-table-cell {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+}
+
+.tot-project-table-title {
+    font-weight: 600;
+    color: var(--pm-text-primary, #0f172a);
+}
+
+.tot-project-table-unit {
+    font-size: .875rem;
+    color: var(--pm-text-secondary, rgba(15, 23, 42, .65));
+}
+
+.tot-project-table-status {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .45rem;
+}
+
+.tot-project-table-status .badge,
+.tot-project-table-status .tot-request-badge {
+    font-size: .75rem;
+}
+
+.tot-project-table-remark-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .25rem .5rem;
+    font-size: .8125rem;
+    color: var(--pm-text-secondary, rgba(15, 23, 42, .65));
+}
+
+.tot-project-table-remark-meta .fw-semibold {
+    color: var(--pm-text-primary, #0f172a);
+}
+
+.tot-project-table-remark-body {
+    font-size: .875rem;
+    color: var(--pm-text-secondary, rgba(15, 23, 42, .7));
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    line-height: 1.5;
+}
+
+.tot-project-table-cell.col-actions {
+    align-items: flex-end;
+}
+
+.tot-project-table-cell.col-actions .btn {
+    white-space: nowrap;
+}
+
+@media (max-width: 991.98px) {
+    .tot-project-table-header {
+        display: none;
+    }
+
+    .tot-project-table-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: .75rem;
+    }
+
+    .tot-project-table-status {
+        gap: .35rem;
+    }
+
+    .tot-project-table-cell.col-actions {
+        align-items: stretch;
+    }
+
+    .tot-project-table-cell.col-actions .btn {
+        width: 100%;
+    }
 }
 
 .tot-project-card {
@@ -511,6 +668,17 @@ body {
 }
 
 [data-bs-theme="dark"] .tot-project-card:hover {
+    box-shadow: 0 0 0 1px var(--tot-project-ring), 0 12px 24px -12px rgba(15, 23, 42, .8);
+}
+
+[data-bs-theme="dark"] .tot-project-table-row {
+    --tot-project-ring: rgba(51, 65, 85, .65);
+    border-color: rgba(148, 163, 184, .2);
+    background-color: rgba(15, 23, 42, .55);
+    box-shadow: 0 0 0 1px var(--tot-project-ring), 0 1px 2px rgba(0, 0, 0, .4);
+}
+
+[data-bs-theme="dark"] .tot-project-table-row:hover {
     box-shadow: 0 0 0 1px var(--tot-project-ring), 0 12px 24px -12px rgba(15, 23, 42, .8);
 }
 

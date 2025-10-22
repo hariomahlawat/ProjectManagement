@@ -78,6 +78,7 @@
     var showExportModal = ViewData["ShowTotExportModal"] as bool? ?? false;
     var hasProjects = Model.Projects.Count > 0;
     var exportTotStatus = Model.Export?.TotStatus;
+    var isListView = Model.ViewMode == IndexModel.ViewModeOption.List;
 }
 
 <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
@@ -133,6 +134,7 @@
                 </div>
                 <div class="modal-body">
                     <input type="hidden" asp-for="SelectedProjectId" />
+                    <input type="hidden" asp-for="ViewMode" />
                     <div class="row g-3 align-items-end">
                         <div class="col-12 col-md-6 col-lg-4">
                             <label class="form-label tot-filter-heading" for="tot-search-term">Search</label>
@@ -205,6 +207,7 @@
                     <input type="hidden" asp-for="RequestStateFilter" />
                     <input type="hidden" asp-for="SearchTerm" />
                     <input type="hidden" asp-for="OnlyPending" />
+                    <input type="hidden" asp-for="ViewMode" />
                     <div class="row g-3">
                         <div class="col-12">
                             <span class="tot-filter-heading d-block">ToT status</span>
@@ -390,82 +393,191 @@
 }
 
 <div class="card shadow-sm tot-project-list-card mt-4">
-    <div class="card-header d-flex flex-wrap gap-2 align-items-center justify-content-between">
-        <div class="fw-semibold">@resultCountText</div>
-        <div class="text-muted small">@summaryText</div>
+    <div class="card-header d-flex flex-wrap gap-3 align-items-center justify-content-between">
+        <div class="d-flex flex-column gap-1">
+            <div class="fw-semibold">@resultCountText</div>
+            <div class="text-muted small">@summaryText</div>
+        </div>
+        <div class="btn-group tot-project-view-toggle" role="group" aria-label="Toggle project layout">
+            <a class="btn btn-outline-secondary @(isListView ? string.Empty : "active")"
+               asp-page="./Index"
+               asp-route-TotStatusFilter="@Model.TotStatusFilter"
+               asp-route-RequestStateFilter="@Model.RequestStateFilter"
+               asp-route-SearchTerm="@Model.SearchTerm"
+               asp-route-OnlyPending="@Model.OnlyPending"
+               asp-route-SelectedProjectId="@Model.SelectedProjectId"
+               asp-route-ViewMode="@nameof(IndexModel.ViewModeOption.Cards)">
+                <span class="d-none d-sm-inline">Card view</span>
+                <span class="d-sm-none">Cards</span>
+            </a>
+            <a class="btn btn-outline-secondary @(isListView ? "active" : string.Empty)"
+               asp-page="./Index"
+               asp-route-TotStatusFilter="@Model.TotStatusFilter"
+               asp-route-RequestStateFilter="@Model.RequestStateFilter"
+               asp-route-SearchTerm="@Model.SearchTerm"
+               asp-route-OnlyPending="@Model.OnlyPending"
+               asp-route-SelectedProjectId="@Model.SelectedProjectId"
+               asp-route-ViewMode="@nameof(IndexModel.ViewModeOption.List)">
+                <span class="d-none d-sm-inline">List view</span>
+                <span class="d-sm-none">List</span>
+            </a>
+        </div>
     </div>
     <div class="card-body">
-        <div class="tot-project-list">
+        <div class="tot-project-list @(isListView ? "is-list" : "is-card")">
             @if (!Model.Projects.Any())
             {
                 <div class="tot-project-empty text-muted">No completed projects match the selected filters.</div>
             }
             else
             {
-                foreach (var row in Model.Projects)
+                if (isListView)
                 {
-                    var isSelected = Model.SelectedProjectId.HasValue && Model.SelectedProjectId.Value == row.ProjectId;
-                    var latestRemark = row.LatestExternalRemark ?? row.LatestInternalRemark;
-                    var accentClass = row.RequestState is { } requestState ? RequestStateAccentClass(requestState) : string.Empty;
-                    <article class="tot-project-card @accentClass @(isSelected ? "is-selected" : string.Empty)">
-                        <div class="tot-project-card-header">
-                            <div class="tot-project-card-heading">
-                                <div class="tot-project-card-title">@row.ProjectName</div>
-                                <div class="tot-project-card-unit">@row.SponsoringUnit</div>
-                            </div>
-                            <div class="tot-project-card-statuses">
-                                @if (row.TotStatus is { } status)
-                                {
-                                    <span class="badge @TotStatusBadgeClass(status)">@StatusLabel(status)</span>
-                                }
-                                else
-                                {
-                                    <span class="badge @TotStatusBadgeClass(ProjectTotStatus.NotStarted)">Not started</span>
-                                }
-
-                                @if (row.RequestState is { } state)
-                                {
-                                    <span class="tot-request-badge @RequestStateBadgeClass(state)">@RequestStateLabel(state)</span>
-                                }
-                                else
-                                {
-                                    <span class="tot-project-card-no-request text-muted">No request</span>
-                                }
-                            </div>
+                    <div class="tot-project-table" role="table">
+                        <div class="tot-project-table-header" role="row">
+                            <div class="tot-project-table-heading col-project" role="columnheader">Project</div>
+                            <div class="tot-project-table-heading col-status" role="columnheader">Status</div>
+                            <div class="tot-project-table-heading col-remark" role="columnheader">Latest remark</div>
+                            <div class="tot-project-table-heading col-actions" role="columnheader">Actions</div>
                         </div>
-                        <div class="tot-project-card-remark">
-                            @if (latestRemark is not null)
+                        <div class="tot-project-table-body" role="rowgroup">
+                            @foreach (var row in Model.Projects)
                             {
-                                var createdText = FormatTimestamp(latestRemark.CreatedAtUtc);
-                                <div class="tot-project-card-remark-meta">
-                                    <span class="fw-semibold">Latest @latestRemark.TypeLabel remark</span>
-                                    @if (latestRemark.EventDate.HasValue)
+                                var isSelected = Model.SelectedProjectId.HasValue && Model.SelectedProjectId.Value == row.ProjectId;
+                                var latestRemark = row.LatestExternalRemark ?? row.LatestInternalRemark;
+                                var accentClass = row.RequestState is { } requestState ? RequestStateAccentClass(requestState) : string.Empty;
+                                <article class="tot-project-table-row @accentClass @(isSelected ? "is-selected" : string.Empty)" role="row">
+                                    <div class="tot-project-table-cell col-project" role="cell">
+                                        <div class="tot-project-table-title">@row.ProjectName</div>
+                                        <div class="tot-project-table-unit">@row.SponsoringUnit</div>
+                                    </div>
+                                    <div class="tot-project-table-cell col-status" role="cell">
+                                        <div class="tot-project-table-status">
+                                            @if (row.TotStatus is { } status)
+                                            {
+                                                <span class="badge @TotStatusBadgeClass(status)">@StatusLabel(status)</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge @TotStatusBadgeClass(ProjectTotStatus.NotStarted)">Not started</span>
+                                            }
+
+                                            @if (row.RequestState is { } state)
+                                            {
+                                                <span class="tot-request-badge @RequestStateBadgeClass(state)">@RequestStateLabel(state)</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="tot-project-card-no-request text-muted">No request</span>
+                                            }
+                                        </div>
+                                    </div>
+                                    <div class="tot-project-table-cell col-remark" role="cell">
+                                        @if (latestRemark is not null)
+                                        {
+                                            var createdText = FormatTimestamp(latestRemark.CreatedAtUtc);
+                                            <div class="tot-project-table-remark-meta">
+                                                <span class="fw-semibold">Latest @latestRemark.TypeLabel remark</span>
+                                                @if (latestRemark.EventDate.HasValue)
+                                                {
+                                                    <span> (@FormatDate(latestRemark.EventDate))</span>
+                                                }
+                                                @if (!string.IsNullOrEmpty(createdText))
+                                                {
+                                                    <span> • posted @createdText</span>
+                                                }
+                                            </div>
+                                            <div class="tot-project-table-remark-body">@latestRemark.Body</div>
+                                        }
+                                        else
+                                        {
+                                            <div class="text-muted">No ToT remarks yet.</div>
+                                        }
+                                    </div>
+                                    <div class="tot-project-table-cell col-actions" role="cell">
+                                        <a class="btn btn-sm btn-outline-primary"
+                                           asp-route-TotStatusFilter="@Model.TotStatusFilter"
+                                           asp-route-RequestStateFilter="@Model.RequestStateFilter"
+                                           asp-route-SearchTerm="@Model.SearchTerm"
+                                           asp-route-OnlyPending="@Model.OnlyPending"
+                                           asp-route-ViewMode="@nameof(IndexModel.ViewModeOption.List)"
+                                           asp-route-SelectedProjectId="@row.ProjectId">
+                                            View details
+                                        </a>
+                                    </div>
+                                </article>
+                            }
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    foreach (var row in Model.Projects)
+                    {
+                        var isSelected = Model.SelectedProjectId.HasValue && Model.SelectedProjectId.Value == row.ProjectId;
+                        var latestRemark = row.LatestExternalRemark ?? row.LatestInternalRemark;
+                        var accentClass = row.RequestState is { } requestState ? RequestStateAccentClass(requestState) : string.Empty;
+                        <article class="tot-project-card @accentClass @(isSelected ? "is-selected" : string.Empty)">
+                            <div class="tot-project-card-header">
+                                <div class="tot-project-card-heading">
+                                    <div class="tot-project-card-title">@row.ProjectName</div>
+                                    <div class="tot-project-card-unit">@row.SponsoringUnit</div>
+                                </div>
+                                <div class="tot-project-card-statuses">
+                                    @if (row.TotStatus is { } status)
                                     {
-                                        <span> (@FormatDate(latestRemark.EventDate))</span>
+                                        <span class="badge @TotStatusBadgeClass(status)">@StatusLabel(status)</span>
                                     }
-                                    @if (!string.IsNullOrEmpty(createdText))
+                                    else
                                     {
-                                        <span> • posted @createdText</span>
+                                        <span class="badge @TotStatusBadgeClass(ProjectTotStatus.NotStarted)">Not started</span>
+                                    }
+
+                                    @if (row.RequestState is { } state)
+                                    {
+                                        <span class="tot-request-badge @RequestStateBadgeClass(state)">@RequestStateLabel(state)</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="tot-project-card-no-request text-muted">No request</span>
                                     }
                                 </div>
-                                <div class="tot-project-card-remark-body">@latestRemark.Body</div>
-                            }
-                            else
-                            {
-                                <div class="text-muted">No ToT remarks yet.</div>
-                            }
-                        </div>
-                        <div class="tot-project-card-footer">
-                            <a class="btn btn-sm btn-outline-primary"
-                               asp-route-TotStatusFilter="@Model.TotStatusFilter"
-                               asp-route-RequestStateFilter="@Model.RequestStateFilter"
-                               asp-route-SearchTerm="@Model.SearchTerm"
-                               asp-route-OnlyPending="@Model.OnlyPending"
-                               asp-route-SelectedProjectId="@row.ProjectId">
-                                View details
-                            </a>
-                        </div>
-                    </article>
+                            </div>
+                            <div class="tot-project-card-remark">
+                                @if (latestRemark is not null)
+                                {
+                                    var createdText = FormatTimestamp(latestRemark.CreatedAtUtc);
+                                    <div class="tot-project-card-remark-meta">
+                                        <span class="fw-semibold">Latest @latestRemark.TypeLabel remark</span>
+                                        @if (latestRemark.EventDate.HasValue)
+                                        {
+                                            <span> (@FormatDate(latestRemark.EventDate))</span>
+                                        }
+                                        @if (!string.IsNullOrEmpty(createdText))
+                                        {
+                                            <span> • posted @createdText</span>
+                                        }
+                                    </div>
+                                    <div class="tot-project-card-remark-body">@latestRemark.Body</div>
+                                }
+                                else
+                                {
+                                    <div class="text-muted">No ToT remarks yet.</div>
+                                }
+                            </div>
+                            <div class="tot-project-card-footer">
+                                <a class="btn btn-sm btn-outline-primary"
+                                   asp-route-TotStatusFilter="@Model.TotStatusFilter"
+                                   asp-route-RequestStateFilter="@Model.RequestStateFilter"
+                                   asp-route-SearchTerm="@Model.SearchTerm"
+                                   asp-route-OnlyPending="@Model.OnlyPending"
+                                   asp-route-ViewMode="@nameof(IndexModel.ViewModeOption.Cards)"
+                                   asp-route-SelectedProjectId="@row.ProjectId">
+                                    View details
+                                </a>
+                            </div>
+                        </article>
+                    }
                 }
             }
         </div>
@@ -805,6 +917,7 @@
                             <input type="hidden" asp-for="RequestStateFilter" />
                             <input type="hidden" asp-for="SearchTerm" />
                             <input type="hidden" asp-for="OnlyPending" />
+                            <input type="hidden" asp-for="ViewMode" />
                             <div asp-validation-summary="ModelOnly" class="text-danger"></div>
                             <div class="mt-3">
                                 <label class="form-label" asp-for="DecideContextBody">Decision context (optional)</label>

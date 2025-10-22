@@ -5,5 +5,6 @@ This directory stores repeatable QA checklists for features that require human v
 | File | Purpose |
 | --- | --- |
 | [remarks-role-matrix.md](remarks-role-matrix.md) | Step-by-step acceptance checklist for verifying remark permissions, edit/delete windows, notifications, and audit trails across Admin, HoD, PO, MCO, and Comdt roles. |
+| [tot-tracker-view-modes.md](tot-tracker-view-modes.md) | Regression checklist covering the Transfer of Technology tracker card/list layout toggle, filter persistence, and responsive behaviour. |
 
 When adding new manual test plans, follow the existing format: include prerequisites, per-role steps, and a regression section that covers security headers, audit logging, and notifications. Link the new file here and mention it in the relevant feature documentation.
