@@ -590,7 +590,10 @@ public sealed class IndexModel : PageModel
             actionDescription,
             roleClaims.Length == 0 ? "(none)" : string.Join(", ", roleClaims));
 
-        TempData["ToastError"] = "You do not have permission to perform this action.";
+        var roleDisplay = roleClaims.Length == 0 ? "(none)" : string.Join(", ", roleClaims);
+        var toastMessage = $"You do not have permission to perform this action. Policy: {policy}. Roles: {roleDisplay}.";
+
+        TempData["ToastError"] = toastMessage;
 
         return RedirectToPage(new
         {
