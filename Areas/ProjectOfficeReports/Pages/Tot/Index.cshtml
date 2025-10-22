@@ -8,6 +8,7 @@
 @using ProjectManagement.Utilities
 @{
     ViewData["Title"] = "Transfer of Technology tracker";
+
     string StatusLabel(ProjectTotStatus status) => status switch
     {
         ProjectTotStatus.NotRequired => "Not required",
@@ -17,13 +18,13 @@
         _ => status.ToString()
     };
 
-    string TotStatusBadgeClass(ProjectTotStatus status) => status switch
+    string TotStatusChipClass(ProjectTotStatus status) => status switch
     {
-        ProjectTotStatus.NotRequired => "badge-tot-not-required",
-        ProjectTotStatus.NotStarted => "badge-tot-not-started",
-        ProjectTotStatus.InProgress => "badge-tot-in-progress",
-        ProjectTotStatus.Completed => "badge-tot-completed",
-        _ => "badge-tot-not-started"
+        ProjectTotStatus.NotRequired => "chip-status-not-required",
+        ProjectTotStatus.NotStarted => "chip-status-not-started",
+        ProjectTotStatus.InProgress => "chip-status-in-progress",
+        ProjectTotStatus.Completed => "chip-status-completed",
+        _ => "chip-status-not-started"
     };
 
     string RequestStateLabel(ProjectTotRequestDecisionState state) => state switch
@@ -42,12 +43,12 @@
         _ => "is-pending"
     };
 
-    string RequestStateBadgeClass(ProjectTotRequestDecisionState state) => state switch
+    string RequestStateChipClass(ProjectTotRequestDecisionState state) => state switch
     {
-        ProjectTotRequestDecisionState.Pending => "tot-request-badge-pending",
-        ProjectTotRequestDecisionState.Approved => "tot-request-badge-approved",
-        ProjectTotRequestDecisionState.Rejected => "tot-request-badge-rejected",
-        _ => "tot-request-badge-pending"
+        ProjectTotRequestDecisionState.Pending => "chip-decision-pending",
+        ProjectTotRequestDecisionState.Approved => "chip-decision-approved",
+        ProjectTotRequestDecisionState.Rejected => "chip-decision-rejected",
+        _ => "chip-decision-pending"
     };
 
     string FoPmLabel(bool? value) => value switch
@@ -76,355 +77,414 @@
     }
 
     var showExportModal = ViewData["ShowTotExportModal"] as bool? ?? false;
+    var toastMessage = TempData["Toast"] as string;
+    var toastError = TempData["ToastError"] as string;
     var hasProjects = Model.Projects.Count > 0;
-    var exportTotStatus = Model.Export?.TotStatus;
     var isListView = Model.ViewMode == ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.ViewModeOption.List;
     const string CardsViewModeName = nameof(ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.ViewModeOption.Cards);
     const string ListViewModeName = nameof(ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel.ViewModeOption.List);
-    var toastMessage = TempData["Toast"] as string;
-    var toastError = TempData["ToastError"] as string;
-}
 
-<div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
-    <div>
-        <h1 class="h3 mb-0">Transfer of Technology tracker</h1>
-        <p class="text-muted mb-0">Track project ToT progress, submit updates for approval of HoD.</p>
-    </div>
-    <div class="d-flex flex-wrap gap-2">
-        @if (hasProjects)
-        {
-            <button type="button"
-                    class="btn btn-outline-primary d-inline-flex align-items-center gap-2"
-                    data-bs-toggle="modal"
-                    data-bs-target="#tot-export-modal"
-                    aria-haspopup="dialog"
-                    aria-controls="tot-export-modal"
-                    aria-expanded="false">
-                <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
-                <span>Export ToT data</span>
-            </button>
-        }
-        else
-        {
-            <button type="button"
-                    class="btn btn-outline-primary d-inline-flex align-items-center gap-2"
-                    disabled
-                    aria-disabled="true">
-                <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
-                <span>Export ToT data</span>
-            </button>
-        }
-        <button type="button"
-                class="btn btn-light tot-filter-trigger"
-                data-bs-toggle="modal"
-                data-bs-target="#tot-filter-modal"
-                aria-haspopup="dialog"
-                aria-controls="tot-filter-modal"
-                aria-expanded="false">
-            <i class="bi bi-search" aria-hidden="true"></i>
-            <span class="tot-filter-trigger-label">Search &amp; filter</span>
-            <span class="visually-hidden">Open Transfer of Technology tracker filters</span>
-        </button>
-    </div>
-</div>
-
-@if (!string.IsNullOrWhiteSpace(toastError))
-{
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        @toastError
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-}
-
-@if (!string.IsNullOrWhiteSpace(toastMessage))
-{
-    <div class="alert alert-success alert-dismissible fade show" role="status">
-        @toastMessage
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-}
-
-<div class="modal fade tot-filter-modal" id="tot-filter-modal" tabindex="-1" aria-labelledby="tot-filter-modal-label" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
-        <div class="modal-content">
-            <form id="tot-filter-form" method="get">
-                <div class="modal-header">
-                    <h2 class="modal-title fs-5" id="tot-filter-modal-label">Search &amp; filter projects</h2>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" asp-for="SelectedProjectId" />
-                    <input type="hidden" asp-for="ViewMode" />
-                    <div class="row g-3 align-items-end">
-                        <div class="col-12 col-md-6 col-lg-4">
-                            <label class="form-label tot-filter-heading" for="tot-search-term">Search</label>
-                            <input type="search"
-                                   class="form-control"
-                                   id="tot-search-term"
-                                   name="SearchTerm"
-                                   value="@Model.SearchTerm"
-                                   placeholder="Search projects or units" />
-                        </div>
-                        <div class="col-12 col-md-6 col-lg-4">
-                            <span class="tot-filter-heading">ToT status</span>
-                            <div class="btn-group tot-filter-btn-group w-100" role="group" aria-label="Filter projects by Transfer of Technology status">
-                                <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-all" value="" @(Model.TotStatusFilter is null ? "checked" : null)>
-                                <label class="btn tot-filter-btn" for="tot-status-all">All</label>
-                                <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-not-required" value="@ProjectTotStatus.NotRequired" @(Model.TotStatusFilter == ProjectTotStatus.NotRequired ? "checked" : null)>
-                                <label class="btn tot-filter-btn" for="tot-status-not-required">@StatusLabel(ProjectTotStatus.NotRequired)</label>
-                                <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-not-started" value="@ProjectTotStatus.NotStarted" @(Model.TotStatusFilter == ProjectTotStatus.NotStarted ? "checked" : null)>
-                                <label class="btn tot-filter-btn" for="tot-status-not-started">@StatusLabel(ProjectTotStatus.NotStarted)</label>
-                                <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-in-progress" value="@ProjectTotStatus.InProgress" @(Model.TotStatusFilter == ProjectTotStatus.InProgress ? "checked" : null)>
-                                <label class="btn tot-filter-btn" for="tot-status-in-progress">@StatusLabel(ProjectTotStatus.InProgress)</label>
-                                <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-completed" value="@ProjectTotStatus.Completed" @(Model.TotStatusFilter == ProjectTotStatus.Completed ? "checked" : null)>
-                                <label class="btn tot-filter-btn" for="tot-status-completed">@StatusLabel(ProjectTotStatus.Completed)</label>
-                            </div>
-                        </div>
-                        <div class="col-12 col-md-6 col-lg-4">
-                            <span class="tot-filter-heading">Request state</span>
-                            <div class="btn-group tot-filter-btn-group w-100" role="group" aria-label="Filter projects by request decision state">
-                                <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-all" value="" @(Model.RequestStateFilter is null && !Model.OnlyPending ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
-                                <label class="btn tot-filter-btn @(Model.OnlyPending ? "disabled" : null)" for="request-state-all">All</label>
-                                <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-pending" value="@ProjectTotRequestDecisionState.Pending" @(Model.RequestStateFilter == ProjectTotRequestDecisionState.Pending ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
-                                <label class="btn tot-filter-btn @(Model.OnlyPending ? "disabled" : null)" for="request-state-pending">@RequestStateLabel(ProjectTotRequestDecisionState.Pending)</label>
-                                <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-approved" value="@ProjectTotRequestDecisionState.Approved" @(Model.RequestStateFilter == ProjectTotRequestDecisionState.Approved ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
-                                <label class="btn tot-filter-btn @(Model.OnlyPending ? "disabled" : null)" for="request-state-approved">@RequestStateLabel(ProjectTotRequestDecisionState.Approved)</label>
-                                <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-rejected" value="@ProjectTotRequestDecisionState.Rejected" @(Model.RequestStateFilter == ProjectTotRequestDecisionState.Rejected ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
-                                <label class="btn tot-filter-btn @(Model.OnlyPending ? "disabled" : null)" for="request-state-rejected">@RequestStateLabel(ProjectTotRequestDecisionState.Rejected)</label>
-                            </div>
-                        </div>
-                        <div class="col-12 col-sm-6 col-lg-4">
-                            <span class="tot-filter-heading">Approvals</span>
-                            <div class="form-check form-switch tot-filter-switch">
-                                <input class="form-check-input" type="checkbox" asp-for="OnlyPending" id="onlyPending">
-                                <label class="form-check-label" for="onlyPending">Only pending approvals</label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="reset" class="btn btn-outline-secondary" form="tot-filter-form">Reset</button>
-                    <button type="submit" class="btn btn-primary" form="tot-filter-form">Apply</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<div class="modal fade" id="tot-export-modal" tabindex="-1" aria-labelledby="tot-export-modal-label" aria-hidden="true" data-tot-auto-show="@(showExportModal ? "true" : "false")">
-    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
-        <div class="modal-content">
-            <form method="post" asp-page-handler="Export">
-                <div class="modal-header">
-                    <h2 class="modal-title fs-5" id="tot-export-modal-label">Export Transfer of Technology data</h2>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="text-muted mb-3">Configure the export filters to download an Excel workbook for offline analysis.</p>
-                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-                    <input type="hidden" asp-for="SelectedProjectId" />
-                    <input type="hidden" asp-for="TotStatusFilter" />
-                    <input type="hidden" asp-for="RequestStateFilter" />
-                    <input type="hidden" asp-for="SearchTerm" />
-                    <input type="hidden" asp-for="OnlyPending" />
-                    <input type="hidden" asp-for="ViewMode" />
-                    <div class="row g-3">
-                        <div class="col-12">
-                            <span class="tot-filter-heading d-block">ToT status</span>
-                            <p class="text-muted small mb-2">Choose which Transfer of Technology stream statuses to include in the workbook.</p>
-                            <div class="btn-group tot-filter-btn-group w-100" role="group" aria-label="Filter exported projects by Transfer of Technology status">
-                                <input type="radio" class="btn-check" name="Export.TotStatus" id="export-tot-status-all" value="" @(exportTotStatus is null ? "checked" : null)>
-                                <label class="btn tot-filter-btn" for="export-tot-status-all">All</label>
-                                <input type="radio" class="btn-check" name="Export.TotStatus" id="export-tot-status-not-required" value="@ProjectTotStatus.NotRequired" @(exportTotStatus == ProjectTotStatus.NotRequired ? "checked" : null)>
-                                <label class="btn tot-filter-btn" for="export-tot-status-not-required">@StatusLabel(ProjectTotStatus.NotRequired)</label>
-                                <input type="radio" class="btn-check" name="Export.TotStatus" id="export-tot-status-not-started" value="@ProjectTotStatus.NotStarted" @(exportTotStatus == ProjectTotStatus.NotStarted ? "checked" : null)>
-                                <label class="btn tot-filter-btn" for="export-tot-status-not-started">@StatusLabel(ProjectTotStatus.NotStarted)</label>
-                                <input type="radio" class="btn-check" name="Export.TotStatus" id="export-tot-status-in-progress" value="@ProjectTotStatus.InProgress" @(exportTotStatus == ProjectTotStatus.InProgress ? "checked" : null)>
-                                <label class="btn tot-filter-btn" for="export-tot-status-in-progress">@StatusLabel(ProjectTotStatus.InProgress)</label>
-                                <input type="radio" class="btn-check" name="Export.TotStatus" id="export-tot-status-completed" value="@ProjectTotStatus.Completed" @(exportTotStatus == ProjectTotStatus.Completed ? "checked" : null)>
-                                <label class="btn tot-filter-btn" for="export-tot-status-completed">@StatusLabel(ProjectTotStatus.Completed)</label>
-                            </div>
-                        </div>
-                        <div class="col-12">
-                            <hr class="text-body-tertiary my-2" />
-                        </div>
-                        <div class="col-12 col-md-6 col-lg-3">
-                            <label class="form-label" for="export-started-from">Started from</label>
-                            <input class="form-control" asp-for="Export.StartedFrom" type="date" id="export-started-from" />
-                            <span asp-validation-for="Export.StartedFrom" class="text-danger"></span>
-                        </div>
-                        <div class="col-12 col-md-6 col-lg-3">
-                            <label class="form-label" for="export-started-to">Started to</label>
-                            <input class="form-control" asp-for="Export.StartedTo" type="date" id="export-started-to" />
-                            <span asp-validation-for="Export.StartedTo" class="text-danger"></span>
-                        </div>
-                        <div class="col-12 col-md-6 col-lg-3">
-                            <label class="form-label" for="export-completed-from">Completed from</label>
-                            <input class="form-control" asp-for="Export.CompletedFrom" type="date" id="export-completed-from" />
-                            <span asp-validation-for="Export.CompletedFrom" class="text-danger"></span>
-                        </div>
-                        <div class="col-12 col-md-6 col-lg-3">
-                            <label class="form-label" for="export-completed-to">Completed to</label>
-                            <input class="form-control" asp-for="Export.CompletedTo" type="date" id="export-completed-to" />
-                            <span asp-validation-for="Export.CompletedTo" class="text-danger"></span>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2">
-                        <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
-                        <span>Export workbook</span>
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-@if (Model.Summary is { } summary)
-{
-    <div class="row g-3 mb-4">
-        <div class="col-12 col-sm-6 col-lg-4 col-xxl-2">
-            <div class="card h-100 border-0 shadow-sm">
-                <div class="card-body py-3">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary-subtle text-primary" style="width: 3rem; height: 3rem;">
-                            <i class="bi bi-kanban" aria-hidden="true"></i>
-                        </div>
-                        <div>
-                            <div class="text-muted text-uppercase small fw-semibold">Tracked projects</div>
-                            <div class="fs-3 fw-bold mb-0">@summary.TotalProjects</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-sm-6 col-lg-4 col-xxl-2">
-            <div class="card h-100 border-0 shadow-sm">
-                <div class="card-body py-3">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-info-subtle text-info" style="width: 3rem; height: 3rem;">
-                            <i class="bi bi-diagram-3" aria-hidden="true"></i>
-                        </div>
-                        <div>
-                            <div class="text-muted text-uppercase small fw-semibold">Active ToT streams</div>
-                            <div class="fs-3 fw-bold mb-1">@summary.ProjectsRequiringTot</div>
-                            <span class="badge text-bg-light text-secondary">@summary.TotNotRequired not required</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-sm-6 col-lg-4 col-xxl-2">
-            <div class="card h-100 border-0 shadow-sm">
-                <div class="card-body py-3">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-warning-subtle text-warning" style="width: 3rem; height: 3rem;">
-                            <i class="bi bi-hourglass-split" aria-hidden="true"></i>
-                        </div>
-                        <div>
-                            <div class="text-muted text-uppercase small fw-semibold">Pending approvals</div>
-                            <div class="fs-3 fw-bold mb-1">@summary.PendingApprovals</div>
-                            <span class="badge text-bg-warning text-uppercase">Action needed</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-sm-6 col-lg-4 col-xxl-2">
-            <div class="card h-100 border-0 shadow-sm">
-                <div class="card-body py-3">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-primary-subtle text-primary" style="width: 3rem; height: 3rem;">
-                            <i class="bi bi-lightning-charge" aria-hidden="true"></i>
-                        </div>
-                        <div>
-                            <div class="text-muted text-uppercase small fw-semibold">In progress</div>
-                            <div class="fs-3 fw-bold mb-1">@summary.TotInProgress</div>
-                            <span class="badge text-bg-primary-subtle text-primary">@summary.TotNotStarted not started</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-sm-6 col-lg-4 col-xxl-2">
-            <div class="card h-100 border-0 shadow-sm">
-                <div class="card-body py-3">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-secondary-subtle text-secondary" style="width: 3rem; height: 3rem;">
-                            <i class="bi bi-award" aria-hidden="true"></i>
-                        </div>
-                        <div>
-                            <div class="text-muted text-uppercase small fw-semibold">MET Completed</div>
-                            <div class="fs-3 fw-bold mb-1">@summary.ProjectsWithMetCompleted</div>
-                            <span class="badge text-bg-success text-uppercase">Momentum</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-12 col-sm-6 col-lg-4 col-xxl-2">
-            <div class="card h-100 border-0 shadow-sm">
-                <div class="card-body py-3">
-                    <div class="d-flex align-items-center gap-3">
-                        <div class="d-inline-flex align-items-center justify-content-center rounded-circle bg-success-subtle text-success" style="width: 3rem; height: 3rem;">
-                            <i class="bi bi-check-circle" aria-hidden="true"></i>
-                        </div>
-                        <div>
-                            <div class="text-muted text-uppercase small fw-semibold">ToT completed</div>
-                            <div class="fs-3 fw-bold mb-1">@summary.TotCompleted</div>
-                            <span class="badge text-bg-secondary">@summary.ProjectsWithFirstProductionModel FoPM Mfr</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-    </div>
-}
-
-@{ 
     var totalCount = Model.Projects.Count;
     var appliedFilters = new List<string>();
     if (!string.IsNullOrWhiteSpace(Model.SearchTerm))
     {
         appliedFilters.Add($"Search \"{Model.SearchTerm}\"");
     }
-    if (Model.TotStatusFilter is { } summaryStatus)
+
+    if (Model.RequiresTotOnly)
     {
-        appliedFilters.Add($"ToT status: {StatusLabel(summaryStatus)}");
+        appliedFilters.Add("Requires ToT");
     }
+
+    if (Model.MetCompletedOnly)
+    {
+        appliedFilters.Add("MET completed");
+    }
+
+    if (Model.TotStatusFilter is { } statusFilter)
+    {
+        appliedFilters.Add($"ToT status: {StatusLabel(statusFilter)}");
+    }
+
     if (Model.OnlyPending)
     {
         appliedFilters.Add("Request state: Pending approvals only");
     }
-    else if (Model.RequestStateFilter is { } summaryRequestState)
+    else if (Model.RequestStateFilter is { } requestState)
     {
-        appliedFilters.Add($"Request state: {RequestStateLabel(summaryRequestState)}");
+        appliedFilters.Add($"Request state: {RequestStateLabel(requestState)}");
     }
 
     var summaryText = appliedFilters.Any()
         ? $"Filters: {string.Join(", ", appliedFilters)}"
         : "Filters: None";
-    var resultCountText = totalCount == 1
-        ? "Showing 1 project"
-        : $"Showing {totalCount} projects";
+
+    var resultCountText = totalCount switch
+    {
+        0 => "No projects",
+        1 => "Showing 1 project",
+        _ => $"Showing {totalCount} projects"
+    };
+
+    var selected = Model.SelectedProject;
+    var selectedRemark = selected?.LatestExternalRemark ?? selected?.LatestInternalRemark;
+    var canSubmitSelected = Model.CanSubmit && selected is not null;
+    var hasPendingRequest = selected?.RequestState == ProjectTotRequestDecisionState.Pending;
+    var requiresDecisionMetadata = hasPendingRequest && selected is not null && !selected.RequestMetadataAvailable;
+    var showDecisionCard = Model.CanApprove && hasPendingRequest && selected is not null && selected.RequestMetadataAvailable;
+
+    bool IsTrackedActive()
+    {
+        return !Model.RequiresTotOnly
+            && !Model.MetCompletedOnly
+            && !Model.OnlyPending
+            && Model.RequestStateFilter is null
+            && Model.TotStatusFilter is null;
+    }
+
+    var trackedIsActive = IsTrackedActive();
+    var requiresTotActive = Model.RequiresTotOnly;
+    var pendingActive = Model.OnlyPending;
+    var inProgressActive = Model.TotStatusFilter == ProjectTotStatus.InProgress;
+    var metActive = Model.MetCompletedOnly;
+    var completedActive = Model.TotStatusFilter == ProjectTotStatus.Completed;
 }
 
-<div class="card shadow-sm tot-project-list-card mt-4">
-    <div class="card-header d-flex flex-wrap gap-3 align-items-center justify-content-between">
-        <div class="d-flex flex-column gap-1">
-            <div class="fw-semibold">@resultCountText</div>
-            <div class="text-muted small">@summaryText</div>
+<div class="tot-page">
+    <header class="tot-page__header">
+        <div class="tot-page__title">
+            <h1 class="tot-page__heading">Transfer of Technology tracker</h1>
+            <p class="tot-page__subtitle">Monitor portfolio progress, file updates for approval, and review the latest ToT context.</p>
         </div>
-        <div class="btn-group tot-project-view-toggle" role="group" aria-label="Toggle project layout">
+        <div class="tot-page__actions">
+            @if (hasProjects)
+            {
+                <button type="button"
+                        class="btn btn-outline-primary d-inline-flex align-items-center gap-2"
+                        data-bs-toggle="modal"
+                        data-bs-target="#tot-export-modal"
+                        aria-haspopup="dialog"
+                        aria-controls="tot-export-modal"
+                        aria-expanded="false">
+                    <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
+                    <span>Export</span>
+                </button>
+            }
+            else
+            {
+                <button type="button"
+                        class="btn btn-outline-primary d-inline-flex align-items-center gap-2"
+                        disabled
+                        aria-disabled="true">
+                    <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
+                    <span>Export</span>
+                </button>
+            }
+
+            @if (Model.CanSubmit)
+            {
+                <button type="button"
+                        class="btn btn-primary d-inline-flex align-items-center gap-2"
+                        data-bs-toggle="modal"
+                        data-bs-target="#tot-submit-modal"
+                        @(canSubmitSelected ? null : "disabled")
+                        aria-disabled="@(canSubmitSelected ? "false" : "true")">
+                    <i class="bi bi-upload" aria-hidden="true"></i>
+                    <span>Submit update</span>
+                </button>
+            }
+
+            <button type="button"
+                    class="btn btn-light d-inline-flex align-items-center gap-2 tot-filter-trigger"
+                    data-bs-toggle="offcanvas"
+                    data-bs-target="#tot-filter-drawer"
+                    aria-haspopup="dialog"
+                    aria-controls="tot-filter-drawer"
+                    aria-expanded="false">
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <span>Search &amp; filter</span>
+            </button>
+        </div>
+    </header>
+
+    @if (!string.IsNullOrWhiteSpace(toastError))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @toastError
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(toastMessage))
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="status">
+            @toastMessage
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="offcanvas offcanvas-end tot-filter-drawer" tabindex="-1" id="tot-filter-drawer" aria-labelledby="tot-filter-drawer-label">
+        <div class="offcanvas-header">
+            <h2 class="offcanvas-title h5 mb-0" id="tot-filter-drawer-label">Search &amp; filter projects</h2>
+            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body d-flex flex-column">
+            <form id="tot-filter-form" method="get" class="d-flex flex-column gap-4">
+                <input type="hidden" asp-for="SelectedProjectId" />
+                <input type="hidden" asp-for="ViewMode" />
+                <div class="row g-3 align-items-end">
+                    <div class="col-12">
+                        <label class="form-label" for="tot-search-term">Search</label>
+                        <input type="search"
+                               class="form-control"
+                               id="tot-search-term"
+                               name="SearchTerm"
+                               value="@Model.SearchTerm"
+                               placeholder="Search projects or units" />
+                    </div>
+                    <div class="col-12">
+                        <span class="tot-filter-heading">ToT status</span>
+                        <div class="btn-group tot-filter-btn-group w-100" role="group" aria-label="Filter projects by Transfer of Technology status">
+                            <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-all" value="" @(Model.TotStatusFilter is null ? "checked" : null)>
+                            <label class="btn tot-filter-btn" for="tot-status-all">All</label>
+                            <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-not-required" value="@ProjectTotStatus.NotRequired" @(Model.TotStatusFilter == ProjectTotStatus.NotRequired ? "checked" : null)>
+                            <label class="btn tot-filter-btn" for="tot-status-not-required">@StatusLabel(ProjectTotStatus.NotRequired)</label>
+                            <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-not-started" value="@ProjectTotStatus.NotStarted" @(Model.TotStatusFilter == ProjectTotStatus.NotStarted ? "checked" : null)>
+                            <label class="btn tot-filter-btn" for="tot-status-not-started">@StatusLabel(ProjectTotStatus.NotStarted)</label>
+                            <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-in-progress" value="@ProjectTotStatus.InProgress" @(Model.TotStatusFilter == ProjectTotStatus.InProgress ? "checked" : null)>
+                            <label class="btn tot-filter-btn" for="tot-status-in-progress">@StatusLabel(ProjectTotStatus.InProgress)</label>
+                            <input type="radio" class="btn-check" name="TotStatusFilter" id="tot-status-completed" value="@ProjectTotStatus.Completed" @(Model.TotStatusFilter == ProjectTotStatus.Completed ? "checked" : null)>
+                            <label class="btn tot-filter-btn" for="tot-status-completed">@StatusLabel(ProjectTotStatus.Completed)</label>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <span class="tot-filter-heading">Request state</span>
+                        <div class="btn-group tot-filter-btn-group w-100" role="group" aria-label="Filter projects by request decision state">
+                            <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-all" value="" @((Model.RequestStateFilter is null && !Model.OnlyPending) ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
+                            <label class="btn tot-filter-btn @(Model.OnlyPending ? "disabled" : null)" for="request-state-all">All</label>
+                            <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-pending" value="@ProjectTotRequestDecisionState.Pending" @(Model.RequestStateFilter == ProjectTotRequestDecisionState.Pending ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
+                            <label class="btn tot-filter-btn @(Model.OnlyPending ? "disabled" : null)" for="request-state-pending">@RequestStateLabel(ProjectTotRequestDecisionState.Pending)</label>
+                            <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-approved" value="@ProjectTotRequestDecisionState.Approved" @(Model.RequestStateFilter == ProjectTotRequestDecisionState.Approved ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
+                            <label class="btn tot-filter-btn @(Model.OnlyPending ? "disabled" : null)" for="request-state-approved">@RequestStateLabel(ProjectTotRequestDecisionState.Approved)</label>
+                            <input type="radio" class="btn-check" name="RequestStateFilter" id="request-state-rejected" value="@ProjectTotRequestDecisionState.Rejected" @(Model.RequestStateFilter == ProjectTotRequestDecisionState.Rejected ? "checked" : null) @(Model.OnlyPending ? "disabled" : null)>
+                            <label class="btn tot-filter-btn @(Model.OnlyPending ? "disabled" : null)" for="request-state-rejected">@RequestStateLabel(ProjectTotRequestDecisionState.Rejected)</label>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check form-switch tot-filter-switch">
+                            <input class="form-check-input" type="checkbox" asp-for="OnlyPending" id="onlyPending">
+                            <label class="form-check-label" for="onlyPending">Only pending approvals</label>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check form-switch tot-filter-switch">
+                            <input class="form-check-input" type="checkbox" asp-for="RequiresTotOnly" id="requiresTotOnly">
+                            <label class="form-check-label" for="requiresTotOnly">Only projects requiring ToT</label>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="form-check form-switch tot-filter-switch">
+                            <input class="form-check-input" type="checkbox" asp-for="MetCompletedOnly" id="metCompletedOnly">
+                            <label class="form-check-label" for="metCompletedOnly">MET completed</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-auto pt-3 border-top">
+                    <div class="d-flex justify-content-between gap-2">
+                        <a class="btn btn-outline-secondary"
+                           asp-page="./Index"
+                           asp-route-SearchTerm=""
+                           asp-route-TotStatusFilter=""
+                           asp-route-RequestStateFilter=""
+                           asp-route-OnlyPending="false"
+                           asp-route-RequiresTotOnly="false"
+                           asp-route-MetCompletedOnly="false"
+                           asp-route-SelectedProjectId="@Model.SelectedProjectId"
+                           asp-route-ViewMode="@Model.ViewMode">
+                            Clear all
+                        </a>
+                        <button type="submit" class="btn btn-primary">Apply</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal fade" id="tot-export-modal" tabindex="-1" aria-labelledby="tot-export-modal-label" aria-hidden="true" data-tot-auto-show="@(showExportModal ? "true" : "false")">
+        <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div class="modal-content">
+                <form method="post" asp-page-handler="Export">
+                    <div class="modal-header">
+                        <h2 class="modal-title fs-5" id="tot-export-modal-label">Export Transfer of Technology data</h2>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted mb-3">Configure the export filters to download an Excel workbook for offline analysis.</p>
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                        <input type="hidden" asp-for="SelectedProjectId" />
+                        <input type="hidden" asp-for="TotStatusFilter" />
+                        <input type="hidden" asp-for="RequestStateFilter" />
+                        <input type="hidden" asp-for="SearchTerm" />
+                        <input type="hidden" asp-for="OnlyPending" />
+                        <input type="hidden" asp-for="RequiresTotOnly" />
+                        <input type="hidden" asp-for="MetCompletedOnly" />
+                        <input type="hidden" asp-for="ViewMode" />
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <span class="tot-filter-heading d-block">ToT status</span>
+                                <p class="text-muted small mb-2">Choose which Transfer of Technology stream statuses to include in the workbook.</p>
+                                <div class="btn-group tot-filter-btn-group w-100" role="group" aria-label="Filter exported projects by Transfer of Technology status">
+                                    <input type="radio" class="btn-check" name="Export.TotStatus" id="export-tot-status-all" value="" @(Model.Export?.TotStatus is null ? "checked" : null)>
+                                    <label class="btn tot-filter-btn" for="export-tot-status-all">All</label>
+                                    <input type="radio" class="btn-check" name="Export.TotStatus" id="export-tot-status-not-required" value="@ProjectTotStatus.NotRequired" @(Model.Export?.TotStatus == ProjectTotStatus.NotRequired ? "checked" : null)>
+                                    <label class="btn tot-filter-btn" for="export-tot-status-not-required">@StatusLabel(ProjectTotStatus.NotRequired)</label>
+                                    <input type="radio" class="btn-check" name="Export.TotStatus" id="export-tot-status-not-started" value="@ProjectTotStatus.NotStarted" @(Model.Export?.TotStatus == ProjectTotStatus.NotStarted ? "checked" : null)>
+                                    <label class="btn tot-filter-btn" for="export-tot-status-not-started">@StatusLabel(ProjectTotStatus.NotStarted)</label>
+                                    <input type="radio" class="btn-check" name="Export.TotStatus" id="export-tot-status-in-progress" value="@ProjectTotStatus.InProgress" @(Model.Export?.TotStatus == ProjectTotStatus.InProgress ? "checked" : null)>
+                                    <label class="btn tot-filter-btn" for="export-tot-status-in-progress">@StatusLabel(ProjectTotStatus.InProgress)</label>
+                                    <input type="radio" class="btn-check" name="Export.TotStatus" id="export-tot-status-completed" value="@ProjectTotStatus.Completed" @(Model.Export?.TotStatus == ProjectTotStatus.Completed ? "checked" : null)>
+                                    <label class="btn tot-filter-btn" for="export-tot-status-completed">@StatusLabel(ProjectTotStatus.Completed)</label>
+                                </div>
+                            </div>
+                            <div class="col-12"><hr class="text-body-tertiary my-2" /></div>
+                            <div class="col-12 col-md-6 col-lg-3">
+                                <label class="form-label" for="export-started-from">Started from</label>
+                                <input class="form-control" asp-for="Export.StartedFrom" type="date" id="export-started-from" />
+                                <span asp-validation-for="Export.StartedFrom" class="text-danger"></span>
+                            </div>
+                            <div class="col-12 col-md-6 col-lg-3">
+                                <label class="form-label" for="export-started-to">Started to</label>
+                                <input class="form-control" asp-for="Export.StartedTo" type="date" id="export-started-to" />
+                                <span asp-validation-for="Export.StartedTo" class="text-danger"></span>
+                            </div>
+                            <div class="col-12 col-md-6 col-lg-3">
+                                <label class="form-label" for="export-completed-from">Completed from</label>
+                                <input class="form-control" asp-for="Export.CompletedFrom" type="date" id="export-completed-from" />
+                                <span asp-validation-for="Export.CompletedFrom" class="text-danger"></span>
+                            </div>
+                            <div class="col-12 col-md-6 col-lg-3">
+                                <label class="form-label" for="export-completed-to">Completed to</label>
+                                <input class="form-control" asp-for="Export.CompletedTo" type="date" id="export-completed-to" />
+                                <span asp-validation-for="Export.CompletedTo" class="text-danger"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary d-inline-flex align-items-center gap-2">
+                            <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
+                            <span>Export workbook</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    @if (Model.Summary is { } summary)
+    {
+        <section class="tot-kpi-band" aria-label="Portfolio summary">
+            <a class="tot-kpi @(trackedIsActive ? "is-active" : null)" asp-page="./Index"
+               asp-route-SearchTerm="@Model.SearchTerm"
+               asp-route-TotStatusFilter=""
+               asp-route-RequestStateFilter=""
+               asp-route-OnlyPending="false"
+               asp-route-RequiresTotOnly="false"
+               asp-route-MetCompletedOnly="false"
+               asp-route-SelectedProjectId="@Model.SelectedProjectId"
+               asp-route-ViewMode="@Model.ViewMode"
+               aria-pressed="@(trackedIsActive ? "true" : "false")">
+                <div class="tot-kpi__value">@summary.TotalProjects</div>
+                <div class="tot-kpi__label">Tracked projects</div>
+                <div class="tot-kpi__meta">Across all ToT states</div>
+            </a>
+            <a class="tot-kpi @(requiresTotActive ? "is-active" : null)" asp-page="./Index"
+               asp-route-SearchTerm="@Model.SearchTerm"
+               asp-route-TotStatusFilter="@Model.TotStatusFilter"
+               asp-route-RequestStateFilter="@Model.RequestStateFilter"
+               asp-route-OnlyPending="@Model.OnlyPending"
+               asp-route-RequiresTotOnly="true"
+               asp-route-MetCompletedOnly="@Model.MetCompletedOnly"
+               asp-route-SelectedProjectId="@Model.SelectedProjectId"
+               asp-route-ViewMode="@Model.ViewMode"
+               aria-pressed="@(requiresTotActive ? "true" : "false")">
+                <div class="tot-kpi__value">@summary.ProjectsRequiringTot</div>
+                <div class="tot-kpi__label">Active ToT streams</div>
+                <div class="tot-kpi__meta">@summary.TotNotRequired not required</div>
+            </a>
+            <a class="tot-kpi @(pendingActive ? "is-active" : null)" asp-page="./Index"
+               asp-route-SearchTerm="@Model.SearchTerm"
+               asp-route-TotStatusFilter="@Model.TotStatusFilter"
+               asp-route-RequestStateFilter=""
+               asp-route-OnlyPending="true"
+               asp-route-RequiresTotOnly="@Model.RequiresTotOnly"
+               asp-route-MetCompletedOnly="@Model.MetCompletedOnly"
+               asp-route-SelectedProjectId="@Model.SelectedProjectId"
+               asp-route-ViewMode="@Model.ViewMode"
+               aria-pressed="@(pendingActive ? "true" : "false")">
+                <div class="tot-kpi__value">@summary.PendingApprovals</div>
+                <div class="tot-kpi__label">Pending approvals</div>
+                <div class="tot-kpi__meta">Action required</div>
+            </a>
+            <a class="tot-kpi @(inProgressActive ? "is-active" : null)" asp-page="./Index"
+               asp-route-SearchTerm="@Model.SearchTerm"
+               asp-route-TotStatusFilter="@ProjectTotStatus.InProgress"
+               asp-route-RequestStateFilter="@Model.RequestStateFilter"
+               asp-route-OnlyPending="@Model.OnlyPending"
+               asp-route-RequiresTotOnly="@Model.RequiresTotOnly"
+               asp-route-MetCompletedOnly="@Model.MetCompletedOnly"
+               asp-route-SelectedProjectId="@Model.SelectedProjectId"
+               asp-route-ViewMode="@Model.ViewMode"
+               aria-pressed="@(inProgressActive ? "true" : "false")">
+                <div class="tot-kpi__value">@summary.TotInProgress</div>
+                <div class="tot-kpi__label">In progress</div>
+                <div class="tot-kpi__meta">@summary.TotNotStarted not started</div>
+            </a>
+            <a class="tot-kpi @(metActive ? "is-active" : null)" asp-page="./Index"
+               asp-route-SearchTerm="@Model.SearchTerm"
+               asp-route-TotStatusFilter="@Model.TotStatusFilter"
+               asp-route-RequestStateFilter="@Model.RequestStateFilter"
+               asp-route-OnlyPending="@Model.OnlyPending"
+               asp-route-RequiresTotOnly="@Model.RequiresTotOnly"
+               asp-route-MetCompletedOnly="true"
+               asp-route-SelectedProjectId="@Model.SelectedProjectId"
+               asp-route-ViewMode="@Model.ViewMode"
+               aria-pressed="@(metActive ? "true" : "false")">
+                <div class="tot-kpi__value">@summary.ProjectsWithMetCompleted</div>
+                <div class="tot-kpi__label">MET completed</div>
+                <div class="tot-kpi__meta">Momentum achieved</div>
+            </a>
+            <a class="tot-kpi @(completedActive ? "is-active" : null)" asp-page="./Index"
+               asp-route-SearchTerm="@Model.SearchTerm"
+               asp-route-TotStatusFilter="@ProjectTotStatus.Completed"
+               asp-route-RequestStateFilter="@Model.RequestStateFilter"
+               asp-route-OnlyPending="@Model.OnlyPending"
+               asp-route-RequiresTotOnly="@Model.RequiresTotOnly"
+               asp-route-MetCompletedOnly="@Model.MetCompletedOnly"
+               asp-route-SelectedProjectId="@Model.SelectedProjectId"
+               asp-route-ViewMode="@Model.ViewMode"
+               aria-pressed="@(completedActive ? "true" : "false")">
+                <div class="tot-kpi__value">@summary.TotCompleted</div>
+                <div class="tot-kpi__label">ToT completed</div>
+                <div class="tot-kpi__meta">@summary.ProjectsWithFirstProductionModel FoPM manufactured</div>
+            </a>
+        </section>
+    }
+
+    <section class="tot-results">
+        <div class="tot-results__summary">
+            <div class="tot-results__count">@resultCountText</div>
+            <div class="tot-results__filters">@summaryText</div>
+        </div>
+        <div class="tot-results__view-toggle btn-group" role="group" aria-label="Toggle project layout">
             <a class="btn btn-outline-secondary @(isListView ? string.Empty : "active")"
                asp-page="./Index"
                asp-route-TotStatusFilter="@Model.TotStatusFilter"
                asp-route-RequestStateFilter="@Model.RequestStateFilter"
                asp-route-SearchTerm="@Model.SearchTerm"
                asp-route-OnlyPending="@Model.OnlyPending"
+               asp-route-RequiresTotOnly="@Model.RequiresTotOnly"
+               asp-route-MetCompletedOnly="@Model.MetCompletedOnly"
                asp-route-SelectedProjectId="@Model.SelectedProjectId"
                asp-route-ViewMode="@CardsViewModeName">
                 <span class="d-none d-sm-inline">Card view</span>
@@ -436,544 +496,327 @@
                asp-route-RequestStateFilter="@Model.RequestStateFilter"
                asp-route-SearchTerm="@Model.SearchTerm"
                asp-route-OnlyPending="@Model.OnlyPending"
+               asp-route-RequiresTotOnly="@Model.RequiresTotOnly"
+               asp-route-MetCompletedOnly="@Model.MetCompletedOnly"
                asp-route-SelectedProjectId="@Model.SelectedProjectId"
                asp-route-ViewMode="@ListViewModeName">
-                <span class="d-none d-sm-inline">List view</span>
-                <span class="d-sm-none">List</span>
+                <span class="d-none d-sm-inline">Table view</span>
+                <span class="d-sm-none">Table</span>
             </a>
         </div>
-    </div>
-    <div class="card-body">
-        <div class="tot-project-list @(isListView ? "is-list" : "is-card")">
+    </section>
+
+    <div class="tot-workspace">
+        <section class="tot-workspace__main">
             @if (!Model.Projects.Any())
             {
-                <div class="tot-project-empty text-muted">No completed projects match the selected filters.</div>
+                <div class="tot-empty">
+                    <h2 class="tot-empty__title">No projects match the current filters</h2>
+                    <p class="tot-empty__body">Try adjusting the filters or clearing them to see all tracked projects.</p>
+                    <a class="btn btn-outline-primary"
+                       asp-page="./Index"
+                       asp-route-SearchTerm=""
+                       asp-route-TotStatusFilter=""
+                       asp-route-RequestStateFilter=""
+                       asp-route-OnlyPending="false"
+                       asp-route-RequiresTotOnly="false"
+                       asp-route-MetCompletedOnly="false"
+                       asp-route-ViewMode="@Model.ViewMode">
+                        Clear filters
+                    </a>
+                </div>
             }
-            else
+            else if (isListView)
             {
-                if (isListView)
-                {
-                    <div class="tot-project-table" role="grid">
-                        <div class="tot-project-table-header" role="row">
-                            <div class="tot-project-table-heading col-project" role="columnheader">Project</div>
-                            <div class="tot-project-table-heading col-status" role="columnheader">Status</div>
-                            <div class="tot-project-table-heading col-remark" role="columnheader">Latest remark</div>
-                            <div class="tot-project-table-heading col-actions" role="columnheader">Actions</div>
-                        </div>
-                        <div class="tot-project-table-body" role="rowgroup">
+                <div class="table-responsive">
+                    <table class="table align-middle tot-table">
+                        <thead class="tot-table__head">
+                            <tr>
+                                <th scope="col">Project</th>
+                                <th scope="col">ToT status</th>
+                                <th scope="col">Started</th>
+                                <th scope="col">Completed</th>
+                                <th scope="col">MET</th>
+                                <th scope="col">FPM</th>
+                                <th scope="col">Last approved by</th>
+                                <th scope="col">Approved on</th>
+                                <th scope="col">Pending request</th>
+                            </tr>
+                        </thead>
+                        <tbody>
                             @foreach (var row in Model.Projects)
                             {
                                 var isSelected = Model.SelectedProjectId.HasValue && Model.SelectedProjectId.Value == row.ProjectId;
-                                var latestRemark = row.LatestExternalRemark ?? row.LatestInternalRemark;
                                 var accentClass = row.RequestState is { } requestState ? RequestStateAccentClass(requestState) : string.Empty;
-                                <article class="tot-project-table-row @accentClass @(isSelected ? "is-selected" : string.Empty)" role="row">
-                                    <div class="tot-project-table-cell col-project" role="gridcell">
-                                        <div class="tot-project-table-title">@row.ProjectName</div>
-                                        <div class="tot-project-table-unit">@row.SponsoringUnit</div>
-                                    </div>
-                                    <div class="tot-project-table-cell col-status" role="gridcell">
-                                        <div class="tot-project-table-status">
-                                            @if (row.TotStatus is { } status)
+                                <tr class="tot-table__row @accentClass @(isSelected ? "is-selected" : null)">
+                                    <td>
+                                        <div class="tot-table__project">
+                                            <a class="tot-table__project-link"
+                                               asp-page="./Index"
+                                               asp-route-TotStatusFilter="@Model.TotStatusFilter"
+                                               asp-route-RequestStateFilter="@Model.RequestStateFilter"
+                                               asp-route-SearchTerm="@Model.SearchTerm"
+                                               asp-route-OnlyPending="@Model.OnlyPending"
+                                               asp-route-RequiresTotOnly="@Model.RequiresTotOnly"
+                                               asp-route-MetCompletedOnly="@Model.MetCompletedOnly"
+                                               asp-route-SelectedProjectId="@row.ProjectId"
+                                               asp-route-ViewMode="@ListViewModeName">
+                                                @row.ProjectName
+                                            </a>
+                                            @if (!string.IsNullOrWhiteSpace(row.SponsoringUnit))
                                             {
-                                                <span class="badge @TotStatusBadgeClass(status)">@StatusLabel(status)</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="badge @TotStatusBadgeClass(ProjectTotStatus.NotStarted)">Not started</span>
-                                            }
-
-                                            @if (row.RequestState is { } state)
-                                            {
-                                                <span class="tot-request-badge @RequestStateBadgeClass(state)">@RequestStateLabel(state)</span>
-                                            }
-                                            else
-                                            {
-                                                <span class="tot-project-card-no-request text-muted">No request</span>
+                                                <div class="tot-table__unit">@row.SponsoringUnit</div>
                                             }
                                         </div>
-                                    </div>
-                                    <div class="tot-project-table-cell col-remark" role="gridcell">
-                                        @if (latestRemark is not null)
+                                    </td>
+                                    <td>
+                                        <div class="tot-table__chips">
+                                            <span class="chip chip--status @TotStatusChipClass(row.TotStatus ?? ProjectTotStatus.NotStarted)">@StatusLabel(row.TotStatus ?? ProjectTotStatus.NotStarted)</span>
+                                            @if (row.RequestState is { } state)
+                                            {
+                                                <span class="chip chip--decision @RequestStateChipClass(state)">@RequestStateLabel(state)</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="tot-table__muted">No request</span>
+                                            }
+                                        </div>
+                                    </td>
+                                    <td>@(FormatDate(row.TotStartedOn) ?? "—")</td>
+                                    <td>@(FormatDate(row.TotCompletedOn) ?? "—")</td>
+                                    <td>@(FormatDate(row.TotMetCompletedOn) ?? "—")</td>
+                                    <td>@FoPmLabel(row.TotFirstProductionModelManufactured)</td>
+                                    <td>@(string.IsNullOrWhiteSpace(row.TotLastApprovedBy) ? "—" : row.TotLastApprovedBy)</td>
+                                    <td>@(FormatTimestamp(row.TotLastApprovedOnUtc) ?? "—")</td>
+                                    <td>
+                                        @if (row.RequestState is { } pending && pending == ProjectTotRequestDecisionState.Pending)
                                         {
-                                            var createdText = FormatTimestamp(latestRemark.CreatedAtUtc);
-                                            <div class="tot-project-table-remark-meta">
-                                                <span class="fw-semibold">Latest @latestRemark.TypeLabel remark</span>
-                                                @if (latestRemark.EventDate.HasValue)
-                                                {
-                                                    <span> (@FormatDate(latestRemark.EventDate))</span>
-                                                }
-                                                @if (!string.IsNullOrEmpty(createdText))
-                                                {
-                                                    <span> • posted @createdText</span>
-                                                }
-                                            </div>
-                                            <div class="tot-project-table-remark-body">@latestRemark.Body</div>
+                                            <span class="badge text-bg-warning text-uppercase">Pending</span>
+                                        }
+                                        else if (row.RequestState is { } decision)
+                                        {
+                                            <span>@RequestStateLabel(decision)</span>
                                         }
                                         else
                                         {
-                                            <div class="text-muted">No ToT remarks yet.</div>
+                                            <span class="tot-table__muted">None</span>
                                         }
-                                    </div>
-                                    <div class="tot-project-table-cell col-actions" role="gridcell">
-                                        <a class="btn btn-sm btn-outline-primary"
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else
+            {
+                <div class="tot-card-grid">
+                    @foreach (var row in Model.Projects)
+                    {
+                        var isSelected = Model.SelectedProjectId.HasValue && Model.SelectedProjectId.Value == row.ProjectId;
+                        var accentClass = row.RequestState is { } requestState ? RequestStateAccentClass(requestState) : string.Empty;
+                        <article class="tot-card @accentClass @(isSelected ? "is-selected" : null)"
+                                 role="button"
+                                 tabindex="0"
+                                 aria-pressed="@(isSelected ? "true" : "false")">
+                            <header class="tot-card__header">
+                                <div class="tot-card__heading">
+                                    <h3 class="tot-card__title">@row.ProjectName</h3>
+                                    @if (!string.IsNullOrWhiteSpace(row.SponsoringUnit))
+                                    {
+                                        <div class="tot-card__unit">@row.SponsoringUnit</div>
+                                    }
+                                </div>
+                                <div class="tot-card__chips">
+                                    <span class="chip chip--status @TotStatusChipClass(row.TotStatus ?? ProjectTotStatus.NotStarted)">@StatusLabel(row.TotStatus ?? ProjectTotStatus.NotStarted)</span>
+                                    @if (row.RequestState is { } state)
+                                    {
+                                        <span class="chip chip--decision @RequestStateChipClass(state)">@RequestStateLabel(state)</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="chip chip--decision chip-decision-none">No request</span>
+                                    }
+                                </div>
+                            </header>
+                            <dl class="tot-card__grid">
+                                <div><dt>Started on</dt><dd>@(FormatDate(row.TotStartedOn) ?? "—")</dd></div>
+                                <div><dt>Completed on</dt><dd>@(FormatDate(row.TotCompletedOn) ?? "—")</dd></div>
+                                <div><dt>MET completed</dt><dd>@(FormatDate(row.TotMetCompletedOn) ?? "—")</dd></div>
+                                <div><dt>First production model</dt><dd>@FoPmLabel(row.TotFirstProductionModelManufactured)</dd></div>
+                                <div><dt>Manufactured on</dt><dd>@(FormatDate(row.TotFirstProductionModelManufacturedOn) ?? "—")</dd></div>
+                                <div><dt>Latest approval</dt><dd>@(FormatTimestamp(row.TotLastApprovedOnUtc) ?? "—")</dd></div>
+                            </dl>
+                            <footer class="tot-card__footer">
+                                @if (Model.CanSubmit)
+                                {
+                                    if (isSelected)
+                                    {
+                                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#tot-submit-modal">Submit update</button>
+                                    }
+                                    else
+                                    {
+                                        <a class="btn btn-primary"
+                                           asp-page="./Index"
                                            asp-route-TotStatusFilter="@Model.TotStatusFilter"
                                            asp-route-RequestStateFilter="@Model.RequestStateFilter"
                                            asp-route-SearchTerm="@Model.SearchTerm"
                                            asp-route-OnlyPending="@Model.OnlyPending"
-                                           asp-route-ViewMode="@ListViewModeName"
-                                           asp-route-SelectedProjectId="@row.ProjectId">
-                                            View details
+                                           asp-route-RequiresTotOnly="@Model.RequiresTotOnly"
+                                           asp-route-MetCompletedOnly="@Model.MetCompletedOnly"
+                                           asp-route-SelectedProjectId="@row.ProjectId"
+                                           asp-route-ViewMode="@CardsViewModeName">
+                                            Submit update
                                         </a>
-                                    </div>
-                                </article>
-                            }
-                        </div>
+                                    }
+                                }
+                                <a class="btn btn-text" asp-page="/Projects/Overview" asp-route-id="@row.ProjectId">View details</a>
+                            </footer>
+                            <a class="stretched-link"
+                               asp-page="./Index"
+                               asp-route-TotStatusFilter="@Model.TotStatusFilter"
+                               asp-route-RequestStateFilter="@Model.RequestStateFilter"
+                               asp-route-SearchTerm="@Model.SearchTerm"
+                               asp-route-OnlyPending="@Model.OnlyPending"
+                               asp-route-RequiresTotOnly="@Model.RequiresTotOnly"
+                               asp-route-MetCompletedOnly="@Model.MetCompletedOnly"
+                               asp-route-SelectedProjectId="@row.ProjectId"
+                               asp-route-ViewMode="@CardsViewModeName"
+                               aria-hidden="true"
+                               tabindex="-1"></a>
+                        </article>
+                    }
+                </div>
+            }
+        </section>
+        <aside class="tot-workspace__aside">
+            <div class="tot-sticky">
+                @if (selected is null)
+                {
+                    <div class="tot-sticky-card">
+                        <h2 class="tot-sticky__title">Select a project to see details</h2>
+                        <p class="tot-sticky__subtitle">Choose a project from the grid to review its ToT progress, remarks, and actions.</p>
                     </div>
                 }
                 else
                 {
-                    foreach (var row in Model.Projects)
-                    {
-                        var isSelected = Model.SelectedProjectId.HasValue && Model.SelectedProjectId.Value == row.ProjectId;
-                        var latestRemark = row.LatestExternalRemark ?? row.LatestInternalRemark;
-                        var accentClass = row.RequestState is { } requestState ? RequestStateAccentClass(requestState) : string.Empty;
-                        <article class="tot-project-card @accentClass @(isSelected ? "is-selected" : string.Empty)">
-                            <div class="tot-project-card-header">
-                                <div class="tot-project-card-heading">
-                                    <div class="tot-project-card-title">@row.ProjectName</div>
-                                    <div class="tot-project-card-unit">@row.SponsoringUnit</div>
-                                </div>
-                                <div class="tot-project-card-statuses">
-                                    @if (row.TotStatus is { } status)
-                                    {
-                                        <span class="badge @TotStatusBadgeClass(status)">@StatusLabel(status)</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="badge @TotStatusBadgeClass(ProjectTotStatus.NotStarted)">Not started</span>
-                                    }
-
-                                    @if (row.RequestState is { } state)
-                                    {
-                                        <span class="tot-request-badge @RequestStateBadgeClass(state)">@RequestStateLabel(state)</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="tot-project-card-no-request text-muted">No request</span>
-                                    }
-                                </div>
-                            </div>
-                            <div class="tot-project-card-remark">
-                                @if (latestRemark is not null)
+                    <div class="tot-sticky-card">
+                        <header class="tot-sticky__header">
+                            <div>
+                                <h2 class="tot-sticky__title">@selected.ProjectName</h2>
+                                @if (!string.IsNullOrWhiteSpace(selected.SponsoringUnit))
                                 {
-                                    var createdText = FormatTimestamp(latestRemark.CreatedAtUtc);
-                                    <div class="tot-project-card-remark-meta">
-                                        <span class="fw-semibold">Latest @latestRemark.TypeLabel remark</span>
-                                        @if (latestRemark.EventDate.HasValue)
-                                        {
-                                            <span> (@FormatDate(latestRemark.EventDate))</span>
-                                        }
-                                        @if (!string.IsNullOrEmpty(createdText))
-                                        {
-                                            <span> • posted @createdText</span>
-                                        }
-                                    </div>
-                                    <div class="tot-project-card-remark-body">@latestRemark.Body</div>
+                                    <div class="tot-sticky__subtitle">@selected.SponsoringUnit</div>
+                                }
+                            </div>
+                            <div class="tot-sticky__chips">
+                                <span class="chip chip--status @TotStatusChipClass(selected.TotStatus ?? ProjectTotStatus.NotStarted)">@StatusLabel(selected.TotStatus ?? ProjectTotStatus.NotStarted)</span>
+                                @if (selected.RequestState is { } selectedState)
+                                {
+                                    <span class="chip chip--decision @RequestStateChipClass(selectedState)">@RequestStateLabel(selectedState)</span>
                                 }
                                 else
                                 {
-                                    <div class="text-muted">No ToT remarks yet.</div>
+                                    <span class="chip chip--decision chip-decision-none">No request</span>
                                 }
                             </div>
-                            <div class="tot-project-card-footer">
-                                <a class="btn btn-sm btn-outline-primary"
-                                   asp-route-TotStatusFilter="@Model.TotStatusFilter"
-                                   asp-route-RequestStateFilter="@Model.RequestStateFilter"
-                                   asp-route-SearchTerm="@Model.SearchTerm"
-                                   asp-route-OnlyPending="@Model.OnlyPending"
-                                   asp-route-ViewMode="@CardsViewModeName"
-                                   asp-route-SelectedProjectId="@row.ProjectId">
-                                    View details
-                                </a>
-                            </div>
-                        </article>
+                        </header>
+                        <dl class="tot-sticky__grid">
+                            <div><dt>Started on</dt><dd>@(FormatDate(selected.TotStartedOn) ?? "—")</dd></div>
+                            <div><dt>Completed on</dt><dd>@(FormatDate(selected.TotCompletedOn) ?? "—")</dd></div>
+                            <div><dt>MET details</dt><dd>@(string.IsNullOrWhiteSpace(selected.TotMetDetails) ? "—" : selected.TotMetDetails)</dd></div>
+                            <div><dt>MET completed</dt><dd>@(FormatDate(selected.TotMetCompletedOn) ?? "—")</dd></div>
+                            <div><dt>First production model</dt><dd>@FoPmLabel(selected.TotFirstProductionModelManufactured)</dd></div>
+                            <div><dt>Manufactured on</dt><dd>@(FormatDate(selected.TotFirstProductionModelManufacturedOn) ?? "—")</dd></div>
+                            <div><dt>Last approved by</dt><dd>@(string.IsNullOrWhiteSpace(selected.TotLastApprovedBy) ? "—" : selected.TotLastApprovedBy)</dd></div>
+                            <div><dt>Approved on</dt><dd>@(FormatTimestamp(selected.TotLastApprovedOnUtc) ?? "—")</dd></div>
+                        </dl>
+                        <div class="tot-sticky__actions">
+                            @if (Model.CanSubmit)
+                            {
+                                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#tot-submit-modal">Submit update</button>
+                            }
+                            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#tot-request-modal" @(selected.RequestState is null ? "disabled" : null)>Latest ToT request</button>
+                            <a class="btn btn-text" asp-page="/Projects/Overview" asp-route-id="@selected.ProjectId">Open project</a>
+                        </div>
+                        <section class="tot-sticky__remark">
+                            <header class="tot-sticky__remark-header">
+                                <h3 class="tot-sticky__remark-title">Latest remark</h3>
+                                <a class="btn btn-text" asp-page="/Projects/Overview" asp-route-id="@selected.ProjectId" asp-fragment="remarks-panel">Open remarks panel</a>
+                            </header>
+                            @if (selectedRemark is null)
+                            {
+                                <p class="tot-sticky__remark-empty">No ToT remarks recorded yet.</p>
+                            }
+                            else
+                            {
+                                <div class="tot-sticky__remark-meta">
+                                    <span class="tot-sticky__remark-chip">@selectedRemark.TypeLabel remark</span>
+                                    @if (selectedRemark.EventDate.HasValue)
+                                    {
+                                        <span>@FormatDate(selectedRemark.EventDate)</span>
+                                    }
+                                    @if (FormatTimestamp(selectedRemark.CreatedAtUtc) is { } remarkTimestamp)
+                                    {
+                                        <span>Posted @remarkTimestamp</span>
+                                    }
+                                </div>
+                                <div class="tot-sticky__remark-body">@selectedRemark.Body</div>
+                            }
+                        </section>
+                    </div>
+
+                    @if (requiresDecisionMetadata)
+                    {
+                        <div class="alert alert-info mt-3" role="status">
+                            Transfer of Technology request details are temporarily unavailable. Approvals will be enabled once the data is accessible.
+                        </div>
+                    }
+
+                    @if (showDecisionCard)
+                    {
+                        <div class="tot-sticky-card @(Model.HighlightDecisionCard ? "is-highlighted" : null)" data-tot-decision-card>
+                            <header class="tot-sticky__header">
+                                <h3 class="tot-sticky__title">HoD decision</h3>
+                            </header>
+                            @if (Model.HighlightDecisionCard && !string.IsNullOrWhiteSpace(Model.DecisionAlertMessage))
+                            {
+                                <div class="alert alert-warning" role="alert">
+                                    @Model.DecisionAlertMessage
+                                </div>
+                            }
+                            <form method="post" asp-page-handler="Decide" class="tot-decision-form">
+                                <input asp-for="DecideInput.ProjectId" type="hidden" />
+                                <input asp-for="DecideInput.RowVersion" type="hidden" />
+                                <input type="hidden" asp-for="TotStatusFilter" />
+                                <input type="hidden" asp-for="RequestStateFilter" />
+                                <input type="hidden" asp-for="SearchTerm" />
+                                <input type="hidden" asp-for="OnlyPending" />
+                                <input type="hidden" asp-for="RequiresTotOnly" />
+                                <input type="hidden" asp-for="MetCompletedOnly" />
+                                <input type="hidden" asp-for="ViewMode" />
+                                <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+                                <div class="mb-3">
+                                    <label class="form-label" asp-for="DecideContextBody">Decision context (optional)</label>
+                                    <textarea asp-for="DecideContextBody" class="form-control" rows="3"></textarea>
+                                    <div class="form-text">Decision notes are stored as Transfer of Technology remarks.</div>
+                                    <span asp-validation-for="DecideContextBody" class="text-danger"></span>
+                                </div>
+                                <div class="tot-decision-form__actions">
+                                    <button type="submit" name="DecideInput.Approve" value="true" class="btn btn-success">Approve</button>
+                                    <button type="submit" name="DecideInput.Approve" value="false" class="btn btn-outline-danger">Reject</button>
+                                </div>
+                            </form>
+                        </div>
                     }
                 }
-            }
-        </div>
-    </div>
-</div>
-
-@if (Model.SelectedProject is { } selected)
-{
-    var hasRequest = selected.RequestState is not null;
-    <div class="row g-4 mt-4">
-        <div class="col-12">
-            <div class="card h-100">
-                <div class="card-header d-flex flex-wrap gap-2 justify-content-between align-items-center">
-                    <h2 class="h5 mb-0">@selected.ProjectName</h2>
-                    <div class="d-flex align-items-center gap-2">
-                        @if (Model.CanSubmit)
-                        {
-                            <button type="button"
-                                    class="btn btn-primary btn-sm"
-                                    data-bs-toggle="modal"
-                                    data-bs-target="#tot-submit-modal">
-                                Submit update
-                            </button>
-                        }
-                        <button type="button"
-                                class="btn btn-outline-primary btn-sm"
-                                data-bs-toggle="modal"
-                                data-bs-target="#tot-request-modal"
-                                @(hasRequest ? null : "disabled")>
-                            Latest ToT request
-                        </button>
-                        @if (hasRequest)
-                        {
-                            <span class="tot-request-badge @RequestStateBadgeClass(selected.RequestState!.Value)">
-                                @RequestStateLabel(selected.RequestState.Value)
-                            </span>
-                        }
-                        else
-                        {
-                            <span class="badge text-bg-secondary">No request</span>
-                        }
-                    </div>
-                </div>
-                <div class="card-body">
-                    <div class="tot-summary-card">
-                        <div class="row g-3">
-                            <div class="col-sm-6 col-xl-4">
-                                <div class="tot-summary-item h-100">
-                                    <div class="tot-summary-icon text-primary">
-                                        <i class="bi bi-kanban" aria-hidden="true"></i>
-                                    </div>
-                                    <div class="tot-summary-content">
-                                        <div class="tot-summary-label">Current ToT status</div>
-                                        <div class="tot-summary-value">@StatusLabel(selected.TotStatus ?? ProjectTotStatus.NotStarted)</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-sm-6 col-xl-4">
-                                <div class="tot-summary-item h-100">
-                                    <div class="tot-summary-icon text-success">
-                                        <i class="bi bi-play-circle" aria-hidden="true"></i>
-                                    </div>
-                                    <div class="tot-summary-content">
-                                        <div class="tot-summary-label">Started on</div>
-                                        <div class="tot-summary-value">@(FormatDate(selected.TotStartedOn) ?? "—")</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-sm-6 col-xl-4">
-                                <div class="tot-summary-item h-100">
-                                    <div class="tot-summary-icon text-info">
-                                        <i class="bi bi-flag" aria-hidden="true"></i>
-                                    </div>
-                                    <div class="tot-summary-content">
-                                        <div class="tot-summary-label">Completed on</div>
-                                        <div class="tot-summary-value">@(FormatDate(selected.TotCompletedOn) ?? "—")</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-sm-6 col-xl-4">
-                                <div class="tot-summary-item h-100">
-                                    <div class="tot-summary-icon text-warning">
-                                        <i class="bi bi-clipboard-data" aria-hidden="true"></i>
-                                    </div>
-                                    <div class="tot-summary-content">
-                                        <div class="tot-summary-label">MET details</div>
-                                        <div class="tot-summary-value">@(string.IsNullOrWhiteSpace(selected.TotMetDetails) ? "—" : selected.TotMetDetails)</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-sm-6 col-xl-4">
-                                <div class="tot-summary-item h-100">
-                                    <div class="tot-summary-icon text-secondary">
-                                        <i class="bi bi-calendar-check" aria-hidden="true"></i>
-                                    </div>
-                                    <div class="tot-summary-content">
-                                        <div class="tot-summary-label">MET completed on</div>
-                                        <div class="tot-summary-value">@(FormatDate(selected.TotMetCompletedOn) ?? "—")</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-sm-6 col-xl-4">
-                                <div class="tot-summary-item h-100">
-                                    <div class="tot-summary-icon text-danger">
-                                        <i class="bi bi-award" aria-hidden="true"></i>
-                                    </div>
-                                    <div class="tot-summary-content">
-                                        <div class="tot-summary-label">First production model manufactured</div>
-                                        <div class="tot-summary-value">@FoPmLabel(selected.TotFirstProductionModelManufactured)</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-sm-6 col-xl-4">
-                                <div class="tot-summary-item h-100">
-                                    <div class="tot-summary-icon text-muted">
-                                        <i class="bi bi-gear" aria-hidden="true"></i>
-                                    </div>
-                                    <div class="tot-summary-content">
-                                        <div class="tot-summary-label">Manufactured on</div>
-                                        <div class="tot-summary-value">@(FormatDate(selected.TotFirstProductionModelManufacturedOn) ?? "—")</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-sm-6 col-xl-4">
-                                <div class="tot-summary-item h-100">
-                                    <div class="tot-summary-icon text-primary">
-                                        <i class="bi bi-person-check" aria-hidden="true"></i>
-                                    </div>
-                                    <div class="tot-summary-content">
-                                        <div class="tot-summary-label">Last approved by</div>
-                                        <div class="tot-summary-value">@(string.IsNullOrWhiteSpace(selected.TotLastApprovedBy) ? "—" : selected.TotLastApprovedBy)</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-sm-6 col-xl-4">
-                                <div class="tot-summary-item h-100">
-                                    <div class="tot-summary-icon text-success">
-                                        <i class="bi bi-clock-history" aria-hidden="true"></i>
-                                    </div>
-                                    <div class="tot-summary-content">
-                                        <div class="tot-summary-label">Approved on</div>
-                                        <div class="tot-summary-value">@(FormatTimestamp(selected.TotLastApprovedOnUtc) ?? "—")</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
             </div>
-        </div>
+        </aside>
     </div>
 
-    <div class="row g-4 mt-1">
-        <div class="col-12">
-            <div class="card h-100">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h2 class="h5 mb-0">ToT remarks</h2>
-                    <a class="btn btn-sm btn-outline-primary"
-                       asp-page="/Projects/Overview"
-                       asp-route-id="@selected.ProjectId"
-                       asp-fragment="remarks-panel">
-                        Open remarks panel
-                    </a>
-                </div>
-                <div class="card-body">
-                    @{
-                        var externalRemark = selected.LatestExternalRemark;
-                        var internalRemark = selected.LatestInternalRemark;
-                        var hasExternalRemark = externalRemark is not null;
-                        var hasInternalRemark = internalRemark is not null;
-                        var hasBothRemarks = hasExternalRemark && hasInternalRemark;
-                    }
-                    @if (!hasExternalRemark && !hasInternalRemark)
-                    {
-                        <p class="text-muted mb-0">No ToT remarks recorded yet.</p>
-                    }
-                    else
-                    {
-                        <div class="tot-remarks-tabs">
-                            @if (hasBothRemarks)
-                            {
-                                <ul class="nav nav-pills tot-remarks-tabs-nav" id="tot-remarks-tablist" role="tablist">
-                                    <li class="nav-item" role="presentation">
-                                        <button class="nav-link active"
-                                                id="tot-remark-external-tab"
-                                                type="button"
-                                                role="tab"
-                                                data-bs-toggle="pill"
-                                                data-bs-target="#tot-remark-external"
-                                                aria-controls="tot-remark-external"
-                                                aria-selected="true">
-                                            External
-                                        </button>
-                                    </li>
-                                    <li class="nav-item" role="presentation">
-                                        <button class="nav-link"
-                                                id="tot-remark-internal-tab"
-                                                type="button"
-                                                role="tab"
-                                                data-bs-toggle="pill"
-                                                data-bs-target="#tot-remark-internal"
-                                                aria-controls="tot-remark-internal"
-                                                aria-selected="false">
-                                            Internal
-                                        </button>
-                                    </li>
-                                </ul>
-                                <div class="tab-content" id="tot-remarks-tabcontent">
-                                    <div class="tab-pane fade show active" id="tot-remark-external" role="tabpanel" aria-labelledby="tot-remark-external-tab">
-                                        @if (externalRemark is not null)
-                                        {
-                                            <div class="tot-remark-card" data-remark-type="external">
-                                                <div class="tot-remark-card-header">
-                                                    <h3 class="h6 tot-remark-card-title mb-0">External remark</h3>
-                                                    <div class="tot-remark-meta">
-                                                        <span class="tot-remark-meta-item">
-                                                            <i class="bi bi-clock-history" aria-hidden="true"></i>
-                                                            <span class="tot-remark-meta-label">Posted</span>
-                                                            <span>@(FormatTimestamp(externalRemark.CreatedAtUtc) ?? "—")</span>
-                                                        </span>
-                                                        @if (externalRemark.EventDate.HasValue)
-                                                        {
-                                                            <span class="tot-remark-meta-item">
-                                                                <i class="bi bi-calendar-event" aria-hidden="true"></i>
-                                                                <span class="tot-remark-meta-label">Event</span>
-                                                                <span>@FormatDate(externalRemark.EventDate)</span>
-                                                            </span>
-                                                        }
-                                                    </div>
-                                                </div>
-                                                <div class="tot-remark-card-body">
-                                                    <div class="tot-remark-card-text">@externalRemark.Body</div>
-                                                </div>
-                                            </div>
-                                        }
-                                    </div>
-                                    <div class="tab-pane fade" id="tot-remark-internal" role="tabpanel" aria-labelledby="tot-remark-internal-tab">
-                                        @if (internalRemark is not null)
-                                        {
-                                            <div class="tot-remark-card" data-remark-type="internal">
-                                                <div class="tot-remark-card-header">
-                                                    <h3 class="h6 tot-remark-card-title mb-0">Internal remark</h3>
-                                                    <div class="tot-remark-meta">
-                                                        <span class="tot-remark-meta-item">
-                                                            <i class="bi bi-clock-history" aria-hidden="true"></i>
-                                                            <span class="tot-remark-meta-label">Posted</span>
-                                                            <span>@(FormatTimestamp(internalRemark.CreatedAtUtc) ?? "—")</span>
-                                                        </span>
-                                                        @if (internalRemark.EventDate.HasValue)
-                                                        {
-                                                            <span class="tot-remark-meta-item">
-                                                                <i class="bi bi-calendar-event" aria-hidden="true"></i>
-                                                                <span class="tot-remark-meta-label">Event</span>
-                                                                <span>@FormatDate(internalRemark.EventDate)</span>
-                                                            </span>
-                                                        }
-                                                    </div>
-                                                </div>
-                                                <div class="tot-remark-card-body">
-                                                    <div class="tot-remark-card-text">@internalRemark.Body</div>
-                                                </div>
-                                            </div>
-                                        }
-                                    </div>
-                                </div>
-                            }
-                            else if (hasExternalRemark && externalRemark is not null)
-                            {
-                                <div class="tot-remark-card" data-remark-type="external">
-                                    <div class="tot-remark-card-header">
-                                        <h3 class="h6 tot-remark-card-title mb-0">External remark</h3>
-                                        <div class="tot-remark-meta">
-                                            <span class="tot-remark-meta-item">
-                                                <i class="bi bi-clock-history" aria-hidden="true"></i>
-                                                <span class="tot-remark-meta-label">Posted</span>
-                                                <span>@(FormatTimestamp(externalRemark.CreatedAtUtc) ?? "—")</span>
-                                            </span>
-                                            @if (externalRemark.EventDate.HasValue)
-                                            {
-                                                <span class="tot-remark-meta-item">
-                                                    <i class="bi bi-calendar-event" aria-hidden="true"></i>
-                                                    <span class="tot-remark-meta-label">Event</span>
-                                                    <span>@FormatDate(externalRemark.EventDate)</span>
-                                                </span>
-                                            }
-                                        </div>
-                                    </div>
-                                    <div class="tot-remark-card-body">
-                                        <div class="tot-remark-card-text">@externalRemark.Body</div>
-                                    </div>
-                                </div>
-                            }
-                            else if (hasInternalRemark && internalRemark is not null)
-                            {
-                                <div class="tot-remark-card" data-remark-type="internal">
-                                    <div class="tot-remark-card-header">
-                                        <h3 class="h6 tot-remark-card-title mb-0">Internal remark</h3>
-                                        <div class="tot-remark-meta">
-                                            <span class="tot-remark-meta-item">
-                                                <i class="bi bi-clock-history" aria-hidden="true"></i>
-                                                <span class="tot-remark-meta-label">Posted</span>
-                                                <span>@(FormatTimestamp(internalRemark.CreatedAtUtc) ?? "—")</span>
-                                            </span>
-                                            @if (internalRemark.EventDate.HasValue)
-                                            {
-                                                <span class="tot-remark-meta-item">
-                                                    <i class="bi bi-calendar-event" aria-hidden="true"></i>
-                                                    <span class="tot-remark-meta-label">Event</span>
-                                                    <span>@FormatDate(internalRemark.EventDate)</span>
-                                                </span>
-                                            }
-                                        </div>
-                                    </div>
-                                    <div class="tot-remark-card-body">
-                                        <div class="tot-remark-card-text">@internalRemark.Body</div>
-                                    </div>
-                                </div>
-                            }
-                        </div>
-                    }
-                </div>
-            </div>
-        </div>
-
-        @if (Model.CanApprove && selected.RequestState == ProjectTotRequestDecisionState.Pending && !selected.RequestMetadataAvailable)
-        {
-            <div class="col-12 col-lg-6">
-                <div class="alert alert-info" role="status">
-                    Transfer of Technology request details are temporarily unavailable. Approvals will be enabled once the data is accessible.
-                </div>
-            </div>
-        }
-
-        @if (Model.CanApprove && selected.RequestState == ProjectTotRequestDecisionState.Pending && selected.RequestMetadataAvailable)
-        {
-            <div class="col-lg-6">
-                <div class="card h-100 @(Model.HighlightDecisionCard ? "border-warning border-2 shadow-sm" : string.Empty)" data-tot-decision-card>
-                    <div class="card-header">
-                        <h2 class="h5 mb-0">HoD decision</h2>
-                    </div>
-                    <div class="card-body">
-                        @if (Model.HighlightDecisionCard && !string.IsNullOrWhiteSpace(Model.DecisionAlertMessage))
-                        {
-                            <div class="alert alert-warning" role="alert">
-                                @Model.DecisionAlertMessage
-                            </div>
-                        }
-                        <form method="post" asp-page-handler="Decide">
-                            <input asp-for="DecideInput.ProjectId" type="hidden" />
-                            <input asp-for="DecideInput.RowVersion" type="hidden" />
-                            <input type="hidden" asp-for="TotStatusFilter" />
-                            <input type="hidden" asp-for="RequestStateFilter" />
-                            <input type="hidden" asp-for="SearchTerm" />
-                            <input type="hidden" asp-for="OnlyPending" />
-                            <input type="hidden" asp-for="ViewMode" />
-                            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-                            <div class="mt-3">
-                                <label class="form-label" asp-for="DecideContextBody">Decision context (optional)</label>
-                                <textarea asp-for="DecideContextBody" class="form-control" rows="3"></textarea>
-                                <div class="form-text">Decision notes are stored as Transfer of Technology remarks.</div>
-                                <span asp-validation-for="DecideContextBody" class="text-danger"></span>
-                            </div>
-                            <div class="d-flex gap-2">
-                                <button type="submit" name="DecideInput.Approve" value="true" class="btn btn-success">Approve</button>
-                                <button type="submit" name="DecideInput.Approve" value="false" class="btn btn-outline-danger">Reject</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        }
-    </div>
-
-    @if (hasRequest)
+    @if (selected is { } hasRequestProject && hasRequestProject.RequestState is not null)
     {
-        <partial name="_LatestTotRequestModal" model="selected" />
+        <partial name="_LatestTotRequestModal" model="hasRequestProject" />
     }
 
     @if (Model.CanSubmit)
