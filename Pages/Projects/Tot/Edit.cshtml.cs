@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
@@ -53,6 +54,7 @@ public class EditModel : PageModel
     public UpdateTotInput Input { get; set; } = new();
 
     [BindProperty]
+    [ValidateNever]
     public TotRemarkInput RemarkInput { get; set; } = new();
 
     [TempData]
