@@ -63,6 +63,9 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public int? SelectedProjectId { get; set; }
 
+    [BindProperty(SupportsGet = true)]
+    public ViewModeOption ViewMode { get; set; } = ViewModeOption.Cards;
+
     private string? _searchTerm;
 
     [BindProperty(SupportsGet = true)]
@@ -200,6 +203,12 @@ public sealed class IndexModel : PageModel
         }
     }
 
+    public enum ViewModeOption
+    {
+        Cards,
+        List
+    }
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         await PopulateAsync(cancellationToken);
@@ -303,7 +312,8 @@ public sealed class IndexModel : PageModel
             RequestStateFilter,
             SearchTerm,
             OnlyPending,
-            SelectedProjectId = SubmitInput.ProjectId
+            SelectedProjectId = SubmitInput.ProjectId,
+            ViewMode
         });
     }
 
@@ -447,7 +457,8 @@ public sealed class IndexModel : PageModel
             RequestStateFilter,
             SearchTerm,
             OnlyPending,
-            SelectedProjectId = DecideInput.ProjectId
+            SelectedProjectId = DecideInput.ProjectId,
+            ViewMode
         });
     }
 
