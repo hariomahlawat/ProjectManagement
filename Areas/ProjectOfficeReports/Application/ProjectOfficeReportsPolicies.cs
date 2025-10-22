@@ -81,7 +81,7 @@ public static class ProjectOfficeReportsPolicies
             throw new ArgumentNullException(nameof(builder));
         }
 
-        return builder.RequireRole(ProjectOfficeRoles);
+        return builder.RequireAuthenticatedUser();
     }
 
     public static AuthorizationPolicyBuilder RequireProliferationSubmitter(this AuthorizationPolicyBuilder builder)
