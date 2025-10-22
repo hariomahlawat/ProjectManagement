@@ -153,7 +153,10 @@ internal static class ProjectAnalyticsApi
     {
         return lifecycle switch
         {
-            ProjectLifecycleFilter.Active or ProjectLifecycleFilter.Completed or ProjectLifecycleFilter.Cancelled => lifecycle,
+            ProjectLifecycleFilter.Active or
+            ProjectLifecycleFilter.Completed or
+            ProjectLifecycleFilter.Cancelled or
+            ProjectLifecycleFilter.Legacy => lifecycle,
             _ => ProjectLifecycleFilter.All
         };
     }
