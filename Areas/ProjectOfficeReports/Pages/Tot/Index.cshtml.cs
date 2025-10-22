@@ -450,22 +450,30 @@ public sealed class IndexModel : PageModel
             return Page();
         }
 
-        if (!string.IsNullOrEmpty(DecideInput.RowVersion))
+        if (string.IsNullOrWhiteSpace(DecideInput.RowVersion))
         {
-            try
-            {
-                rowVersion = Convert.FromBase64String(DecideInput.RowVersion);
-            }
-            catch (FormatException)
-            {
-                ModelState.AddModelError(string.Empty, "The approval request could not be processed because the version token was invalid.");
-                TempData["ToastError"] = "Select the project again to refresh the approval form.";
-                await PopulateAsync(cancellationToken);
-                HighlightDecisionCard = true;
-                DecisionAlertMessage = "Select the project again to refresh the approval form.";
-                DecideContextBody = decisionContext;
-                return Page();
-            }
+            ModelState.AddModelError(string.Empty, "The approval request could not be processed because the version token was missing.");
+            TempData["ToastError"] = "Select the project again to refresh the approval form.";
+            await PopulateAsync(cancellationToken);
+            HighlightDecisionCard = true;
+            DecisionAlertMessage = "Select the project again to refresh the approval form.";
+            DecideContextBody = decisionContext;
+            return Page();
+        }
+
+        try
+        {
+            rowVersion = Convert.FromBase64String(DecideInput.RowVersion);
+        }
+        catch (FormatException)
+        {
+            ModelState.AddModelError(string.Empty, "The approval request could not be processed because the version token was invalid.");
+            TempData["ToastError"] = "Select the project again to refresh the approval form.";
+            await PopulateAsync(cancellationToken);
+            HighlightDecisionCard = true;
+            DecisionAlertMessage = "Select the project again to refresh the approval form.";
+            DecideContextBody = decisionContext;
+            return Page();
         }
 
         var result = await _totService.DecideRequestAsync(
