@@ -90,10 +90,10 @@ public class RoleBasedNavigationProviderTests
         var proliferation = Assert.Single(children.Where(c => c.Text == "Proliferation tracker"));
         Assert.Equal("/Proliferation/Index", proliferation.Page);
 
+        Assert.Contains(children, c => c.Text == "Social media tracker" && c.Page == "/SocialMedia/Index");
+
         if (isAdmin)
         {
-            Assert.Contains(children, c => c.Text == "Social media tracker" && c.Page == "/SocialMedia/Index");
-
             var proliferationChildren = proliferation.Children?.ToList();
             Assert.NotNull(proliferationChildren);
 
@@ -106,10 +106,6 @@ public class RoleBasedNavigationProviderTests
             var adminChild = Assert.Single(proliferationChildren.Where(c => c.Text == "Administration"));
             Assert.Equal("/Proliferation/Admin/Index", adminChild.Page);
             Assert.Equal(new[] { "Admin" }, adminChild.RequiredRoles);
-        }
-        else
-        {
-            Assert.DoesNotContain(children, c => c.Text == "Social media tracker");
         }
 
         if (isAdmin)
@@ -127,6 +123,39 @@ public class RoleBasedNavigationProviderTests
             Assert.DoesNotContain(children, c => c.Text == "Visit types");
             Assert.DoesNotContain(children, c => c.Text == "Social media event types");
         }
+    }
+
+    [Fact]
+    public async Task Navigation_IncludesSocialMediaTrackerForAuthenticatedUser()
+    {
+        var user = new ApplicationUser
+        {
+            Id = "user-basic",
+            UserName = "user"
+        };
+
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var userManager = new StubUserManager(user, services, Array.Empty<string>());
+        var httpContextAccessor = new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
+                }, "Test"))
+            }
+        };
+
+        var provider = new RoleBasedNavigationProvider(userManager, httpContextAccessor);
+        var navigation = await provider.GetNavigationAsync();
+
+        var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
+        var children = projectOfficeReports.Children.ToList();
+
+        Assert.Contains(children, c => c.Text == "Social media tracker" && c.Page == "/SocialMedia/Index");
+        Assert.DoesNotContain(children, c => c.Text == "Visit types");
+        Assert.DoesNotContain(children, c => c.Text == "Social media event types");
     }
 
     [Theory]
