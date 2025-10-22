@@ -31,6 +31,7 @@
                 </div>
                 <div class="card-body pm-card-body">
                     <form method="post" class="d-flex flex-column gap-3">
+                        @Html.AntiForgeryToken()
                         <input asp-for="Input.ProjectId" type="hidden" />
                         <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
