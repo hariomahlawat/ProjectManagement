@@ -55,6 +55,20 @@ public class ProjectAnalyticsApiTests
     }
 
     [Fact]
+    public async Task CategoryShare_AllowsLegacyLifecycle()
+    {
+        using var factory = new AnalyticsApiFactory();
+        using var client = CreateAuthenticatedClient(factory);
+
+        var response = await client.GetAsync("/api/analytics/projects/category-share?lifecycle=Legacy");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var spy = factory.Services.GetRequiredService<SpyProjectAnalyticsService>();
+        var call = Assert.Single(spy.CategoryShareRequests);
+        Assert.Equal(ProjectLifecycleFilter.Legacy, call.Lifecycle);
+    }
+
+    [Fact]
     public async Task LifecycleBreakdown_ParsesQueryParameters()
     {
         using var factory = new AnalyticsApiFactory();
