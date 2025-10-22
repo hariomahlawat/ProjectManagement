@@ -14,6 +14,9 @@
     [2, "515 ABW"]
   ]);
 
+  const pageHost = document.querySelector('[data-page="proliferation"]');
+  const canManageRecords = ((pageHost?.dataset?.canManageRecords ?? "").toLowerCase() === "true");
+
   function formatSourceLabel(value) {
     if (value === null || value === undefined) return "";
     if (typeof value === "number") {
@@ -1066,6 +1069,8 @@
   }
 
   function navigateToManage(projectId, sourceId, year, kind, href) {
+    if (!canManageRecords) return;
+
     const projectNumeric = Number(projectId);
     const sourceNumeric = Number(sourceId);
     const yearNumeric = Number(year);
@@ -1122,9 +1127,10 @@
         ? "granular"
         : "";
 
-    if (!hasContext) {
+    const classes = `pf-pref-badge pf-pref-badge--${isOverride ? "override" : "default"}`;
+    if (!hasContext || !canManageRecords) {
       return {
-        html: `<span class="pf-pref-badge pf-pref-badge--${isOverride ? "override" : "default"} pf-pref-badge--static" aria-disabled="true"><span class="pf-pref-badge__status">${escapeHtml(statusText)}</span><span class="pf-pref-badge__mode">${escapeHtml(modeLabel)}</span></span>`,
+        html: `<span class="${classes} pf-pref-badge--static" aria-disabled="true"><span class="pf-pref-badge__status">${escapeHtml(statusText)}</span><span class="pf-pref-badge__mode">${escapeHtml(modeLabel)}</span></span>`,
         summary
       };
     }
@@ -1156,11 +1162,12 @@
       `data-pref-kind="${escapeAttr(linkKind)}"`
     ].join(" ");
 
-    const html = `<a href="${escapeAttr(href)}" class="pf-pref-badge ${isOverride ? "pf-pref-badge--override" : "pf-pref-badge--default"}" ${attrs} title="${escapeAttr(ariaLabel)}" aria-label="${escapeAttr(ariaLabel)}"><span class="pf-pref-badge__status">${escapeHtml(statusText)}</span><span class="pf-pref-badge__mode">${escapeHtml(modeLabel)}</span></a>`;
+    const html = `<a href="${escapeAttr(href)}" class="${classes}" ${attrs} title="${escapeAttr(ariaLabel)}" aria-label="${escapeAttr(ariaLabel)}"><span class="pf-pref-badge__status">${escapeHtml(statusText)}</span><span class="pf-pref-badge__mode">${escapeHtml(modeLabel)}</span></a>`;
     return { html, summary };
   }
 
   function handleTableInteraction(event) {
+    if (!canManageRecords) return;
     const badge = event.target.closest('[data-pref-badge]');
     if (!badge) return;
     event.preventDefault();

@@ -19,9 +19,14 @@ public sealed class IndexModel : PageModel
 
     public bool CanManagePreferences { get; private set; }
 
+    public bool CanManageRecords { get; private set; }
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        var result = await _authorizationService.AuthorizeAsync(User, ProjectOfficeReportsPolicies.ApproveProliferationTracker);
-        CanManagePreferences = result.Succeeded;
+        var managePreferencesResult = await _authorizationService.AuthorizeAsync(User, ProjectOfficeReportsPolicies.ApproveProliferationTracker);
+        CanManagePreferences = managePreferencesResult.Succeeded;
+
+        var submitResult = await _authorizationService.AuthorizeAsync(User, ProjectOfficeReportsPolicies.SubmitProliferationTracker);
+        CanManageRecords = submitResult.Succeeded || CanManagePreferences;
     }
 }
