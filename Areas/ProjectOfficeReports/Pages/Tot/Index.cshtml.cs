@@ -63,6 +63,12 @@ public sealed class IndexModel : PageModel
     public bool OnlyPending { get; set; }
 
     [BindProperty(SupportsGet = true)]
+    public bool RequiresTotOnly { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public bool MetCompletedOnly { get; set; }
+
+    [BindProperty(SupportsGet = true)]
     public int? SelectedProjectId { get; set; }
 
     [BindProperty(SupportsGet = true)]
@@ -343,6 +349,8 @@ public sealed class IndexModel : PageModel
             RequestStateFilter,
             SearchTerm,
             OnlyPending,
+            RequiresTotOnly,
+            MetCompletedOnly,
             SelectedProjectId = SubmitInput.ProjectId,
             ViewMode
         });
@@ -520,6 +528,8 @@ public sealed class IndexModel : PageModel
             RequestStateFilter,
             SearchTerm,
             OnlyPending,
+            RequiresTotOnly,
+            MetCompletedOnly,
             SelectedProjectId = DecideInput.ProjectId,
             ViewMode
         });
@@ -537,6 +547,8 @@ public sealed class IndexModel : PageModel
             TotStatus = TotStatusFilter,
             RequestState = OnlyPending ? null : RequestStateFilter,
             OnlyPendingRequests = OnlyPending,
+            RequiresTotOnly = RequiresTotOnly,
+            MetCompletedOnly = MetCompletedOnly,
             SearchTerm = SearchTerm
         };
 
@@ -609,6 +621,8 @@ public sealed class IndexModel : PageModel
             RequestStateFilter,
             SearchTerm,
             OnlyPending,
+            RequiresTotOnly,
+            MetCompletedOnly,
             SelectedProjectId = projectId ?? SelectedProjectId,
             ViewMode
         });

@@ -24,19 +24,19 @@ function showModalElement(modalEl) {
   modalEl.setAttribute('aria-modal', 'true');
 }
 
-function initFilterModalAccessibility() {
-  const modalEl = document.getElementById('tot-filter-modal');
-  if (!modalEl) {
+function initFilterDrawerAccessibility() {
+  const drawerEl = document.getElementById('tot-filter-drawer');
+  if (!drawerEl) {
     return;
   }
 
-  const trigger = document.querySelector('[data-bs-target="#tot-filter-modal"]');
+  const trigger = document.querySelector('[data-bs-target="#tot-filter-drawer"]');
   if (trigger) {
-    modalEl.addEventListener('show.bs.modal', () => {
+    drawerEl.addEventListener('show.bs.offcanvas', () => {
       trigger.setAttribute('aria-expanded', 'true');
     });
 
-    modalEl.addEventListener('hidden.bs.modal', () => {
+    drawerEl.addEventListener('hidden.bs.offcanvas', () => {
       trigger.setAttribute('aria-expanded', 'false');
       if (typeof trigger.focus === 'function') {
         trigger.focus();
@@ -44,7 +44,7 @@ function initFilterModalAccessibility() {
     });
   }
 
-  modalEl.addEventListener('shown.bs.modal', () => {
+  drawerEl.addEventListener('shown.bs.offcanvas', () => {
     const searchInput = document.getElementById('tot-search-term');
     if (searchInput) {
       searchInput.focus();
@@ -61,7 +61,7 @@ function initAutoShowModals() {
 }
 
 function init() {
-  initFilterModalAccessibility();
+  initFilterDrawerAccessibility();
   initAutoShowModals();
 }
 

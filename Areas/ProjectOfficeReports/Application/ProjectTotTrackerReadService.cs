@@ -95,6 +95,16 @@ public class ProjectTotTrackerReadService
             query = query.Where(p => p.Tot != null ? p.Tot.Status == status : status == ProjectTotStatus.NotStarted);
         }
 
+        if (filter.RequiresTotOnly)
+        {
+            query = query.Where(p => p.Tot == null || p.Tot.Status != ProjectTotStatus.NotRequired);
+        }
+
+        if (filter.MetCompletedOnly)
+        {
+            query = query.Where(p => p.Tot != null && p.Tot.MetCompletedOn.HasValue);
+        }
+
         if (filter.OnlyPendingRequests)
         {
             query = query.Where(p => p.TotRequest != null && p.TotRequest.DecisionState == ProjectTotRequestDecisionState.Pending);
@@ -361,6 +371,8 @@ public sealed record ProjectTotTrackerFilter
     public ProjectTotStatus? TotStatus { get; init; }
     public ProjectTotRequestDecisionState? RequestState { get; init; }
     public bool OnlyPendingRequests { get; init; }
+    public bool RequiresTotOnly { get; init; }
+    public bool MetCompletedOnly { get; init; }
     public string? SearchTerm { get; init; }
     public DateOnly? StartedFrom { get; init; }
     public DateOnly? StartedTo { get; init; }
