@@ -127,6 +127,8 @@ builder.Services.AddAuthorization(options =>
         policy.RequireAuthenticatedUser());
     options.AddPolicy("Checklist.Edit", policy =>
         policy.RequireRole("MCO", "HoD"));
+    options.AddPolicy(ProjectOfficeReportsPolicies.ViewVisits, policy =>
+        policy.RequireAuthenticatedUser());
     options.AddPolicy(ProjectOfficeReportsPolicies.ManageVisits, policy =>
         policy.RequireProjectOfficeManager());
     options.AddPolicy(ProjectOfficeReportsPolicies.ManageSocialMediaEvents, policy =>
@@ -321,6 +323,14 @@ builder.Services.AddRazorPages(options =>
     options.Conventions.AuthorizeAreaFolder(
         "ProjectOfficeReports",
         "/Visits",
+        ProjectOfficeReportsPolicies.ViewVisits);
+    options.Conventions.AuthorizeAreaPage(
+        "ProjectOfficeReports",
+        "/Visits/New",
+        ProjectOfficeReportsPolicies.ManageVisits);
+    options.Conventions.AuthorizeAreaPage(
+        "ProjectOfficeReports",
+        "/Visits/Edit",
         ProjectOfficeReportsPolicies.ManageVisits);
     options.Conventions.AuthorizeAreaPage(
         "ProjectOfficeReports",
