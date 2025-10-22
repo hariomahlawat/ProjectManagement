@@ -1,5 +1,7 @@
 @page "{id:int}"
+@using Microsoft.AspNetCore.Mvc.ViewFeatures
 @using ProjectManagement.Models
+@using ProjectManagement.ViewModels
 @model ProjectManagement.Pages.Projects.Tot.EditModel
 @{
     var projectName = Model.Project?.Name ?? "Project";
@@ -35,55 +37,15 @@
                         <input asp-for="Input.ProjectId" type="hidden" />
                         <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
-                        <div>
-                            <label asp-for="Input.Status" class="form-label">Current status</label>
-                            <select asp-for="Input.Status" class="form-select" asp-items="Model.StatusOptions"></select>
-                            <span asp-validation-for="Input.Status" class="text-danger"></span>
-                        </div>
-
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label asp-for="Input.StartedOn" class="form-label">Start date</label>
-                                <input asp-for="Input.StartedOn" class="form-control" type="date" />
-                                <div class="form-text">Required when ToT is in progress or completed.</div>
-                                <span asp-validation-for="Input.StartedOn" class="text-danger"></span>
-                            </div>
-                            <div class="col-md-6">
-                                <label asp-for="Input.CompletedOn" class="form-label">Completion date</label>
-                                <input asp-for="Input.CompletedOn" class="form-control" type="date" />
-                                <div class="form-text">Required when ToT is completed.</div>
-                                <span asp-validation-for="Input.CompletedOn" class="text-danger"></span>
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label asp-for="Input.MetDetails" class="form-label">MET details</label>
-                            <textarea asp-for="Input.MetDetails" class="form-control" rows="2" maxlength="2000"></textarea>
-                            <span asp-validation-for="Input.MetDetails" class="text-danger"></span>
-                        </div>
-
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label asp-for="Input.MetCompletedOn" class="form-label">MET completed on</label>
-                                <input asp-for="Input.MetCompletedOn" class="form-control" type="date" />
-                                <span asp-validation-for="Input.MetCompletedOn" class="text-danger"></span>
-                            </div>
-                            <div class="col-md-6">
-                                <label asp-for="Input.FirstProductionModelManufactured" class="form-label">First production model manufactured?</label>
-                                <select asp-for="Input.FirstProductionModelManufactured" class="form-select">
-                                    <option value="">Not specified</option>
-                                    <option value="true">Yes</option>
-                                    <option value="false">No</option>
-                                </select>
-                                <span asp-validation-for="Input.FirstProductionModelManufactured" class="text-danger"></span>
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label asp-for="Input.FirstProductionModelManufacturedOn" class="form-label">Manufactured on</label>
-                            <input asp-for="Input.FirstProductionModelManufacturedOn" class="form-control" type="date" />
-                            <span asp-validation-for="Input.FirstProductionModelManufacturedOn" class="text-danger"></span>
-                        </div>
+                        @{
+                            var totFormViewData = new ViewDataDictionary(ViewData)
+                            {
+                                [TotFormFieldsViewDataKeys.StatusOptions] = Model.StatusOptions,
+                                [TotFormFieldsViewDataKeys.StatusLabel] = "Current status",
+                                [TotFormFieldsViewDataKeys.ShowMilestoneHelp] = true
+                            };
+                        }
+                        <partial name="_TotFormFields" model="Model.Input" view-data="totFormViewData" />
 
                         <div class="d-flex flex-wrap gap-2">
                             <button type="submit" class="btn btn-primary">Save changes</button>

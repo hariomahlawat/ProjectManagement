@@ -17,6 +17,7 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Remarks;
+using ProjectManagement.ViewModels;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot;
 
@@ -107,7 +108,7 @@ public sealed class IndexModel : PageModel
     [BindProperty]
     public ExportRequestInput Export { get; set; } = new();
 
-    public sealed class SubmitRequestInput
+    public sealed class SubmitRequestInput : ITotStatusMilestoneFields
     {
         [HiddenInput]
         public int ProjectId { get; set; }
