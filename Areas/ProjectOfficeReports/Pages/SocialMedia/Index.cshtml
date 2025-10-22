@@ -16,6 +16,7 @@
     }
 
     var totalEvents = Model.Events.Count;
+    var hasEvents = totalEvents > 0;
     var coveredEvents = Model.Events.Count(e => e.CoverPhotoId.HasValue);
     var photoCount = Model.Events.Sum(e => e.PhotoCount);
     var showExportModal = ViewData["ShowExportModal"] as bool? ?? false;
@@ -45,21 +46,21 @@
                         <i class="bi bi-plus-circle" aria-hidden="true"></i>
                         <span>Create event</span>
                     </a>
+                }
 
-                    if (Model.Events.Count > 0)
-                    {
-                        <button type="button" class="btn btn-outline-light d-inline-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#exportSocialEventsModal">
-                            <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
-                            <span>Export events</span>
-                        </button>
-                    }
-                    else
-                    {
-                        <button type="button" class="btn btn-outline-light d-inline-flex align-items-center gap-2" disabled aria-disabled="true">
-                            <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
-                            <span>Export events</span>
-                        </button>
-                    }
+                @if (hasEvents)
+                {
+                    <button type="button" class="btn btn-outline-light d-inline-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#exportSocialEventsModal">
+                        <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
+                        <span>Export events</span>
+                    </button>
+                }
+                else
+                {
+                    <button type="button" class="btn btn-outline-light d-inline-flex align-items-center gap-2" disabled aria-disabled="true">
+                        <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
+                        <span>Export events</span>
+                    </button>
                 }
             </div>
         </div>
@@ -138,7 +139,14 @@
         @if (Model.Events.Count == 0)
         {
             <div class="alert alert-info" role="status">
-                No events match the current filters. Adjust filters or add a new event to get started.
+                @if (Model.CanManage)
+                {
+                    @:No events match the current filters. Adjust filters or add a new event to get started.
+                }
+                else
+                {
+                    @:No events match the current filters. Adjust filters to see a different set.
+                }
             </div>
         }
         else
