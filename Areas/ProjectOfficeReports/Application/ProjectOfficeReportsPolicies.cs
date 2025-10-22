@@ -24,6 +24,7 @@ public static class ProjectOfficeReportsPolicies
 
     private static readonly string[] TotTrackerApproverRoles = { "Admin", "HoD" };
 
+    public const string ViewVisits = "ProjectOfficeReports.ViewVisits";
     public const string ManageVisits = "ProjectOfficeReports.ManageVisits";
     public const string ManageSocialMediaEvents = "ProjectOfficeReports.ManageSocialMediaEvents";
     public const string ViewTotTracker = "ProjectOfficeReports.ViewTotTracker";

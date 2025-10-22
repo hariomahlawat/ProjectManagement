@@ -16,7 +16,7 @@ using ProjectManagement.Models;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits;
 
-[Authorize]
+[Authorize(Policy = ProjectOfficeReportsPolicies.ManageVisits)]
 public class NewModel : PageModel
 {
     private readonly VisitService _visitService;
