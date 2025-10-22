@@ -112,6 +112,13 @@ public class EditModel : PageModel
 
     public async Task<IActionResult> OnPostAsync(int id, CancellationToken cancellationToken)
     {
+        _logger.LogInformation(
+            "TOT/EDIT POST: ProjectId={ProjectId}, Status={Status}, StartedOn={StartedOn}, CompletedOn={CompletedOn}",
+            id,
+            Input?.Status,
+            Input?.StartedOn,
+            Input?.CompletedOn);
+
         StatusOptions = BuildStatusOptions();
         RemarkInput.ProjectId = id;
 
