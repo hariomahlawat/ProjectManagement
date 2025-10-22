@@ -98,7 +98,7 @@ public class EditModel : PageModel
 
         if (!CanManageTot)
         {
-            return Forbid();
+            return DenyProjectAccess(project.Id);
         }
 
         PopulateInputFromProject(project);
@@ -128,7 +128,7 @@ public class EditModel : PageModel
 
         if (!CanManageTot)
         {
-            return Forbid();
+            return DenyProjectAccess(project.Id);
         }
 
         if (!ModelState.IsValid)
@@ -185,7 +185,7 @@ public class EditModel : PageModel
 
         if (!CanManageTot)
         {
-            return Forbid();
+            return DenyProjectAccess(project.Id);
         }
 
         PopulateInputFromProject(project);
@@ -216,7 +216,7 @@ public class EditModel : PageModel
         var actorContext = BuildRemarkActorContext();
         if (actorContext is null)
         {
-            return Forbid();
+            return DenyProjectAccess(project.Id);
         }
 
         var (actor, type) = actorContext.Value;
@@ -383,5 +383,18 @@ public class EditModel : PageModel
 
         var trimmed = value.Trim();
         return string.IsNullOrEmpty(trimmed) ? null : trimmed;
+    }
+
+    private IActionResult DenyProjectAccess(int projectId)
+    {
+        var userId = _users.GetUserId(User) ?? "anonymous";
+        _logger.LogWarning(
+            "User {UserId} ({UserName}) lacks permission to manage ToT for project {ProjectId}.",
+            userId,
+            User?.Identity?.Name ?? "unknown",
+            projectId);
+
+        TempData["Error"] = "You do not have permission to manage Transfer of Technology for this project.";
+        return RedirectToPage("/Projects/Overview", new { id = projectId });
     }
 }
