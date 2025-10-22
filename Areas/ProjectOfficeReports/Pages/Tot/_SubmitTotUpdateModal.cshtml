@@ -35,7 +35,7 @@
             [TotFormFieldsViewDataKeys.ShowMilestoneHelp] = false
         };
     }
-    <partial name="~/Pages/Projects/Tot/_TotFormFields" model="Model.SubmitInput" view-data="totFormViewData" />
+    <partial name="~/Pages/Projects/Tot/_TotFormFields" for="SubmitInput" view-data="totFormViewData" />
     <div class="mt-3">
         <label class="form-label" asp-for="SubmitContextBody">Context for approvers (optional)</label>
         <textarea asp-for="SubmitContextBody" class="form-control" rows="3"></textarea>
