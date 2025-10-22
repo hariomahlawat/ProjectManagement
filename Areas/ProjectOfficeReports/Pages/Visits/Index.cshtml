@@ -103,7 +103,7 @@
                         <span>Preview latest visit</span>
                     </span>
                 }
-                @if (Model.CanManage)
+                @if (User?.Identity?.IsAuthenticated == true)
                 {
                     if (Model.Items.Count > 0)
                     {

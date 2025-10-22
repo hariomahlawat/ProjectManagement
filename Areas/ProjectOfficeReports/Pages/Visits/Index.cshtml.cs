@@ -92,11 +92,6 @@ public class IndexModel : PageModel
     public async Task<IActionResult> OnPostExportAsync(CancellationToken cancellationToken)
     {
         CanManage = IsManager();
-        if (!CanManage)
-        {
-            return Forbid();
-        }
-
         await PopulateVisitTypesAsync(cancellationToken);
         Items = await _visitService.SearchAsync(BuildQuery(), cancellationToken);
 
@@ -136,11 +131,6 @@ public class IndexModel : PageModel
     public async Task<IActionResult> OnPostExportPdfAsync(CancellationToken cancellationToken)
     {
         CanManage = IsManager();
-        if (!CanManage)
-        {
-            return Forbid();
-        }
-
         await PopulateVisitTypesAsync(cancellationToken);
         Items = await _visitService.SearchAsync(BuildQuery(), cancellationToken);
 
