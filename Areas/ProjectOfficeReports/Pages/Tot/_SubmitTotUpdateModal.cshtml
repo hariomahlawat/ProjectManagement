@@ -35,7 +35,8 @@
             [TotFormFieldsViewDataKeys.ShowMilestoneHelp] = false
         };
     }
-    <partial name="~/Pages/Projects/Tot/_TotFormFields" model="Model.SubmitInput" view-data="totFormViewData" />
+    @* Keep this path in sync if the shared ToT form fields move; the modal depends on the shared partial being available. *@
+    <partial name="~/Pages/Shared/Tot/_TotFormFields.cshtml" model="Model.SubmitInput" view-data="totFormViewData" />
     <div class="mt-3">
         <label class="form-label" asp-for="SubmitContextBody">Context for approvers (optional)</label>
         <textarea asp-for="SubmitContextBody" class="form-control" rows="3"></textarea>
