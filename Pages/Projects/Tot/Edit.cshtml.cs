@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.AspNetCore.Mvc.ModelBinding.Validation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
@@ -53,9 +52,7 @@ public class EditModel : PageModel
     [BindProperty]
     public UpdateTotInput Input { get; set; } = new();
 
-    [BindProperty]
-    [ValidateNever]
-    public TotRemarkInput RemarkInput { get; set; } = new();
+    public TotRemarkInput RemarkInput { get; private set; } = new();
 
     [TempData]
     public string? RemarkStatus { get; set; }
@@ -177,11 +174,13 @@ public class EditModel : PageModel
         return RedirectToPage("/Projects/Overview", new { id });
     }
 
-    public async Task<IActionResult> OnPostAddRemarkAsync(int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostAddRemarkAsync(int id, [FromForm] TotRemarkInput? remarkInput, CancellationToken cancellationToken)
     {
         StatusOptions = BuildStatusOptions();
 
-        if (RemarkInput is null || RemarkInput.ProjectId != id)
+        RemarkInput = remarkInput ?? new TotRemarkInput();
+
+        if (remarkInput is null || remarkInput.ProjectId != id)
         {
             return BadRequest();
         }
@@ -200,7 +199,7 @@ public class EditModel : PageModel
         PopulateInputFromProject(project);
         RemarkInput.ProjectId = project.Id;
 
-        var normalizedBody = NormalizeRemarkBody(RemarkInput.Body);
+        var normalizedBody = NormalizeRemarkBody(remarkInput.Body);
         if (normalizedBody is null)
         {
             ModelState.AddModelError("RemarkInput.Body", "Remark text is required.");
