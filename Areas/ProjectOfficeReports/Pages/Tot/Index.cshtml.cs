@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -86,6 +87,10 @@ public sealed class IndexModel : PageModel
     public bool CanApprove { get; private set; }
 
     public bool ShowSubmitModal { get; private set; }
+
+    public bool HighlightDecisionCard { get; private set; }
+
+    public string? DecisionAlertMessage { get; private set; }
 
     [BindProperty]
     public SubmitRequestInput SubmitInput { get; set; } = new();
@@ -223,7 +228,11 @@ public sealed class IndexModel : PageModel
         await PopulatePermissionsAsync();
         if (!CanSubmit)
         {
-            return Forbid();
+            SelectedProjectId = SubmitInput.ProjectId;
+            return PermissionDenied(
+                "submit a Transfer of Technology update",
+                ProjectOfficeReportsPolicies.ManageTotTracker,
+                SubmitInput.ProjectId);
         }
 
         SelectedProjectId = SubmitInput.ProjectId;
@@ -269,6 +278,25 @@ public sealed class IndexModel : PageModel
         if (result.Status == ProjectTotRequestActionStatus.NotFound)
         {
             return NotFound();
+        }
+
+        if (result.Status == ProjectTotRequestActionStatus.Conflict)
+        {
+            var message = result.ErrorMessage ?? "An update is already pending approval for this project.";
+            TempData["ToastError"] = message;
+
+            await PopulateAsync(cancellationToken);
+
+            ShowSubmitModal = false;
+            HighlightDecisionCard = true;
+            DecisionAlertMessage = message;
+
+            _logger.LogInformation(
+                "Blocked duplicate ToT submit for project {ProjectId} by user {UserId}.",
+                SubmitInput.ProjectId,
+                currentUserId);
+
+            return Page();
         }
 
         if (!result.IsSuccess)
@@ -322,7 +350,10 @@ public sealed class IndexModel : PageModel
         await PopulatePermissionsAsync();
         if (!CanSubmit)
         {
-            return Forbid();
+            return PermissionDenied(
+                "export Transfer of Technology data",
+                ProjectOfficeReportsPolicies.ManageTotTracker,
+                SelectedProjectId);
         }
 
         if (!ModelState.IsValid)
@@ -373,7 +404,11 @@ public sealed class IndexModel : PageModel
         await PopulatePermissionsAsync();
         if (!CanApprove)
         {
-            return Forbid();
+            SelectedProjectId = DecideInput.ProjectId;
+            return PermissionDenied(
+                "record a Transfer of Technology decision",
+                ProjectOfficeReportsPolicies.ApproveTotTracker,
+                DecideInput.ProjectId);
         }
 
         SelectedProjectId = DecideInput.ProjectId;
@@ -400,6 +435,16 @@ public sealed class IndexModel : PageModel
         }
 
         byte[]? rowVersion = null;
+        if (string.IsNullOrEmpty(DecideInput.RowVersion))
+        {
+            ModelState.AddModelError(string.Empty, "Select a Transfer of Technology request before approving or rejecting.");
+            await PopulateAsync(cancellationToken);
+            HighlightDecisionCard = true;
+            DecisionAlertMessage = "Select the project again to refresh the approval form.";
+            DecideContextBody = decisionContext;
+            return Page();
+        }
+
         if (!string.IsNullOrEmpty(DecideInput.RowVersion))
         {
             try
@@ -410,6 +455,8 @@ public sealed class IndexModel : PageModel
             {
                 ModelState.AddModelError(string.Empty, "The approval request could not be processed because the version token was invalid.");
                 await PopulateAsync(cancellationToken);
+                HighlightDecisionCard = true;
+                DecisionAlertMessage = "Select the project again to refresh the approval form.";
                 DecideContextBody = decisionContext;
                 return Page();
             }
@@ -466,6 +513,9 @@ public sealed class IndexModel : PageModel
     {
         await PopulatePermissionsAsync();
 
+        HighlightDecisionCard = false;
+        DecisionAlertMessage = null;
+
         var filter = new ProjectTotTrackerFilter
         {
             TotStatus = TotStatusFilter,
@@ -514,6 +564,35 @@ public sealed class IndexModel : PageModel
             SubmitContextBody = null;
             DecideContextBody = null;
         }
+    }
+
+    private IActionResult PermissionDenied(string actionDescription, string policy, int? projectId)
+    {
+        var userId = _userManager.GetUserId(User) ?? "anonymous";
+        var roleClaims = User?.Claims
+            .Where(c => c.Type == ClaimTypes.Role)
+            .Select(c => c.Value)
+            .ToArray() ?? Array.Empty<string>();
+
+        _logger.LogWarning(
+            "User {UserId} ({UserName}) lacks policy {Policy} when attempting to {Action}. Roles: {Roles}",
+            userId,
+            User?.Identity?.Name ?? "unknown",
+            policy,
+            actionDescription,
+            roleClaims.Length == 0 ? "(none)" : string.Join(", ", roleClaims));
+
+        TempData["ToastError"] = "You do not have permission to perform this action.";
+
+        return RedirectToPage(new
+        {
+            TotStatusFilter,
+            RequestStateFilter,
+            SearchTerm,
+            OnlyPending,
+            SelectedProjectId = projectId ?? SelectedProjectId,
+            ViewMode
+        });
     }
 
     private async Task PopulatePermissionsAsync()
