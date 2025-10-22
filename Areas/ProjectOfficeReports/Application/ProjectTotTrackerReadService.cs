@@ -11,7 +11,7 @@ using ProjectManagement.Models.Remarks;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
 
-public sealed class ProjectTotTrackerReadService
+public class ProjectTotTrackerReadService
 {
     private readonly ApplicationDbContext _db;
 
@@ -42,14 +42,42 @@ public sealed class ProjectTotTrackerReadService
     {
         try
         {
-            return await BuildProjectSnapshotQuery(filter, includeTotDetailColumns, includeRequestDetailColumns)
-                .ToListAsync(cancellationToken);
+            var query = BuildProjectSnapshotQuery(filter, includeTotDetailColumns, includeRequestDetailColumns);
+
+            if (ShouldSimulateUndefinedColumn(filter, includeTotDetailColumns, includeRequestDetailColumns))
+            {
+                throw new PostgresException(
+                    "Undefined column",
+                    "ERROR",
+                    "ERROR",
+                    PostgresErrorCodes.UndefinedColumn);
+            }
+
+            return await ExecuteSnapshotQueryAsync(
+                query,
+                filter,
+                includeTotDetailColumns,
+                includeRequestDetailColumns,
+                cancellationToken);
         }
         catch (PostgresException ex) when (ex.SqlState == PostgresErrorCodes.UndefinedColumn)
         {
             return null;
         }
     }
+
+    protected virtual Task<List<ProjectSnapshot>> ExecuteSnapshotQueryAsync(
+        IQueryable<ProjectSnapshot> query,
+        ProjectTotTrackerFilter filter,
+        bool includeTotDetailColumns,
+        bool includeRequestDetailColumns,
+        CancellationToken cancellationToken)
+        => query.ToListAsync(cancellationToken);
+
+    protected virtual bool ShouldSimulateUndefinedColumn(
+        ProjectTotTrackerFilter filter,
+        bool includeTotDetailColumns,
+        bool includeRequestDetailColumns) => false;
 
     private IQueryable<ProjectSnapshot> BuildProjectSnapshotQuery(
         ProjectTotTrackerFilter filter,
@@ -150,7 +178,8 @@ public sealed class ProjectTotTrackerReadService
                 p.TotRequest != null ? p.TotRequest.DecidedByUserId : null,
                 p.TotRequest != null ? p.TotRequest.DecidedByUser != null ? p.TotRequest.DecidedByUser.FullName : null : null,
                 p.TotRequest != null ? p.TotRequest.DecidedOnUtc : (DateTime?)null,
-                p.TotRequest != null ? p.TotRequest.RowVersion : null));
+                includeRequestDetailColumns && p.TotRequest != null ? p.TotRequest.RowVersion : null,
+                includeRequestDetailColumns && p.TotRequest != null));
     }
 
     private async Task<IReadOnlyList<ProjectTotTrackerRow>> BuildRowsAsync(
@@ -215,6 +244,7 @@ public sealed class ProjectTotTrackerReadService
                 requestDecidedBy,
                 snapshot.DecidedOnUtc,
                 snapshot.RequestRowVersion,
+                snapshot.RequestMetadataAvailable,
                 remarks?.External,
                 remarks?.Internal,
                 leadProjectOfficer));
@@ -318,7 +348,8 @@ public sealed class ProjectTotTrackerReadService
         string? DecidedByUserId,
         string? DecidedByFullName,
         DateTime? DecidedOnUtc,
-        byte[]? RequestRowVersion);
+        byte[]? RequestRowVersion,
+        bool RequestMetadataAvailable);
 
     private sealed record ProjectTotRemarkPair(
         ProjectTotRemarkSummary? External,
@@ -373,6 +404,7 @@ public sealed record ProjectTotTrackerRow(
     string? DecidedBy,
     DateTime? DecidedOnUtc,
     byte[]? RequestRowVersion,
+    bool RequestMetadataAvailable,
     ProjectTotRemarkSummary? LatestExternalRemark,
     ProjectTotRemarkSummary? LatestInternalRemark,
     string? LeadProjectOfficer);

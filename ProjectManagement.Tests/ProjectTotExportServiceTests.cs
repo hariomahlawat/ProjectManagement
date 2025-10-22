@@ -190,6 +190,7 @@ public sealed class ProjectTotExcelWorkbookBuilderTests
                 DecidedBy: null,
                 DecidedOnUtc: null,
                 RequestRowVersion: Array.Empty<byte>(),
+                RequestMetadataAvailable: true,
                 LatestExternalRemark: new ProjectTotRemarkSummary(
                     21,
                     "External insight",

@@ -437,7 +437,9 @@ public sealed class IndexModel : PageModel
         }
 
         byte[]? rowVersion = null;
-        if (string.IsNullOrEmpty(DecideInput.RowVersion))
+        var hasRowVersionField = Request is { HasFormContentType: true } && Request.Form.ContainsKey("DecideInput.RowVersion");
+
+        if (!hasRowVersionField)
         {
             ModelState.AddModelError(string.Empty, "Select a Transfer of Technology request before approving or rejecting.");
             TempData["ToastError"] = "Select the project again to refresh the approval form.";
@@ -562,9 +564,9 @@ public sealed class IndexModel : PageModel
             {
                 ProjectId = selected.ProjectId,
                 Approve = true,
-                RowVersion = selected.RequestRowVersion is null
-                    ? null
-                    : Convert.ToBase64String(selected.RequestRowVersion)
+                RowVersion = selected.RequestRowVersion is { Length: > 0 }
+                    ? Convert.ToBase64String(selected.RequestRowVersion)
+                    : null
             };
 
             SubmitContextBody = null;
