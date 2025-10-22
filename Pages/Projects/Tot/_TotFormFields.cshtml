@@ -1,0 +1,78 @@
+@model ProjectManagement.ViewModels.ITotStatusMilestoneFields
+@using Microsoft.AspNetCore.Mvc.Rendering
+@using System.Linq
+@using ProjectManagement.Models
+@using ProjectManagement.ViewModels
+@{
+    var statusOptions = ViewData[TotFormFieldsViewDataKeys.StatusOptions] as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
+    var statusLabel = ViewData[TotFormFieldsViewDataKeys.StatusLabel] as string ?? "Status";
+    var showMilestoneHelp = ViewData[TotFormFieldsViewDataKeys.ShowMilestoneHelp] as bool? ?? false;
+}
+
+<div class="mb-3">
+    <label asp-for="Status" class="form-label">@statusLabel</label>
+    @if (statusOptions.Any())
+    {
+        <select asp-for="Status" class="form-select" asp-items="statusOptions"></select>
+    }
+    else
+    {
+        <select asp-for="Status" class="form-select">
+            @foreach (ProjectTotStatus status in Enum.GetValues<ProjectTotStatus>())
+            {
+                <option value="@status">@status</option>
+            }
+        </select>
+    }
+    <span asp-validation-for="Status" class="text-danger"></span>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <label asp-for="StartedOn" class="form-label">Start date</label>
+        <input asp-for="StartedOn" class="form-control" type="date" />
+        @if (showMilestoneHelp)
+        {
+            <div class="form-text">Required when ToT is in progress or completed.</div>
+        }
+        <span asp-validation-for="StartedOn" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="CompletedOn" class="form-label">Completion date</label>
+        <input asp-for="CompletedOn" class="form-control" type="date" />
+        @if (showMilestoneHelp)
+        {
+            <div class="form-text">Required when ToT is completed.</div>
+        }
+        <span asp-validation-for="CompletedOn" class="text-danger"></span>
+    </div>
+</div>
+
+<div class="mb-3 mt-3">
+    <label asp-for="MetDetails" class="form-label">MET details</label>
+    <textarea asp-for="MetDetails" class="form-control" rows="2" maxlength="2000"></textarea>
+    <span asp-validation-for="MetDetails" class="text-danger"></span>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <label asp-for="MetCompletedOn" class="form-label">MET completed on</label>
+        <input asp-for="MetCompletedOn" class="form-control" type="date" />
+        <span asp-validation-for="MetCompletedOn" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="FirstProductionModelManufactured" class="form-label">First production model manufactured?</label>
+        <select asp-for="FirstProductionModelManufactured" class="form-select">
+            <option value="">Not specified</option>
+            <option value="true">Yes</option>
+            <option value="false">No</option>
+        </select>
+        <span asp-validation-for="FirstProductionModelManufactured" class="text-danger"></span>
+    </div>
+</div>
+
+<div class="mb-3 mt-3">
+    <label asp-for="FirstProductionModelManufacturedOn" class="form-label">Manufactured on</label>
+    <input asp-for="FirstProductionModelManufacturedOn" class="form-control" type="date" />
+    <span asp-validation-for="FirstProductionModelManufacturedOn" class="text-danger"></span>
+</div>

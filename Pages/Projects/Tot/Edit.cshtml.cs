@@ -58,7 +58,7 @@ public class EditModel : PageModel
     [TempData]
     public string? RemarkStatus { get; set; }
 
-    public sealed class UpdateTotInput
+    public sealed class UpdateTotInput : ITotStatusMilestoneFields
     {
         public int ProjectId { get; set; }
 
