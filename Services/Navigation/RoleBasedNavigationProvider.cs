@@ -90,6 +90,13 @@ public class RoleBasedNavigationProvider : INavigationProvider
             }
         };
 
+        var proliferationTracker = new NavigationItem
+        {
+            Text = "Proliferation tracker",
+            Area = "ProjectOfficeReports",
+            Page = "/Proliferation/Index"
+        };
+
         if (canManageProjectOfficeReports)
         {
             projectOfficeReportsChildren.Add(new NavigationItem
@@ -98,14 +105,9 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Area = "ProjectOfficeReports",
                 Page = "/SocialMedia/Index"
             });
-
-            projectOfficeReportsChildren.Add(new NavigationItem
-            {
-                Text = "Proliferation tracker",
-                Area = "ProjectOfficeReports",
-                Page = "/Proliferation/Index"
-            });
         }
+
+        projectOfficeReportsChildren.Add(proliferationTracker);
 
         if (roleSet.Contains("Admin"))
         {

@@ -87,12 +87,12 @@ public class RoleBasedNavigationProviderTests
 
         Assert.Contains(children, c => c.Text == "Visits" && c.Page == "/Visits/Index");
 
+        var proliferation = Assert.Single(children.Where(c => c.Text == "Proliferation tracker"));
+        Assert.Equal("/Proliferation/Index", proliferation.Page);
+
         if (isAdmin)
         {
             Assert.Contains(children, c => c.Text == "Social media tracker" && c.Page == "/SocialMedia/Index");
-
-            var proliferation = Assert.Single(children.Where(c => c.Text == "Proliferation tracker"));
-            Assert.Equal("/Proliferation/Index", proliferation.Page);
 
             var proliferationChildren = proliferation.Children?.ToList();
             Assert.NotNull(proliferationChildren);
@@ -110,7 +110,6 @@ public class RoleBasedNavigationProviderTests
         else
         {
             Assert.DoesNotContain(children, c => c.Text == "Social media tracker");
-            Assert.DoesNotContain(children, c => c.Text == "Proliferation tracker");
         }
 
         if (isAdmin)
