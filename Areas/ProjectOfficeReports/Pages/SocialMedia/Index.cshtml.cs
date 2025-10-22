@@ -71,6 +71,11 @@ public sealed class IndexModel : PageModel
     {
         await PopulatePermissionsAsync();
 
+        if (!CanManage)
+        {
+            return Forbid();
+        }
+
         await PopulateFilterAsync(cancellationToken);
         Events = await _eventService.SearchAsync(BuildQuery(), cancellationToken);
 
@@ -104,6 +109,11 @@ public sealed class IndexModel : PageModel
     public async Task<IActionResult> OnPostExportPdfAsync(CancellationToken cancellationToken)
     {
         await PopulatePermissionsAsync();
+
+        if (!CanManage)
+        {
+            return Forbid();
+        }
 
         await PopulateFilterAsync(cancellationToken);
         Events = await _eventService.SearchAsync(BuildQuery(), cancellationToken);

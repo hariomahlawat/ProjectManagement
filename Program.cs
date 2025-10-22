@@ -322,9 +322,17 @@ builder.Services.AddRazorPages(options =>
         "ProjectOfficeReports",
         "/Visits",
         ProjectOfficeReportsPolicies.ManageVisits);
-    options.Conventions.AuthorizeAreaFolder(
+    options.Conventions.AuthorizeAreaPage(
         "ProjectOfficeReports",
-        "/SocialMedia",
+        "/SocialMedia/Create",
+        ProjectOfficeReportsPolicies.ManageSocialMediaEvents);
+    options.Conventions.AuthorizeAreaPage(
+        "ProjectOfficeReports",
+        "/SocialMedia/Edit",
+        ProjectOfficeReportsPolicies.ManageSocialMediaEvents);
+    options.Conventions.AuthorizeAreaPage(
+        "ProjectOfficeReports",
+        "/SocialMedia/Delete",
         ProjectOfficeReportsPolicies.ManageSocialMediaEvents);
     options.Conventions.AllowAnonymousToPage("/Index");
     options.Conventions.AllowAnonymousToPage("/Privacy");
