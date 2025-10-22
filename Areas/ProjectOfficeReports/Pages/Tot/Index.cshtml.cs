@@ -309,7 +309,9 @@ public sealed class IndexModel : PageModel
             var metCompletedOn = request.MetCompletedOn;
             var firstProductionModelManufactured = request.FirstProductionModelManufactured;
             var firstProductionModelManufacturedOn = request.FirstProductionModelManufacturedOn;
-            ModelState.AddModelError(string.Empty, result.ErrorMessage ?? "Unable to submit the Transfer of Technology update.");
+            var message = result.ErrorMessage ?? "Unable to submit the Transfer of Technology update.";
+            ModelState.AddModelError(string.Empty, message);
+            TempData["ToastError"] = message;
             await PopulateAsync(cancellationToken);
             SubmitInput.ProjectId = projectId;
             SubmitInput.Status = status;
@@ -438,6 +440,7 @@ public sealed class IndexModel : PageModel
         if (string.IsNullOrEmpty(DecideInput.RowVersion))
         {
             ModelState.AddModelError(string.Empty, "Select a Transfer of Technology request before approving or rejecting.");
+            TempData["ToastError"] = "Select the project again to refresh the approval form.";
             await PopulateAsync(cancellationToken);
             HighlightDecisionCard = true;
             DecisionAlertMessage = "Select the project again to refresh the approval form.";
@@ -454,6 +457,7 @@ public sealed class IndexModel : PageModel
             catch (FormatException)
             {
                 ModelState.AddModelError(string.Empty, "The approval request could not be processed because the version token was invalid.");
+                TempData["ToastError"] = "Select the project again to refresh the approval form.";
                 await PopulateAsync(cancellationToken);
                 HighlightDecisionCard = true;
                 DecisionAlertMessage = "Select the project again to refresh the approval form.";
@@ -478,6 +482,7 @@ public sealed class IndexModel : PageModel
         {
             var message = result.ErrorMessage ?? "Unable to complete the Transfer of Technology decision.";
             ModelState.AddModelError(string.Empty, message);
+            TempData["ToastError"] = message;
             var approveChoice = DecideInput.Approve;
             await PopulateAsync(cancellationToken);
             DecideInput.Approve = approveChoice;
