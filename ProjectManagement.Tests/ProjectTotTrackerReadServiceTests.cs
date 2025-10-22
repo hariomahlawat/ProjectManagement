@@ -311,11 +311,74 @@ public sealed class ProjectTotTrackerReadServiceTests
         Assert.DoesNotContain(8, ids);
     }
 
+    [Fact]
+    public async Task GetAsync_WhenRequestColumnsMissing_FallsBackWithoutMetadata()
+    {
+        await using var context = CreateContext();
+        context.Projects.Add(new Project
+        {
+            Id = 99,
+            Name = "Project Nimbus",
+            LifecycleStatus = ProjectLifecycleStatus.Completed,
+            Tot = new ProjectTot
+            {
+                ProjectId = 99,
+                Status = ProjectTotStatus.InProgress,
+                StartedOn = new DateOnly(2024, 3, 1)
+            },
+            TotRequest = new ProjectTotRequest
+            {
+                ProjectId = 99,
+                DecisionState = ProjectTotRequestDecisionState.Pending,
+                ProposedStatus = ProjectTotStatus.Completed,
+                ProposedStartedOn = new DateOnly(2024, 3, 1),
+                ProposedCompletedOn = new DateOnly(2024, 4, 15),
+                RowVersion = new byte[] { 0x01, 0x02 }
+            }
+        });
+
+        await context.SaveChangesAsync();
+
+        var service = new ThrowingProjectTotTrackerReadService(context);
+        var rows = await service.GetAsync(new ProjectTotTrackerFilter(), CancellationToken.None);
+
+        var row = Assert.Single(rows);
+        Assert.Equal("Project Nimbus", row.ProjectName);
+        Assert.Equal(ProjectTotStatus.InProgress, row.TotStatus);
+        Assert.Equal(ProjectTotRequestDecisionState.Pending, row.RequestState);
+        Assert.False(row.RequestMetadataAvailable);
+        Assert.Null(row.RequestRowVersion);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options;
         return new ApplicationDbContext(options);
+    }
+
+    private sealed class ThrowingProjectTotTrackerReadService : ProjectTotTrackerReadService
+    {
+        private bool _hasThrown;
+
+        public ThrowingProjectTotTrackerReadService(ApplicationDbContext db)
+            : base(db)
+        {
+        }
+
+        protected override bool ShouldSimulateUndefinedColumn(
+            ProjectTotTrackerFilter filter,
+            bool includeTotDetailColumns,
+            bool includeRequestDetailColumns)
+        {
+            if (!_hasThrown && includeRequestDetailColumns)
+            {
+                _hasThrown = true;
+                return true;
+            }
+
+            return false;
+        }
     }
 }

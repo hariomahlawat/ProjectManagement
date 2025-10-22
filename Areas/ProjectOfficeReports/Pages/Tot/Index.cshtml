@@ -922,7 +922,16 @@
             </div>
         </div>
 
-        @if (Model.CanApprove && selected.RequestState == ProjectTotRequestDecisionState.Pending && selected.RequestRowVersion is not null)
+        @if (Model.CanApprove && selected.RequestState == ProjectTotRequestDecisionState.Pending && !selected.RequestMetadataAvailable)
+        {
+            <div class="col-12 col-lg-6">
+                <div class="alert alert-info" role="status">
+                    Transfer of Technology request details are temporarily unavailable. Approvals will be enabled once the data is accessible.
+                </div>
+            </div>
+        }
+
+        @if (Model.CanApprove && selected.RequestState == ProjectTotRequestDecisionState.Pending && selected.RequestMetadataAvailable)
         {
             <div class="col-lg-6">
                 <div class="card h-100 @(Model.HighlightDecisionCard ? "border-warning border-2 shadow-sm" : string.Empty)" data-tot-decision-card>

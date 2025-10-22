@@ -364,6 +364,38 @@ public sealed class ProjectTotService
             }
         }
 
+        if (normalizedRequest.StartedOn.HasValue)
+        {
+            var start = normalizedRequest.StartedOn.Value;
+
+            if (normalizedRequest.MetCompletedOn.HasValue && normalizedRequest.MetCompletedOn.Value < start)
+            {
+                return ProjectTotUpdateResult.ValidationFailed("MET completion date cannot be earlier than the ToT start date.");
+            }
+
+            if (normalizedRequest.FirstProductionModelManufacturedOn.HasValue
+                && normalizedRequest.FirstProductionModelManufacturedOn.Value < start)
+            {
+                return ProjectTotUpdateResult.ValidationFailed("First production model date cannot be earlier than the ToT start date.");
+            }
+        }
+
+        if (normalizedRequest.CompletedOn.HasValue)
+        {
+            var completion = normalizedRequest.CompletedOn.Value;
+
+            if (normalizedRequest.MetCompletedOn.HasValue && normalizedRequest.MetCompletedOn.Value > completion)
+            {
+                return ProjectTotUpdateResult.ValidationFailed("MET completion date cannot be later than the ToT completion date.");
+            }
+
+            if (normalizedRequest.FirstProductionModelManufacturedOn.HasValue
+                && normalizedRequest.FirstProductionModelManufacturedOn.Value > completion)
+            {
+                return ProjectTotUpdateResult.ValidationFailed("First production model date cannot be later than the ToT completion date.");
+            }
+        }
+
         return ProjectTotUpdateResult.Success();
     }
 

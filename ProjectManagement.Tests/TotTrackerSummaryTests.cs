@@ -91,6 +91,7 @@ public sealed class TotTrackerSummaryTests
             DecidedBy: null,
             DecidedOnUtc: null,
             RequestRowVersion: null,
+            RequestMetadataAvailable: false,
             LatestExternalRemark: null,
             LatestInternalRemark: null,
             LeadProjectOfficer: null);

@@ -204,6 +204,83 @@ public sealed class ProjectTotServiceTests
     }
 
     [Fact]
+    public async Task UpdateAsync_WhenMetCompletedBeforeStart_ReturnsValidationError()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 9,
+            Name = "Project Helios",
+            CreatedAt = new DateTime(2024, 1, 1),
+            CreatedByUserId = "creator"
+        });
+
+        db.ProjectTots.Add(new ProjectTot
+        {
+            ProjectId = 9,
+            Status = ProjectTotStatus.NotStarted
+        });
+
+        await db.SaveChangesAsync();
+
+        var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 6, 0, 0, TimeSpan.Zero));
+        var service = new ProjectTotService(db, clock);
+
+        var result = await service.UpdateAsync(
+            9,
+            CreateRequest(
+                ProjectTotStatus.InProgress,
+                startedOn: new DateOnly(2024, 5, 10),
+                metCompletedOn: new DateOnly(2024, 5, 5)),
+            "actor");
+
+        Assert.Equal(ProjectTotUpdateStatus.ValidationFailed, result.Status);
+        Assert.Equal("MET completion date cannot be earlier than the ToT start date.", result.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenFirstProductionBeyondCompletion_ReturnsValidationError()
+    {
+        await using var db = CreateContext();
+        db.Projects.Add(new Project
+        {
+            Id = 10,
+            Name = "Project Lumen",
+            CreatedAt = new DateTime(2024, 1, 1),
+            CreatedByUserId = "creator"
+        });
+
+        db.ProjectTots.Add(new ProjectTot
+        {
+            ProjectId = 10,
+            Status = ProjectTotStatus.NotStarted
+        });
+
+        await db.SaveChangesAsync();
+
+        var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 6, 0, 0, TimeSpan.Zero));
+        var service = new ProjectTotService(db, clock);
+
+        var result = await service.UpdateAsync(
+            10,
+            CreateRequest(
+                ProjectTotStatus.Completed,
+                startedOn: new DateOnly(2024, 6, 1),
+                completedOn: new DateOnly(2024, 6, 30),
+                firstProductionModelManufactured: true,
+                firstProductionModelManufacturedOn: new DateOnly(2024, 7, 2)),
+            "actor");
+
+        Assert.Equal(ProjectTotUpdateStatus.ValidationFailed, result.Status);
+        Assert.Equal("First production model date cannot be later than the ToT completion date.", result.ErrorMessage);
+
+        var tot = await db.ProjectTots.SingleAsync(t => t.ProjectId == 10);
+        Assert.Equal(ProjectTotStatus.NotStarted, tot.Status);
+        Assert.Null(tot.StartedOn);
+        Assert.Null(tot.CompletedOn);
+    }
+
+    [Fact]
     public async Task UpdateAsync_WhenFoPmMarkedTrueWithoutDate_ReturnsValidationError()
     {
         await using var db = CreateContext();
