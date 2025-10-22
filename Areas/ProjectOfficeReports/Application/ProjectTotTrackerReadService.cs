@@ -317,7 +317,7 @@ public class ProjectTotTrackerReadService
             .Replace("_", "\\_", StringComparison.Ordinal);
     }
 
-    private sealed record ProjectSnapshot(
+    protected sealed record ProjectSnapshot(
         int ProjectId,
         string ProjectName,
         string? SponsoringUnit,
