@@ -18,6 +18,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
+using ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Tests.Fakes;
