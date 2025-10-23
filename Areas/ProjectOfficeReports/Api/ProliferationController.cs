@@ -622,6 +622,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 : Array.Empty<int>();
 
             var lastYearCombos = new HashSet<CombinationKey>();
+            var granularTotals = new Dictionary<CombinationKey, int>();
 
             if (completedProjectIds.Count > 0 && windowYears.Length > 0)
             {
@@ -657,13 +658,22 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                     lastGranularQuery = lastGranularQuery.Where(g => g.Source == q.Source.Value);
                 }
 
-                var lastGranularCombos = await lastGranularQuery
-                    .Select(g => new { g.ProjectId, g.Source, Year = g.ProliferationDate.Year })
+                var lastGranularTotals = await lastGranularQuery
+                    .GroupBy(g => new { g.ProjectId, g.Source, Year = g.ProliferationDate.Year })
+                    .Select(g => new
+                    {
+                        g.Key.ProjectId,
+                        g.Key.Source,
+                        g.Key.Year,
+                        Total = g.Sum(x => x.Quantity)
+                    })
                     .ToListAsync(ct);
 
-                foreach (var item in lastGranularCombos)
+                foreach (var item in lastGranularTotals)
                 {
-                    lastYearCombos.Add(new CombinationKey(item.ProjectId, item.Source, item.Year));
+                    var key = new CombinationKey(item.ProjectId, item.Source, item.Year);
+                    lastYearCombos.Add(key);
+                    granularTotals[key] = item.Total;
                 }
             }
 
@@ -672,20 +682,31 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
             foreach (var combo in lastYearCombos)
             {
+                var yearStart = new DateOnly(combo.Year, 1, 1);
+                var yearEnd = new DateOnly(combo.Year, 12, 31);
+                var includesEntireYear = fromCutoff <= yearStart && toCutoff >= yearEnd;
+
                 int eff;
-                try
+                if (includesEntireYear)
                 {
-                    eff = await _readSvc.GetEffectiveTotalAsync(combo.ProjectId, combo.Source, combo.Year, ct);
+                    try
+                    {
+                        eff = await _readSvc.GetEffectiveTotalAsync(combo.ProjectId, combo.Source, combo.Year, ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(
+                            ex,
+                            "Failed to compute effective proliferation total for project {ProjectId} ({Source}) in {Year}",
+                            combo.ProjectId,
+                            combo.Source,
+                            combo.Year);
+                        continue;
+                    }
                 }
-                catch (Exception ex)
+                else if (!granularTotals.TryGetValue(combo, out eff))
                 {
-                    _logger.LogError(
-                        ex,
-                        "Failed to compute effective proliferation total for project {ProjectId} ({Source}) in {Year}",
-                        combo.ProjectId,
-                        combo.Source,
-                        combo.Year);
-                    continue;
+                    eff = 0;
                 }
 
                 lastYearTotal += eff;
