@@ -192,10 +192,11 @@ public sealed class SummaryModel : PageModel
             return count == 1 ? $"1 {singular}" : $"{count} {plural}";
         }
 
-        public sealed record TotSummaryEntry(
-            int ProjectId,
-            string ProjectName,
-            DateOnly? ProjectCompletedOn,
-            int? ProjectCompletedYear);
     }
+
+    public sealed record TotSummaryEntry(
+        int ProjectId,
+        string ProjectName,
+        DateOnly? ProjectCompletedOn,
+        int? ProjectCompletedYear);
 }
