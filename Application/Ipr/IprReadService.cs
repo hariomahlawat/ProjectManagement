@@ -42,7 +42,7 @@ public sealed class IprReadService : IIprReadService
                 x.FiledAtUtc,
                 x.ProjectId,
                 x.Project != null ? x.Project.Name : null,
-                x.Attachments.Count))
+                x.Attachments.Count(a => !a.IsArchived)))
             .ToListAsync(cancellationToken);
 
         return new PagedResult<IprListRowDto>(items, total, page, pageSize);

@@ -223,6 +223,58 @@ public sealed class IprReadServiceTests
         Assert.Equal("Awaiting certificate", rows[1].Remarks);
     }
 
+    [Fact]
+    public async Task SearchAsync_AttachmentCount_ExcludesArchived()
+    {
+        await using var db = CreateDbContext();
+
+        var record = new IprRecord
+        {
+            IprFilingNumber = "IPR-200",
+            Title = "Lambda",
+            Type = IprType.Patent,
+            Status = IprStatus.Filed,
+            Attachments = new List<IprAttachment>
+            {
+                new IprAttachment
+                {
+                    StorageKey = "visible-1",
+                    OriginalFileName = "visible-1.pdf",
+                    ContentType = "application/pdf",
+                    FileSize = 1024,
+                    UploadedByUserId = "user-1"
+                },
+                new IprAttachment
+                {
+                    StorageKey = "visible-2",
+                    OriginalFileName = "visible-2.pdf",
+                    ContentType = "application/pdf",
+                    FileSize = 2048,
+                    UploadedByUserId = "user-2"
+                },
+                new IprAttachment
+                {
+                    StorageKey = "archived",
+                    OriginalFileName = "archived.pdf",
+                    ContentType = "application/pdf",
+                    FileSize = 512,
+                    UploadedByUserId = "user-3",
+                    IsArchived = true
+                }
+            }
+        };
+
+        db.IprRecords.Add(record);
+        await db.SaveChangesAsync();
+
+        var service = new IprReadService(db);
+
+        var result = await service.SearchAsync(new IprFilter());
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal(2, item.AttachmentCount);
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
