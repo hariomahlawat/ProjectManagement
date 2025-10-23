@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using ProjectManagement.Infrastructure.Data;
@@ -11,4 +12,6 @@ public interface IIprReadService
     Task<IprRecord?> GetAsync(int id, CancellationToken cancellationToken = default);
 
     Task<IprKpis> GetKpisAsync(IprFilter filter, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<IprExportRowDto>> GetExportAsync(IprFilter filter, CancellationToken cancellationToken = default);
 }

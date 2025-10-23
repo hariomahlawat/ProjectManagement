@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using ClosedXML.Excel;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -19,6 +20,7 @@ using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr;
 
@@ -132,6 +134,82 @@ public sealed class IndexModel : PageModel
         NormalizeMode();
         await LoadPageAsync(cancellationToken, loadRecordInput: true);
         return Page();
+    }
+
+    public async Task<IActionResult> OnGetExportAsync(CancellationToken cancellationToken)
+    {
+        NormalizeFilters();
+        var filter = BuildFilter();
+        var records = await _readService.GetExportAsync(filter, cancellationToken);
+
+        using var workbook = new XLWorkbook();
+        var worksheet = workbook.Worksheets.Add("IPR Records");
+
+        var headers = new[]
+        {
+            "Ser",
+            "Name of the product",
+            "IPR filing no",
+            "Status",
+            "Filed by",
+            "Filing date",
+            "Grant date",
+            "Project",
+            "Remarks"
+        };
+
+        for (var column = 0; column < headers.Length; column++)
+        {
+            var cell = worksheet.Cell(1, column + 1);
+            cell.Value = headers[column];
+            cell.Style.Font.Bold = true;
+        }
+
+        var istZone = TimeZoneHelper.GetIst();
+
+        for (var index = 0; index < records.Count; index++)
+        {
+            var rowNumber = index + 2;
+            var record = records[index];
+
+            worksheet.Cell(rowNumber, 1).Value = index + 1;
+            worksheet.Cell(rowNumber, 2).Value = record.Title ?? string.Empty;
+            worksheet.Cell(rowNumber, 3).Value = record.FilingNumber;
+            worksheet.Cell(rowNumber, 4).Value = GetStatusLabel(record.Status);
+            worksheet.Cell(rowNumber, 5).Value = record.FiledBy ?? string.Empty;
+
+            if (record.FiledAtUtc.HasValue)
+            {
+                var filedAtIst = TimeZoneInfo.ConvertTimeFromUtc(record.FiledAtUtc.Value.UtcDateTime, istZone);
+                var filedDate = filedAtIst.Date;
+                var filedCell = worksheet.Cell(rowNumber, 6);
+                filedCell.Value = filedDate;
+                filedCell.Style.DateFormat.Format = "dd-mmm-yyyy";
+            }
+
+            if (record.GrantedAtUtc.HasValue)
+            {
+                var grantedAtIst = TimeZoneInfo.ConvertTimeFromUtc(record.GrantedAtUtc.Value.UtcDateTime, istZone);
+                var grantedCell = worksheet.Cell(rowNumber, 7);
+                grantedCell.Value = grantedAtIst.Date;
+                grantedCell.Style.DateFormat.Format = "dd-mmm-yyyy";
+            }
+
+            worksheet.Cell(rowNumber, 8).Value = record.ProjectName ?? string.Empty;
+            worksheet.Cell(rowNumber, 9).Value = record.Remarks ?? string.Empty;
+        }
+
+        worksheet.Column(3).Style.NumberFormat.Format = "@";
+        worksheet.Columns().AdjustToContents();
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        stream.Position = 0;
+
+        var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        var fileName = $"ipr-records-{timestamp}.xlsx";
+
+        return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
     }
 
     public async Task<IActionResult> OnPostCreateAsync(CancellationToken cancellationToken)
