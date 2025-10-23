@@ -103,7 +103,7 @@ public sealed class IprIndexPageTests
         Assert.Equal(writeService.CreatedRecord?.Id, redirect.RouteValues?["id"]);
         Assert.Equal("IPR record created.", page.TempData["ToastMessage"]);
 
-        var created = Assert.NotNull(writeService.CreatedRecord);
+        var created = Assert.IsType<IprRecord>(writeService.CreatedRecord);
         Assert.Equal("IPR-600", created.IprFilingNumber);
         Assert.Equal(IprType.Trademark, created.Type);
         Assert.Equal(IprStatus.Filed, created.Status);
