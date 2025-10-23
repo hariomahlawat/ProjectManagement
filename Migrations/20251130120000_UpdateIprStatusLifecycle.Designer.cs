@@ -17,13 +17,15 @@ namespace ProjectManagement.Migrations
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            new Snapshot().BuildModel(modelBuilder);
+            new Snapshot().PopulateModel(modelBuilder);
 #pragma warning restore 612, 618
         }
 
         private sealed class Snapshot : ApplicationDbContextModelSnapshot
         {
             protected override void BuildModel(ModelBuilder modelBuilder) => base.BuildModel(modelBuilder);
+
+            public void PopulateModel(ModelBuilder modelBuilder) => BuildModel(modelBuilder);
         }
     }
 }
