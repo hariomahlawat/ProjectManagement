@@ -401,6 +401,14 @@ body {
 }
 
 /* ---------- Proliferation summary ---------- */
+.prol-grid {
+    margin-top: 2rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1.75rem;
+    align-items: stretch;
+}
+
 .prol-card {
     position: relative;
     display: flex;
@@ -415,6 +423,11 @@ body {
 
 .prol-card + .prol-card {
     margin-top: 1.75rem;
+}
+
+.prol-grid .prol-card {
+    height: 100%;
+    margin-top: 0;
 }
 
 .prol-heading {
