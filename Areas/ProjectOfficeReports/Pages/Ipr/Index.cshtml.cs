@@ -935,7 +935,7 @@ public sealed class IndexModel : PageModel
             Title = string.IsNullOrWhiteSpace(input.Title) ? null : input.Title.Trim(),
             Notes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim(),
             Type = input.Type ?? IprType.Patent,
-            Status = input.Status ?? IprStatus.Draft,
+            Status = input.Status ?? IprStatus.FilingUnderProcess,
             FiledAtUtc = input.FiledOn.HasValue
                 ? new DateTimeOffset(input.FiledOn.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))
                 : null,
@@ -957,11 +957,11 @@ public sealed class IndexModel : PageModel
     private static string GetStatusLabel(IprStatus status)
         => status switch
         {
-            IprStatus.Draft => "Draft",
+            IprStatus.FilingUnderProcess => "Filing under process",
             IprStatus.Filed => "Filed",
             IprStatus.Granted => "Granted",
             IprStatus.Rejected => "Rejected",
-            IprStatus.Expired => "Expired",
+            IprStatus.Withdrawn => "Withdrawn",
             _ => status.ToString()
         };
 

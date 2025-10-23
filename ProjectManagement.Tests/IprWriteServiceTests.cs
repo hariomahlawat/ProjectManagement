@@ -17,7 +17,7 @@ namespace ProjectManagement.Tests;
 public sealed class IprWriteServiceTests
 {
     [Fact]
-    public async Task CreateAsync_RequiresFiledDateWhenStatusNotDraft()
+    public async Task CreateAsync_RequiresFiledDateWhenStatusNotFilingUnderProcess()
     {
         await using var db = CreateDbContext();
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
@@ -33,7 +33,7 @@ public sealed class IprWriteServiceTests
             };
 
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(record));
-            Assert.Equal("Filed date is required once the record is not in Draft status.", ex.Message);
+            Assert.Equal("Filed date is required once the record is not under filing.", ex.Message);
         }
         finally
         {
@@ -80,7 +80,7 @@ public sealed class IprWriteServiceTests
             {
                 IprFilingNumber = "IPR-100",
                 Type = IprType.Trademark,
-                Status = IprStatus.Draft
+                Status = IprStatus.FilingUnderProcess
             });
             await db.SaveChangesAsync();
 
@@ -88,7 +88,7 @@ public sealed class IprWriteServiceTests
             {
                 IprFilingNumber = " IPR-100 ",
                 Type = IprType.Trademark,
-                Status = IprStatus.Draft
+                Status = IprStatus.FilingUnderProcess
             };
 
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(duplicate));
@@ -113,7 +113,7 @@ public sealed class IprWriteServiceTests
             {
                 IprFilingNumber = "IPR-200",
                 Type = IprType.Patent,
-                Status = IprStatus.Draft,
+                Status = IprStatus.FilingUnderProcess,
                 ProjectId = 0
             };
 
@@ -153,7 +153,7 @@ public sealed class IprWriteServiceTests
             {
                 IprFilingNumber = "ATT-001",
                 Type = IprType.Patent,
-                Status = IprStatus.Draft
+                Status = IprStatus.FilingUnderProcess
             };
             db.IprRecords.Add(record);
             await db.SaveChangesAsync();
@@ -205,7 +205,7 @@ public sealed class IprWriteServiceTests
             {
                 IprFilingNumber = "ATT-002",
                 Type = IprType.Patent,
-                Status = IprStatus.Draft
+                Status = IprStatus.FilingUnderProcess
             };
             db.IprRecords.Add(record);
             await db.SaveChangesAsync();
@@ -247,7 +247,7 @@ public sealed class IprWriteServiceTests
             {
                 IprFilingNumber = "ATT-003",
                 Type = IprType.Patent,
-                Status = IprStatus.Draft
+                Status = IprStatus.FilingUnderProcess
             };
             db.IprRecords.Add(record);
             await db.SaveChangesAsync();

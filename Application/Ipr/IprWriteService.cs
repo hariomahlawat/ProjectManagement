@@ -227,9 +227,9 @@ public sealed class IprWriteService : IIprWriteService
             throw new InvalidOperationException("Filed date cannot be in the future.");
         }
 
-        if (status != IprStatus.Draft && filedAtUtc is null)
+        if (status != IprStatus.FilingUnderProcess && filedAtUtc is null)
         {
-            throw new InvalidOperationException("Filed date is required once the record is not in Draft status.");
+            throw new InvalidOperationException("Filed date is required once the record is not under filing.");
         }
     }
 

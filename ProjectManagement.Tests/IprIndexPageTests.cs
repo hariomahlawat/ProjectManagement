@@ -63,7 +63,7 @@ public sealed class IprIndexPageTests
             {
                 FilingNumber = "IPR-500",
                 Type = IprType.Patent,
-                Status = IprStatus.Draft
+                Status = IprStatus.FilingUnderProcess
             }
         };
 

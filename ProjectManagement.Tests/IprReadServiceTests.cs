@@ -32,7 +32,7 @@ public sealed class IprReadServiceTests
                 IprFilingNumber = "IPR-001",
                 Title = "Alpha",
                 Type = IprType.Patent,
-                Status = IprStatus.Draft,
+                Status = IprStatus.FilingUnderProcess,
                 FiledAtUtc = null,
                 ProjectId = null
             },
@@ -106,7 +106,7 @@ public sealed class IprReadServiceTests
                 IprFilingNumber = "IPR-101",
                 Title = "Orion",
                 Type = IprType.Patent,
-                Status = IprStatus.Draft
+                Status = IprStatus.FilingUnderProcess
             },
             new()
             {
@@ -147,9 +147,9 @@ public sealed class IprReadServiceTests
         Assert.Equal(search.Total, kpis.Total);
         Assert.Equal(search.Items.Count(x => x.Status == IprStatus.Filed), kpis.Filed);
         Assert.Equal(search.Items.Count(x => x.Status == IprStatus.Granted), kpis.Granted);
-        Assert.Equal(0, kpis.Draft);
+        Assert.Equal(0, kpis.FilingUnderProcess);
         Assert.Equal(0, kpis.Rejected);
-        Assert.Equal(0, kpis.Expired);
+        Assert.Equal(0, kpis.Withdrawn);
     }
 
     [Fact]
