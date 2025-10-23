@@ -1,6 +1,7 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.SummaryModel
-@{
+@using System.Linq
+@{ 
     ViewData["Title"] = "Proliferation Summary";
 }
 
@@ -29,4 +30,96 @@
             </dl>
         </div>
     </section>
+
+    @if (Model.Summary.ByProject.Count > 0)
+    {
+        <section class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-body">
+                <h2 class="h5">Projects ranked by proliferations</h2>
+                <ol class="list-group list-group-numbered">
+                    @foreach (var project in Model.Summary.ByProject.OrderByDescending(row => row.Totals.Total))
+                    {
+                        <li class="list-group-item d-flex justify-content-between align-items-start">
+                            <div class="me-3">
+                                <div class="fw-semibold">
+                                    @project.ProjectName
+                                    @if (!string.IsNullOrWhiteSpace(project.ProjectCode))
+                                    {
+                                        <span class="text-muted">(@project.ProjectCode)</span>
+                                    }
+                                </div>
+                                <div class="text-muted small">515 ABW: @project.Totals.Abw515.ToString("N0") · SDD: @project.Totals.Sdd.ToString("N0")</div>
+                            </div>
+                            <span class="badge bg-primary rounded-pill">@project.Totals.Total.ToString("N0")</span>
+                        </li>
+                    }
+                </ol>
+            </div>
+        </section>
+    }
+
+    @if (Model.Summary.ByYear.Count > 0)
+    {
+        <section class="card border-0 shadow-sm rounded-4 mb-4">
+            <div class="card-body">
+                <h2 class="h5">Proliferations by year</h2>
+                <ul class="list-group">
+                    @foreach (var year in Model.Summary.ByYear.OrderByDescending(row => row.Year))
+                    {
+                        <li class="list-group-item d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="fw-semibold">@year.Year</div>
+                                <div class="text-muted small">515 ABW: @year.Totals.Abw515.ToString("N0") · SDD: @year.Totals.Sdd.ToString("N0")</div>
+                            </div>
+                            <span class="badge bg-primary rounded-pill">@year.Totals.Total.ToString("N0")</span>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </section>
+    }
+
+    @if (Model.Summary.ByProjectYear.Count > 0)
+    {
+        <section class="card border-0 shadow-sm rounded-4">
+            <div class="card-body">
+                <h2 class="h5">Project breakdown by year</h2>
+                @{ var groups = Model.Summary.ByProjectYear
+                        .GroupBy(row => row.Year)
+                        .OrderByDescending(group => group.Key);
+                }
+                @foreach (var group in groups)
+                {
+                    var yearTotal = group.Sum(row => row.Totals.Total);
+                    var yearAbw = group.Sum(row => row.Totals.Abw515);
+                    var yearSdd = group.Sum(row => row.Totals.Sdd);
+                    <section class="mb-4">
+                        <div class="d-flex justify-content-between align-items-baseline">
+                            <h3 class="h6 mb-1">@group.Key</h3>
+                            <span class="fw-semibold">@yearTotal.ToString("N0") total</span>
+                        </div>
+                        <p class="text-muted small mb-2">515 ABW: @yearAbw.ToString("N0") · SDD: @yearSdd.ToString("N0")</p>
+                        <ol class="list-group list-group-numbered">
+                            @foreach (var project in group.OrderByDescending(row => row.Totals.Total))
+                            {
+                                <li class="list-group-item d-flex justify-content-between align-items-start">
+                                    <div class="me-3">
+                                        <div class="fw-semibold">
+                                            @project.ProjectName
+                                            @if (!string.IsNullOrWhiteSpace(project.ProjectCode))
+                                            {
+                                                <span class="text-muted">(@project.ProjectCode)</span>
+                                            }
+                                        </div>
+                                        <div class="text-muted small">515 ABW: @project.Totals.Abw515.ToString("N0") · SDD: @project.Totals.Sdd.ToString("N0")</div>
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">@project.Totals.Total.ToString("N0")</span>
+                                </li>
+                            }
+                        </ol>
+                    </section>
+                }
+            </div>
+        </section>
+    }
 </div>
