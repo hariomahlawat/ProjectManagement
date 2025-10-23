@@ -9,6 +9,14 @@
 }
 
 <div class="container-xxl my-4" data-page="proliferation-summary">
+    <nav aria-label="Breadcrumb" class="visit-breadcrumb">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+            <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/Proliferation/Index">Proliferation tracker</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Proliferation summary</li>
+        </ol>
+    </nav>
+
     <h1 class="h3 mb-3">Proliferation summary</h1>
     <p class="text-muted">@Model.Lede</p>
 
