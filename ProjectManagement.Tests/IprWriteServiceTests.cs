@@ -1,0 +1,306 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using ProjectManagement.Application.Ipr;
+using ProjectManagement.Configuration;
+using ProjectManagement.Data;
+using ProjectManagement.Infrastructure.Data;
+using ProjectManagement.Tests.Fakes;
+
+namespace ProjectManagement.Tests;
+
+public sealed class IprWriteServiceTests
+{
+    [Fact]
+    public async Task CreateAsync_RequiresFiledDateWhenStatusNotDraft()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var (service, root) = CreateService(db, clock);
+
+        try
+        {
+            var record = new IprRecord
+            {
+                IprFilingNumber = "IPR-001",
+                Status = IprStatus.Filed,
+                Type = IprType.Patent
+            };
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(record));
+            Assert.Equal("Filed date is required once the record is not in Draft status.", ex.Message);
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_RejectsFutureFiledDate()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var (service, root) = CreateService(db, clock);
+
+        try
+        {
+            var record = new IprRecord
+            {
+                IprFilingNumber = "IPR-002",
+                Status = IprStatus.Filed,
+                Type = IprType.Patent,
+                FiledAtUtc = clock.UtcNow.AddDays(1)
+            };
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(record));
+            Assert.Equal("Filed date cannot be in the future.", ex.Message);
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_RejectsDuplicateFilingNumbersWithinType()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var (service, root) = CreateService(db, clock);
+
+        try
+        {
+            db.IprRecords.Add(new IprRecord
+            {
+                IprFilingNumber = "IPR-100",
+                Type = IprType.Trademark,
+                Status = IprStatus.Draft
+            });
+            await db.SaveChangesAsync();
+
+            var duplicate = new IprRecord
+            {
+                IprFilingNumber = " IPR-100 ",
+                Type = IprType.Trademark,
+                Status = IprStatus.Draft
+            };
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(duplicate));
+            Assert.Equal("An IPR with the same filing number and type already exists.", ex.Message);
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_StoresNullProjectWhenProjectIdIsZero()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var (service, root) = CreateService(db, clock);
+
+        try
+        {
+            var record = new IprRecord
+            {
+                IprFilingNumber = "IPR-200",
+                Type = IprType.Patent,
+                Status = IprStatus.Draft,
+                ProjectId = 0
+            };
+
+            var created = await service.CreateAsync(record);
+            Assert.Null(created.ProjectId);
+
+            var stored = await db.IprRecords.AsNoTracking().SingleAsync(r => r.Id == created.Id);
+            Assert.Null(stored.ProjectId);
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task AddAttachmentAsync_PersistsAttachmentWhenContentTypeAllowed()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 3, 15, 10, 30, 0, TimeSpan.Zero));
+        var options = new IprAttachmentOptions
+        {
+            MaxFileSizeBytes = 1024,
+            AllowedContentTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "application/pdf"
+            }
+        };
+
+        var root = CreateTempRoot();
+        try
+        {
+            var storage = new IprAttachmentStorage(new TestUploadRootProvider(root));
+            var service = new IprWriteService(db, clock, storage, Options.Create(options), NullLogger<IprWriteService>.Instance);
+
+            var record = new IprRecord
+            {
+                IprFilingNumber = "ATT-001",
+                Type = IprType.Patent,
+                Status = IprStatus.Draft
+            };
+            db.IprRecords.Add(record);
+            await db.SaveChangesAsync();
+
+            await using var content = new MemoryStream(new byte[] { 1, 2, 3, 4 });
+            var attachment = await service.AddAttachmentAsync(record.Id, content, " specification.pdf ", "application/pdf", " user-1 ");
+
+            Assert.Equal("user-1", attachment.UploadedByUserId);
+            Assert.Equal(clock.UtcNow, attachment.UploadedAtUtc);
+            Assert.Equal("application/pdf", attachment.ContentType);
+            Assert.Equal("specification.pdf", attachment.OriginalFileName);
+            Assert.True(attachment.FileSize > 0);
+
+            var saved = await db.IprAttachments.AsNoTracking().SingleAsync(a => a.Id == attachment.Id);
+            Assert.Equal(record.Id, saved.IprRecordId);
+            Assert.Equal("application/pdf", saved.ContentType);
+            Assert.Equal("specification.pdf", saved.OriginalFileName);
+
+            var path = ResolvePath(root, attachment.StorageKey);
+            Assert.True(File.Exists(path));
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task AddAttachmentAsync_RejectsDisallowedContentType()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 4, 10, 8, 0, 0, TimeSpan.Zero));
+        var options = new IprAttachmentOptions
+        {
+            MaxFileSizeBytes = 1024,
+            AllowedContentTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "application/pdf"
+            }
+        };
+
+        var root = CreateTempRoot();
+        try
+        {
+            var storage = new IprAttachmentStorage(new TestUploadRootProvider(root));
+            var service = new IprWriteService(db, clock, storage, Options.Create(options), NullLogger<IprWriteService>.Instance);
+
+            var record = new IprRecord
+            {
+                IprFilingNumber = "ATT-002",
+                Type = IprType.Patent,
+                Status = IprStatus.Draft
+            };
+            db.IprRecords.Add(record);
+            await db.SaveChangesAsync();
+
+            await using var content = new MemoryStream(new byte[] { 1, 2, 3 });
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                service.AddAttachmentAsync(record.Id, content, "notes.txt", "text/plain", "user-2"));
+
+            Assert.Equal("Attachments of type 'text/plain' are not allowed.", ex.Message);
+            Assert.Equal(0, await db.IprAttachments.CountAsync());
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task AddAttachmentAsync_RejectsFilesExceedingSizeLimit()
+    {
+        await using var db = CreateDbContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 5, 12, 0, 0, TimeSpan.Zero));
+        var options = new IprAttachmentOptions
+        {
+            MaxFileSizeBytes = 5,
+            AllowedContentTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "application/pdf"
+            }
+        };
+
+        var root = CreateTempRoot();
+        try
+        {
+            var storage = new IprAttachmentStorage(new TestUploadRootProvider(root));
+            var service = new IprWriteService(db, clock, storage, Options.Create(options), NullLogger<IprWriteService>.Instance);
+
+            var record = new IprRecord
+            {
+                IprFilingNumber = "ATT-003",
+                Type = IprType.Patent,
+                Status = IprStatus.Draft
+            };
+            db.IprRecords.Add(record);
+            await db.SaveChangesAsync();
+
+            await using var content = new MemoryStream(Enumerable.Repeat((byte)1, 16).ToArray());
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                service.AddAttachmentAsync(record.Id, content, "oversized.pdf", "application/pdf", "user-3"));
+
+            Assert.Equal("Attachment exceeds maximum allowed size of 5 bytes.", ex.Message);
+            Assert.Equal(0, await db.IprAttachments.CountAsync());
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    private static ApplicationDbContext CreateDbContext()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        return new ApplicationDbContext(options);
+    }
+
+    private static (IprWriteService Service, string Root) CreateService(ApplicationDbContext db, FakeClock clock)
+    {
+        var options = Options.Create(new IprAttachmentOptions());
+        var root = CreateTempRoot();
+        var storage = new IprAttachmentStorage(new TestUploadRootProvider(root));
+        var service = new IprWriteService(db, clock, storage, options, NullLogger<IprWriteService>.Instance);
+        return (service, root);
+    }
+
+    private static string CreateTempRoot()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "ipr-tests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(path);
+        return path;
+    }
+
+    private static void CleanupRoot(string root)
+    {
+        if (Directory.Exists(root))
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static string ResolvePath(string root, string storageKey)
+    {
+        var relative = storageKey.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+        return Path.Combine(root, relative);
+    }
+}
