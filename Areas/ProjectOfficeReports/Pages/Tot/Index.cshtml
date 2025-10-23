@@ -128,7 +128,6 @@
 
     var selected = Model.SelectedProject;
     var selectedRemark = selected?.LatestExternalRemark ?? selected?.LatestInternalRemark;
-    var canSubmitSelected = Model.CanSubmit && selected is not null;
     var hasPendingRequest = selected?.RequestState == ProjectTotRequestDecisionState.Pending;
     var requiresDecisionMetadata = hasPendingRequest && selected is not null && !selected.RequestMetadataAvailable;
     var showDecisionCard = Model.CanApprove && hasPendingRequest && selected is not null && selected.RequestMetadataAvailable;
@@ -178,19 +177,6 @@
                         aria-disabled="true">
                     <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
                     <span>Export</span>
-                </button>
-            }
-
-            @if (Model.CanSubmit)
-            {
-                <button type="button"
-                        class="btn btn-primary d-inline-flex align-items-center gap-2"
-                        data-bs-toggle="modal"
-                        data-bs-target="#tot-submit-modal"
-                        @(canSubmitSelected ? null : "disabled")
-                        aria-disabled="@(canSubmitSelected ? "false" : "true")">
-                    <i class="bi bi-upload" aria-hidden="true"></i>
-                    <span>Submit update</span>
                 </button>
             }
 
@@ -670,7 +656,7 @@
                                         </a>
                                     }
                                 }
-                                <a class="btn btn-text" asp-page="/Projects/Overview" asp-route-id="@row.ProjectId">View details</a>
+                                <a class="btn btn-text" asp-page="/Projects/Overview" asp-route-id="@row.ProjectId">Details</a>
                             </footer>
                             <a class="stretched-link"
                                asp-page="./Index"
@@ -736,7 +722,7 @@
                             {
                                 <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#tot-submit-modal">Submit update</button>
                             }
-                            <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#tot-request-modal" @(selected.RequestState is null ? "disabled" : null)>Latest ToT request</button>
+                            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#tot-request-modal" @(selected.RequestState is null ? "disabled" : null)>Latest ToT request</button>
                             <a class="btn btn-text" asp-page="/Projects/Overview" asp-route-id="@selected.ProjectId">Open project</a>
                         </div>
                         <section class="tot-sticky__remark">
@@ -836,7 +822,6 @@
         </div>
 
     }
-}
 </div>
 @section Scripts {
     <script type="module" src="~/js/pages/project-office-reports/tot.js" asp-append-version="true"></script>
