@@ -1,0 +1,35 @@
+.tot-table__decision-header,
+.tot-table__decision-cell {
+    width: 16rem;
+}
+
+.tot-table__decision {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+    min-width: 10rem;
+}
+
+.tot-table__decision .chip {
+    font-size: 0.8rem;
+    line-height: 1.1;
+}
+
+.tot-table__decision-meta {
+    font-size: 0.75rem;
+    line-height: 1.2;
+    color: var(--tot-muted, #6b7280);
+    white-space: normal;
+}
+
+@media (max-width: 1200px) {
+    .tot-table__decision-header,
+    .tot-table__decision-cell {
+        width: 100%;
+    }
+
+    .tot-table__decision {
+        min-width: 0;
+    }
+}
