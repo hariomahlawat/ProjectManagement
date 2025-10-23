@@ -1,0 +1,93 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.SummaryModel
+
+@section Styles
+{
+    <link rel="stylesheet" href="~/css/tot.css" asp-append-version="true" />
+}
+
+@{
+    ViewData["Title"] = "Transfer of Technology summary";
+    var summary = Model.Summary;
+}
+
+<div class="tot-summary">
+    <header class="tot-summary__header">
+        <div class="tot-summary__title">
+            <h1 class="tot-summary__heading">Transfer of Technology summary</h1>
+            <p class="tot-summary__lede">@summary.Narrative</p>
+        </div>
+    </header>
+
+    <div class="tot-summary__grid">
+        <section class="tot-summary__column">
+            <h2 class="tot-summary__column-heading">Completed</h2>
+            @if (summary.Completed.Count > 0)
+            {
+                <ul class="tot-summary__list">
+                    @foreach (var name in summary.Completed)
+                    {
+                        <li class="tot-summary__list-item">@name</li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <p class="tot-summary__empty">None</p>
+            }
+        </section>
+
+        <section class="tot-summary__column">
+            <h2 class="tot-summary__column-heading">In progress</h2>
+            <div class="tot-summary__subsection">
+                <h3 class="tot-summary__subheading">MET complete</h3>
+                @if (summary.InProgressMetComplete.Count > 0)
+                {
+                    <ul class="tot-summary__list">
+                        @foreach (var name in summary.InProgressMetComplete)
+                        {
+                            <li class="tot-summary__list-item">@name</li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <p class="tot-summary__empty">None</p>
+                }
+            </div>
+            <div class="tot-summary__subsection">
+                <h3 class="tot-summary__subheading">MET not complete</h3>
+                @if (summary.InProgressMetIncomplete.Count > 0)
+                {
+                    <ul class="tot-summary__list">
+                        @foreach (var name in summary.InProgressMetIncomplete)
+                        {
+                            <li class="tot-summary__list-item">@name</li>
+                        }
+                    </ul>
+                }
+                else
+                {
+                    <p class="tot-summary__empty">None</p>
+                }
+            </div>
+        </section>
+
+        <section class="tot-summary__column">
+            <h2 class="tot-summary__column-heading">Not required</h2>
+            @if (summary.NotRequired.Count > 0)
+            {
+                <ul class="tot-summary__list">
+                    @foreach (var name in summary.NotRequired)
+                    {
+                        <li class="tot-summary__list-item">@name</li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <p class="tot-summary__empty">None</p>
+            }
+        </section>
+    </div>
+</div>
