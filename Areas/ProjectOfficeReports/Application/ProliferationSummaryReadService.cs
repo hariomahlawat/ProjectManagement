@@ -117,7 +117,8 @@ public sealed class ProliferationSummaryReadService : IProliferationSummaryReadS
         }
 
         return rows
-            .OrderBy(r => r.ProjectName, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(r => r.Totals.Total)
+            .ThenBy(r => r.ProjectName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(r => r.ProjectCode ?? string.Empty, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
