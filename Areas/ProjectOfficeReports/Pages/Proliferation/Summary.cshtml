@@ -9,73 +9,73 @@
     <h1 class="h3 mb-3">Proliferation summary</h1>
     <p class="text-muted">@Model.Lede</p>
 
-    <section class="card border-0 shadow-sm rounded-4 mb-4">
-        <div class="card-body">
-            <h2 class="h5">Totals</h2>
-            <dl class="row mb-0">
-                <dt class="col-sm-4">Projects</dt>
-                <dd class="col-sm-8">@Model.ProjectsTotal.ToString("N0")</dd>
-
-                <dt class="col-sm-4">Years</dt>
-                <dd class="col-sm-8">@Model.YearsTotal.ToString("N0")</dd>
-
-                <dt class="col-sm-4">Proliferations</dt>
-                <dd class="col-sm-8">@Model.GrandTotal.ToString("N0")</dd>
-
-                <dt class="col-sm-4">515 ABW totals</dt>
-                <dd class="col-sm-8">@Model.GrandAbw.ToString("N0")</dd>
-
-                <dt class="col-sm-4">SDD totals</dt>
-                <dd class="col-sm-8">@Model.GrandSdd.ToString("N0")</dd>
-            </dl>
-        </div>
+    <section class="prol-card">
+        <h2 class="h5 prol-heading">Totals</h2>
+        <dl class="totals-dl">
+            <div class="totals-dl__item">
+                <dt>Projects</dt>
+                <dd class="prol-total">@Model.ProjectsTotal.ToString("N0")</dd>
+            </div>
+            <div class="totals-dl__item">
+                <dt>Years</dt>
+                <dd class="prol-total">@Model.YearsTotal.ToString("N0")</dd>
+            </div>
+            <div class="totals-dl__item">
+                <dt>Proliferations</dt>
+                <dd class="prol-total">@Model.GrandTotal.ToString("N0")</dd>
+            </div>
+            <div class="totals-dl__item">
+                <dt>515 ABW totals</dt>
+                <dd class="prol-total">@Model.GrandAbw.ToString("N0")</dd>
+            </div>
+            <div class="totals-dl__item">
+                <dt>SDD totals</dt>
+                <dd class="prol-total">@Model.GrandSdd.ToString("N0")</dd>
+            </div>
+        </dl>
     </section>
 
     @if (Model.Summary.ByProject.Count > 0)
     {
-        <section class="card border-0 shadow-sm rounded-4 mb-4">
-            <div class="card-body">
-                <h2 class="h5">Projects ranked by proliferations</h2>
-                <ol class="list-group list-group-numbered">
-                    @foreach (var project in Model.Summary.ByProject.OrderByDescending(row => row.Totals.Total))
-                    {
-                        <li class="list-group-item d-flex justify-content-between align-items-start">
-                            <div class="me-3">
-                                <div class="fw-semibold">
-                                    @project.ProjectName
-                                    @if (!string.IsNullOrWhiteSpace(project.ProjectCode))
-                                    {
-                                        <span class="text-muted">(@project.ProjectCode)</span>
-                                    }
-                                </div>
-                                <div class="text-muted small">515 ABW: @project.Totals.Abw515.ToString("N0") · SDD: @project.Totals.Sdd.ToString("N0")</div>
-                            </div>
-                            <span class="badge bg-primary rounded-pill">@project.Totals.Total.ToString("N0")</span>
-                        </li>
-                    }
-                </ol>
-            </div>
+        <section class="prol-card">
+            <h2 class="h5 prol-heading">Projects ranked by proliferations</h2>
+            <ol class="prol-ol">
+                @foreach (var project in Model.Summary.ByProject.OrderByDescending(row => row.Totals.Total))
+                {
+                    <li class="prol-row">
+                        <div class="prol-name">
+                            <span class="prol-heading">
+                                @project.ProjectName
+                                @if (!string.IsNullOrWhiteSpace(project.ProjectCode))
+                                {
+                                    <span class="prol-code">(@project.ProjectCode)</span>
+                                }
+                            </span>
+                            <span class="prol-meta">515 ABW: @project.Totals.Abw515.ToString("N0") · SDD: @project.Totals.Sdd.ToString("N0")</span>
+                        </div>
+                        <span class="prol-badge">@project.Totals.Total.ToString("N0")</span>
+                    </li>
+                }
+            </ol>
         </section>
     }
 
     @if (Model.Summary.ByYear.Count > 0)
     {
-        <section class="card border-0 shadow-sm rounded-4 mb-4">
-            <div class="card-body">
-                <h2 class="h5">Proliferations by year</h2>
-                <ul class="list-group">
-                    @foreach (var year in Model.Summary.ByYear.OrderByDescending(row => row.Year))
-                    {
-                        <li class="list-group-item d-flex justify-content-between align-items-start">
-                            <div>
-                                <div class="fw-semibold">@year.Year</div>
-                                <div class="text-muted small">515 ABW: @year.Totals.Abw515.ToString("N0") · SDD: @year.Totals.Sdd.ToString("N0")</div>
-                            </div>
-                            <span class="badge bg-primary rounded-pill">@year.Totals.Total.ToString("N0")</span>
-                        </li>
-                    }
-                </ul>
-            </div>
+        <section class="prol-card">
+            <h2 class="h5 prol-heading">Proliferations by year</h2>
+            <ul class="prol-ol prol-ol--plain">
+                @foreach (var year in Model.Summary.ByYear.OrderByDescending(row => row.Year))
+                {
+                    <li class="prol-row">
+                        <div class="prol-name">
+                            <span class="prol-heading">@year.Year</span>
+                            <span class="prol-meta">515 ABW: @year.Totals.Abw515.ToString("N0") · SDD: @year.Totals.Sdd.ToString("N0")</span>
+                        </div>
+                        <span class="prol-badge">@year.Totals.Total.ToString("N0")</span>
+                    </li>
+                }
+            </ul>
         </section>
     }
 
