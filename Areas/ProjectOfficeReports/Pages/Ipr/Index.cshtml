@@ -64,13 +64,21 @@
             <h1 class="h2 mb-1">Intellectual property tracker</h1>
             <p class="text-muted mb-0">Monitor patents, copyrights, and trademarks across projects with quick actions for updates.</p>
         </div>
-        @if (Model.CanEdit)
-        {
-            <a class="btn btn-primary" asp-page="./Index" asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "create" }, includePage: true, includeModeAndId: false)">
-                <i class="bi bi-plus-circle me-2" aria-hidden="true"></i>
-                <span>Add IPR record</span>
+        <div class="d-flex flex-wrap justify-content-lg-end gap-2">
+            <a class="btn btn-outline-secondary d-inline-flex align-items-center gap-2"
+               asp-page-handler="Export"
+               asp-all-route-data="@Model.GetRouteValuesForLinks(includeModeAndId: false)">
+                <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
+                <span>Export records</span>
             </a>
-        }
+            @if (Model.CanEdit)
+            {
+                <a class="btn btn-primary d-inline-flex align-items-center gap-2" asp-page="./Index" asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "create" }, includePage: true, includeModeAndId: false)">
+                    <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                    <span>Add IPR record</span>
+                </a>
+            }
+        </div>
     </div>
 
     @if (!string.IsNullOrWhiteSpace(toastMessage))
