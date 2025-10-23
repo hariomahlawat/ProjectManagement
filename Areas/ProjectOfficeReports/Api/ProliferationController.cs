@@ -614,31 +614,100 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             var fromCutoff = DateOnly.FromDateTime(start);
             var toCutoff = DateOnly.FromDateTime(end);
 
-            var last12GranularQuery = _db.Set<ProliferationGranular>().AsNoTracking()
-                .Where(g => g.ApprovalStatus == ApprovalStatus.Approved &&
-                            g.ProliferationDate >= fromCutoff &&
-                            g.ProliferationDate <= toCutoff);
+            var startYear = start.Year;
+            var endYear = end.Year;
+            var yearCount = endYear - startYear + 1;
+            var windowYears = yearCount > 0
+                ? Enumerable.Range(startYear, yearCount).ToArray()
+                : Array.Empty<int>();
 
-            if (completedProjectIds.Count == 0)
+            var lastYearCombos = new HashSet<CombinationKey>();
+
+            if (completedProjectIds.Count > 0 && windowYears.Length > 0)
             {
-                last12GranularQuery = last12GranularQuery.Where(_ => false);
+                var lastYearlyQuery = _db.Set<ProliferationYearly>().AsNoTracking()
+                    .Where(y =>
+                        y.ApprovalStatus == ApprovalStatus.Approved &&
+                        completedProjectIds.Contains(y.ProjectId) &&
+                        windowYears.Contains(y.Year));
+
+                if (q.Source.HasValue)
+                {
+                    lastYearlyQuery = lastYearlyQuery.Where(y => y.Source == q.Source.Value);
+                }
+
+                var lastYearlyCombos = await lastYearlyQuery
+                    .Select(y => new { y.ProjectId, y.Source, y.Year })
+                    .ToListAsync(ct);
+
+                foreach (var item in lastYearlyCombos)
+                {
+                    lastYearCombos.Add(new CombinationKey(item.ProjectId, item.Source, item.Year));
+                }
+
+                var lastGranularQuery = _db.Set<ProliferationGranular>().AsNoTracking()
+                    .Where(g =>
+                        g.ApprovalStatus == ApprovalStatus.Approved &&
+                        completedProjectIds.Contains(g.ProjectId) &&
+                        g.ProliferationDate >= fromCutoff &&
+                        g.ProliferationDate <= toCutoff);
+
+                if (q.Source.HasValue)
+                {
+                    lastGranularQuery = lastGranularQuery.Where(g => g.Source == q.Source.Value);
+                }
+
+                var lastGranularCombos = await lastGranularQuery
+                    .Select(g => new { g.ProjectId, g.Source, Year = g.ProliferationDate.Year })
+                    .ToListAsync(ct);
+
+                foreach (var item in lastGranularCombos)
+                {
+                    lastYearCombos.Add(new CombinationKey(item.ProjectId, item.Source, item.Year));
+                }
             }
-            else
+
+            int lastYearTotal = 0, lastYearSdd = 0, lastYearAbw = 0;
+            var proliferatedProjects = new HashSet<int>();
+
+            foreach (var combo in lastYearCombos)
             {
-                last12GranularQuery = last12GranularQuery.Where(g => completedProjectIds.Contains(g.ProjectId));
+                int eff;
+                try
+                {
+                    eff = await _readSvc.GetEffectiveTotalAsync(combo.ProjectId, combo.Source, combo.Year, ct);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(
+                        ex,
+                        "Failed to compute effective proliferation total for project {ProjectId} ({Source}) in {Year}",
+                        combo.ProjectId,
+                        combo.Source,
+                        combo.Year);
+                    continue;
+                }
+
+                lastYearTotal += eff;
+                if (combo.Source == ProliferationSource.Sdd)
+                {
+                    lastYearSdd += eff;
+                }
+                else
+                {
+                    lastYearAbw += eff;
+                }
+
+                if (eff > 0)
+                {
+                    proliferatedProjects.Add(combo.ProjectId);
+                }
             }
 
-            if (q.Source.HasValue)
-            {
-                last12GranularQuery = last12GranularQuery.Where(g => g.Source == q.Source.Value);
-            }
-
-            var last12Granular = await last12GranularQuery.ToListAsync(ct);
-
-            kpis.LastYearTotalProliferation = last12Granular.Sum(g => g.Quantity);
-            kpis.LastYearSdd = last12Granular.Where(g => g.Source == ProliferationSource.Sdd).Sum(g => g.Quantity);
-            kpis.LastYearAbw515 = last12Granular.Where(g => g.Source == ProliferationSource.Abw515).Sum(g => g.Quantity);
-            kpis.LastYearProjectsProliferated = last12Granular.Select(g => g.ProjectId).Distinct().Count();
+            kpis.LastYearTotalProliferation = lastYearTotal;
+            kpis.LastYearSdd = lastYearSdd;
+            kpis.LastYearAbw515 = lastYearAbw;
+            kpis.LastYearProjectsProliferated = proliferatedProjects.Count;
 
             var payload = new ProliferationOverviewDto
             {
