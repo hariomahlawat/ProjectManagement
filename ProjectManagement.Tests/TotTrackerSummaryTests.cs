@@ -59,16 +59,79 @@ public sealed class TotTrackerSummaryTests
         Assert.Equal(0, summary.PendingApprovals);
     }
 
+    [Fact]
+    public void TotSummaryViewModel_PreservesCompletionMetadata()
+    {
+        var rows = new List<ProjectTotTrackerRow>
+        {
+            CreateRow(
+                projectId: 1,
+                totStatus: ProjectTotStatus.Completed,
+                requestState: ProjectTotRequestDecisionState.Approved,
+                projectCompletedOn: new DateOnly(2024, 1, 15)),
+            CreateRow(
+                projectId: 2,
+                totStatus: ProjectTotStatus.InProgress,
+                requestState: ProjectTotRequestDecisionState.Pending,
+                projectCompletedYear: 2022,
+                totMetCompletedOn: new DateOnly(2024, 2, 1)),
+            CreateRow(
+                projectId: 3,
+                totStatus: ProjectTotStatus.InProgress,
+                requestState: null,
+                projectCompletedOn: new DateOnly(2024, 3, 1)),
+            CreateRow(
+                projectId: 4,
+                totStatus: ProjectTotStatus.NotRequired,
+                requestState: null,
+                projectCompletedYear: 2019)
+        };
+
+        var summary = SummaryModel.TotSummaryViewModel.FromProjects(rows);
+
+        Assert.Equal(4, summary.TotalProjects);
+        Assert.Equal(1, summary.CompletedCount);
+        Assert.Equal(2, summary.InProgressCount);
+        Assert.Equal(1, summary.InProgressMetCompleteCount);
+        Assert.Equal(1, summary.InProgressMetIncompleteCount);
+        Assert.Equal(1, summary.NotRequiredCount);
+
+        var completed = Assert.Single(summary.Completed);
+        Assert.Equal(1, completed.ProjectId);
+        Assert.Equal(new DateOnly(2024, 1, 15), completed.ProjectCompletedOn);
+        Assert.Null(completed.ProjectCompletedYear);
+
+        var metComplete = Assert.Single(summary.InProgressMetComplete);
+        Assert.Equal(2, metComplete.ProjectId);
+        Assert.Null(metComplete.ProjectCompletedOn);
+        Assert.Equal(2022, metComplete.ProjectCompletedYear);
+
+        var metIncomplete = Assert.Single(summary.InProgressMetIncomplete);
+        Assert.Equal(3, metIncomplete.ProjectId);
+        Assert.Equal(new DateOnly(2024, 3, 1), metIncomplete.ProjectCompletedOn);
+
+        var notRequired = Assert.Single(summary.NotRequired);
+        Assert.Equal(4, notRequired.ProjectId);
+        Assert.Equal(2019, notRequired.ProjectCompletedYear);
+
+        Assert.Equal("15 Jan 2024", SummaryModel.TotSummaryViewModel.FormatCompletionLabel(completed));
+        Assert.Equal("2022", SummaryModel.TotSummaryViewModel.FormatCompletionLabel(metComplete));
+    }
+
     private static ProjectTotTrackerRow CreateRow(
         int projectId,
         ProjectTotStatus? totStatus,
         ProjectTotRequestDecisionState? requestState,
+        DateOnly? projectCompletedOn = null,
+        int? projectCompletedYear = null,
         DateOnly? totMetCompletedOn = null,
         bool? totFirstProductionModelManufactured = null)
         => new(
             ProjectId: projectId,
             ProjectName: $"Project {projectId}",
             SponsoringUnit: "Unit",
+            ProjectCompletedOn: projectCompletedOn,
+            ProjectCompletedYear: projectCompletedYear,
             TotStatus: totStatus,
             TotStartedOn: null,
             TotCompletedOn: null,

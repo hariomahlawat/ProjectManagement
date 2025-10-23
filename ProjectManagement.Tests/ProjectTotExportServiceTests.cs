@@ -168,6 +168,8 @@ public sealed class ProjectTotExcelWorkbookBuilderTests
                 ProjectId: 21,
                 ProjectName: "Project Orion",
                 SponsoringUnit: "Aerospace",
+                ProjectCompletedOn: new DateOnly(2024, 2, 29),
+                ProjectCompletedYear: null,
                 TotStatus: ProjectTotStatus.Completed,
                 TotStartedOn: new DateOnly(2024, 1, 10),
                 TotCompletedOn: new DateOnly(2024, 2, 20),

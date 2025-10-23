@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -30,51 +31,65 @@ public sealed class SummaryModel : PageModel
 
     public sealed record TotSummaryViewModel(
         string Narrative,
-        IReadOnlyList<string> Completed,
-        IReadOnlyList<string> InProgressMetComplete,
-        IReadOnlyList<string> InProgressMetIncomplete,
-        IReadOnlyList<string> NotRequired,
+        IReadOnlyList<TotSummaryEntry> Completed,
+        IReadOnlyList<TotSummaryEntry> InProgressMetComplete,
+        IReadOnlyList<TotSummaryEntry> InProgressMetIncomplete,
+        IReadOnlyList<TotSummaryEntry> NotRequired,
         int TotalProjects)
     {
         public static TotSummaryViewModel Empty { get; } = new(
             string.Empty,
-            Array.Empty<string>(),
-            Array.Empty<string>(),
-            Array.Empty<string>(),
-            Array.Empty<string>(),
+            Array.Empty<TotSummaryEntry>(),
+            Array.Empty<TotSummaryEntry>(),
+            Array.Empty<TotSummaryEntry>(),
+            Array.Empty<TotSummaryEntry>(),
             0);
+
+        public int CompletedCount => Completed.Count;
+
+        public int InProgressMetCompleteCount => InProgressMetComplete.Count;
+
+        public int InProgressMetIncompleteCount => InProgressMetIncomplete.Count;
+
+        public int InProgressCount => InProgressMetCompleteCount + InProgressMetIncompleteCount;
+
+        public int NotRequiredCount => NotRequired.Count;
 
         public static TotSummaryViewModel FromProjects(IReadOnlyList<ProjectTotTrackerRow>? projects)
         {
             var items = projects ?? Array.Empty<ProjectTotTrackerRow>();
-            var completed = new List<string>();
-            var inProgressMetComplete = new List<string>();
-            var inProgressMetIncomplete = new List<string>();
-            var notRequired = new List<string>();
+            var completed = new List<TotSummaryEntry>();
+            var inProgressMetComplete = new List<TotSummaryEntry>();
+            var inProgressMetIncomplete = new List<TotSummaryEntry>();
+            var notRequired = new List<TotSummaryEntry>();
 
             foreach (var row in items)
             {
                 var status = row.TotStatus ?? ProjectTotStatus.NotStarted;
-                var name = row.ProjectName;
+                var entry = new TotSummaryEntry(
+                    row.ProjectId,
+                    row.ProjectName,
+                    row.ProjectCompletedOn,
+                    row.ProjectCompletedYear);
 
                 switch (status)
                 {
                     case ProjectTotStatus.Completed:
-                        completed.Add(name);
+                        completed.Add(entry);
                         break;
                     case ProjectTotStatus.NotRequired:
-                        notRequired.Add(name);
+                        notRequired.Add(entry);
                         break;
                     case ProjectTotStatus.InProgress:
                     case ProjectTotStatus.NotStarted:
                     default:
                         if (row.TotMetCompletedOn.HasValue)
                         {
-                            inProgressMetComplete.Add(name);
+                            inProgressMetComplete.Add(entry);
                         }
                         else
                         {
-                            inProgressMetIncomplete.Add(name);
+                            inProgressMetIncomplete.Add(entry);
                         }
 
                         break;
@@ -95,6 +110,21 @@ public sealed class SummaryModel : PageModel
                 inProgressMetIncomplete,
                 notRequired,
                 items.Count);
+        }
+
+        public static string? FormatCompletionLabel(TotSummaryEntry entry)
+        {
+            if (entry.ProjectCompletedOn.HasValue)
+            {
+                return entry.ProjectCompletedOn.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
+            }
+
+            if (entry.ProjectCompletedYear.HasValue)
+            {
+                return entry.ProjectCompletedYear.Value.ToString(CultureInfo.InvariantCulture);
+            }
+
+            return null;
         }
 
         private static string BuildNarrative(
@@ -161,5 +191,11 @@ public sealed class SummaryModel : PageModel
         {
             return count == 1 ? $"1 {singular}" : $"{count} {plural}";
         }
+
+        public sealed record TotSummaryEntry(
+            int ProjectId,
+            string ProjectName,
+            DateOnly? ProjectCompletedOn,
+            int? ProjectCompletedYear);
     }
 }
