@@ -1,5 +1,6 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.SummaryModel
+@using System
 @using System.Linq
 @{ 
     ViewData["Title"] = "Proliferation Summary";
@@ -40,12 +41,16 @@
         <section class="prol-card">
             <h2 class="h5 prol-heading">Projects ranked by proliferations</h2>
             <ol class="prol-ol">
-                @foreach (var project in Model.Summary.ByProject.OrderByDescending(row => row.Totals.Total))
+                @foreach (var project in Model.Summary.ByProject
+                    .OrderByDescending(row => row.Totals.Total)
+                    .ThenBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase))
                 {
                     <li class="prol-row">
                         <div class="prol-name">
                             <span class="prol-heading">
-                                @project.ProjectName
+                                <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId">
+                                    @project.ProjectName
+                                </a>
                                 @if (!string.IsNullOrWhiteSpace(project.ProjectCode))
                                 {
                                     <span class="prol-code">(@project.ProjectCode)</span>
@@ -100,12 +105,16 @@
                         </div>
                         <p class="text-muted small mb-2">515 ABW: @yearAbw.ToString("N0") · SDD: @yearSdd.ToString("N0")</p>
                         <ol class="list-group list-group-numbered">
-                            @foreach (var project in group.OrderByDescending(row => row.Totals.Total))
+                            @foreach (var project in group
+                                .OrderByDescending(row => row.Totals.Total)
+                                .ThenBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase))
                             {
                                 <li class="list-group-item d-flex justify-content-between align-items-start">
                                     <div class="me-3">
                                         <div class="fw-semibold">
-                                            @project.ProjectName
+                                            <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId">
+                                                @project.ProjectName
+                                            </a>
                                             @if (!string.IsNullOrWhiteSpace(project.ProjectCode))
                                             {
                                                 <span class="text-muted">(@project.ProjectCode)</span>
