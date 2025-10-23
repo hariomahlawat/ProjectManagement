@@ -48,6 +48,32 @@
         </section>
 
         <section class="tot-summary__column">
+            <h2 class="tot-summary__column-heading">Not started (@summary.NotStartedCount)</h2>
+            @if (summary.NotStartedCount > 0)
+            {
+                <ul class="tot-summary__list">
+                    @foreach (var project in summary.NotStarted)
+                    {
+                        var completion = SummaryModel.TotSummaryViewModel.FormatCompletionLabel(project);
+                        <li class="tot-summary__list-item">
+                            <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId">
+                                @project.ProjectName
+                                @if (!string.IsNullOrEmpty(completion))
+                                {
+                                    <text> (@completion)</text>
+                                }
+                            </a>
+                        </li>
+                    }
+                </ul>
+            }
+            else
+            {
+                <p class="tot-summary__empty">None</p>
+            }
+        </section>
+
+        <section class="tot-summary__column">
             <h2 class="tot-summary__column-heading">In progress (@summary.InProgressCount)</h2>
             <div class="tot-summary__subsection">
                 <h3 class="tot-summary__subheading">MET complete (@summary.InProgressMetCompleteCount)</h3>

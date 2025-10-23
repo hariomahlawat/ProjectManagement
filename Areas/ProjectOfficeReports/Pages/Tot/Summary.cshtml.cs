@@ -32,6 +32,7 @@ public sealed class SummaryModel : PageModel
     public sealed record TotSummaryViewModel(
         string Narrative,
         IReadOnlyList<TotSummaryEntry> Completed,
+        IReadOnlyList<TotSummaryEntry> NotStarted,
         IReadOnlyList<TotSummaryEntry> InProgressMetComplete,
         IReadOnlyList<TotSummaryEntry> InProgressMetIncomplete,
         IReadOnlyList<TotSummaryEntry> NotRequired,
@@ -43,9 +44,12 @@ public sealed class SummaryModel : PageModel
             Array.Empty<TotSummaryEntry>(),
             Array.Empty<TotSummaryEntry>(),
             Array.Empty<TotSummaryEntry>(),
+            Array.Empty<TotSummaryEntry>(),
             0);
 
         public int CompletedCount => Completed.Count;
+
+        public int NotStartedCount => NotStarted.Count;
 
         public int InProgressMetCompleteCount => InProgressMetComplete.Count;
 
@@ -59,6 +63,7 @@ public sealed class SummaryModel : PageModel
         {
             var items = projects ?? Array.Empty<ProjectTotTrackerRow>();
             var completed = new List<TotSummaryEntry>();
+            var notStarted = new List<TotSummaryEntry>();
             var inProgressMetComplete = new List<TotSummaryEntry>();
             var inProgressMetIncomplete = new List<TotSummaryEntry>();
             var notRequired = new List<TotSummaryEntry>();
@@ -77,11 +82,13 @@ public sealed class SummaryModel : PageModel
                     case ProjectTotStatus.Completed:
                         completed.Add(entry);
                         break;
+                    case ProjectTotStatus.NotStarted:
+                        notStarted.Add(entry);
+                        break;
                     case ProjectTotStatus.NotRequired:
                         notRequired.Add(entry);
                         break;
                     case ProjectTotStatus.InProgress:
-                    case ProjectTotStatus.NotStarted:
                     default:
                         if (row.TotMetCompletedOn.HasValue)
                         {
@@ -99,6 +106,7 @@ public sealed class SummaryModel : PageModel
             var narrative = BuildNarrative(
                 items.Count,
                 completed.Count,
+                notStarted.Count,
                 inProgressMetComplete.Count,
                 inProgressMetIncomplete.Count,
                 notRequired.Count);
@@ -106,6 +114,7 @@ public sealed class SummaryModel : PageModel
             return new TotSummaryViewModel(
                 narrative,
                 completed,
+                notStarted,
                 inProgressMetComplete,
                 inProgressMetIncomplete,
                 notRequired,
@@ -130,6 +139,7 @@ public sealed class SummaryModel : PageModel
         private static string BuildNarrative(
             int total,
             int completed,
+            int notStarted,
             int inProgressMetComplete,
             int inProgressMetIncomplete,
             int notRequired)
@@ -144,6 +154,11 @@ public sealed class SummaryModel : PageModel
             if (completed > 0)
             {
                 segments.Add($"{FormatCount(completed, "project has", "projects have")} completed Transfer of Technology");
+            }
+
+            if (notStarted > 0)
+            {
+                segments.Add($"{FormatCount(notStarted, "project has", "projects have")} not yet started Transfer of Technology work");
             }
 
             var inProgressSegments = new List<string>();

@@ -82,6 +82,11 @@ public sealed class TotTrackerSummaryTests
                 projectCompletedOn: new DateOnly(2024, 3, 1)),
             CreateRow(
                 projectId: 4,
+                totStatus: ProjectTotStatus.NotStarted,
+                requestState: null,
+                projectCompletedOn: new DateOnly(2023, 12, 1)),
+            CreateRow(
+                projectId: 5,
                 totStatus: ProjectTotStatus.NotRequired,
                 requestState: null,
                 projectCompletedYear: 2019)
@@ -89,8 +94,9 @@ public sealed class TotTrackerSummaryTests
 
         var summary = SummaryModel.TotSummaryViewModel.FromProjects(rows);
 
-        Assert.Equal(4, summary.TotalProjects);
+        Assert.Equal(5, summary.TotalProjects);
         Assert.Equal(1, summary.CompletedCount);
+        Assert.Equal(1, summary.NotStartedCount);
         Assert.Equal(2, summary.InProgressCount);
         Assert.Equal(1, summary.InProgressMetCompleteCount);
         Assert.Equal(1, summary.InProgressMetIncompleteCount);
@@ -100,6 +106,10 @@ public sealed class TotTrackerSummaryTests
         Assert.Equal(1, completed.ProjectId);
         Assert.Equal(new DateOnly(2024, 1, 15), completed.ProjectCompletedOn);
         Assert.Null(completed.ProjectCompletedYear);
+
+        var notStarted = Assert.Single(summary.NotStarted);
+        Assert.Equal(4, notStarted.ProjectId);
+        Assert.Equal(new DateOnly(2023, 12, 1), notStarted.ProjectCompletedOn);
 
         var metComplete = Assert.Single(summary.InProgressMetComplete);
         Assert.Equal(2, metComplete.ProjectId);
@@ -111,7 +121,7 @@ public sealed class TotTrackerSummaryTests
         Assert.Equal(new DateOnly(2024, 3, 1), metIncomplete.ProjectCompletedOn);
 
         var notRequired = Assert.Single(summary.NotRequired);
-        Assert.Equal(4, notRequired.ProjectId);
+        Assert.Equal(5, notRequired.ProjectId);
         Assert.Equal(2019, notRequired.ProjectCompletedYear);
 
         Assert.Equal("15 Jan 2024", SummaryModel.TotSummaryViewModel.FormatCompletionLabel(completed));
