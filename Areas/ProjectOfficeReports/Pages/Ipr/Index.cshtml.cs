@@ -69,8 +69,8 @@ public sealed class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public int? Year { get; set; }
 
-    [BindProperty(SupportsGet = true)]
-    public int Page { get; set; } = 1;
+    [BindProperty(Name = "page", SupportsGet = true)]
+    public int PageNumber { get; set; } = 1;
 
     [BindProperty(SupportsGet = true)]
     public int PageSize { get; set; } = 25;
@@ -501,7 +501,7 @@ public sealed class IndexModel : PageModel
 
         if (includePage)
         {
-            values["page"] = Page;
+            values["page"] = PageNumber;
             values["pageSize"] = PageSize;
         }
 
@@ -557,7 +557,7 @@ public sealed class IndexModel : PageModel
         var result = await _readService.SearchAsync(filter, cancellationToken);
         Records = result.Items;
         TotalCount = result.Total;
-        Page = result.Page;
+        PageNumber = result.Page;
         PageSize = result.PageSize;
         TotalPages = PageSize > 0 ? (int)Math.Ceiling(result.Total / (double)PageSize) : 0;
 
@@ -755,9 +755,9 @@ public sealed class IndexModel : PageModel
 
     private void NormalizePaging()
     {
-        if (Page < 1)
+        if (PageNumber < 1)
         {
-            Page = 1;
+            PageNumber = 1;
         }
 
         if (PageSize is not (25 or 50 or 100))
@@ -778,9 +778,9 @@ public sealed class IndexModel : PageModel
             FiledTo = Year.HasValue ? new DateOnly(Year.Value, 12, 31) : null
         };
 
-        filter.Page = Page;
+        filter.Page = PageNumber;
         filter.PageSize = PageSize;
-        Page = filter.Page;
+        PageNumber = filter.Page;
         PageSize = filter.PageSize;
 
         return filter;

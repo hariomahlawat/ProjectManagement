@@ -11,9 +11,11 @@ using Microsoft.Net.Http.Headers;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Services.Storage;
+using File = System.IO.File;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr;
 
+[Authorize(Policy = Policies.Ipr.View)]
 public class DownloadModel : PageModel
 {
     private readonly ApplicationDbContext _db;
@@ -25,7 +27,6 @@ public class DownloadModel : PageModel
         _uploadRootProvider = uploadRootProvider ?? throw new ArgumentNullException(nameof(uploadRootProvider));
     }
 
-    [Authorize(Policy = Policies.Ipr.View)]
     public async Task<IActionResult> OnGetAsync(int iprRecordId, int attachmentId, CancellationToken cancellationToken)
     {
         if (iprRecordId <= 0 || attachmentId <= 0)
