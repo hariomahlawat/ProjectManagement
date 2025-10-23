@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
@@ -35,6 +36,14 @@ public sealed class SummaryModel : PageModel
 
     public string Lede { get; private set; } = string.Empty;
 
+    [BindProperty(SupportsGet = true)]
+    public bool Expand { get; set; }
+
+    [BindProperty(SupportsGet = true)]
+    public string? Open { get; set; }
+
+    public HashSet<int> OpenYears { get; private set; } = new();
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         Summary = await _summaryService.GetSummaryAsync(cancellationToken);
@@ -47,6 +56,8 @@ public sealed class SummaryModel : PageModel
         GrandAbw = totals.GrandAbw;
         GrandSdd = totals.GrandSdd;
         Lede = BuildLede(totals);
+
+        InitOpenYears();
     }
 
     private static SummaryTotals CalculateTotals(ProliferationSummaryViewModel summary)
@@ -184,6 +195,70 @@ public sealed class SummaryModel : PageModel
     {
         var label = value == 1 ? singular : plural;
         return $"{value.ToString("N0", CultureInfo.InvariantCulture)} {label}";
+    }
+
+    private void InitOpenYears()
+    {
+        var yearSet = new HashSet<int>();
+
+        IEnumerable<int> availableYears;
+
+        if (Summary.ByYear.Count > 0)
+        {
+            availableYears = Summary.ByYear.Select(row => row.Year);
+        }
+        else if (Summary.ByProjectYear.Count > 0)
+        {
+            availableYears = Summary.ByProjectYear.Select(row => row.Year);
+        }
+        else
+        {
+            OpenYears = yearSet;
+            return;
+        }
+
+        var orderedYears = availableYears
+            .Distinct()
+            .OrderByDescending(year => year)
+            .ToArray();
+
+        if (orderedYears.Length == 0)
+        {
+            OpenYears = yearSet;
+            return;
+        }
+
+        if (Expand)
+        {
+            foreach (var year in orderedYears)
+            {
+                yearSet.Add(year);
+            }
+
+            OpenYears = yearSet;
+            return;
+        }
+
+        if (Open is not null)
+        {
+            var validYears = new HashSet<int>(orderedYears);
+            var requestedYears = Open.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            foreach (var requested in requestedYears)
+            {
+                if (int.TryParse(requested, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+                    && validYears.Contains(parsed))
+                {
+                    yearSet.Add(parsed);
+                }
+            }
+
+            OpenYears = yearSet;
+            return;
+        }
+
+        yearSet.Add(orderedYears[0]);
+        OpenYears = yearSet;
     }
 
     private readonly record struct SummaryTotals(
