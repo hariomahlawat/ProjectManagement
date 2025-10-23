@@ -120,8 +120,6 @@ public sealed class ProjectTotService
         totRequest.ProposedMetCompletedOn = normalizedRequest.MetCompletedOn;
         totRequest.ProposedFirstProductionModelManufactured = normalizedRequest.FirstProductionModelManufactured;
         totRequest.ProposedFirstProductionModelManufacturedOn = normalizedRequest.FirstProductionModelManufacturedOn;
-        // Clear the navigation before updating the foreign key to avoid EF resetting the FK to null.
-        totRequest.SubmittedByUser = null!;
         totRequest.SubmittedByUserId = submittedByUserId;
         totRequest.SubmittedOnUtc = _clock.UtcNow.UtcDateTime;
         totRequest.DecisionState = ProjectTotRequestDecisionState.Pending;
