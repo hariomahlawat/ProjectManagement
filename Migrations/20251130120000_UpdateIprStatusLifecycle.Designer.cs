@@ -23,7 +23,7 @@ namespace ProjectManagement.Migrations
 
         private sealed class Snapshot : ApplicationDbContextModelSnapshot
         {
-            public void BuildModel(ModelBuilder modelBuilder) => base.BuildModel(modelBuilder);
+            protected override void BuildModel(ModelBuilder modelBuilder) => base.BuildModel(modelBuilder);
         }
     }
 }

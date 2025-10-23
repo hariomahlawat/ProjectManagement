@@ -15,7 +15,7 @@ namespace ProjectManagement.Migrations
     [Migration("20251201120000_AddFiledByAndGrantedAtToIprRecords")]
     partial class AddFiledByAndGrantedAtToIprRecords
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
