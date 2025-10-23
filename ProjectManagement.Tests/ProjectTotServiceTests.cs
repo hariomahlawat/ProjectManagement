@@ -124,6 +124,92 @@ public sealed class ProjectTotServiceTests
     }
 
     [Fact]
+    public async Task SubmitRequestAsync_PersistsSubmittedByUserId_WithSqlite()
+    {
+        await using var connection = new SqliteConnection("DataSource=:memory:");
+        await connection.OpenAsync();
+
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseSqlite(connection)
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+        await db.Database.EnsureCreatedAsync();
+
+        var previousSubmitter = new ApplicationUser
+        {
+            Id = "old-user",
+            UserName = "old-user",
+            NormalizedUserName = "OLD-USER"
+        };
+        var newSubmitter = new ApplicationUser
+        {
+            Id = "new-user",
+            UserName = "new-user",
+            NormalizedUserName = "NEW-USER"
+        };
+
+        db.Users.Add(previousSubmitter);
+        db.Users.Add(newSubmitter);
+
+        var project = new Project
+        {
+            Id = 50,
+            Name = "Sigma",
+            CreatedAt = new DateTime(2024, 1, 1),
+            CreatedByUserId = "creator",
+            LifecycleStatus = ProjectLifecycleStatus.Completed
+        };
+
+        var tot = new ProjectTot
+        {
+            ProjectId = 50,
+            Status = ProjectTotStatus.NotStarted
+        };
+
+        var existingRequest = new ProjectTotRequest
+        {
+            ProjectId = 50,
+            ProposedStatus = ProjectTotStatus.NotStarted,
+            SubmittedByUserId = previousSubmitter.Id,
+            SubmittedByUser = previousSubmitter,
+            SubmittedOnUtc = new DateTime(2024, 1, 2),
+            DecisionState = ProjectTotRequestDecisionState.Rejected,
+            RowVersion = Guid.NewGuid().ToByteArray()
+        };
+
+        project.Tot = tot;
+        project.TotRequest = existingRequest;
+
+        db.Projects.Add(project);
+        db.ProjectTots.Add(tot);
+        db.ProjectTotRequests.Add(existingRequest);
+
+        await db.SaveChangesAsync();
+
+        var clock = new FixedClock(new DateTimeOffset(2024, 10, 8, 6, 0, 0, TimeSpan.Zero));
+        var service = new ProjectTotService(db, clock);
+
+        var submitResult = await service.SubmitRequestAsync(
+            50,
+            CreateRequest(
+                ProjectTotStatus.InProgress,
+                startedOn: new DateOnly(2024, 2, 1)),
+            newSubmitter.Id);
+
+        Assert.True(submitResult.IsSuccess);
+
+        db.ChangeTracker.Clear();
+
+        var persisted = await db.ProjectTotRequests
+            .AsNoTracking()
+            .SingleAsync(r => r.ProjectId == 50);
+
+        Assert.Equal(newSubmitter.Id, persisted.SubmittedByUserId);
+        Assert.Equal(ProjectTotRequestDecisionState.Pending, persisted.DecisionState);
+    }
+
+    [Fact]
     public async Task UpdateAsync_InProgressWithoutStart_ReturnsValidationError()
     {
         await using var db = CreateContext();
