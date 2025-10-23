@@ -95,6 +95,64 @@ public sealed class IprReadServiceTests
     }
 
     [Fact]
+    public async Task GetKpisAsync_RespectsStatusFilter()
+    {
+        await using var db = CreateDbContext();
+
+        var records = new List<IprRecord>
+        {
+            new()
+            {
+                IprFilingNumber = "IPR-101",
+                Title = "Orion",
+                Type = IprType.Patent,
+                Status = IprStatus.Draft
+            },
+            new()
+            {
+                IprFilingNumber = "IPR-102",
+                Title = "Pegasus",
+                Type = IprType.Patent,
+                Status = IprStatus.Filed
+            },
+            new()
+            {
+                IprFilingNumber = "IPR-103",
+                Title = "Phoenix",
+                Type = IprType.Trademark,
+                Status = IprStatus.Granted
+            },
+            new()
+            {
+                IprFilingNumber = "IPR-104",
+                Title = "Quasar",
+                Type = IprType.Trademark,
+                Status = IprStatus.Filed
+            }
+        };
+
+        db.IprRecords.AddRange(records);
+        await db.SaveChangesAsync();
+
+        var service = new IprReadService(db);
+
+        var filter = new IprFilter
+        {
+            Statuses = new[] { IprStatus.Filed, IprStatus.Granted }
+        };
+
+        var search = await service.SearchAsync(filter);
+        var kpis = await service.GetKpisAsync(filter);
+
+        Assert.Equal(search.Total, kpis.Total);
+        Assert.Equal(search.Items.Count(x => x.Status == IprStatus.Filed), kpis.Filed);
+        Assert.Equal(search.Items.Count(x => x.Status == IprStatus.Granted), kpis.Granted);
+        Assert.Equal(0, kpis.Draft);
+        Assert.Equal(0, kpis.Rejected);
+        Assert.Equal(0, kpis.Expired);
+    }
+
+    [Fact]
     public async Task GetExportAsync_ReturnsFilteredOrderedRows()
     {
         await using var db = CreateDbContext();
