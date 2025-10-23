@@ -459,10 +459,10 @@
                                 <li class="page-item @(Model.PageNumber == 1 ? "disabled" : string.Empty)">
                                     <a class="page-link" asp-page="./Index" asp-all-route-data="@baseRoutes" asp-route-page="@(Model.PageNumber - 1)">Previous</a>
                                 </li>
-                                @for (var page = startPage; page <= endPage; page++)
+                                @for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++)
                                 {
-                                    <li class="page-item @(page == Model.PageNumber ? "active" : string.Empty)">
-                                        <a class="page-link" asp-page="./Index" asp-all-route-data="@baseRoutes" asp-route-page="@(page)">@page</a>
+                                    <li class="page-item @(pageNumber == Model.PageNumber ? "active" : string.Empty)">
+                                        <a class="page-link" asp-page="./Index" asp-all-route-data="@baseRoutes" asp-route-page="@(pageNumber)">@pageNumber</a>
                                     </li>
                                 }
                                 <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : string.Empty)">
