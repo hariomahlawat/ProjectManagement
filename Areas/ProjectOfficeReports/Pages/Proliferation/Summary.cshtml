@@ -38,130 +38,132 @@
         </dl>
     </section>
 
-    <section class="prol-card">
-        <h2 class="h5 prol-heading">Projects ranked by proliferations</h2>
-        @{
-            var projectsByTotals = Model.Summary.ByProject
-                .OrderByDescending(row => row.Totals.Total)
-                .ThenBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-        }
-        <ol class="prol-ol">
-            @foreach (var project in projectsByTotals)
-            {
-                <li class="prol-row">
-                    <div class="prol-name">
-                        <span class="prol-heading">
-                            <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId">
-                                @project.ProjectName
-                            </a>
-                            @if (!string.IsNullOrWhiteSpace(project.ProjectCode))
-                            {
-                                <span class="prol-code">(@project.ProjectCode)</span>
-                            }
-                        </span>
-                        <span class="prol-meta">515 ABW: @project.Totals.Abw515.ToString("N0") · SDD: @project.Totals.Sdd.ToString("N0")</span>
-                    </div>
-                    <span class="prol-badge">@project.Totals.Total.ToString("N0")</span>
-                </li>
-            }
-            @if (projectsByTotals.Count == 0)
-            {
-                <li class="prol-meta">None</li>
-            }
-        </ol>
-    </section>
-
-    @{
-        var yearSummaries = Model.Summary.ByYear
-            .ToDictionary(row => row.Year, row => row);
-        var projectGroups = Model.Summary.ByProjectYear
-            .GroupBy(row => row.Year)
-            .ToDictionary(
-                group => group.Key,
-                group => group
+    <div class="prol-grid">
+        <section class="prol-card">
+            <h2 class="h5 prol-heading">Projects ranked by proliferations</h2>
+            @{
+                var projectsByTotals = Model.Summary.ByProject
                     .OrderByDescending(row => row.Totals.Total)
                     .ThenBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase)
-                    .ToList());
-        var allYears = yearSummaries.Keys
-            .Concat(projectGroups.Keys)
-            .Distinct()
-            .OrderByDescending(year => year)
-            .ToList();
-    }
-
-    <section class="prol-card">
-        <div class="prol-yr__header">
-            <h2 class="h5 prol-heading">Project breakdown by year</h2>
-            @if (allYears.Count > 0)
-            {
-                <div class="prol-yr__actions">
-                    <a asp-route-expand="true">Expand all</a>
-                    <span aria-hidden="true" class="prol-yr__divider">/</span>
-                    <a asp-route-expand="false" asp-route-open="">Collapse all</a>
-                </div>
+                    .ToList();
             }
-        </div>
-
-        <ul class="prol-yr__list list-unstyled mb-0">
-            @foreach (var year in allYears)
-            {
-                var hasSummary = yearSummaries.TryGetValue(year, out var yearRow);
-                var projects = projectGroups.TryGetValue(year, out var breakdown)
-                    ? breakdown
-                    : new List<ProliferationSummaryProjectYearRow>();
-                var yearTotal = hasSummary
-                    ? yearRow!.Totals.Total
-                    : projects.Sum(row => row.Totals.Total);
-                var yearAbw = hasSummary
-                    ? yearRow!.Totals.Abw515
-                    : projects.Sum(row => row.Totals.Abw515);
-                var yearSdd = hasSummary
-                    ? yearRow!.Totals.Sdd
-                    : projects.Sum(row => row.Totals.Sdd);
-                var isOpen = Model.OpenYears.Contains(year);
-
-                <li>
-                    <details class="prol-yr" @if (isOpen) { <text>open</text>; }>
-                        <summary class="prol-yr__summary">
-                            <span class="prol-yr__title">@year</span>
-                            <span class="prol-yr__totals">
-                                <span class="prol-yr__total">@yearTotal.ToString("N0") total</span>
-                                <span class="prol-yr__meta">515 ABW: @yearAbw.ToString("N0") · SDD: @yearSdd.ToString("N0")</span>
+            <ol class="prol-ol">
+                @foreach (var project in projectsByTotals)
+                {
+                    <li class="prol-row">
+                        <div class="prol-name">
+                            <span class="prol-heading">
+                                <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId">
+                                    @project.ProjectName
+                                </a>
+                                @if (!string.IsNullOrWhiteSpace(project.ProjectCode))
+                                {
+                                    <span class="prol-code">(@project.ProjectCode)</span>
+                                }
                             </span>
-                        </summary>
+                            <span class="prol-meta">515 ABW: @project.Totals.Abw515.ToString("N0") · SDD: @project.Totals.Sdd.ToString("N0")</span>
+                        </div>
+                        <span class="prol-badge">@project.Totals.Total.ToString("N0")</span>
+                    </li>
+                }
+                @if (projectsByTotals.Count == 0)
+                {
+                    <li class="prol-meta">None</li>
+                }
+            </ol>
+        </section>
 
-                        <ol class="prol-ol prol-yr__list">
-                            @foreach (var project in projects)
-                            {
-                                <li class="prol-row">
-                                    <div class="prol-name">
-                                        <span class="prol-heading">
-                                            <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId">
-                                                @project.ProjectName
-                                            </a>
-                                            @if (!string.IsNullOrWhiteSpace(project.ProjectCode))
-                                            {
-                                                <span class="prol-code">(@project.ProjectCode)</span>
-                                            }
-                                        </span>
-                                        <span class="prol-meta">515 ABW: @project.Totals.Abw515.ToString("N0") · SDD: @project.Totals.Sdd.ToString("N0")</span>
-                                    </div>
-                                    <span class="prol-badge">@project.Totals.Total.ToString("N0")</span>
-                                </li>
-                            }
-                            @if (projects.Count == 0)
-                            {
-                                <li class="prol-meta">None</li>
-                            }
-                        </ol>
-                    </details>
-                </li>
-            }
-            @if (allYears.Count == 0)
-            {
-                <li class="prol-meta">None</li>
-            }
-        </ul>
-    </section>
+        @{
+            var yearSummaries = Model.Summary.ByYear
+                .ToDictionary(row => row.Year, row => row);
+            var projectGroups = Model.Summary.ByProjectYear
+                .GroupBy(row => row.Year)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .OrderByDescending(row => row.Totals.Total)
+                        .ThenBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase)
+                        .ToList());
+            var allYears = yearSummaries.Keys
+                .Concat(projectGroups.Keys)
+                .Distinct()
+                .OrderByDescending(year => year)
+                .ToList();
+        }
+
+        <section class="prol-card">
+            <div class="prol-yr__header">
+                <h2 class="h5 prol-heading">Project breakdown by year</h2>
+                @if (allYears.Count > 0)
+                {
+                    <div class="prol-yr__actions">
+                        <a asp-route-expand="true">Expand all</a>
+                        <span aria-hidden="true" class="prol-yr__divider">/</span>
+                        <a asp-route-expand="false" asp-route-open="">Collapse all</a>
+                    </div>
+                }
+            </div>
+
+            <ul class="prol-yr__list list-unstyled mb-0">
+                @foreach (var year in allYears)
+                {
+                    var hasSummary = yearSummaries.TryGetValue(year, out var yearRow);
+                    var projects = projectGroups.TryGetValue(year, out var breakdown)
+                        ? breakdown
+                        : new List<ProliferationSummaryProjectYearRow>();
+                    var yearTotal = hasSummary
+                        ? yearRow!.Totals.Total
+                        : projects.Sum(row => row.Totals.Total);
+                    var yearAbw = hasSummary
+                        ? yearRow!.Totals.Abw515
+                        : projects.Sum(row => row.Totals.Abw515);
+                    var yearSdd = hasSummary
+                        ? yearRow!.Totals.Sdd
+                        : projects.Sum(row => row.Totals.Sdd);
+                    var isOpen = Model.OpenYears.Contains(year);
+
+                    <li>
+                        <details class="prol-yr" @if (isOpen) { <text>open</text>; }>
+                            <summary class="prol-yr__summary">
+                                <span class="prol-yr__title">@year</span>
+                                <span class="prol-yr__totals">
+                                    <span class="prol-yr__total">@yearTotal.ToString("N0") total</span>
+                                    <span class="prol-yr__meta">515 ABW: @yearAbw.ToString("N0") · SDD: @yearSdd.ToString("N0")</span>
+                                </span>
+                            </summary>
+
+                            <ol class="prol-ol prol-yr__list">
+                                @foreach (var project in projects)
+                                {
+                                    <li class="prol-row">
+                                        <div class="prol-name">
+                                            <span class="prol-heading">
+                                                <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId">
+                                                    @project.ProjectName
+                                                </a>
+                                                @if (!string.IsNullOrWhiteSpace(project.ProjectCode))
+                                                {
+                                                    <span class="prol-code">(@project.ProjectCode)</span>
+                                                }
+                                            </span>
+                                            <span class="prol-meta">515 ABW: @project.Totals.Abw515.ToString("N0") · SDD: @project.Totals.Sdd.ToString("N0")</span>
+                                        </div>
+                                        <span class="prol-badge">@project.Totals.Total.ToString("N0")</span>
+                                    </li>
+                                }
+                                @if (projects.Count == 0)
+                                {
+                                    <li class="prol-meta">None</li>
+                                }
+                            </ol>
+                        </details>
+                    </li>
+                }
+                @if (allYears.Count == 0)
+                {
+                    <li class="prol-meta">None</li>
+                }
+            </ul>
+        </section>
+    </div>
 </div>
