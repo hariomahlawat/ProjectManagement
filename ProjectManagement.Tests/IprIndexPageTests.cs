@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Security.Claims;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -88,7 +89,7 @@ public sealed class IprIndexPageTests
             Input = new IndexModel.RecordInput
             {
                 FilingNumber = "IPR-600",
-                Type = IprType.Trademark,
+                Type = IprType.Copyright,
                 Status = IprStatus.Filed,
                 FiledBy = "  Analyst  ",
                 FiledOn = new DateOnly(2024, 2, 1),
@@ -107,11 +108,35 @@ public sealed class IprIndexPageTests
 
         var created = Assert.IsType<IprRecord>(writeService.CreatedRecord);
         Assert.Equal("IPR-600", created.IprFilingNumber);
-        Assert.Equal(IprType.Trademark, created.Type);
+        Assert.Equal(IprType.Copyright, created.Type);
         Assert.Equal(IprStatus.Filed, created.Status);
         Assert.Equal(new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero), created.FiledAtUtc);
         Assert.Equal("Analyst", created.FiledBy);
         Assert.Equal(new DateTimeOffset(2024, 3, 1, 0, 0, 0, TimeSpan.Zero), created.GrantedAtUtc);
+    }
+
+    [Fact]
+    public async Task OnGetAsync_PopulatesPatentAndCopyrightTypeOptions()
+    {
+        await using var db = CreateDbContext();
+        var readService = new StubIprReadService();
+        var writeService = new StubIprWriteService();
+        var authorizationService = new AllowAuthorizationService();
+        using var userManager = CreateUserManager(db);
+
+        var page = new IndexModel(db, readService, writeService, authorizationService, userManager);
+        ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.AllowedRoles[0]));
+
+        var result = await page.OnGetAsync(CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+
+        var expectedValues = new[] { IprType.Patent.ToString(), IprType.Copyright.ToString() };
+        var optionValues = page.TypeOptions.Select(o => o.Value).ToArray();
+        Assert.Equal(expectedValues, optionValues);
+
+        var formOptionValues = page.TypeFormOptions.Skip(1).Select(o => o.Value).ToArray();
+        Assert.Equal(expectedValues, formOptionValues);
     }
 
     private static ApplicationDbContext CreateDbContext()

@@ -79,7 +79,7 @@ public sealed class IprWriteServiceTests
             db.IprRecords.Add(new IprRecord
             {
                 IprFilingNumber = "IPR-100",
-                Type = IprType.Trademark,
+                Type = IprType.Copyright,
                 Status = IprStatus.FilingUnderProcess
             });
             await db.SaveChangesAsync();
@@ -87,7 +87,7 @@ public sealed class IprWriteServiceTests
             var duplicate = new IprRecord
             {
                 IprFilingNumber = " IPR-100 ",
-                Type = IprType.Trademark,
+                Type = IprType.Copyright,
                 Status = IprStatus.FilingUnderProcess
             };
 

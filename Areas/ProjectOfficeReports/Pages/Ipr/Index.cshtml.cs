@@ -636,7 +636,9 @@ public sealed class IndexModel : PageModel
 
     private async Task PopulateSelectListsAsync(CancellationToken cancellationToken)
     {
-        TypeOptions = Enum.GetValues<IprType>()
+        var supportedTypes = new[] { IprType.Patent, IprType.Copyright };
+
+        TypeOptions = supportedTypes
             .Select(type => new SelectListItem(GetTypeLabel(type), type.ToString())
             {
                 Selected = Types.Contains(type)
@@ -651,7 +653,7 @@ public sealed class IndexModel : PageModel
             }
         };
 
-        foreach (var type in Enum.GetValues<IprType>())
+        foreach (var type in supportedTypes)
         {
             typeFormOptions.Add(new SelectListItem(GetTypeLabel(type), type.ToString())
             {
@@ -956,9 +958,6 @@ public sealed class IndexModel : PageModel
         {
             IprType.Patent => "Patent",
             IprType.Copyright => "Copyright",
-            IprType.Trademark => "Trademark",
-            IprType.Design => "Design",
-            IprType.TradeSecret => "Trade secret",
             _ => type.ToString()
         };
 
