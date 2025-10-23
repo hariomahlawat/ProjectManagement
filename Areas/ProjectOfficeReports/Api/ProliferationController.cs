@@ -543,9 +543,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
 
             if (fromDateOnly.HasValue && toDateOnly.HasValue)
             {
-                var startYear = fromDateOnly.Value.Year;
-                var endYear = toDateOnly.Value.Year;
-                yearlyCombosQuery = yearlyCombosQuery.Where(y => y.Year >= startYear && y.Year <= endYear);
+                var rangeStartYear = fromDateOnly.Value.Year;
+                var rangeEndYear = toDateOnly.Value.Year;
+                yearlyCombosQuery = yearlyCombosQuery.Where(y => y.Year >= rangeStartYear && y.Year <= rangeEndYear);
                 granularCombosQuery = granularCombosQuery.Where(g =>
                     g.ProliferationDate >= fromDateOnly.Value &&
                     g.ProliferationDate <= toDateOnly.Value);
@@ -614,11 +614,11 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
             var fromCutoff = DateOnly.FromDateTime(start);
             var toCutoff = DateOnly.FromDateTime(end);
 
-            var startYear = start.Year;
-            var endYear = end.Year;
-            var yearCount = endYear - startYear + 1;
+            var windowStartYear = start.Year;
+            var windowEndYear = end.Year;
+            var yearCount = windowEndYear - windowStartYear + 1;
             var windowYears = yearCount > 0
-                ? Enumerable.Range(startYear, yearCount).ToArray()
+                ? Enumerable.Range(windowStartYear, yearCount).ToArray()
                 : Array.Empty<int>();
 
             var lastYearCombos = new HashSet<CombinationKey>();
