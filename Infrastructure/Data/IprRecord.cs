@@ -43,7 +43,12 @@ public class IprRecord
     [Required]
     public IprStatus Status { get; set; } = IprStatus.FilingUnderProcess;
 
+    [MaxLength(128)]
+    public string? FiledBy { get; set; }
+
     public DateTimeOffset? FiledAtUtc { get; set; }
+
+    public DateTimeOffset? GrantedAtUtc { get; set; }
 
     public int? ProjectId { get; set; }
 

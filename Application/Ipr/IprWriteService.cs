@@ -44,7 +44,7 @@ public sealed class IprWriteService : IIprWriteService
 
         var normalized = NormalizeRecord(record);
         await EnsureUniqueFilingNumberAsync(normalized.IprFilingNumber, normalized.Type, null, cancellationToken);
-        ValidateStatus(normalized.Status, normalized.FiledAtUtc);
+        ValidateStatus(normalized.Status, normalized.FiledAtUtc, normalized.GrantedAtUtc);
 
         normalized.ClearAttachments();
         normalized.Entity.Id = 0;
@@ -73,7 +73,7 @@ public sealed class IprWriteService : IIprWriteService
 
         var normalized = NormalizeRecord(record);
         await EnsureUniqueFilingNumberAsync(normalized.IprFilingNumber, normalized.Type, record.Id, cancellationToken);
-        ValidateStatus(normalized.Status, normalized.FiledAtUtc);
+        ValidateStatus(normalized.Status, normalized.FiledAtUtc, normalized.GrantedAtUtc);
 
         _db.Entry(existing).Property(x => x.RowVersion).OriginalValue = record.RowVersion;
 
@@ -82,7 +82,9 @@ public sealed class IprWriteService : IIprWriteService
         existing.Notes = normalized.Notes;
         existing.Type = normalized.Type;
         existing.Status = normalized.Status;
+        existing.FiledBy = normalized.FiledBy;
         existing.FiledAtUtc = normalized.FiledAtUtc;
+        existing.GrantedAtUtc = normalized.GrantedAtUtc;
         existing.ProjectId = normalized.ProjectId;
 
         try
@@ -219,7 +221,7 @@ public sealed class IprWriteService : IIprWriteService
         }
     }
 
-    private void ValidateStatus(IprStatus status, DateTimeOffset? filedAtUtc)
+    private void ValidateStatus(IprStatus status, DateTimeOffset? filedAtUtc, DateTimeOffset? grantedAtUtc)
     {
         var now = _clock.UtcNow;
         if (filedAtUtc.HasValue && filedAtUtc.Value > now)
@@ -227,9 +229,29 @@ public sealed class IprWriteService : IIprWriteService
             throw new InvalidOperationException("Filed date cannot be in the future.");
         }
 
+        if (grantedAtUtc.HasValue && grantedAtUtc.Value > now)
+        {
+            throw new InvalidOperationException("Grant date cannot be in the future.");
+        }
+
         if (status != IprStatus.FilingUnderProcess && filedAtUtc is null)
         {
             throw new InvalidOperationException("Filed date is required once the record is not under filing.");
+        }
+
+        if (status == IprStatus.Granted && grantedAtUtc is null)
+        {
+            throw new InvalidOperationException("Grant date is required once the record is granted.");
+        }
+
+        if (grantedAtUtc.HasValue && filedAtUtc is null)
+        {
+            throw new InvalidOperationException("Grant date cannot be provided without a filing date.");
+        }
+
+        if (grantedAtUtc.HasValue && filedAtUtc.HasValue && grantedAtUtc.Value < filedAtUtc.Value)
+        {
+            throw new InvalidOperationException("Grant date cannot be earlier than the filing date.");
         }
     }
 
@@ -259,7 +281,9 @@ public sealed class IprWriteService : IIprWriteService
             Notes = string.IsNullOrWhiteSpace(source.Notes) ? null : source.Notes.Trim(),
             Type = source.Type,
             Status = source.Status,
+            FiledBy = string.IsNullOrWhiteSpace(source.FiledBy) ? null : source.FiledBy.Trim(),
             FiledAtUtc = source.FiledAtUtc?.ToUniversalTime(),
+            GrantedAtUtc = source.GrantedAtUtc?.ToUniversalTime(),
             ProjectId = source.ProjectId > 0 ? source.ProjectId : null,
             RowVersion = source.RowVersion ?? Array.Empty<byte>(),
         };
@@ -291,7 +315,9 @@ public sealed class IprWriteService : IIprWriteService
         public string? Notes => Entity.Notes;
         public IprType Type => Entity.Type;
         public IprStatus Status => Entity.Status;
+        public string? FiledBy => Entity.FiledBy;
         public DateTimeOffset? FiledAtUtc => Entity.FiledAtUtc;
+        public DateTimeOffset? GrantedAtUtc => Entity.GrantedAtUtc;
         public int? ProjectId => Entity.ProjectId;
 
         public void ClearAttachments()

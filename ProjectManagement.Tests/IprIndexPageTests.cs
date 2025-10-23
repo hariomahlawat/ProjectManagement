@@ -90,7 +90,9 @@ public sealed class IprIndexPageTests
                 FilingNumber = "IPR-600",
                 Type = IprType.Trademark,
                 Status = IprStatus.Filed,
-                FiledOn = new DateOnly(2024, 2, 1)
+                FiledBy = "  Analyst  ",
+                FiledOn = new DateOnly(2024, 2, 1),
+                GrantedOn = new DateOnly(2024, 3, 1)
             }
         };
 
@@ -108,6 +110,8 @@ public sealed class IprIndexPageTests
         Assert.Equal(IprType.Trademark, created.Type);
         Assert.Equal(IprStatus.Filed, created.Status);
         Assert.Equal(new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero), created.FiledAtUtc);
+        Assert.Equal("Analyst", created.FiledBy);
+        Assert.Equal(new DateTimeOffset(2024, 3, 1, 0, 0, 0, TimeSpan.Zero), created.GrantedAtUtc);
     }
 
     private static ApplicationDbContext CreateDbContext()

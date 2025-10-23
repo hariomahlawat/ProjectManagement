@@ -93,9 +93,9 @@ public sealed class IprReadService : IIprReadService
                 x.IprFilingNumber,
                 x.Title,
                 x.Status,
-                null,
+                x.FiledBy,
                 x.FiledAtUtc,
-                null,
+                x.GrantedAtUtc,
                 x.Project != null ? x.Project.Name : null,
                 x.Notes))
             .ToListAsync(cancellationToken);
