@@ -1,4 +1,5 @@
 @page
+@using ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.SummaryModel
 
 @section Styles
@@ -21,13 +22,21 @@
 
     <div class="tot-summary__grid">
         <section class="tot-summary__column">
-            <h2 class="tot-summary__column-heading">Completed</h2>
-            @if (summary.Completed.Count > 0)
+            <h2 class="tot-summary__column-heading">Completed (@summary.CompletedCount)</h2>
+            @if (summary.CompletedCount > 0)
             {
                 <ul class="tot-summary__list">
-                    @foreach (var name in summary.Completed)
+                    @foreach (var project in summary.Completed)
                     {
-                        <li class="tot-summary__list-item">@name</li>
+                        @{ var completion = SummaryModel.TotSummaryViewModel.FormatCompletionLabel(project); }
+                        <li class="tot-summary__list-item">
+                            <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId">
+                                @project.ProjectName@if (!string.IsNullOrEmpty(completion))
+                                {
+                                    <text> (@completion)</text>
+                                }
+                            </a>
+                        </li>
                     }
                 </ul>
             }
@@ -38,15 +47,23 @@
         </section>
 
         <section class="tot-summary__column">
-            <h2 class="tot-summary__column-heading">In progress</h2>
+            <h2 class="tot-summary__column-heading">In progress (@summary.InProgressCount)</h2>
             <div class="tot-summary__subsection">
-                <h3 class="tot-summary__subheading">MET complete</h3>
-                @if (summary.InProgressMetComplete.Count > 0)
+                <h3 class="tot-summary__subheading">MET complete (@summary.InProgressMetCompleteCount)</h3>
+                @if (summary.InProgressMetCompleteCount > 0)
                 {
                     <ul class="tot-summary__list">
-                        @foreach (var name in summary.InProgressMetComplete)
+                        @foreach (var project in summary.InProgressMetComplete)
                         {
-                            <li class="tot-summary__list-item">@name</li>
+                            @{ var completion = SummaryModel.TotSummaryViewModel.FormatCompletionLabel(project); }
+                            <li class="tot-summary__list-item">
+                                <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId">
+                                    @project.ProjectName@if (!string.IsNullOrEmpty(completion))
+                                    {
+                                        <text> (@completion)</text>
+                                    }
+                                </a>
+                            </li>
                         }
                     </ul>
                 }
@@ -56,13 +73,21 @@
                 }
             </div>
             <div class="tot-summary__subsection">
-                <h3 class="tot-summary__subheading">MET not complete</h3>
-                @if (summary.InProgressMetIncomplete.Count > 0)
+                <h3 class="tot-summary__subheading">MET not complete (@summary.InProgressMetIncompleteCount)</h3>
+                @if (summary.InProgressMetIncompleteCount > 0)
                 {
                     <ul class="tot-summary__list">
-                        @foreach (var name in summary.InProgressMetIncomplete)
+                        @foreach (var project in summary.InProgressMetIncomplete)
                         {
-                            <li class="tot-summary__list-item">@name</li>
+                            @{ var completion = SummaryModel.TotSummaryViewModel.FormatCompletionLabel(project); }
+                            <li class="tot-summary__list-item">
+                                <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId">
+                                    @project.ProjectName@if (!string.IsNullOrEmpty(completion))
+                                    {
+                                        <text> (@completion)</text>
+                                    }
+                                </a>
+                            </li>
                         }
                     </ul>
                 }
@@ -74,13 +99,21 @@
         </section>
 
         <section class="tot-summary__column">
-            <h2 class="tot-summary__column-heading">Not required</h2>
-            @if (summary.NotRequired.Count > 0)
+            <h2 class="tot-summary__column-heading">Not required (@summary.NotRequiredCount)</h2>
+            @if (summary.NotRequiredCount > 0)
             {
                 <ul class="tot-summary__list">
-                    @foreach (var name in summary.NotRequired)
+                    @foreach (var project in summary.NotRequired)
                     {
-                        <li class="tot-summary__list-item">@name</li>
+                        @{ var completion = SummaryModel.TotSummaryViewModel.FormatCompletionLabel(project); }
+                        <li class="tot-summary__list-item">
+                            <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId">
+                                @project.ProjectName@if (!string.IsNullOrEmpty(completion))
+                                {
+                                    <text> (@completion)</text>
+                                }
+                            </a>
+                        </li>
                     }
                 </ul>
             }
