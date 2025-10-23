@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -77,6 +78,29 @@ public sealed class IprReadService : IIprReadService
         var expired = groups.FirstOrDefault(g => g.Status == IprStatus.Expired)?.Count ?? 0;
 
         return new IprKpis(total, draft, filed, granted, rejected, expired);
+    }
+
+    public async Task<IReadOnlyList<IprExportRowDto>> GetExportAsync(IprFilter filter, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+
+        var query = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
+
+        var items = await query
+            .OrderByDescending(x => x.FiledAtUtc ?? DateTimeOffset.MinValue)
+            .ThenBy(x => x.Id)
+            .Select(x => new IprExportRowDto(
+                x.IprFilingNumber,
+                x.Title,
+                x.Status,
+                null,
+                x.FiledAtUtc,
+                null,
+                x.Project != null ? x.Project.Name : null,
+                x.Notes))
+            .ToListAsync(cancellationToken);
+
+        return items;
     }
 
     private static IQueryable<IprRecord> BuildFilteredQuery(IQueryable<IprRecord> query, IprFilter filter, bool includeStatusFilter = true)
