@@ -261,11 +261,21 @@ public sealed class IndexModel : PageModel
             return Page();
         }
 
-        var currentUserId = _userManager.GetUserId(User);
-        if (string.IsNullOrEmpty(currentUserId))
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? _userManager.GetUserId(User);
+        if (string.IsNullOrWhiteSpace(currentUserId))
         {
+            TempData["ToastError"] = "You are not signed in or your session has expired. Please sign in again.";
+            _logger.LogWarning(
+                "Blocked Transfer of Technology submit for project {ProjectId} because the user is not authenticated.",
+                SubmitInput.ProjectId);
             return Challenge();
         }
+
+        _logger.LogInformation(
+            "Transfer of Technology submit requested for project {ProjectId} by user {UserId}.",
+            SubmitInput.ProjectId,
+            currentUserId);
 
         var request = new ProjectTotUpdateRequest(
             SubmitInput.Status,
@@ -374,9 +384,12 @@ public sealed class IndexModel : PageModel
             return Page();
         }
 
-        var userId = _userManager.GetUserId(User);
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? _userManager.GetUserId(User);
         if (string.IsNullOrWhiteSpace(userId))
         {
+            TempData["ToastError"] = "You are not signed in or your session has expired. Please sign in again.";
+            _logger.LogWarning("Blocked Transfer of Technology export because the user is not authenticated.");
             return Challenge();
         }
 
@@ -439,9 +452,14 @@ public sealed class IndexModel : PageModel
             return Page();
         }
 
-        var currentUserId = _userManager.GetUserId(User);
-        if (string.IsNullOrEmpty(currentUserId))
+        var currentUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? _userManager.GetUserId(User);
+        if (string.IsNullOrWhiteSpace(currentUserId))
         {
+            TempData["ToastError"] = "You are not signed in or your session has expired. Please sign in again.";
+            _logger.LogWarning(
+                "Blocked Transfer of Technology decision for project {ProjectId} because the user is not authenticated.",
+                DecideInput.ProjectId);
             return Challenge();
         }
 

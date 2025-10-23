@@ -67,7 +67,7 @@ public sealed class ProjectTotService
     {
         if (string.IsNullOrWhiteSpace(submittedByUserId))
         {
-            throw new ArgumentException("A valid user is required to submit a Transfer of Technology update.", nameof(submittedByUserId));
+            return ProjectTotRequestActionResult.ValidationFailed("Unable to identify the submitting user. Please sign in again.");
         }
 
         if (request is null)
