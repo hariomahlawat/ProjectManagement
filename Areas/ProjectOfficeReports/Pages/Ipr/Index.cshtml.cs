@@ -856,8 +856,12 @@ public sealed class IndexModel : PageModel
                 Notes = record.Notes,
                 Type = record.Type,
                 Status = record.Status,
+                FiledBy = record.FiledBy,
                 FiledOn = record.FiledAtUtc.HasValue
                     ? DateOnly.FromDateTime(record.FiledAtUtc.Value.UtcDateTime)
+                    : null,
+                GrantedOn = record.GrantedAtUtc.HasValue
+                    ? DateOnly.FromDateTime(record.GrantedAtUtc.Value.UtcDateTime)
                     : null,
                 ProjectId = record.ProjectId,
                 RowVersion = rowVersion
@@ -936,8 +940,12 @@ public sealed class IndexModel : PageModel
             Notes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim(),
             Type = input.Type ?? IprType.Patent,
             Status = input.Status ?? IprStatus.FilingUnderProcess,
+            FiledBy = string.IsNullOrWhiteSpace(input.FiledBy) ? null : input.FiledBy.Trim(),
             FiledAtUtc = input.FiledOn.HasValue
                 ? new DateTimeOffset(input.FiledOn.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))
+                : null,
+            GrantedAtUtc = input.GrantedOn.HasValue
+                ? new DateTimeOffset(input.GrantedOn.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))
                 : null,
             ProjectId = input.ProjectId
         };
@@ -997,9 +1005,17 @@ public sealed class IndexModel : PageModel
         [Required]
         public IprStatus? Status { get; set; }
 
+        [Display(Name = "Filed by")]
+        [StringLength(128)]
+        public string? FiledBy { get; set; }
+
         [Display(Name = "Filed on")]
         [DataType(DataType.Date)]
         public DateOnly? FiledOn { get; set; }
+
+        [Display(Name = "Granted on")]
+        [DataType(DataType.Date)]
+        public DateOnly? GrantedOn { get; set; }
 
         [Display(Name = "Project")]
         public int? ProjectId { get; set; }

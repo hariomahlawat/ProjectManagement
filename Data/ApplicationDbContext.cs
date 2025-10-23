@@ -414,6 +414,7 @@ namespace ProjectManagement.Data
                 entity.Property(x => x.IprFilingNumber).HasMaxLength(128).IsRequired();
                 entity.Property(x => x.Title).HasMaxLength(256);
                 entity.Property(x => x.Notes).HasMaxLength(2000);
+                entity.Property(x => x.FiledBy).HasMaxLength(128);
                 entity.Property(x => x.Type)
                     .HasConversion<string>()
                     .HasMaxLength(32)
