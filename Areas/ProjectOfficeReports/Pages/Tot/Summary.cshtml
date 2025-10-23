@@ -28,7 +28,7 @@
     </header>
 
     <div class="tot-summary__grid">
-        <section class="tot-summary__column">
+        <section class="tot-summary__column tot-summary__column--completed">
             <h2 class="tot-summary__column-heading">ToT Completed (@summary.CompletedCount)</h2>
             @if (summary.CompletedCount > 0)
             {
@@ -54,7 +54,7 @@
             }
         </section>
 
-        <section class="tot-summary__column">
+        <section class="tot-summary__column tot-summary__column--not-started">
             <h2 class="tot-summary__column-heading">Not started (@summary.NotStartedCount)</h2>
             @if (summary.NotStartedCount > 0)
             {
@@ -80,7 +80,7 @@
             }
         </section>
 
-        <section class="tot-summary__column">
+        <section class="tot-summary__column tot-summary__column--in-progress">
             <h2 class="tot-summary__column-heading">In progress (@summary.InProgressCount)</h2>
             <div class="tot-summary__subsection">
                 <h3 class="tot-summary__subheading">MET complete (@summary.InProgressMetCompleteCount)</h3>
@@ -134,7 +134,7 @@
             </div>
         </section>
 
-        <section class="tot-summary__column">
+        <section class="tot-summary__column tot-summary__column--not-required">
             <h2 class="tot-summary__column-heading">Not required (@summary.NotRequiredCount)</h2>
             @if (summary.NotRequiredCount > 0)
             {

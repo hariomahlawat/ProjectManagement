@@ -95,13 +95,15 @@
 }
 
 .tot-summary__column {
+    --tot-summary-accent: var(--tot-primary);
     display: flex;
     flex-direction: column;
     gap: 1rem;
     padding: clamp(1rem, 3vw, 1.25rem);
-    background: var(--tot-surface);
+    background: color-mix(in srgb, var(--tot-summary-accent) 8%, var(--tot-surface));
     border: 1px solid var(--tot-border);
     border-color: color-mix(in srgb, var(--tot-border) 75%, transparent);
+    border-top: 0.35rem solid color-mix(in srgb, var(--tot-summary-accent) 65%, transparent);
     border-radius: var(--tot-radius);
     box-shadow: none;
 }
@@ -109,6 +111,23 @@
 .tot-summary__column-heading {
     margin: 0;
     font-size: 1.2rem;
+    color: color-mix(in srgb, var(--tot-summary-accent) 70%, var(--tot-text));
+}
+
+.tot-summary__column--completed {
+    --tot-summary-accent: var(--tot-success);
+}
+
+.tot-summary__column--not-started {
+    --tot-summary-accent: var(--tot-danger);
+}
+
+.tot-summary__column--in-progress {
+    --tot-summary-accent: var(--tot-warning);
+}
+
+.tot-summary__column--not-required {
+    --tot-summary-accent: var(--tot-primary);
 }
 
 .tot-summary__subsection {
