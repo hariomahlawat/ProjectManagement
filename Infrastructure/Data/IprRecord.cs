@@ -16,11 +16,11 @@ public enum IprType
 
 public enum IprStatus
 {
-    Draft = 1,
+    FilingUnderProcess = 1,
     Filed = 2,
     Granted = 3,
     Rejected = 4,
-    Expired = 5
+    Withdrawn = 5
 }
 
 public class IprRecord
@@ -41,7 +41,7 @@ public class IprRecord
     public IprType Type { get; set; } = IprType.Patent;
 
     [Required]
-    public IprStatus Status { get; set; } = IprStatus.Draft;
+    public IprStatus Status { get; set; } = IprStatus.FilingUnderProcess;
 
     public DateTimeOffset? FiledAtUtc { get; set; }
 

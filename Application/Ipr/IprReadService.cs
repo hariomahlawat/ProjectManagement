@@ -71,13 +71,13 @@ public sealed class IprReadService : IIprReadService
             .ToListAsync(cancellationToken);
 
         var total = groups.Sum(g => g.Count);
-        var draft = groups.FirstOrDefault(g => g.Status == IprStatus.Draft)?.Count ?? 0;
+        var filingUnderProcess = groups.FirstOrDefault(g => g.Status == IprStatus.FilingUnderProcess)?.Count ?? 0;
         var filed = groups.FirstOrDefault(g => g.Status == IprStatus.Filed)?.Count ?? 0;
         var granted = groups.FirstOrDefault(g => g.Status == IprStatus.Granted)?.Count ?? 0;
         var rejected = groups.FirstOrDefault(g => g.Status == IprStatus.Rejected)?.Count ?? 0;
-        var expired = groups.FirstOrDefault(g => g.Status == IprStatus.Expired)?.Count ?? 0;
+        var withdrawn = groups.FirstOrDefault(g => g.Status == IprStatus.Withdrawn)?.Count ?? 0;
 
-        return new IprKpis(total, draft, filed, granted, rejected, expired);
+        return new IprKpis(total, filingUnderProcess, filed, granted, rejected, withdrawn);
     }
 
     public async Task<IReadOnlyList<IprExportRowDto>> GetExportAsync(IprFilter filter, CancellationToken cancellationToken = default)
