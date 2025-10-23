@@ -64,7 +64,7 @@ public sealed class IprReadService : IIprReadService
     {
         ArgumentNullException.ThrowIfNull(filter);
 
-        var baseQuery = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter, includeStatusFilter: false);
+        var baseQuery = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
         var groups = await baseQuery
             .GroupBy(x => x.Status)
             .Select(g => new { Status = g.Key, Count = g.Count() })
