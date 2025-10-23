@@ -8,10 +8,7 @@ namespace ProjectManagement.Infrastructure.Data;
 public enum IprType
 {
     Patent = 1,
-    Copyright = 2,
-    Trademark = 3,
-    Design = 4,
-    TradeSecret = 5
+    Copyright = 2
 }
 
 public enum IprStatus

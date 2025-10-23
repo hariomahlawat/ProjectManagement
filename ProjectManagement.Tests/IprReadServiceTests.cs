@@ -58,7 +58,7 @@ public sealed class IprReadServiceTests
             {
                 IprFilingNumber = "IPR-004",
                 Title = "Delta",
-                Type = IprType.Trademark,
+                Type = IprType.Copyright,
                 Status = IprStatus.Filed,
                 FiledAtUtc = new DateTimeOffset(2024, 2, 5, 0, 0, 0, TimeSpan.Zero),
                 ProjectId = project.Id
@@ -119,14 +119,14 @@ public sealed class IprReadServiceTests
             {
                 IprFilingNumber = "IPR-103",
                 Title = "Phoenix",
-                Type = IprType.Trademark,
+                Type = IprType.Copyright,
                 Status = IprStatus.Granted
             },
             new()
             {
                 IprFilingNumber = "IPR-104",
                 Title = "Quasar",
-                Type = IprType.Trademark,
+                Type = IprType.Copyright,
                 Status = IprStatus.Filed
             }
         };
@@ -169,7 +169,7 @@ public sealed class IprReadServiceTests
         {
             IprFilingNumber = "IPR-010",
             Title = "Gamma",
-            Type = IprType.Trademark,
+            Type = IprType.Copyright,
             Status = IprStatus.Granted,
             FiledAtUtc = new DateTimeOffset(2023, 12, 20, 0, 0, 0, TimeSpan.Zero),
             Notes = "Ready for publication",
@@ -181,7 +181,7 @@ public sealed class IprReadServiceTests
         {
             IprFilingNumber = "IPR-011",
             Title = "Helios",
-            Type = IprType.Trademark,
+            Type = IprType.Copyright,
             Status = IprStatus.Granted,
             FiledAtUtc = null,
             Notes = "Awaiting certificate",
@@ -204,7 +204,7 @@ public sealed class IprReadServiceTests
 
         var filter = new IprFilter
         {
-            Types = new[] { IprType.Trademark },
+            Types = new[] { IprType.Copyright },
             Statuses = new[] { IprStatus.Granted }
         };
 
