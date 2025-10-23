@@ -75,7 +75,7 @@
 
 .tot-summary__heading {
     margin: 0;
-    font-size: var(--pm-font-size-3xl);
+    font-size: clamp(var(--pm-font-size-xl), 2.75vw, var(--pm-font-size-2xl));
     font-weight: 700;
 }
 
