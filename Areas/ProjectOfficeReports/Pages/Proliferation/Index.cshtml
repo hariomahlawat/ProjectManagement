@@ -15,6 +15,12 @@
             <div class="btn-toolbar gap-2" role="toolbar" aria-label="Proliferation actions">
                 <div class="btn-group" role="group" aria-label="Data utilities">
                     <button type="button" class="btn btn-outline-success" id="btnExport">Export data</button>
+                    <a class="btn btn-outline-primary d-flex align-items-center gap-2"
+                       asp-area="ProjectOfficeReports"
+                       asp-page="/Proliferation/Summary">
+                        <i class="bi bi-card-list" aria-hidden="true"></i>
+                        <span>Summary view</span>
+                    </a>
                 </div>
                 @if (Model.CanManageRecords)
                 {
