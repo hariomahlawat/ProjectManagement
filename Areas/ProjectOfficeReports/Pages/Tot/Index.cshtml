@@ -1,5 +1,10 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Tot.IndexModel
+
+@section Styles
+{
+    <link rel="stylesheet" href="~/css/tot.css" asp-append-version="true" />
+}
 @using System.Collections.Generic
 @using System.Globalization
 @using System.Linq
@@ -50,6 +55,45 @@
         ProjectTotRequestDecisionState.Rejected => "chip-decision-rejected",
         _ => "chip-decision-pending"
     };
+
+    string DecisionLabel(ProjectTotTrackerRow row) => row.RequestState is { } state
+        ? RequestStateLabel(state)
+        : "No request";
+
+    string DecisionChipClass(ProjectTotTrackerRow row) => row.RequestState is { } state
+        ? RequestStateChipClass(state)
+        : "chip-decision-none";
+
+    string DecisionChipTitle(ProjectTotTrackerRow row, string? metadata)
+    {
+        var label = DecisionLabel(row);
+        return string.IsNullOrWhiteSpace(metadata)
+            ? label
+            : $"{label} — {metadata}";
+    }
+
+    string? DecisionMetadata(ProjectTotTrackerRow row)
+    {
+        var lastApprovedBy = string.IsNullOrWhiteSpace(row.TotLastApprovedBy) ? null : row.TotLastApprovedBy;
+        var lastApprovedOn = FormatTimestamp(row.TotLastApprovedOnUtc);
+
+        if (lastApprovedBy is null && lastApprovedOn is null)
+        {
+            return null;
+        }
+
+        if (lastApprovedBy is not null && lastApprovedOn is not null)
+        {
+            return $"Last approved by {lastApprovedBy} on {lastApprovedOn}";
+        }
+
+        if (lastApprovedBy is not null)
+        {
+            return $"Last approved by {lastApprovedBy}";
+        }
+
+        return $"Last approved on {lastApprovedOn}";
+    }
 
     string FoPmLabel(bool? value) => value switch
     {
@@ -524,9 +568,7 @@
                                 <th scope="col">Completed</th>
                                 <th scope="col">MET</th>
                                 <th scope="col">FPM</th>
-                                <th scope="col">Last approved by</th>
-                                <th scope="col">Approved on</th>
-                                <th scope="col">Pending request</th>
+                                <th scope="col" class="tot-table__decision-header">Decision</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -572,21 +614,19 @@
                                     <td>@(FormatDate(row.TotCompletedOn) ?? "—")</td>
                                     <td>@(FormatDate(row.TotMetCompletedOn) ?? "—")</td>
                                     <td>@FoPmLabel(row.TotFirstProductionModelManufactured)</td>
-                                    <td>@(string.IsNullOrWhiteSpace(row.TotLastApprovedBy) ? "—" : row.TotLastApprovedBy)</td>
-                                    <td>@(FormatTimestamp(row.TotLastApprovedOnUtc) ?? "—")</td>
-                                    <td>
-                                        @if (row.RequestState is { } pending && pending == ProjectTotRequestDecisionState.Pending)
-                                        {
-                                            <span class="badge text-bg-warning text-uppercase">Pending</span>
+                                    <td class="tot-table__decision-cell">
+                                        @{
+                                            var decisionMetadata = DecisionMetadata(row);
                                         }
-                                        else if (row.RequestState is { } decision)
-                                        {
-                                            <span>@RequestStateLabel(decision)</span>
-                                        }
-                                        else
-                                        {
-                                            <span class="tot-table__muted">None</span>
-                                        }
+                                        <div class="tot-table__decision">
+                                            <span class="chip chip--decision @DecisionChipClass(row)" title="@DecisionChipTitle(row, decisionMetadata)">
+                                                @DecisionLabel(row)
+                                            </span>
+                                            @if (!string.IsNullOrWhiteSpace(decisionMetadata))
+                                            {
+                                                <div class="tot-table__decision-meta">@decisionMetadata</div>
+                                            }
+                                        </div>
                                     </td>
                                 </tr>
                             }
