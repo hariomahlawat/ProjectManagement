@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Navigation;
 
@@ -91,6 +92,17 @@ public class RoleBasedNavigationProvider : INavigationProvider
             Area = "ProjectOfficeReports",
             Page = "/Proliferation/Index"
         };
+
+        if (roleSet.Overlaps(Policies.Ipr.AllowedRoles))
+        {
+            projectOfficeReportsChildren.Add(new NavigationItem
+            {
+                Text = "IPR tracker",
+                Area = "ProjectOfficeReports",
+                Page = "/Ipr/Index",
+                RequiredRoles = Policies.Ipr.AllowedRoles
+            });
+        }
 
         projectOfficeReportsChildren.Add(new NavigationItem
         {

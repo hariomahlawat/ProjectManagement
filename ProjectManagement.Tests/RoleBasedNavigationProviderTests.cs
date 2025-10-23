@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Navigation;
 using Xunit;
@@ -87,6 +88,17 @@ public class RoleBasedNavigationProviderTests
 
         Assert.Contains(children, c => c.Text == "Visits" && c.Page == "/Visits/Index");
 
+        if (isAdmin)
+        {
+            var ipr = Assert.Single(children.Where(c => c.Text == "IPR tracker"));
+            Assert.Equal("/Ipr/Index", ipr.Page);
+            Assert.Equal(Policies.Ipr.AllowedRoles, ipr.RequiredRoles);
+        }
+        else
+        {
+            Assert.DoesNotContain(children, c => c.Text == "IPR tracker");
+        }
+
         var proliferation = Assert.Single(children.Where(c => c.Text == "Proliferation tracker"));
         Assert.Equal("/Proliferation/Index", proliferation.Page);
 
@@ -156,6 +168,7 @@ public class RoleBasedNavigationProviderTests
         Assert.Contains(children, c => c.Text == "Social media tracker" && c.Page == "/SocialMedia/Index");
         Assert.DoesNotContain(children, c => c.Text == "Visit types");
         Assert.DoesNotContain(children, c => c.Text == "Social media event types");
+        Assert.DoesNotContain(children, c => c.Text == "IPR tracker");
     }
 
     [Theory]
@@ -190,6 +203,10 @@ public class RoleBasedNavigationProviderTests
         var children = projectOfficeReports.Children.ToList();
 
         Assert.Contains(children, c => c.Text == "Social media tracker" && c.Page == "/SocialMedia/Index");
+
+        var ipr = Assert.Single(children.Where(c => c.Text == "IPR tracker"));
+        Assert.Equal("/Ipr/Index", ipr.Page);
+        Assert.Equal(Policies.Ipr.AllowedRoles, ipr.RequiredRoles);
 
         var proliferation = Assert.Single(children.Where(c => c.Text == "Proliferation tracker"));
         Assert.Equal("/Proliferation/Index", proliferation.Page);
