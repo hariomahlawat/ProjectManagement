@@ -529,6 +529,54 @@ public sealed class IndexModel : PageModel
         return values;
     }
 
+    public IDictionary<string, string?> GetRouteValuesForLinks(
+        object? additionalValues = null,
+        bool includePage = true,
+        bool includeModeAndId = true)
+    {
+        var values = GetRouteValues(additionalValues, includePage, includeModeAndId);
+        var result = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (key, value) in values)
+        {
+            switch (value)
+            {
+                case null:
+                    result[key] = null;
+                    break;
+                case string str:
+                    result[key] = str;
+                    break;
+                case string[] array:
+                    AddIndexedValues(result, key, array);
+                    break;
+                case IEnumerable<string> enumerable:
+                    AddIndexedValues(result, key, enumerable);
+                    break;
+                default:
+                    result[key] = Convert.ToString(value, CultureInfo.InvariantCulture);
+                    break;
+            }
+        }
+
+        return result;
+    }
+
+    private static void AddIndexedValues(IDictionary<string, string?> destination, string key, IEnumerable<string> values)
+    {
+        var index = 0;
+        foreach (var item in values)
+        {
+            destination[$"{key}[{index}]"] = item;
+            index++;
+        }
+
+        if (index == 0)
+        {
+            return;
+        }
+    }
+
     public string FormatFileSize(long bytes)
     {
         if (bytes < 1024)

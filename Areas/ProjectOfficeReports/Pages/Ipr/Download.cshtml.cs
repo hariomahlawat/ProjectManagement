@@ -11,7 +11,6 @@ using Microsoft.Net.Http.Headers;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Services.Storage;
-using File = System.IO.File;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr;
 
@@ -52,7 +51,7 @@ public class DownloadModel : PageModel
         }
 
         var absolutePath = ResolveAbsolutePath(attachment.StorageKey);
-        if (!File.Exists(absolutePath))
+        if (!System.IO.File.Exists(absolutePath))
         {
             return NotFound();
         }
