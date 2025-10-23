@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
+using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
@@ -91,6 +92,8 @@ namespace ProjectManagement.Data
         public DbSet<ProliferationYearly> ProliferationYearlies => Set<ProliferationYearly>();
         public DbSet<ProliferationGranular> ProliferationGranularEntries => Set<ProliferationGranular>();
         public DbSet<ProliferationYearPreference> ProliferationYearPreferences => Set<ProliferationYearPreference>();
+        public DbSet<IprRecord> IprRecords => Set<IprRecord>();
+        public DbSet<IprAttachment> IprAttachments => Set<IprAttachment>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -402,6 +405,57 @@ namespace ProjectManagement.Data
                 b.HasIndex(x => new { x.ProjectId, x.Source, x.Year })
                     .IsUnique()
                     .HasDatabaseName("UX_ProlifYearPref_Project_Source_Year");
+            });
+
+            builder.Entity<IprRecord>(entity =>
+            {
+                ConfigureRowVersion(entity);
+                entity.ToTable("IprRecords");
+                entity.Property(x => x.IprFilingNumber).HasMaxLength(128).IsRequired();
+                entity.Property(x => x.Title).HasMaxLength(256);
+                entity.Property(x => x.Notes).HasMaxLength(2000);
+                entity.Property(x => x.Type)
+                    .HasConversion<string>()
+                    .HasMaxLength(32)
+                    .IsRequired();
+                entity.Property(x => x.Status)
+                    .HasConversion<string>()
+                    .HasMaxLength(32)
+                    .IsRequired();
+                entity.HasIndex(x => x.ProjectId);
+                entity.HasIndex(x => x.Type);
+                entity.HasIndex(x => x.Status);
+                entity.HasIndex(x => x.IprFilingNumber);
+                entity.HasIndex(x => new { x.IprFilingNumber, x.Type })
+                    .HasDatabaseName("UX_IprRecords_FilingNumber_Type")
+                    .IsUnique();
+                entity.HasOne(x => x.Project)
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.HasMany(x => x.Attachments)
+                    .WithOne(x => x.Record)
+                    .HasForeignKey(x => x.IprRecordId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<IprAttachment>(entity =>
+            {
+                ConfigureRowVersion(entity);
+                entity.ToTable("IprAttachments");
+                entity.Property(x => x.StorageKey).HasMaxLength(260).IsRequired();
+                entity.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
+                entity.Property(x => x.ContentType).HasMaxLength(128).IsRequired();
+                entity.Property(x => x.UploadedByUserId).HasMaxLength(450).IsRequired();
+                entity.HasIndex(x => x.IprRecordId);
+                entity.HasOne(x => x.UploadedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.UploadedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(x => x.ArchivedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.ArchivedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
 
