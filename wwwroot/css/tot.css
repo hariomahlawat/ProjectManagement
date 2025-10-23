@@ -47,6 +47,17 @@
     gap: 1rem;
 }
 
+.tot-summary__breadcrumb {
+    --bs-breadcrumb-item-color: var(--tot-muted, #6b7280);
+    --bs-breadcrumb-divider-color: var(--tot-muted, #9ca3af);
+    --bs-breadcrumb-item-active-color: #111827;
+    font-size: 0.875rem;
+}
+
+.tot-summary__breadcrumb .breadcrumb {
+    margin-bottom: 0;
+}
+
 .tot-summary__title {
     display: flex;
     flex-direction: column;
