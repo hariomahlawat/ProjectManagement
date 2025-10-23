@@ -18,6 +18,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Application.Ipr;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Services.Plans;
@@ -198,6 +199,11 @@ builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IUserContext, HttpUserContext>();
 builder.Services.Configure<UserLifecycleOptions>(
     builder.Configuration.GetSection("UserLifecycle"));
+builder.Services.Configure<IprAttachmentOptions>(
+    builder.Configuration.GetSection("IprAttachments"));
+builder.Services.AddSingleton<IprAttachmentStorage>();
+builder.Services.AddScoped<IIprReadService, IprReadService>();
+builder.Services.AddScoped<IIprWriteService, IprWriteService>();
 builder.Services.AddScoped<IUserLifecycleService, UserLifecycleService>();
 builder.Services.AddHostedService<UserPurgeWorker>();
 builder.Services.AddSingleton<IClock, SystemClock>();
