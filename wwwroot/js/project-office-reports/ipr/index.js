@@ -6,31 +6,14 @@
 
     const mode = (offcanvasElement.getAttribute('data-ipr-mode') || '').toLowerCase();
     const hasForm = offcanvasElement.getAttribute('data-ipr-has-form') === 'true';
-    const inlineActive = offcanvasElement.getAttribute('data-ipr-inline-active') === 'true';
     const triggers = Array.from(document.querySelectorAll('[data-ipr-offcanvas-trigger]'));
 
-    const ensureInlineVisibility = () => {
+    if (typeof bootstrap === 'undefined' || !bootstrap.Offcanvas) {
         if (hasForm && (mode === 'create' || mode === 'edit')) {
-            offcanvasElement.classList.add('show', 'position-static', 'border', 'shadow-sm', 'mb-4');
-            offcanvasElement.style.visibility = 'visible';
-            offcanvasElement.setAttribute('data-ipr-inline-active', 'true');
+            offcanvasElement.classList.add('show');
             offcanvasElement.setAttribute('aria-hidden', 'false');
         }
-    };
-
-    if (typeof bootstrap === 'undefined' || !bootstrap.Offcanvas) {
-        ensureInlineVisibility();
         return;
-    }
-
-    if (inlineActive) {
-        offcanvasElement.classList.remove('position-static', 'border', 'shadow-sm', 'mb-4');
-        offcanvasElement.style.removeProperty('visibility');
-        offcanvasElement.setAttribute('data-ipr-inline-active', 'false');
-        offcanvasElement.setAttribute('aria-hidden', 'true');
-        if (!offcanvasElement.getAttribute('style')) {
-            offcanvasElement.removeAttribute('style');
-        }
     }
 
     const offcanvasInstance = bootstrap.Offcanvas.getOrCreateInstance(offcanvasElement);
