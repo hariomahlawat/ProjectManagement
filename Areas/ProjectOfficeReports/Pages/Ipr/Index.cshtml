@@ -79,7 +79,8 @@
                    asp-page="./Index"
                    asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "create" }, includePage: true, includeModeAndId: false)"
                    data-ipr-offcanvas-trigger="create"
-                   aria-controls="iprRecordOffcanvas">
+                   aria-controls="iprRecordOffcanvas"
+                   aria-expanded="@(isCreateMode ? "true" : "false")">
                     <i class="bi bi-plus-circle" aria-hidden="true"></i>
                     <span>Add IPR record</span>
                 </a>
@@ -306,7 +307,9 @@
                                                    asp-page="./Index"
                                                    asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "edit", id = record.Id }, includeModeAndId: false)"
                                                    data-ipr-offcanvas-trigger="edit"
-                                                   aria-controls="iprRecordOffcanvas">
+                                                   data-ipr-record-id="@record.Id"
+                                                   aria-controls="iprRecordOffcanvas"
+                                                   aria-expanded="@(isEditMode && Model.Id.HasValue && Model.Id.Value == record.Id ? "true" : "false")">
                                                     Manage
                                                 </a>
                                             </td>
@@ -384,6 +387,63 @@
             const offcanvasInstance = bootstrap.Offcanvas.getOrCreateInstance(offcanvasElement);
             const mode = (offcanvasElement.getAttribute('data-ipr-mode') || '').toLowerCase();
             const hasForm = offcanvasElement.getAttribute('data-ipr-has-form') === 'true';
+            const triggers = Array.from(document.querySelectorAll('[data-ipr-offcanvas-trigger]'));
+
+            const updateTriggerStates = (activeMode, activeId) => {
+                const normalizedMode = (activeMode || '').toLowerCase();
+                const normalizedId = activeId ?? '';
+
+                triggers.forEach(trigger => {
+                    const triggerMode = (trigger.dataset.iprOffcanvasTrigger || '').toLowerCase();
+                    const triggerId = trigger.dataset.iprRecordId ?? '';
+
+                    let expanded = false;
+
+                    if (normalizedMode === 'create' && triggerMode === 'create') {
+                        expanded = true;
+                    } else if (normalizedMode === 'edit' && triggerMode === 'edit') {
+                        expanded = normalizedId !== '' && triggerId === normalizedId;
+                    }
+
+                    trigger.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+                });
+            };
+
+            if (triggers.length > 0) {
+                const currentUrl = new URL(window.location.href);
+                const initialMode = (currentUrl.searchParams.get('mode') || '').toLowerCase();
+                const initialId = currentUrl.searchParams.get('id') ?? '';
+                updateTriggerStates(initialMode, initialId);
+
+                triggers.forEach(trigger => {
+                    trigger.addEventListener('click', event => {
+                        const triggerMode = (trigger.dataset.iprOffcanvasTrigger || '').toLowerCase();
+                        if (triggerMode !== 'create' && triggerMode !== 'edit') {
+                            return;
+                        }
+
+                        event.preventDefault();
+
+                        const nextUrl = new URL(window.location.href);
+                        nextUrl.searchParams.set('mode', triggerMode);
+
+                        if (triggerMode === 'edit') {
+                            const triggerId = trigger.dataset.iprRecordId;
+                            if (!triggerId) {
+                                return;
+                            }
+
+                            nextUrl.searchParams.set('id', triggerId);
+                            updateTriggerStates(triggerMode, triggerId);
+                        } else {
+                            nextUrl.searchParams.delete('id');
+                            updateTriggerStates(triggerMode, '');
+                        }
+
+                        window.location.assign(nextUrl);
+                    });
+                });
+            }
 
             if (hasForm && (mode === 'create' || mode === 'edit')) {
                 offcanvasInstance.show();
@@ -394,6 +454,7 @@
                 url.searchParams.delete('mode');
                 url.searchParams.delete('id');
                 window.history.replaceState({}, document.title, url);
+                updateTriggerStates('', '');
             });
         })();
 
