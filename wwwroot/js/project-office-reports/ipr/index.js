@@ -5,6 +5,7 @@
 
   const mode = (offcanvasElement.getAttribute('data-ipr-mode') || '').toLowerCase();
   const hasForm = (offcanvasElement.getAttribute('data-ipr-has-form') || '').toLowerCase() === 'true';
+  const shouldShowOffcanvas = mode === 'create' || mode === 'edit';
 
   const supportsUrlApi = typeof URL === 'function' && URL.prototype && 'searchParams' in URL.prototype;
 
@@ -64,7 +65,7 @@
 
   const currentId = (getQueryParam('id') || '').toString();
 
-  if (hasForm && (mode === 'create' || mode === 'edit')) {
+  if (shouldShowOffcanvas) {
     offcanvasInstance.show();
     updateTriggerStates(mode, currentId);
   } else {
@@ -91,6 +92,10 @@
         (triggerMode === 'edit' && nextMode === 'edit' && triggerId === nextId && nextId !== '');
       btn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
     });
+  }
+
+  if (!hasForm) {
+    return;
   }
 
   ['iprCreateForm', 'iprEditForm'].forEach(formId => {
