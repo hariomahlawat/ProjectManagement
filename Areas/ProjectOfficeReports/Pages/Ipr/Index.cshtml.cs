@@ -27,6 +27,19 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr;
 [Authorize(Policy = Policies.Ipr.View)]
 public sealed class IndexModel : PageModel
 {
+    private static readonly IReadOnlyDictionary<string, string[]> ValidationErrorFieldMap =
+        new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            ["Filed date cannot be in the future."] = new[] { nameof(RecordInput.FiledOn) },
+            ["Grant date cannot be in the future."] = new[] { nameof(RecordInput.GrantedOn) },
+            ["Filed date is required once the record is not under filing."] = new[] { nameof(RecordInput.FiledOn) },
+            ["Grant date is required once the record is granted."] = new[] { nameof(RecordInput.GrantedOn) },
+            ["Grant date cannot be provided without a filing date."] = new[] { nameof(RecordInput.FiledOn), nameof(RecordInput.GrantedOn) },
+            ["Grant date cannot be earlier than the filing date."] = new[] { nameof(RecordInput.FiledOn), nameof(RecordInput.GrantedOn) },
+            ["An IPR with the same filing number and type already exists."] = new[] { nameof(RecordInput.FilingNumber) },
+            ["Filing number is required."] = new[] { nameof(RecordInput.FilingNumber) }
+        };
+
     private readonly ApplicationDbContext _db;
     private readonly IIprReadService _readService;
     private readonly IIprWriteService _writeService;
@@ -254,7 +267,11 @@ public sealed class IndexModel : PageModel
         }
         catch (InvalidOperationException ex)
         {
-            ModelState.AddModelError(string.Empty, ex.Message);
+            if (!TryAddInputValidationErrors(ex.Message))
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+
             await LoadPageAsync(cancellationToken, loadRecordInput: false);
             return Page();
         }
@@ -315,7 +332,11 @@ public sealed class IndexModel : PageModel
         }
         catch (InvalidOperationException ex)
         {
-            ModelState.AddModelError(string.Empty, ex.Message);
+            if (!TryAddInputValidationErrors(ex.Message))
+            {
+                ModelState.AddModelError(string.Empty, ex.Message);
+            }
+
             await LoadPageAsync(cancellationToken, loadRecordInput: false);
             return Page();
         }
@@ -1020,6 +1041,26 @@ public sealed class IndexModel : PageModel
         public int? ProjectId { get; set; }
 
         public string? RowVersion { get; set; }
+    }
+
+    private bool TryAddInputValidationErrors(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        if (!ValidationErrorFieldMap.TryGetValue(message, out var fields))
+        {
+            return false;
+        }
+
+        foreach (var field in fields)
+        {
+            ModelState.AddModelError($"{nameof(Input)}.{field}", message);
+        }
+
+        return true;
     }
 
     public sealed class DeleteInput

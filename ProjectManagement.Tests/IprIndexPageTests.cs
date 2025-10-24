@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Security.Claims;
+using System.IO;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -24,6 +25,7 @@ using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Tests.Fakes;
 
 namespace ProjectManagement.Tests;
 
@@ -80,39 +82,130 @@ public sealed class IprIndexPageTests
     {
         await using var db = CreateDbContext();
         var readService = new StubIprReadService();
-        var writeService = new RecordingIprWriteService();
+        var (writeService, root) = CreateWriteService(db, new DateTimeOffset(2024, 3, 1, 0, 0, 0, TimeSpan.Zero));
         var authorizationService = new AllowAuthorizationService();
         using var userManager = CreateUserManager(db);
 
-        var page = new IndexModel(db, readService, writeService, authorizationService, userManager)
+        try
         {
-            Input = new IndexModel.RecordInput
+            var page = new IndexModel(db, readService, writeService, authorizationService, userManager)
             {
-                FilingNumber = "IPR-600",
-                Type = IprType.Copyright,
-                Status = IprStatus.Filed,
-                FiledBy = "  Analyst  ",
-                FiledOn = new DateOnly(2024, 2, 1),
-                GrantedOn = new DateOnly(2024, 3, 1)
-            }
-        };
+                Input = new IndexModel.RecordInput
+                {
+                    FilingNumber = "IPR-600",
+                    Type = IprType.Copyright,
+                    Status = IprStatus.Granted,
+                    FiledBy = "  Analyst  ",
+                    FiledOn = new DateOnly(2024, 2, 1),
+                    GrantedOn = new DateOnly(2024, 2, 20)
+                }
+            };
 
-        ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.AllowedRoles[0]));
+            ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.AllowedRoles[0]));
 
-        var result = await page.OnPostCreateAsync(CancellationToken.None);
+            var result = await page.OnPostCreateAsync(CancellationToken.None);
 
-        var redirect = Assert.IsType<RedirectToPageResult>(result);
-        Assert.Equal("edit", redirect.RouteValues?["mode"]);
-        Assert.Equal(writeService.CreatedRecord?.Id, redirect.RouteValues?["id"]);
-        Assert.Equal("IPR record created.", page.TempData["ToastMessage"]);
+            var redirect = Assert.IsType<RedirectToPageResult>(result);
+            Assert.Equal("edit", redirect.RouteValues?["mode"]);
+            var createdId = Assert.IsType<int>(redirect.RouteValues?["id"]);
+            Assert.Equal("IPR record created.", page.TempData["ToastMessage"]);
 
-        var created = Assert.IsType<IprRecord>(writeService.CreatedRecord);
-        Assert.Equal("IPR-600", created.IprFilingNumber);
-        Assert.Equal(IprType.Copyright, created.Type);
-        Assert.Equal(IprStatus.Filed, created.Status);
-        Assert.Equal(new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero), created.FiledAtUtc);
-        Assert.Equal("Analyst", created.FiledBy);
-        Assert.Equal(new DateTimeOffset(2024, 3, 1, 0, 0, 0, TimeSpan.Zero), created.GrantedAtUtc);
+            var created = await db.IprRecords.AsNoTracking().SingleAsync(r => r.Id == createdId);
+            Assert.Equal("IPR-600", created.IprFilingNumber);
+            Assert.Equal(IprType.Copyright, created.Type);
+            Assert.Equal(IprStatus.Granted, created.Status);
+            Assert.Equal("Analyst", created.FiledBy);
+            Assert.Equal(new DateTimeOffset(2024, 2, 1, 0, 0, 0, TimeSpan.Zero), created.FiledAtUtc);
+            Assert.Equal(new DateTimeOffset(2024, 2, 20, 0, 0, 0, TimeSpan.Zero), created.GrantedAtUtc);
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task OnPostCreateAsync_WhenFiledStatusMissingFiledOn_AddsFieldError()
+    {
+        await using var db = CreateDbContext();
+        var readService = new StubIprReadService();
+        var (writeService, root) = CreateWriteService(db);
+        var authorizationService = new AllowAuthorizationService();
+        using var userManager = CreateUserManager(db);
+
+        try
+        {
+            var page = new IndexModel(db, readService, writeService, authorizationService, userManager)
+            {
+                Input = new IndexModel.RecordInput
+                {
+                    FilingNumber = "IPR-700",
+                    Type = IprType.Patent,
+                    Status = IprStatus.Filed
+                }
+            };
+
+            ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.AllowedRoles[0]));
+
+            var result = await page.OnPostCreateAsync(CancellationToken.None);
+
+            Assert.IsType<PageResult>(result);
+
+            var key = $"{nameof(IndexModel.Input)}.{nameof(IndexModel.RecordInput.FiledOn)}";
+            Assert.True(page.ModelState.TryGetValue(key, out var entry));
+            var message = Assert.Single(entry.Errors).ErrorMessage;
+            Assert.Equal("Filed date is required once the record is not under filing.", message);
+            Assert.False(page.ModelState.TryGetValue(string.Empty, out _));
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task OnPostCreateAsync_WhenGrantDateBeforeFiledDate_AddsErrorsToBothFields()
+    {
+        await using var db = CreateDbContext();
+        var readService = new StubIprReadService();
+        var (writeService, root) = CreateWriteService(db);
+        var authorizationService = new AllowAuthorizationService();
+        using var userManager = CreateUserManager(db);
+
+        try
+        {
+            var page = new IndexModel(db, readService, writeService, authorizationService, userManager)
+            {
+                Input = new IndexModel.RecordInput
+                {
+                    FilingNumber = "IPR-710",
+                    Type = IprType.Patent,
+                    Status = IprStatus.Granted,
+                    FiledOn = new DateOnly(2024, 4, 10),
+                    GrantedOn = new DateOnly(2024, 3, 15)
+                }
+            };
+
+            ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.AllowedRoles[0]));
+
+            var result = await page.OnPostCreateAsync(CancellationToken.None);
+
+            Assert.IsType<PageResult>(result);
+
+            var filedKey = $"{nameof(IndexModel.Input)}.{nameof(IndexModel.RecordInput.FiledOn)}";
+            Assert.True(page.ModelState.TryGetValue(filedKey, out var filedEntry));
+            var filedMessage = Assert.Single(filedEntry.Errors).ErrorMessage;
+            Assert.Equal("Grant date cannot be earlier than the filing date.", filedMessage);
+
+            var grantedKey = $"{nameof(IndexModel.Input)}.{nameof(IndexModel.RecordInput.GrantedOn)}";
+            Assert.True(page.ModelState.TryGetValue(grantedKey, out var grantedEntry));
+            var grantedMessage = Assert.Single(grantedEntry.Errors).ErrorMessage;
+            Assert.Equal("Grant date cannot be earlier than the filing date.", grantedMessage);
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
     }
 
     [Fact]
@@ -192,6 +285,43 @@ public sealed class IprIndexPageTests
             NullLogger<UserManager<ApplicationUser>>.Instance);
     }
 
+    private static (IIprWriteService Service, string RootPath) CreateWriteService(ApplicationDbContext db, DateTimeOffset? now = null)
+    {
+        var clock = FakeClock.AtUtc(now ?? new DateTimeOffset(2024, 5, 1, 0, 0, 0, TimeSpan.Zero));
+        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+
+        var options = Options.Create(new IprAttachmentOptions
+        {
+            MaxFileSizeBytes = 1024 * 1024,
+            AllowedContentTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        });
+
+        var storage = new IprAttachmentStorage(new TestUploadRootProvider(root));
+        var service = new IprWriteService(db, clock, storage, options, NullLogger<IprWriteService>.Instance);
+        return (service, root);
+    }
+
+    private static void CleanupRoot(string root)
+    {
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            return;
+        }
+
+        try
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+        catch
+        {
+            // best effort cleanup for temp directories
+        }
+    }
+
     private sealed class DictionaryTempDataProvider : ITempDataProvider
     {
         public IDictionary<string, object?> LoadTempData(HttpContext context) => new Dictionary<string, object?>();
@@ -220,30 +350,6 @@ public sealed class IprIndexPageTests
     {
         public Task<IprRecord> CreateAsync(IprRecord record, CancellationToken cancellationToken = default)
             => Task.FromResult(record);
-
-        public Task<IprRecord?> UpdateAsync(IprRecord record, CancellationToken cancellationToken = default)
-            => Task.FromResult<IprRecord?>(null);
-
-        public Task<bool> DeleteAsync(int id, byte[] rowVersion, CancellationToken cancellationToken = default)
-            => Task.FromResult(false);
-
-        public Task<IprAttachment> AddAttachmentAsync(int iprRecordId, System.IO.Stream content, string originalFileName, string? contentType, string uploadedByUserId, CancellationToken cancellationToken = default)
-            => Task.FromResult(new IprAttachment());
-
-        public Task<bool> DeleteAttachmentAsync(int attachmentId, byte[] rowVersion, CancellationToken cancellationToken = default)
-            => Task.FromResult(false);
-    }
-
-    private sealed class RecordingIprWriteService : IIprWriteService
-    {
-        public IprRecord? CreatedRecord { get; private set; }
-
-        public Task<IprRecord> CreateAsync(IprRecord record, CancellationToken cancellationToken = default)
-        {
-            record.Id = 321;
-            CreatedRecord = record;
-            return Task.FromResult(record);
-        }
 
         public Task<IprRecord?> UpdateAsync(IprRecord record, CancellationToken cancellationToken = default)
             => Task.FromResult<IprRecord?>(null);
