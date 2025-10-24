@@ -46,7 +46,6 @@
 
     var isCreateMode = string.Equals(Model.Mode, "create", StringComparison.OrdinalIgnoreCase);
     var isEditMode = string.Equals(Model.Mode, "edit", StringComparison.OrdinalIgnoreCase);
-    var shouldShowOffcanvas = isCreateMode || isEditMode;
 }
 
 <div class="container-fluid py-4">
@@ -236,7 +235,11 @@
              aria-labelledby="iprRecordOffcanvasLabel"
              aria-hidden="true"
              data-ipr-mode="@(Model.Mode ?? string.Empty)"
-             data-ipr-has-form="@(shouldShowOffcanvas ? "true" : "false")">
+             data-ipr-has-form="@(
+                 string.Equals(Model.Mode, "create", StringComparison.OrdinalIgnoreCase)
+                 || string.Equals(Model.Mode, "edit", StringComparison.OrdinalIgnoreCase)
+                     ? "true"
+                     : "false")">
             <div class="offcanvas-header">
                 <div>
                     <h2 class="offcanvas-title h5 mb-1" id="iprRecordOffcanvasLabel">
