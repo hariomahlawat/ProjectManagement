@@ -648,7 +648,11 @@ public sealed class IndexModel : PageModel
             Attachments = Array.Empty<AttachmentViewModel>();
             if (string.Equals(Mode, "create", StringComparison.OrdinalIgnoreCase))
             {
-                Input = new RecordInput();
+                Input = new RecordInput
+                {
+                    Type = IprType.Patent,
+                    Status = IprStatus.FilingUnderProcess
+                };
             }
         }
 
