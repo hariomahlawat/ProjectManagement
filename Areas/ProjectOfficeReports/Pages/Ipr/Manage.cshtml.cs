@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -13,6 +14,8 @@ using ProjectManagement.Application.Ipr;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Data;
+using ProjectManagement.Models;
+using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr;
 
@@ -35,14 +38,20 @@ public sealed class ManageModel : PageModel
     private readonly ApplicationDbContext _db;
     private readonly IIprReadService _readService;
     private readonly IIprWriteService _writeService;
+    private readonly UserManager<ApplicationUser> _userManager;
 
     private string? _query;
 
-    public ManageModel(ApplicationDbContext db, IIprReadService readService, IIprWriteService writeService)
+    public ManageModel(
+        ApplicationDbContext db,
+        IIprReadService readService,
+        IIprWriteService writeService,
+        UserManager<ApplicationUser> userManager)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
         _writeService = writeService ?? throw new ArgumentNullException(nameof(writeService));
+        _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
     }
 
     [BindProperty(SupportsGet = true)]
@@ -58,6 +67,12 @@ public sealed class ManageModel : PageModel
     [BindProperty]
     public IndexModel.RecordInput Input { get; set; } = CreateDefaultInput();
 
+    [BindProperty]
+    public IndexModel.UploadAttachmentInput UploadInput { get; set; } = new();
+
+    [BindProperty]
+    public IndexModel.RemoveAttachmentInput RemoveAttachment { get; set; } = new();
+
     public IReadOnlyList<RecordRow> Records { get; private set; } = Array.Empty<RecordRow>();
 
     public IReadOnlyList<SelectListItem> TypeFormOptions { get; private set; } = Array.Empty<SelectListItem>();
@@ -66,22 +81,25 @@ public sealed class ManageModel : PageModel
 
     public IReadOnlyList<SelectListItem> ProjectOptions { get; private set; } = Array.Empty<SelectListItem>();
 
+    public IReadOnlyList<IndexModel.AttachmentViewModel> Attachments { get; private set; } = Array.Empty<IndexModel.AttachmentViewModel>();
+
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         Input = CreateDefaultInput();
 
         if (EditId.HasValue)
         {
-            var record = await _readService.GetAsync(EditId.Value, cancellationToken);
+            var record = await LoadRecordAsync(EditId.Value, cancellationToken, overwriteInput: true);
             if (record is null)
             {
                 TempData["ToastError"] = "The selected IPR record could not be found.";
                 EditId = null;
             }
-            else
-            {
-                Input = MapToInput(record);
-            }
+        }
+        else
+        {
+            Attachments = Array.Empty<IndexModel.AttachmentViewModel>();
+            UploadInput = new IndexModel.UploadAttachmentInput();
         }
 
         await LoadSelectListsAsync(cancellationToken);
@@ -98,6 +116,8 @@ public sealed class ManageModel : PageModel
         {
             await LoadSelectListsAsync(cancellationToken);
             await LoadRecordsAsync(cancellationToken);
+            Attachments = Array.Empty<IndexModel.AttachmentViewModel>();
+            UploadInput = new IndexModel.UploadAttachmentInput();
             return Page();
         }
 
@@ -115,6 +135,15 @@ public sealed class ManageModel : PageModel
         {
             await LoadSelectListsAsync(cancellationToken);
             await LoadRecordsAsync(cancellationToken);
+            if (Input.Id.HasValue)
+            {
+                await LoadRecordAsync(Input.Id.Value, cancellationToken, overwriteInput: false);
+            }
+            else
+            {
+                Attachments = Array.Empty<IndexModel.AttachmentViewModel>();
+                UploadInput = new IndexModel.UploadAttachmentInput();
+            }
             return Page();
         }
 
@@ -134,6 +163,8 @@ public sealed class ManageModel : PageModel
 
             await LoadSelectListsAsync(cancellationToken);
             await LoadRecordsAsync(cancellationToken);
+            Attachments = Array.Empty<IndexModel.AttachmentViewModel>();
+            UploadInput = new IndexModel.UploadAttachmentInput();
             return Page();
         }
     }
@@ -149,6 +180,10 @@ public sealed class ManageModel : PageModel
         {
             await LoadSelectListsAsync(cancellationToken);
             await LoadRecordsAsync(cancellationToken);
+            if (Input.Id.HasValue)
+            {
+                await LoadRecordAsync(Input.Id.Value, cancellationToken, overwriteInput: false);
+            }
             return Page();
         }
 
@@ -180,6 +215,10 @@ public sealed class ManageModel : PageModel
         {
             await LoadSelectListsAsync(cancellationToken);
             await LoadRecordsAsync(cancellationToken);
+            if (Input.Id.HasValue)
+            {
+                await LoadRecordAsync(Input.Id.Value, cancellationToken, overwriteInput: false);
+            }
             return Page();
         }
 
@@ -207,6 +246,10 @@ public sealed class ManageModel : PageModel
 
             await LoadSelectListsAsync(cancellationToken);
             await LoadRecordsAsync(cancellationToken);
+            if (Input.Id.HasValue)
+            {
+                await LoadRecordAsync(Input.Id.Value, cancellationToken, overwriteInput: false);
+            }
             return Page();
         }
     }
@@ -238,6 +281,102 @@ public sealed class ManageModel : PageModel
         }
 
         return RedirectToPage("./Manage", new { Query });
+    }
+
+    public async Task<IActionResult> OnPostAttachAsync(CancellationToken cancellationToken)
+    {
+        if (UploadInput.RecordId.HasValue)
+        {
+            EditId = UploadInput.RecordId;
+        }
+
+        if (!UploadInput.RecordId.HasValue)
+        {
+            ModelState.AddModelError(string.Empty, "Select a record before uploading attachments.");
+            await LoadSelectListsAsync(cancellationToken);
+            await LoadRecordsAsync(cancellationToken);
+            Attachments = Array.Empty<IndexModel.AttachmentViewModel>();
+            UploadInput = new IndexModel.UploadAttachmentInput();
+            return Page();
+        }
+
+        if (UploadInput.File is null || UploadInput.File.Length == 0)
+        {
+            ModelState.AddModelError(nameof(UploadInput.File), "Choose a file to upload.");
+            await LoadRecordAsync(UploadInput.RecordId.Value, cancellationToken, overwriteInput: true);
+            await LoadSelectListsAsync(cancellationToken);
+            await LoadRecordsAsync(cancellationToken);
+            return Page();
+        }
+
+        var userId = await GetCurrentUserIdAsync();
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Challenge();
+        }
+
+        try
+        {
+            await using var stream = UploadInput.File.OpenReadStream();
+            await _writeService.AddAttachmentAsync(
+                UploadInput.RecordId.Value,
+                stream,
+                UploadInput.File.FileName,
+                UploadInput.File.ContentType,
+                userId,
+                cancellationToken);
+
+            TempData["ToastMessage"] = "Attachment uploaded.";
+            return RedirectToPage("./Manage", new { Query, editId = UploadInput.RecordId.Value });
+        }
+        catch (InvalidOperationException ex)
+        {
+            ModelState.AddModelError(string.Empty, ex.Message);
+            await LoadRecordAsync(UploadInput.RecordId.Value, cancellationToken, overwriteInput: true);
+            await LoadSelectListsAsync(cancellationToken);
+            await LoadRecordsAsync(cancellationToken);
+            return Page();
+        }
+    }
+
+    public async Task<IActionResult> OnPostRemoveAttachmentAsync(CancellationToken cancellationToken)
+    {
+        if (RemoveAttachment.RecordId.HasValue)
+        {
+            EditId = RemoveAttachment.RecordId;
+        }
+
+        if (!RemoveAttachment.RecordId.HasValue)
+        {
+            TempData["ToastError"] = "We could not verify your request. Please reload and try again.";
+            return RedirectToPage("./Manage", new { Query });
+        }
+
+        var rowVersion = DecodeRowVersion(RemoveAttachment.RowVersion);
+        if (rowVersion is null)
+        {
+            TempData["ToastError"] = "We could not verify your request. Please reload and try again.";
+            return RedirectToPage("./Manage", new { Query, editId = RemoveAttachment.RecordId.Value });
+        }
+
+        try
+        {
+            var deleted = await _writeService.DeleteAttachmentAsync(RemoveAttachment.AttachmentId, rowVersion, cancellationToken);
+            if (deleted)
+            {
+                TempData["ToastMessage"] = "Attachment removed.";
+            }
+            else
+            {
+                TempData["ToastError"] = "Attachment not found.";
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            TempData["ToastError"] = ex.Message;
+        }
+
+        return RedirectToPage("./Manage", new { Query, editId = RemoveAttachment.RecordId.Value });
     }
 
     private async Task LoadRecordsAsync(CancellationToken cancellationToken)
@@ -340,6 +479,50 @@ public sealed class ManageModel : PageModel
         };
     }
 
+    private async Task<IprRecord?> LoadRecordAsync(int id, CancellationToken cancellationToken, bool overwriteInput)
+    {
+        var record = await _readService.GetAsync(id, cancellationToken);
+        if (record is null)
+        {
+            Attachments = Array.Empty<IndexModel.AttachmentViewModel>();
+            UploadInput = new IndexModel.UploadAttachmentInput();
+            return null;
+        }
+
+        if (overwriteInput || !Input.Id.HasValue || Input.Id.Value != record.Id)
+        {
+            Input = MapToInput(record);
+        }
+        else if (string.IsNullOrWhiteSpace(Input.RowVersion))
+        {
+            Input.RowVersion = Convert.ToBase64String(record.RowVersion);
+        }
+
+        SetAttachmentState(record);
+
+        return record;
+    }
+
+    private void SetAttachmentState(IprRecord record)
+    {
+        UploadInput = new IndexModel.UploadAttachmentInput
+        {
+            RecordId = record.Id
+        };
+
+        Attachments = record.Attachments
+            .Where(a => !a.IsArchived)
+            .OrderByDescending(a => a.UploadedAtUtc)
+            .Select(a => new IndexModel.AttachmentViewModel(
+                a.Id,
+                a.OriginalFileName,
+                a.FileSize,
+                FormatUserDisplay(a.UploadedByUser, a.UploadedByUserId),
+                a.UploadedAtUtc,
+                Convert.ToBase64String(a.RowVersion)))
+            .ToList();
+    }
+
     private static IprRecord ToEntity(IndexModel.RecordInput input)
     {
         return new IprRecord
@@ -359,6 +542,33 @@ public sealed class ManageModel : PageModel
                 : null,
             ProjectId = input.ProjectId
         };
+    }
+
+    public string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} B";
+        }
+
+        double size = bytes / 1024d;
+        string[] units = { "KB", "MB", "GB", "TB", "PB" };
+        int unitIndex = 0;
+
+        while (size >= 1024 && unitIndex < units.Length - 1)
+        {
+            size /= 1024;
+            unitIndex++;
+        }
+
+        return string.Format(CultureInfo.InvariantCulture, "{0:0.##} {1}", size, units[unitIndex]);
+    }
+
+    public string FormatAttachmentTimestamp(DateTimeOffset value)
+    {
+        var istZone = TimeZoneHelper.GetIst();
+        var converted = TimeZoneInfo.ConvertTimeFromUtc(value.UtcDateTime, istZone);
+        return converted.ToString("dd MMM yyyy 'at' HH:mm 'IST'", CultureInfo.InvariantCulture);
     }
 
     private static string GetTypeLabel(IprType type)
@@ -398,6 +608,27 @@ public sealed class ManageModel : PageModel
         }
 
         return true;
+    }
+
+    private async Task<string?> GetCurrentUserIdAsync()
+    {
+        var user = await _userManager.GetUserAsync(User);
+        return user?.Id;
+    }
+
+    private static string FormatUserDisplay(ApplicationUser? user, string fallback)
+    {
+        if (user is { FullName: { Length: > 0 } fullName })
+        {
+            return fullName;
+        }
+
+        if (user is { UserName: { Length: > 0 } userName })
+        {
+            return userName;
+        }
+
+        return fallback;
     }
 
     private static byte[]? DecodeRowVersion(string? value)
