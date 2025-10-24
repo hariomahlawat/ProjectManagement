@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -92,6 +94,35 @@ public sealed class IprWriteServiceTests
             };
 
             var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(duplicate));
+            Assert.Equal("An IPR with the same filing number and type already exists.", ex.Message);
+        }
+        finally
+        {
+            CleanupRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task CreateAsync_WhenUniqueConstraintThrownDuringSave_RaisesInvalidOperation()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new UniqueConstraintViolationDbContext(options);
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 1, 0, 0, 0, TimeSpan.Zero));
+        var (service, root) = CreateService(db, clock);
+
+        try
+        {
+            var record = new IprRecord
+            {
+                IprFilingNumber = "IPR-UNIQUE",
+                Type = IprType.Patent,
+                Status = IprStatus.FilingUnderProcess
+            };
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => service.CreateAsync(record));
             Assert.Equal("An IPR with the same filing number and type already exists.", ex.Message);
         }
         finally
@@ -272,6 +303,35 @@ public sealed class IprWriteServiceTests
             .Options;
 
         return new ApplicationDbContext(options);
+    }
+
+    private sealed class UniqueConstraintViolationDbContext : ApplicationDbContext
+    {
+        private const string UniqueConstraintName = "UX_IprRecords_FilingNumber_Type";
+
+        public UniqueConstraintViolationDbContext(DbContextOptions<ApplicationDbContext> options)
+            : base(options)
+        {
+        }
+
+        public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+            => Task.FromException<int>(CreateException());
+
+        public override int SaveChanges(bool acceptAllChangesOnSuccess)
+            => throw CreateException();
+
+        private static DbUpdateException CreateException()
+        {
+            var inner = new FakeDbException($"duplicate key value violates unique constraint \"{UniqueConstraintName}\"");
+            return new DbUpdateException("duplicate key value violates unique constraint", inner);
+        }
+    }
+
+    private sealed class FakeDbException : DbException
+    {
+        public FakeDbException(string message) : base(message)
+        {
+        }
     }
 
     private static (IprWriteService Service, string Root) CreateService(ApplicationDbContext db, FakeClock clock)

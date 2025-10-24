@@ -1,4 +1,5 @@
 using System;
+using System.Data.Common;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -6,6 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Data;
@@ -17,6 +19,7 @@ public sealed class IprWriteService : IIprWriteService
 {
     private const string ConcurrencyConflictMessage = "The record was modified by another user. Please reload and try again.";
     private const string RowVersionRequiredMessage = "Row version must be supplied for this operation.";
+    private const string FilingNumberUniqueConstraintName = "UX_IprRecords_FilingNumber_Type";
 
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
@@ -51,7 +54,15 @@ public sealed class IprWriteService : IIprWriteService
         normalized.Entity.RowVersion = Array.Empty<byte>();
 
         _db.IprRecords.Add(normalized.Entity);
-        await _db.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsFilingNumberUniqueConstraintViolation(ex))
+        {
+            throw new InvalidOperationException("An IPR with the same filing number and type already exists.", ex);
+        }
 
         return normalized.Entity;
     }
@@ -95,6 +106,10 @@ public sealed class IprWriteService : IIprWriteService
         {
             _logger?.LogWarning(ex, "Concurrency conflict when updating IPR record {RecordId}.", record.Id);
             throw new InvalidOperationException(ConcurrencyConflictMessage, ex);
+        }
+        catch (DbUpdateException ex) when (IsFilingNumberUniqueConstraintViolation(ex))
+        {
+            throw new InvalidOperationException("An IPR with the same filing number and type already exists.", ex);
         }
 
         return existing;
@@ -219,6 +234,58 @@ public sealed class IprWriteService : IIprWriteService
         {
             throw new InvalidOperationException("An IPR with the same filing number and type already exists.");
         }
+    }
+
+    private static bool IsFilingNumberUniqueConstraintViolation(DbUpdateException exception)
+    {
+        if (exception.InnerException is PostgresException postgres)
+        {
+            return postgres.SqlState == PostgresErrorCodes.UniqueViolation &&
+                string.Equals(postgres.ConstraintName, FilingNumberUniqueConstraintName, StringComparison.Ordinal);
+        }
+
+        if (exception.InnerException is DbException dbException)
+        {
+            if (string.Equals(dbException.GetType().Name, "SqlException", StringComparison.Ordinal))
+            {
+                var numberProperty = dbException.GetType().GetProperty("Number");
+                if (numberProperty?.GetValue(dbException) is int sqlNumber && (sqlNumber == 2601 || sqlNumber == 2627))
+                {
+                    if (!string.IsNullOrEmpty(dbException.Message) &&
+                        dbException.Message.IndexOf(FilingNumberUniqueConstraintName, StringComparison.OrdinalIgnoreCase) >= 0)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            var sqlStateProperty = dbException.GetType().GetProperty("SqlState");
+            if (sqlStateProperty?.GetValue(dbException) is string sqlState &&
+                string.Equals(sqlState, PostgresErrorCodes.UniqueViolation, StringComparison.Ordinal))
+            {
+                var constraintProperty = dbException.GetType().GetProperty("ConstraintName");
+                if (constraintProperty?.GetValue(dbException) is string constraintName &&
+                    string.Equals(constraintName, FilingNumberUniqueConstraintName, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(dbException.Message) &&
+                dbException.Message.IndexOf(FilingNumberUniqueConstraintName, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrEmpty(dbException.Source) &&
+                dbException.Source.IndexOf(FilingNumberUniqueConstraintName, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+        }
+
+        var message = exception.InnerException?.Message ?? exception.Message;
+        return message.IndexOf(FilingNumberUniqueConstraintName, StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private void ValidateStatus(IprStatus status, DateTimeOffset? filedAtUtc, DateTimeOffset? grantedAtUtc)
