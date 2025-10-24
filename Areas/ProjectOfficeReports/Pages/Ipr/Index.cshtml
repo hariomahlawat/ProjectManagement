@@ -52,6 +52,7 @@
 
     var isCreateMode = string.Equals(Model.Mode, "create", StringComparison.OrdinalIgnoreCase);
     var isEditMode = string.Equals(Model.Mode, "edit", StringComparison.OrdinalIgnoreCase);
+    var exportRouteValues = Model.GetRouteValuesForLinks(includeModeAndId: false);
 }
 
 <div class="container-fluid py-4">
@@ -73,12 +74,23 @@
                 <i class="bi bi-funnel" aria-hidden="true"></i>
                 <span>Filters</span>
             </button>
-            <a class="btn btn-outline-secondary d-inline-flex align-items-center gap-2"
-               asp-page-handler="Export"
-               asp-all-route-data="@Model.GetRouteValuesForLinks(includeModeAndId: false)">
-                <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
-                <span>Export records</span>
-            </a>
+            <form method="get"
+                  asp-page-handler="Export"
+                  class="d-inline">
+                @foreach (var kvp in exportRouteValues)
+                {
+                    if (kvp.Value is null)
+                    {
+                        continue;
+                    }
+
+                    <input type="hidden" name="@kvp.Key" value="@kvp.Value" />
+                }
+                <button type="submit" class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+                    <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
+                    <span>Export records</span>
+                </button>
+            </form>
             @if (Model.CanEdit)
             {
                 <a class="btn btn-primary d-inline-flex align-items-center gap-2"
