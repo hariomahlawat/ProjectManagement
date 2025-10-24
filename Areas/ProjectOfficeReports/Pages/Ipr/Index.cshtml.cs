@@ -2,11 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using ClosedXML.Excel;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -16,6 +14,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Application.Ipr;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Data;
@@ -45,6 +44,7 @@ public sealed class IndexModel : PageModel
     private readonly IIprWriteService _writeService;
     private readonly IAuthorizationService _authorizationService;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IIprExportService _exportService;
 
     private string? _query;
     private string? _mode;
@@ -54,13 +54,15 @@ public sealed class IndexModel : PageModel
         IIprReadService readService,
         IIprWriteService writeService,
         IAuthorizationService authorizationService,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        IIprExportService exportService)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
         _writeService = writeService ?? throw new ArgumentNullException(nameof(writeService));
         _authorizationService = authorizationService ?? throw new ArgumentNullException(nameof(authorizationService));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+        _exportService = exportService ?? throw new ArgumentNullException(nameof(exportService));
     }
 
     [BindProperty(SupportsGet = true)]
@@ -153,76 +155,9 @@ public sealed class IndexModel : PageModel
     {
         NormalizeFilters();
         var filter = BuildFilter();
-        var records = await _readService.GetExportAsync(filter, cancellationToken);
+        var file = await _exportService.ExportAsync(filter, cancellationToken);
 
-        using var workbook = new XLWorkbook();
-        var worksheet = workbook.Worksheets.Add("IPR Records");
-
-        var headers = new[]
-        {
-            "Ser",
-            "Name of the product",
-            "IPR filing no",
-            "Status",
-            "Filed by",
-            "Filing date",
-            "Grant date",
-            "Project",
-            "Remarks"
-        };
-
-        for (var column = 0; column < headers.Length; column++)
-        {
-            var cell = worksheet.Cell(1, column + 1);
-            cell.Value = headers[column];
-            cell.Style.Font.Bold = true;
-        }
-
-        var istZone = TimeZoneHelper.GetIst();
-
-        for (var index = 0; index < records.Count; index++)
-        {
-            var rowNumber = index + 2;
-            var record = records[index];
-
-            worksheet.Cell(rowNumber, 1).Value = index + 1;
-            worksheet.Cell(rowNumber, 2).Value = record.Title ?? string.Empty;
-            worksheet.Cell(rowNumber, 3).Value = record.FilingNumber;
-            worksheet.Cell(rowNumber, 4).Value = GetStatusLabel(record.Status);
-            worksheet.Cell(rowNumber, 5).Value = record.FiledBy ?? string.Empty;
-
-            if (record.FiledAtUtc.HasValue)
-            {
-                var filedAtIst = TimeZoneInfo.ConvertTimeFromUtc(record.FiledAtUtc.Value.UtcDateTime, istZone);
-                var filedDate = filedAtIst.Date;
-                var filedCell = worksheet.Cell(rowNumber, 6);
-                filedCell.Value = filedDate;
-                filedCell.Style.DateFormat.Format = "dd-mmm-yyyy";
-            }
-
-            if (record.GrantedAtUtc.HasValue)
-            {
-                var grantedAtIst = TimeZoneInfo.ConvertTimeFromUtc(record.GrantedAtUtc.Value.UtcDateTime, istZone);
-                var grantedCell = worksheet.Cell(rowNumber, 7);
-                grantedCell.Value = grantedAtIst.Date;
-                grantedCell.Style.DateFormat.Format = "dd-mmm-yyyy";
-            }
-
-            worksheet.Cell(rowNumber, 8).Value = record.ProjectName ?? string.Empty;
-            worksheet.Cell(rowNumber, 9).Value = record.Remarks ?? string.Empty;
-        }
-
-        worksheet.Column(3).Style.NumberFormat.Format = "@";
-        worksheet.Columns().AdjustToContents();
-
-        using var stream = new MemoryStream();
-        workbook.SaveAs(stream);
-        stream.Position = 0;
-
-        var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
-        var fileName = $"ipr-records-{timestamp}.xlsx";
-
-        return File(stream.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+        return File(file.Content, file.ContentType, file.FileName);
     }
 
     public async Task<IActionResult> OnPostCreateAsync(CancellationToken cancellationToken)

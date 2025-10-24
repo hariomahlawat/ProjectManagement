@@ -276,6 +276,7 @@ builder.Services.AddSingleton<IVisitPdfReportBuilder, VisitPdfReportBuilder>();
 builder.Services.AddSingleton<ISocialMediaExcelWorkbookBuilder, SocialMediaExcelWorkbookBuilder>();
 builder.Services.AddSingleton<ISocialMediaPdfReportBuilder, SocialMediaPdfReportBuilder>();
 builder.Services.AddSingleton<IProliferationExcelWorkbookBuilder, ProliferationExcelWorkbookBuilder>();
+builder.Services.AddSingleton<IIprExcelWorkbookBuilder, IprExcelWorkbookBuilder>();
 builder.Services.AddScoped<VisitTypeService>();
 builder.Services.AddScoped<SocialMediaEventTypeService>();
 builder.Services.AddScoped<SocialMediaPlatformService>();
@@ -285,6 +286,7 @@ builder.Services.AddScoped<IProjectTotExportService, ProjectTotExportService>();
 builder.Services.AddScoped<IProliferationExportService, ProliferationExportService>();
 builder.Services.AddScoped<IVisitExportService, VisitExportService>();
 builder.Services.AddScoped<ISocialMediaExportService, SocialMediaExportService>();
+builder.Services.AddScoped<IIprExportService, IprExportService>();
 builder.Services.AddScoped<IVisitPhotoService, VisitPhotoService>();
 builder.Services.AddScoped<ISocialMediaEventPhotoService, SocialMediaEventPhotoService>();
 builder.Services.AddOptions<ProjectPhotoOptions>()
