@@ -10,7 +10,14 @@
     <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
         <div>
             <p class="text-uppercase text-muted small mb-1">Project office reports</p>
-            <h1 class="h4 mb-0">Manage IPR</h1>
+            <h1 class="h4 mb-2">Manage IPR</h1>
+            <nav aria-label="Breadcrumb">
+                <ol class="breadcrumb mb-0 small">
+                    <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/Ipr/Index">Intellectual property tracker</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Manage IPR</li>
+                </ol>
+            </nav>
         </div>
         <div class="d-flex gap-2">
             <a class="btn btn-outline-secondary" asp-page="./Index">Back to tracker</a>
