@@ -34,14 +34,14 @@
         <div class="col-12 col-md-4">
             <label asp-for="Input.Type" class="form-label"></label>
             <select asp-for="Input.Type" asp-items="Model.TypeFormOptions" class="form-select" required>
-                <option value="" disabled @(Model.Input?.Type is null ? "selected" : null)>Select type</option>
+                <option value="" disabled selected="@(Model.Input?.Type is null ? "selected" : null)">Select type</option>
             </select>
             <span asp-validation-for="Input.Type" class="text-danger"></span>
         </div>
         <div class="col-12 col-md-4">
             <label asp-for="Input.Status" class="form-label"></label>
             <select asp-for="Input.Status" asp-items="Model.StatusFormOptions" class="form-select" required>
-                <option value="" disabled @(Model.Input?.Status is null ? "selected" : null)>Select status</option>
+                <option value="" disabled selected="@(Model.Input?.Status is null ? "selected" : null)">Select status</option>
             </select>
             <span asp-validation-for="Input.Status" class="text-danger"></span>
         </div>
@@ -101,14 +101,14 @@ else if (isEditMode)
         <div class="col-12 col-md-4">
             <label asp-for="Input.Type" class="form-label"></label>
             <select asp-for="Input.Type" asp-items="Model.TypeFormOptions" class="form-select" required>
-                <option value="" disabled @(Model.Input?.Type is null ? "selected" : null)>Select type</option>
+                <option value="" disabled selected="@(Model.Input?.Type is null ? "selected" : null)">Select type</option>
             </select>
             <span asp-validation-for="Input.Type" class="text-danger"></span>
         </div>
         <div class="col-12 col-md-4">
             <label asp-for="Input.Status" class="form-label"></label>
             <select asp-for="Input.Status" asp-items="Model.StatusFormOptions" class="form-select" required>
-                <option value="" disabled @(Model.Input?.Status is null ? "selected" : null)>Select status</option>
+                <option value="" disabled selected="@(Model.Input?.Status is null ? "selected" : null)">Select status</option>
             </select>
             <span asp-validation-for="Input.Status" class="text-danger"></span>
         </div>
