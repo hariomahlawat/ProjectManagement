@@ -12,4 +12,5 @@ public sealed record IprListRowDto(
     DateTimeOffset? FiledAtUtc,
     int? ProjectId,
     string? ProjectName,
-    int AttachmentCount);
+    int AttachmentCount,
+    string? Notes);
