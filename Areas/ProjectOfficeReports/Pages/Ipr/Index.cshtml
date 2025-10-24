@@ -39,12 +39,6 @@
         return converted.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
     }
 
-    string FormatAttachmentTimestamp(DateTimeOffset value)
-    {
-        var converted = TimeZoneInfo.ConvertTimeFromUtc(value.UtcDateTime, istZone);
-        return converted.ToString("dd MMM yyyy 'at' HH:mm 'IST'", CultureInfo.InvariantCulture);
-    }
-
     var groupedRecords = Model.Records
         .GroupBy(r => r.Type)
         .OrderBy(g => g.Key)
@@ -70,7 +64,11 @@
             </a>
             @if (Model.CanEdit)
             {
-                <a class="btn btn-primary d-inline-flex align-items-center gap-2" asp-page="./Index" asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "create" }, includePage: true, includeModeAndId: false)">
+                <a class="btn btn-primary d-inline-flex align-items-center gap-2"
+                   asp-page="./Index"
+                   asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "create" }, includePage: true, includeModeAndId: false)"
+                   data-ipr-offcanvas-trigger="create"
+                   aria-controls="iprRecordOffcanvas">
                     <i class="bi bi-plus-circle" aria-hidden="true"></i>
                     <span>Add IPR record</span>
                 </a>
@@ -183,201 +181,24 @@
         </div>
     </div>
 
-    @if (Model.CanEdit && (isCreateMode || isEditMode))
+    @if (Model.CanEdit)
     {
-        <div class="card shadow-sm mb-4">
-            <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+        <div class="offcanvas offcanvas-end" tabindex="-1" id="iprRecordOffcanvas" aria-labelledby="iprRecordOffcanvasLabel" data-ipr-mode="@(Model.Mode ?? string.Empty)" data-ipr-has-form="@((isCreateMode || isEditMode) ? "true" : "false")">
+            <div class="offcanvas-header">
                 <div>
-                    <h2 class="h5 mb-1">@(isCreateMode ? "Create IPR record" : "Edit IPR record")</h2>
-                    <p class="text-muted mb-0">Capture filing information, track status, and associate the record with a project.</p>
+                    <h2 class="offcanvas-title h5 mb-1" id="iprRecordOffcanvasLabel">
+                        @(isCreateMode ? "Create IPR record" : isEditMode ? "Edit IPR record" : "IPR record")
+                    </h2>
+                    <p class="text-muted small mb-0">
+                        @(isCreateMode || isEditMode
+                            ? "Capture filing information, track status, and associate the record with a project."
+                            : "Use the available actions to add or manage records.")
+                    </p>
                 </div>
-                <div class="d-flex gap-2">
-                    <a class="btn btn-outline-secondary" asp-page="./Index" asp-all-route-data="@Model.GetRouteValuesForLinks(includeModeAndId: false)">
-                        Cancel
-                    </a>
-                </div>
+                <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
             </div>
-            <div class="card-body">
-                @if (isCreateMode)
-                {
-                    <form method="post" asp-page-handler="Create" asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "create" }, includeModeAndId: false)" class="row g-3" novalidate>
-                        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-                        <div class="col-12 col-md-6">
-                            <label asp-for="Input.FilingNumber" class="form-label"></label>
-                            <input asp-for="Input.FilingNumber" class="form-control" />
-                            <span asp-validation-for="Input.FilingNumber" class="text-danger"></span>
-                        </div>
-                        <div class="col-12 col-md-6">
-                            <label asp-for="Input.Title" class="form-label"></label>
-                            <input asp-for="Input.Title" class="form-control" />
-                            <span asp-validation-for="Input.Title" class="text-danger"></span>
-                        </div>
-                        <div class="col-12 col-md-6">
-                            <label asp-for="Input.FiledBy" class="form-label"></label>
-                            <input asp-for="Input.FiledBy" class="form-control" />
-                            <span asp-validation-for="Input.FiledBy" class="text-danger"></span>
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <label asp-for="Input.Type" class="form-label"></label>
-                            <select asp-for="Input.Type" asp-items="Model.TypeFormOptions" class="form-select"></select>
-                            <span asp-validation-for="Input.Type" class="text-danger"></span>
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <label asp-for="Input.Status" class="form-label"></label>
-                            <select asp-for="Input.Status" asp-items="Model.StatusFormOptions" class="form-select"></select>
-                            <span asp-validation-for="Input.Status" class="text-danger"></span>
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <label asp-for="Input.FiledOn" class="form-label"></label>
-                            <input asp-for="Input.FiledOn" class="form-control" type="date" />
-                            <span asp-validation-for="Input.FiledOn" class="text-danger"></span>
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <label asp-for="Input.GrantedOn" class="form-label"></label>
-                            <input asp-for="Input.GrantedOn" class="form-control" type="date" />
-                            <span asp-validation-for="Input.GrantedOn" class="text-danger"></span>
-                        </div>
-                        <div class="col-12 col-md-6">
-                            <label asp-for="Input.ProjectId" class="form-label"></label>
-                            <select asp-for="Input.ProjectId" asp-items="Model.ProjectFormOptions" class="form-select"></select>
-                            <span asp-validation-for="Input.ProjectId" class="text-danger"></span>
-                        </div>
-                        <div class="col-12">
-                            <label asp-for="Input.Notes" class="form-label"></label>
-                            <textarea asp-for="Input.Notes" class="form-control" rows="4"></textarea>
-                            <span asp-validation-for="Input.Notes" class="text-danger"></span>
-                        </div>
-                        <div class="col-12 d-flex gap-2">
-                            <button type="submit" class="btn btn-primary">Create record</button>
-                        </div>
-                    </form>
-                }
-                else if (isEditMode)
-                {
-                    <form method="post" asp-page-handler="Edit" asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "edit", id = Model.Input.Id }, includeModeAndId: false)" class="row g-3" novalidate>
-                        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-                        <input type="hidden" asp-for="Input.Id" />
-                        <input type="hidden" asp-for="Input.RowVersion" />
-                        <div class="col-12 col-md-6">
-                            <label asp-for="Input.FilingNumber" class="form-label"></label>
-                            <input asp-for="Input.FilingNumber" class="form-control" />
-                            <span asp-validation-for="Input.FilingNumber" class="text-danger"></span>
-                        </div>
-                        <div class="col-12 col-md-6">
-                            <label asp-for="Input.Title" class="form-label"></label>
-                            <input asp-for="Input.Title" class="form-control" />
-                            <span asp-validation-for="Input.Title" class="text-danger"></span>
-                        </div>
-                        <div class="col-12 col-md-6">
-                            <label asp-for="Input.FiledBy" class="form-label"></label>
-                            <input asp-for="Input.FiledBy" class="form-control" />
-                            <span asp-validation-for="Input.FiledBy" class="text-danger"></span>
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <label asp-for="Input.Type" class="form-label"></label>
-                            <select asp-for="Input.Type" asp-items="Model.TypeFormOptions" class="form-select"></select>
-                            <span asp-validation-for="Input.Type" class="text-danger"></span>
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <label asp-for="Input.Status" class="form-label"></label>
-                            <select asp-for="Input.Status" asp-items="Model.StatusFormOptions" class="form-select"></select>
-                            <span asp-validation-for="Input.Status" class="text-danger"></span>
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <label asp-for="Input.FiledOn" class="form-label"></label>
-                            <input asp-for="Input.FiledOn" class="form-control" type="date" />
-                            <span asp-validation-for="Input.FiledOn" class="text-danger"></span>
-                        </div>
-                        <div class="col-12 col-md-4">
-                            <label asp-for="Input.GrantedOn" class="form-label"></label>
-                            <input asp-for="Input.GrantedOn" class="form-control" type="date" />
-                            <span asp-validation-for="Input.GrantedOn" class="text-danger"></span>
-                        </div>
-                        <div class="col-12 col-md-6">
-                            <label asp-for="Input.ProjectId" class="form-label"></label>
-                            <select asp-for="Input.ProjectId" asp-items="Model.ProjectFormOptions" class="form-select"></select>
-                            <span asp-validation-for="Input.ProjectId" class="text-danger"></span>
-                        </div>
-                        <div class="col-12">
-                            <label asp-for="Input.Notes" class="form-label"></label>
-                            <textarea asp-for="Input.Notes" class="form-control" rows="4"></textarea>
-                            <span asp-validation-for="Input.Notes" class="text-danger"></span>
-                        </div>
-                        <div class="col-12 d-flex gap-2">
-                            <button type="submit" class="btn btn-primary">Save changes</button>
-                        </div>
-                    </form>
-
-                    <hr class="my-4" />
-
-                    <section>
-                        <header class="d-flex justify-content-between align-items-center mb-3">
-                            <div>
-                                <h3 class="h6 mb-1">Attachments</h3>
-                                <p class="text-muted mb-0">Upload supporting documents or remove outdated files.</p>
-                            </div>
-                        </header>
-
-                        <div class="mb-4">
-                            @if (Model.Attachments.Count == 0)
-                            {
-                                <p class="text-muted mb-0">No attachments yet.</p>
-                            }
-                            else
-                            {
-                                <ul class="list-group">
-                                    @foreach (var attachment in Model.Attachments)
-                                    {
-                                        <li class="list-group-item d-flex flex-column flex-md-row align-items-md-center gap-2">
-                                            <div class="flex-fill">
-                                                <div class="fw-semibold">
-                                                    <a asp-page="Download" asp-route-iprRecordId="@Model.Input.Id" asp-route-attachmentId="@attachment.Id">
-                                                        @attachment.FileName
-                                                    </a>
-                                                </div>
-                                                <div class="text-muted small">
-                                                    @Model.FormatFileSize(attachment.FileSize)
-                                                    &middot; Uploaded by @attachment.UploadedBy on @FormatAttachmentTimestamp(attachment.UploadedAtUtc)
-                                                </div>
-                                            </div>
-                                            <div class="d-flex gap-2">
-                                                <form method="post" asp-page-handler="RemoveAttachment" asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "edit", id = Model.Input.Id }, includeModeAndId: false)">
-                                                    <input type="hidden" name="RemoveAttachment.AttachmentId" value="@attachment.Id" />
-                                                    <input type="hidden" name="RemoveAttachment.RecordId" value="@Model.Input.Id" />
-                                                    <input type="hidden" name="RemoveAttachment.RowVersion" value="@attachment.RowVersion" />
-                                                    <button type="submit" class="btn btn-outline-danger btn-sm">
-                                                        <i class="bi bi-trash" aria-hidden="true"></i>
-                                                        <span class="visually-hidden">Remove attachment</span>
-                                                    </button>
-                                                </form>
-                                            </div>
-                                        </li>
-                                    }
-                                </ul>
-                            }
-                        </div>
-
-                        <form method="post" asp-page-handler="Attach" asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "edit", id = Model.Input.Id }, includeModeAndId: false)" enctype="multipart/form-data" class="row g-3 align-items-end" novalidate>
-                            <input type="hidden" asp-for="UploadInput.RecordId" />
-                            <div class="col-12 col-md-8">
-                                <label asp-for="UploadInput.File" class="form-label">Add attachment</label>
-                                <input asp-for="UploadInput.File" class="form-control" type="file" />
-                                <span asp-validation-for="UploadInput.File" class="text-danger"></span>
-                            </div>
-                            <div class="col-12 col-md-4">
-                                <button type="submit" class="btn btn-outline-primary w-100">Upload</button>
-                            </div>
-                        </form>
-
-                        <form method="post" asp-page-handler="Delete" asp-all-route-data="@Model.GetRouteValuesForLinks(includeModeAndId: false)" class="mt-4">
-                            <input type="hidden" asp-for="DeleteRequest.Id" />
-                            <input type="hidden" asp-for="DeleteRequest.RowVersion" />
-                            <button type="submit" class="btn btn-outline-danger" onclick="return confirm('This will permanently delete the IPR record and its attachments. Continue?');">
-                                Delete record
-                            </button>
-                        </form>
-                    </section>
-                }
+            <div class="offcanvas-body">
+                <partial name="_RecordFormPartial" model="Model" />
             </div>
         </div>
     }
@@ -436,7 +257,11 @@
                                         @if (Model.CanEdit)
                                         {
                                             <td class="text-end">
-                                                <a class="btn btn-outline-primary btn-sm" asp-page="./Index" asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "edit", id = record.Id }, includeModeAndId: false)">
+                                                <a class="btn btn-outline-primary btn-sm"
+                                                   asp-page="./Index"
+                                                   asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "edit", id = record.Id }, includeModeAndId: false)"
+                                                   data-ipr-offcanvas-trigger="edit"
+                                                   aria-controls="iprRecordOffcanvas">
                                                     Manage
                                                 </a>
                                             </td>
@@ -504,4 +329,27 @@
 
 @section Scripts {
     <partial name="~/Pages/Shared/_ValidationScriptsPartial.cshtml" />
+    <script>
+        (() => {
+            const offcanvasElement = document.getElementById('iprRecordOffcanvas');
+            if (!offcanvasElement || typeof bootstrap === 'undefined' || !bootstrap.Offcanvas) {
+                return;
+            }
+
+            const offcanvasInstance = bootstrap.Offcanvas.getOrCreateInstance(offcanvasElement);
+            const mode = (offcanvasElement.getAttribute('data-ipr-mode') || '').toLowerCase();
+            const hasForm = offcanvasElement.getAttribute('data-ipr-has-form') === 'true';
+
+            if (hasForm && (mode === 'create' || mode === 'edit')) {
+                offcanvasInstance.show();
+            }
+
+            offcanvasElement.addEventListener('hidden.bs.offcanvas', () => {
+                const url = new URL(window.location.href);
+                url.searchParams.delete('mode');
+                url.searchParams.delete('id');
+                window.history.replaceState({}, document.title, url);
+            });
+        })();
+    </script>
 }
