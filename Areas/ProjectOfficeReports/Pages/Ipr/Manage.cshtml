@@ -143,6 +143,75 @@
                                    class="btn btn-outline-secondary">Cancel</a>
                             </div>
                         </form>
+
+                        @if (Model.Input.Id.HasValue)
+                        {
+                            <hr class="my-4" />
+
+                            <section aria-label="IPR attachments">
+                                <header class="mb-3">
+                                    <h2 class="h6 mb-1">Attachments</h2>
+                                    <p class="text-muted mb-0">Upload supporting documents or remove outdated files.</p>
+                                </header>
+
+                                <div class="mb-4">
+                                    @if (Model.Attachments.Count == 0)
+                                    {
+                                        <p class="text-muted mb-0">No attachments yet.</p>
+                                    }
+                                    @else
+                                    {
+                                        <ul class="list-group">
+                                            @foreach (var attachment in Model.Attachments)
+                                            {
+                                                <li class="list-group-item d-flex flex-column flex-md-row align-items-md-center gap-2">
+                                                    <div class="flex-fill">
+                                                        <div class="fw-semibold">
+                                                            <a asp-page="Download"
+                                                               asp-route-iprRecordId="@Model.Input.Id"
+                                                               asp-route-attachmentId="@attachment.Id">
+                                                                @attachment.FileName
+                                                            </a>
+                                                        </div>
+                                                        <div class="text-muted small">
+                                                            @Model.FormatFileSize(attachment.FileSize)
+                                                            &middot; Uploaded by @attachment.UploadedBy on @Model.FormatAttachmentTimestamp(attachment.UploadedAtUtc)
+                                                        </div>
+                                                    </div>
+                                                    <form method="post" asp-page-handler="RemoveAttachment" class="d-flex">
+                                                        <input type="hidden" name="RemoveAttachment.AttachmentId" value="@attachment.Id" />
+                                                        <input type="hidden" name="RemoveAttachment.RecordId" value="@Model.Input.Id" />
+                                                        <input type="hidden" name="RemoveAttachment.RowVersion" value="@attachment.RowVersion" />
+                                                        <input type="hidden" name="Query" value="@Model.Query" />
+                                                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                                                            <i class="bi bi-trash" aria-hidden="true"></i>
+                                                            <span class="visually-hidden">Remove attachment</span>
+                                                        </button>
+                                                    </form>
+                                                </li>
+                                            }
+                                        </ul>
+                                    }
+                                </div>
+
+                                <form method="post"
+                                      asp-page-handler="Attach"
+                                      enctype="multipart/form-data"
+                                      class="row g-3 align-items-end"
+                                      id="iprAttachmentForm">
+                                    <input type="hidden" asp-for="UploadInput.RecordId" />
+                                    <input type="hidden" name="Query" value="@Model.Query" />
+                                    <div class="col-12 col-md-8">
+                                        <label asp-for="UploadInput.File" class="form-label">Add attachment</label>
+                                        <input asp-for="UploadInput.File" class="form-control" type="file" />
+                                        <span asp-validation-for="UploadInput.File" class="text-danger"></span>
+                                    </div>
+                                    <div class="col-12 col-md-4">
+                                        <button type="submit" class="btn btn-outline-primary w-100">Upload</button>
+                                    </div>
+                                </form>
+                            </section>
+                        }
                     }
                 </div>
             </div>
