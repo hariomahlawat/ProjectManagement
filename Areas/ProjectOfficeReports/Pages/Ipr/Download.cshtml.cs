@@ -60,6 +60,7 @@ public class DownloadModel : PageModel
         var contentType = string.IsNullOrWhiteSpace(attachment.ContentType)
             ? "application/octet-stream"
             : attachment.ContentType;
+        var isPdf = IsPdf(contentType, downloadName);
 
         FileStream stream;
         try
@@ -73,9 +74,19 @@ public class DownloadModel : PageModel
 
         var result = new FileStreamResult(stream, contentType)
         {
-            FileDownloadName = downloadName,
             EnableRangeProcessing = true
         };
+
+        if (isPdf)
+        {
+            var contentDisposition = new ContentDispositionHeaderValue("inline");
+            contentDisposition.SetHttpFileName(downloadName);
+            Response.Headers[HeaderNames.ContentDisposition] = contentDisposition.ToString();
+        }
+        else
+        {
+            result.FileDownloadName = downloadName;
+        }
 
         Response.Headers[HeaderNames.ContentLength] = attachment.FileSize.ToString(CultureInfo.InvariantCulture);
 
@@ -100,5 +111,15 @@ public class DownloadModel : PageModel
 
         var fileName = Path.GetFileName(original);
         return string.IsNullOrWhiteSpace(fileName) ? "attachment" : fileName;
+    }
+
+    private static bool IsPdf(string contentType, string fileName)
+    {
+        if (string.Equals(contentType, "application/pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase);
     }
 }
