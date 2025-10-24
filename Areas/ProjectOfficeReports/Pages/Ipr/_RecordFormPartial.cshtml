@@ -186,10 +186,10 @@ else if (isEditMode)
             </div>
         </form>
 
-        <form method="post" asp-page-handler="Delete" asp-all-route-data="@Model.GetRouteValuesForLinks(includeModeAndId: false)" class="mt-4" id="iprDeleteForm">
+        <form method="post" asp-page-handler="Delete" asp-all-route-data="@Model.GetRouteValuesForLinks(includeModeAndId: false)" class="mt-4" id="iprDeleteForm" data-ipr-confirm="This will permanently delete the IPR record and its attachments. Continue?">
             <input type="hidden" asp-for="DeleteRequest.Id" />
             <input type="hidden" asp-for="DeleteRequest.RowVersion" />
-            <button type="submit" class="btn btn-outline-danger" onclick="return confirm('This will permanently delete the IPR record and its attachments. Continue?');">
+            <button type="submit" class="btn btn-outline-danger">
                 Delete record
             </button>
         </form>

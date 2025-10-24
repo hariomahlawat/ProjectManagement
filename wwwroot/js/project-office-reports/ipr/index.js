@@ -170,3 +170,21 @@
         filterTrigger.focus();
     });
 })();
+
+(() => {
+    const confirmForms = document.querySelectorAll('form[data-ipr-confirm]');
+    if (confirmForms.length === 0) {
+        return;
+    }
+
+    confirmForms.forEach(form => {
+        form.addEventListener('submit', event => {
+            const message = form.getAttribute('data-ipr-confirm') || 'Are you sure?';
+
+            if (!window.confirm(message)) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+            }
+        });
+    });
+})();
