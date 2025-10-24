@@ -1,0 +1,59 @@
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.ManageModel
+
+<div class="col-12 col-md-6">
+    <label asp-for="Input.FilingNumber" class="form-label"></label>
+    <input asp-for="Input.FilingNumber" class="form-control" />
+    <span asp-validation-for="Input.FilingNumber" class="text-danger"></span>
+</div>
+
+<div class="col-12 col-md-6">
+    <label asp-for="Input.Title" class="form-label"></label>
+    <input asp-for="Input.Title" class="form-control" />
+    <span asp-validation-for="Input.Title" class="text-danger"></span>
+</div>
+
+<div class="col-12 col-md-6">
+    <label asp-for="Input.FiledBy" class="form-label"></label>
+    <input asp-for="Input.FiledBy" class="form-control" />
+    <span asp-validation-for="Input.FiledBy" class="text-danger"></span>
+</div>
+
+<div class="col-12 col-md-6">
+    <label asp-for="Input.Type" class="form-label"></label>
+    <select asp-for="Input.Type" asp-items="Model.TypeFormOptions" class="form-select" required>
+        <option value="" disabled selected="@(Model.Input?.Type is null ? "selected" : null)">Select type</option>
+    </select>
+    <span asp-validation-for="Input.Type" class="text-danger"></span>
+</div>
+
+<div class="col-12 col-md-6">
+    <label asp-for="Input.Status" class="form-label"></label>
+    <select asp-for="Input.Status" asp-items="Model.StatusFormOptions" class="form-select" required>
+        <option value="" disabled selected="@(Model.Input?.Status is null ? "selected" : null)">Select status</option>
+    </select>
+    <span asp-validation-for="Input.Status" class="text-danger"></span>
+</div>
+
+<div class="col-12 col-md-6">
+    <label asp-for="Input.FiledOn" class="form-label"></label>
+    <input asp-for="Input.FiledOn" class="form-control" type="date" />
+    <span asp-validation-for="Input.FiledOn" class="text-danger"></span>
+</div>
+
+<div class="col-12 col-md-6">
+    <label asp-for="Input.GrantedOn" class="form-label"></label>
+    <input asp-for="Input.GrantedOn" class="form-control" type="date" />
+    <span asp-validation-for="Input.GrantedOn" class="text-danger"></span>
+</div>
+
+<div class="col-12 col-md-6">
+    <label asp-for="Input.ProjectId" class="form-label"></label>
+    <select asp-for="Input.ProjectId" asp-items="Model.ProjectOptions" class="form-select"></select>
+    <span asp-validation-for="Input.ProjectId" class="text-danger"></span>
+</div>
+
+<div class="col-12">
+    <label asp-for="Input.Notes" class="form-label"></label>
+    <textarea asp-for="Input.Notes" rows="3" class="form-control"></textarea>
+    <span asp-validation-for="Input.Notes" class="text-danger"></span>
+</div>

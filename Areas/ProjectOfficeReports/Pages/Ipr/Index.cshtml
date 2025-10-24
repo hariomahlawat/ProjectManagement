@@ -75,6 +75,11 @@
             </a>
             @if (Model.CanEdit)
             {
+                <a class="btn btn-outline-primary d-inline-flex align-items-center gap-2"
+                   asp-page="./Manage">
+                    <i class="bi bi-gear" aria-hidden="true"></i>
+                    <span>Manage IPR</span>
+                </a>
                 <a class="btn btn-primary d-inline-flex align-items-center gap-2"
                    asp-page="./Index"
                    asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "create" }, includePage: true, includeModeAndId: false)"
