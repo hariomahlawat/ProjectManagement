@@ -308,7 +308,7 @@
                                         <td class="text-nowrap">@FormatFiledDate(record.FiledAtUtc)</td>
                                         <td>@(string.IsNullOrWhiteSpace(record.ProjectName) ? "—" : record.ProjectName)</td>
                                         <td class="text-center">@record.AttachmentCount</td>
-                                        <td class="text-break">@(string.IsNullOrWhiteSpace(record.Remarks) ? "—" : record.Remarks)</td>
+                                        <td class="text-break">@(string.IsNullOrWhiteSpace(record.Notes) ? "—" : record.Notes)</td>
                                     </tr>
                                     firstRow = false;
                                 }
