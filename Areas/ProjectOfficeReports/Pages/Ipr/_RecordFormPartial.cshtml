@@ -7,13 +7,15 @@
 
 @if (isCreateMode)
 {
-    <form method="post" asp-page-handler="Create" asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "create" }, includeModeAndId: false)" class="row g-3" novalidate id="iprCreateForm">
+    <form method="post" asp-page-handler="Create" asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "create" }, includeModeAndId: false)" class="row g-3" id="iprCreateForm">
         <div class="col-12 d-flex justify-content-end">
             <a class="btn btn-outline-secondary" asp-page="./Index" asp-all-route-data="@Model.GetRouteValuesForLinks(includeModeAndId: false)">
                 Cancel
             </a>
         </div>
-        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+        <div class="col-12">
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
+        </div>
         <div class="col-12 col-md-6">
             <label asp-for="Input.FilingNumber" class="form-label"></label>
             <input asp-for="Input.FilingNumber" class="form-control" />
@@ -31,12 +33,16 @@
         </div>
         <div class="col-12 col-md-4">
             <label asp-for="Input.Type" class="form-label"></label>
-            <select asp-for="Input.Type" asp-items="Model.TypeFormOptions" class="form-select"></select>
+            <select asp-for="Input.Type" asp-items="Model.TypeFormOptions" class="form-select" required>
+                <option value="" disabled @(Model.Input?.Type is null ? "selected" : null)>Select type</option>
+            </select>
             <span asp-validation-for="Input.Type" class="text-danger"></span>
         </div>
         <div class="col-12 col-md-4">
             <label asp-for="Input.Status" class="form-label"></label>
-            <select asp-for="Input.Status" asp-items="Model.StatusFormOptions" class="form-select"></select>
+            <select asp-for="Input.Status" asp-items="Model.StatusFormOptions" class="form-select" required>
+                <option value="" disabled @(Model.Input?.Status is null ? "selected" : null)>Select status</option>
+            </select>
             <span asp-validation-for="Input.Status" class="text-danger"></span>
         </div>
         <div class="col-12 col-md-4">
@@ -66,13 +72,15 @@
 }
 else if (isEditMode)
 {
-    <form method="post" asp-page-handler="Edit" asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "edit", id = Model.Input.Id }, includeModeAndId: false)" class="row g-3" novalidate id="iprEditForm">
+    <form method="post" asp-page-handler="Edit" asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "edit", id = Model.Input.Id }, includeModeAndId: false)" class="row g-3" id="iprEditForm">
         <div class="col-12 d-flex justify-content-end">
             <a class="btn btn-outline-secondary" asp-page="./Index" asp-all-route-data="@Model.GetRouteValuesForLinks(includeModeAndId: false)">
                 Cancel
             </a>
         </div>
-        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+        <div class="col-12">
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-2"></div>
+        </div>
         <input type="hidden" asp-for="Input.Id" />
         <input type="hidden" asp-for="Input.RowVersion" />
         <div class="col-12 col-md-6">
@@ -92,12 +100,16 @@ else if (isEditMode)
         </div>
         <div class="col-12 col-md-4">
             <label asp-for="Input.Type" class="form-label"></label>
-            <select asp-for="Input.Type" asp-items="Model.TypeFormOptions" class="form-select"></select>
+            <select asp-for="Input.Type" asp-items="Model.TypeFormOptions" class="form-select" required>
+                <option value="" disabled @(Model.Input?.Type is null ? "selected" : null)>Select type</option>
+            </select>
             <span asp-validation-for="Input.Type" class="text-danger"></span>
         </div>
         <div class="col-12 col-md-4">
             <label asp-for="Input.Status" class="form-label"></label>
-            <select asp-for="Input.Status" asp-items="Model.StatusFormOptions" class="form-select"></select>
+            <select asp-for="Input.Status" asp-items="Model.StatusFormOptions" class="form-select" required>
+                <option value="" disabled @(Model.Input?.Status is null ? "selected" : null)>Select status</option>
+            </select>
             <span asp-validation-for="Input.Status" class="text-danger"></span>
         </div>
         <div class="col-12 col-md-4">

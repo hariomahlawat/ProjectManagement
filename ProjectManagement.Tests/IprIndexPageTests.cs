@@ -228,7 +228,7 @@ public sealed class IprIndexPageTests
         var optionValues = page.TypeOptions.Select(o => o.Value).ToArray();
         Assert.Equal(expectedValues, optionValues);
 
-        var formOptionValues = page.TypeFormOptions.Skip(1).Select(o => o.Value).ToArray();
+        var formOptionValues = page.TypeFormOptions.Select(o => o.Value).ToArray();
         Assert.Equal(expectedValues, formOptionValues);
     }
 

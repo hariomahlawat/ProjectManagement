@@ -174,6 +174,32 @@
 })();
 
 (() => {
+    const formIds = ['iprCreateForm', 'iprEditForm'];
+    const forms = formIds
+        .map(id => document.getElementById(id))
+        .filter(form => form !== null);
+
+    if (forms.length === 0) {
+        return;
+    }
+
+    const scrollToFirstInvalid = form => {
+        const firstInvalid = form.querySelector(':invalid');
+        if (firstInvalid) {
+            firstInvalid.scrollIntoView({ block: 'center' });
+        }
+    };
+
+    forms.forEach(form => {
+        form.addEventListener('invalid', () => {
+            window.setTimeout(() => {
+                scrollToFirstInvalid(form);
+            }, 0);
+        }, true);
+    });
+})();
+
+(() => {
     const filterModalElement = document.getElementById('iprFilterModal');
     const filterTrigger = document.querySelector('[data-ipr-filter-trigger]');
     if (!filterModalElement || !filterTrigger || typeof bootstrap === 'undefined' || !bootstrap.Modal) {

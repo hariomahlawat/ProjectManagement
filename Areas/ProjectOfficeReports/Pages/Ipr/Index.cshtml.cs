@@ -670,23 +670,12 @@ public sealed class IndexModel : PageModel
             })
             .ToList();
 
-        var typeFormOptions = new List<SelectListItem>
-        {
-            new("Select type", string.Empty)
-            {
-                Selected = !Input.Type.HasValue
-            }
-        };
-
-        foreach (var type in supportedTypes)
-        {
-            typeFormOptions.Add(new SelectListItem(GetTypeLabel(type), type.ToString())
+        TypeFormOptions = supportedTypes
+            .Select(type => new SelectListItem(GetTypeLabel(type), type.ToString())
             {
                 Selected = Input.Type.HasValue && Input.Type.Value == type
-            });
-        }
-
-        TypeFormOptions = typeFormOptions;
+            })
+            .ToList();
 
         StatusOptions = Enum.GetValues<IprStatus>()
             .Select(status => new SelectListItem(GetStatusLabel(status), status.ToString())
@@ -695,23 +684,12 @@ public sealed class IndexModel : PageModel
             })
             .ToList();
 
-        var statusFormOptions = new List<SelectListItem>
-        {
-            new("Select status", string.Empty)
-            {
-                Selected = !Input.Status.HasValue
-            }
-        };
-
-        foreach (var status in Enum.GetValues<IprStatus>())
-        {
-            statusFormOptions.Add(new SelectListItem(GetStatusLabel(status), status.ToString())
+        StatusFormOptions = Enum.GetValues<IprStatus>()
+            .Select(status => new SelectListItem(GetStatusLabel(status), status.ToString())
             {
                 Selected = Input.Status.HasValue && Input.Status.Value == status
-            });
-        }
-
-        StatusFormOptions = statusFormOptions;
+            })
+            .ToList();
 
         var projectItems = await _db.Projects.AsNoTracking()
             .OrderBy(p => p.Name)
