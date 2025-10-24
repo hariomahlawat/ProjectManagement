@@ -1,8 +1,6 @@
 (() => {
   const offcanvasElement = document.getElementById('iprRecordOffcanvas');
   if (!offcanvasElement) return;
-  if (typeof bootstrap === 'undefined' || !bootstrap.Offcanvas) return;
-
   const mode = (offcanvasElement.getAttribute('data-ipr-mode') || '').toLowerCase();
   const hasForm = (offcanvasElement.getAttribute('data-ipr-has-form') || '').toLowerCase() === 'true';
 
@@ -60,9 +58,21 @@
     return query ? `${base}?${query}${hash}` : `${base}${hash}`;
   };
 
-  const offcanvasInstance = bootstrap.Offcanvas.getOrCreateInstance(offcanvasElement);
-
+  const lacksOffcanvasSupport = typeof bootstrap === 'undefined' || !bootstrap.Offcanvas;
   const currentId = (getQueryParam('id') || '').toString();
+
+  if (lacksOffcanvasSupport) {
+    if (hasForm && (mode === 'create' || mode === 'edit')) {
+      offcanvasElement.classList.add('show');
+      offcanvasElement.removeAttribute('aria-hidden');
+      updateTriggerStates(mode, currentId);
+    } else {
+      updateTriggerStates('', '');
+    }
+    return;
+  }
+
+  const offcanvasInstance = bootstrap.Offcanvas.getOrCreateInstance(offcanvasElement);
 
   if (hasForm && (mode === 'create' || mode === 'edit')) {
     offcanvasInstance.show();
