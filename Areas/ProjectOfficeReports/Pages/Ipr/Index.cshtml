@@ -292,10 +292,9 @@
                                 <th scope="col">Filed on</th>
                                 <th scope="col">Project</th>
                                 <th scope="col" class="text-center">Attachments</th>
-                                @if (Model.CanEdit)
-                                {
-                                    <th scope="col" class="text-end">Actions</th>
-                                }
+
+                                    <th scope="col" class="text-end">Remarks</th>
+ 
                             </tr>
                         </thead>
                         <tbody>
@@ -316,6 +315,7 @@
                                         <td class="text-nowrap">@FormatFiledDate(record.FiledAtUtc)</td>
                                         <td>@(string.IsNullOrWhiteSpace(record.ProjectName) ? "—" : record.ProjectName)</td>
                                         <td class="text-center">@record.AttachmentCount</td>
+                                        
                                     </tr>
                                     firstRow = false;
                                 }
