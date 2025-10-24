@@ -24,6 +24,21 @@ public sealed class IprExcelWorkbookBuilder : IIprExcelWorkbookBuilder
         using var workbook = new XLWorkbook();
         var worksheet = workbook.Worksheets.Add("IPR Records");
 
+        WriteHeaderRow(worksheet);
+        WriteDataRows(worksheet, context.Rows);
+
+        worksheet.Column(3).Style.NumberFormat.Format = "@";
+        worksheet.SheetView.FreezeRows(1);
+        worksheet.Columns().AdjustToContents();
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        stream.Position = 0;
+        return stream.ToArray();
+    }
+
+    private static void WriteHeaderRow(IXLWorksheet worksheet)
+    {
         var headers = new[]
         {
             "Ser",
@@ -44,16 +59,22 @@ public sealed class IprExcelWorkbookBuilder : IIprExcelWorkbookBuilder
             cell.Style.Font.Bold = true;
         }
 
+        worksheet.Range(1, 1, 1, headers.Length).Style.Fill.BackgroundColor = XLColor.FromHtml("#F2F2F2");
+        worksheet.Range(1, 1, 1, headers.Length).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+    }
+
+    private static void WriteDataRows(IXLWorksheet worksheet, IReadOnlyList<IprExportRowDto> rows)
+    {
         var istZone = TimeZoneHelper.GetIst();
 
-        for (var index = 0; index < context.Rows.Count; index++)
+        for (var index = 0; index < rows.Count; index++)
         {
             var rowNumber = index + 2;
-            var record = context.Rows[index];
+            var record = rows[index];
 
             worksheet.Cell(rowNumber, 1).Value = index + 1;
             worksheet.Cell(rowNumber, 2).Value = record.Title ?? string.Empty;
-            worksheet.Cell(rowNumber, 3).Value = record.FilingNumber;
+            worksheet.Cell(rowNumber, 3).Value = record.FilingNumber ?? string.Empty;
             worksheet.Cell(rowNumber, 4).Value = GetStatusLabel(record.Status);
             worksheet.Cell(rowNumber, 5).Value = record.FiledBy ?? string.Empty;
 
@@ -76,14 +97,6 @@ public sealed class IprExcelWorkbookBuilder : IIprExcelWorkbookBuilder
             worksheet.Cell(rowNumber, 8).Value = record.ProjectName ?? string.Empty;
             worksheet.Cell(rowNumber, 9).Value = record.Remarks ?? string.Empty;
         }
-
-        worksheet.Column(3).Style.NumberFormat.Format = "@";
-        worksheet.Columns().AdjustToContents();
-
-        using var stream = new MemoryStream();
-        workbook.SaveAs(stream);
-        stream.Position = 0;
-        return stream.ToArray();
     }
 
     private static string GetStatusLabel(IprStatus status)
