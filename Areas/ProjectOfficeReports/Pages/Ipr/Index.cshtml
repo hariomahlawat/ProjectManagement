@@ -39,6 +39,12 @@
         return converted.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
     }
 
+    string FormatAttachmentTimestamp(DateTimeOffset value)
+    {
+        var converted = TimeZoneInfo.ConvertTimeFromUtc(value.UtcDateTime, istZone);
+        return converted.ToString("dd MMM yyyy 'at' hh:mm tt", CultureInfo.InvariantCulture);
+    }
+
     var groupedRecords = Model.Records
         .GroupBy(r => r.Type)
         .OrderBy(g => g.Key)
@@ -307,7 +313,49 @@
                                         <td class="text-nowrap">@StatusLabel(record.Status)</td>
                                         <td class="text-nowrap">@FormatFiledDate(record.FiledAtUtc)</td>
                                         <td>@(string.IsNullOrWhiteSpace(record.ProjectName) ? "—" : record.ProjectName)</td>
-                                        <td class="text-center">@record.AttachmentCount</td>
+                                        <td class="align-top text-center text-md-start">
+                                            @if (record.AttachmentCount == 0)
+                                            {
+                                                <span class="badge rounded-pill bg-secondary-subtle text-secondary-emphasis">No files</span>
+                                            }
+                                            else
+                                            {
+                                                var collapseId = $"ipr-attachments-{record.Id}";
+                                                <div class="d-flex flex-column align-items-center align-items-md-start gap-2">
+                                                    <span class="badge rounded-pill bg-primary-subtle text-primary-emphasis d-inline-flex align-items-center gap-2">
+                                                        <i class="bi bi-paperclip" aria-hidden="true"></i>
+                                                        <span>@record.AttachmentCount @((record.AttachmentCount == 1) ? "file" : "files")</span>
+                                                    </span>
+                                                    <button class="btn btn-link btn-sm p-0" type="button" data-bs-toggle="collapse" data-bs-target="#@collapseId" aria-expanded="false" aria-controls="@collapseId">
+                                                        View attachments
+                                                    </button>
+                                                    <div class="collapse w-100 text-start" id="@collapseId">
+                                                        <div class="card card-body border-0 bg-body-tertiary p-3">
+                                                            <ul class="list-unstyled mb-0 small">
+                                                                @for (var attachmentIndex = 0; attachmentIndex < record.Attachments.Count; attachmentIndex++)
+                                                                {
+                                                                    var attachment = record.Attachments[attachmentIndex];
+                                                                    var itemClass = attachmentIndex == record.Attachments.Count - 1 ? "mb-0" : "mb-3";
+                                                                    <li class="@itemClass">
+                                                                        <div class="fw-semibold">
+                                                                            <a asp-page="Download" asp-route-iprRecordId="@record.Id" asp-route-attachmentId="@attachment.Id" class="text-decoration-none">
+                                                                                @attachment.FileName
+                                                                            </a>
+                                                                        </div>
+                                                                        <div class="text-muted">
+                                                                            @Model.FormatFileSize(attachment.FileSize)
+                                                                            <span aria-hidden="true">&middot;</span>
+                                                                            <span class="visually-hidden"> - </span>
+                                                                            Uploaded by @attachment.UploadedBy on @FormatAttachmentTimestamp(attachment.UploadedAtUtc)
+                                                                        </div>
+                                                                    </li>
+                                                                }
+                                                            </ul>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </td>
                                         <td class="text-break">@(string.IsNullOrWhiteSpace(record.Notes) ? "—" : record.Notes)</td>
                                     </tr>
                                     firstRow = false;

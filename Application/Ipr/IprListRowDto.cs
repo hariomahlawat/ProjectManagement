@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using ProjectManagement.Infrastructure.Data;
 
 namespace ProjectManagement.Application.Ipr;
@@ -13,4 +14,5 @@ public sealed record IprListRowDto(
     int? ProjectId,
     string? ProjectName,
     int AttachmentCount,
+    IReadOnlyList<IprListAttachmentDto> Attachments,
     string? Notes);
