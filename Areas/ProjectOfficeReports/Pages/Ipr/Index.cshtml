@@ -319,20 +319,6 @@
                                         <td class="text-nowrap">@FormatFiledDate(record.FiledAtUtc)</td>
                                         <td>@(string.IsNullOrWhiteSpace(record.ProjectName) ? "—" : record.ProjectName)</td>
                                         <td class="text-center">@record.AttachmentCount</td>
-                                        @if (Model.CanEdit)
-                                        {
-                                            <td class="text-end">
-                                                <a class="btn btn-outline-primary btn-sm"
-                                                   asp-page="./Index"
-                                                   asp-all-route-data="@Model.GetRouteValuesForLinks(new { mode = "edit", id = record.Id }, includeModeAndId: false)"
-                                                   data-ipr-offcanvas-trigger="edit"
-                                                   data-ipr-record-id="@record.Id"
-                                                   aria-controls="iprRecordOffcanvas"
-                                                   aria-expanded="@(isEditMode && Model.Id.HasValue && Model.Id.Value == record.Id ? "true" : "false")">
-                                                    Manage
-                                                </a>
-                                            </td>
-                                        }
                                     </tr>
                                     firstRow = false;
                                 }
