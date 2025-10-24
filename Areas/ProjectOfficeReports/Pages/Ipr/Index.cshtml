@@ -404,6 +404,73 @@
             const hasForm = offcanvasElement.getAttribute('data-ipr-has-form') === 'true';
             const triggers = Array.from(document.querySelectorAll('[data-ipr-offcanvas-trigger]'));
 
+            const supportsUrlApi = typeof URL === 'function' && URL.prototype && 'searchParams' in URL.prototype;
+
+            const parseSearchParams = () => {
+                const params = {};
+                const search = window.location.search ? window.location.search.substring(1) : '';
+                if (!search) {
+                    return params;
+                }
+
+                search.split('&').forEach(part => {
+                    if (!part) {
+                        return;
+                    }
+
+                    const [rawKey, rawValue = ''] = part.split('=');
+                    const key = decodeURIComponent(rawKey.replace(/\+/g, ' '));
+                    const value = decodeURIComponent(rawValue.replace(/\+/g, ' '));
+                    params[key] = value;
+                });
+
+                return params;
+            };
+
+            const getQueryParam = key => {
+                if (supportsUrlApi) {
+                    const currentUrl = new URL(window.location.href);
+                    return currentUrl.searchParams.get(key);
+                }
+
+                const params = parseSearchParams();
+                return Object.prototype.hasOwnProperty.call(params, key) ? params[key] : null;
+            };
+
+            const buildUrlWithUpdates = updates => {
+                if (supportsUrlApi) {
+                    const url = new URL(window.location.href);
+                    Object.entries(updates).forEach(([key, value]) => {
+                        if (value === null) {
+                            url.searchParams.delete(key);
+                        } else {
+                            url.searchParams.set(key, value);
+                        }
+                    });
+                    return url.toString();
+                }
+
+                const location = window.location;
+                const origin = location.origin || `${location.protocol}//${location.host}`;
+                const base = `${origin}${location.pathname}`;
+                const params = parseSearchParams();
+
+                Object.entries(updates).forEach(([key, value]) => {
+                    if (value === null) {
+                        delete params[key];
+                    } else {
+                        params[key] = value;
+                    }
+                });
+
+                const query = Object.keys(params)
+                    .map(paramKey => `${encodeURIComponent(paramKey)}=${encodeURIComponent(params[paramKey])}`)
+                    .join('&');
+
+                const hash = location.hash || '';
+                return query ? `${base}?${query}${hash}` : `${base}${hash}`;
+            };
+
             const updateTriggerStates = (activeMode, activeId) => {
                 const normalizedMode = (activeMode || '').toLowerCase();
                 const normalizedId = activeId ?? '';
@@ -425,9 +492,8 @@
             };
 
             if (triggers.length > 0) {
-                const currentUrl = new URL(window.location.href);
-                const initialMode = (currentUrl.searchParams.get('mode') || '').toLowerCase();
-                const initialId = currentUrl.searchParams.get('id') ?? '';
+                const initialMode = (getQueryParam('mode') || '').toLowerCase();
+                const initialId = getQueryParam('id') ?? '';
                 updateTriggerStates(initialMode, initialId);
 
                 triggers.forEach(trigger => {
@@ -439,8 +505,7 @@
 
                         event.preventDefault();
 
-                        const nextUrl = new URL(window.location.href);
-                        nextUrl.searchParams.set('mode', triggerMode);
+                        const updates = { mode: triggerMode };
 
                         if (triggerMode === 'edit') {
                             const triggerId = trigger.dataset.iprRecordId;
@@ -448,14 +513,14 @@
                                 return;
                             }
 
-                            nextUrl.searchParams.set('id', triggerId);
+                            updates.id = triggerId;
                             updateTriggerStates(triggerMode, triggerId);
                         } else {
-                            nextUrl.searchParams.delete('id');
+                            updates.id = null;
                             updateTriggerStates(triggerMode, '');
                         }
 
-                        window.location.assign(nextUrl.toString());
+                        window.location.assign(buildUrlWithUpdates(updates));
                     });
                 });
             }
@@ -465,10 +530,14 @@
             }
 
             offcanvasElement.addEventListener('hidden.bs.offcanvas', () => {
-                const url = new URL(window.location.href);
-                url.searchParams.delete('mode');
-                url.searchParams.delete('id');
-                window.history.replaceState({}, document.title, url.toString());
+                const updates = { mode: null, id: null };
+                const nextUrl = buildUrlWithUpdates(updates);
+
+                if (typeof window.history !== 'undefined' && typeof window.history.replaceState === 'function') {
+                    window.history.replaceState({}, document.title, nextUrl);
+                } else {
+                    window.location.assign(nextUrl);
+                }
                 updateTriggerStates('', '');
             });
         })();
