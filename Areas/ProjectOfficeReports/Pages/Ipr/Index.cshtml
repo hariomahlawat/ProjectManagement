@@ -46,6 +46,7 @@
 
     var isCreateMode = string.Equals(Model.Mode, "create", StringComparison.OrdinalIgnoreCase);
     var isEditMode = string.Equals(Model.Mode, "edit", StringComparison.OrdinalIgnoreCase);
+    var shouldShowOffcanvas = isCreateMode || isEditMode;
 }
 
 <div class="container-fluid py-4">
@@ -229,7 +230,17 @@
 
     @if (Model.CanEdit)
     {
-        <div class="offcanvas offcanvas-end" tabindex="-1" id="iprRecordOffcanvas" aria-labelledby="iprRecordOffcanvasLabel" data-ipr-mode="@(Model.Mode ?? string.Empty)" data-ipr-has-form="@((isCreateMode || isEditMode) ? "true" : "false")">
+        <div class="offcanvas offcanvas-end@(shouldShowOffcanvas ? " show" : string.Empty)"
+             tabindex="-1"
+             id="iprRecordOffcanvas"
+             aria-labelledby="iprRecordOffcanvasLabel"
+             data-ipr-mode="@(Model.Mode ?? string.Empty)"
+             data-ipr-has-form="@(shouldShowOffcanvas ? "true" : "false")"
+             style="@(shouldShowOffcanvas ? "visibility: visible;" : null)"
+             aria-modal="@(shouldShowOffcanvas ? "true" : null)"
+             role="@(shouldShowOffcanvas ? "dialog" : null)"
+             data-bs-backdrop="@(shouldShowOffcanvas ? "true" : null)"
+             data-bs-scroll="@(shouldShowOffcanvas ? "false" : null)">
             <div class="offcanvas-header">
                 <div>
                     <h2 class="offcanvas-title h5 mb-1" id="iprRecordOffcanvasLabel">
@@ -241,7 +252,11 @@
                             : "Use the available actions to add or manage records.")
                     </p>
                 </div>
-                <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+                <a class="btn-close text-reset"
+                   asp-page="./Index"
+                   asp-all-route-data="@Model.GetRouteValuesForLinks(includeModeAndId: false)"
+                   data-bs-dismiss="offcanvas"
+                   aria-label="Close"></a>
             </div>
             <div class="offcanvas-body">
                 <partial name="_RecordFormPartial" model="Model" />
