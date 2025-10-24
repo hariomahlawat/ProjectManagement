@@ -292,9 +292,7 @@
                                 <th scope="col">Filed on</th>
                                 <th scope="col">Project</th>
                                 <th scope="col" class="text-center">Attachments</th>
-
-                                    <th scope="col" class="text-end">Remarks/ Notes</th>
- 
+                                <th scope="col" class="text-start">Remarks / notes</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -315,7 +313,7 @@
                                         <td class="text-nowrap">@FormatFiledDate(record.FiledAtUtc)</td>
                                         <td>@(string.IsNullOrWhiteSpace(record.ProjectName) ? "—" : record.ProjectName)</td>
                                         <td class="text-center">@record.AttachmentCount</td>
-                                        
+                                        <td class="text-break">@(string.IsNullOrWhiteSpace(record.Remarks) ? "—" : record.Remarks)</td>
                                     </tr>
                                     firstRow = false;
                                 }
