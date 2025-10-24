@@ -28,11 +28,40 @@ public sealed class IprReadService : IIprReadService
         var query = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
         var total = await query.CountAsync(cancellationToken);
 
-        var items = await query
+        var queryResults = await query
             .OrderByDescending(x => x.FiledAtUtc ?? DateTimeOffset.MinValue)
             .ThenBy(x => x.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
+            .Select(x => new
+            {
+                x.Id,
+                x.IprFilingNumber,
+                x.Title,
+                x.Type,
+                x.Status,
+                x.FiledAtUtc,
+                x.ProjectId,
+                ProjectName = x.Project != null ? x.Project.Name : null,
+                Attachments = x.Attachments
+                    .Where(a => !a.IsArchived)
+                    .OrderByDescending(a => a.UploadedAtUtc)
+                    .Select(a => new
+                    {
+                        a.Id,
+                        a.OriginalFileName,
+                        a.FileSize,
+                        a.UploadedAtUtc,
+                        UploadedByFullName = a.UploadedByUser != null ? a.UploadedByUser.FullName : null,
+                        UploadedByUserName = a.UploadedByUser != null ? a.UploadedByUser.UserName : null,
+                        a.UploadedByUserId
+                    })
+                    .ToList(),
+                x.Notes
+            })
+            .ToListAsync(cancellationToken);
+
+        var items = queryResults
             .Select(x => new IprListRowDto(
                 x.Id,
                 x.IprFilingNumber,
@@ -41,10 +70,18 @@ public sealed class IprReadService : IIprReadService
                 x.Status,
                 x.FiledAtUtc,
                 x.ProjectId,
-                x.Project != null ? x.Project.Name : null,
-                x.Attachments.Count(a => !a.IsArchived),
+                x.ProjectName,
+                x.Attachments.Count,
+                x.Attachments
+                    .Select(a => new IprListAttachmentDto(
+                        a.Id,
+                        a.OriginalFileName,
+                        a.FileSize,
+                        FormatUploadedBy(a.UploadedByFullName, a.UploadedByUserName, a.UploadedByUserId),
+                        a.UploadedAtUtc))
+                    .ToList(),
                 x.Notes))
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         return new PagedResult<IprListRowDto>(items, total, page, pageSize);
     }
@@ -102,6 +139,21 @@ public sealed class IprReadService : IIprReadService
             .ToListAsync(cancellationToken);
 
         return items;
+    }
+
+    private static string FormatUploadedBy(string? fullName, string? userName, string fallback)
+    {
+        if (!string.IsNullOrWhiteSpace(fullName))
+        {
+            return fullName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(userName))
+        {
+            return userName;
+        }
+
+        return fallback;
     }
 
     private static IQueryable<IprRecord> BuildFilteredQuery(IQueryable<IprRecord> query, IprFilter filter, bool includeStatusFilter = true)

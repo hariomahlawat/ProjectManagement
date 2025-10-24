@@ -224,9 +224,24 @@ public sealed class IprReadServiceTests
     }
 
     [Fact]
-    public async Task SearchAsync_AttachmentCount_ExcludesArchived()
+    public async Task SearchAsync_Attachments_ExcludeArchivedAndIncludeMetadata()
     {
         await using var db = CreateDbContext();
+
+        var uploaderWithName = new ApplicationUser
+        {
+            Id = "user-1",
+            FullName = "Taylor Swift",
+            UserName = "tswift"
+        };
+
+        var uploaderWithUserName = new ApplicationUser
+        {
+            Id = "user-2",
+            UserName = "analyst-2"
+        };
+
+        db.Users.AddRange(uploaderWithName, uploaderWithUserName);
 
         var record = new IprRecord
         {
@@ -242,7 +257,8 @@ public sealed class IprReadServiceTests
                     OriginalFileName = "visible-1.pdf",
                     ContentType = "application/pdf",
                     FileSize = 1024,
-                    UploadedByUserId = "user-1"
+                    UploadedByUserId = uploaderWithName.Id,
+                    UploadedAtUtc = new DateTimeOffset(2024, 1, 10, 0, 0, 0, TimeSpan.Zero)
                 },
                 new IprAttachment
                 {
@@ -250,7 +266,8 @@ public sealed class IprReadServiceTests
                     OriginalFileName = "visible-2.pdf",
                     ContentType = "application/pdf",
                     FileSize = 2048,
-                    UploadedByUserId = "user-2"
+                    UploadedByUserId = uploaderWithUserName.Id,
+                    UploadedAtUtc = new DateTimeOffset(2024, 1, 15, 0, 0, 0, TimeSpan.Zero)
                 },
                 new IprAttachment
                 {
@@ -273,6 +290,11 @@ public sealed class IprReadServiceTests
 
         var item = Assert.Single(result.Items);
         Assert.Equal(2, item.AttachmentCount);
+        Assert.Equal(2, item.Attachments.Count);
+        Assert.Equal(new[] { "visible-2.pdf", "visible-1.pdf" }, item.Attachments.Select(a => a.FileName).ToArray());
+        Assert.Equal("Taylor Swift", item.Attachments[0].UploadedBy);
+        Assert.Equal("analyst-2", item.Attachments[1].UploadedBy);
+        Assert.Equal(new DateTimeOffset(2024, 1, 15, 0, 0, 0, TimeSpan.Zero), item.Attachments[0].UploadedAtUtc);
     }
 
     private static ApplicationDbContext CreateDbContext()
