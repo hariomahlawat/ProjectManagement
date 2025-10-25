@@ -61,8 +61,14 @@ Builds the read model for the overview timeline, stitching together `ProjectStag
 #### `Services/ProjectCommentService.cs`
 Handles threaded project conversations, including file uploads. It validates stage ownership, enforces attachment type/size limits, stores metadata for each file on disk and writes audit logs for create/edit/delete actions. File names are sanitised and stored beneath the shared upload root resolved by `IUploadRootProvider`, keeping comment attachments alongside project photos on the same volume. (see Services/ProjectCommentService.cs lines 31-48) (see Services/Storage/IUploadRootProvider.cs lines 1-5)
 
+### Remark services (`Services/Remarks/*`)
+`RemarkService` provides create/read/update/delete operations for structured project remarks, enforcing role-based authorisation, scope filters, concurrency checks, and audit logging. Mentions are resolved through `MentionResolver` helpers and persisted alongside remark rows. `RemarkNotificationService` pushes SignalR and email notifications for noteworthy events, while `RemarkMetrics` aggregates counts for dashboards and policy enforcement. The REST endpoints under `Features/Remarks/RemarkApi.cs` orchestrate these services for the `/api/projects/{id}/remarks` routes. (see Services/Remarks/RemarkService.cs lines 21-320) (see Services/Remarks/RemarkNotificationService.cs lines 14-140)
+
 ### `Services/LoginAnalyticsService`
 Calculates percentile lines and flags odd login events for the admin scatter chart. It loads `AuthEvents` from the database, joins them to user records to supply friendly names (falling back to email or "(deleted)"), applies working-hour rules and returns points annotated with reasons for anomalies.
+
+### `Services/Analytics/ProjectAnalyticsService`
+Backs the `/api/analytics/projects/*` minimal APIs with pre-aggregated category share, stage distribution, lifecycle, slip bucket, monthly completions, and overdue project datasets. Filters normalise lifecycle enums, optional category IDs, and IST-aware month ranges while excluding archived or trashed projects. Responses power the six-card analytics dashboard and reuse `ProjectLifecycleFilter` constants so the UI and service stay aligned. (see Services/Analytics/ProjectAnalyticsService.cs lines 20-220) (see Features/Analytics/ProjectAnalyticsApi.cs lines 16-120)
 
 ### `Services/LoginAggregationWorker`
 Nightly background service that aggregates the previous day's successful logins into `DailyLoginStats` to keep reporting queries fast.
@@ -75,12 +81,28 @@ Nightly background service that aggregates the previous day's successful logins 
 * **`RoleNotificationService`** – helper that resolves role memberships for broadcast notifications without duplicating Identity queries. (see Services/Notifications/RoleNotificationService.cs lines 14-116)
 * **`UserNotificationService`** – application-facing API that lists, counts, marks read/unread, and mutes notifications with project access guards to prevent leaking data across teams. (see Services/Notifications/UserNotificationService.cs lines 17-220)
 
+### Navigation
+`RoleBasedNavigationProvider` builds the shell navigation tree per authenticated user. It fetches the current user, loads role memberships, and emits `NavigationItem` hierarchies that conditionally expose Project Office Reports trackers (Visits, ToT, Social Media, Proliferation, IPR) and admin tools. Anonymous users receive an empty list so public endpoints can stay lean. (see Services/Navigation/RoleBasedNavigationProvider.cs lines 16-152) (see Models/Navigation/NavigationItem.cs lines 1-33)
+
 ### Document workflow services
 * **`DocumentService`** – core file pipeline that validates PDF uploads, enforces size/MIME rules, optionally scans for viruses, moves files between temp and permanent storage, records audits, and notifies stakeholders after publication. (see Services/Documents/DocumentService.cs lines 19-420)
 * **`DocumentRequestService`** – orchestrates request lifecycles (create, edit, submit, cancel) and persists temporary files before review. (see Services/Documents/DocumentRequestService.cs lines 12-179)
 * **`DocumentDecisionService`** – handles approvals or rejections, including publishing replacements, archiving old versions, emitting audit events, and issuing notifications. (see Services/Documents/DocumentDecisionService.cs lines 11-188)
 * **`DocumentNotificationService`** – resolves HoD/PO recipients, honours notification preferences, and pushes document activity into the notification pipeline with rich payloads and deduplicated fingerprints. (see Services/Documents/DocumentNotificationService.cs lines 15-196)
 * **`DocumentPreviewTokenService`** – issues short-lived tokens used to authorise inline PDF previews without exposing the underlying storage path. (see Services/Documents/DocumentPreviewTokenService.cs lines 10-124)
+
+### `Services/Projects/ProjectVideoService`
+Manages the project video gallery: streaming endpoints, poster frame uploads, featured-video selection, and metadata edits. Videos and posters are stored beneath the upload root via `IUploadRootProvider`, with deterministic folder structures per project. The service enforces content-type/size rules from `ProjectVideos` options, rotates featured flags atomically, and cleans up disk artefacts when videos or posters are removed. (see Services/Projects/ProjectVideoService.cs lines 82-575) (see Services/Storage/UploadRootProvider.cs lines 80-110)
+
+### IPR services (`Application/Ipr/*`)
+`IprReadService` and `IprWriteService` expose search, KPI, export, create/update/delete, and attachment pipelines for intellectual property records. They enforce unique filing numbers per type, validate status transitions, handle concurrency via row versions, and stream evidence to disk using `IprAttachmentStorage` (which writes under `ipr-attachments/{iprId}` with safe filenames). `IprExportService` produces Excel workbooks for offline review, while configuration-driven limits (`IprAttachmentOptions`) guard file size and MIME types. (see Application/Ipr/IprReadService.cs lines 12-140) (see Application/Ipr/IprWriteService.cs lines 19-220) (see Application/Ipr/IprAttachmentStorage.cs lines 13-120)
+
+### Project office report services (`Areas/ProjectOfficeReports/Application/*`)
+- **VisitService & VisitPhotoService** – CRUD, filtering, and export flows for dignitary visits with photo upload, derivative management, and cover selection. Storage rules mirror project photos but use `project-office-reports/visits` prefixes. (see Areas/ProjectOfficeReports/Application/VisitService.cs lines 15-260) (see Areas/ProjectOfficeReports/Application/VisitPhotoService.cs lines 20-420)
+- **SocialMediaEventService & SocialMediaEventPhotoService** – Capture campaign briefs, manage active/inactive event types and platforms, generate Excel/PDF exports, and moderate photos (including cover selection). (see Areas/ProjectOfficeReports/Application/SocialMediaEventService.cs lines 15-260) (see Areas/ProjectOfficeReports/Application/SocialMediaEventPhotoService.cs lines 18-360)
+- **ProjectTotTrackerReadService** – Generates resilient ToT summaries, gracefully degrading when legacy databases miss optional columns. It layers filters for status, request state, date ranges, and search, then joins remarks for context. (see Areas/ProjectOfficeReports/Application/ProjectTotTrackerReadService.cs lines 19-200)
+- **Proliferation services** – `ProliferationOverviewService`, `ProliferationManageService`, and `ProliferationSubmissionService` manage yearly submissions, approvals, source catalogues, and preference defaults for proliferation tracking. (see Areas/ProjectOfficeReports/Application/ProliferationOverviewService.cs lines 16-180)
+- **Export helpers** – Dedicated Excel/PDF builders (`VisitExportService`, `SocialMediaExportService`, `ProjectTotExportService`, `ProliferationExportService`) wrap workbook builders under `Utilities/Reporting` for consistent file naming and metadata. (see Areas/ProjectOfficeReports/Application/VisitExportService.cs lines 14-140)
 
 ### Logging
 `appsettings.json` and `Program.cs` configure logging filters to keep output concise: verbose Entity Framework messages and routine To-Do service logs are suppressed, while the `TodoPurgeWorker` logs only warnings or higher. Additionally, `AuditService` skips writing `Todo.*` actions to the `AuditLogs` table.

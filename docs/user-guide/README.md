@@ -6,9 +6,10 @@ This guide walks each persona through the major areas of the suite. Every sectio
 
 | Persona | Core responsibilities | Modules with edit rights | View-only access |
 | --- | --- | --- | --- |
-| **Administrators** | Tenant configuration, user lifecycle, process governance | Admin centre (users, categories, lookups, analytics), Projects, Calendar, Celebrations, Tasks, Process designer, Notifications | All modules |
-| **Heads of Department (HoD)** | Approve project plans, manage departmental calendar, maintain process checklists | Projects (stage approvals, plan review), Calendar, Process designer, Holidays | Tasks, Celebrations, Notifications |
-| **Project Officers (PO)** | Prepare project data, update procurement facts, draft plans | Projects (facts, plans, comments, photos), Tasks | Calendar (read/write own events), Celebrations |
+| **Administrators** | Tenant configuration, user lifecycle, process governance | Admin centre (users, categories, lookups, analytics), Projects, Calendar, Celebrations, Tasks, Process designer, Notifications, Project office reports | All modules |
+| **Heads of Department (HoD)** | Approve project plans, manage departmental calendar, maintain process checklists | Projects (stage approvals, plan review), Calendar, Process designer, Holidays, Project office reports | Tasks, Celebrations, Notifications |
+| **Project Officers (PO)** | Prepare project data, update procurement facts, draft plans | Projects (facts, plans, comments, photos, videos), Tasks | Calendar (read/write own events), Celebrations, Project office reports (read) |
+| **Project Office** | Maintain visit logs, ToT status, social media campaigns, proliferation data, IPR registry | Project office reports (Visits, Social Media, ToT, Proliferation, IPR), Tasks | Projects (read), Calendar (read), Celebrations (read) |
 | **Teaching Assistants (TA)** | Maintain celebrations and shared calendar logistics | Celebrations, Calendar, Tasks | Projects (read), Notifications |
 | **Staff** | Manage personal tasks, follow announcements | Tasks, Dashboard widgets | Calendar (read), Celebrations (read), Notifications |
 
@@ -59,10 +60,21 @@ Projects consolidate procurement, planning, documents, comments, and photos.
 - **Documents** – Upload, replace, or delete requests stage PDFs through the document workspace; Admins, HoDs, and the assigned PO queue a `ProjectDocumentRequest` and wait for moderation before anything publishes. Reviewers work from **Projects → Documents → Approvals**, approving or rejecting with audit trails while document notifications alert stakeholders when the library changes. (see Pages/Projects/Documents/UploadRequest.cshtml.cs lines 25-167) (see Pages/Projects/Documents/ReplaceRequest.cshtml.cs lines 23-183) (see Pages/Projects/Documents/DeleteRequest.cshtml.cs lines 19-137) (see Pages/Projects/Documents/Approvals/Review.cshtml.cs lines 20-178) (see Services/Documents/DocumentNotificationService.cs lines 15-196)
 - **Timeline planning** – POs draft plans while HoDs approve or reject. Drafts are locked while pending approval and snapshots are stored for history. See [docs/timeline.md](../timeline.md) for detailed state transitions. (see Services/Stages/PlanReadService.cs lines 41-212) (see Services/Stages/PlanApprovalService.cs lines 17-200)
 - **Comments & photos** – Threaded comments support attachments and mentions with storage handled by `ProjectCommentService`. Photo management enforces size/MIME rules and generates derivatives on upload. (see Services/ProjectCommentService.cs lines 22-238) (see Services/Projects/ProjectPhotoService.cs lines 82-420)
+- **Video gallery** – Admin/HoD/PO roles upload MP4/WebM/Ogg walkthroughs, pick featured clips, and stream/poster assets through secure Razor Pages backed by `ProjectVideoService`. Posters inherit the upload root and are regenerated when the featured video changes. (see Pages/Projects/Videos/Index.cshtml.cs lines 16-180) (see Services/Projects/ProjectVideoService.cs lines 82-575)
 
 For a step-by-step storyboard, refer to [docs/projects-module.md](../projects-module.md).
 
-## 7. Notifications
+## 7. Project office reports
+
+The **Project office reports** area centralises operational trackers for support teams.
+
+- **Visits tracker** – Admin, HoD, and Project Office roles record dignitary visits with type/date filters, attendee counts, remarks, and photo galleries. Export buttons produce Excel handovers for leadership briefings. (see Areas/ProjectOfficeReports/Pages/Visits/Index.cshtml.cs lines 20-210)
+- **Social media tracker** – Capture event briefs, associated platforms, and supporting photos. Editors can toggle event/ platform activity, set cover photos, and download Excel/PDF packs for press kits. (see Areas/ProjectOfficeReports/Pages/SocialMedia/Index.cshtml.cs lines 19-240)
+- **ToT tracker** – Monitor transfer-of-technology progress per completed project. Filters cover ToT status, request state, pending submissions, date ranges, and keyword search. Submit and approve modals feed `ProjectTotService` with concurrency tokens, while exports deliver Excel summaries. (see Areas/ProjectOfficeReports/Pages/Tot/Index.cshtml.cs lines 24-220)
+- **Proliferation tracker** – Yearly intake with submission/approval workflow, source/destination breakdowns, and PDF/Excel exports for board reviews. Preferences let administrators set the active year and default tables. (see Areas/ProjectOfficeReports/Pages/Proliferation/Index.cshtml.cs lines 23-220)
+- **IPR tracker** – Role-gated registry for filings, grants, and attachments. Dashboards surface KPI counts, inline filters persist via query strings, and attachment uploads honour `IprAttachmentOptions`. CSV/Excel exports feed compliance reporting. (see Areas/ProjectOfficeReports/Pages/Ipr/Index.cshtml.cs lines 24-220) (see Application/Ipr/IprReadService.cs lines 12-140)
+
+## 8. Notifications
 
 Click the bell icon or visit **Notifications** to manage alerts.
 
@@ -70,7 +82,7 @@ Click the bell icon or visit **Notifications** to manage alerts.
 - **Real-time updates** – The `NotificationDispatcher` hosted service processes dispatch queues and broadcasts new notifications over `/hubs/notifications`, respecting per-user preferences and project access. (see Services/Notifications/NotificationDispatcher.cs lines 20-200) (see Services/Notifications/NotificationPreferenceService.cs lines 19-160)
 - **Retention** – Notifications older than the configured retention window (default 30 days) or beyond the per-user cap are pruned automatically. (see appsettings.json lines 32-37) (see Services/Notifications/NotificationRetentionService.cs lines 20-147)
 
-## 8. Admin centre
+## 9. Admin centre
 
 Administrators manage governance tasks under the **Admin** area.
 
@@ -79,15 +91,20 @@ Administrators manage governance tasks under the **Admin** area.
 - **Categories & lookups** – Project category tree editing, lookup management, and document catalogue live under Admin → Categories/Lookups. Changes write to the audit log so historical context is preserved. (see Areas/Admin/Pages/Categories/Edit.cshtml.cs lines 15-120) (see Services/AuditService.cs lines 16-120)
 - **Calendar recycle bin** – Restore accidentally deleted events from **Admin → Calendar → Deleted**; the list pulls from `Events` flagged with `IsDeleted = true`. (see Areas/Admin/Pages/Calendar/Deleted.cshtml.cs lines 13-104)
 
-## 9. Process designer & holidays
+## 10. Process designer & holidays
 
 - **Process** – The Process page shows the current stage template version and last updated timestamp. HoD and MCO roles can launch the checklist editor via the REST API; others consume the published flow for reference. (see Pages/Process/Index.cshtml.cs lines 15-64)
 - **Holidays** – Admin and HoD roles manage the shared holiday list that feeds into scheduling engines and task snooze presets. Entries are stored as `DateOnly` values in `Models/Scheduling/Holiday`. (see Pages/Settings/Holidays/Index.cshtml.cs lines 13-25) (see Models/Scheduling/Holiday.cs lines 1-8)
 
-## 10. Keeping data safe
+## 11. Keeping data safe
 
 - **Uploads** – All photos and documents land beneath the upload root resolved by `UploadRootProvider`. Configure `PM_UPLOAD_ROOT` to move storage off the web root in production. (see Services/Storage/UploadRootProvider.cs lines 17-100)
 - **Audit trail** – `AuditService` records create/update/delete events for tasks, projects, documents, and user lifecycle operations. Review logs under Admin → Logs when investigating issues. (see Services/AuditService.cs lines 16-120)
 - **Background workers** – Purge workers clean up stale todo items and deleted accounts based on the `Todo:RetentionDays` and `UserLifecycle` settings. Monitor logs for warnings that indicate stalled jobs. (see Services/TodoPurgeWorker.cs lines 14-108) (see Services/UserPurgeWorker.cs lines 18-120)
+
+## 12. Reference exports
+
+- **Analytics dashboard** – `/Analytics/Index` visualises the data returned by `ProjectAnalyticsService`, with category/lifecycle filters matching the REST parameters. Download buttons emit CSV snapshots for each card. (see wwwroot/js/analytics-projects.js lines 10-220)
+- **Project office Excel/PDF packs** – Visit, Social Media, Proliferation, ToT, and IPR modules all surface export actions that call their respective services under `Areas/ProjectOfficeReports/Application/*` or `Application/Ipr`. Use these when assembling monthly governance decks.
 
 Use this guide in tandem with the technical documentation to onboard new teammates and to sanity-check behaviours before rolling out changes.
