@@ -277,7 +277,7 @@ public sealed record TrainingMutationCommand(
     IReadOnlyCollection<int> ProjectIds);
 
 public sealed record TrainingMutationResult(
-    bool Success,
+    bool IsSuccess,
     TrainingMutationFailureCode FailureCode,
     string? ErrorMessage,
     Guid? TrainingId,
