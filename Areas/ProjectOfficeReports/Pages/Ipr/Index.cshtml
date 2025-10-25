@@ -37,12 +37,12 @@
 
     string StatusBadgeClass(IprStatus status) => status switch
     {
-        IprStatus.FilingUnderProcess => "text-bg-primary-subtle text-primary-emphasis",
-        IprStatus.Filed => "text-bg-info-subtle text-info-emphasis",
-        IprStatus.Granted => "text-bg-success-subtle text-success-emphasis",
-        IprStatus.Rejected => "text-bg-danger-subtle text-danger-emphasis",
-        IprStatus.Withdrawn => "text-bg-secondary-subtle text-secondary-emphasis",
-        _ => "text-bg-light text-body"
+        IprStatus.FilingUnderProcess => "badge-filing",
+        IprStatus.Filed => "badge-soft",
+        IprStatus.Granted => "badge-granted",
+        IprStatus.Rejected => "badge-rejected",
+        IprStatus.Withdrawn => "badge-soft",
+        _ => "badge-soft"
     };
 
     string FormatFiledDate(DateTimeOffset? value)
@@ -76,13 +76,12 @@
 }
 
 <div class="container-fluid py-4">
-    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+    <div class="pm-page-header">
         <div>
-            <p class="text-uppercase text-secondary small mb-1">Project office reports</p>
             <h1 class="h4 mb-1">Intellectual property tracker</h1>
-            <p class="text-secondary mb-0">Monitor filings, grants, and quick actions across projects.</p>
+            <p class="pm-page-subtitle">Monitor patents and copyrights across projects with quick actions for updates.</p>
         </div>
-        <div class="d-flex flex-wrap align-items-center justify-content-center justify-content-md-end gap-2">
+        <div class="d-flex align-items-center gap-2">
             <button type="button"
                     class="btn btn-outline-secondary d-inline-flex align-items-center gap-2"
                     data-bs-toggle="modal"
@@ -146,53 +145,41 @@
         </div>
     }
 
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-md-4 col-lg-2">
-            <div class="card h-100 shadow-sm border-0">
-                <div class="card-body">
-                    <div class="text-secondary small mb-1">Total</div>
-                    <div class="fs-3 fw-semibold">@Model.Kpis.Total</div>
-                </div>
+    <div class="pm-stats">
+        <div class="card pm-stat-card">
+            <div class="card-body">
+                <div class="label">Total</div>
+                <div class="value">@Model.Kpis.Total</div>
             </div>
         </div>
-        <div class="col-6 col-md-4 col-lg-2">
-            <div class="card h-100 shadow-sm border-0">
-                <div class="card-body">
-                    <div class="text-secondary small mb-2">Filing under process</div>
-                    <span class="badge rounded-pill text-bg-primary-subtle text-primary-emphasis fs-5 fw-semibold px-3 py-2">@Model.Kpis.FilingUnderProcess</span>
-                </div>
+        <div class="card pm-stat-card">
+            <div class="card-body">
+                <div class="label">Filing under process</div>
+                <div class="value">@Model.Kpis.FilingUnderProcess</div>
             </div>
         </div>
-        <div class="col-6 col-md-4 col-lg-2">
-            <div class="card h-100 shadow-sm border-0">
-                <div class="card-body">
-                    <div class="text-secondary small mb-2">Filed</div>
-                    <span class="badge rounded-pill text-bg-info-subtle text-info-emphasis fs-5 fw-semibold px-3 py-2">@Model.Kpis.Filed</span>
-                </div>
+        <div class="card pm-stat-card">
+            <div class="card-body">
+                <div class="label">Filed</div>
+                <div class="value">@Model.Kpis.Filed</div>
             </div>
         </div>
-        <div class="col-6 col-md-4 col-lg-2">
-            <div class="card h-100 shadow-sm border-0">
-                <div class="card-body">
-                    <div class="text-secondary small mb-2">Granted</div>
-                    <span class="badge rounded-pill text-bg-success-subtle text-success-emphasis fs-5 fw-semibold px-3 py-2">@Model.Kpis.Granted</span>
-                </div>
+        <div class="card pm-stat-card">
+            <div class="card-body">
+                <div class="label">Granted</div>
+                <div class="value">@Model.Kpis.Granted</div>
             </div>
         </div>
-        <div class="col-6 col-md-4 col-lg-2">
-            <div class="card h-100 shadow-sm border-0">
-                <div class="card-body">
-                    <div class="text-secondary small mb-2">Rejected</div>
-                    <span class="badge rounded-pill text-bg-danger-subtle text-danger-emphasis fs-5 fw-semibold px-3 py-2">@Model.Kpis.Rejected</span>
-                </div>
+        <div class="card pm-stat-card">
+            <div class="card-body">
+                <div class="label">Rejected</div>
+                <div class="value">@Model.Kpis.Rejected</div>
             </div>
         </div>
-        <div class="col-6 col-md-4 col-lg-2">
-            <div class="card h-100 shadow-sm border-0">
-                <div class="card-body">
-                    <div class="text-secondary small mb-2">Withdrawn</div>
-                    <span class="badge rounded-pill text-bg-secondary-subtle text-secondary-emphasis fs-5 fw-semibold px-3 py-2">@Model.Kpis.Withdrawn</span>
-                </div>
+        <div class="card pm-stat-card">
+            <div class="card-body">
+                <div class="label">Withdrawn</div>
+                <div class="value">@Model.Kpis.Withdrawn</div>
             </div>
         </div>
     </div>
@@ -305,12 +292,10 @@
         </div>
     }
 
-    <div class="card shadow-sm border-0">
-        <div class="card-header bg-white d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
-            <div>
-                <span class="fw-semibold">IPR records</span>
-                <span class="text-secondary small ms-2">@(hasRecords ? $"Showing {firstItem} – {lastItem} of {Model.TotalCount}" : "No records to display")</span>
-            </div>
+    <div class="card pm-card">
+        <div class="card-header pm-card-header">
+            <span class="fw-semibold">IPR records</span>
+            <span class="pm-muted small ms-2">@(hasRecords ? $"Showing {firstItem} – {lastItem} of {Model.TotalCount}" : "No records to display")</span>
         </div>
         <div class="card-body p-0">
             <div class="d-none" data-ipr-loading-skeleton>
@@ -343,35 +328,34 @@
             <div data-ipr-table-content>
                 @if (!hasRecords)
                 {
-                    <div class="p-5 text-center text-secondary">
-                        <i class="bi bi-inbox fs-1 mb-3" aria-hidden="true"></i>
-                        <h2 class="h5 mb-2">No IPR records found</h2>
-                        <p class="mb-4">Adjust your filters or create a new record to get started.</p>
-                        @if (Model.CanEdit)
-                        {
-                            <a class="btn btn-primary d-inline-flex align-items-center gap-2"
-                               asp-page="./Manage"
-                               asp-route-Query="@Model.Query">
-                                <i class="bi bi-gear" aria-hidden="true"></i>
-                                <span>Manage IPR records</span>
-                            </a>
-                        }
+                    <div class="p-4">
+                        <div class="card pm-card">
+                            <div class="card-body text-center py-5">
+                                <div class="mb-2"><i class="bi bi-inboxes" style="font-size: 2rem; opacity: .5;"></i></div>
+                                <h2 class="h6 mb-1">No IPR records yet</h2>
+                                <p class="pm-muted mb-3">Add your first filing or adjust the filters.</p>
+                                @if (Model.CanEdit)
+                                {
+                                    <a class="btn btn-primary" asp-page="./Manage" asp-route-Query="@Model.Query">Add IPR record</a>
+                                }
+                            </div>
+                        </div>
                     </div>
                 }
                 else
                 {
-                    <div class="table-responsive" style="max-height: 56vh;">
-                        <table class="table table-hover table-striped table-sm align-middle mb-0">
-                            <thead class="table-light position-sticky top-0">
+                    <div class="pm-table-wrap">
+                        <table class="table table-hover table-sm align-middle pm-table">
+                            <thead>
                                 <tr>
-                                    <th scope="col" style="width: 120px;">Type</th>
-                                    <th scope="col" style="width: 140px;">Filing number</th>
-                                    <th scope="col">Title</th>
-                                    <th scope="col" style="width: 120px;">Status</th>
-                                    <th scope="col" style="width: 130px;" class="text-end">Filed on</th>
-                                    <th scope="col" style="width: 180px;">Project</th>
-                                    <th scope="col" style="width: 120px;">Attachments</th>
-                                    <th scope="col" style="width: 200px;">Remarks</th>
+                                    <th style="width:120px;">Type</th>
+                                    <th style="width:150px;">Filing number</th>
+                                    <th>Title</th>
+                                    <th style="width:120px;">Status</th>
+                                    <th class="text-end" style="width:130px;">Filed on</th>
+                                    <th style="width:180px;">Project</th>
+                                    <th style="width:120px;">Attachments</th>
+                                    <th style="width:220px;">Remarks / notes</th>
                                 </tr>
                             </thead>
                             <tbody class="table-group-divider">
@@ -384,26 +368,26 @@
                                         <td>
                                             <span class="badge @TypeBadgeClass(record.Type)">@TypeLabel(record.Type)</span>
                                         </td>
-                                        <th scope="row" class="text-monospace fw-semibold text-nowrap">@record.FilingNumber</th>
-                                        <td class="text-truncate" style="max-width: 260px;" title="@(string.IsNullOrWhiteSpace(record.Title) ? "—" : record.Title)">
+                                        <th scope="row" class="text-mono fw-semibold text-nowrap">@record.FilingNumber</th>
+                                        <td class="text-truncate" title="@(string.IsNullOrWhiteSpace(record.Title) ? "—" : record.Title)">
                                             @(string.IsNullOrWhiteSpace(record.Title) ? "—" : record.Title)
                                         </td>
                                         <td>
                                             <span class="badge @StatusBadgeClass(record.Status)">@StatusLabel(record.Status)</span>
                                         </td>
                                         <td class="text-end text-nowrap">@FormatFiledDate(record.FiledAtUtc)</td>
-                                        <td class="text-truncate" style="max-width: 220px;" title="@(string.IsNullOrWhiteSpace(record.ProjectName) ? "—" : record.ProjectName)">
+                                        <td class="text-truncate" title="@(string.IsNullOrWhiteSpace(record.ProjectName) ? "—" : record.ProjectName)">
                                             @(string.IsNullOrWhiteSpace(record.ProjectName) ? "—" : record.ProjectName)
                                         </td>
                                         <td class="align-top">
                                             @if (!hasAttachments)
                                             {
-                                                <span class="badge text-bg-secondary-subtle text-secondary-emphasis">—</span>
+                                                <span class="badge badge-soft">No files</span>
                                             }
                                             else
                                             {
                                                 <div class="d-flex flex-column align-items-start gap-2">
-                                                    <span class="badge text-bg-primary-subtle text-primary-emphasis d-inline-flex align-items-center gap-2">
+                                                    <span class="badge badge-soft d-inline-flex align-items-center gap-2">
                                                         <i class="bi bi-paperclip" aria-hidden="true"></i>
                                                         <span>@record.AttachmentCount @((record.AttachmentCount == 1) ? "file" : "files")</span>
                                                     </span>
@@ -437,7 +421,7 @@
                                                 </div>
                                             }
                                         </td>
-                                        <td class="text-truncate" style="max-width: 240px;" title="@notes">@notes</td>
+                                        <td class="text-truncate" title="@notes">@notes</td>
                                     </tr>
                                 }
                             </tbody>
