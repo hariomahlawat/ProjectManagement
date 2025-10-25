@@ -271,7 +271,7 @@ public sealed class TrainingWriteService
             }
             else
             {
-                var entity = new TrainingTrainee
+                var newTrainee = new TrainingTrainee
                 {
                     TrainingId = trainingId,
                     ArmyNumber = row.ArmyNumber,
@@ -282,7 +282,7 @@ public sealed class TrainingWriteService
                     RowVersion = Guid.NewGuid().ToByteArray()
                 };
 
-                _db.TrainingTrainees.Add(entity);
+                _db.TrainingTrainees.Add(newTrainee);
             }
         }
 
@@ -356,11 +356,11 @@ public sealed class TrainingWriteService
         var rankMap = await _db.TrainingRankCategoryMaps
             .AsNoTracking()
             .Where(x => x.IsActive)
-            .ToDictionaryAsync(x => x.Rank, x => x.Category, StringComparer.OrdinalIgnoreCase, cancellationToken);
+            .ToDictionaryAsync(x => x.Rank, x => (byte)x.Category, StringComparer.OrdinalIgnoreCase, cancellationToken);
 
         if (rows is null)
         {
-            return RosterNormalizationResult.Success(normalized);
+            return RosterNormalizationResult.CreateSuccess(normalized);
         }
 
         foreach (var row in rows)
@@ -391,7 +391,7 @@ public sealed class TrainingWriteService
             normalized.Add(new NormalizedRosterRow(id, armyNumber, rank, name, unit, category));
         }
 
-        return RosterNormalizationResult.Success(normalized);
+        return RosterNormalizationResult.CreateSuccess(normalized);
     }
 
     private static byte ResolveCategory(IReadOnlyDictionary<string, byte> rankMap, byte proposedCategory, string rank)
@@ -446,7 +446,7 @@ public sealed class TrainingWriteService
 
     private sealed record RosterNormalizationResult(bool Success, string? ErrorMessage, List<NormalizedRosterRow> Rows)
     {
-        public static RosterNormalizationResult Success(List<NormalizedRosterRow> rows) => new(true, null, rows);
+        public static RosterNormalizationResult CreateSuccess(List<NormalizedRosterRow> rows) => new(true, null, rows);
 
         public static RosterNormalizationResult Failure(string message) => new(false, message, new List<NormalizedRosterRow>());
     }
