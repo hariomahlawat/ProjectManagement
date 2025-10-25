@@ -546,6 +546,9 @@ public class ManageModel : PageModel
 
         public TrainingScheduleMode ScheduleMode { get; set; } = TrainingScheduleMode.DateRange;
 
+        [Display(Name = "Legacy record")]
+        public bool IsLegacyRecord { get; set; }
+
         public List<TrainingRosterRow> Roster { get; set; } = new();
 
         public bool HasRoster { get; set; }
@@ -584,6 +587,7 @@ public class ManageModel : PageModel
                 LegacyOrCount = 0,
                 ProjectIds = new List<int>(),
                 ScheduleMode = TrainingScheduleMode.DateRange,
+                IsLegacyRecord = false,
                 Roster = new List<TrainingRosterRow>(),
                 HasRoster = false,
                 CounterOfficers = 0,
@@ -618,6 +622,8 @@ public class ManageModel : PageModel
             };
 
             ApplyRosterMetadata(model, editor);
+
+            model.IsLegacyRecord = !model.HasRoster;
 
             if (editor.StartDate.HasValue || editor.EndDate.HasValue)
             {
