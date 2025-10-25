@@ -160,7 +160,7 @@ else if (isEditMode)
                         <li class="list-group-item d-flex flex-column flex-md-row align-items-md-center gap-2">
                             <div class="flex-fill">
                                 <div class="fw-semibold">
-                                    <a asp-page="Download" asp-route-iprRecordId="@Model.Input.Id" asp-route-attachmentId="@attachment.Id">
+                                    <a asp-page="Download" asp-route-iprRecordId="@Model.Input.Id" asp-route-attachmentId="@attachment.Id" target="_blank" rel="noopener noreferrer">
                                         @attachment.FileName
                                     </a>
                                 </div>
