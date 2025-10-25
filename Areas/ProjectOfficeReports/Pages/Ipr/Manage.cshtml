@@ -169,7 +169,9 @@
                                                         <div class="fw-semibold">
                                                             <a asp-page="Download"
                                                                asp-route-iprRecordId="@Model.Input.Id"
-                                                               asp-route-attachmentId="@attachment.Id">
+                                                               asp-route-attachmentId="@attachment.Id"
+                                                               target="_blank"
+                                                               rel="noopener noreferrer">
                                                                 @attachment.FileName
                                                             </a>
                                                         </div>

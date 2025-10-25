@@ -396,7 +396,7 @@
                                                     var attachment = record.Attachments[attachmentIndex];
                                                     <li class="ipr-record-card__attachment-item">
                                                         <div class="fw-semibold">
-                                                            <a asp-page="Download" asp-route-iprRecordId="@record.Id" asp-route-attachmentId="@attachment.Id" class="text-decoration-none">
+                                                            <a asp-page="Download" asp-route-iprRecordId="@record.Id" asp-route-attachmentId="@attachment.Id" class="text-decoration-none" target="_blank" rel="noopener noreferrer">
                                                                 @attachment.FileName
                                                             </a>
                                                         </div>
