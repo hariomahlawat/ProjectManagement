@@ -119,7 +119,7 @@ public class ManageModel : PageModel
             result = await _writeService.CreateAsync(command, userId ?? string.Empty, cancellationToken);
         }
 
-        if (!result.Success)
+        if (!result.IsSuccess)
         {
             await HandleFailureAsync(result, cancellationToken);
             return Page();
