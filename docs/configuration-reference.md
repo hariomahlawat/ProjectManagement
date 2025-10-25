@@ -70,6 +70,11 @@ This document lists every supported configuration value, its default, and how th
 | `ProjectDocuments:MaxSizeMb` | `25` | Maximum upload size for project documents. |
 | `ProjectDocuments:AllowedMimeTypes` | `application/pdf` | Whitelist of acceptable document MIME types. |
 | `ProjectDocuments:EnableVirusScan` | `false` | When true, `DocumentService` expects an `IVirusScanner` to be registered to scan uploads. (see appsettings.json lines 55-65) (see Services/ProjectCommentService.cs lines 174-238) |
+| `ProjectVideos:MaxFileSizeBytes` | `209715200` (200 MB) | Maximum raw upload size for project videos. Larger files are rejected before writing to disk. (see appsettings.json lines 73-80) (see Services/Projects/ProjectVideoService.cs lines 82-160) |
+| `ProjectVideos:AllowedContentTypes` | `video/mp4`, `video/webm`, `video/ogg` | Video MIME whitelist enforced during uploads. |
+| `ProjectVideos:PosterFileExtension` | `.jpg` | File extension used when generating poster frames for videos. |
+| `IprAttachments:MaxFileSizeBytes` | `20971520` (20 MB) | Cap on PDF attachments stored against IPR records. (see appsettings.json lines 38-44) (see Application/Ipr/IprAttachmentStorage.cs lines 28-80) |
+| `IprAttachments:AllowedContentTypes` | `application/pdf` | MIME types permitted for IPR evidence uploads. |
 | `ProjectOfficeReports:VisitPhotos:StoragePrefix` | `project-office-reports/visits` | Prefix used when constructing visit photo storage keys. Override to relocate visit assets within the upload root. (see appsettings.json lines 80-94) (see Areas/ProjectOfficeReports/Application/VisitPhotoService.cs lines 363-368) |
 | `ProjectOfficeReports:SocialMediaPhotos:StoragePrefix` | `org/social/{eventId}` | Folder template for event-specific social media assets. `{eventId}` is replaced with the event identifier, allowing per-event isolation under the shared upload root. (see appsettings.json lines 94-105) (see Areas/ProjectOfficeReports/Application/SocialMediaPhotoOptions.cs lines 6-37) |
 

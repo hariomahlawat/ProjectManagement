@@ -8,6 +8,7 @@ This guide explains how the application is wired together: which layers exist, h
 Contracts/                  Shared DTOs used by APIs, services, and SignalR hubs
 Configuration/              Options classes bound from appsettings
 Data/                       EF Core DbContext, migrations, and seeders
+Application/                Vertical slices (e.g., IPR) that orchestrate persistence and storage beyond Razor Pages
 Features/                   Feature-specific helpers (e.g., remarks, user lookup)
 Helpers/                    Stateless helpers (quick parsers, celebration date logic)
 Infrastructure/             Cross-cutting filters, clocks, security helpers
@@ -67,6 +68,9 @@ The app exposes several API groups in addition to Razor Pages:
   - `/calendar/events/holidays` surfaces admin-managed `Holiday` rows, returning ISO dates plus UTC spans for the UI while clamping queries to 400 days and requiring authentication. (see Program.cs lines 492-534)
 - **Notifications (`/api/notifications`)** – List, count unread, mark read/unread, and mute per project. Responses respect project visibility via `ProjectAccessGuard` and normalise routes for consistent client-side navigation. (see Program.cs lines 500-615) (see Services/Notifications/UserNotificationService.cs lines 23-220)
 - **Process templates (`/api/processes/...`)** – Fetch and maintain stage templates and checklist items with row-version checks to prevent conflicting edits. Policies `Checklist.View` and `Checklist.Edit` gate read/write access. (see Program.cs lines 617-760)
+- **Project analytics (`/api/analytics/projects/*`)** – Returns pre-aggregated stage, lifecycle, slip-bucket, and overdue datasets consumed by the analytics dashboard. Filters accept lifecycle, category, and technical category parameters and normalise Indian Standard Time ranges for monthly series. (see Features/Analytics/ProjectAnalyticsApi.cs lines 16-120) (see Services/Analytics/ProjectAnalyticsService.cs lines 20-220)
+- **Project remarks (`/api/projects/{id}/remarks`)** – CRUD endpoints for structured project remarks, including audit history, mention expansion, scoped filters, and role-based authorisation for project governance roles. (see Features/Remarks/RemarkApi.cs lines 20-260) (see Services/Remarks/RemarkService.cs lines 21-320)
+- **User mentions (`/api/users/mentions`)** – Lightweight lookup used by comment and remark editors to resolve display names and initials while guarding against disabled or pending-deletion accounts. (see Features/Users/MentionApi.cs lines 17-78)
 - **Document viewer (`/Projects/Documents/View`)** – Streams published PDFs once project access (or a preview token) is validated, applies private caching with ETags, and rejects archived or draft records so moderators can safely share review links. (see Program.cs lines 1376-1456) (see Services/Documents/DocumentPreviewTokenService.cs lines 10-124)
 
 ## Storage and uploads
