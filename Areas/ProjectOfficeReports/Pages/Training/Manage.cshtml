@@ -1,0 +1,128 @@
+@page "{id?}"
+@using System.Globalization
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.ManageModel
+@{
+    var pageTitle = Model.TrainingId.HasValue ? "Edit training" : "New training";
+    ViewData["Title"] = pageTitle;
+}
+
+<h1 class="display-6 mb-4">@pageTitle</h1>
+
+@if (!Model.IsFeatureEnabled)
+{
+    <div class="alert alert-warning" role="alert">
+        The training tracker is currently disabled. Management actions are unavailable until the feature is enabled.
+    </div>
+}
+else
+{
+    <form method="post" asp-page-handler="Save" class="needs-validation" novalidate>
+        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+        <input type="hidden" asp-for="Input.Id" />
+        <input type="hidden" asp-for="Input.RowVersion" />
+
+        <div class="card shadow-sm mb-4">
+            <div class="card-body p-4">
+                <div class="row g-4 align-items-end">
+                    <div class="col-md-6">
+                        <label asp-for="Input.TrainingTypeId" class="form-label"></label>
+                        <select asp-for="Input.TrainingTypeId" asp-items="Model.TrainingTypes" class="form-select">
+                            <option value="">Select a training type</option>
+                        </select>
+                        <span asp-validation-for="Input.TrainingTypeId" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-md-6">
+                        <label class="form-label">Schedule mode</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" asp-for="Input.ScheduleMode" value="@ManageModel.TrainingScheduleMode.DateRange" id="schedule-date-range">
+                            <label class="form-check-label" for="schedule-date-range">Exact dates</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" asp-for="Input.ScheduleMode" value="@ManageModel.TrainingScheduleMode.MonthAndYear" id="schedule-month-year">
+                            <label class="form-check-label" for="schedule-month-year">Month &amp; year only</label>
+                        </div>
+                        <span asp-validation-for="Input.ScheduleMode" class="text-danger"></span>
+                    </div>
+                </div>
+
+                <div class="row g-4 mt-1 @(Model.Input.ScheduleMode == ManageModel.TrainingScheduleMode.DateRange ? string.Empty : "d-none")" data-training-schedule="date-range">
+                    <div class="col-md-6">
+                        <label asp-for="Input.StartDate" class="form-label"></label>
+                        <input asp-for="Input.StartDate" class="form-control" />
+                        <span asp-validation-for="Input.StartDate" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <label asp-for="Input.EndDate" class="form-label"></label>
+                        <input asp-for="Input.EndDate" class="form-control" />
+                        <span asp-validation-for="Input.EndDate" class="text-danger"></span>
+                    </div>
+                </div>
+
+                <div class="row g-4 mt-1 @(Model.Input.ScheduleMode == ManageModel.TrainingScheduleMode.MonthAndYear ? string.Empty : "d-none")" data-training-schedule="month-year">
+                    <div class="col-md-6">
+                        <label asp-for="Input.TrainingMonth" class="form-label"></label>
+                        <select asp-for="Input.TrainingMonth" class="form-select">
+                            <option value="">Select month</option>
+                            @for (var month = 1; month <= 12; month++)
+                            {
+                                <option value="@month">@CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month)</option>
+                            }
+                        </select>
+                        <span asp-validation-for="Input.TrainingMonth" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-6">
+                        <label asp-for="Input.TrainingYear" class="form-label"></label>
+                        <input asp-for="Input.TrainingYear" class="form-control" />
+                        <span asp-validation-for="Input.TrainingYear" class="text-danger"></span>
+                    </div>
+                </div>
+
+                <hr class="my-4" />
+
+                <div class="row g-4">
+                    <div class="col-md-4">
+                        <label asp-for="Input.LegacyOfficerCount" class="form-label"></label>
+                        <input asp-for="Input.LegacyOfficerCount" class="form-control" />
+                        <span asp-validation-for="Input.LegacyOfficerCount" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="Input.LegacyJcoCount" class="form-label"></label>
+                        <input asp-for="Input.LegacyJcoCount" class="form-control" />
+                        <span asp-validation-for="Input.LegacyJcoCount" class="text-danger"></span>
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="Input.LegacyOrCount" class="form-label"></label>
+                        <input asp-for="Input.LegacyOrCount" class="form-control" />
+                        <span asp-validation-for="Input.LegacyOrCount" class="text-danger"></span>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <label asp-for="Input.ProjectIds" class="form-label">Linked projects</label>
+                    <select asp-for="Input.ProjectIds" asp-items="Model.ProjectOptions" multiple class="form-select" size="8"></select>
+                    <span class="form-text">Select all projects associated with this training.</span>
+                    <span asp-validation-for="Input.ProjectIds" class="text-danger"></span>
+                </div>
+
+                <div class="mt-4">
+                    <label asp-for="Input.Notes" class="form-label"></label>
+                    <textarea asp-for="Input.Notes" class="form-control" rows="4"></textarea>
+                    <span asp-validation-for="Input.Notes" class="text-danger"></span>
+                </div>
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center">
+            <a asp-page="./Index" class="btn btn-link">&larr; Back to tracker</a>
+            <button type="submit" class="btn btn-primary">Save training</button>
+        </div>
+    </form>
+}
+
+@section Scripts
+{
+    <partial name="_ValidationScriptsPartial" />
+    <script type="module" src="~/js/project-office-reports/training/manage.js" asp-append-version="true"></script>
+}

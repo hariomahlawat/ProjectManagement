@@ -573,6 +573,492 @@ namespace ProjectManagement.Migrations
                     b.ToTable("SocialMediaEventPhotos", (string)null);
                 });
 
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.Training", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateOnly?>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("LegacyJcoCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("LegacyOfficerCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("LegacyOrCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("LastModifiedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifiedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<DateOnly?>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("TrainingTypeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("TrainingMonth")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("TrainingYear")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EndDate")
+                        .HasDatabaseName("IX_Trainings_EndDate");
+
+                    b.HasIndex("StartDate")
+                        .HasDatabaseName("IX_Trainings_StartDate");
+
+                    b.HasIndex("TrainingTypeId")
+                        .HasDatabaseName("IX_Trainings_TrainingTypeId");
+
+                    b.HasIndex("TrainingYear")
+                        .HasDatabaseName("IX_Trainings_TrainingYear");
+
+                    b.ToTable("Trainings", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingCounters", b =>
+                {
+                    b.Property<Guid>("TrainingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("JuniorCommissionedOfficers")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Officers")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("OtherRanks")
+                        .HasColumnType("integer");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("Total")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.HasKey("TrainingId");
+
+                    b.ToTable("TrainingCounters", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingDeleteRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("DecidedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DecidedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("DecisionNotes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset>("RequestedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<string>("RequestedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<Guid>("TrainingId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Status")
+                        .HasDatabaseName("IX_TrainingDeleteRequests_Status");
+
+                    b.HasIndex("TrainingId")
+                        .HasDatabaseName("IX_TrainingDeleteRequests_TrainingId");
+
+                    b.ToTable("TrainingDeleteRequests", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingProject", b =>
+                {
+                    b.Property<Guid>("TrainingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("AllocationShare")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("numeric(9,4)")
+                        .HasDefaultValue(0m);
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.HasKey("TrainingId", "ProjectId");
+
+                    b.HasIndex("ProjectId")
+                        .HasDatabaseName("IX_TrainingProjects_ProjectId");
+
+                    b.ToTable("TrainingProjects", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingRankCategoryMap", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("Category")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTimeOffset?>("LastModifiedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifiedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Rank")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Rank")
+                        .IsUnique()
+                        .HasDatabaseName("IX_TrainingRankCategoryMap_Rank");
+
+                    b.ToTable("TrainingRankCategoryMap", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            Category = 0,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedByUserId = "system",
+                            IsActive = true,
+                            Rank = "Lt",
+                            RowVersion = new byte[] { 95, 111, 159, 61, 34, 255, 74, 143, 158, 242, 124, 179, 241, 169, 5, 19 }
+                        },
+                        new
+                        {
+                            Id = 2,
+                            Category = 0,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedByUserId = "system",
+                            IsActive = true,
+                            Rank = "Capt",
+                            RowVersion = new byte[] { 214, 205, 160, 166, 106, 86, 75, 52, 157, 190, 166, 144, 181, 140, 219, 223 }
+                        },
+                        new
+                        {
+                            Id = 3,
+                            Category = 0,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedByUserId = "system",
+                            IsActive = true,
+                            Rank = "Maj",
+                            RowVersion = new byte[] { 86, 101, 141, 138, 29, 59, 77, 154, 191, 53, 248, 240, 167, 241, 218, 107 }
+                        },
+                        new
+                        {
+                            Id = 4,
+                            Category = 0,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedByUserId = "system",
+                            IsActive = true,
+                            Rank = "Lt Col",
+                            RowVersion = new byte[] { 167, 155, 39, 52, 55, 206, 74, 160, 143, 167, 30, 67, 213, 198, 166, 244 }
+                        },
+                        new
+                        {
+                            Id = 5,
+                            Category = 0,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedByUserId = "system",
+                            IsActive = true,
+                            Rank = "Col",
+                            RowVersion = new byte[] { 30, 252, 117, 122, 4, 252, 78, 34, 134, 229, 44, 201, 190, 58, 129, 215 }
+                        },
+                        new
+                        {
+                            Id = 6,
+                            Category = 0,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedByUserId = "system",
+                            IsActive = true,
+                            Rank = "Brig",
+                            RowVersion = new byte[] { 168, 246, 169, 199, 95, 209, 76, 83, 142, 42, 194, 185, 241, 176, 240, 215 }
+                        },
+                        new
+                        {
+                            Id = 7,
+                            Category = 0,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedByUserId = "system",
+                            IsActive = true,
+                            Rank = "Maj Gen",
+                            RowVersion = new byte[] { 45, 159, 18, 52, 51, 142, 77, 74, 191, 103, 58, 193, 48, 150, 164, 184 }
+                        },
+                        new
+                        {
+                            Id = 8,
+                            Category = 0,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedByUserId = "system",
+                            IsActive = true,
+                            Rank = "Lt Gen",
+                            RowVersion = new byte[] { 79, 139, 41, 28, 47, 38, 75, 105, 155, 111, 67, 59, 33, 22, 177, 217 }
+                        },
+                        new
+                        {
+                            Id = 9,
+                            Category = 0,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedByUserId = "system",
+                            IsActive = true,
+                            Rank = "Gen",
+                            RowVersion = new byte[] { 201, 192, 33, 186, 145, 174, 66, 193, 185, 232, 147, 14, 16, 183, 196, 126 }
+                        },
+                        new
+                        {
+                            Id = 10,
+                            Category = 1,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedByUserId = "system",
+                            IsActive = true,
+                            Rank = "Naib Subedar",
+                            RowVersion = new byte[] { 245, 215, 166, 120, 210, 236, 77, 75, 164, 229, 44, 77, 86, 243, 241, 180 }
+                        },
+                        new
+                        {
+                            Id = 11,
+                            Category = 1,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedByUserId = "system",
+                            IsActive = true,
+                            Rank = "Subedar",
+                            RowVersion = new byte[] { 166, 22, 137, 176, 68, 168, 71, 64, 148, 81, 162, 169, 99, 159, 77, 157 }
+                        },
+                        new
+                        {
+                            Id = 12,
+                            Category = 1,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedByUserId = "system",
+                            IsActive = true,
+                            Rank = "Subedar Major",
+                            RowVersion = new byte[] { 227, 194, 181, 217, 18, 175, 71, 172, 182, 159, 104, 232, 230, 245, 211, 193 }
+                        },
+                        new
+                        {
+                            Id = 13,
+                            Category = 2,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedByUserId = "system",
+                            IsActive = true,
+                            Rank = "Sepoy",
+                            RowVersion = new byte[] { 10, 125, 47, 94, 187, 180, 75, 216, 183, 61, 148, 165, 8, 42, 77, 12 }
+                        },
+                        new
+                        {
+                            Id = 14,
+                            Category = 2,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedByUserId = "system",
+                            IsActive = true,
+                            Rank = "Lance Naik",
+                            RowVersion = new byte[] { 154, 159, 76, 142, 10, 18, 78, 95, 144, 27, 151, 20, 252, 183, 217, 194 }
+                        },
+                        new
+                        {
+                            Id = 15,
+                            Category = 2,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedByUserId = "system",
+                            IsActive = true,
+                            Rank = "Naik",
+                            RowVersion = new byte[] { 178, 229, 247, 195, 125, 21, 78, 226, 155, 241, 12, 104, 75, 39, 220, 233 }
+                        },
+                        new
+                        {
+                            Id = 16,
+                            Category = 2,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedByUserId = "system",
+                            IsActive = true,
+                            Rank = "Havildar",
+                            RowVersion = new byte[] { 141, 150, 242, 188, 18, 212, 67, 244, 141, 107, 43, 176, 121, 72, 243, 217 }
+                        });
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingType", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<string>("CreatedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<int>("DisplayOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTimeOffset?>("LastModifiedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("LastModifiedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("IX_TrainingTypes_Name");
+
+                    b.ToTable("TrainingTypes", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("f4a9b1c7-0a3c-46da-92ff-39b861fd4c91"),
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedByUserId = "system",
+                            Description = "Simulator-based training sessions.",
+                            DisplayOrder = 1,
+                            IsActive = true,
+                            Name = "Simulator",
+                            RowVersion = new byte[] { 77, 155, 111, 117, 141, 150, 71, 212, 157, 65, 159, 79, 74, 14, 166, 121 }
+                        },
+                        new
+                        {
+                            Id = new Guid("39f0d83c-5322-4a6d-bd1c-1b4dfbb5887b"),
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            CreatedByUserId = "system",
+                            Description = "Drone operator and maintenance training.",
+                            DisplayOrder = 2,
+                            IsActive = true,
+                            Name = "Drone",
+                            RowVersion = new byte[] { 210, 243, 145, 188, 100, 164, 76, 54, 146, 24, 26, 59, 169, 189, 234, 249 }
+                        });
+                });
+
             modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.SocialMediaEventType", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4000,6 +4486,64 @@ namespace ProjectManagement.Migrations
                     b.Navigation("SocialMediaEvent");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.Training", b =>
+                {
+                    b.HasOne("ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingType", "TrainingType")
+                        .WithMany("Trainings")
+                        .HasForeignKey("TrainingTypeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Counters");
+
+                    b.Navigation("DeleteRequests");
+
+                    b.Navigation("ProjectLinks");
+
+                    b.Navigation("TrainingType");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingCounters", b =>
+                {
+                    b.HasOne("ProjectManagement.Areas.ProjectOfficeReports.Domain.Training", "Training")
+                        .WithOne("Counters")
+                        .HasForeignKey("ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingCounters", "TrainingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Training");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingDeleteRequest", b =>
+                {
+                    b.HasOne("ProjectManagement.Areas.ProjectOfficeReports.Domain.Training", "Training")
+                        .WithMany("DeleteRequests")
+                        .HasForeignKey("TrainingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Training");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingProject", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Areas.ProjectOfficeReports.Domain.Training", "Training")
+                        .WithMany("ProjectLinks")
+                        .HasForeignKey("TrainingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+
+                    b.Navigation("Training");
+                });
+
             modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.Visit", b =>
                 {
                     b.HasOne("ProjectManagement.Areas.ProjectOfficeReports.Domain.VisitPhoto", "CoverPhoto")
@@ -4761,6 +5305,11 @@ namespace ProjectManagement.Migrations
             modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.VisitType", b =>
                 {
                     b.Navigation("Visits");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingType", b =>
+                {
+                    b.Navigation("Trainings");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.LineDirectorate", b =>

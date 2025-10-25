@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Configuration;
 using ProjectManagement.Models;
@@ -16,13 +17,16 @@ public class RoleBasedNavigationProvider : INavigationProvider
 
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly IOptionsMonitor<TrainingTrackerOptions> _trainingTrackerOptions;
 
     public RoleBasedNavigationProvider(
         UserManager<ApplicationUser> userManager,
-        IHttpContextAccessor httpContextAccessor)
+        IHttpContextAccessor httpContextAccessor,
+        IOptionsMonitor<TrainingTrackerOptions> trainingTrackerOptions)
     {
         _userManager = userManager;
         _httpContextAccessor = httpContextAccessor;
+        _trainingTrackerOptions = trainingTrackerOptions;
     }
 
     public async Task<IReadOnlyList<NavigationItem>> GetNavigationAsync()
@@ -70,6 +74,8 @@ public class RoleBasedNavigationProvider : INavigationProvider
             }
         };
 
+        var trainingTrackerEnabled = _trainingTrackerOptions.CurrentValue?.Enabled ?? false;
+
         var projectOfficeReportsChildren = new List<NavigationItem>
         {
             new()
@@ -85,6 +91,17 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Page = "/Tot/Index"
             }
         };
+
+        if (trainingTrackerEnabled)
+        {
+            projectOfficeReportsChildren.Add(new NavigationItem
+            {
+                Text = "Training tracker",
+                Area = "ProjectOfficeReports",
+                Page = "/Training/Index",
+                AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewTrainingTracker
+            });
+        }
 
         var proliferationTracker = new NavigationItem
         {

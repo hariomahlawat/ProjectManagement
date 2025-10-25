@@ -140,6 +140,8 @@ builder.Services.AddAuthorization(options =>
         policy.RequireTotTrackerSubmitter());
     options.AddPolicy(ProjectOfficeReportsPolicies.ApproveTotTracker, policy =>
         policy.RequireTotTrackerApprover());
+    options.AddPolicy(ProjectOfficeReportsPolicies.ViewTrainingTracker, policy =>
+        policy.RequireTrainingTrackerViewer());
     options.AddPolicy(ProjectOfficeReportsPolicies.ViewProliferationTracker, policy =>
         policy.RequireProliferationViewer());
     options.AddPolicy(ProjectOfficeReportsPolicies.SubmitProliferationTracker, policy =>
@@ -289,12 +291,17 @@ builder.Services.AddScoped<ISocialMediaExportService, SocialMediaExportService>(
 builder.Services.AddScoped<IIprExportService, IprExportService>();
 builder.Services.AddScoped<IVisitPhotoService, VisitPhotoService>();
 builder.Services.AddScoped<ISocialMediaEventPhotoService, SocialMediaEventPhotoService>();
+builder.Services.AddScoped<TrainingTrackerReadService>();
+builder.Services.AddScoped<TrainingWriteService>();
+builder.Services.AddSingleton<ITrainingExcelWorkbookBuilder, TrainingExcelWorkbookBuilder>();
 builder.Services.AddOptions<ProjectPhotoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectPhotos"));
 builder.Services.AddOptions<VisitPhotoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectOfficeReports:VisitPhotos"));
 builder.Services.AddOptions<SocialMediaPhotoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectOfficeReports:SocialMediaPhotos"));
+builder.Services.AddOptions<TrainingTrackerOptions>()
+    .Bind(builder.Configuration.GetSection("ProjectOfficeReports:TrainingTracker"));
 builder.Services.AddOptions<ProjectDocumentOptions>()
     .Bind(builder.Configuration.GetSection("ProjectDocuments"));
 builder.Services.AddOptions<ProjectVideoOptions>()
@@ -337,6 +344,10 @@ builder.Services.AddRazorPages(options =>
         "ProjectOfficeReports",
         "/Visits",
         ProjectOfficeReportsPolicies.ViewVisits);
+    options.Conventions.AuthorizeAreaFolder(
+        "ProjectOfficeReports",
+        "/Training",
+        ProjectOfficeReportsPolicies.ViewTrainingTracker);
     options.Conventions.AuthorizeAreaPage(
         "ProjectOfficeReports",
         "/Visits/New",
