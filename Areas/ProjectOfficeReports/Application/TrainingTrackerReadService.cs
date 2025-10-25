@@ -61,6 +61,25 @@ public sealed class TrainingTrackerReadService
                 x.LegacyOrCount,
                 x.Notes,
                 x.ProjectLinks.Select(link => link.ProjectId).ToList(),
+                x.Counters != null ? x.Counters.Officers : x.LegacyOfficerCount,
+                x.Counters != null ? x.Counters.JuniorCommissionedOfficers : x.LegacyJcoCount,
+                x.Counters != null ? x.Counters.OtherRanks : x.LegacyOrCount,
+                x.Counters != null ? x.Counters.Total : x.LegacyOfficerCount + x.LegacyJcoCount + x.LegacyOrCount,
+                x.Counters != null ? x.Counters.Source : TrainingCounterSource.Legacy,
+                x.Trainees.Any(),
+                x.Trainees
+                    .OrderBy(t => t.Name)
+                    .ThenBy(t => t.Id)
+                    .Select(t => new TrainingRosterRow
+                    {
+                        Id = t.Id,
+                        ArmyNumber = t.ArmyNumber,
+                        Rank = t.Rank,
+                        Name = t.Name,
+                        UnitName = t.UnitName,
+                        Category = t.Category
+                    })
+                    .ToList(),
                 x.RowVersion))
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -317,6 +336,13 @@ public sealed record TrainingEditorData(
     int LegacyOrCount,
     string? Notes,
     IReadOnlyList<int> ProjectIds,
+    int CounterOfficers,
+    int CounterJcos,
+    int CounterOrs,
+    int CounterTotal,
+    TrainingCounterSource CounterSource,
+    bool HasRoster,
+    IReadOnlyList<TrainingRosterRow> Roster,
     byte[] RowVersion);
 
 public sealed record TrainingListItem(

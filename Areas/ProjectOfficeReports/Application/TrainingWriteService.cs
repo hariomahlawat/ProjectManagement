@@ -86,7 +86,7 @@ public sealed class TrainingWriteService
             });
         }
 
-        var counters = CreateCounters(trainingId, command.LegacyOfficers, command.LegacyJcos, command.LegacyOrs, now);
+        var counters = CreateCounters(trainingId, command.LegacyOfficers, command.LegacyJcos, command.LegacyOrs, now, TrainingCounterSource.Legacy);
         training.Counters = counters;
 
         _db.Trainings.Add(training);
@@ -159,14 +159,14 @@ public sealed class TrainingWriteService
         training.RowVersion = Guid.NewGuid().ToByteArray();
 
         UpdateProjectLinks(training, validation.ProjectIds);
-        UpdateCounters(training, command.LegacyOfficers, command.LegacyJcos, command.LegacyOrs, now);
+        UpdateCounters(training, command.LegacyOfficers, command.LegacyJcos, command.LegacyOrs, now, TrainingCounterSource.Legacy);
 
         await _db.SaveChangesAsync(cancellationToken);
 
         return TrainingMutationResult.Success(training.Id, training.RowVersion);
     }
 
-    private static TrainingCounters CreateCounters(Guid trainingId, int officers, int jcos, int ors, DateTimeOffset timestamp)
+    private static TrainingCounters CreateCounters(Guid trainingId, int officers, int jcos, int ors, DateTimeOffset timestamp, TrainingCounterSource source)
     {
         return new TrainingCounters
         {
@@ -175,18 +175,18 @@ public sealed class TrainingWriteService
             JuniorCommissionedOfficers = jcos,
             OtherRanks = ors,
             Total = officers + jcos + ors,
-            Source = TrainingCounterSource.Legacy,
+            Source = source,
             UpdatedAtUtc = timestamp,
             RowVersion = Guid.NewGuid().ToByteArray()
         };
     }
 
-    private static void UpdateCounters(Training training, int officers, int jcos, int ors, DateTimeOffset timestamp)
+    private static void UpdateCounters(Training training, int officers, int jcos, int ors, DateTimeOffset timestamp, TrainingCounterSource source)
     {
         var counters = training.Counters;
         if (counters is null)
         {
-            counters = CreateCounters(training.Id, officers, jcos, ors, timestamp);
+            counters = CreateCounters(training.Id, officers, jcos, ors, timestamp, source);
             training.Counters = counters;
         }
         else
@@ -195,7 +195,7 @@ public sealed class TrainingWriteService
             counters.JuniorCommissionedOfficers = jcos;
             counters.OtherRanks = ors;
             counters.Total = officers + jcos + ors;
-            counters.Source = TrainingCounterSource.Legacy;
+            counters.Source = source;
             counters.UpdatedAtUtc = timestamp;
             counters.RowVersion = Guid.NewGuid().ToByteArray();
         }
@@ -209,6 +209,246 @@ public sealed class TrainingWriteService
         }
 
         return notes.Trim();
+    }
+
+    public async Task<TrainingRosterUpdateResult> UpsertRosterAsync(
+        Guid trainingId,
+        IReadOnlyCollection<TrainingRosterRow> rows,
+        byte[]? expectedRowVersion,
+        string userId,
+        CancellationToken cancellationToken)
+    {
+        if (trainingId == Guid.Empty)
+        {
+            return TrainingRosterUpdateResult.Failure(TrainingRosterFailureCode.InvalidRequest, "The training identifier is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return TrainingRosterUpdateResult.Failure(TrainingRosterFailureCode.MissingUserId, "The current user context is not available.");
+        }
+
+        var training = await _db.Trainings
+            .Include(x => x.Counters)
+            .FirstOrDefaultAsync(x => x.Id == trainingId, cancellationToken);
+
+        if (training is null)
+        {
+            return TrainingRosterUpdateResult.Failure(TrainingRosterFailureCode.TrainingNotFound, "The training could not be found.");
+        }
+
+        if (expectedRowVersion is not null && expectedRowVersion.Length > 0 && !training.RowVersion.SequenceEqual(expectedRowVersion))
+        {
+            return TrainingRosterUpdateResult.Failure(TrainingRosterFailureCode.ConcurrencyConflict, "Another user has updated this training. Reload and try again.");
+        }
+
+        var normalization = await NormalizeRosterRowsAsync(rows, cancellationToken);
+        if (!normalization.Success)
+        {
+            return TrainingRosterUpdateResult.Failure(TrainingRosterFailureCode.DuplicateArmyNumber, normalization.ErrorMessage);
+        }
+
+        var normalizedRows = normalization.Rows;
+
+        var existing = await _db.TrainingTrainees
+            .Where(x => x.TrainingId == trainingId)
+            .ToListAsync(cancellationToken);
+
+        var existingById = existing.ToDictionary(x => x.Id);
+        var idsToKeep = new HashSet<int>();
+
+        foreach (var row in normalizedRows)
+        {
+            if (row.Id.HasValue && existingById.TryGetValue(row.Id.Value, out var entity))
+            {
+                entity.ArmyNumber = row.ArmyNumber;
+                entity.Rank = row.Rank;
+                entity.Name = row.Name;
+                entity.UnitName = row.UnitName;
+                entity.Category = row.Category;
+                entity.RowVersion = Guid.NewGuid().ToByteArray();
+                idsToKeep.Add(entity.Id);
+            }
+            else
+            {
+                var entity = new TrainingTrainee
+                {
+                    TrainingId = trainingId,
+                    ArmyNumber = row.ArmyNumber,
+                    Rank = row.Rank,
+                    Name = row.Name,
+                    UnitName = row.UnitName,
+                    Category = row.Category,
+                    RowVersion = Guid.NewGuid().ToByteArray()
+                };
+
+                _db.TrainingTrainees.Add(entity);
+            }
+        }
+
+        foreach (var entity in existing)
+        {
+            if (!idsToKeep.Contains(entity.Id) && normalizedRows.All(r => r.Id != entity.Id))
+            {
+                _db.TrainingTrainees.Remove(entity);
+            }
+        }
+
+        var now = _clock.UtcNow;
+        training.LastModifiedAtUtc = now;
+        training.LastModifiedByUserId = userId;
+        training.RowVersion = Guid.NewGuid().ToByteArray();
+
+        if (normalizedRows.Count > 0)
+        {
+            var officers = normalizedRows.Count(x => x.Category == 0);
+            var jcos = normalizedRows.Count(x => x.Category == 1);
+            var ors = normalizedRows.Count(x => x.Category == 2);
+            UpdateCounters(training, officers, jcos, ors, now, TrainingCounterSource.Roster);
+        }
+        else
+        {
+            UpdateCounters(training, training.LegacyOfficerCount, training.LegacyJcoCount, training.LegacyOrCount, now, TrainingCounterSource.Legacy);
+        }
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsDuplicateArmyNumberViolation(ex))
+        {
+            return TrainingRosterUpdateResult.Failure(TrainingRosterFailureCode.DuplicateArmyNumber, "Each trainee must have a unique Army number.");
+        }
+
+        var roster = await _db.TrainingTrainees
+            .AsNoTracking()
+            .Where(x => x.TrainingId == trainingId)
+            .OrderBy(x => x.Name)
+            .ThenBy(x => x.Id)
+            .Select(x => new TrainingRosterRow
+            {
+                Id = x.Id,
+                ArmyNumber = x.ArmyNumber,
+                Rank = x.Rank,
+                Name = x.Name,
+                UnitName = x.UnitName,
+                Category = x.Category
+            })
+            .ToListAsync(cancellationToken);
+
+        var countersEntity = training.Counters ?? CreateCounters(training.Id, training.LegacyOfficerCount, training.LegacyJcoCount, training.LegacyOrCount, now, TrainingCounterSource.Legacy);
+
+        var counters = new TrainingRosterCounters(
+            countersEntity.Officers,
+            countersEntity.JuniorCommissionedOfficers,
+            countersEntity.OtherRanks,
+            countersEntity.Total,
+            countersEntity.Source);
+
+        return TrainingRosterUpdateResult.Success(training.RowVersion, roster, counters);
+    }
+
+    private async Task<RosterNormalizationResult> NormalizeRosterRowsAsync(IReadOnlyCollection<TrainingRosterRow> rows, CancellationToken cancellationToken)
+    {
+        var normalized = new List<NormalizedRosterRow>();
+        var seenArmyNumbers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var rankMap = await _db.TrainingRankCategoryMaps
+            .AsNoTracking()
+            .Where(x => x.IsActive)
+            .ToDictionaryAsync(x => x.Rank, x => x.Category, StringComparer.OrdinalIgnoreCase, cancellationToken);
+
+        if (rows is null)
+        {
+            return RosterNormalizationResult.Success(normalized);
+        }
+
+        foreach (var row in rows)
+        {
+            if (row is null)
+            {
+                continue;
+            }
+
+            var id = row.Id;
+            var armyNumber = string.IsNullOrWhiteSpace(row.ArmyNumber) ? null : row.ArmyNumber.Trim();
+            var rank = (row.Rank ?? string.Empty).Trim();
+            var name = (row.Name ?? string.Empty).Trim();
+            var unit = (row.UnitName ?? string.Empty).Trim();
+
+            if (string.IsNullOrWhiteSpace(armyNumber) && string.IsNullOrWhiteSpace(rank) && string.IsNullOrWhiteSpace(name) && string.IsNullOrWhiteSpace(unit))
+            {
+                continue;
+            }
+
+            if (armyNumber is not null && !seenArmyNumbers.Add(armyNumber))
+            {
+                return RosterNormalizationResult.Failure($"The Army number \"{armyNumber}\" is already listed.");
+            }
+
+            var category = ResolveCategory(rankMap, row.Category, rank);
+
+            normalized.Add(new NormalizedRosterRow(id, armyNumber, rank, name, unit, category));
+        }
+
+        return RosterNormalizationResult.Success(normalized);
+    }
+
+    private static byte ResolveCategory(IReadOnlyDictionary<string, byte> rankMap, byte proposedCategory, string rank)
+    {
+        if (proposedCategory is 0 or 1 or 2)
+        {
+            return proposedCategory;
+        }
+
+        if (!string.IsNullOrWhiteSpace(rank) && rankMap.TryGetValue(rank, out var mappedCategory))
+        {
+            return mappedCategory;
+        }
+
+        if (string.IsNullOrWhiteSpace(rank))
+        {
+            return 2;
+        }
+
+        var normalized = rank.Trim().ToLowerInvariant();
+
+        if (normalized.Contains("gen") || normalized.Contains("brig") || normalized.Contains("maj") || normalized.Contains("lt") || normalized.Contains("capt") || normalized.Contains("colonel") || normalized.Contains("col"))
+        {
+            return 0;
+        }
+
+        if (normalized.Contains("subedar") || normalized.Contains("naib") || normalized.Contains("jco"))
+        {
+            return 1;
+        }
+
+        return 2;
+    }
+
+    private static bool IsDuplicateArmyNumberViolation(DbUpdateException exception)
+    {
+        if (exception is null)
+        {
+            return false;
+        }
+
+        var message = exception.InnerException?.Message ?? exception.Message;
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        return message.Contains("IX_TrainingTrainees_TrainingId_ArmyNumber", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed record NormalizedRosterRow(int? Id, string? ArmyNumber, string Rank, string Name, string UnitName, byte Category);
+
+    private sealed record RosterNormalizationResult(bool Success, string? ErrorMessage, List<NormalizedRosterRow> Rows)
+    {
+        public static RosterNormalizationResult Success(List<NormalizedRosterRow> rows) => new(true, null, rows);
+
+        public static RosterNormalizationResult Failure(string message) => new(false, message, new List<NormalizedRosterRow>());
     }
 
     private async Task<ProjectValidationResult> ValidateProjectsAsync(IEnumerable<int> projectIds, CancellationToken cancellationToken)

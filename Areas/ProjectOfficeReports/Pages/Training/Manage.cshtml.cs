@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Configuration;
 using ProjectManagement.Services;
 
@@ -95,6 +96,10 @@ public class ManageModel : PageModel
         if (!ModelState.IsValid)
         {
             await LoadOptionsAsync(cancellationToken);
+            if (Input.Id.HasValue)
+            {
+                await RefreshRosterAsync(Input.Id.Value, cancellationToken);
+            }
             return Page();
         }
 
@@ -127,6 +132,77 @@ public class ManageModel : PageModel
 
         TempData["ToastMessage"] = Input.Id.HasValue ? "Training updated." : "Training created.";
         return RedirectToPage("./Manage", new { id = result.TrainingId });
+    }
+
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> OnPostUpsertRosterAsync([FromBody] UpsertRosterRequest request, CancellationToken cancellationToken)
+    {
+        if (request is null)
+        {
+            return BadRequest(new { ok = false, message = "An empty request was received." });
+        }
+
+        if (request.TrainingId == Guid.Empty)
+        {
+            return BadRequest(new { ok = false, message = "A valid training identifier is required." });
+        }
+
+        var userId = _userContext.UserId;
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return Unauthorized(new { ok = false, message = "The current user could not be identified." });
+        }
+
+        var expectedRowVersion = DecodeRowVersion(request.RowVersion);
+
+        var result = await _writeService.UpsertRosterAsync(
+            request.TrainingId,
+            request.Rows ?? Array.Empty<TrainingRosterRow>(),
+            expectedRowVersion,
+            userId,
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return result.FailureCode switch
+            {
+                TrainingRosterFailureCode.TrainingNotFound => NotFound(new { ok = false, message = result.ErrorMessage ?? "The training could not be found." }),
+                TrainingRosterFailureCode.ConcurrencyConflict => Conflict(new { ok = false, message = result.ErrorMessage ?? "Another user has updated this training. Reload and try again." }),
+                TrainingRosterFailureCode.MissingUserId => Unauthorized(new { ok = false, message = result.ErrorMessage ?? "The current user context is missing." }),
+                TrainingRosterFailureCode.DuplicateArmyNumber => BadRequest(new { ok = false, message = result.ErrorMessage ?? "Each Army number must be unique." }),
+                TrainingRosterFailureCode.InvalidRequest => BadRequest(new { ok = false, message = result.ErrorMessage ?? "The roster request was invalid." }),
+                _ => BadRequest(new { ok = false, message = result.ErrorMessage ?? "The roster could not be saved." })
+            };
+        }
+
+        var rowVersion = result.RowVersion is { Length: > 0 }
+            ? Convert.ToBase64String(result.RowVersion)
+            : string.Empty;
+
+        var counters = result.Counters ?? new TrainingRosterCounters(0, 0, 0, 0, TrainingCounterSource.Legacy);
+
+        return new JsonResult(new
+        {
+            ok = true,
+            rowVersion,
+            counters = new
+            {
+                officers = counters.Officers,
+                jcos = counters.JuniorCommissionedOfficers,
+                ors = counters.OtherRanks,
+                total = counters.Total,
+                source = counters.Source.ToString()
+            },
+            roster = result.Roster.Select(row => new
+            {
+                id = row.Id,
+                armyNumber = row.ArmyNumber,
+                rank = row.Rank,
+                name = row.Name,
+                unitName = row.UnitName,
+                category = row.Category
+            })
+        });
     }
 
     private async Task HandleFailureAsync(TrainingMutationResult result, CancellationToken cancellationToken)
@@ -165,6 +241,7 @@ public class ManageModel : PageModel
             if (refreshed is not null)
             {
                 Input.RowVersion = Convert.ToBase64String(refreshed.RowVersion);
+                ApplyRosterMetadata(Input, refreshed);
             }
         }
 
@@ -182,6 +259,18 @@ public class ManageModel : PageModel
             .ToList();
     }
 
+    private async Task RefreshRosterAsync(Guid trainingId, CancellationToken cancellationToken)
+    {
+        var editor = await _readService.GetEditorAsync(trainingId, cancellationToken);
+        if (editor is null)
+        {
+            return;
+        }
+
+        Input ??= InputModel.CreateDefault();
+        ApplyRosterMetadata(Input, editor);
+    }
+
     private static byte[]? DecodeRowVersion(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -197,6 +286,37 @@ public class ManageModel : PageModel
         {
             return null;
         }
+    }
+
+    private static void ApplyRosterMetadata(InputModel model, TrainingEditorData editor)
+    {
+        model.Roster = CloneRoster(editor.Roster);
+        model.HasRoster = editor.HasRoster;
+        model.CounterOfficers = editor.CounterOfficers;
+        model.CounterJcos = editor.CounterJcos;
+        model.CounterOrs = editor.CounterOrs;
+        model.CounterTotal = editor.CounterTotal;
+        model.CounterSource = editor.CounterSource;
+    }
+
+    private static List<TrainingRosterRow> CloneRoster(IReadOnlyList<TrainingRosterRow> roster)
+    {
+        if (roster is null || roster.Count == 0)
+        {
+            return new List<TrainingRosterRow>();
+        }
+
+        return roster
+            .Select(row => new TrainingRosterRow
+            {
+                Id = row.Id,
+                ArmyNumber = row.ArmyNumber,
+                Rank = row.Rank,
+                Name = row.Name,
+                UnitName = row.UnitName,
+                Category = row.Category
+            })
+            .ToList();
     }
 
     private void ValidateInput(InputModel input)
@@ -254,7 +374,7 @@ public class ManageModel : PageModel
             ModelState.AddModelError(nameof(Input.ScheduleMode), "Select how the training period should be captured.");
         }
 
-        if (input.LegacyOfficerCount + input.LegacyJcoCount + input.LegacyOrCount <= 0)
+        if (!input.HasRoster && input.LegacyOfficerCount + input.LegacyJcoCount + input.LegacyOrCount <= 0)
         {
             ModelState.AddModelError(string.Empty, "Enter at least one attendee in the legacy counts.");
         }
@@ -263,6 +383,15 @@ public class ManageModel : PageModel
         {
             input.ProjectIds = new List<int>();
         }
+    }
+
+    public sealed class UpsertRosterRequest
+    {
+        public Guid TrainingId { get; set; }
+
+        public string? RowVersion { get; set; }
+
+        public List<TrainingRosterRow> Rows { get; set; } = new();
     }
 
     public enum TrainingScheduleMode
@@ -315,6 +444,20 @@ public class ManageModel : PageModel
 
         public TrainingScheduleMode ScheduleMode { get; set; } = TrainingScheduleMode.DateRange;
 
+        public List<TrainingRosterRow> Roster { get; set; } = new();
+
+        public bool HasRoster { get; set; }
+
+        public int CounterOfficers { get; set; }
+
+        public int CounterJcos { get; set; }
+
+        public int CounterOrs { get; set; }
+
+        public int CounterTotal { get; set; }
+
+        public TrainingCounterSource CounterSource { get; set; } = TrainingCounterSource.Legacy;
+
         public TrainingMutationCommand ToCommand()
         {
             return new TrainingMutationCommand(
@@ -338,7 +481,14 @@ public class ManageModel : PageModel
                 LegacyJcoCount = 0,
                 LegacyOrCount = 0,
                 ProjectIds = new List<int>(),
-                ScheduleMode = TrainingScheduleMode.DateRange
+                ScheduleMode = TrainingScheduleMode.DateRange,
+                Roster = new List<TrainingRosterRow>(),
+                HasRoster = false,
+                CounterOfficers = 0,
+                CounterJcos = 0,
+                CounterOrs = 0,
+                CounterTotal = 0,
+                CounterSource = TrainingCounterSource.Legacy
             };
         }
 
@@ -364,6 +514,8 @@ public class ManageModel : PageModel
                 ProjectIds = editor.ProjectIds.ToList(),
                 RowVersion = Convert.ToBase64String(editor.RowVersion)
             };
+
+            ApplyRosterMetadata(model, editor);
 
             if (editor.StartDate.HasValue || editor.EndDate.HasValue)
             {
