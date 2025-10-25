@@ -42,10 +42,10 @@ else
         <input type="hidden" asp-for="Input.CounterTotal" />
         <input type="hidden" asp-for="Input.CounterSource" />
 
-        <div class="card shadow-sm mb-4">
+        <div class="card shadow-sm mb-4" data-legacy-counts>
             <div class="card-body p-4">
                 <div class="row g-4 align-items-end">
-                    <div class="col-md-6">
+                    <div class="col-md-6 col-lg-4">
                         <label asp-for="Input.TrainingTypeId" class="form-label"></label>
                         <select asp-for="Input.TrainingTypeId" asp-items="Model.TrainingTypes" class="form-select">
                             <option value="">Select a training type</option>
@@ -53,7 +53,7 @@ else
                         <span asp-validation-for="Input.TrainingTypeId" class="text-danger"></span>
                     </div>
 
-                    <div class="col-md-6">
+                    <div class="col-md-6 col-lg-4">
                         <label class="form-label">Schedule mode</label>
                         <div class="form-check">
                             <input class="form-check-input" type="radio" asp-for="Input.ScheduleMode" value="@ManageModel.TrainingScheduleMode.DateRange" id="schedule-date-range">
@@ -64,6 +64,14 @@ else
                             <label class="form-check-label" for="schedule-month-year">Month &amp; year only</label>
                         </div>
                         <span asp-validation-for="Input.ScheduleMode" class="text-danger"></span>
+                    </div>
+
+                    <div class="col-12 col-lg-4">
+                        <div class="form-check form-switch" data-legacy-toggle>
+                            <input class="form-check-input" type="checkbox" asp-for="Input.IsLegacyRecord" id="legacy-record-toggle">
+                            <label class="form-check-label" for="legacy-record-toggle">Legacy record</label>
+                            <div class="form-text">Use when migrating totals from historical registers.</div>
+                        </div>
                     </div>
                 </div>
 
@@ -131,10 +139,14 @@ else
                     <textarea asp-for="Input.Notes" class="form-control" rows="4"></textarea>
                     <span asp-validation-for="Input.Notes" class="text-danger"></span>
                 </div>
+
+                <div class="alert alert-info small d-none mt-4 mb-0" data-legacy-hint>
+                    Legacy records capture attendee totals without maintaining a roster. You can re-enable the roster at any time by unchecking the option above.
+                </div>
             </div>
         </div>
 
-        <div class="card shadow-sm mb-4">
+        <div class="card shadow-sm mb-4" data-legacy-roster>
             <div class="card-header bg-white py-3">
                 <h2 class="h5 mb-0">Roster</h2>
             </div>

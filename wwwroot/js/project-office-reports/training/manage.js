@@ -1,7 +1,44 @@
 (() => {
   initScheduleToggle();
+  initLegacyToggle();
   initRosterModule();
 })();
+
+function initLegacyToggle() {
+  const toggle = document.querySelector('input[name="Input.IsLegacyRecord"]');
+  if (!toggle) {
+    return;
+  }
+
+  const toggleContainer = toggle.closest('[data-legacy-toggle]');
+  const countsCard = document.querySelector('[data-legacy-counts]');
+  const rosterCard = document.querySelector('[data-legacy-roster]');
+  const hint = document.querySelector('[data-legacy-hint]');
+
+  function updateState() {
+    const isLegacy = toggle.checked;
+
+    if (toggleContainer) {
+      toggleContainer.classList.toggle('text-primary', isLegacy);
+    }
+
+    if (countsCard) {
+      countsCard.classList.toggle('border', isLegacy);
+      countsCard.classList.toggle('border-primary-subtle', isLegacy);
+    }
+
+    if (rosterCard) {
+      rosterCard.classList.toggle('d-none', isLegacy);
+    }
+
+    if (hint) {
+      hint.classList.toggle('d-none', !isLegacy);
+    }
+  }
+
+  toggle.addEventListener('change', updateState);
+  updateState();
+}
 
 function initScheduleToggle() {
   const scheduleInputs = document.querySelectorAll('input[name="Input.ScheduleMode"]');
