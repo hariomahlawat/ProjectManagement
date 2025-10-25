@@ -4,22 +4,22 @@ Follow these guardrails when introducing new capabilities. Keeping to these patt
 
 ## Roles and identity
 
-1. Add the role name to `IdentitySeeder` so fresh environments pick it up automatically.【F:Data/IdentitySeeder.cs†L14-L71】
-2. Update authorization policies in `Program.cs` if the new role should grant access to existing features, and register additional policies for new modules as needed.【F:Program.cs†L108-L206】
+1. Add the role name to `IdentitySeeder` so fresh environments pick it up automatically. (see Data/IdentitySeeder.cs lines 14-71)
+2. Update authorization policies in `Program.cs` if the new role should grant access to existing features, and register additional policies for new modules as needed. (see Program.cs lines 108-206)
 3. Reflect the new role in the admin UI (filter dropdowns, export columns) and update [docs/razor-pages.md](razor-pages.md) with its capabilities.
 
 ## Configuration
 
-1. Bind new configuration sections through `builder.Services.AddOptions<TOptions>().Bind(...)` in `Program.cs` so values can be overridden via environment variables.【F:Program.cs†L108-L236】
+1. Bind new configuration sections through `builder.Services.AddOptions<TOptions>().Bind(...)` in `Program.cs` so values can be overridden via environment variables. (see Program.cs lines 108-236)
 2. Document defaults and environment overrides in [docs/configuration-reference.md](configuration-reference.md). Mention any CLI switches or environment variables you introduce.
-3. When configuration affects uploads or storage paths, route values through `IUploadRootProvider` rather than hard-coding directories.【F:Services/Storage/UploadRootProvider.cs†L17-L100】
+3. When configuration affects uploads or storage paths, route values through `IUploadRootProvider` rather than hard-coding directories. (see Services/Storage/UploadRootProvider.cs lines 17-100)
 
 ## Services and background work
 
 * Register new services/interfaces in `Program.cs` with scoped lifetimes unless state truly needs to be singleton.
 * Prefer constructor-injected collaborators; avoid service location inside page handlers.
-* Background workers should derive from `BackgroundService`, honour cancellation tokens, and log failures explicitly (see `NotificationDispatcher` for an example).【F:Services/Notifications/NotificationDispatcher.cs†L20-L200】 Document new workers in [docs/infrastructure-services.md](infrastructure-services.md).
-* Emit audit entries for every mutating operation using `IAuditService` so admin exports remain trustworthy.【F:Services/AuditService.cs†L16-L120】
+* Background workers should derive from `BackgroundService`, honour cancellation tokens, and log failures explicitly (see `NotificationDispatcher` for an example). (see Services/Notifications/NotificationDispatcher.cs lines 20-200) Document new workers in [docs/infrastructure-services.md](infrastructure-services.md).
+* Emit audit entries for every mutating operation using `IAuditService` so admin exports remain trustworthy. (see Services/AuditService.cs lines 16-120)
 
 ## Razor Pages and APIs
 

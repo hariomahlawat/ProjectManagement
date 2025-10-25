@@ -1,9 +1,9 @@
 # Storage Migration Plan
 
 ## Current Behaviour
-- `ProjectPhotoOptionsSetup` sets a default uploads root beneath the ASP.NET Core web/content root, falling back to the app base directory when neither is configured.【F:Services/Projects/ProjectPhotoOptionsSetup.cs†L17-L36】
-- `UploadRootProvider` resolves the final directory by checking the `PM_UPLOAD_ROOT` environment variable first, then the configured `ProjectPhotoOptions.StorageRoot`, and finally the hard-coded `/var/pm/uploads` fallback before ensuring the directory exists.【F:Services/Storage/UploadRootProvider.cs†L9-L32】
-- `ProjectPhotoService` persists each derivative beneath `projects/{projectId}` using the resolved root, so all features that depend on the provider already share the same tree.【F:Services/Projects/ProjectPhotoService.cs†L495-L536】
+- `ProjectPhotoOptionsSetup` sets a default uploads root beneath the ASP.NET Core web/content root, falling back to the app base directory when neither is configured. (see Services/Projects/ProjectPhotoOptionsSetup.cs lines 17-36)
+- `UploadRootProvider` resolves the final directory by checking the `PM_UPLOAD_ROOT` environment variable first, then the configured `ProjectPhotoOptions.StorageRoot`, and finally the hard-coded `/var/pm/uploads` fallback before ensuring the directory exists. (see Services/Storage/UploadRootProvider.cs lines 9-32)
+- `ProjectPhotoService` persists each derivative beneath `projects/{projectId}` using the resolved root, so all features that depend on the provider already share the same tree. (see Services/Projects/ProjectPhotoService.cs lines 495-536)
 
 ## Recommended Configuration Strategy
 1. **Explicit root selection**

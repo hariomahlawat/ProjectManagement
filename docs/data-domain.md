@@ -66,18 +66,18 @@ Timeline expectations are stored as `PlanVersion` rows. Each project maintains a
 Supports threaded discussions around a project or a specific stage. Comments enforce minimum/maximum lengths, carry typed categorisation (Update, Risk, Blocker, Decision, Info), allow pinning and track soft deletion. Attachments and mentions are separate tables linked back to the owning comment with foreign keys and capture uploader metadata plus sanitised filenames for storage.
 
 ### Notifications (`Models/Notifications/*`)
-* **`Notification`** – materialised rows that power the user-facing notification centre. Metadata columns (`Module`, `EventType`, `ScopeType`, `ScopeId`, `Route`, `Title`, `Summary`) come from the original dispatch envelope and timestamps track when a user sees or reads the item.【F:Models/Notifications/Notification.cs†L5-L40】
-* **`NotificationDispatch`** – queue table processed by `NotificationDispatcher`. It stores the serialised payload, retry counters, dispatch timestamps, and optional error text so failed deliveries can be diagnosed.【F:Models/Notifications/NotificationDispatch.cs†L5-L44】
-* **`UserNotificationPreference`** – per-kind opt-in/out switches evaluated before persisting new notifications.【F:Models/Notifications/UserNotificationPreference.cs†L3-L10】
-* **`UserProjectMute`** – association table that hides notifications for specific projects when the user has muted them through the API.【F:Models/Notifications/UserProjectMute.cs†L3-L8】
+* **`Notification`** – materialised rows that power the user-facing notification centre. Metadata columns (`Module`, `EventType`, `ScopeType`, `ScopeId`, `Route`, `Title`, `Summary`) come from the original dispatch envelope and timestamps track when a user sees or reads the item. (see Models/Notifications/Notification.cs lines 5-40)
+* **`NotificationDispatch`** – queue table processed by `NotificationDispatcher`. It stores the serialised payload, retry counters, dispatch timestamps, and optional error text so failed deliveries can be diagnosed. (see Models/Notifications/NotificationDispatch.cs lines 5-44)
+* **`UserNotificationPreference`** – per-kind opt-in/out switches evaluated before persisting new notifications. (see Models/Notifications/UserNotificationPreference.cs lines 3-10)
+* **`UserProjectMute`** – association table that hides notifications for specific projects when the user has muted them through the API. (see Models/Notifications/UserProjectMute.cs lines 3-8)
 
 ### Project documents (`Models/ProjectDocument*.cs`)
-* **`ProjectDocument`** – published artefacts with metadata (title, description, stage link, storage key, MIME type, file stamp, archival state) and a `RowVersion` concurrency token to prevent conflicting edits.【F:Models/ProjectDocument.cs†L13-L78】
-* **`ProjectDocumentRequest`** – workflow table that tracks document uploads/replacements/deletions before publication. Includes request type, reviewer metadata, temporary storage keys, and audit notes for approvals or rejections.【F:Models/ProjectDocumentRequest.cs†L23-L85】
+* **`ProjectDocument`** – published artefacts with metadata (title, description, stage link, storage key, MIME type, file stamp, archival state) and a `RowVersion` concurrency token to prevent conflicting edits. (see Models/ProjectDocument.cs lines 13-78)
+* **`ProjectDocumentRequest`** – workflow table that tracks document uploads/replacements/deletions before publication. Includes request type, reviewer metadata, temporary storage keys, and audit notes for approvals or rejections. (see Models/ProjectDocumentRequest.cs lines 23-85)
 
 ### Process templates (`Models/Stages/StageChecklistTemplate.cs`)
 Stage templates drive the process designer UI and REST APIs:
-* **`StageChecklistTemplate`** – versioned container per stage code with optimistic concurrency and audit trails.【F:Models/Stages/StageChecklistTemplate.cs†L8-L29】
-* **`StageChecklistItemTemplate`** – ordered checklist items with per-item row versions and editor metadata.【F:Models/Stages/StageChecklistTemplate.cs†L32-L52】
-* **`StageChecklistAudit`** – immutable log of checklist edits, including payload snapshots and timestamps for compliance reporting.【F:Models/Stages/StageChecklistTemplate.cs†L55-L76】
+* **`StageChecklistTemplate`** – versioned container per stage code with optimistic concurrency and audit trails. (see Models/Stages/StageChecklistTemplate.cs lines 8-29)
+* **`StageChecklistItemTemplate`** – ordered checklist items with per-item row versions and editor metadata. (see Models/Stages/StageChecklistTemplate.cs lines 32-52)
+* **`StageChecklistAudit`** – immutable log of checklist edits, including payload snapshots and timestamps for compliance reporting. (see Models/Stages/StageChecklistTemplate.cs lines 55-76)
 

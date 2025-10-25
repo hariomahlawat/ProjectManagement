@@ -7,16 +7,16 @@
 - Follow existing modular patterns in the Project Office Reports area so the implementation is maintainable and testable.
 
 ## Implementation Summary
-- Added `VisitExportService` with an accompanying `VisitExportRequest`/`VisitExportResult` workflow that validates filters, relies on `VisitService.ExportAsync`, emits audit events, and streams Excel bytes back to Razor pages. 【F:Areas/ProjectOfficeReports/Application/VisitExportService.cs†L1-L86】
-- Extended `VisitService` with reusable filtering and a dedicated export projection so both search and export paths stay in sync. 【F:Areas/ProjectOfficeReports/Application/VisitService.cs†L26-L124】
-- Introduced `VisitExcelWorkbookBuilder` under `Utilities/Reporting` to craft offline-ready workbooks (header styling, wrapped remarks, metadata footer) using ClosedXML. 【F:Utilities/Reporting/VisitExcelWorkbookBuilder.cs†L1-L94】
-- Wired the visits index page with an “Export visits” modal that reuses filters, posts to the new handler, and returns a spreadsheet without inline scripts. 【F:Areas/ProjectOfficeReports/Pages/Visits/Index.cshtml†L83-L155】
-- Registered supporting services in DI and documented behaviour for administrators in ProjectOfficeReports directions. 【F:Program.cs†L21-L238】【F:docs/ProjectOfficeReports_Directions.md†L79-L97】
+- Added `VisitExportService` with an accompanying `VisitExportRequest`/`VisitExportResult` workflow that validates filters, relies on `VisitService.ExportAsync`, emits audit events, and streams Excel bytes back to Razor pages.  (see Areas/ProjectOfficeReports/Application/VisitExportService.cs lines 1-86)
+- Extended `VisitService` with reusable filtering and a dedicated export projection so both search and export paths stay in sync.  (see Areas/ProjectOfficeReports/Application/VisitService.cs lines 26-124)
+- Introduced `VisitExcelWorkbookBuilder` under `Utilities/Reporting` to craft offline-ready workbooks (header styling, wrapped remarks, metadata footer) using ClosedXML.  (see Utilities/Reporting/VisitExcelWorkbookBuilder.cs lines 1-94)
+- Wired the visits index page with an “Export visits” modal that reuses filters, posts to the new handler, and returns a spreadsheet without inline scripts.  (see Areas/ProjectOfficeReports/Pages/Visits/Index.cshtml lines 83-155)
+- Registered supporting services in DI and documented behaviour for administrators in ProjectOfficeReports directions.  (see Program.cs lines 21-238) (see docs/ProjectOfficeReports_Directions.md lines 79-97)
 
 ## Current Visit Experience
-- Visits are managed under `/ProjectOfficeReports/Visits` using Razor Pages (`Areas/ProjectOfficeReports/Pages/Visits`). The index page already exposes filtering by type, date range, and free-text search. 【F:Areas/ProjectOfficeReports/Pages/Visits/Index.cshtml†L1-L132】
-- Data access is handled through `VisitService`, which exposes a `SearchAsync` method returning `VisitListItem` projections. 【F:Areas/ProjectOfficeReports/Application/VisitService.cs†L26-L74】
-- The UI includes a hero card with "Record a visit" and "Preview latest visit" actions that should remain unchanged. 【F:Areas/ProjectOfficeReports/Pages/Visits/Index.cshtml†L39-L86】
+- Visits are managed under `/ProjectOfficeReports/Visits` using Razor Pages (`Areas/ProjectOfficeReports/Pages/Visits`). The index page already exposes filtering by type, date range, and free-text search.  (see Areas/ProjectOfficeReports/Pages/Visits/Index.cshtml lines 1-132)
+- Data access is handled through `VisitService`, which exposes a `SearchAsync` method returning `VisitListItem` projections.  (see Areas/ProjectOfficeReports/Application/VisitService.cs lines 26-74)
+- The UI includes a hero card with "Record a visit" and "Preview latest visit" actions that should remain unchanged.  (see Areas/ProjectOfficeReports/Pages/Visits/Index.cshtml lines 39-86)
 - There is no existing infrastructure for exporting data or generating spreadsheets.
 
 ## Proposed Solution Overview
