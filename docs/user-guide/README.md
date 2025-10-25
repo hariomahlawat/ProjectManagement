@@ -12,53 +12,53 @@ This guide walks each persona through the major areas of the suite. Every sectio
 | **Teaching Assistants (TA)** | Maintain celebrations and shared calendar logistics | Celebrations, Calendar, Tasks | Projects (read), Notifications |
 | **Staff** | Manage personal tasks, follow announcements | Tasks, Dashboard widgets | Calendar (read), Celebrations (read), Notifications |
 
-Role membership is managed under **Admin → Users** with guardrails that prevent disabling or demoting the last active Administrator.【F:Areas/Admin/Pages/Users/Index.cshtml.cs†L14-L87】【F:Services/UserManagementService.cs†L20-L210】
+Role membership is managed under **Admin → Users** with guardrails that prevent disabling or demoting the last active Administrator. (see Areas/Admin/Pages/Users/Index.cshtml.cs lines 14-87) (see Services/UserManagementService.cs lines 20-210)
 
 ## 2. Dashboard
 
 After signing in, everyone lands on **Dashboard → Overview**:
 
-- **My Tasks widget** – Shows the top 20 open tasks grouped into _Overdue_, _Today_, and _Upcoming_. Quick-add tokens (`today`, `tomorrow`, `mon`, `next mon`, `!high`, `!low`) set due dates and priority while removing the tokens from the title.【F:Pages/Dashboard/Index.cshtml.cs†L18-L92】【F:Helpers/TodoQuickParser.cs†L8-L57】 Undo banners appear when completing or deleting items and can be re-opened within the page session.
-- **Upcoming events drawer** – A floating **View upcoming events** card sticks to the dashboard's right margin and opens a right-side panel that lists the next ten calendar or celebration entries within 30 days, formatted in IST. All users can click through to the full calendar; editors can jump straight into the event drawer.【F:Pages/Dashboard/Index.cshtml.cs†L60-L104】
+- **My Tasks widget** – Shows the top 20 open tasks grouped into _Overdue_, _Today_, and _Upcoming_. Quick-add tokens (`today`, `tomorrow`, `mon`, `next mon`, `!high`, `!low`) set due dates and priority while removing the tokens from the title. (see Pages/Dashboard/Index.cshtml.cs lines 18-92) (see Helpers/TodoQuickParser.cs lines 8-57) Undo banners appear when completing or deleting items and can be re-opened within the page session.
+- **Upcoming events drawer** – A floating **View upcoming events** card sticks to the dashboard's right margin and opens a right-side panel that lists the next ten calendar or celebration entries within 30 days, formatted in IST. All users can click through to the full calendar; editors can jump straight into the event drawer. (see Pages/Dashboard/Index.cshtml.cs lines 60-104)
 
 ## 3. Tasks hub
 
 Navigate to **Tasks** for the full task board.
 
-- **Tabs & filters** – `Tab` query string selects _All_, _Today_, _Upcoming_, or _Completed_ while search (`?q=...`) performs case-insensitive title matches using PostgreSQL `ILIKE`. Pagination keeps 50 items per page.【F:Pages/Tasks/Index.cshtml.cs†L32-L85】
-- **Grouping** – Tasks are grouped client-side into Overdue/Today/Upcoming using Indian Standard Time to avoid timezone drift.【F:Pages/Tasks/Index.cshtml.cs†L86-L145】
-- **Actions** – Inline checkboxes toggle completion, the overflow menu exposes pin, snooze (`today_pm`, `tom_am`, `next_mon`, `clear`), edit, and delete commands. Drag handles allow reordering open tasks; the server persists the new order and protects against mismatched IDs.【F:Pages/Tasks/Index.cshtml.cs†L146-L206】
-- **Quick parser edge cases** – Tokens are case-insensitive and only consumed once per word. If the parser strips every token, the saved title is empty so the UI prompts for a meaningful description.【F:Helpers/TodoQuickParser.cs†L20-L52】
+- **Tabs & filters** – `Tab` query string selects _All_, _Today_, _Upcoming_, or _Completed_ while search (`?q=...`) performs case-insensitive title matches using PostgreSQL `ILIKE`. Pagination keeps 50 items per page. (see Pages/Tasks/Index.cshtml.cs lines 32-85)
+- **Grouping** – Tasks are grouped client-side into Overdue/Today/Upcoming using Indian Standard Time to avoid timezone drift. (see Pages/Tasks/Index.cshtml.cs lines 86-145)
+- **Actions** – Inline checkboxes toggle completion, the overflow menu exposes pin, snooze (`today_pm`, `tom_am`, `next_mon`, `clear`), edit, and delete commands. Drag handles allow reordering open tasks; the server persists the new order and protects against mismatched IDs. (see Pages/Tasks/Index.cshtml.cs lines 146-206)
+- **Quick parser edge cases** – Tokens are case-insensitive and only consumed once per word. If the parser strips every token, the saved title is empty so the UI prompts for a meaningful description. (see Helpers/TodoQuickParser.cs lines 20-52)
 
 ## 4. Calendar workspace
 
 Open **Calendar** for shared scheduling.
 
-- **Views** – Month, week, and list modes with category pills for Visit/Insp/Conference/Other. Filtering happens client-side so switching categories is instant.【F:wwwroot/js/calendar.js†L1-L80】
-- **Editing rights** – Admin, HoD, and TA roles can create, drag, resize, or delete events via the FullCalendar UI and minimal APIs. Everyone else sees read-only drawers with Markdown-rendered descriptions.【F:Pages/Calendar/Index.cshtml.cs†L11-L18】【F:Program.cs†L360-L498】
-- **Recurrence** – Weekly and monthly recurrence rules are generated by the page script; the API clamps ranges greater than 400 days to prevent runaway queries.【F:wwwroot/js/calendar.js†L37-L120】【F:Program.cs†L361-L400】
-- **Undo** – Moving or deleting an event triggers a toast with an Undo button that replays the previous payload through the API.【F:wwwroot/js/calendar.js†L89-L150】
-- **Holidays** – Dates configured under **Admin → Settings → Holidays** sync into the calendar via `/calendar/events/holidays`, shading affected cells with the `.pm-holiday` styling (rose gradient background and a pill around the day number) so teams can spot office closures while planning.【F:Program.cs†L492-L534】【F:wwwroot/css/calendar.css†L42-L76】
-- **Access control** – Minimal APIs require authentication, check roles on mutating verbs, and return `403` when unauthorized. Deleted events remain soft-deleted until an admin restores them under **Admin → Calendar → Deleted**.【F:Program.cs†L360-L498】
+- **Views** – Month, week, and list modes with category pills for Visit/Insp/Conference/Other. Filtering happens client-side so switching categories is instant. (see wwwroot/js/calendar.js lines 1-80)
+- **Editing rights** – Admin, HoD, and TA roles can create, drag, resize, or delete events via the FullCalendar UI and minimal APIs. Everyone else sees read-only drawers with Markdown-rendered descriptions. (see Pages/Calendar/Index.cshtml.cs lines 11-18) (see Program.cs lines 360-498)
+- **Recurrence** – Weekly and monthly recurrence rules are generated by the page script; the API clamps ranges greater than 400 days to prevent runaway queries. (see wwwroot/js/calendar.js lines 37-120) (see Program.cs lines 361-400)
+- **Undo** – Moving or deleting an event triggers a toast with an Undo button that replays the previous payload through the API. (see wwwroot/js/calendar.js lines 89-150)
+- **Holidays** – Dates configured under **Admin → Settings → Holidays** sync into the calendar via `/calendar/events/holidays`, shading affected cells with the `.pm-holiday` styling (rose gradient background and a pill around the day number) so teams can spot office closures while planning. (see Program.cs lines 492-534) (see wwwroot/css/calendar.css lines 42-76)
+- **Access control** – Minimal APIs require authentication, check roles on mutating verbs, and return `403` when unauthorized. Deleted events remain soft-deleted until an admin restores them under **Admin → Calendar → Deleted**. (see Program.cs lines 360-498)
 
 ## 5. Celebrations registry
 
 **Celebrations** keeps birthdays and anniversaries visible to the team.
 
-- **Filtering** – Filter pills (`all`, `birthday`, `anniversary`) and window presets (`today`, `7`, `15`, `30`, `all`) trim the list. Search spans names and spouse names for joint entries.【F:Pages/Celebrations/Index.cshtml.cs†L22-L48】
-- **Next occurrence** – Dates are calculated in IST with leap-day handling (Feb 29 shifts to Feb 28 on non-leap years). Each row shows days away to help plan logistics.【F:Pages/Celebrations/Index.cshtml.cs†L49-L70】【F:Helpers/CelebrationHelpers.cs†L10-L33】
-- **Permissions** – Admin and TA roles can soft-delete entries; everyone else has read-only access.【F:Pages/Celebrations/Index.cshtml.cs†L19-L22】
+- **Filtering** – Filter pills (`all`, `birthday`, `anniversary`) and window presets (`today`, `7`, `15`, `30`, `all`) trim the list. Search spans names and spouse names for joint entries. (see Pages/Celebrations/Index.cshtml.cs lines 22-48)
+- **Next occurrence** – Dates are calculated in IST with leap-day handling (Feb 29 shifts to Feb 28 on non-leap years). Each row shows days away to help plan logistics. (see Pages/Celebrations/Index.cshtml.cs lines 49-70) (see Helpers/CelebrationHelpers.cs lines 10-33)
+- **Permissions** – Admin and TA roles can soft-delete entries; everyone else has read-only access. (see Pages/Celebrations/Index.cshtml.cs lines 19-22)
 
 ## 6. Projects workspace
 
 Projects consolidate procurement, planning, documents, comments, and photos.
 
-- **Overview page** – Loads project details, category breadcrumbs, procurement facts, timeline status, plan editor state, and assignment lists in a single round trip. Off-canvas panels reuse this data for edits.【F:Pages/Projects/Overview.cshtml.cs†L59-L140】
-- **Role assignments** – Admins and HoDs can change the HoD/PO pairing with optimistic concurrency; audit entries capture before/after values.【F:Pages/Projects/AssignRoles.cshtml.cs†L16-L116】
-- **Procurement facts** – Captured via `ProjectFactsService`, which enforces stage backfill rules and writes structured audits. Updates immediately reflect on the overview tiles.【F:Services/Projects/ProjectFactsService.cs†L27-L200】
-- **Documents** – Upload, replace, or delete requests stage PDFs through the document workspace; Admins, HoDs, and the assigned PO queue a `ProjectDocumentRequest` and wait for moderation before anything publishes. Reviewers work from **Projects → Documents → Approvals**, approving or rejecting with audit trails while document notifications alert stakeholders when the library changes.【F:Pages/Projects/Documents/UploadRequest.cshtml.cs†L25-L167】【F:Pages/Projects/Documents/ReplaceRequest.cshtml.cs†L23-L183】【F:Pages/Projects/Documents/DeleteRequest.cshtml.cs†L19-L137】【F:Pages/Projects/Documents/Approvals/Review.cshtml.cs†L20-L178】【F:Services/Documents/DocumentNotificationService.cs†L15-L196】
-- **Timeline planning** – POs draft plans while HoDs approve or reject. Drafts are locked while pending approval and snapshots are stored for history. See [docs/timeline.md](../timeline.md) for detailed state transitions.【F:Services/Stages/PlanReadService.cs†L41-L212】【F:Services/Stages/PlanApprovalService.cs†L17-L200】
-- **Comments & photos** – Threaded comments support attachments and mentions with storage handled by `ProjectCommentService`. Photo management enforces size/MIME rules and generates derivatives on upload.【F:Services/ProjectCommentService.cs†L22-L238】【F:Services/Projects/ProjectPhotoService.cs†L82-L420】
+- **Overview page** – Loads project details, category breadcrumbs, procurement facts, timeline status, plan editor state, and assignment lists in a single round trip. Off-canvas panels reuse this data for edits. (see Pages/Projects/Overview.cshtml.cs lines 59-140)
+- **Role assignments** – Admins and HoDs can change the HoD/PO pairing with optimistic concurrency; audit entries capture before/after values. (see Pages/Projects/AssignRoles.cshtml.cs lines 16-116)
+- **Procurement facts** – Captured via `ProjectFactsService`, which enforces stage backfill rules and writes structured audits. Updates immediately reflect on the overview tiles. (see Services/Projects/ProjectFactsService.cs lines 27-200)
+- **Documents** – Upload, replace, or delete requests stage PDFs through the document workspace; Admins, HoDs, and the assigned PO queue a `ProjectDocumentRequest` and wait for moderation before anything publishes. Reviewers work from **Projects → Documents → Approvals**, approving or rejecting with audit trails while document notifications alert stakeholders when the library changes. (see Pages/Projects/Documents/UploadRequest.cshtml.cs lines 25-167) (see Pages/Projects/Documents/ReplaceRequest.cshtml.cs lines 23-183) (see Pages/Projects/Documents/DeleteRequest.cshtml.cs lines 19-137) (see Pages/Projects/Documents/Approvals/Review.cshtml.cs lines 20-178) (see Services/Documents/DocumentNotificationService.cs lines 15-196)
+- **Timeline planning** – POs draft plans while HoDs approve or reject. Drafts are locked while pending approval and snapshots are stored for history. See [docs/timeline.md](../timeline.md) for detailed state transitions. (see Services/Stages/PlanReadService.cs lines 41-212) (see Services/Stages/PlanApprovalService.cs lines 17-200)
+- **Comments & photos** – Threaded comments support attachments and mentions with storage handled by `ProjectCommentService`. Photo management enforces size/MIME rules and generates derivatives on upload. (see Services/ProjectCommentService.cs lines 22-238) (see Services/Projects/ProjectPhotoService.cs lines 82-420)
 
 For a step-by-step storyboard, refer to [docs/projects-module.md](../projects-module.md).
 
@@ -66,28 +66,28 @@ For a step-by-step storyboard, refer to [docs/projects-module.md](../projects-mo
 
 Click the bell icon or visit **Notifications** to manage alerts.
 
-- **List view** – The page fetches the latest notifications, groups project IDs into filter options, and displays unread counts. Soft mutes per project and mark read/unread actions call the REST API and update the SignalR hub so other sessions stay in sync.【F:Pages/Notifications/Index.cshtml.cs†L17-L70】【F:Services/Notifications/UserNotificationService.cs†L23-L220】
-- **Real-time updates** – The `NotificationDispatcher` hosted service processes dispatch queues and broadcasts new notifications over `/hubs/notifications`, respecting per-user preferences and project access.【F:Services/Notifications/NotificationDispatcher.cs†L20-L200】【F:Services/Notifications/NotificationPreferenceService.cs†L19-L160】
-- **Retention** – Notifications older than the configured retention window (default 30 days) or beyond the per-user cap are pruned automatically.【F:appsettings.json†L32-L37】【F:Services/Notifications/NotificationRetentionService.cs†L20-L147】
+- **List view** – The page fetches the latest notifications, groups project IDs into filter options, and displays unread counts. Soft mutes per project and mark read/unread actions call the REST API and update the SignalR hub so other sessions stay in sync. (see Pages/Notifications/Index.cshtml.cs lines 17-70) (see Services/Notifications/UserNotificationService.cs lines 23-220)
+- **Real-time updates** – The `NotificationDispatcher` hosted service processes dispatch queues and broadcasts new notifications over `/hubs/notifications`, respecting per-user preferences and project access. (see Services/Notifications/NotificationDispatcher.cs lines 20-200) (see Services/Notifications/NotificationPreferenceService.cs lines 19-160)
+- **Retention** – Notifications older than the configured retention window (default 30 days) or beyond the per-user cap are pruned automatically. (see appsettings.json lines 32-37) (see Services/Notifications/NotificationRetentionService.cs lines 20-147)
 
 ## 8. Admin centre
 
 Administrators manage governance tasks under the **Admin** area.
 
-- **Users** – Search, filter by role or status, export CSV, and trigger lifecycle actions (enable/disable, reset password). Service guards block operations that would leave zero active admins.【F:Areas/Admin/Pages/Users/Index.cshtml.cs†L14-L87】【F:Services/UserLifecycleService.cs†L13-L150】
-- **Analytics** – Login scatter chart and odd-hour report are generated by `LoginAnalyticsService`, with nightly aggregation handled by `LoginAggregationWorker`. Use the filters to adjust time range and role focus.【F:Services/LoginAnalyticsService.cs†L19-L200】【F:Services/LoginAggregationWorker.cs†L13-L110】
-- **Categories & lookups** – Project category tree editing, lookup management, and document catalogue live under Admin → Categories/Lookups. Changes write to the audit log so historical context is preserved.【F:Areas/Admin/Pages/Categories/Edit.cshtml.cs†L15-L120】【F:Services/AuditService.cs†L16-L120】
-- **Calendar recycle bin** – Restore accidentally deleted events from **Admin → Calendar → Deleted**; the list pulls from `Events` flagged with `IsDeleted = true`.【F:Areas/Admin/Pages/Calendar/Deleted.cshtml.cs†L13-L104】
+- **Users** – Search, filter by role or status, export CSV, and trigger lifecycle actions (enable/disable, reset password). Service guards block operations that would leave zero active admins. (see Areas/Admin/Pages/Users/Index.cshtml.cs lines 14-87) (see Services/UserLifecycleService.cs lines 13-150)
+- **Analytics** – Login scatter chart and odd-hour report are generated by `LoginAnalyticsService`, with nightly aggregation handled by `LoginAggregationWorker`. Use the filters to adjust time range and role focus. (see Services/LoginAnalyticsService.cs lines 19-200) (see Services/LoginAggregationWorker.cs lines 13-110)
+- **Categories & lookups** – Project category tree editing, lookup management, and document catalogue live under Admin → Categories/Lookups. Changes write to the audit log so historical context is preserved. (see Areas/Admin/Pages/Categories/Edit.cshtml.cs lines 15-120) (see Services/AuditService.cs lines 16-120)
+- **Calendar recycle bin** – Restore accidentally deleted events from **Admin → Calendar → Deleted**; the list pulls from `Events` flagged with `IsDeleted = true`. (see Areas/Admin/Pages/Calendar/Deleted.cshtml.cs lines 13-104)
 
 ## 9. Process designer & holidays
 
-- **Process** – The Process page shows the current stage template version and last updated timestamp. HoD and MCO roles can launch the checklist editor via the REST API; others consume the published flow for reference.【F:Pages/Process/Index.cshtml.cs†L15-L64】
-- **Holidays** – Admin and HoD roles manage the shared holiday list that feeds into scheduling engines and task snooze presets. Entries are stored as `DateOnly` values in `Models/Scheduling/Holiday`.【F:Pages/Settings/Holidays/Index.cshtml.cs†L13-L25】【F:Models/Scheduling/Holiday.cs†L1-L8】
+- **Process** – The Process page shows the current stage template version and last updated timestamp. HoD and MCO roles can launch the checklist editor via the REST API; others consume the published flow for reference. (see Pages/Process/Index.cshtml.cs lines 15-64)
+- **Holidays** – Admin and HoD roles manage the shared holiday list that feeds into scheduling engines and task snooze presets. Entries are stored as `DateOnly` values in `Models/Scheduling/Holiday`. (see Pages/Settings/Holidays/Index.cshtml.cs lines 13-25) (see Models/Scheduling/Holiday.cs lines 1-8)
 
 ## 10. Keeping data safe
 
-- **Uploads** – All photos and documents land beneath the upload root resolved by `UploadRootProvider`. Configure `PM_UPLOAD_ROOT` to move storage off the web root in production.【F:Services/Storage/UploadRootProvider.cs†L17-L100】
-- **Audit trail** – `AuditService` records create/update/delete events for tasks, projects, documents, and user lifecycle operations. Review logs under Admin → Logs when investigating issues.【F:Services/AuditService.cs†L16-L120】
-- **Background workers** – Purge workers clean up stale todo items and deleted accounts based on the `Todo:RetentionDays` and `UserLifecycle` settings. Monitor logs for warnings that indicate stalled jobs.【F:Services/TodoPurgeWorker.cs†L14-L108】【F:Services/UserPurgeWorker.cs†L18-L120】
+- **Uploads** – All photos and documents land beneath the upload root resolved by `UploadRootProvider`. Configure `PM_UPLOAD_ROOT` to move storage off the web root in production. (see Services/Storage/UploadRootProvider.cs lines 17-100)
+- **Audit trail** – `AuditService` records create/update/delete events for tasks, projects, documents, and user lifecycle operations. Review logs under Admin → Logs when investigating issues. (see Services/AuditService.cs lines 16-120)
+- **Background workers** – Purge workers clean up stale todo items and deleted accounts based on the `Todo:RetentionDays` and `UserLifecycle` settings. Monitor logs for warnings that indicate stalled jobs. (see Services/TodoPurgeWorker.cs lines 14-108) (see Services/UserPurgeWorker.cs lines 18-120)
 
 Use this guide in tandem with the technical documentation to onboard new teammates and to sanity-check behaviours before rolling out changes.
