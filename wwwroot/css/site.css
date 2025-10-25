@@ -200,6 +200,26 @@ body {
     padding: 1.25rem 1.5rem;
 }
 
+/* ---------- IPR tracker tweaks ---------- */
+.card.shadow-sm {
+    box-shadow: 0 1rem 1.5rem -1rem rgba(0,0,0,.15);
+}
+
+.text-monospace {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.table-sm > :not(caption) > * > * {
+    padding-top: .5rem;
+    padding-bottom: .5rem;
+}
+
+.text-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 
 /* ---------- ToT tracker ---------- */
 .tot-page {

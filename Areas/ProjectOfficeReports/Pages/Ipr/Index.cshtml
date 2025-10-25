@@ -18,6 +18,13 @@
         _ => type.ToString()
     };
 
+    string TypeBadgeClass(IprType type) => type switch
+    {
+        IprType.Patent => "text-bg-dark-subtle text-dark-emphasis",
+        IprType.Copyright => "text-bg-secondary-subtle text-secondary-emphasis",
+        _ => "text-bg-light text-body"
+    };
+
     string StatusLabel(IprStatus status) => status switch
     {
         IprStatus.FilingUnderProcess => "Filing under process",
@@ -26,6 +33,16 @@
         IprStatus.Rejected => "Rejected",
         IprStatus.Withdrawn => "Withdrawn",
         _ => status.ToString()
+    };
+
+    string StatusBadgeClass(IprStatus status) => status switch
+    {
+        IprStatus.FilingUnderProcess => "text-bg-primary-subtle text-primary-emphasis",
+        IprStatus.Filed => "text-bg-info-subtle text-info-emphasis",
+        IprStatus.Granted => "text-bg-success-subtle text-success-emphasis",
+        IprStatus.Rejected => "text-bg-danger-subtle text-danger-emphasis",
+        IprStatus.Withdrawn => "text-bg-secondary-subtle text-secondary-emphasis",
+        _ => "text-bg-light text-body"
     };
 
     string FormatFiledDate(DateTimeOffset? value)
@@ -45,24 +62,27 @@
         return converted.ToString("dd MMM yyyy 'at' hh:mm tt", CultureInfo.InvariantCulture);
     }
 
-    var groupedRecords = Model.Records
-        .GroupBy(r => r.Type)
-        .OrderBy(g => g.Key)
-        .ToList();
-
     var isCreateMode = string.Equals(Model.Mode, "create", StringComparison.OrdinalIgnoreCase);
     var isEditMode = string.Equals(Model.Mode, "edit", StringComparison.OrdinalIgnoreCase);
     var exportRouteValues = Model.GetRouteValuesForLinks(includeModeAndId: false);
+
+    var hasRecords = Model.TotalCount > 0;
+    var firstItem = hasRecords ? ((Model.PageNumber - 1) * Model.PageSize) + 1 : 0;
+    if (firstItem > Model.TotalCount)
+    {
+        firstItem = Model.TotalCount;
+    }
+    var lastItem = hasRecords ? Math.Min(Model.TotalCount, Model.PageNumber * Model.PageSize) : 0;
 }
 
 <div class="container-fluid py-4">
-    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
         <div>
-            <p class="text-uppercase text-muted small mb-1">Project office reports</p>
-            <h1 class="h2 mb-1">Intellectual property tracker</h1>
-            <p class="text-muted mb-0">Monitor patents and copyrights across projects with quick actions for updates.</p>
+            <p class="text-uppercase text-secondary small mb-1">Project office reports</p>
+            <h1 class="h4 mb-1">Intellectual property tracker</h1>
+            <p class="text-secondary mb-0">Monitor filings, grants, and quick actions across projects.</p>
         </div>
-        <div class="d-flex flex-wrap justify-content-lg-end gap-2">
+        <div class="d-flex flex-wrap align-items-center justify-content-center justify-content-md-end gap-2">
             <button type="button"
                     class="btn btn-outline-secondary d-inline-flex align-items-center gap-2"
                     data-bs-toggle="modal"
@@ -93,68 +113,85 @@
         </div>
     </div>
 
-    @if (!string.IsNullOrWhiteSpace(toastMessage))
+    @if (!string.IsNullOrWhiteSpace(toastMessage) || !string.IsNullOrWhiteSpace(toastError))
     {
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            @toastMessage
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div id="iprToastContainer"
+             class="toast-container position-fixed top-0 end-0 p-3"
+             style="z-index: 1100;"
+             aria-live="polite"
+             aria-atomic="true">
+            @if (!string.IsNullOrWhiteSpace(toastMessage))
+            {
+                <div class="toast align-items-center text-bg-success border-0" role="status" data-bs-delay="4000" data-bs-autohide="true">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            @toastMessage
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(toastError))
+            {
+                <div class="toast align-items-center text-bg-danger border-0" role="alert" data-bs-delay="5000" data-bs-autohide="true">
+                    <div class="d-flex">
+                        <div class="toast-body">
+                            @toastError
+                        </div>
+                        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                    </div>
+                </div>
+            }
         </div>
     }
 
-    @if (!string.IsNullOrWhiteSpace(toastError))
-    {
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            @toastError
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-
-    <div class="row row-cols-2 row-cols-md-3 row-cols-lg-6 g-3 mb-4">
-        <div class="col">
-            <div class="card shadow-sm h-100">
-                <div class="card-body text-center">
-                    <p class="text-muted text-uppercase small mb-1">Total</p>
-                    <div class="fs-4 fw-semibold">@Model.Kpis.Total</div>
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-4 col-lg-2">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-body">
+                    <div class="text-secondary small mb-1">Total</div>
+                    <div class="fs-3 fw-semibold">@Model.Kpis.Total</div>
                 </div>
             </div>
         </div>
-        <div class="col">
-            <div class="card shadow-sm h-100">
-                <div class="card-body text-center">
-                    <p class="text-muted text-uppercase small mb-1">Filing under process</p>
-                    <div class="fs-4 fw-semibold text-primary">@Model.Kpis.FilingUnderProcess</div>
+        <div class="col-6 col-md-4 col-lg-2">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-body">
+                    <div class="text-secondary small mb-2">Filing under process</div>
+                    <span class="badge rounded-pill text-bg-primary-subtle text-primary-emphasis fs-5 fw-semibold px-3 py-2">@Model.Kpis.FilingUnderProcess</span>
                 </div>
             </div>
         </div>
-        <div class="col">
-            <div class="card shadow-sm h-100">
-                <div class="card-body text-center">
-                    <p class="text-muted text-uppercase small mb-1">Filed</p>
-                    <div class="fs-4 fw-semibold text-info">@Model.Kpis.Filed</div>
+        <div class="col-6 col-md-4 col-lg-2">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-body">
+                    <div class="text-secondary small mb-2">Filed</div>
+                    <span class="badge rounded-pill text-bg-info-subtle text-info-emphasis fs-5 fw-semibold px-3 py-2">@Model.Kpis.Filed</span>
                 </div>
             </div>
         </div>
-        <div class="col">
-            <div class="card shadow-sm h-100">
-                <div class="card-body text-center">
-                    <p class="text-muted text-uppercase small mb-1">Granted</p>
-                    <div class="fs-4 fw-semibold text-success">@Model.Kpis.Granted</div>
+        <div class="col-6 col-md-4 col-lg-2">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-body">
+                    <div class="text-secondary small mb-2">Granted</div>
+                    <span class="badge rounded-pill text-bg-success-subtle text-success-emphasis fs-5 fw-semibold px-3 py-2">@Model.Kpis.Granted</span>
                 </div>
             </div>
         </div>
-        <div class="col">
-            <div class="card shadow-sm h-100">
-                <div class="card-body text-center">
-                    <p class="text-muted text-uppercase small mb-1">Rejected</p>
-                    <div class="fs-4 fw-semibold text-danger">@Model.Kpis.Rejected</div>
+        <div class="col-6 col-md-4 col-lg-2">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-body">
+                    <div class="text-secondary small mb-2">Rejected</div>
+                    <span class="badge rounded-pill text-bg-danger-subtle text-danger-emphasis fs-5 fw-semibold px-3 py-2">@Model.Kpis.Rejected</span>
                 </div>
             </div>
         </div>
-        <div class="col">
-            <div class="card shadow-sm h-100">
-                <div class="card-body text-center">
-                    <p class="text-muted text-uppercase small mb-1">Withdrawn</p>
-                    <div class="fs-4 fw-semibold text-secondary">@Model.Kpis.Withdrawn</div>
+        <div class="col-6 col-md-4 col-lg-2">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-body">
+                    <div class="text-secondary small mb-2">Withdrawn</div>
+                    <span class="badge rounded-pill text-bg-secondary-subtle text-secondary-emphasis fs-5 fw-semibold px-3 py-2">@Model.Kpis.Withdrawn</span>
                 </div>
             </div>
         </div>
@@ -168,7 +205,7 @@
          data-bs-focus="true">
         <div class="modal-dialog modal-dialog-scrollable modal-lg modal-fullscreen-sm-down">
             <div class="modal-content">
-                <form method="get" class="w-100" novalidate>
+                <form method="get" class="w-100" novalidate data-ipr-loading-form>
                     <div class="modal-header">
                         <div>
                             <h2 class="modal-title h5 mb-1" id="iprFilterModalLabel">Filters</h2>
@@ -224,7 +261,7 @@
                     </div>
                     <div class="modal-footer d-flex flex-column flex-sm-row gap-2 justify-content-between">
                         <input type="hidden" name="page" value="1" />
-                        <a asp-page="./Index" class="btn btn-outline-secondary flex-grow-1 flex-sm-grow-0">Reset</a>
+                        <a asp-page="./Index" class="btn btn-outline-secondary flex-grow-1 flex-sm-grow-0" data-ipr-loading-link>Reset</a>
                         <button type="submit" class="btn btn-primary flex-grow-1 flex-sm-grow-0">Apply filters</button>
                     </div>
                 </form>
@@ -268,70 +305,112 @@
         </div>
     }
 
-    <div class="card shadow-sm">
-        <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
             <div>
-                <h2 class="h5 mb-1">IPR records</h2>
-                <p class="text-muted mb-0">Showing @Model.TotalCount @(Model.TotalCount == 1 ? "record" : "records").</p>
+                <span class="fw-semibold">IPR records</span>
+                <span class="text-secondary small ms-2">@(hasRecords ? $"Showing {firstItem} – {lastItem} of {Model.TotalCount}" : "No records to display")</span>
             </div>
         </div>
         <div class="card-body p-0">
-            @if (Model.TotalCount == 0)
-            {
-                <div class="p-4 text-center text-muted">
-                    No records match your filters.
-                </div>
-            }
-            else
-            {
-                <div class="table-responsive">
-                    <table class="table table-striped table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th scope="col">Type</th>
-                                <th scope="col">Filing number</th>
-                                <th scope="col">Title</th>
-                                <th scope="col">Status</th>
-                                <th scope="col">Filed on</th>
-                                <th scope="col">Project</th>
-                                <th scope="col" class="text-center">Attachments</th>
-                                <th scope="col" class="text-start">Remarks / notes</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var group in groupedRecords)
-                            {
-                                var firstRow = true;
-                                var rowSpan = group.Count();
-                                foreach (var record in group)
+            <div class="d-none" data-ipr-loading-skeleton>
+                <div class="p-4">
+                    <div class="placeholder-glow mb-3">
+                        <span class="placeholder col-5"></span>
+                        <span class="placeholder col-3 ms-2"></span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <tbody>
+                                @for (var index = 0; index < 5; index++)
                                 {
                                     <tr>
-                                        @if (firstRow)
-                                        {
-                                            <th scope="row" rowspan="@rowSpan" class="text-nowrap">@TypeLabel(group.Key)</th>
-                                        }
-                                        <td class="text-nowrap">@record.FilingNumber</td>
-                                        <td>@(string.IsNullOrWhiteSpace(record.Title) ? "—" : record.Title)</td>
-                                        <td class="text-nowrap">@StatusLabel(record.Status)</td>
-                                        <td class="text-nowrap">@FormatFiledDate(record.FiledAtUtc)</td>
-                                        <td>@(string.IsNullOrWhiteSpace(record.ProjectName) ? "—" : record.ProjectName)</td>
-                                        <td class="align-top text-center text-md-start">
-                                            @if (record.AttachmentCount == 0)
+                                        <td><span class="placeholder col-6"></span></td>
+                                        <td><span class="placeholder col-8"></span></td>
+                                        <td><span class="placeholder col-10"></span></td>
+                                        <td><span class="placeholder col-6"></span></td>
+                                        <td><span class="placeholder col-7"></span></td>
+                                        <td><span class="placeholder col-8"></span></td>
+                                        <td><span class="placeholder col-5"></span></td>
+                                        <td><span class="placeholder col-9"></span></td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div data-ipr-table-content>
+                @if (!hasRecords)
+                {
+                    <div class="p-5 text-center text-secondary">
+                        <i class="bi bi-inbox fs-1 mb-3" aria-hidden="true"></i>
+                        <h2 class="h5 mb-2">No IPR records found</h2>
+                        <p class="mb-4">Adjust your filters or create a new record to get started.</p>
+                        @if (Model.CanEdit)
+                        {
+                            <a class="btn btn-primary d-inline-flex align-items-center gap-2"
+                               asp-page="./Manage"
+                               asp-route-Query="@Model.Query">
+                                <i class="bi bi-gear" aria-hidden="true"></i>
+                                <span>Manage IPR records</span>
+                            </a>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="table-responsive" style="max-height: 56vh;">
+                        <table class="table table-hover table-striped table-sm align-middle mb-0">
+                            <thead class="table-light position-sticky top-0">
+                                <tr>
+                                    <th scope="col" style="width: 120px;">Type</th>
+                                    <th scope="col" style="width: 140px;">Filing number</th>
+                                    <th scope="col">Title</th>
+                                    <th scope="col" style="width: 120px;">Status</th>
+                                    <th scope="col" style="width: 130px;" class="text-end">Filed on</th>
+                                    <th scope="col" style="width: 180px;">Project</th>
+                                    <th scope="col" style="width: 120px;">Attachments</th>
+                                    <th scope="col" style="width: 200px;">Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody class="table-group-divider">
+                                @foreach (var record in Model.Records)
+                                {
+                                    var collapseId = $"ipr-attachments-{record.Id}";
+                                    var hasAttachments = record.AttachmentCount > 0;
+                                    var notes = string.IsNullOrWhiteSpace(record.Notes) ? "—" : record.Notes;
+                                    <tr>
+                                        <td>
+                                            <span class="badge @TypeBadgeClass(record.Type)">@TypeLabel(record.Type)</span>
+                                        </td>
+                                        <th scope="row" class="text-monospace fw-semibold text-nowrap">@record.FilingNumber</th>
+                                        <td class="text-truncate" style="max-width: 260px;" title="@(string.IsNullOrWhiteSpace(record.Title) ? "—" : record.Title)">
+                                            @(string.IsNullOrWhiteSpace(record.Title) ? "—" : record.Title)
+                                        </td>
+                                        <td>
+                                            <span class="badge @StatusBadgeClass(record.Status)">@StatusLabel(record.Status)</span>
+                                        </td>
+                                        <td class="text-end text-nowrap">@FormatFiledDate(record.FiledAtUtc)</td>
+                                        <td class="text-truncate" style="max-width: 220px;" title="@(string.IsNullOrWhiteSpace(record.ProjectName) ? "—" : record.ProjectName)">
+                                            @(string.IsNullOrWhiteSpace(record.ProjectName) ? "—" : record.ProjectName)
+                                        </td>
+                                        <td class="align-top">
+                                            @if (!hasAttachments)
                                             {
-                                                <span class="badge rounded-pill bg-secondary-subtle text-secondary-emphasis">No files</span>
+                                                <span class="badge text-bg-secondary-subtle text-secondary-emphasis">—</span>
                                             }
                                             else
                                             {
-                                                var collapseId = $"ipr-attachments-{record.Id}";
-                                                <div class="d-flex flex-column align-items-center align-items-md-start gap-2">
-                                                    <span class="badge rounded-pill bg-primary-subtle text-primary-emphasis d-inline-flex align-items-center gap-2">
+                                                <div class="d-flex flex-column align-items-start gap-2">
+                                                    <span class="badge text-bg-primary-subtle text-primary-emphasis d-inline-flex align-items-center gap-2">
                                                         <i class="bi bi-paperclip" aria-hidden="true"></i>
                                                         <span>@record.AttachmentCount @((record.AttachmentCount == 1) ? "file" : "files")</span>
                                                     </span>
-                                                    <button class="btn btn-link btn-sm p-0" type="button" data-bs-toggle="collapse" data-bs-target="#@collapseId" aria-expanded="false" aria-controls="@collapseId">
+                                                    <button class="btn btn-link btn-sm px-0" type="button" data-bs-toggle="collapse" data-bs-target="#@collapseId" aria-expanded="false" aria-controls="@collapseId">
                                                         View attachments
                                                     </button>
-                                                    <div class="collapse w-100 text-start" id="@collapseId">
+                                                    <div class="collapse w-100" id="@collapseId">
                                                         <div class="card card-body border-0 bg-body-tertiary p-3">
                                                             <ul class="list-unstyled mb-0 small">
                                                                 @for (var attachmentIndex = 0; attachmentIndex < record.Attachments.Count; attachmentIndex++)
@@ -344,7 +423,7 @@
                                                                                 @attachment.FileName
                                                                             </a>
                                                                         </div>
-                                                                        <div class="text-muted">
+                                                                        <div class="text-secondary">
                                                                             @Model.FormatFileSize(attachment.FileSize)
                                                                             <span aria-hidden="true">&middot;</span>
                                                                             <span class="visually-hidden"> - </span>
@@ -358,65 +437,48 @@
                                                 </div>
                                             }
                                         </td>
-                                        <td class="text-break">@(string.IsNullOrWhiteSpace(record.Notes) ? "—" : record.Notes)</td>
+                                        <td class="text-truncate" style="max-width: 240px;" title="@notes">@notes</td>
                                     </tr>
-                                    firstRow = false;
                                 }
-                            }
-                        </tbody>
-                    </table>
-                </div>
-
-                var firstItem = ((Model.PageNumber - 1) * Model.PageSize) + 1;
-                if (firstItem > Model.TotalCount)
-                {
-                    firstItem = Model.TotalCount;
-                }
-                var lastItem = Math.Min(Model.TotalCount, Model.PageNumber * Model.PageSize);
-
-                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 px-4 py-3">
-                    <div class="text-muted">
-                        Showing
-                        @if (Model.TotalCount == 0)
-                        {
-                            <span>0</span>
-                        }
-                        else
-                        {
-                            <span>@firstItem</span>
-                            <span>–</span>
-                            <span>@lastItem</span>
-                        }
-                        of <strong>@Model.TotalCount</strong>
+                            </tbody>
+                        </table>
                     </div>
-                    @if (Model.TotalPages > 1)
-                    {
-                        var maxPages = 5;
-                        var startPage = Math.Max(1, Model.PageNumber - 2);
-                        var endPage = Math.Min(Model.TotalPages, startPage + maxPages - 1);
-                        startPage = Math.Max(1, endPage - maxPages + 1);
-                        var baseRoutes = Model.GetRouteValuesForLinks(new { pageSize = Model.PageSize }, includePage: false, includeModeAndId: false);
-
-                        <nav aria-label="IPR pagination">
-                            <ul class="pagination pagination-sm mb-0">
-                                <li class="page-item @(Model.PageNumber == 1 ? "disabled" : string.Empty)">
-                                    <a class="page-link" asp-page="./Index" asp-all-route-data="@baseRoutes" asp-route-page="@(Model.PageNumber - 1)">Previous</a>
-                                </li>
-                                @for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++)
-                                {
-                                    <li class="page-item @(pageNumber == Model.PageNumber ? "active" : string.Empty)">
-                                        <a class="page-link" asp-page="./Index" asp-all-route-data="@baseRoutes" asp-route-page="@(pageNumber)">@pageNumber</a>
-                                    </li>
-                                }
-                                <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : string.Empty)">
-                                    <a class="page-link" asp-page="./Index" asp-all-route-data="@baseRoutes" asp-route-page="@(Model.PageNumber + 1)">Next</a>
-                                </li>
-                            </ul>
-                        </nav>
-                    }
-                </div>
-            }
+                }
+            </div>
         </div>
+        @if (hasRecords)
+        {
+            <div class="card-footer bg-white d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3" data-ipr-table-content>
+                <div class="text-secondary small">
+                    Showing <span class="fw-semibold">@firstItem</span> – <span class="fw-semibold">@lastItem</span> of <span class="fw-semibold">@Model.TotalCount</span>
+                </div>
+                @if (Model.TotalPages > 1)
+                {
+                    var maxPages = 5;
+                    var startPage = Math.Max(1, Model.PageNumber - 2);
+                    var endPage = Math.Min(Model.TotalPages, startPage + maxPages - 1);
+                    startPage = Math.Max(1, endPage - maxPages + 1);
+                    var baseRoutes = Model.GetRouteValuesForLinks(new { pageSize = Model.PageSize }, includePage: false, includeModeAndId: false);
+
+                    <nav aria-label="IPR pagination">
+                        <ul class="pagination pagination-sm mb-0">
+                            <li class="page-item @(Model.PageNumber == 1 ? "disabled" : string.Empty)">
+                                <a class="page-link" asp-page="./Index" asp-all-route-data="@baseRoutes" asp-route-page="@(Model.PageNumber - 1)" data-ipr-loading-link>Previous</a>
+                            </li>
+                            @for (var pageNumber = startPage; pageNumber <= endPage; pageNumber++)
+                            {
+                                <li class="page-item @(pageNumber == Model.PageNumber ? "active" : string.Empty)">
+                                    <a class="page-link" asp-page="./Index" asp-all-route-data="@baseRoutes" asp-route-page="@(pageNumber)" data-ipr-loading-link>@pageNumber</a>
+                                </li>
+                            }
+                            <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : string.Empty)">
+                                <a class="page-link" asp-page="./Index" asp-all-route-data="@baseRoutes" asp-route-page="@(Model.PageNumber + 1)" data-ipr-loading-link>Next</a>
+                            </li>
+                        </ul>
+                    </nav>
+                }
+            </div>
+        }
     </div>
 </div>
 
