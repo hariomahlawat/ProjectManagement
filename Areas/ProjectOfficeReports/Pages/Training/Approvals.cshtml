@@ -1,0 +1,70 @@
+@page
+@using System.Globalization
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.ApprovalsModel
+@{
+    ViewData["Title"] = "Training delete approvals";
+}
+
+<h1 class="display-6 mb-4">Training delete approvals</h1>
+
+@if (Model.Pending.Count == 0)
+{
+    <div class="alert alert-secondary" role="alert">
+        There are no delete requests awaiting approval.
+    </div>
+}
+else
+{
+    <div class="table-responsive shadow-sm">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th scope="col">Training</th>
+                    <th scope="col">Period</th>
+                    <th scope="col" class="text-end">Trainees</th>
+                    <th scope="col">Requested by</th>
+                    <th scope="col">Requested on</th>
+                    <th scope="col">Reason</th>
+                    <th scope="col" class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var request in Model.Pending)
+            {
+                <tr>
+                    <td>#@request.TrainingId<br /><span class="text-muted">@request.TrainingTypeName</span></td>
+                    <td>@request.Period</td>
+                    <td class="text-end">@request.TotalTrainees.ToString("N0", CultureInfo.CurrentCulture)</td>
+                    <td>@request.RequestedByDisplayName</td>
+                    <td>@request.RequestedAtUtc.ToLocalTime().ToString("dd MMM yyyy 'at' HH:mm", CultureInfo.CurrentCulture)</td>
+                    <td class="text-break" style="max-width: 320px;">@request.Reason</td>
+                    <td class="text-end">
+                        <form method="post" asp-page-handler="Approve" class="d-inline">
+                            <input type="hidden" name="requestId" value="@request.Id" />
+                            <button type="submit" class="btn btn-sm btn-danger">Approve &amp; delete</button>
+                        </form>
+                        <button type="button"
+                                class="btn btn-sm btn-outline-secondary ms-2"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#reject-@request.Id"
+                                aria-expanded="false"
+                                aria-controls="reject-@request.Id">
+                            Reject
+                        </button>
+                        <div class="collapse mt-2 text-start" id="reject-@request.Id">
+                            <form method="post" asp-page-handler="Reject" class="card card-body border-0 p-2">
+                                <input type="hidden" name="requestId" value="@request.Id" />
+                                <div class="mb-2">
+                                    <label class="form-label visually-hidden" for="reject-reason-@request.Id">Reason</label>
+                                    <textarea class="form-control form-control-sm" id="reject-reason-@request.Id" name="reason" rows="2" required maxlength="1000" placeholder="Reason"></textarea>
+                                </div>
+                                <button type="submit" class="btn btn-sm btn-outline-secondary">Send rejection</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}

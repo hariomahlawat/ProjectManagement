@@ -27,6 +27,7 @@ using ProjectManagement.Services.Scheduling;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Remarks;
 using ProjectManagement.Services.Notifications;
+using ProjectManagement.Services.ProjectOfficeReports.Training;
 using ProjectManagement.Services.Documents;
 using ProjectManagement.Services.Storage;
 using ProjectManagement.Infrastructure;
@@ -142,6 +143,8 @@ builder.Services.AddAuthorization(options =>
         policy.RequireTotTrackerApprover());
     options.AddPolicy(ProjectOfficeReportsPolicies.ViewTrainingTracker, policy =>
         policy.RequireTrainingTrackerViewer());
+    options.AddPolicy(ProjectOfficeReportsPolicies.ApproveTrainingTracker, policy =>
+        policy.RequireTrainingTrackerApprover());
     options.AddPolicy(ProjectOfficeReportsPolicies.ViewProliferationTracker, policy =>
         policy.RequireProliferationViewer());
     options.AddPolicy(ProjectOfficeReportsPolicies.SubmitProliferationTracker, policy =>
@@ -293,6 +296,7 @@ builder.Services.AddScoped<IVisitPhotoService, VisitPhotoService>();
 builder.Services.AddScoped<ISocialMediaEventPhotoService, SocialMediaEventPhotoService>();
 builder.Services.AddScoped<TrainingTrackerReadService>();
 builder.Services.AddScoped<TrainingWriteService>();
+builder.Services.AddScoped<ITrainingNotificationService, TrainingNotificationService>();
 builder.Services.AddSingleton<ITrainingExcelWorkbookBuilder, TrainingExcelWorkbookBuilder>();
 builder.Services.AddOptions<ProjectPhotoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectPhotos"));
