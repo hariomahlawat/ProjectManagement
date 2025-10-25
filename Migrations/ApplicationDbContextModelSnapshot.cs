@@ -765,6 +765,56 @@ namespace ProjectManagement.Migrations
                     b.ToTable("TrainingProjects", (string)null);
                 });
 
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingTrainee", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ArmyNumber")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<byte>("Category")
+                        .HasColumnType("smallint");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("Rank")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<Guid>("TrainingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UnitName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TrainingId");
+
+                    b.HasIndex("TrainingId", "ArmyNumber")
+                        .IsUnique()
+                        .HasDatabaseName("IX_TrainingTrainees_TrainingId_ArmyNumber")
+                        .HasFilter("\"ArmyNumber\" IS NOT NULL");
+
+                    b.ToTable("TrainingTrainees", (string)null);
+                });
+
             modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingRankCategoryMap", b =>
                 {
                     b.Property<int>("Id")
@@ -4506,9 +4556,17 @@ namespace ProjectManagement.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasMany("ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingTrainee", "Trainees")
+                        .WithOne("Training")
+                        .HasForeignKey("TrainingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("DeleteRequests");
 
                     b.Navigation("ProjectLinks");
+
+                    b.Navigation("Trainees");
 
                     b.Navigation("TrainingType");
                 });
@@ -4538,6 +4596,17 @@ namespace ProjectManagement.Migrations
                         .IsRequired();
 
                     b.Navigation("Project");
+
+                    b.Navigation("Training");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingTrainee", b =>
+                {
+                    b.HasOne("ProjectManagement.Areas.ProjectOfficeReports.Domain.Training", "Training")
+                        .WithMany("Trainees")
+                        .HasForeignKey("TrainingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
 
                     b.Navigation("Training");
                 });

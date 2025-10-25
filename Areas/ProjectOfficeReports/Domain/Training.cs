@@ -48,6 +48,8 @@ public class Training
 
     public ICollection<TrainingProject> ProjectLinks { get; set; } = new HashSet<TrainingProject>();
 
+    public ICollection<TrainingTrainee> Trainees { get; set; } = new HashSet<TrainingTrainee>();
+
     public TrainingCounters? Counters { get; set; }
 
     public ICollection<TrainingDeleteRequest> DeleteRequests { get; set; } = new HashSet<TrainingDeleteRequest>();

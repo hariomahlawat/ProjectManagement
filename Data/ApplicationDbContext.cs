@@ -95,6 +95,7 @@ namespace ProjectManagement.Data
         public DbSet<TrainingProject> TrainingProjects => Set<TrainingProject>();
         public DbSet<TrainingDeleteRequest> TrainingDeleteRequests => Set<TrainingDeleteRequest>();
         public DbSet<TrainingRankCategoryMap> TrainingRankCategoryMaps => Set<TrainingRankCategoryMap>();
+        public DbSet<TrainingTrainee> TrainingTrainees => Set<TrainingTrainee>();
         public DbSet<ProliferationYearly> ProliferationYearlies => Set<ProliferationYearly>();
         public DbSet<ProliferationGranular> ProliferationGranularEntries => Set<ProliferationGranular>();
         public DbSet<ProliferationYearPreference> ProliferationYearPreferences => Set<ProliferationYearPreference>();
@@ -2010,6 +2011,41 @@ namespace ProjectManagement.Data
                 entity.HasOne(x => x.Project)
                     .WithMany()
                     .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<TrainingTrainee>(entity =>
+            {
+                ConfigureRowVersion(entity);
+                entity.ToTable("TrainingTrainees");
+                entity.HasKey(x => x.Id);
+                entity.Property(x => x.ArmyNumber).HasMaxLength(32);
+                entity.Property(x => x.Rank).HasMaxLength(128).IsRequired();
+                entity.Property(x => x.Name).HasMaxLength(256).IsRequired();
+                entity.Property(x => x.UnitName).HasMaxLength(256).IsRequired();
+                entity.Property(x => x.Category).IsRequired();
+
+                entity.HasIndex(x => x.TrainingId);
+
+                var uniqueArmyNumberIndex = entity.HasIndex(x => new { x.TrainingId, x.ArmyNumber })
+                    .IsUnique();
+
+                if (Database.IsNpgsql())
+                {
+                    uniqueArmyNumberIndex.HasFilter("\"ArmyNumber\" IS NOT NULL");
+                }
+                else if (Database.IsSqlServer())
+                {
+                    uniqueArmyNumberIndex.HasFilter("[ArmyNumber] IS NOT NULL");
+                }
+                else
+                {
+                    uniqueArmyNumberIndex.HasFilter("ArmyNumber IS NOT NULL");
+                }
+
+                entity.HasOne(x => x.Training)
+                    .WithMany(x => x.Trainees)
+                    .HasForeignKey(x => x.TrainingId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
 

@@ -1,0 +1,47 @@
+@using System.Linq
+@using System.Text
+@using System.Text.Json
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.ManageModel
+
+@{
+    var rosterPayload = Model.Input.Roster ?? new List<ProjectManagement.Areas.ProjectOfficeReports.Application.TrainingRosterRow>();
+    var rosterJson = JsonSerializer.Serialize(rosterPayload.Select(row => new
+    {
+        id = row.Id,
+        armyNumber = row.ArmyNumber,
+        rank = row.Rank,
+        name = row.Name,
+        unitName = row.UnitName,
+        category = row.Category
+    }));
+    var rosterBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(rosterJson));
+    var trainingId = Model.Input.Id?.ToString() ?? string.Empty;
+    var rowVersion = Model.Input.RowVersion ?? string.Empty;
+}
+
+<div id="trainingRosterContext"
+     data-training-id="@trainingId"
+     data-row-version="@rowVersion"
+     data-rows="@rosterBase64">
+    <div class="table-responsive mb-3">
+        <table class="table table-sm align-middle">
+            <thead>
+                <tr>
+                    <th style="width: 160px;">Army number</th>
+                    <th style="width: 140px;">Rank</th>
+                    <th>Name</th>
+                    <th>Unit</th>
+                    <th style="width: 140px;">Category</th>
+                    <th style="width: 80px;"></th>
+                </tr>
+            </thead>
+            <tbody id="rosterBody"></tbody>
+        </table>
+    </div>
+
+    <div class="d-flex flex-wrap gap-2">
+        <button type="button" class="btn btn-outline-secondary" id="btnAddRosterRow">Add row</button>
+        <button type="button" class="btn btn-outline-secondary" id="btnPasteRoster">Paste from Excel</button>
+        <button type="button" class="btn btn-outline-primary" id="btnSaveRoster">Save roster</button>
+    </div>
+</div>
