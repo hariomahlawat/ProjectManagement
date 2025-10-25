@@ -1427,6 +1427,60 @@ body {
     border-width: 2px;
 }
 
+.ipr-confirm-modal .modal-content {
+    border-radius: 1.25rem;
+    box-shadow: var(--pm-shadow-lg, 0 2rem 3rem rgba(15, 23, 42, 0.15));
+    background: linear-gradient(160deg, #ffffff 0%, rgba(243, 246, 252, 0.92) 100%);
+}
+
+.ipr-confirm-modal__close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1;
+}
+
+.ipr-confirm-modal__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 1rem;
+    background: rgba(220, 53, 69, 0.12);
+    color: #b4232b;
+    font-weight: 700;
+    font-size: 1.5rem;
+}
+
+.ipr-confirm-modal__title {
+    font-weight: 600;
+    color: var(--pm-text);
+}
+
+.ipr-confirm-modal__message {
+    color: var(--pm-text);
+    font-size: var(--pm-font-size-lg);
+    font-weight: 500;
+}
+
+.ipr-confirm-modal__subject {
+    color: #b4232b;
+}
+
+.ipr-confirm-modal__subtitle {
+    color: var(--pm-text-secondary);
+    font-size: var(--pm-font-size-compact);
+}
+
+.ipr-confirm-modal .modal-footer {
+    padding: 0 1.5rem 1.5rem;
+}
+
+.ipr-confirm-modal .btn-outline-secondary {
+    border-width: 2px;
+}
+
 .pm-card-body > :last-child {
     margin-bottom: 0;
 }
