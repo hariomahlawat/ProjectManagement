@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Navigation;
@@ -87,6 +88,14 @@ public class RoleBasedNavigationProviderTests
         var children = projectOfficeReports.Children.ToList();
 
         Assert.Contains(children, c => c.Text == "Visits" && c.Page == "/Visits/Index");
+        var trainingTracker = Assert.Single(children.Where(c => c.Text == "Training tracker"));
+        Assert.Equal("/Training/Index", trainingTracker.Page);
+        Assert.Equal(ProjectOfficeReportsPolicies.ViewTrainingTracker, trainingTracker.AuthorizationPolicy);
+
+        var trainingApprovals = Assert.Single(children.Where(c => c.Text == "Training delete approvals"));
+        Assert.Equal("/Training/Approvals", trainingApprovals.Page);
+        Assert.Equal(ProjectOfficeReportsPolicies.ApproveTrainingTracker, trainingApprovals.AuthorizationPolicy);
+        Assert.Equal("TrainingApprovalsBadge", trainingApprovals.BadgeViewComponentName);
 
         var ipr = Assert.Single(children.Where(c => c.Text == "IPR tracker"));
         Assert.Equal("/Ipr/Index", ipr.Page);
@@ -160,6 +169,7 @@ public class RoleBasedNavigationProviderTests
         var children = projectOfficeReports.Children.ToList();
 
         Assert.Contains(children, c => c.Text == "Social media tracker" && c.Page == "/SocialMedia/Index");
+        Assert.Contains(children, c => c.Text == "Training tracker" && c.Page == "/Training/Index");
         Assert.DoesNotContain(children, c => c.Text == "Visit types");
         Assert.DoesNotContain(children, c => c.Text == "Social media event types");
 
@@ -201,6 +211,7 @@ public class RoleBasedNavigationProviderTests
         var children = projectOfficeReports.Children.ToList();
 
         Assert.Contains(children, c => c.Text == "Social media tracker" && c.Page == "/SocialMedia/Index");
+        Assert.Contains(children, c => c.Text == "Training tracker" && c.Page == "/Training/Index");
 
         var ipr = Assert.Single(children.Where(c => c.Text == "IPR tracker"));
         Assert.Equal("/Ipr/Index", ipr.Page);
@@ -234,10 +245,42 @@ public class RoleBasedNavigationProviderTests
         }
     }
 
+    [Fact]
+    public async Task TrainingTrackerNavigationHiddenWhenFeatureDisabled()
+    {
+        var user = new ApplicationUser
+        {
+            Id = "user-disabled",
+            UserName = "user"
+        };
+
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var userManager = new StubUserManager(user, services, Array.Empty<string>());
+        var httpContextAccessor = new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
+                }, "Test"))
+            }
+        };
+
+        var provider = CreateProvider(userManager, httpContextAccessor, trainingTrackerEnabled: false);
+        var navigation = await provider.GetNavigationAsync();
+
+        var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
+        var children = projectOfficeReports.Children.ToList();
+
+        Assert.DoesNotContain(children, c => c.Text == "Training tracker");
+        Assert.DoesNotContain(children, c => c.Text == "Training delete approvals");
+    }
+
     private static RoleBasedNavigationProvider CreateProvider(
         UserManager<ApplicationUser> userManager,
         IHttpContextAccessor httpContextAccessor,
-        bool trainingTrackerEnabled = false)
+        bool trainingTrackerEnabled = true)
     {
         var options = new StubOptionsMonitor<TrainingTrackerOptions>(new TrainingTrackerOptions
         {
