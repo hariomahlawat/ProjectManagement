@@ -4494,8 +4494,6 @@ namespace ProjectManagement.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Counters");
-
                     b.Navigation("DeleteRequests");
 
                     b.Navigation("ProjectLinks");
