@@ -119,9 +119,11 @@ public sealed class TrainingTrackerReadService
                     .ToList()))
             .ToListAsync(cancellationToken);
 
+        var searchQuery = query ?? TrainingTrackerQuery.Empty;
+
         var filtered = projections
-            .Where(item => MatchesDate(item, query.From, query.To))
-            .Where(item => MatchesCategory(item, query.Category))
+            .Where(item => MatchesDate(item, searchQuery.From, searchQuery.To))
+            .Where(item => MatchesCategory(item, searchQuery.Category))
             .Select(item => ToListItem(item))
             .ToList();
 
