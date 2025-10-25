@@ -39,8 +39,9 @@ public sealed class IprIndexPageTests
         var writeService = new StubIprWriteService();
         var authorizationService = new DenyAuthorizationService();
         using var userManager = CreateUserManager(db);
+        var exportService = new StubIprExportService();
 
-        var page = new IndexModel(db, readService, writeService, authorizationService, userManager);
+        var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService);
         ConfigurePageContext(page, CreatePrincipal("viewer", "Viewer"));
         page.Mode = "create";
 
@@ -59,8 +60,9 @@ public sealed class IprIndexPageTests
         var writeService = new StubIprWriteService();
         var authorizationService = new DenyAuthorizationService();
         using var userManager = CreateUserManager(db);
+        var exportService = new StubIprExportService();
 
-        var page = new IndexModel(db, readService, writeService, authorizationService, userManager)
+        var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService)
         {
             Input = new IndexModel.RecordInput
             {
@@ -85,10 +87,11 @@ public sealed class IprIndexPageTests
         var (writeService, root) = CreateWriteService(db, new DateTimeOffset(2024, 3, 1, 0, 0, 0, TimeSpan.Zero));
         var authorizationService = new AllowAuthorizationService();
         using var userManager = CreateUserManager(db);
+        var exportService = new StubIprExportService();
 
         try
         {
-            var page = new IndexModel(db, readService, writeService, authorizationService, userManager)
+            var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService)
             {
                 Input = new IndexModel.RecordInput
                 {
@@ -132,10 +135,11 @@ public sealed class IprIndexPageTests
         var (writeService, root) = CreateWriteService(db);
         var authorizationService = new AllowAuthorizationService();
         using var userManager = CreateUserManager(db);
+        var exportService = new StubIprExportService();
 
         try
         {
-            var page = new IndexModel(db, readService, writeService, authorizationService, userManager)
+            var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService)
             {
                 Input = new IndexModel.RecordInput
                 {
@@ -171,10 +175,11 @@ public sealed class IprIndexPageTests
         var (writeService, root) = CreateWriteService(db);
         var authorizationService = new AllowAuthorizationService();
         using var userManager = CreateUserManager(db);
+        var exportService = new StubIprExportService();
 
         try
         {
-            var page = new IndexModel(db, readService, writeService, authorizationService, userManager)
+            var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService)
             {
                 Input = new IndexModel.RecordInput
                 {
@@ -216,8 +221,9 @@ public sealed class IprIndexPageTests
         var writeService = new StubIprWriteService();
         var authorizationService = new AllowAuthorizationService();
         using var userManager = CreateUserManager(db);
+        var exportService = new StubIprExportService();
 
-        var page = new IndexModel(db, readService, writeService, authorizationService, userManager);
+        var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService);
         ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.AllowedRoles[0]));
 
         var result = await page.OnGetAsync(CancellationToken.None);
@@ -362,6 +368,12 @@ public sealed class IprIndexPageTests
 
         public Task<bool> DeleteAttachmentAsync(int attachmentId, byte[] rowVersion, CancellationToken cancellationToken = default)
             => Task.FromResult(false);
+    }
+
+    private sealed class StubIprExportService : IIprExportService
+    {
+        public Task<IprExportFile> ExportAsync(IprFilter filter, CancellationToken cancellationToken)
+            => Task.FromResult(new IprExportFile("export.xlsx", "application/octet-stream", Array.Empty<byte>()));
     }
 
     private sealed class DenyAuthorizationService : IAuthorizationService

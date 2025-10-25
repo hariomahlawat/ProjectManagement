@@ -51,7 +51,7 @@ public sealed class IprExportServiceTests
         Assert.Equal("ipr-records-20240512-103000.xlsx", file.FileName);
         Assert.Equal(IprExportFile.ExcelContentType, file.ContentType);
         Assert.NotNull(file.Content);
-        Assert.NotEqual(0, file.Content.Length);
+        Assert.NotEmpty(file.Content);
 
         using var stream = new MemoryStream(file.Content);
         using var workbook = new XLWorkbook(stream);
