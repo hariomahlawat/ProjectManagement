@@ -9,6 +9,7 @@ using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Application.Training.Dtos;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Services;
+using ProjectManagement.Infrastructure.Ui;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Training;
 
@@ -41,7 +42,7 @@ public class ApprovalsModel : PageModel
     {
         if (requestId == Guid.Empty)
         {
-            TempData["ToastError"] = "The delete request could not be identified.";
+            TempData.ToastError("The delete request could not be identified.");
             return RedirectToPage();
         }
 
@@ -60,11 +61,11 @@ public class ApprovalsModel : PageModel
                 _ => result.ErrorMessage ?? "The delete request could not be approved."
             };
 
-            TempData["ToastError"] = message;
+            TempData.ToastError(message);
         }
         else
         {
-            TempData["ToastMessage"] = "The training was removed.";
+            TempData.ToastSuccess("The training was removed.");
         }
 
         return RedirectToPage();
@@ -74,13 +75,13 @@ public class ApprovalsModel : PageModel
     {
         if (requestId == Guid.Empty)
         {
-            TempData["ToastError"] = "The delete request could not be identified.";
+            TempData.ToastError("The delete request could not be identified.");
             return RedirectToPage();
         }
 
         if (string.IsNullOrWhiteSpace(reason))
         {
-            TempData["ToastError"] = "Provide a reason before rejecting the delete request.";
+            TempData.ToastError("Provide a reason before rejecting the delete request.");
             return RedirectToPage();
         }
 
@@ -99,11 +100,11 @@ public class ApprovalsModel : PageModel
                 _ => result.ErrorMessage ?? "The delete request could not be rejected."
             };
 
-            TempData["ToastError"] = message;
+            TempData.ToastError(message);
         }
         else
         {
-            TempData["ToastMessage"] = "The delete request was rejected.";
+            TempData.ToastInfo("The delete request was rejected.");
         }
 
         return RedirectToPage();

@@ -22,4 +22,8 @@ public record class NavigationItem
     public string? AuthorizationPolicy { get; init; }
 
     public IReadOnlyList<string>? RequiredRoles { get; init; }
+
+    public string? BadgeViewComponentName { get; init; }
+
+    public object? BadgeViewComponentParameters { get; init; }
 }

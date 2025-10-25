@@ -72,7 +72,9 @@ public class NavigationDrawerViewComponent : ViewComponent
             Url = url,
             IsActive = isActive,
             HasActiveDescendant = hasActiveDescendant,
-            Children = childNodes
+            Children = childNodes,
+            BadgeViewComponentName = item.BadgeViewComponentName,
+            BadgeViewComponentParameters = item.BadgeViewComponentParameters
         };
     }
 
@@ -174,6 +176,10 @@ public sealed record class NavigationDrawerNode
     public bool HasActiveDescendant { get; init; }
 
     public IReadOnlyList<NavigationDrawerNode> Children { get; init; } = Array.Empty<NavigationDrawerNode>();
+
+    public string? BadgeViewComponentName { get; init; }
+
+    public object? BadgeViewComponentParameters { get; init; }
 }
 
 public sealed record class NavigationDrawerItemsViewModel(

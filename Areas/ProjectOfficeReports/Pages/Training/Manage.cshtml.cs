@@ -13,6 +13,7 @@ using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Configuration;
 using ProjectManagement.Services;
+using ProjectManagement.Infrastructure.Ui;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Training;
 
@@ -73,7 +74,7 @@ public class ManageModel : PageModel
         var existing = await _readService.GetEditorAsync(id.Value, cancellationToken);
         if (existing is null)
         {
-            TempData["ToastError"] = "The requested training could not be found.";
+            TempData.ToastError("The requested training could not be found.");
             return RedirectToPage("./Index");
         }
 
@@ -136,7 +137,7 @@ public class ManageModel : PageModel
             return Page();
         }
 
-        TempData["ToastMessage"] = Input.Id.HasValue ? "Training updated." : "Training created.";
+        TempData.ToastSuccess(Input.Id.HasValue ? "Training updated." : "Training created.");
         return RedirectToPage("./Manage", new { id = result.TrainingId });
     }
 
@@ -216,27 +217,27 @@ public class ManageModel : PageModel
     {
         if (form is null || form.TrainingId == Guid.Empty)
         {
-            TempData["ToastError"] = "The training could not be identified.";
+            TempData.ToastError("The training could not be identified.");
             return RedirectToPage("./Manage", new { id = form?.TrainingId ?? Guid.Empty });
         }
 
         if (string.IsNullOrWhiteSpace(form.Reason))
         {
-            TempData["ToastError"] = "Provide a reason for the delete request.";
+            TempData.ToastError("Provide a reason for the delete request.");
             return RedirectToPage("./Manage", new { id = form.TrainingId });
         }
 
         var expectedRowVersion = DecodeRowVersion(form.RowVersion);
         if (expectedRowVersion is null)
         {
-            TempData["ToastError"] = "We could not verify the training details. Reload and try again.";
+            TempData.ToastError("We could not verify the training details. Reload and try again.");
             return RedirectToPage("./Manage", new { id = form.TrainingId });
         }
 
         var userId = _userContext.UserId;
         if (string.IsNullOrWhiteSpace(userId))
         {
-            TempData["ToastError"] = "You are not signed in or your session has expired.";
+            TempData.ToastError("You are not signed in or your session has expired.");
             return RedirectToPage("./Manage", new { id = form.TrainingId });
         }
 
@@ -259,11 +260,11 @@ public class ManageModel : PageModel
                 _ => result.ErrorMessage ?? "The delete request could not be submitted."
             };
 
-            TempData["ToastError"] = message;
+            TempData.ToastError(message);
         }
         else
         {
-            TempData["ToastMessage"] = "Delete request submitted for approval.";
+            TempData.ToastInfo("Delete request submitted for approval.");
         }
 
         return RedirectToPage("./Manage", new { id = form.TrainingId });

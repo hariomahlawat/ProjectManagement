@@ -106,7 +106,8 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Text = "Training delete approvals",
                 Area = "ProjectOfficeReports",
                 Page = "/Training/Approvals",
-                AuthorizationPolicy = ProjectOfficeReportsPolicies.ApproveTrainingTracker
+                AuthorizationPolicy = ProjectOfficeReportsPolicies.ApproveTrainingTracker,
+                BadgeViewComponentName = "TrainingApprovalsBadge"
             });
         }
 

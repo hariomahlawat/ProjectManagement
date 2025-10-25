@@ -12,6 +12,8 @@
     var displayClasses = string.IsNullOrEmpty(node.Url)
         ? "pm-drawer__label"
         : "pm-drawer__link";
+    var badgeName = node.BadgeViewComponentName;
+    var badgeParameters = node.BadgeViewComponentParameters ?? new { };
 
     if (node.IsActive || node.HasActiveDescendant)
     {
@@ -21,11 +23,23 @@
     <li class="@itemClasses">
         @if (!string.IsNullOrEmpty(node.Url))
         {
-            <a class="@displayClasses" href="@node.Url" @(node.IsActive ? "aria-current=\"page\"" : null)>@node.Text</a>
+            <a class="@displayClasses" href="@node.Url" @(node.IsActive ? "aria-current=\"page\"" : null)>
+                <span class="pm-drawer__text flex-grow-1">@node.Text</span>
+                @if (!string.IsNullOrEmpty(badgeName))
+                {
+                    @await Component.InvokeAsync(badgeName!, badgeParameters)
+                }
+            </a>
         }
         else
         {
-            <span class="@displayClasses" @(node.IsActive ? "aria-current=\"page\"" : null)>@node.Text</span>
+            <span class="@displayClasses" @(node.IsActive ? "aria-current=\"page\"" : null)>
+                <span class="pm-drawer__text flex-grow-1">@node.Text</span>
+                @if (!string.IsNullOrEmpty(badgeName))
+                {
+                    @await Component.InvokeAsync(badgeName!, badgeParameters)
+                }
+            </span>
         }
 
         @if (node.Children.Count > 0)
