@@ -275,6 +275,7 @@ body {
 
 .ipr-record-card__title {
     color: var(--bs-body-color);
+    text-align: center;
 }
 
 .ipr-record-card__meta {
