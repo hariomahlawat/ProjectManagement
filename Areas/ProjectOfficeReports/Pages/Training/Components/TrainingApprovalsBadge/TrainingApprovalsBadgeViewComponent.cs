@@ -45,6 +45,8 @@ public sealed class TrainingApprovalsBadgeViewComponent : ViewComponent
             .AsNoTracking()
             .CountAsync(request => request.Status == TrainingDeleteRequestStatus.Pending, cancellationToken);
 
-        return View(pendingCount);
+        const string viewPath = "~/Areas/ProjectOfficeReports/Pages/Training/Components/TrainingApprovalsBadge/Default.cshtml";
+
+        return View(viewPath, pendingCount);
     }
 }
