@@ -89,6 +89,12 @@ namespace ProjectManagement.Data
         public DbSet<SocialMediaPlatform> SocialMediaPlatforms => Set<SocialMediaPlatform>();
         public DbSet<SocialMediaEvent> SocialMediaEvents => Set<SocialMediaEvent>();
         public DbSet<SocialMediaEventPhoto> SocialMediaEventPhotos => Set<SocialMediaEventPhoto>();
+        public DbSet<TrainingType> TrainingTypes => Set<TrainingType>();
+        public DbSet<Training> Trainings => Set<Training>();
+        public DbSet<TrainingCounters> TrainingCounters => Set<TrainingCounters>();
+        public DbSet<TrainingProject> TrainingProjects => Set<TrainingProject>();
+        public DbSet<TrainingDeleteRequest> TrainingDeleteRequests => Set<TrainingDeleteRequest>();
+        public DbSet<TrainingRankCategoryMap> TrainingRankCategoryMaps => Set<TrainingRankCategoryMap>();
         public DbSet<ProliferationYearly> ProliferationYearlies => Set<ProliferationYearly>();
         public DbSet<ProliferationGranular> ProliferationGranularEntries => Set<ProliferationGranular>();
         public DbSet<ProliferationYearPreference> ProliferationYearPreferences => Set<ProliferationYearPreference>();
@@ -1673,6 +1679,369 @@ namespace ProjectManagement.Data
                     .WithMany(x => x.AuditEntries)
                     .HasForeignKey(x => x.RemarkId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<TrainingType>(entity =>
+            {
+                ConfigureRowVersion(entity);
+                entity.ToTable("TrainingTypes");
+                entity.Property(x => x.Name).HasMaxLength(128).IsRequired();
+                entity.Property(x => x.Description).HasMaxLength(512);
+                entity.Property(x => x.DisplayOrder).HasDefaultValue(0);
+                entity.Property(x => x.IsActive).HasDefaultValue(true);
+                entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.LastModifiedByUserId).HasMaxLength(450);
+                entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                if (Database.IsNpgsql())
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone");
+                    entity.Property(x => x.LastModifiedAtUtc).HasColumnType("timestamp with time zone");
+                }
+                else if (Database.IsSqlServer())
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+
+                entity.HasIndex(x => x.Name).IsUnique();
+
+                var trainingTypeSeedCreatedAt = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero);
+                entity.HasData(
+                    new TrainingType
+                    {
+                        Id = new Guid("f4a9b1c7-0a3c-46da-92ff-39b861fd4c91"),
+                        Name = "Simulator",
+                        Description = "Simulator-based training sessions.",
+                        DisplayOrder = 1,
+                        IsActive = true,
+                        CreatedAtUtc = trainingTypeSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("4d9b6f75-8d96-47d4-9d41-9f4f4a0ea679").ToByteArray()
+                    },
+                    new TrainingType
+                    {
+                        Id = new Guid("39f0d83c-5322-4a6d-bd1c-1b4dfbb5887b"),
+                        Name = "Drone",
+                        Description = "Drone operator and maintenance training.",
+                        DisplayOrder = 2,
+                        IsActive = true,
+                        CreatedAtUtc = trainingTypeSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("d2f391bc-64a4-4c36-9218-1a3ba9bdeaf9").ToByteArray()
+                    });
+            });
+
+            builder.Entity<TrainingRankCategoryMap>(entity =>
+            {
+                ConfigureRowVersion(entity);
+                entity.ToTable("TrainingRankCategoryMap");
+                entity.Property(x => x.Rank).HasMaxLength(64).IsRequired();
+                entity.Property(x => x.IsActive).HasDefaultValue(true);
+                entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.LastModifiedByUserId).HasMaxLength(450);
+                entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                if (Database.IsNpgsql())
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone");
+                    entity.Property(x => x.LastModifiedAtUtc).HasColumnType("timestamp with time zone");
+                }
+                else if (Database.IsSqlServer())
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+
+                entity.HasIndex(x => x.Rank).IsUnique();
+
+                var rankSeedCreatedAt = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero);
+                entity.HasData(
+                    new TrainingRankCategoryMap
+                    {
+                        Id = 1,
+                        Rank = "Lt",
+                        Category = TrainingCategory.Officer,
+                        IsActive = true,
+                        CreatedAtUtc = rankSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("5f6f9f3d-22ff-4a8f-9ef2-7cb3f1a90513").ToByteArray()
+                    },
+                    new TrainingRankCategoryMap
+                    {
+                        Id = 2,
+                        Rank = "Capt",
+                        Category = TrainingCategory.Officer,
+                        IsActive = true,
+                        CreatedAtUtc = rankSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("d6cda0a6-6a56-4b34-9dbe-a690b58cdbdf").ToByteArray()
+                    },
+                    new TrainingRankCategoryMap
+                    {
+                        Id = 3,
+                        Rank = "Maj",
+                        Category = TrainingCategory.Officer,
+                        IsActive = true,
+                        CreatedAtUtc = rankSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("56658d8a-1d3b-4d9a-bf35-f8f0a7f1da6b").ToByteArray()
+                    },
+                    new TrainingRankCategoryMap
+                    {
+                        Id = 4,
+                        Rank = "Lt Col",
+                        Category = TrainingCategory.Officer,
+                        IsActive = true,
+                        CreatedAtUtc = rankSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("a79b2734-37ce-4aa0-8fa7-1e43d5c6a6f4").ToByteArray()
+                    },
+                    new TrainingRankCategoryMap
+                    {
+                        Id = 5,
+                        Rank = "Col",
+                        Category = TrainingCategory.Officer,
+                        IsActive = true,
+                        CreatedAtUtc = rankSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("1efc757a-04fc-4e22-86e5-2cc9be3a81d7").ToByteArray()
+                    },
+                    new TrainingRankCategoryMap
+                    {
+                        Id = 6,
+                        Rank = "Brig",
+                        Category = TrainingCategory.Officer,
+                        IsActive = true,
+                        CreatedAtUtc = rankSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("a8f6a9c7-5fd1-4c53-8e2a-c2b9f1b0f0d7").ToByteArray()
+                    },
+                    new TrainingRankCategoryMap
+                    {
+                        Id = 7,
+                        Rank = "Maj Gen",
+                        Category = TrainingCategory.Officer,
+                        IsActive = true,
+                        CreatedAtUtc = rankSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("2d9f1234-338e-4d4a-bf67-3ac13096a4b8").ToByteArray()
+                    },
+                    new TrainingRankCategoryMap
+                    {
+                        Id = 8,
+                        Rank = "Lt Gen",
+                        Category = TrainingCategory.Officer,
+                        IsActive = true,
+                        CreatedAtUtc = rankSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("4f8b291c-2f26-4b69-9b6f-433b2116b1d9").ToByteArray()
+                    },
+                    new TrainingRankCategoryMap
+                    {
+                        Id = 9,
+                        Rank = "Gen",
+                        Category = TrainingCategory.Officer,
+                        IsActive = true,
+                        CreatedAtUtc = rankSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("c9c021ba-91ae-42c1-b9e8-930e10b7c47e").ToByteArray()
+                    },
+                    new TrainingRankCategoryMap
+                    {
+                        Id = 10,
+                        Rank = "Naib Subedar",
+                        Category = TrainingCategory.JuniorCommissionedOfficer,
+                        IsActive = true,
+                        CreatedAtUtc = rankSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("f5d7a678-d2ec-4d4b-a4e5-2c4d56f3f1b4").ToByteArray()
+                    },
+                    new TrainingRankCategoryMap
+                    {
+                        Id = 11,
+                        Rank = "Subedar",
+                        Category = TrainingCategory.JuniorCommissionedOfficer,
+                        IsActive = true,
+                        CreatedAtUtc = rankSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("a61689b0-44a8-4740-9451-a2a9639f4d9d").ToByteArray()
+                    },
+                    new TrainingRankCategoryMap
+                    {
+                        Id = 12,
+                        Rank = "Subedar Major",
+                        Category = TrainingCategory.JuniorCommissionedOfficer,
+                        IsActive = true,
+                        CreatedAtUtc = rankSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("e3c2b5d9-12af-47ac-b69f-68e8e6f5d3c1").ToByteArray()
+                    },
+                    new TrainingRankCategoryMap
+                    {
+                        Id = 13,
+                        Rank = "Sepoy",
+                        Category = TrainingCategory.OtherRank,
+                        IsActive = true,
+                        CreatedAtUtc = rankSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("0a7d2f5e-bbb4-4bd8-b73d-94a5082a4d0c").ToByteArray()
+                    },
+                    new TrainingRankCategoryMap
+                    {
+                        Id = 14,
+                        Rank = "Lance Naik",
+                        Category = TrainingCategory.OtherRank,
+                        IsActive = true,
+                        CreatedAtUtc = rankSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("9a9f4c8e-0a12-4e5f-901b-9714fcb7d9c2").ToByteArray()
+                    },
+                    new TrainingRankCategoryMap
+                    {
+                        Id = 15,
+                        Rank = "Naik",
+                        Category = TrainingCategory.OtherRank,
+                        IsActive = true,
+                        CreatedAtUtc = rankSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("b2e5f7c3-7d15-4ee2-9bf1-0c684b27dce9").ToByteArray()
+                    },
+                    new TrainingRankCategoryMap
+                    {
+                        Id = 16,
+                        Rank = "Havildar",
+                        Category = TrainingCategory.OtherRank,
+                        IsActive = true,
+                        CreatedAtUtc = rankSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("8d96f2bc-12d4-43f4-8d6b-2bb07948f3d9").ToByteArray()
+                    });
+            });
+
+            builder.Entity<Training>(entity =>
+            {
+                ConfigureRowVersion(entity);
+                entity.ToTable("Trainings");
+                entity.Property(x => x.Notes).HasMaxLength(2000);
+                entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.LastModifiedByUserId).HasMaxLength(450);
+                entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                if (Database.IsNpgsql())
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone");
+                    entity.Property(x => x.LastModifiedAtUtc).HasColumnType("timestamp with time zone");
+                    entity.Property(x => x.StartDate).HasColumnType("date");
+                    entity.Property(x => x.EndDate).HasColumnType("date");
+                }
+                else if (Database.IsSqlServer())
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                    entity.Property(x => x.StartDate).HasColumnType("date");
+                    entity.Property(x => x.EndDate).HasColumnType("date");
+                }
+                else
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+
+                entity.HasIndex(x => x.TrainingTypeId).HasDatabaseName("IX_Trainings_TrainingTypeId");
+                entity.HasIndex(x => x.StartDate).HasDatabaseName("IX_Trainings_StartDate");
+                entity.HasIndex(x => x.EndDate).HasDatabaseName("IX_Trainings_EndDate");
+                entity.HasIndex(x => x.TrainingYear).HasDatabaseName("IX_Trainings_TrainingYear");
+
+                entity.HasOne(x => x.TrainingType)
+                    .WithMany(x => x.Trainings)
+                    .HasForeignKey(x => x.TrainingTypeId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(x => x.Counters)
+                    .WithOne(x => x.Training)
+                    .HasForeignKey<TrainingCounters>(x => x.TrainingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasMany(x => x.ProjectLinks)
+                    .WithOne(x => x.Training)
+                    .HasForeignKey(x => x.TrainingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasMany(x => x.DeleteRequests)
+                    .WithOne(x => x.Training)
+                    .HasForeignKey(x => x.TrainingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<TrainingCounters>(entity =>
+            {
+                ConfigureRowVersion(entity);
+                entity.ToTable("TrainingCounters");
+                entity.HasKey(x => x.TrainingId);
+                entity.Property(x => x.UpdatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                if (Database.IsNpgsql())
+                {
+                    entity.Property(x => x.UpdatedAtUtc).HasColumnType("timestamp with time zone");
+                }
+                else if (Database.IsSqlServer())
+                {
+                    entity.Property(x => x.UpdatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else
+                {
+                    entity.Property(x => x.UpdatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+
+                entity.Property(x => x.Source)
+                    .HasConversion<string>()
+                    .HasMaxLength(32)
+                    .IsRequired();
+            });
+
+            builder.Entity<TrainingProject>(entity =>
+            {
+                ConfigureRowVersion(entity);
+                entity.ToTable("TrainingProjects");
+                entity.HasKey(x => new { x.TrainingId, x.ProjectId });
+                entity.Property(x => x.AllocationShare).HasColumnType("numeric(9,4)").HasDefaultValue(0);
+                entity.HasIndex(x => x.ProjectId).HasDatabaseName("IX_TrainingProjects_ProjectId");
+                entity.HasOne(x => x.Project)
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<TrainingDeleteRequest>(entity =>
+            {
+                ConfigureRowVersion(entity);
+                entity.ToTable("TrainingDeleteRequests");
+                entity.Property(x => x.RequestedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.DecidedByUserId).HasMaxLength(450);
+                entity.Property(x => x.Reason).HasMaxLength(1000).IsRequired();
+                entity.Property(x => x.DecisionNotes).HasMaxLength(1000);
+                entity.Property(x => x.Status)
+                    .HasConversion<string>()
+                    .HasMaxLength(32)
+                    .IsRequired();
+                entity.Property(x => x.RequestedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                if (Database.IsNpgsql())
+                {
+                    entity.Property(x => x.RequestedAtUtc).HasColumnType("timestamp with time zone");
+                    entity.Property(x => x.DecidedAtUtc).HasColumnType("timestamp with time zone");
+                }
+                else if (Database.IsSqlServer())
+                {
+                    entity.Property(x => x.RequestedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else
+                {
+                    entity.Property(x => x.RequestedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+
+                entity.HasIndex(x => x.TrainingId).HasDatabaseName("IX_TrainingDeleteRequests_TrainingId");
+                entity.HasIndex(x => x.Status).HasDatabaseName("IX_TrainingDeleteRequests_Status");
             });
 
             builder.Entity<UserNotificationPreference>(e =>

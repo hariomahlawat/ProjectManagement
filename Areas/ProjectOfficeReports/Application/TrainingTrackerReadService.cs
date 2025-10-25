@@ -1,0 +1,369 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
+using ProjectManagement.Data;
+
+namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
+
+public sealed class TrainingTrackerReadService
+{
+    private readonly ApplicationDbContext _db;
+
+    public TrainingTrackerReadService(ApplicationDbContext db)
+    {
+        _db = db ?? throw new ArgumentNullException(nameof(db));
+    }
+
+    public async Task<IReadOnlyList<TrainingTypeOption>> GetTrainingTypesAsync(CancellationToken cancellationToken)
+    {
+        var types = await _db.TrainingTypes
+            .AsNoTracking()
+            .Where(x => x.IsActive)
+            .OrderBy(x => x.DisplayOrder)
+            .ThenBy(x => x.Name)
+            .Select(x => new TrainingTypeOption(x.Id, x.Name))
+            .ToListAsync(cancellationToken);
+
+        return types;
+    }
+
+    public async Task<IReadOnlyList<ProjectOption>> GetProjectOptionsAsync(CancellationToken cancellationToken)
+    {
+        var projects = await _db.Projects
+            .AsNoTracking()
+            .Where(x => !x.IsDeleted && !x.IsArchived)
+            .OrderBy(x => x.Name)
+            .Select(x => new ProjectOption(x.Id, x.Name))
+            .ToListAsync(cancellationToken);
+
+        return projects;
+    }
+
+    public async Task<TrainingEditorData?> GetEditorAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var projection = await _db.Trainings
+            .AsNoTracking()
+            .Where(x => x.Id == id)
+            .Select(x => new TrainingEditorData(
+                x.Id,
+                x.TrainingTypeId,
+                x.StartDate,
+                x.EndDate,
+                x.TrainingMonth,
+                x.TrainingYear,
+                x.LegacyOfficerCount,
+                x.LegacyJcoCount,
+                x.LegacyOrCount,
+                x.Notes,
+                x.ProjectLinks.Select(link => link.ProjectId).ToList(),
+                x.RowVersion))
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return projection;
+    }
+
+    public async Task<IReadOnlyList<TrainingListItem>> SearchAsync(TrainingTrackerQuery? query, CancellationToken cancellationToken)
+    {
+        query ??= TrainingTrackerQuery.Empty;
+
+        var trainings = _db.Trainings.AsNoTracking();
+
+        if (query.TrainingTypeIds.Count > 0)
+        {
+            trainings = trainings.Where(x => query.TrainingTypeIds.Contains(x.TrainingTypeId));
+        }
+
+        if (query.ProjectId.HasValue)
+        {
+            var projectId = query.ProjectId.Value;
+            trainings = trainings.Where(x => x.ProjectLinks.Any(link => link.ProjectId == projectId));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var text = query.Search.Trim();
+            if (text.Length > 0)
+            {
+                if (_db.Database.IsNpgsql())
+                {
+                    trainings = trainings.Where(x =>
+                        EF.Functions.ILike(x.Notes ?? string.Empty, $"%{text}%") ||
+                        EF.Functions.ILike(x.TrainingType!.Name, $"%{text}%") ||
+                        x.ProjectLinks.Any(link => link.Project != null && EF.Functions.ILike(link.Project.Name, $"%{text}%")));
+                }
+                else
+                {
+                    trainings = trainings.Where(x =>
+                        (x.Notes != null && x.Notes.Contains(text)) ||
+                        x.TrainingType!.Name.Contains(text) ||
+                        x.ProjectLinks.Any(link => link.Project != null && link.Project.Name.Contains(text)));
+                }
+            }
+        }
+
+        var projections = await trainings
+            .OrderByDescending(x => x.CreatedAtUtc)
+            .ThenBy(x => x.TrainingType!.Name)
+            .Select(x => new TrainingListProjection(
+                x.Id,
+                x.TrainingTypeId,
+                x.TrainingType!.Name,
+                x.StartDate,
+                x.EndDate,
+                x.TrainingMonth,
+                x.TrainingYear,
+                x.LegacyOfficerCount,
+                x.LegacyJcoCount,
+                x.LegacyOrCount,
+                x.Counters != null ? x.Counters.Officers : (int?)null,
+                x.Counters != null ? x.Counters.JuniorCommissionedOfficers : (int?)null,
+                x.Counters != null ? x.Counters.OtherRanks : (int?)null,
+                x.Counters != null ? x.Counters.Total : (int?)null,
+                x.Counters != null ? x.Counters.Source : (TrainingCounterSource?)null,
+                x.Notes,
+                x.RowVersion,
+                x.ProjectLinks
+                    .OrderBy(link => link.Project != null ? link.Project.Name : string.Empty)
+                    .Select(link => new TrainingProjectSnapshot(link.ProjectId, link.Project != null ? link.Project.Name : string.Empty))
+                    .ToList()))
+            .ToListAsync(cancellationToken);
+
+        var filtered = projections
+            .Where(item => MatchesDate(item, query.From, query.To))
+            .Where(item => MatchesCategory(item, query.Category))
+            .Select(item => ToListItem(item))
+            .ToList();
+
+        return filtered;
+    }
+
+    public async Task<IReadOnlyList<TrainingExportRow>> ExportAsync(TrainingTrackerQuery? query, CancellationToken cancellationToken)
+    {
+        var rows = await SearchAsync(query, cancellationToken);
+
+        return rows
+            .Select(item => new TrainingExportRow(
+                item.Id,
+                item.TrainingTypeName,
+                FormatPeriod(item),
+                item.CounterOfficers,
+                item.CounterJcos,
+                item.CounterOrs,
+                item.CounterTotal,
+                item.CounterSource,
+                item.ProjectNames,
+                item.Notes))
+            .ToList();
+    }
+
+    private static TrainingListItem ToListItem(TrainingListProjection projection)
+    {
+        var officers = projection.CounterOfficers ?? projection.LegacyOfficerCount;
+        var jcos = projection.CounterJcos ?? projection.LegacyJcoCount;
+        var ors = projection.CounterOrs ?? projection.LegacyOrCount;
+        var total = projection.CounterTotal ?? (officers + jcos + ors);
+        var source = projection.CounterSource ?? TrainingCounterSource.Legacy;
+
+        return new TrainingListItem(
+            projection.Id,
+            projection.TrainingTypeId,
+            projection.TrainingTypeName,
+            projection.StartDate,
+            projection.EndDate,
+            projection.TrainingMonth,
+            projection.TrainingYear,
+            officers,
+            jcos,
+            ors,
+            total,
+            source,
+            projection.Notes,
+            projection.Projects,
+            projection.RowVersion);
+    }
+
+    private static bool MatchesDate(TrainingListProjection projection, DateOnly? from, DateOnly? to)
+    {
+        if (!from.HasValue && !to.HasValue)
+        {
+            return true;
+        }
+
+        var range = GetDateRange(projection);
+
+        if (from.HasValue && range.End.HasValue && range.End.Value < from.Value)
+        {
+            return false;
+        }
+
+        if (to.HasValue && range.Start.HasValue && range.Start.Value > to.Value)
+        {
+            return false;
+        }
+
+        if (from.HasValue && !range.End.HasValue)
+        {
+            return false;
+        }
+
+        if (to.HasValue && !range.Start.HasValue)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool MatchesCategory(TrainingListProjection projection, TrainingCategory? category)
+    {
+        if (!category.HasValue)
+        {
+            return true;
+        }
+
+        var officers = projection.CounterOfficers ?? projection.LegacyOfficerCount;
+        var jcos = projection.CounterJcos ?? projection.LegacyJcoCount;
+        var ors = projection.CounterOrs ?? projection.LegacyOrCount;
+
+        return category.Value switch
+        {
+            TrainingCategory.Officer => officers > 0,
+            TrainingCategory.JuniorCommissionedOfficer => jcos > 0,
+            TrainingCategory.OtherRank => ors > 0,
+            _ => true
+        };
+    }
+
+    private static TrainingDateRange GetDateRange(TrainingListProjection projection)
+    {
+        if (projection.StartDate.HasValue || projection.EndDate.HasValue)
+        {
+            return new TrainingDateRange(projection.StartDate, projection.EndDate ?? projection.StartDate);
+        }
+
+        if (projection.TrainingYear.HasValue && projection.TrainingMonth.HasValue
+            && projection.TrainingMonth.Value is >= 1 and <= 12
+            && projection.TrainingYear.Value is >= 1 and <= 9999)
+        {
+            var start = new DateOnly(projection.TrainingYear.Value, projection.TrainingMonth.Value, 1);
+            var end = start.AddMonths(1).AddDays(-1);
+            return new TrainingDateRange(start, end);
+        }
+
+        return new TrainingDateRange(null, null);
+    }
+
+    private static string FormatPeriod(TrainingListItem item)
+    {
+        if (item.StartDate.HasValue || item.EndDate.HasValue)
+        {
+            var start = item.StartDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "(not set)";
+            var end = item.EndDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? start;
+            return start == end ? start : $"{start} – {end}";
+        }
+
+        if (item.TrainingYear.HasValue && item.TrainingMonth.HasValue)
+        {
+            var monthName = CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(item.TrainingMonth.Value);
+            return $"{monthName} {item.TrainingYear.Value}";
+        }
+
+        return "(unspecified)";
+    }
+
+    private sealed record TrainingListProjection(
+        Guid Id,
+        Guid TrainingTypeId,
+        string TrainingTypeName,
+        DateOnly? StartDate,
+        DateOnly? EndDate,
+        int? TrainingMonth,
+        int? TrainingYear,
+        int LegacyOfficerCount,
+        int LegacyJcoCount,
+        int LegacyOrCount,
+        int? CounterOfficers,
+        int? CounterJcos,
+        int? CounterOrs,
+        int? CounterTotal,
+        TrainingCounterSource? CounterSource,
+        string? Notes,
+        byte[] RowVersion,
+        IReadOnlyList<TrainingProjectSnapshot> Projects);
+
+    private readonly record struct TrainingDateRange(DateOnly? Start, DateOnly? End);
+}
+
+public sealed record TrainingTypeOption(Guid Id, string Name);
+
+public sealed record ProjectOption(int Id, string Name);
+
+public sealed record TrainingProjectSnapshot(int ProjectId, string Name);
+
+public sealed record TrainingEditorData(
+    Guid Id,
+    Guid TrainingTypeId,
+    DateOnly? StartDate,
+    DateOnly? EndDate,
+    int? TrainingMonth,
+    int? TrainingYear,
+    int LegacyOfficerCount,
+    int LegacyJcoCount,
+    int LegacyOrCount,
+    string? Notes,
+    IReadOnlyList<int> ProjectIds,
+    byte[] RowVersion);
+
+public sealed record TrainingListItem(
+    Guid Id,
+    Guid TrainingTypeId,
+    string TrainingTypeName,
+    DateOnly? StartDate,
+    DateOnly? EndDate,
+    int? TrainingMonth,
+    int? TrainingYear,
+    int CounterOfficers,
+    int CounterJcos,
+    int CounterOrs,
+    int CounterTotal,
+    TrainingCounterSource CounterSource,
+    string? Notes,
+    IReadOnlyList<TrainingProjectSnapshot> Projects,
+    byte[] RowVersion)
+{
+    public IReadOnlyList<string> ProjectNames => Projects.Select(project => project.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList();
+};
+
+public sealed record TrainingExportRow(
+    Guid Id,
+    string TrainingTypeName,
+    string Period,
+    int Officers,
+    int JuniorCommissionedOfficers,
+    int OtherRanks,
+    int Total,
+    TrainingCounterSource Source,
+    IReadOnlyList<string> Projects,
+    string? Notes);
+
+public sealed class TrainingTrackerQuery
+{
+    public static TrainingTrackerQuery Empty { get; } = new();
+
+    public IList<Guid> TrainingTypeIds { get; } = new List<Guid>();
+
+    public int? ProjectId { get; set; }
+
+    public TrainingCategory? Category { get; set; }
+
+    public DateOnly? From { get; set; }
+
+    public DateOnly? To { get; set; }
+
+    public string? Search { get; set; }
+}

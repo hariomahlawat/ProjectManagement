@@ -1,0 +1,150 @@
+@page
+@using System.Globalization
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.IndexModel
+@{ 
+    ViewData["Title"] = "Training tracker";
+}
+
+<h1 class="display-6 mb-4">Training tracker</h1>
+
+@if (!Model.IsFeatureEnabled)
+{
+    <div class="alert alert-warning" role="alert">
+        The training tracker is currently disabled. Please check back after the feature is enabled.
+    </div>
+}
+else
+{
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <form method="get" class="card shadow-sm w-100 me-3">
+            <div class="card-body">
+                <div class="row g-3 align-items-end">
+                    <div class="col-lg-4">
+                        <label asp-for="Filter.TypeIds" class="form-label"></label>
+                        <select asp-for="Filter.TypeIds" asp-items="Model.TrainingTypes" multiple class="form-select" size="5"></select>
+                    </div>
+                    <div class="col-lg-4">
+                        <label asp-for="Filter.ProjectId" class="form-label"></label>
+                        <select asp-for="Filter.ProjectId" asp-items="Model.ProjectOptions" class="form-select">
+                            <option value="">All projects</option>
+                        </select>
+                    </div>
+                    <div class="col-lg-4">
+                        <label asp-for="Filter.Category" class="form-label"></label>
+                        <select asp-for="Filter.Category" asp-items="Model.CategoryOptions" class="form-select"></select>
+                    </div>
+                </div>
+
+                <div class="row g-3 align-items-end mt-0 mt-lg-3">
+                    <div class="col-md-3">
+                        <label asp-for="Filter.From" class="form-label"></label>
+                        <input asp-for="Filter.From" class="form-control" />
+                    </div>
+                    <div class="col-md-3">
+                        <label asp-for="Filter.To" class="form-label"></label>
+                        <input asp-for="Filter.To" class="form-control" />
+                    </div>
+                    <div class="col-md-4">
+                        <label asp-for="Filter.Search" class="form-label"></label>
+                        <input asp-for="Filter.Search" class="form-control" placeholder="Search notes or projects" />
+                    </div>
+                    <div class="col-md-2 d-grid">
+                        <button type="submit" class="btn btn-primary">Apply filters</button>
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        <div class="flex-shrink-0 d-flex flex-column gap-2">
+            <a asp-page="./Manage" class="btn btn-success">New training</a>
+            <a asp-page-handler="Export"
+               class="btn btn-outline-secondary"
+               asp-route-TypeIds="@Model.Filter.TypeIds"
+               asp-route-ProjectId="@Model.Filter.ProjectId"
+               asp-route-Category="@Model.Filter.Category"
+               asp-route-From="@Model.Filter.From?.ToString("yyyy-MM-dd")"
+               asp-route-To="@Model.Filter.To?.ToString("yyyy-MM-dd")"
+               asp-route-Search="@Model.Filter.Search">
+                Export to Excel
+            </a>
+        </div>
+    </div>
+
+    if (!Model.HasResults)
+    {
+        <div class="card shadow-sm">
+            <div class="card-body py-5 text-center text-muted">
+                <p class="mb-2">No trainings match the current filters.</p>
+                <p class="mb-0">Adjust the filters above or create a new training entry.</p>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="table-responsive shadow-sm">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th scope="col">Training type</th>
+                        <th scope="col">Period</th>
+                        <th scope="col">Strength (O – J – OR)</th>
+                        <th scope="col">Total</th>
+                        <th scope="col">Source</th>
+                        <th scope="col">Projects</th>
+                        <th scope="col">Notes</th>
+                        <th scope="col" class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var training in Model.Trainings)
+                {
+                    <tr>
+                        <td>@training.TrainingTypeName</td>
+                        <td>@training.Period</td>
+                        <td>@training.Strength</td>
+                        <td>@training.Total.ToString("N0", CultureInfo.CurrentCulture)</td>
+                        <td>
+                            @if (training.Source == ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingCounterSource.Legacy)
+                            {
+                                <span class="badge bg-secondary">Legacy</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-info text-dark">Roster</span>
+                            }
+                        </td>
+                        <td>
+                            @if (training.ProjectNames.Count == 0)
+                            {
+                                <span class="text-muted">None linked</span>
+                            }
+                            else
+                            {
+                                <ul class="list-unstyled mb-0">
+                                @foreach (var project in training.ProjectNames)
+                                {
+                                    <li>@project</li>
+                                }
+                                </ul>
+                            }
+                        </td>
+                        <td>
+                            @if (string.IsNullOrWhiteSpace(training.Notes))
+                            {
+                                <span class="text-muted">&mdash;</span>
+                            }
+                            else
+                            {
+                                @training.Notes
+                            }
+                        </td>
+                        <td class="text-end">
+                            <a asp-page="./Manage" asp-route-id="@training.Id" class="btn btn-sm btn-outline-primary">Manage</a>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+}
