@@ -93,16 +93,13 @@ public class RoleBasedNavigationProvider : INavigationProvider
             Page = "/Proliferation/Index"
         };
 
-        if (roleSet.Overlaps(Policies.Ipr.AllowedRoles))
+        projectOfficeReportsChildren.Add(new NavigationItem
         {
-            projectOfficeReportsChildren.Add(new NavigationItem
-            {
-                Text = "IPR tracker",
-                Area = "ProjectOfficeReports",
-                Page = "/Ipr/Index",
-                RequiredRoles = Policies.Ipr.AllowedRoles
-            });
-        }
+            Text = "IPR tracker",
+            Area = "ProjectOfficeReports",
+            Page = "/Ipr/Index",
+            AuthorizationPolicy = Policies.Ipr.View
+        });
 
         projectOfficeReportsChildren.Add(new NavigationItem
         {

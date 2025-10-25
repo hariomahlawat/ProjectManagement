@@ -88,16 +88,10 @@ public class RoleBasedNavigationProviderTests
 
         Assert.Contains(children, c => c.Text == "Visits" && c.Page == "/Visits/Index");
 
-        if (isAdmin)
-        {
-            var ipr = Assert.Single(children.Where(c => c.Text == "IPR tracker"));
-            Assert.Equal("/Ipr/Index", ipr.Page);
-            Assert.Equal(Policies.Ipr.AllowedRoles, ipr.RequiredRoles);
-        }
-        else
-        {
-            Assert.DoesNotContain(children, c => c.Text == "IPR tracker");
-        }
+        var ipr = Assert.Single(children.Where(c => c.Text == "IPR tracker"));
+        Assert.Equal("/Ipr/Index", ipr.Page);
+        Assert.Equal(Policies.Ipr.View, ipr.AuthorizationPolicy);
+        Assert.Null(ipr.RequiredRoles);
 
         var proliferation = Assert.Single(children.Where(c => c.Text == "Proliferation tracker"));
         Assert.Equal("/Proliferation/Index", proliferation.Page);
@@ -168,7 +162,11 @@ public class RoleBasedNavigationProviderTests
         Assert.Contains(children, c => c.Text == "Social media tracker" && c.Page == "/SocialMedia/Index");
         Assert.DoesNotContain(children, c => c.Text == "Visit types");
         Assert.DoesNotContain(children, c => c.Text == "Social media event types");
-        Assert.DoesNotContain(children, c => c.Text == "IPR tracker");
+
+        var ipr = Assert.Single(children.Where(c => c.Text == "IPR tracker"));
+        Assert.Equal("/Ipr/Index", ipr.Page);
+        Assert.Equal(Policies.Ipr.View, ipr.AuthorizationPolicy);
+        Assert.Null(ipr.RequiredRoles);
     }
 
     [Theory]
@@ -206,7 +204,8 @@ public class RoleBasedNavigationProviderTests
 
         var ipr = Assert.Single(children.Where(c => c.Text == "IPR tracker"));
         Assert.Equal("/Ipr/Index", ipr.Page);
-        Assert.Equal(Policies.Ipr.AllowedRoles, ipr.RequiredRoles);
+        Assert.Equal(Policies.Ipr.View, ipr.AuthorizationPolicy);
+        Assert.Null(ipr.RequiredRoles);
 
         var proliferation = Assert.Single(children.Where(c => c.Text == "Proliferation tracker"));
         Assert.Equal("/Proliferation/Index", proliferation.Page);
