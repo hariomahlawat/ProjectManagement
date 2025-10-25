@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Areas.ProjectOfficeReports.Application.Training.Dtos;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
+using DomainTraining = ProjectManagement.Areas.ProjectOfficeReports.Domain.Training;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
 
@@ -231,7 +232,7 @@ public sealed class TrainingTrackerReadService
             projection.RowVersion);
     }
 
-    private IQueryable<Training> BuildFilteredQuery(TrainingTrackerQuery? query)
+    private IQueryable<DomainTraining> BuildFilteredQuery(TrainingTrackerQuery? query)
     {
         query ??= TrainingTrackerQuery.Empty;
 

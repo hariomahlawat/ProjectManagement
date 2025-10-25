@@ -7,6 +7,10 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
 using ProjectManagement.Services;
+using DomainTraining = ProjectManagement.Areas.ProjectOfficeReports.Domain.Training;
+using DomainTrainingCounters = ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingCounters;
+using DomainTrainingProject = ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingProject;
+using DomainTrainingTrainee = ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingTrainee;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
 
@@ -56,7 +60,7 @@ public sealed class TrainingWriteService
         var trainingId = Guid.NewGuid();
         var rowVersion = Guid.NewGuid().ToByteArray();
 
-        var training = new Training
+        var training = new DomainTraining
         {
             Id = trainingId,
             TrainingTypeId = command.TrainingTypeId,
@@ -77,7 +81,7 @@ public sealed class TrainingWriteService
 
         foreach (var projectId in validation.ProjectIds)
         {
-            training.ProjectLinks.Add(new TrainingProject
+            training.ProjectLinks.Add(new DomainTrainingProject
             {
                 TrainingId = trainingId,
                 ProjectId = projectId,
@@ -166,9 +170,9 @@ public sealed class TrainingWriteService
         return TrainingMutationResult.Success(training.Id, training.RowVersion);
     }
 
-    private static TrainingCounters CreateCounters(Guid trainingId, int officers, int jcos, int ors, DateTimeOffset timestamp, TrainingCounterSource source)
+    private static DomainTrainingCounters CreateCounters(Guid trainingId, int officers, int jcos, int ors, DateTimeOffset timestamp, TrainingCounterSource source)
     {
-        return new TrainingCounters
+        return new DomainTrainingCounters
         {
             TrainingId = trainingId,
             Officers = officers,
@@ -181,7 +185,7 @@ public sealed class TrainingWriteService
         };
     }
 
-    private static void UpdateCounters(Training training, int officers, int jcos, int ors, DateTimeOffset timestamp, TrainingCounterSource source)
+    private static void UpdateCounters(DomainTraining training, int officers, int jcos, int ors, DateTimeOffset timestamp, TrainingCounterSource source)
     {
         var counters = training.Counters;
         if (counters is null)
@@ -271,7 +275,7 @@ public sealed class TrainingWriteService
             }
             else
             {
-                var newTrainee = new TrainingTrainee
+                var newTrainee = new DomainTrainingTrainee
                 {
                     TrainingId = trainingId,
                     ArmyNumber = row.ArmyNumber,
@@ -473,7 +477,7 @@ public sealed class TrainingWriteService
         return ProjectValidationResult.Successful(existing);
     }
 
-    private void UpdateProjectLinks(Training training, IReadOnlyCollection<int> desiredProjectIds)
+    private void UpdateProjectLinks(DomainTraining training, IReadOnlyCollection<int> desiredProjectIds)
     {
         var current = training.ProjectLinks.Select(link => link.ProjectId).ToHashSet();
         var desired = desiredProjectIds.ToHashSet();
@@ -486,7 +490,7 @@ public sealed class TrainingWriteService
 
         foreach (var projectId in desired.Where(id => !current.Contains(id)))
         {
-            training.ProjectLinks.Add(new TrainingProject
+            training.ProjectLinks.Add(new DomainTrainingProject
             {
                 TrainingId = training.Id,
                 ProjectId = projectId,
