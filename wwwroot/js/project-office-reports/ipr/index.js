@@ -158,3 +158,52 @@
     });
   });
 })();
+
+(() => {
+  const toastContainer = document.getElementById('iprToastContainer');
+  if (!toastContainer || typeof bootstrap === 'undefined' || !bootstrap.Toast) {
+    return;
+  }
+
+  const toasts = toastContainer.querySelectorAll('.toast');
+  toasts.forEach(toastElement => {
+    const instance = bootstrap.Toast.getOrCreateInstance(toastElement);
+    instance.show();
+  });
+})();
+
+(() => {
+  const skeleton = document.querySelector('[data-ipr-loading-skeleton]');
+  const contentTargets = document.querySelectorAll('[data-ipr-table-content]');
+  if (!skeleton || contentTargets.length === 0) {
+    return;
+  }
+
+  const showSkeleton = () => {
+    skeleton.classList.remove('d-none');
+    contentTargets.forEach(element => {
+      element.classList.add('d-none');
+    });
+  };
+
+  const hideSkeleton = () => {
+    skeleton.classList.add('d-none');
+    contentTargets.forEach(element => {
+      element.classList.remove('d-none');
+    });
+  };
+
+  hideSkeleton();
+
+  document.querySelectorAll('form[data-ipr-loading-form]').forEach(form => {
+    form.addEventListener('submit', () => {
+      showSkeleton();
+    });
+  });
+
+  document.querySelectorAll('[data-ipr-loading-link]').forEach(link => {
+    link.addEventListener('click', () => {
+      showSkeleton();
+    });
+  });
+})();
