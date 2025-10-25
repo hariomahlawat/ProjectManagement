@@ -17,7 +17,6 @@ using ProjectManagement.Services;
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Training;
 
 [Authorize(Policy = ProjectOfficeReportsPolicies.ViewTrainingTracker)]
-[ValidateAntiForgeryToken]
 public class ManageModel : PageModel
 {
     private readonly IOptionsSnapshot<TrainingTrackerOptions> _options;
@@ -77,6 +76,7 @@ public class ManageModel : PageModel
         return Page();
     }
 
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> OnPostSaveAsync(CancellationToken cancellationToken)
     {
         IsFeatureEnabled = _options.Value.Enabled;
@@ -135,6 +135,7 @@ public class ManageModel : PageModel
         return RedirectToPage("./Manage", new { id = result.TrainingId });
     }
 
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> OnPostUpsertRosterAsync([FromBody] UpsertRosterRequest request, CancellationToken cancellationToken)
     {
         if (request is null)
