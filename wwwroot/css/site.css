@@ -2444,6 +2444,10 @@ body {
     transition: background-color .2s ease, color .2s ease, box-shadow .2s ease;
 }
 
+.pm-drawer__text {
+    flex: 1 1 auto;
+}
+
 .pm-drawer__link:hover,
 .pm-drawer__link:focus,
 .pm-drawer__label:hover,

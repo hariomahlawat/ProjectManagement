@@ -46,6 +46,7 @@
 
     <main role="main" class="pb-5@(useFullWidth ? " analytics-main" : string.Empty)">
         <div class="@mainContainerClass">
+            @await Html.PartialAsync("_Toasts")
             @RenderBody()
         </div>
     </main>

@@ -1,0 +1,71 @@
+@using System.Collections.Generic
+@using System.Text.Json
+@{
+    var items = new List<(string Level, string Text)>();
+
+    void AddIf(string key, string level)
+    {
+        if (TempData.ContainsKey(key) && TempData[key] is string value && !string.IsNullOrWhiteSpace(value))
+        {
+            items.Add((level, value));
+        }
+    }
+
+    AddIf("ToastMessage", "info");
+    AddIf("ToastSuccess", "success");
+    AddIf("ToastInfo", "info");
+    AddIf("ToastWarning", "warning");
+    AddIf("ToastError", "danger");
+
+    if (TempData.ContainsKey("ToastJson") && TempData["ToastJson"] is string json && !string.IsNullOrWhiteSpace(json))
+    {
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<List<ToastItem>>(json) ?? new();
+            foreach (var toast in parsed)
+            {
+                var level = toast.Level?.ToLowerInvariant() switch
+                {
+                    "success" => "success",
+                    "info" => "info",
+                    "warning" => "warning",
+                    "danger" => "danger",
+                    "error" => "danger",
+                    _ => "info"
+                };
+
+                if (!string.IsNullOrWhiteSpace(toast.Text))
+                {
+                    items.Add((level, toast.Text!));
+                }
+            }
+        }
+        catch
+        {
+            // Ignore malformed JSON payloads; nothing should be rendered.
+        }
+    }
+}
+
+@functions
+{
+    private sealed class ToastItem
+    {
+        public string? Level { get; set; }
+
+        public string? Text { get; set; }
+    }
+}
+
+@if (items.Count > 0)
+{
+    <div class="container-xxl mt-2" aria-live="polite" aria-atomic="true">
+        @foreach (var item in items)
+        {
+            <div class="alert alert-@item.Level d-flex align-items-center justify-content-between shadow-sm" role="alert">
+                <div class="me-3">@item.Text</div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        }
+    </div>
+}
