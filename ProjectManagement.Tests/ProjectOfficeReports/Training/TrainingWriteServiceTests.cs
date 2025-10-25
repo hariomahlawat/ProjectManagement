@@ -15,6 +15,84 @@ namespace ProjectManagement.Tests.ProjectOfficeReports.Training;
 public sealed class TrainingWriteServiceTests
 {
     [Fact]
+    public async Task CreateAsync_ReturnsInvalidSchedule_WhenScheduleMissingEndDate()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateDbContext();
+        var sut = CreateService(db, clock);
+
+        var trainingType = new TrainingType
+        {
+            Id = Guid.NewGuid(),
+            Name = "Signals Refresher",
+            IsActive = true,
+            CreatedAtUtc = clock.UtcNow,
+            CreatedByUserId = "seed"
+        };
+
+        db.TrainingTypes.Add(trainingType);
+        await db.SaveChangesAsync();
+
+        var command = new TrainingMutationCommand(
+            trainingType.Id,
+            StartDate: new DateOnly(2024, 1, 1),
+            EndDate: null,
+            TrainingMonth: null,
+            TrainingYear: null,
+            LegacyOfficers: 0,
+            LegacyJcos: 0,
+            LegacyOrs: 0,
+            Notes: null,
+            ProjectIds: Array.Empty<int>());
+
+        var result = await sut.CreateAsync(command, "author", CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(TrainingMutationFailureCode.InvalidSchedule, result.FailureCode);
+        Assert.Equal("Provide a start and end date with the end date on or after the start date, or specify a training month and year.", result.ErrorMessage);
+        Assert.Equal(0, await db.Trainings.CountAsync());
+    }
+
+    [Fact]
+    public async Task CreateAsync_ReturnsInvalidLegacyCounts_WhenAnyLegacyCountNegative()
+    {
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        await using var db = CreateDbContext();
+        var sut = CreateService(db, clock);
+
+        var trainingType = new TrainingType
+        {
+            Id = Guid.NewGuid(),
+            Name = "Signals Refresher",
+            IsActive = true,
+            CreatedAtUtc = clock.UtcNow,
+            CreatedByUserId = "seed"
+        };
+
+        db.TrainingTypes.Add(trainingType);
+        await db.SaveChangesAsync();
+
+        var command = new TrainingMutationCommand(
+            trainingType.Id,
+            StartDate: null,
+            EndDate: null,
+            TrainingMonth: 1,
+            TrainingYear: 2024,
+            LegacyOfficers: -1,
+            LegacyJcos: 0,
+            LegacyOrs: 0,
+            Notes: null,
+            ProjectIds: Array.Empty<int>());
+
+        var result = await sut.CreateAsync(command, "author", CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(TrainingMutationFailureCode.InvalidLegacyCounts, result.FailureCode);
+        Assert.Equal("Legacy counts cannot be negative.", result.ErrorMessage);
+        Assert.Equal(0, await db.Trainings.CountAsync());
+    }
+
+    [Fact]
     public async Task UpdateAsync_PreservesRosterCounters_WhenRosterExists()
     {
         var initialTimestamp = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero);
