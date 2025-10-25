@@ -8,6 +8,7 @@ using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
 using ProjectManagement.Services.ProjectOfficeReports.Training;
 using ProjectManagement.Tests.Fakes;
+using TrainingEntity = ProjectManagement.Areas.ProjectOfficeReports.Domain.Training;
 
 namespace ProjectManagement.Tests.ProjectOfficeReports.Training;
 
@@ -31,7 +32,7 @@ public sealed class TrainingWriteServiceTests
         };
         db.TrainingTypes.Add(trainingType);
 
-        var training = new Training
+        var training = new TrainingEntity
         {
             Id = Guid.NewGuid(),
             TrainingTypeId = trainingType.Id,
@@ -124,7 +125,7 @@ public sealed class TrainingWriteServiceTests
         };
         db.TrainingTypes.Add(trainingType);
 
-        var training = new Training
+        var training = new TrainingEntity
         {
             Id = Guid.NewGuid(),
             TrainingTypeId = trainingType.Id,
