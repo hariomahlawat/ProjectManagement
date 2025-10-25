@@ -40,7 +40,7 @@ public class RoleBasedNavigationProviderTests
             }
         };
 
-        var provider = new RoleBasedNavigationProvider(userManager, httpContextAccessor);
+        var provider = CreateProvider(userManager, httpContextAccessor);
         var navigation = await provider.GetNavigationAsync();
 
         var adminPanel = navigation.Single(item => item.Text == "Admin Panel");
@@ -80,7 +80,7 @@ public class RoleBasedNavigationProviderTests
             }
         };
 
-        var provider = new RoleBasedNavigationProvider(userManager, httpContextAccessor);
+        var provider = CreateProvider(userManager, httpContextAccessor);
         var navigation = await provider.GetNavigationAsync();
 
         var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
@@ -153,7 +153,7 @@ public class RoleBasedNavigationProviderTests
             }
         };
 
-        var provider = new RoleBasedNavigationProvider(userManager, httpContextAccessor);
+        var provider = CreateProvider(userManager, httpContextAccessor);
         var navigation = await provider.GetNavigationAsync();
 
         var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
@@ -194,7 +194,7 @@ public class RoleBasedNavigationProviderTests
             }
         };
 
-        var provider = new RoleBasedNavigationProvider(userManager, httpContextAccessor);
+        var provider = CreateProvider(userManager, httpContextAccessor);
         var navigation = await provider.GetNavigationAsync();
 
         var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
@@ -234,6 +234,19 @@ public class RoleBasedNavigationProviderTests
         }
     }
 
+    private static RoleBasedNavigationProvider CreateProvider(
+        UserManager<ApplicationUser> userManager,
+        IHttpContextAccessor httpContextAccessor,
+        bool trainingTrackerEnabled = false)
+    {
+        var options = new StubOptionsMonitor<TrainingTrackerOptions>(new TrainingTrackerOptions
+        {
+            Enabled = trainingTrackerEnabled
+        });
+
+        return new RoleBasedNavigationProvider(userManager, httpContextAccessor, options);
+    }
+
     private sealed class StubUserManager : UserManager<ApplicationUser>
     {
         private readonly ApplicationUser _user;
@@ -258,6 +271,31 @@ public class RoleBasedNavigationProviderTests
         public override Task<ApplicationUser?> GetUserAsync(ClaimsPrincipal principal) => Task.FromResult<ApplicationUser?>(_user);
 
         public override Task<IList<string>> GetRolesAsync(ApplicationUser user) => Task.FromResult(_roles);
+    }
+
+    private sealed class StubOptionsMonitor<T> : IOptionsMonitor<T>
+    {
+        private T _currentValue;
+
+        public StubOptionsMonitor(T currentValue)
+        {
+            _currentValue = currentValue;
+        }
+
+        public T CurrentValue => _currentValue;
+
+        public T Get(string? name) => _currentValue;
+
+        public IDisposable OnChange(Action<T, string> listener) => NullDisposable.Instance;
+
+        private sealed class NullDisposable : IDisposable
+        {
+            public static readonly NullDisposable Instance = new();
+
+            public void Dispose()
+            {
+            }
+        }
     }
 
     private sealed class StubUserStore : IUserStore<ApplicationUser>
