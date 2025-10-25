@@ -174,7 +174,13 @@ public sealed class TrainingWriteService
         training.RowVersion = Guid.NewGuid().ToByteArray();
 
         UpdateProjectLinks(training, validation.ProjectIds);
-        UpdateCounters(training, command.LegacyOfficers, command.LegacyJcos, command.LegacyOrs, now, TrainingCounterSource.Legacy);
+        await RefreshCountersAsync(
+            training,
+            command.LegacyOfficers,
+            command.LegacyJcos,
+            command.LegacyOrs,
+            now,
+            cancellationToken);
 
         await _db.SaveChangesAsync(cancellationToken);
 
@@ -215,6 +221,81 @@ public sealed class TrainingWriteService
             counters.RowVersion = Guid.NewGuid().ToByteArray();
         }
     }
+
+    // Roster data always takes precedence over legacy counts. When a snapshot is provided (e.g. during
+    // roster upserts) it is used directly because the change tracker may not yet reflect pending inserts
+    // or deletions. Otherwise the method inspects the persisted roster state to choose the appropriate
+    // counter source.
+    private async Task RefreshCountersAsync(
+        DomainTraining training,
+        int legacyOfficers,
+        int legacyJcos,
+        int legacyOrs,
+        DateTimeOffset timestamp,
+        CancellationToken cancellationToken,
+        RosterCounterSnapshot? rosterSnapshot = null)
+    {
+        if (training is null)
+        {
+            throw new ArgumentNullException(nameof(training));
+        }
+
+        if (rosterSnapshot.HasValue)
+        {
+            var snapshot = rosterSnapshot.Value;
+            if (snapshot.HasRoster)
+            {
+                UpdateCounters(training, snapshot.Officers, snapshot.JuniorCommissionedOfficers, snapshot.OtherRanks, timestamp, TrainingCounterSource.Roster);
+            }
+            else
+            {
+                UpdateCounters(training, legacyOfficers, legacyJcos, legacyOrs, timestamp, TrainingCounterSource.Legacy);
+            }
+
+            return;
+        }
+
+        var rosterGroups = await _db.TrainingTrainees
+            .AsNoTracking()
+            .Where(x => x.TrainingId == training.Id)
+            .GroupBy(x => x.Category)
+            .Select(group => new { group.Key, Count = group.Count() })
+            .ToListAsync(cancellationToken);
+
+        if (rosterGroups.Count > 0)
+        {
+            var officers = 0;
+            var jcos = 0;
+            var ors = 0;
+
+            foreach (var group in rosterGroups)
+            {
+                switch (group.Key)
+                {
+                    case 0:
+                        officers = group.Count;
+                        break;
+                    case 1:
+                        jcos = group.Count;
+                        break;
+                    case 2:
+                        ors = group.Count;
+                        break;
+                }
+            }
+
+            UpdateCounters(training, officers, jcos, ors, timestamp, TrainingCounterSource.Roster);
+            return;
+        }
+
+        UpdateCounters(training, legacyOfficers, legacyJcos, legacyOrs, timestamp, TrainingCounterSource.Legacy);
+    }
+
+    private readonly record struct RosterCounterSnapshot(
+        int Officers,
+        int JuniorCommissionedOfficers,
+        int OtherRanks,
+        bool HasRoster);
 
     private static string? NormalizeNotes(string? notes)
     {
@@ -314,17 +395,27 @@ public sealed class TrainingWriteService
         training.LastModifiedByUserId = userId;
         training.RowVersion = Guid.NewGuid().ToByteArray();
 
+        RosterCounterSnapshot? rosterSnapshot;
         if (normalizedRows.Count > 0)
         {
             var officers = normalizedRows.Count(x => x.Category == 0);
             var jcos = normalizedRows.Count(x => x.Category == 1);
             var ors = normalizedRows.Count(x => x.Category == 2);
-            UpdateCounters(training, officers, jcos, ors, now, TrainingCounterSource.Roster);
+            rosterSnapshot = new RosterCounterSnapshot(officers, jcos, ors, HasRoster: true);
         }
         else
         {
-            UpdateCounters(training, training.LegacyOfficerCount, training.LegacyJcoCount, training.LegacyOrCount, now, TrainingCounterSource.Legacy);
+            rosterSnapshot = new RosterCounterSnapshot(0, 0, 0, HasRoster: false);
         }
+
+        await RefreshCountersAsync(
+            training,
+            training.LegacyOfficerCount,
+            training.LegacyJcoCount,
+            training.LegacyOrCount,
+            now,
+            cancellationToken,
+            rosterSnapshot);
 
         try
         {
