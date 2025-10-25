@@ -183,6 +183,56 @@ public sealed class TrainingWriteServiceTests
         Assert.Equal(TrainingCounterSource.Roster, countersEntity.Source);
     }
 
+    [Fact]
+    public async Task UpsertRosterAsync_ReturnsInvalidRequest_WhenRowMissingRequiredFields()
+    {
+        var initialTimestamp = new DateTimeOffset(2024, 3, 1, 0, 0, 0, TimeSpan.Zero);
+        var clock = FakeClock.AtUtc(initialTimestamp);
+        await using var db = CreateDbContext();
+        var sut = CreateService(db, clock);
+
+        var trainingType = new TrainingType
+        {
+            Id = Guid.NewGuid(),
+            Name = "Signals Refresher",
+            IsActive = true,
+            CreatedAtUtc = initialTimestamp,
+            CreatedByUserId = "seed"
+        };
+        db.TrainingTypes.Add(trainingType);
+
+        var training = new TrainingEntity
+        {
+            Id = Guid.NewGuid(),
+            TrainingTypeId = trainingType.Id,
+            TrainingMonth = 3,
+            TrainingYear = 2024,
+            LegacyOfficerCount = 0,
+            LegacyJcoCount = 0,
+            LegacyOrCount = 0,
+            CreatedAtUtc = initialTimestamp,
+            CreatedByUserId = "seed",
+            LastModifiedAtUtc = initialTimestamp,
+            LastModifiedByUserId = "seed",
+            RowVersion = Guid.NewGuid().ToByteArray()
+        };
+
+        db.Trainings.Add(training);
+        await db.SaveChangesAsync();
+
+        var rosterRows = new[]
+        {
+            new TrainingRosterRow { Rank = "Capt", Name = "Valid", UnitName = "Unit", Category = 0 },
+            new TrainingRosterRow { Rank = "", Name = "Missing Rank", UnitName = "Unit", Category = 2 }
+        };
+
+        var result = await sut.UpsertRosterAsync(training.Id, rosterRows, training.RowVersion, "editor", CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(TrainingRosterFailureCode.InvalidRequest, result.FailureCode);
+        Assert.Contains("Rank, Name, and Unit", result.ErrorMessage);
+    }
+
     private static ApplicationDbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
