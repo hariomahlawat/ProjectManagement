@@ -70,6 +70,41 @@ else
         </div>
     </div>
 
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-3">
+            <div class="card pm-card h-100">
+                <div class="card-body">
+                    <div class="text-secondary small text-uppercase">Total trainings</div>
+                    <div class="fs-3 fw-semibold">@Model.Kpis.TotalTrainings.ToString("N0", CultureInfo.CurrentCulture)</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card pm-card h-100">
+                <div class="card-body">
+                    <div class="text-secondary small text-uppercase">Total trainees</div>
+                    <div class="fs-3 fw-semibold">@Model.Kpis.TotalTrainees.ToString("N0", CultureInfo.CurrentCulture)</div>
+                </div>
+            </div>
+        </div>
+
+        @if (Model.Kpis.ByType.Count > 0)
+        {
+            foreach (var typeKpi in Model.Kpis.ByType)
+            {
+                <div class="col-6 col-lg-3">
+                    <div class="card pm-card h-100">
+                        <div class="card-body">
+                            <div class="text-secondary small text-uppercase">@typeKpi.TypeName</div>
+                            <div class="fs-4 fw-semibold">@typeKpi.Trainees.ToString("N0", CultureInfo.CurrentCulture)</div>
+                            <div class="small text-muted">Trainings: @typeKpi.Trainings.ToString("N0", CultureInfo.CurrentCulture)</div>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+
     if (!Model.HasResults)
     {
         <div class="card shadow-sm">
