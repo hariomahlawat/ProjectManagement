@@ -41,6 +41,8 @@ public sealed class IprReadService : IIprReadService
                 x.Type,
                 x.Status,
                 x.FiledAtUtc,
+                x.FiledBy,
+                x.GrantedAtUtc,
                 x.ProjectId,
                 ProjectName = x.Project != null ? x.Project.Name : null,
                 Attachments = x.Attachments
@@ -69,6 +71,8 @@ public sealed class IprReadService : IIprReadService
                 x.Type,
                 x.Status,
                 x.FiledAtUtc,
+                x.FiledBy,
+                x.GrantedAtUtc,
                 x.ProjectId,
                 x.ProjectName,
                 x.Attachments.Count,

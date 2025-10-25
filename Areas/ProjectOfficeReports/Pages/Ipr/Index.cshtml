@@ -45,7 +45,7 @@
         _ => "badge-soft"
     };
 
-    string FormatFiledDate(DateTimeOffset? value)
+    string FormatDate(DateTimeOffset? value)
     {
         if (!value.HasValue)
         {
@@ -342,6 +342,7 @@
                                 var projectName = string.IsNullOrWhiteSpace(record.ProjectName) ? "—" : record.ProjectName;
                                 var notes = string.IsNullOrWhiteSpace(record.Notes) ? "—" : record.Notes;
                                 var titleText = string.IsNullOrWhiteSpace(record.Title) ? "—" : record.Title;
+                                var filedBy = string.IsNullOrWhiteSpace(record.FiledBy) ? "—" : record.FiledBy;
                                 <article class="ipr-record-card">
                                     <header class="ipr-record-card__header">
                                         <div class="ipr-record-card__identity">
@@ -355,9 +356,17 @@
                                         <dl class="ipr-record-card__meta">
                                             <div class="ipr-record-card__meta-item">
                                                 <dt>Filed on</dt>
-                                                <dd>@FormatFiledDate(record.FiledAtUtc)</dd>
+                                                <dd>@FormatDate(record.FiledAtUtc)</dd>
                                             </div>
                                             <div class="ipr-record-card__meta-item">
+                                                <dt>Filed by</dt>
+                                                <dd title="@filedBy">@filedBy</dd>
+                                            </div>
+                                            <div class="ipr-record-card__meta-item">
+                                                <dt>Granted on</dt>
+                                                <dd>@FormatDate(record.GrantedAtUtc)</dd>
+                                            </div>
+                                            <div class="ipr-record-card__meta-item ipr-record-card__meta-item--project">
                                                 <dt>Project</dt>
                                                 <dd title="@projectName">@projectName</dd>
                                             </div>

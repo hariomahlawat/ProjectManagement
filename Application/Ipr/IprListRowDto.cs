@@ -11,6 +11,8 @@ public sealed record IprListRowDto(
     IprType Type,
     IprStatus Status,
     DateTimeOffset? FiledAtUtc,
+    string? FiledBy,
+    DateTimeOffset? GrantedAtUtc,
     int? ProjectId,
     string? ProjectName,
     int AttachmentCount,
