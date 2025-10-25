@@ -292,6 +292,25 @@ public class ManageModel : PageModel
             case TrainingMutationFailureCode.MissingUserId:
                 ModelState.AddModelError(string.Empty, "The current user is not recognized.");
                 break;
+            case TrainingMutationFailureCode.InvalidSchedule:
+                var scheduleMessage = result.ErrorMessage ?? "Provide a start and end date with the end date on or after the start date, or specify a training month and year.";
+                if (Input?.ScheduleMode == TrainingScheduleMode.MonthAndYear)
+                {
+                    ModelState.AddModelError(nameof(Input.TrainingMonth), scheduleMessage);
+                    ModelState.AddModelError(nameof(Input.TrainingYear), scheduleMessage);
+                }
+                else
+                {
+                    ModelState.AddModelError(nameof(Input.StartDate), scheduleMessage);
+                    ModelState.AddModelError(nameof(Input.EndDate), scheduleMessage);
+                }
+                break;
+            case TrainingMutationFailureCode.InvalidLegacyCounts:
+                var legacyMessage = result.ErrorMessage ?? "Legacy counts cannot be negative.";
+                ModelState.AddModelError(nameof(Input.LegacyOfficerCount), legacyMessage);
+                ModelState.AddModelError(nameof(Input.LegacyJcoCount), legacyMessage);
+                ModelState.AddModelError(nameof(Input.LegacyOrCount), legacyMessage);
+                break;
             default:
                 if (!string.IsNullOrWhiteSpace(result.ErrorMessage))
                 {

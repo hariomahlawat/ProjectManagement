@@ -48,6 +48,11 @@ public sealed class TrainingWriteService
             return TrainingMutationResult.Failure(TrainingMutationFailureCode.MissingUserId, "The current user context is not available.");
         }
 
+        if (!TryValidateCommand(command, out var validationFailure))
+        {
+            return validationFailure!;
+        }
+
         var type = await _db.TrainingTypes
             .FirstOrDefaultAsync(x => x.Id == command.TrainingTypeId, cancellationToken);
 
@@ -137,6 +142,11 @@ public sealed class TrainingWriteService
         if (expectedRowVersion is not null && !training.RowVersion.SequenceEqual(expectedRowVersion))
         {
             return TrainingMutationResult.Failure(TrainingMutationFailureCode.ConcurrencyConflict, "The training was updated by another user.");
+        }
+
+        if (!TryValidateCommand(command, out var validationFailure))
+        {
+            return validationFailure!;
         }
 
         var type = await _db.TrainingTypes
@@ -296,6 +306,65 @@ public sealed class TrainingWriteService
         int JuniorCommissionedOfficers,
         int OtherRanks,
         bool HasRoster);
+
+    private const string InvalidScheduleErrorMessage = "Provide a start and end date with the end date on or after the start date, or specify a training month and year.";
+    private const string InvalidLegacyCountsErrorMessage = "Legacy counts cannot be negative.";
+
+    private static bool TryValidateCommand(TrainingMutationCommand command, out TrainingMutationResult? failure)
+    {
+        if (command.LegacyOfficers < 0 || command.LegacyJcos < 0 || command.LegacyOrs < 0)
+        {
+            failure = TrainingMutationResult.Failure(TrainingMutationFailureCode.InvalidLegacyCounts, InvalidLegacyCountsErrorMessage);
+            return false;
+        }
+
+        var hasStart = command.StartDate.HasValue;
+        var hasEnd = command.EndDate.HasValue;
+        var hasMonth = command.TrainingMonth.HasValue;
+        var hasYear = command.TrainingYear.HasValue;
+
+        if (hasStart != hasEnd)
+        {
+            failure = TrainingMutationResult.Failure(TrainingMutationFailureCode.InvalidSchedule, InvalidScheduleErrorMessage);
+            return false;
+        }
+
+        if (hasMonth != hasYear)
+        {
+            failure = TrainingMutationResult.Failure(TrainingMutationFailureCode.InvalidSchedule, InvalidScheduleErrorMessage);
+            return false;
+        }
+
+        if (hasStart && hasEnd)
+        {
+            if (command.EndDate!.Value < command.StartDate!.Value)
+            {
+                failure = TrainingMutationResult.Failure(TrainingMutationFailureCode.InvalidSchedule, InvalidScheduleErrorMessage);
+                return false;
+            }
+        }
+
+        if (hasMonth && hasYear)
+        {
+            var month = command.TrainingMonth!.Value;
+            var year = command.TrainingYear!.Value;
+
+            if (month is < 1 or > 12 || year < 1)
+            {
+                failure = TrainingMutationResult.Failure(TrainingMutationFailureCode.InvalidSchedule, InvalidScheduleErrorMessage);
+                return false;
+            }
+        }
+
+        if (!(hasStart && hasEnd) && !(hasMonth && hasYear))
+        {
+            failure = TrainingMutationResult.Failure(TrainingMutationFailureCode.InvalidSchedule, InvalidScheduleErrorMessage);
+            return false;
+        }
+
+        failure = null;
+        return true;
+    }
 
     private static string? NormalizeNotes(string? notes)
     {
@@ -1063,5 +1132,7 @@ public enum TrainingMutationFailureCode
     InvalidProjects = 3,
     TrainingNotFound = 4,
     ConcurrencyConflict = 5,
-    MissingUserId = 6
+    MissingUserId = 6,
+    InvalidSchedule = 7,
+    InvalidLegacyCounts = 8
 }
