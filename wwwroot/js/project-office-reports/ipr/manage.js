@@ -48,6 +48,8 @@
     return modal;
   }
 
+  let isConfirmModalActive = false;
+
   function showConfirmModal(displayText, message) {
     const bootstrap = ensureBootstrapModal();
     if (!bootstrap) {
@@ -55,6 +57,10 @@
     }
 
     const modalEl = ensureConfirmModalElement();
+    if (isConfirmModalActive) {
+      return Promise.resolve(false);
+    }
+
     const instance = bootstrap.Modal.getOrCreateInstance(modalEl, {
       backdrop: 'static',
       keyboard: true,
@@ -70,6 +76,8 @@
     const confirmButton = modalEl.querySelector('[data-ipr-confirm-accept]');
     const cancelButton = modalEl.querySelector('[data-ipr-confirm-cancel]');
 
+    isConfirmModalActive = true;
+
     return new Promise(resolve => {
       let handled = false;
 
@@ -77,6 +85,7 @@
         confirmButton?.removeEventListener('click', handleConfirm);
         cancelButton?.removeEventListener('click', handleCancel);
         modalEl.removeEventListener('hidden.bs.modal', handleHidden);
+        isConfirmModalActive = false;
       };
 
       const handleConfirm = () => {
