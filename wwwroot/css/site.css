@@ -249,7 +249,7 @@ body {
     padding: 1.5rem;
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1.25rem;
 }
 
 .ipr-record-card__header {
@@ -270,7 +270,7 @@ body {
 .ipr-record-card__body {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: .75rem;
 }
 
 .ipr-record-card__title {
@@ -279,7 +279,9 @@ body {
 
 .ipr-record-card__meta {
     display: grid;
-    gap: 1rem 1.5rem;
+    gap: .75rem 1.25rem;
+    grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+    align-items: start;
 }
 
 .ipr-record-card__meta-item dt {
@@ -295,6 +297,11 @@ body {
     margin-bottom: 0;
     font-weight: 500;
     color: var(--bs-body-color);
+    overflow-wrap: anywhere;
+}
+
+.ipr-record-card__meta-item--project dd {
+    font-weight: 500;
 }
 
 .ipr-record-card__meta-item--notes dd {
@@ -343,7 +350,11 @@ body {
 
 @media (min-width: 768px) {
     .ipr-record-card__meta {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .ipr-record-card__meta-item--project {
+        grid-column: span 2;
     }
 
     .ipr-record-card__meta-item--notes {
@@ -353,7 +364,11 @@ body {
 
 @media (min-width: 1200px) {
     .ipr-record-card__meta {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .ipr-record-card__meta-item--project {
+        grid-column: span 1;
     }
 }
 
