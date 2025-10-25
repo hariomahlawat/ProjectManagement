@@ -40,7 +40,8 @@ public class RoleBasedNavigationProviderTests
             }
         };
 
-        var provider = new RoleBasedNavigationProvider(userManager, httpContextAccessor);
+        var trainingOptions = new StubOptionsMonitor(new TrainingTrackerOptions());
+        var provider = new RoleBasedNavigationProvider(userManager, httpContextAccessor, trainingOptions);
         var navigation = await provider.GetNavigationAsync();
 
         var adminPanel = navigation.Single(item => item.Text == "Admin Panel");
@@ -80,7 +81,8 @@ public class RoleBasedNavigationProviderTests
             }
         };
 
-        var provider = new RoleBasedNavigationProvider(userManager, httpContextAccessor);
+        var trainingOptions = new StubOptionsMonitor(new TrainingTrackerOptions());
+        var provider = new RoleBasedNavigationProvider(userManager, httpContextAccessor, trainingOptions);
         var navigation = await provider.GetNavigationAsync();
 
         var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
@@ -153,7 +155,8 @@ public class RoleBasedNavigationProviderTests
             }
         };
 
-        var provider = new RoleBasedNavigationProvider(userManager, httpContextAccessor);
+        var trainingOptions = new StubOptionsMonitor(new TrainingTrackerOptions());
+        var provider = new RoleBasedNavigationProvider(userManager, httpContextAccessor, trainingOptions);
         var navigation = await provider.GetNavigationAsync();
 
         var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
@@ -194,7 +197,8 @@ public class RoleBasedNavigationProviderTests
             }
         };
 
-        var provider = new RoleBasedNavigationProvider(userManager, httpContextAccessor);
+        var trainingOptions = new StubOptionsMonitor(new TrainingTrackerOptions());
+        var provider = new RoleBasedNavigationProvider(userManager, httpContextAccessor, trainingOptions);
         var navigation = await provider.GetNavigationAsync();
 
         var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
@@ -258,6 +262,31 @@ public class RoleBasedNavigationProviderTests
         public override Task<ApplicationUser?> GetUserAsync(ClaimsPrincipal principal) => Task.FromResult<ApplicationUser?>(_user);
 
         public override Task<IList<string>> GetRolesAsync(ApplicationUser user) => Task.FromResult(_roles);
+    }
+
+    private sealed class StubOptionsMonitor : IOptionsMonitor<TrainingTrackerOptions>
+    {
+        private readonly TrainingTrackerOptions _options;
+
+        public StubOptionsMonitor(TrainingTrackerOptions options)
+        {
+            _options = options;
+        }
+
+        public TrainingTrackerOptions CurrentValue => _options;
+
+        public TrainingTrackerOptions Get(string name) => _options;
+
+        public IDisposable OnChange(Action<TrainingTrackerOptions, string> listener) => NullDisposable.Instance;
+
+        private sealed class NullDisposable : IDisposable
+        {
+            public static readonly NullDisposable Instance = new();
+
+            public void Dispose()
+            {
+            }
+        }
     }
 
     private sealed class StubUserStore : IUserStore<ApplicationUser>
