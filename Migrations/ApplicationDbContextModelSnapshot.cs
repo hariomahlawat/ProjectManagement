@@ -4494,6 +4494,18 @@ namespace ProjectManagement.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasMany("ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingDeleteRequest", "DeleteRequests")
+                        .WithOne("Training")
+                        .HasForeignKey("TrainingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasMany("ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingProject", "ProjectLinks")
+                        .WithOne("Training")
+                        .HasForeignKey("TrainingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("DeleteRequests");
 
                     b.Navigation("ProjectLinks");
@@ -4514,12 +4526,6 @@ namespace ProjectManagement.Migrations
 
             modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingDeleteRequest", b =>
                 {
-                    b.HasOne("ProjectManagement.Areas.ProjectOfficeReports.Domain.Training", "Training")
-                        .WithMany("DeleteRequests")
-                        .HasForeignKey("TrainingId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.Navigation("Training");
                 });
 
@@ -4528,12 +4534,6 @@ namespace ProjectManagement.Migrations
                     b.HasOne("ProjectManagement.Models.Project", "Project")
                         .WithMany()
                         .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ProjectManagement.Areas.ProjectOfficeReports.Domain.Training", "Training")
-                        .WithMany("ProjectLinks")
-                        .HasForeignKey("TrainingId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
