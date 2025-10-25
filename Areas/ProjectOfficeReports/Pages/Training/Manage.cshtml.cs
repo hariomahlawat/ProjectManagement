@@ -48,6 +48,8 @@ public class ManageModel : PageModel
 
     public IReadOnlyList<SelectListItem> ProjectOptions { get; private set; } = Array.Empty<SelectListItem>();
 
+    public TrainingDeleteRequestSummary? PendingDeleteRequest { get; private set; }
+
     public async Task<IActionResult> OnGetAsync(Guid? id, CancellationToken cancellationToken)
     {
         IsFeatureEnabled = _options.Value.Enabled;
@@ -57,12 +59,14 @@ public class ManageModel : PageModel
 
         if (!IsFeatureEnabled)
         {
+            PendingDeleteRequest = null;
             return Page();
         }
 
         if (!id.HasValue)
         {
             Input = InputModel.CreateDefault();
+            PendingDeleteRequest = null;
             return Page();
         }
 
@@ -74,6 +78,7 @@ public class ManageModel : PageModel
         }
 
         Input = InputModel.FromEditor(existing);
+        ApplyPendingDeleteRequest(existing.PendingDeleteRequest);
         return Page();
     }
 
@@ -207,6 +212,63 @@ public class ManageModel : PageModel
         });
     }
 
+    public async Task<IActionResult> OnPostRequestDeleteAsync(DeleteRequestForm form, CancellationToken cancellationToken)
+    {
+        if (form is null || form.TrainingId == Guid.Empty)
+        {
+            TempData["ToastError"] = "The training could not be identified.";
+            return RedirectToPage("./Manage", new { id = form?.TrainingId ?? Guid.Empty });
+        }
+
+        if (string.IsNullOrWhiteSpace(form.Reason))
+        {
+            TempData["ToastError"] = "Provide a reason for the delete request.";
+            return RedirectToPage("./Manage", new { id = form.TrainingId });
+        }
+
+        var expectedRowVersion = DecodeRowVersion(form.RowVersion);
+        if (expectedRowVersion is null)
+        {
+            TempData["ToastError"] = "We could not verify the training details. Reload and try again.";
+            return RedirectToPage("./Manage", new { id = form.TrainingId });
+        }
+
+        var userId = _userContext.UserId;
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            TempData["ToastError"] = "You are not signed in or your session has expired.";
+            return RedirectToPage("./Manage", new { id = form.TrainingId });
+        }
+
+        var result = await _writeService.RequestDeleteAsync(
+            form.TrainingId,
+            form.Reason,
+            expectedRowVersion,
+            userId,
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            var message = result.FailureCode switch
+            {
+                TrainingDeleteFailureCode.TrainingNotFound => "The training could not be found.",
+                TrainingDeleteFailureCode.ConcurrencyConflict => "The training was updated by another user. Reload and try again.",
+                TrainingDeleteFailureCode.PendingRequestExists => "A delete request is already pending for this training.",
+                TrainingDeleteFailureCode.InvalidReason => "Provide a reason for the delete request.",
+                TrainingDeleteFailureCode.MissingUserId => "You are not signed in or your session has expired.",
+                _ => result.ErrorMessage ?? "The delete request could not be submitted."
+            };
+
+            TempData["ToastError"] = message;
+        }
+        else
+        {
+            TempData["ToastMessage"] = "Delete request submitted for approval.";
+        }
+
+        return RedirectToPage("./Manage", new { id = form.TrainingId });
+    }
+
     private async Task HandleFailureAsync(TrainingMutationResult result, CancellationToken cancellationToken)
     {
         switch (result.FailureCode)
@@ -244,6 +306,7 @@ public class ManageModel : PageModel
             {
                 Input.RowVersion = Convert.ToBase64String(refreshed.RowVersion);
                 ApplyRosterMetadata(Input, refreshed);
+                ApplyPendingDeleteRequest(refreshed.PendingDeleteRequest);
             }
         }
 
@@ -271,6 +334,7 @@ public class ManageModel : PageModel
 
         Input ??= InputModel.CreateDefault();
         ApplyRosterMetadata(Input, editor);
+        ApplyPendingDeleteRequest(editor.PendingDeleteRequest);
     }
 
     private static byte[]? DecodeRowVersion(string? value)
@@ -299,6 +363,13 @@ public class ManageModel : PageModel
         model.CounterOrs = editor.CounterOrs;
         model.CounterTotal = editor.CounterTotal;
         model.CounterSource = editor.CounterSource;
+    }
+
+    private void ApplyPendingDeleteRequest(TrainingDeleteRequestSummary? summary)
+    {
+        PendingDeleteRequest = summary is { Status: TrainingDeleteRequestStatus.Pending }
+            ? summary
+            : null;
     }
 
     private static List<TrainingRosterRow> CloneRoster(IReadOnlyList<TrainingRosterRow> roster)
@@ -394,6 +465,15 @@ public class ManageModel : PageModel
         public string? RowVersion { get; set; }
 
         public List<TrainingRosterRow> Rows { get; set; } = new();
+    }
+
+    public sealed class DeleteRequestForm
+    {
+        public Guid TrainingId { get; set; }
+
+        public string Reason { get; set; } = string.Empty;
+
+        public string RowVersion { get; set; } = string.Empty;
     }
 
     public enum TrainingScheduleMode

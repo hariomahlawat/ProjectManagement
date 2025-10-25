@@ -101,6 +101,13 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Page = "/Training/Index",
                 AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewTrainingTracker
             });
+            projectOfficeReportsChildren.Add(new NavigationItem
+            {
+                Text = "Training delete approvals",
+                Area = "ProjectOfficeReports",
+                Page = "/Training/Approvals",
+                AuthorizationPolicy = ProjectOfficeReportsPolicies.ApproveTrainingTracker
+            });
         }
 
         var proliferationTracker = new NavigationItem

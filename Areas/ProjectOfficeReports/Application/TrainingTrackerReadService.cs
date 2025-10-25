@@ -82,6 +82,20 @@ public sealed class TrainingTrackerReadService
                         Category = t.Category
                     })
                     .ToList(),
+                x.DeleteRequests
+                    .Where(request => request.Status == TrainingDeleteRequestStatus.Pending)
+                    .OrderByDescending(request => request.RequestedAtUtc)
+                    .Select(request => new TrainingDeleteRequestSummary(
+                        request.Id,
+                        request.TrainingId,
+                        request.RequestedByUserId,
+                        request.RequestedAtUtc,
+                        request.Reason,
+                        request.Status,
+                        request.DecidedByUserId,
+                        request.DecidedAtUtc,
+                        request.DecisionNotes))
+                    .FirstOrDefault(),
                 x.RowVersion))
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -181,12 +195,99 @@ public sealed class TrainingTrackerReadService
             .ThenBy(entry => entry.TypeName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        var trainingIds = filtered.Select(item => item.Id).ToArray();
+
+        var byTechnicalCategory = trainingIds.Length == 0
+            ? Array.Empty<TechnicalCategoryKpi>()
+            : await BuildTechnicalCategoryKpisAsync(trainingIds, cancellationToken);
+
         return new TrainingKpiDto
         {
             TotalTrainings = totalTrainings,
             TotalTrainees = totalTrainees,
-            ByType = byType
+            ByType = byType,
+            ByTechnicalCategory = byTechnicalCategory
         };
+    }
+
+    public async Task<IReadOnlyList<TrainingDeleteRequestDto>> GetPendingDeleteRequestsAsync(
+        CancellationToken cancellationToken)
+    {
+        var requests = await _db.TrainingDeleteRequests
+            .AsNoTracking()
+            .Where(request => request.Status == TrainingDeleteRequestStatus.Pending)
+            .OrderByDescending(request => request.RequestedAtUtc)
+            .Select(request => new TrainingDeleteRequestProjection(
+                request.Id,
+                request.TrainingId,
+                request.Training!.TrainingType!.Name,
+                request.Training.StartDate,
+                request.Training.EndDate,
+                request.Training.TrainingMonth,
+                request.Training.TrainingYear,
+                request.Training.Counters != null ? (int?)request.Training.Counters.Total : null,
+                request.Training.LegacyOfficerCount,
+                request.Training.LegacyJcoCount,
+                request.Training.LegacyOrCount,
+                request.RequestedByUserId,
+                request.RequestedAtUtc,
+                request.Reason))
+            .ToListAsync(cancellationToken);
+
+        if (requests.Count == 0)
+        {
+            return Array.Empty<TrainingDeleteRequestDto>();
+        }
+
+        var requestedByIds = requests
+            .Select(request => request.RequestedByUserId)
+            .Where(userId => !string.IsNullOrWhiteSpace(userId))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        var userDisplayNames = requestedByIds.Length == 0
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : (await _db.Users
+                .AsNoTracking()
+                .Where(user => requestedByIds.Contains(user.Id))
+                .Select(user => new { user.Id, user.FullName, user.UserName })
+                .ToListAsync(cancellationToken))
+                .ToDictionary(
+                    user => user.Id,
+                    user => string.IsNullOrWhiteSpace(user.FullName)
+                        ? (string.IsNullOrWhiteSpace(user.UserName) ? user.Id : user.UserName!)
+                        : user.FullName,
+                    StringComparer.OrdinalIgnoreCase);
+
+        var result = requests
+            .Select(request =>
+            {
+                var total = request.CounterTotal ?? (request.LegacyOfficerCount + request.LegacyJcoCount + request.LegacyOrCount);
+                var period = FormatPeriod(
+                    request.StartDate,
+                    request.EndDate,
+                    request.TrainingMonth,
+                    request.TrainingYear);
+                var displayName = userDisplayNames.TryGetValue(request.RequestedByUserId, out var name)
+                    ? name
+                    : request.RequestedByUserId;
+
+                return new TrainingDeleteRequestDto
+                {
+                    Id = request.Id,
+                    TrainingId = request.TrainingId,
+                    TrainingTypeName = request.TrainingTypeName,
+                    Period = period,
+                    TotalTrainees = total,
+                    RequestedByUserId = request.RequestedByUserId,
+                    RequestedByDisplayName = displayName,
+                    RequestedAtUtc = request.RequestedAtUtc,
+                    Reason = request.Reason
+                };
+            })
+            .ToList();
+
+        return result;
     }
 
     public async Task<IReadOnlyList<TrainingExportRow>> ExportAsync(TrainingTrackerQuery? query, CancellationToken cancellationToken)
@@ -206,6 +307,61 @@ public sealed class TrainingTrackerReadService
                 item.ProjectNames,
                 item.Notes))
             .ToList();
+    }
+
+    private async Task<IReadOnlyList<TechnicalCategoryKpi>> BuildTechnicalCategoryKpisAsync(
+        Guid[] trainingIds,
+        CancellationToken cancellationToken)
+    {
+        var perTrainingCategory = await _db.TrainingProjects
+            .AsNoTracking()
+            .Where(link => trainingIds.Contains(link.TrainingId))
+            .Where(link => link.Project != null && link.Project.TechnicalCategoryId.HasValue)
+            .Select(link => new
+            {
+                link.TrainingId,
+                CategoryId = link.Project!.TechnicalCategoryId!.Value,
+                CategoryName = link.Project.TechnicalCategory!.Name,
+                CounterTotal = link.Training!.Counters != null
+                    ? (int?)link.Training.Counters.Total
+                    : null,
+                link.Training.LegacyOfficerCount,
+                link.Training.LegacyJcoCount,
+                link.Training.LegacyOrCount
+            })
+            .ToListAsync(cancellationToken);
+
+        if (perTrainingCategory.Count == 0)
+        {
+            return Array.Empty<TechnicalCategoryKpi>();
+        }
+
+        var byTrainingAndCategory = perTrainingCategory
+            .GroupBy(entry => new { entry.TrainingId, entry.CategoryId, entry.CategoryName })
+            .Select(group => new
+            {
+                group.Key.CategoryId,
+                group.Key.CategoryName,
+                Total = group
+                    .Select(item => item.CounterTotal ?? (item.LegacyOfficerCount + item.LegacyJcoCount + item.LegacyOrCount))
+                    .First()
+            })
+            .ToList();
+
+        var aggregated = byTrainingAndCategory
+            .GroupBy(entry => new { entry.CategoryId, entry.CategoryName })
+            .Select(group => new TechnicalCategoryKpi
+            {
+                TechnicalCategoryId = group.Key.CategoryId,
+                TechnicalCategoryName = group.Key.CategoryName,
+                Trainings = group.Count(),
+                Trainees = group.Sum(item => item.Total)
+            })
+            .OrderByDescending(entry => entry.Trainees)
+            .ThenBy(entry => entry.TechnicalCategoryName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return aggregated;
     }
 
     private static TrainingListItem ToListItem(TrainingListProjection projection)
@@ -348,22 +504,41 @@ public sealed class TrainingTrackerReadService
     }
 
     private static string FormatPeriod(TrainingListItem item)
+        => FormatPeriod(item.StartDate, item.EndDate, item.TrainingMonth, item.TrainingYear);
+
+    private static string FormatPeriod(DateOnly? startDate, DateOnly? endDate, int? trainingMonth, int? trainingYear)
     {
-        if (item.StartDate.HasValue || item.EndDate.HasValue)
+        if (startDate.HasValue || endDate.HasValue)
         {
-            var start = item.StartDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "(not set)";
-            var end = item.EndDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? start;
+            var start = startDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "(not set)";
+            var end = endDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? start;
             return start == end ? start : $"{start} – {end}";
         }
 
-        if (item.TrainingYear.HasValue && item.TrainingMonth.HasValue)
+        if (trainingYear.HasValue && trainingMonth.HasValue)
         {
-            var monthName = CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(item.TrainingMonth.Value);
-            return $"{monthName} {item.TrainingYear.Value}";
+            var monthName = CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(trainingMonth.Value);
+            return $"{monthName} {trainingYear.Value}";
         }
 
         return "(unspecified)";
     }
+
+    private sealed record TrainingDeleteRequestProjection(
+        Guid Id,
+        Guid TrainingId,
+        string TrainingTypeName,
+        DateOnly? StartDate,
+        DateOnly? EndDate,
+        int? TrainingMonth,
+        int? TrainingYear,
+        int? CounterTotal,
+        int LegacyOfficerCount,
+        int LegacyJcoCount,
+        int LegacyOrCount,
+        string RequestedByUserId,
+        DateTimeOffset RequestedAtUtc,
+        string Reason);
 
     private sealed record TrainingListProjection(
         Guid Id,
@@ -413,7 +588,19 @@ public sealed record TrainingEditorData(
     TrainingCounterSource CounterSource,
     bool HasRoster,
     IReadOnlyList<TrainingRosterRow> Roster,
+    TrainingDeleteRequestSummary? PendingDeleteRequest,
     byte[] RowVersion);
+
+public sealed record TrainingDeleteRequestSummary(
+    Guid Id,
+    Guid TrainingId,
+    string RequestedByUserId,
+    DateTimeOffset RequestedAtUtc,
+    string Reason,
+    TrainingDeleteRequestStatus Status,
+    string? DecidedByUserId,
+    DateTimeOffset? DecidedAtUtc,
+    string? DecisionNotes);
 
 public sealed record TrainingListItem(
     Guid Id,

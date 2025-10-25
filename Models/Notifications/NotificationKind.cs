@@ -15,5 +15,8 @@ public enum NotificationKind
     DocumentRestored = 33,
     DocumentDeleted = 34,
     RoleAssignmentsChanged = 40,
-    ProjectAssignmentChanged = 41
+    ProjectAssignmentChanged = 41,
+    TrainingDeleteRequested = 90,
+    TrainingDeleteApproved = 91,
+    TrainingDeleteRejected = 92
 }

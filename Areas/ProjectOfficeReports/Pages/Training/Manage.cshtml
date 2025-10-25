@@ -18,6 +18,18 @@
 }
 else
 {
+    if (Model.PendingDeleteRequest is not null)
+    {
+        var pending = Model.PendingDeleteRequest;
+        <div class="alert alert-warning" role="alert">
+            <div class="fw-semibold mb-1">Delete request pending approval</div>
+            <div class="small text-muted">
+                Requested on @pending.RequestedAtUtc.ToLocalTime().ToString("dd MMM yyyy 'at' HH:mm", CultureInfo.CurrentCulture) by @pending.RequestedByUserId.
+            </div>
+            <div class="mb-0"><strong>Reason:</strong> @pending.Reason</div>
+        </div>
+    }
+
     <form method="post" asp-page-handler="Save" class="needs-validation" novalidate>
         <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 
@@ -152,9 +164,22 @@ else
             </div>
         </div>
 
-        <div class="d-flex justify-content-between align-items-center">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
             <a asp-page="./Index" class="btn btn-link">&larr; Back to tracker</a>
-            <button type="submit" class="btn btn-primary">Save training</button>
+            <div class="d-flex align-items-center gap-2">
+                @if (Model.Input.Id.HasValue && Model.PendingDeleteRequest is null)
+                {
+                    <button type="button"
+                            class="btn btn-outline-danger"
+                            data-bs-toggle="collapse"
+                            data-bs-target="#deleteRequestPanel"
+                            aria-expanded="false"
+                            aria-controls="deleteRequestPanel">
+                        Request delete
+                    </button>
+                }
+                <button type="submit" class="btn btn-primary">Save training</button>
+            </div>
         </div>
     </form>
 }
@@ -163,4 +188,25 @@ else
 {
     <partial name="_ValidationScriptsPartial" />
     <script type="module" src="~/js/project-office-reports/training/manage.js" asp-append-version="true"></script>
+}
+
+@if (Model.Input.Id.HasValue && Model.PendingDeleteRequest is null)
+{
+    <div class="collapse mt-3" id="deleteRequestPanel">
+        <div class="card border-danger">
+            <div class="card-header bg-danger-subtle text-danger fw-semibold">Request deletion</div>
+            <div class="card-body">
+                <form method="post" asp-page-handler="RequestDelete" class="needs-validation" novalidate>
+                    <input type="hidden" name="TrainingId" value="@Model.Input.Id.Value" />
+                    <input type="hidden" name="RowVersion" value="@Model.Input.RowVersion" />
+                    <div class="mb-3">
+                        <label class="form-label" for="delete-reason">Reason</label>
+                        <textarea class="form-control" id="delete-reason" name="Reason" rows="3" required maxlength="1000"></textarea>
+                        <div class="form-text">Explain why this training should be removed.</div>
+                    </div>
+                    <button type="submit" class="btn btn-danger">Submit delete request</button>
+                </form>
+            </div>
+        </div>
+    </div>
 }

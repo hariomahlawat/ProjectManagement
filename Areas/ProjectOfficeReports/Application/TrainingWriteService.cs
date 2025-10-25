@@ -4,13 +4,16 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
 using ProjectManagement.Services;
+using ProjectManagement.Services.ProjectOfficeReports.Training;
 using DomainTraining = ProjectManagement.Areas.ProjectOfficeReports.Domain.Training;
 using DomainTrainingCounters = ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingCounters;
 using DomainTrainingProject = ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingProject;
 using DomainTrainingTrainee = ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingTrainee;
+using DomainTrainingDeleteRequest = ProjectManagement.Areas.ProjectOfficeReports.Domain.TrainingDeleteRequest;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
 
@@ -18,11 +21,19 @@ public sealed class TrainingWriteService
 {
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
+    private readonly ITrainingNotificationService _notifications;
+    private readonly ILogger<TrainingWriteService> _logger;
 
-    public TrainingWriteService(ApplicationDbContext db, IClock clock)
+    public TrainingWriteService(
+        ApplicationDbContext db,
+        IClock clock,
+        ITrainingNotificationService notifications,
+        ILogger<TrainingWriteService> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _notifications = notifications ?? throw new ArgumentNullException(nameof(notifications));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task<TrainingMutationResult> CreateAsync(TrainingMutationCommand command, string userId, CancellationToken cancellationToken)
@@ -352,6 +363,367 @@ public sealed class TrainingWriteService
         return TrainingRosterUpdateResult.Success(training.RowVersion, roster, counters);
     }
 
+    public async Task<TrainingDeleteRequestResult> RequestDeleteAsync(
+        Guid trainingId,
+        string reason,
+        byte[]? expectedRowVersion,
+        string userId,
+        CancellationToken cancellationToken)
+    {
+        if (trainingId == Guid.Empty)
+        {
+            return TrainingDeleteRequestResult.Failure(
+                TrainingDeleteFailureCode.TrainingNotFound,
+                "A training identifier is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return TrainingDeleteRequestResult.Failure(
+                TrainingDeleteFailureCode.MissingUserId,
+                "The current user context is not available.");
+        }
+
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            return TrainingDeleteRequestResult.Failure(
+                TrainingDeleteFailureCode.InvalidReason,
+                "Provide a reason for the deletion request.");
+        }
+
+        var normalizedReason = NormalizeDeleteReason(reason);
+
+        var training = await _db.Trainings
+            .Include(x => x.Counters)
+            .Include(x => x.TrainingType)
+            .FirstOrDefaultAsync(x => x.Id == trainingId, cancellationToken);
+
+        if (training is null)
+        {
+            return TrainingDeleteRequestResult.Failure(
+                TrainingDeleteFailureCode.TrainingNotFound,
+                "The training could not be found.");
+        }
+
+        if (expectedRowVersion is not null
+            && expectedRowVersion.Length > 0
+            && !training.RowVersion.SequenceEqual(expectedRowVersion))
+        {
+            return TrainingDeleteRequestResult.Failure(
+                TrainingDeleteFailureCode.ConcurrencyConflict,
+                "The training was updated by another user. Reload and try again.");
+        }
+
+        var hasPendingRequest = await _db.TrainingDeleteRequests
+            .AsNoTracking()
+            .AnyAsync(
+                request => request.TrainingId == trainingId
+                    && request.Status == TrainingDeleteRequestStatus.Pending,
+                cancellationToken);
+
+        if (hasPendingRequest)
+        {
+            return TrainingDeleteRequestResult.Failure(
+                TrainingDeleteFailureCode.PendingRequestExists,
+                "A delete request is already pending for this training.");
+        }
+
+        var now = _clock.UtcNow;
+        var request = new DomainTrainingDeleteRequest
+        {
+            Id = Guid.NewGuid(),
+            TrainingId = trainingId,
+            RequestedByUserId = userId,
+            RequestedAtUtc = now,
+            Reason = normalizedReason,
+            Status = TrainingDeleteRequestStatus.Pending,
+            RowVersion = Guid.NewGuid().ToByteArray()
+        };
+
+        _db.TrainingDeleteRequests.Add(request);
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to submit delete request for training {TrainingId} due to concurrency.",
+                trainingId);
+
+            return TrainingDeleteRequestResult.Failure(
+                TrainingDeleteFailureCode.ConcurrencyConflict,
+                "The training was updated by another user. Reload and try again.");
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to persist delete request for training {TrainingId}.",
+                trainingId);
+
+            return TrainingDeleteRequestResult.Failure(
+                TrainingDeleteFailureCode.ConcurrencyConflict,
+                "The delete request could not be saved. Please try again.");
+        }
+
+        var notificationContext = CreateNotificationContext(training, request);
+
+        try
+        {
+            await _notifications.NotifyDeleteRequestedAsync(notificationContext, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to publish delete request notification for training {TrainingId}.",
+                trainingId);
+        }
+
+        return TrainingDeleteRequestResult.Success(request.Id);
+    }
+
+    public async Task<TrainingDeleteDecisionResult> ApproveDeleteAsync(
+        Guid requestId,
+        string approverUserId,
+        CancellationToken cancellationToken)
+    {
+        if (requestId == Guid.Empty)
+        {
+            return TrainingDeleteDecisionResult.Failure(
+                TrainingDeleteFailureCode.RequestNotFound,
+                "The delete request could not be found.");
+        }
+
+        if (string.IsNullOrWhiteSpace(approverUserId))
+        {
+            return TrainingDeleteDecisionResult.Failure(
+                TrainingDeleteFailureCode.MissingUserId,
+                "The current user context is not available.");
+        }
+
+        var request = await _db.TrainingDeleteRequests
+            .Include(r => r.Training)!
+                .ThenInclude(t => t!.Counters)
+            .Include(r => r.Training)!
+                .ThenInclude(t => t!.TrainingType)
+            .FirstOrDefaultAsync(r => r.Id == requestId, cancellationToken);
+
+        if (request is null)
+        {
+            return TrainingDeleteDecisionResult.Failure(
+                TrainingDeleteFailureCode.RequestNotFound,
+                "The delete request could not be found.");
+        }
+
+        if (request.Status != TrainingDeleteRequestStatus.Pending)
+        {
+            return TrainingDeleteDecisionResult.Failure(
+                TrainingDeleteFailureCode.RequestNotPending,
+                "The delete request is no longer pending.");
+        }
+
+        if (request.Training is null)
+        {
+            return TrainingDeleteDecisionResult.Failure(
+                TrainingDeleteFailureCode.TrainingNotFound,
+                "The associated training could not be found.");
+        }
+
+        var training = request.Training;
+        var trainingId = training.Id;
+        var notificationContext = CreateNotificationContext(training, request);
+
+        var trainees = _db.TrainingTrainees.Where(trainee => trainee.TrainingId == trainingId);
+        var projectLinks = _db.TrainingProjects.Where(link => link.TrainingId == trainingId);
+        var counters = await _db.TrainingCounters
+            .FirstOrDefaultAsync(counter => counter.TrainingId == trainingId, cancellationToken);
+
+        _db.TrainingTrainees.RemoveRange(trainees);
+        _db.TrainingProjects.RemoveRange(projectLinks);
+        if (counters is not null)
+        {
+            _db.TrainingCounters.Remove(counters);
+        }
+
+        _db.Trainings.Remove(training);
+
+        request.Status = TrainingDeleteRequestStatus.Approved;
+        request.DecidedByUserId = approverUserId;
+        request.DecidedAtUtc = _clock.UtcNow;
+        request.DecisionNotes = null;
+        request.RowVersion = Guid.NewGuid().ToByteArray();
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to approve delete request {RequestId} for training {TrainingId} due to concurrency.",
+                requestId,
+                trainingId);
+
+            return TrainingDeleteDecisionResult.Failure(
+                TrainingDeleteFailureCode.ConcurrencyConflict,
+                "The delete request was updated by another user. Refresh the page and try again.");
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to approve delete request {RequestId} for training {TrainingId}.",
+                requestId,
+                trainingId);
+
+            return TrainingDeleteDecisionResult.Failure(
+                TrainingDeleteFailureCode.ConcurrencyConflict,
+                "The delete request could not be approved. Please try again.");
+        }
+
+        try
+        {
+            await _notifications.NotifyDeleteApprovedAsync(notificationContext, approverUserId, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to publish approval notification for training {TrainingId}.",
+                trainingId);
+        }
+
+        return TrainingDeleteDecisionResult.Success();
+    }
+
+    public async Task<TrainingDeleteDecisionResult> RejectDeleteAsync(
+        Guid requestId,
+        string decisionReason,
+        string approverUserId,
+        CancellationToken cancellationToken)
+    {
+        if (requestId == Guid.Empty)
+        {
+            return TrainingDeleteDecisionResult.Failure(
+                TrainingDeleteFailureCode.RequestNotFound,
+                "The delete request could not be found.");
+        }
+
+        if (string.IsNullOrWhiteSpace(approverUserId))
+        {
+            return TrainingDeleteDecisionResult.Failure(
+                TrainingDeleteFailureCode.MissingUserId,
+                "The current user context is not available.");
+        }
+
+        if (string.IsNullOrWhiteSpace(decisionReason))
+        {
+            return TrainingDeleteDecisionResult.Failure(
+                TrainingDeleteFailureCode.InvalidReason,
+                "Provide a reason for rejecting the delete request.");
+        }
+
+        var normalizedReason = NormalizeDeleteReason(decisionReason);
+
+        var request = await _db.TrainingDeleteRequests
+            .Include(r => r.Training)!
+                .ThenInclude(t => t!.Counters)
+            .Include(r => r.Training)!
+                .ThenInclude(t => t!.TrainingType)
+            .FirstOrDefaultAsync(r => r.Id == requestId, cancellationToken);
+
+        if (request is null)
+        {
+            return TrainingDeleteDecisionResult.Failure(
+                TrainingDeleteFailureCode.RequestNotFound,
+                "The delete request could not be found.");
+        }
+
+        if (request.Status != TrainingDeleteRequestStatus.Pending)
+        {
+            return TrainingDeleteDecisionResult.Failure(
+                TrainingDeleteFailureCode.RequestNotPending,
+                "The delete request is no longer pending.");
+        }
+
+        if (request.Training is null)
+        {
+            return TrainingDeleteDecisionResult.Failure(
+                TrainingDeleteFailureCode.TrainingNotFound,
+                "The associated training could not be found.");
+        }
+
+        var notificationContext = CreateNotificationContext(request.Training, request);
+
+        request.Status = TrainingDeleteRequestStatus.Rejected;
+        request.DecidedByUserId = approverUserId;
+        request.DecidedAtUtc = _clock.UtcNow;
+        request.DecisionNotes = normalizedReason;
+        request.RowVersion = Guid.NewGuid().ToByteArray();
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "Failed to reject delete request {RequestId} due to concurrency.",
+                requestId);
+
+            return TrainingDeleteDecisionResult.Failure(
+                TrainingDeleteFailureCode.ConcurrencyConflict,
+                "The delete request was updated by another user. Refresh the page and try again.");
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to reject delete request {RequestId}.",
+                requestId);
+
+            return TrainingDeleteDecisionResult.Failure(
+                TrainingDeleteFailureCode.ConcurrencyConflict,
+                "The delete request could not be rejected. Please try again.");
+        }
+
+        try
+        {
+            await _notifications.NotifyDeleteRejectedAsync(
+                notificationContext,
+                approverUserId,
+                normalizedReason,
+                cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Failed to publish rejection notification for delete request {RequestId}.",
+                requestId);
+        }
+
+        return TrainingDeleteDecisionResult.Success();
+    }
+
     private async Task<RosterNormalizationResult> NormalizeRosterRowsAsync(IReadOnlyCollection<TrainingRosterRow> rows, CancellationToken cancellationToken)
     {
         var normalized = new List<NormalizedRosterRow>();
@@ -396,6 +768,51 @@ public sealed class TrainingWriteService
         }
 
         return RosterNormalizationResult.CreateSuccess(normalized);
+    }
+
+    private static TrainingDeleteNotificationContext CreateNotificationContext(
+        DomainTraining training,
+        DomainTrainingDeleteRequest request)
+    {
+        if (training is null)
+        {
+            throw new ArgumentNullException(nameof(training));
+        }
+
+        if (request is null)
+        {
+            throw new ArgumentNullException(nameof(request));
+        }
+
+        var counters = training.Counters;
+        var officers = counters?.Officers ?? training.LegacyOfficerCount;
+        var jcos = counters?.JuniorCommissionedOfficers ?? training.LegacyJcoCount;
+        var ors = counters?.OtherRanks ?? training.LegacyOrCount;
+        var total = counters?.Total ?? (officers + jcos + ors);
+
+        var trainingTypeName = training.TrainingType?.Name ?? "Training";
+
+        return new TrainingDeleteNotificationContext(
+            training.Id,
+            request.Id,
+            trainingTypeName,
+            training.StartDate,
+            training.EndDate,
+            training.TrainingMonth,
+            training.TrainingYear,
+            officers,
+            jcos,
+            ors,
+            total,
+            request.RequestedByUserId,
+            request.RequestedAtUtc,
+            request.Reason);
+    }
+
+    private static string NormalizeDeleteReason(string reason)
+    {
+        var trimmed = reason.Trim();
+        return trimmed.Length > 1000 ? trimmed[..1000] : trimmed;
     }
 
     private static byte ResolveCategory(IReadOnlyDictionary<string, byte> rankMap, byte proposedCategory, string rank)

@@ -35,6 +35,7 @@ public static class ProjectOfficeReportsPolicies
     public const string ApproveProliferationTracker = "ProjectOfficeReports.ApproveProliferationTracker";
     public const string ManageProliferationPreferences = "ProjectOfficeReports.ManageProliferationPreferences";
     public const string ViewTrainingTracker = "ProjectOfficeReports.ViewTrainingTracker";
+    public const string ApproveTrainingTracker = "ProjectOfficeReports.ApproveTrainingTracker";
 
     public static AuthorizationPolicyBuilder RequireProjectOfficeManager(this AuthorizationPolicyBuilder builder)
     {
@@ -124,5 +125,15 @@ public static class ProjectOfficeReportsPolicies
         }
 
         return builder.RequireRole(ProjectOfficeRoles);
+    }
+
+    public static AuthorizationPolicyBuilder RequireTrainingTrackerApprover(this AuthorizationPolicyBuilder builder)
+    {
+        if (builder is null)
+        {
+            throw new ArgumentNullException(nameof(builder));
+        }
+
+        return builder.RequireRole(TotTrackerApproverRoles);
     }
 }
