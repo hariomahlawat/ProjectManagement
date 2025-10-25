@@ -341,7 +341,8 @@ public sealed class TrainingWriteService
         var normalization = await NormalizeRosterRowsAsync(rows, cancellationToken);
         if (!normalization.Success)
         {
-            return TrainingRosterUpdateResult.Failure(TrainingRosterFailureCode.DuplicateArmyNumber, normalization.ErrorMessage);
+            var message = normalization.ErrorMessage ?? "The roster could not be saved.";
+            return TrainingRosterUpdateResult.Failure(normalization.FailureCode, message);
         }
 
         var normalizedRows = normalization.Rows;
@@ -819,6 +820,7 @@ public sealed class TrainingWriteService
     {
         var normalized = new List<NormalizedRosterRow>();
         var seenArmyNumbers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var rowIndex = 0;
 
         var rankMap = await _db.TrainingRankCategoryMaps
             .AsNoTracking()
@@ -832,6 +834,7 @@ public sealed class TrainingWriteService
 
         foreach (var row in rows)
         {
+            rowIndex++;
             if (row is null)
             {
                 continue;
@@ -848,9 +851,15 @@ public sealed class TrainingWriteService
                 continue;
             }
 
+            if (string.IsNullOrWhiteSpace(rank) || string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(unit))
+            {
+                var message = $"Row {rowIndex} is missing required information. Each roster row must include a Rank, Name, and Unit.";
+                return RosterNormalizationResult.Failure(TrainingRosterFailureCode.InvalidRequest, message);
+            }
+
             if (armyNumber is not null && !seenArmyNumbers.Add(armyNumber))
             {
-                return RosterNormalizationResult.Failure($"The Army number \"{armyNumber}\" is already listed.");
+                return RosterNormalizationResult.Failure(TrainingRosterFailureCode.DuplicateArmyNumber, $"The Army number \"{armyNumber}\" is already listed.");
             }
 
             var category = ResolveCategory(rankMap, row.Category, rank);
@@ -956,11 +965,17 @@ public sealed class TrainingWriteService
 
     private sealed record NormalizedRosterRow(int? Id, string? ArmyNumber, string Rank, string Name, string UnitName, byte Category);
 
-    private sealed record RosterNormalizationResult(bool Success, string? ErrorMessage, List<NormalizedRosterRow> Rows)
+    private sealed record RosterNormalizationResult(
+        bool Success,
+        TrainingRosterFailureCode FailureCode,
+        string? ErrorMessage,
+        List<NormalizedRosterRow> Rows)
     {
-        public static RosterNormalizationResult CreateSuccess(List<NormalizedRosterRow> rows) => new(true, null, rows);
+        public static RosterNormalizationResult CreateSuccess(List<NormalizedRosterRow> rows)
+            => new(true, TrainingRosterFailureCode.None, null, rows);
 
-        public static RosterNormalizationResult Failure(string message) => new(false, message, new List<NormalizedRosterRow>());
+        public static RosterNormalizationResult Failure(TrainingRosterFailureCode failureCode, string message)
+            => new(false, failureCode, message, new List<NormalizedRosterRow>());
     }
 
     private async Task<ProjectValidationResult> ValidateProjectsAsync(IEnumerable<int> projectIds, CancellationToken cancellationToken)

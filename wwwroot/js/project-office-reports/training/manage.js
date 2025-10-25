@@ -313,6 +313,12 @@ function initRosterModule() {
 
       const data = await response.json();
 
+      if (!data || data.ok === false) {
+        const serverMessage = data && typeof data.message === 'string' ? data.message : null;
+        showError(serverMessage ?? 'Failed to save roster. Please try again.');
+        return;
+      }
+
       const newRowVersion = data?.rowVersion || '';
       context.dataset.rowVersion = newRowVersion;
       if (btnSave) {
