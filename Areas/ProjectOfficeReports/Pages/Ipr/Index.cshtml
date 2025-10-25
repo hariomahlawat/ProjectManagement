@@ -349,10 +349,10 @@
                                             <span class="badge @TypeBadgeClass(record.Type)">@TypeLabel(record.Type)</span>
                                             <span class="text-monospace fw-semibold text-nowrap">@record.FilingNumber</span>
                                         </div>
-                                        <span class="badge @StatusBadgeClass(record.Status)">@StatusLabel(record.Status)</span>
+                                        <h3 class="ipr-record-card__title h5 mb-0" title="@(string.IsNullOrWhiteSpace(record.Title) ? null : record.Title)">@titleText</h3>
+                                        <span class="badge @StatusBadgeClass(record.Status) ipr-record-card__status">@StatusLabel(record.Status)</span>
                                     </header>
                                     <div class="ipr-record-card__body">
-                                        <h3 class="ipr-record-card__title h5 mb-3" title="@(string.IsNullOrWhiteSpace(record.Title) ? null : record.Title)">@titleText</h3>
                                         <dl class="ipr-record-card__meta">
                                             <div class="ipr-record-card__meta-item">
                                                 <dt>Filed on</dt>

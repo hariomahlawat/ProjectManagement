@@ -253,11 +253,10 @@ body {
 }
 
 .ipr-record-card__header {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: .5rem;
+    gap: .5rem 1rem;
 }
 
 .ipr-record-card__identity {
@@ -275,6 +274,14 @@ body {
 
 .ipr-record-card__title {
     color: var(--bs-body-color);
+    text-align: center;
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.ipr-record-card__status {
+    justify-self: end;
 }
 
 .ipr-record-card__meta {
@@ -346,6 +353,17 @@ body {
 
 .ipr-record-card__attachment-item .fw-semibold {
     overflow-wrap: anywhere;
+}
+
+@media (max-width: 575.98px) {
+    .ipr-record-card__header {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .ipr-record-card__identity,
+    .ipr-record-card__status {
+        justify-self: center;
+    }
 }
 
 @media (min-width: 768px) {
