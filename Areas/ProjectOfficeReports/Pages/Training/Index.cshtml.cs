@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Areas.ProjectOfficeReports.Application.Training.Dtos;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Configuration;
 using ProjectManagement.Services;
@@ -59,6 +60,8 @@ public class IndexModel : PageModel
 
     public bool HasResults => Trainings.Count > 0;
 
+    public TrainingKpiDto Kpis { get; private set; } = new();
+
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         IsFeatureEnabled = _options.Value.Enabled;
@@ -76,6 +79,7 @@ public class IndexModel : PageModel
         var query = BuildQuery(Filter);
         var results = await _readService.SearchAsync(query, cancellationToken);
         Trainings = results.Select(TrainingRowViewModel.FromListItem).ToList();
+        Kpis = await _readService.GetKpisAsync(query, cancellationToken);
 
         return Page();
     }

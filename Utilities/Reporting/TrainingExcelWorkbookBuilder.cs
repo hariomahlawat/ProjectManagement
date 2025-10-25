@@ -52,6 +52,7 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
             "Officers",
             "JCOs",
             "ORs",
+            "Strength (O-J-OR)",
             "Total",
             "Source",
             "Projects",
@@ -82,22 +83,23 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
             worksheet.Cell(rowNumber, 4).Value = row.Officers;
             worksheet.Cell(rowNumber, 5).Value = row.JuniorCommissionedOfficers;
             worksheet.Cell(rowNumber, 6).Value = row.OtherRanks;
-            worksheet.Cell(rowNumber, 7).Value = row.Total;
-            worksheet.Cell(rowNumber, 8).Value = FormatSource(row.Source);
-            worksheet.Cell(rowNumber, 9).Value = string.Join(", ", row.Projects);
-            worksheet.Cell(rowNumber, 10).Value = row.Notes ?? string.Empty;
+            worksheet.Cell(rowNumber, 7).Value = $"{row.Officers}-{row.JuniorCommissionedOfficers}-{row.OtherRanks}";
+            worksheet.Cell(rowNumber, 8).Value = row.Total;
+            worksheet.Cell(rowNumber, 9).Value = FormatSource(row.Source);
+            worksheet.Cell(rowNumber, 10).Value = string.Join(", ", row.Projects);
+            worksheet.Cell(rowNumber, 11).Value = row.Notes ?? string.Empty;
         }
 
-        worksheet.Column(10).Style.Alignment.WrapText = true;
-        worksheet.Column(10).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+        worksheet.Column(11).Style.Alignment.WrapText = true;
+        worksheet.Column(11).Style.Alignment.Vertical = XLAlignmentVerticalValues.Top;
     }
 
     private static void ApplyMetadata(IXLWorksheet worksheet, TrainingExcelWorkbookContext context)
     {
         var lastRow = Math.Max(2, context.Rows.Count + 1);
-        worksheet.Columns(1, 10).AdjustToContents(1, lastRow);
+        worksheet.Columns(1, 11).AdjustToContents(1, lastRow);
 
-        foreach (var column in worksheet.Columns(1, 10))
+        foreach (var column in worksheet.Columns(1, 11))
         {
             if (column.Width > 60)
             {
@@ -105,8 +107,8 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
             }
         }
 
-        worksheet.Column(9).Width = Math.Min(worksheet.Column(9).Width, 40);
-        worksheet.Column(10).Width = Math.Min(worksheet.Column(10).Width, 60);
+        worksheet.Column(10).Width = Math.Min(worksheet.Column(10).Width, 40);
+        worksheet.Column(11).Width = Math.Min(worksheet.Column(11).Width, 60);
 
         var metadataRow = context.Rows.Count + 3;
         var generatedAtIst = TimeZoneInfo.ConvertTime(context.GeneratedAtUtc, TimeZoneHelper.GetIst());

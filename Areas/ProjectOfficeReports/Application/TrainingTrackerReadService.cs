@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Areas.ProjectOfficeReports.Application.Training.Dtos;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
 
@@ -88,42 +89,7 @@ public sealed class TrainingTrackerReadService
 
     public async Task<IReadOnlyList<TrainingListItem>> SearchAsync(TrainingTrackerQuery? query, CancellationToken cancellationToken)
     {
-        query ??= TrainingTrackerQuery.Empty;
-
-        var trainings = _db.Trainings.AsNoTracking();
-
-        if (query.TrainingTypeIds.Count > 0)
-        {
-            trainings = trainings.Where(x => query.TrainingTypeIds.Contains(x.TrainingTypeId));
-        }
-
-        if (query.ProjectId.HasValue)
-        {
-            var projectId = query.ProjectId.Value;
-            trainings = trainings.Where(x => x.ProjectLinks.Any(link => link.ProjectId == projectId));
-        }
-
-        if (!string.IsNullOrWhiteSpace(query.Search))
-        {
-            var text = query.Search.Trim();
-            if (text.Length > 0)
-            {
-                if (_db.Database.IsNpgsql())
-                {
-                    trainings = trainings.Where(x =>
-                        EF.Functions.ILike(x.Notes ?? string.Empty, $"%{text}%") ||
-                        EF.Functions.ILike(x.TrainingType!.Name, $"%{text}%") ||
-                        x.ProjectLinks.Any(link => link.Project != null && EF.Functions.ILike(link.Project.Name, $"%{text}%")));
-                }
-                else
-                {
-                    trainings = trainings.Where(x =>
-                        (x.Notes != null && x.Notes.Contains(text)) ||
-                        x.TrainingType!.Name.Contains(text) ||
-                        x.ProjectLinks.Any(link => link.Project != null && link.Project.Name.Contains(text)));
-                }
-            }
-        }
+        var trainings = BuildFilteredQuery(query);
 
         var projections = await trainings
             .OrderByDescending(x => x.CreatedAtUtc)
@@ -159,6 +125,65 @@ public sealed class TrainingTrackerReadService
             .ToList();
 
         return filtered;
+    }
+
+    public async Task<TrainingKpiDto> GetKpisAsync(TrainingTrackerQuery? query, CancellationToken cancellationToken)
+    {
+        var trainings = BuildFilteredQuery(query);
+
+        var projections = await trainings
+            .Select(x => new TrainingListProjection(
+                x.Id,
+                x.TrainingTypeId,
+                x.TrainingType!.Name,
+                x.StartDate,
+                x.EndDate,
+                x.TrainingMonth,
+                x.TrainingYear,
+                x.LegacyOfficerCount,
+                x.LegacyJcoCount,
+                x.LegacyOrCount,
+                x.Counters != null ? x.Counters.Officers : (int?)null,
+                x.Counters != null ? x.Counters.JuniorCommissionedOfficers : (int?)null,
+                x.Counters != null ? x.Counters.OtherRanks : (int?)null,
+                x.Counters != null ? x.Counters.Total : (int?)null,
+                x.Counters != null ? x.Counters.Source : (TrainingCounterSource?)null,
+                x.Notes,
+                x.RowVersion,
+                x.ProjectLinks
+                    .OrderBy(link => link.Project != null ? link.Project.Name : string.Empty)
+                    .Select(link => new TrainingProjectSnapshot(link.ProjectId, link.Project != null ? link.Project.Name : string.Empty))
+                    .ToList()))
+            .ToListAsync(cancellationToken);
+
+        var filtered = projections
+            .Where(item => MatchesDate(item, query?.From, query?.To))
+            .Where(item => MatchesCategory(item, query?.Category))
+            .Select(ToListItem)
+            .ToList();
+
+        var totalTrainings = filtered.Count;
+        var totalTrainees = filtered.Sum(item => item.CounterTotal);
+
+        var byType = filtered
+            .GroupBy(item => new { item.TrainingTypeId, item.TrainingTypeName })
+            .Select(group => new TrainingTypeKpi
+            {
+                TypeId = group.Key.TrainingTypeId,
+                TypeName = group.Key.TrainingTypeName,
+                Trainings = group.Count(),
+                Trainees = group.Sum(item => item.CounterTotal)
+            })
+            .OrderByDescending(entry => entry.Trainees)
+            .ThenBy(entry => entry.TypeName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return new TrainingKpiDto
+        {
+            TotalTrainings = totalTrainings,
+            TotalTrainees = totalTrainees,
+            ByType = byType
+        };
     }
 
     public async Task<IReadOnlyList<TrainingExportRow>> ExportAsync(TrainingTrackerQuery? query, CancellationToken cancellationToken)
@@ -204,6 +229,48 @@ public sealed class TrainingTrackerReadService
             projection.Notes,
             projection.Projects,
             projection.RowVersion);
+    }
+
+    private IQueryable<Training> BuildFilteredQuery(TrainingTrackerQuery? query)
+    {
+        query ??= TrainingTrackerQuery.Empty;
+
+        var trainings = _db.Trainings.AsNoTracking();
+
+        if (query.TrainingTypeIds.Count > 0)
+        {
+            trainings = trainings.Where(x => query.TrainingTypeIds.Contains(x.TrainingTypeId));
+        }
+
+        if (query.ProjectId.HasValue)
+        {
+            var projectId = query.ProjectId.Value;
+            trainings = trainings.Where(x => x.ProjectLinks.Any(link => link.ProjectId == projectId));
+        }
+
+        if (!string.IsNullOrWhiteSpace(query.Search))
+        {
+            var text = query.Search.Trim();
+            if (text.Length > 0)
+            {
+                if (_db.Database.IsNpgsql())
+                {
+                    trainings = trainings.Where(x =>
+                        EF.Functions.ILike(x.Notes ?? string.Empty, $"%{text}%") ||
+                        EF.Functions.ILike(x.TrainingType!.Name, $"%{text}%") ||
+                        x.ProjectLinks.Any(link => link.Project != null && EF.Functions.ILike(link.Project.Name, $"%{text}%")));
+                }
+                else
+                {
+                    trainings = trainings.Where(x =>
+                        (x.Notes != null && x.Notes.Contains(text)) ||
+                        x.TrainingType!.Name.Contains(text) ||
+                        x.ProjectLinks.Any(link => link.Project != null && link.Project.Name.Contains(text)));
+                }
+            }
+        }
+
+        return trainings;
     }
 
     private static bool MatchesDate(TrainingListProjection projection, DateOnly? from, DateOnly? to)
