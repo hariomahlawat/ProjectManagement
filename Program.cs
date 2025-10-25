@@ -149,9 +149,9 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(ProjectOfficeReportsPolicies.ManageProliferationPreferences, policy =>
         policy.RequireProliferationPreferenceManager());
     options.AddPolicy(Policies.Ipr.View, policy =>
-        policy.RequireRole(Policies.Ipr.AllowedRoles));
+        policy.RequireAuthenticatedUser());
     options.AddPolicy(Policies.Ipr.Edit, policy =>
-        policy.RequireRole(Policies.Ipr.AllowedRoles));
+        policy.RequireRole(Policies.Ipr.EditAllowedRoles));
 });
 
 builder.Services.ConfigureApplicationCookie(opt =>

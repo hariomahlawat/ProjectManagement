@@ -7,7 +7,7 @@ public static class Policies
         public const string View = "Ipr.View";
         public const string Edit = "Ipr.Edit";
 
-        public static readonly string[] AllowedRoles =
+        public static readonly string[] EditAllowedRoles =
         {
             "Admin",
             "HoD",

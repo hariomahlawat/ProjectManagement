@@ -105,7 +105,7 @@ public sealed class IprIndexPageTests
                 }
             };
 
-            ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.AllowedRoles[0]));
+            ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.EditAllowedRoles[0]));
 
             var result = await page.OnPostCreateAsync(CancellationToken.None);
 
@@ -150,7 +150,7 @@ public sealed class IprIndexPageTests
                 }
             };
 
-            ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.AllowedRoles[0]));
+            ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.EditAllowedRoles[0]));
 
             var result = await page.OnPostCreateAsync(CancellationToken.None);
 
@@ -192,7 +192,7 @@ public sealed class IprIndexPageTests
                 }
             };
 
-            ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.AllowedRoles[0]));
+            ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.EditAllowedRoles[0]));
 
             var result = await page.OnPostCreateAsync(CancellationToken.None);
 
@@ -225,7 +225,7 @@ public sealed class IprIndexPageTests
         var exportService = new StubIprExportService();
 
         var page = new IndexModel(db, readService, writeService, authorizationService, userManager, exportService);
-        ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.AllowedRoles[0]));
+        ConfigurePageContext(page, CreatePrincipal("editor", Policies.Ipr.EditAllowedRoles[0]));
 
         var result = await page.OnGetAsync(CancellationToken.None);
 
