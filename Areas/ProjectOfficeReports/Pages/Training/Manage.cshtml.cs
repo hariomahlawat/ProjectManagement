@@ -17,6 +17,7 @@ using ProjectManagement.Services;
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Training;
 
 [Authorize(Policy = ProjectOfficeReportsPolicies.ViewTrainingTracker)]
+[ValidateAntiForgeryToken]
 public class ManageModel : PageModel
 {
     private readonly IOptionsSnapshot<TrainingTrackerOptions> _options;
@@ -134,7 +135,6 @@ public class ManageModel : PageModel
         return RedirectToPage("./Manage", new { id = result.TrainingId });
     }
 
-    [ValidateAntiForgeryToken]
     public async Task<IActionResult> OnPostUpsertRosterAsync([FromBody] UpsertRosterRequest request, CancellationToken cancellationToken)
     {
         if (request is null)
@@ -150,14 +150,16 @@ public class ManageModel : PageModel
         var userId = _userContext.UserId;
         if (string.IsNullOrWhiteSpace(userId))
         {
-            return Unauthorized(new { ok = false, message = "The current user could not be identified." });
+            return new UnauthorizedObjectResult(new { ok = false, message = "The current user could not be identified." });
         }
 
         var expectedRowVersion = DecodeRowVersion(request.RowVersion);
 
+        var rosterRows = request.Rows ?? new List<TrainingRosterRow>();
+
         var result = await _writeService.UpsertRosterAsync(
             request.TrainingId,
-            request.Rows ?? Array.Empty<TrainingRosterRow>(),
+            rosterRows,
             expectedRowVersion,
             userId,
             cancellationToken);
@@ -167,8 +169,8 @@ public class ManageModel : PageModel
             return result.FailureCode switch
             {
                 TrainingRosterFailureCode.TrainingNotFound => NotFound(new { ok = false, message = result.ErrorMessage ?? "The training could not be found." }),
-                TrainingRosterFailureCode.ConcurrencyConflict => Conflict(new { ok = false, message = result.ErrorMessage ?? "Another user has updated this training. Reload and try again." }),
-                TrainingRosterFailureCode.MissingUserId => Unauthorized(new { ok = false, message = result.ErrorMessage ?? "The current user context is missing." }),
+                TrainingRosterFailureCode.ConcurrencyConflict => new ConflictObjectResult(new { ok = false, message = result.ErrorMessage ?? "Another user has updated this training. Reload and try again." }),
+                TrainingRosterFailureCode.MissingUserId => new UnauthorizedObjectResult(new { ok = false, message = result.ErrorMessage ?? "The current user context is missing." }),
                 TrainingRosterFailureCode.DuplicateArmyNumber => BadRequest(new { ok = false, message = result.ErrorMessage ?? "Each Army number must be unique." }),
                 TrainingRosterFailureCode.InvalidRequest => BadRequest(new { ok = false, message = result.ErrorMessage ?? "The roster request was invalid." }),
                 _ => BadRequest(new { ok = false, message = result.ErrorMessage ?? "The roster could not be saved." })
