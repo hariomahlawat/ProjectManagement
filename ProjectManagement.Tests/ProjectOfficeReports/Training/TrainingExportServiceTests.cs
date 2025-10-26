@@ -13,6 +13,7 @@ using ProjectManagement.Services;
 using ProjectManagement.Tests.Fakes;
 using ProjectManagement.Utilities.Reporting;
 using Xunit;
+using TrainingEntity = ProjectManagement.Areas.ProjectOfficeReports.Domain.Training;
 
 namespace ProjectManagement.Tests.ProjectOfficeReports.Training;
 
@@ -108,7 +109,7 @@ public sealed class TrainingExportServiceTests
         };
         context.TrainingTypes.Add(trainingType);
 
-        var training = new Training
+        var training = new TrainingEntity
         {
             Id = trainingId,
             TrainingTypeId = trainingTypeId,
@@ -137,7 +138,7 @@ public sealed class TrainingExportServiceTests
                 JuniorCommissionedOfficers = 4,
                 OtherRanks = 3,
                 Total = 12,
-                Source = TrainingCounterSource.Current,
+                Source = TrainingCounterSource.Roster,
                 UpdatedAtUtc = new DateTimeOffset(2024, 4, 12, 12, 0, 0, TimeSpan.Zero)
             }
         };
@@ -173,7 +174,7 @@ public sealed class TrainingExportServiceTests
         var result = await service.ExportAsync(request, CancellationToken.None);
 
         Assert.True(result.Success);
-        var file = Assert.NotNull(result.File);
+        var file = Assert.IsType<TrainingExportFile>(result.File);
         Assert.Equal("training-tracker-20240501-083000.xlsx", file.FileName);
         Assert.Equal(TrainingExportFile.ExcelContentType, file.ContentType);
         Assert.NotEmpty(file.Content);

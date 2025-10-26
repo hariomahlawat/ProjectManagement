@@ -124,7 +124,7 @@ public sealed class TrainingIndexPageTests
         public StubUserManager(ApplicationUser user, IServiceProvider services)
             : base(
                 new StubUserStore(),
-                Options.Create(new IdentityOptions()),
+                Microsoft.Extensions.Options.Options.Create(new IdentityOptions()),
                 new PasswordHasher<ApplicationUser>(),
                 Array.Empty<IUserValidator<ApplicationUser>>(),
                 Array.Empty<IPasswordValidator<ApplicationUser>>(),
