@@ -9,234 +9,269 @@
     ViewData["Title"] = pageTitle;
 }
 
-<h1 class="display-6 mb-4">@pageTitle</h1>
-
-@if (!Model.IsFeatureEnabled)
-{
-    <div class="alert alert-warning" role="alert">
-        The training tracker is currently disabled. Management actions are unavailable until the feature is enabled.
+<div class="container-fluid py-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
+        <div>
+            <p class="text-uppercase text-muted small mb-1">Project office reports</p>
+            <h1 class="h4 mb-2">@pageTitle</h1>
+            <nav aria-label="Breadcrumb">
+                <ol class="breadcrumb mb-0 small">
+                    <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/Training/Index">Training tracker</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Manage training</li>
+                </ol>
+            </nav>
+        </div>
     </div>
-}
-else
-{
-    if (Model.PendingDeleteRequest is not null)
+
+    @if (!Model.IsFeatureEnabled)
     {
-        var pending = Model.PendingDeleteRequest;
         <div class="alert alert-warning" role="alert">
-            <div class="fw-semibold mb-1">Delete request pending approval</div>
-            <div class="small text-muted">
-                Requested on @pending.RequestedAtUtc.ToLocalTime().ToString("dd MMM yyyy 'at' HH:mm", CultureInfo.CurrentCulture) by @pending.RequestedByUserId.
-            </div>
-            <div class="mb-0"><strong>Reason:</strong> @pending.Reason</div>
+            The training tracker is currently disabled. Management actions are unavailable until the feature is enabled.
         </div>
     }
-
-    <form method="post" asp-page-handler="Save" class="needs-validation" novalidate>
-        <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
-
-        <input type="hidden" asp-for="Input.Id" />
-        <input type="hidden" asp-for="Input.RowVersion" />
-        <input type="hidden" asp-for="Input.HasRoster" />
-        <input type="hidden" asp-for="Input.CounterOfficers" />
-        <input type="hidden" asp-for="Input.CounterJcos" />
-        <input type="hidden" asp-for="Input.CounterOrs" />
-        <input type="hidden" asp-for="Input.CounterTotal" />
-        <input type="hidden" asp-for="Input.CounterSource" />
-        <input type="hidden" asp-for="Input.RosterPayload" />
-
-        <div class="card shadow-sm mb-4" data-legacy-counts>
-            <div class="card-body p-4">
-                <div class="row g-4 align-items-end">
-                    <div class="col-md-6 col-lg-4">
-                        <label asp-for="Input.TrainingTypeId" class="form-label"></label>
-                        <select asp-for="Input.TrainingTypeId" asp-items="Model.TrainingTypes" class="form-select">
-                            <option value="">Select a training type</option>
-                        </select>
-                        <span asp-validation-for="Input.TrainingTypeId" class="text-danger"></span>
-                    </div>
-
-                    <div class="col-md-6 col-lg-4">
-                        <label class="form-label">Schedule mode</label>
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" asp-for="Input.ScheduleMode" value="@ManageModel.TrainingScheduleMode.DateRange" id="schedule-date-range">
-                            <label class="form-check-label" for="schedule-date-range">Exact dates</label>
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" asp-for="Input.ScheduleMode" value="@ManageModel.TrainingScheduleMode.MonthAndYear" id="schedule-month-year">
-                            <label class="form-check-label" for="schedule-month-year">Month &amp; year only</label>
-                        </div>
-                        <span asp-validation-for="Input.ScheduleMode" class="text-danger"></span>
-                    </div>
-
-                    <div class="col-12 col-lg-4">
-                        <div class="form-check form-switch" data-legacy-toggle>
-                            <input class="form-check-input" type="checkbox" asp-for="Input.IsLegacyRecord" id="legacy-record-toggle">
-                            <label class="form-check-label" for="legacy-record-toggle">Legacy record</label>
-                            <div class="form-text">Use when migrating totals from historical registers.</div>
-                        </div>
-                    </div>
+    else
+    {
+        if (Model.PendingDeleteRequest is not null)
+        {
+            var pending = Model.PendingDeleteRequest;
+            <div class="alert alert-warning" role="alert">
+                <div class="fw-semibold mb-1">Delete request pending approval</div>
+                <div class="small text-muted">
+                    Requested on @pending.RequestedAtUtc.ToLocalTime().ToString("dd MMM yyyy 'at' HH:mm", CultureInfo.CurrentCulture) by @pending.RequestedByUserId.
                 </div>
+                <div class="mb-0"><strong>Reason:</strong> @pending.Reason</div>
+            </div>
+        }
 
-                <div class="row g-4 mt-1 @(Model.Input.ScheduleMode == ManageModel.TrainingScheduleMode.DateRange ? string.Empty : "d-none")" data-training-schedule="date-range">
-                    <div class="col-md-6">
-                        <label asp-for="Input.StartDate" class="form-label"></label>
-                        <input asp-for="Input.StartDate" class="form-control" />
-                        <span asp-validation-for="Input.StartDate" class="text-danger"></span>
-                    </div>
-                    <div class="col-md-6">
-                        <label asp-for="Input.EndDate" class="form-label"></label>
-                        <input asp-for="Input.EndDate" class="form-control" />
-                        <span asp-validation-for="Input.EndDate" class="text-danger"></span>
-                    </div>
-                </div>
+        <form method="post" asp-page-handler="Save" class="needs-validation" novalidate>
+            <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 
-                <div class="row g-4 mt-1 @(Model.Input.ScheduleMode == ManageModel.TrainingScheduleMode.MonthAndYear ? string.Empty : "d-none")" data-training-schedule="month-year">
-                    <div class="col-md-6">
-                        <label asp-for="Input.TrainingMonth" class="form-label"></label>
-                        <select asp-for="Input.TrainingMonth" class="form-select">
-                            <option value="">Select month</option>
-                            @for (var month = 1; month <= 12; month++)
+            <input type="hidden" asp-for="Input.Id" />
+            <input type="hidden" asp-for="Input.RowVersion" />
+            <input type="hidden" asp-for="Input.HasRoster" />
+            <input type="hidden" asp-for="Input.CounterOfficers" />
+            <input type="hidden" asp-for="Input.CounterJcos" />
+            <input type="hidden" asp-for="Input.CounterOrs" />
+            <input type="hidden" asp-for="Input.CounterTotal" />
+            <input type="hidden" asp-for="Input.CounterSource" />
+            <input type="hidden" asp-for="Input.RosterPayload" />
+
+            <div class="card shadow-sm mb-4" data-legacy-counts>
+                <div class="card-body p-4">
+                    <div class="row g-4 align-items-end">
+                        <div class="col-md-6 col-lg-4">
+                            <label asp-for="Input.TrainingTypeId" class="form-label"></label>
+                            <select asp-for="Input.TrainingTypeId" asp-items="Model.TrainingTypes" class="form-select">
+                                <option value="">Select a training type</option>
+                            </select>
+                            <span asp-validation-for="Input.TrainingTypeId" class="text-danger"></span>
+                        </div>
+
+                        <div class="col-md-6 col-lg-4">
+                            <label class="form-label">Schedule mode</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" asp-for="Input.ScheduleMode" value="@ManageModel.TrainingScheduleMode.DateRange" id="schedule-date-range">
+                                <label class="form-check-label" for="schedule-date-range">Exact dates</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" asp-for="Input.ScheduleMode" value="@ManageModel.TrainingScheduleMode.MonthAndYear" id="schedule-month-year">
+                                <label class="form-check-label" for="schedule-month-year">Month &amp; year only</label>
+                            </div>
+                            <span asp-validation-for="Input.ScheduleMode" class="text-danger"></span>
+                        </div>
+
+                        <div class="col-12 col-lg-4">
+                            <div class="form-check form-switch" data-legacy-toggle>
+                                <input class="form-check-input" type="checkbox" asp-for="Input.IsLegacyRecord" id="legacy-record-toggle">
+                                <label class="form-check-label" for="legacy-record-toggle">Legacy record</label>
+                                <div class="form-text">Use when migrating totals from historical registers.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-4 mt-1 @(Model.Input.ScheduleMode == ManageModel.TrainingScheduleMode.DateRange ? string.Empty : "d-none")" data-training-schedule="date-range">
+                        <div class="col-md-6">
+                            <label asp-for="Input.StartDate" class="form-label"></label>
+                            <input asp-for="Input.StartDate" class="form-control" />
+                            <span asp-validation-for="Input.StartDate" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Input.EndDate" class="form-label"></label>
+                            <input asp-for="Input.EndDate" class="form-control" />
+                            <span asp-validation-for="Input.EndDate" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                    <div class="row g-4 mt-1 @(Model.Input.ScheduleMode == ManageModel.TrainingScheduleMode.MonthAndYear ? string.Empty : "d-none")" data-training-schedule="month-year">
+                        <div class="col-md-6">
+                            <label asp-for="Input.TrainingMonth" class="form-label"></label>
+                            <select asp-for="Input.TrainingMonth" class="form-select">
+                                <option value="">Select month</option>
+                                @for (var month = 1; month <= 12; month++)
+                                {
+                                    <option value="@month">@CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month)</option>
+                                }
+                            </select>
+                            <span asp-validation-for="Input.TrainingMonth" class="text-danger"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <label asp-for="Input.TrainingYear" class="form-label"></label>
+                            <input asp-for="Input.TrainingYear" class="form-control" />
+                            <span asp-validation-for="Input.TrainingYear" class="text-danger"></span>
+                        </div>
+                    </div>
+
+                    <hr class="my-4" />
+
+                    <div data-legacy-fields class="@(Model.Input.IsLegacyRecord ? string.Empty : "d-none")">
+                        <div class="row g-4">
+                            <div class="col-md-4">
+                                <label asp-for="Input.LegacyOfficerCount" class="form-label"></label>
+                                <input asp-for="Input.LegacyOfficerCount" class="form-control" />
+                                <span asp-validation-for="Input.LegacyOfficerCount" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="Input.LegacyJcoCount" class="form-label"></label>
+                                <input asp-for="Input.LegacyJcoCount" class="form-control" />
+                                <span asp-validation-for="Input.LegacyJcoCount" class="text-danger"></span>
+                            </div>
+                            <div class="col-md-4">
+                                <label asp-for="Input.LegacyOrCount" class="form-label"></label>
+                                <input asp-for="Input.LegacyOrCount" class="form-control" />
+                                <span asp-validation-for="Input.LegacyOrCount" class="text-danger"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <label asp-for="Input.ProjectIds" class="form-label">Linked projects</label>
+                        @{
+                            var selectedProjectIds = Model.Input?.ProjectIds ?? new List<int>();
+                            var selectedProjectSet = new HashSet<int>(selectedProjectIds);
+                            var selectedProjects = new List<(string Value, string Label)>();
+
+                            foreach (var option in Model.ProjectOptions)
                             {
-                                <option value="@month">@CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(month)</option>
+                                if (string.IsNullOrWhiteSpace(option.Value))
+                                {
+                                    continue;
+                                }
+
+                                if (!int.TryParse(option.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedId))
+                                {
+                                    continue;
+                                }
+
+                                if (selectedProjectSet.Contains(parsedId))
+                                {
+                                    selectedProjects.Add((option.Value, option.Text ?? option.Value));
+                                    selectedProjectSet.Remove(parsedId);
+                                }
                             }
-                        </select>
-                        <span asp-validation-for="Input.TrainingMonth" class="text-danger"></span>
-                    </div>
-                    <div class="col-md-6">
-                        <label asp-for="Input.TrainingYear" class="form-label"></label>
-                        <input asp-for="Input.TrainingYear" class="form-control" />
-                        <span asp-validation-for="Input.TrainingYear" class="text-danger"></span>
-                    </div>
-                </div>
 
-                <hr class="my-4" />
-
-                <div data-legacy-fields class="@(Model.Input.IsLegacyRecord ? string.Empty : "d-none")">
-                    <div class="row g-4">
-                        <div class="col-md-4">
-                            <label asp-for="Input.LegacyOfficerCount" class="form-label"></label>
-                            <input asp-for="Input.LegacyOfficerCount" class="form-control" />
-                            <span asp-validation-for="Input.LegacyOfficerCount" class="text-danger"></span>
-                        </div>
-                        <div class="col-md-4">
-                            <label asp-for="Input.LegacyJcoCount" class="form-label"></label>
-                            <input asp-for="Input.LegacyJcoCount" class="form-control" />
-                            <span asp-validation-for="Input.LegacyJcoCount" class="text-danger"></span>
-                        </div>
-                        <div class="col-md-4">
-                            <label asp-for="Input.LegacyOrCount" class="form-label"></label>
-                            <input asp-for="Input.LegacyOrCount" class="form-control" />
-                            <span asp-validation-for="Input.LegacyOrCount" class="text-danger"></span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="mt-4">
-                    <label asp-for="Input.ProjectIds" class="form-label">Linked projects</label>
-                    @{
-                        var selectedProjectIds = Model.Input?.ProjectIds ?? new List<int>();
-                        var selectedProjectSet = new HashSet<int>(selectedProjectIds);
-                        var selectedProjects = new List<(string Value, string Label)>();
-
-                        foreach (var option in Model.ProjectOptions)
-                        {
-                            if (string.IsNullOrWhiteSpace(option.Value))
+                            foreach (var leftoverId in selectedProjectSet)
                             {
-                                continue;
-                            }
-
-                            if (!int.TryParse(option.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedId))
-                            {
-                                continue;
-                            }
-
-                            if (selectedProjectSet.Contains(parsedId))
-                            {
-                                selectedProjects.Add((option.Value, option.Text ?? option.Value));
-                                selectedProjectSet.Remove(parsedId);
+                                selectedProjects.Add((leftoverId.ToString(CultureInfo.InvariantCulture), $"Project #{leftoverId}"));
                             }
                         }
+                        <div class="async-multiselect js-async-multiselect"
+                             data-name="Input.ProjectIds"
+                             data-source="/api/lookups/projects"
+                             data-search-placeholder="Search projects"
+                             data-no-results="No projects found"
+                             data-remove-label="Remove project">
+                            @foreach (var selected in selectedProjects)
+                            {
+                                <input type="hidden" name="Input.ProjectIds" value="@selected.Value" data-label="@selected.Label" />
+                            }
+                        </div>
+                        <noscript>
+                            <select asp-for="Input.ProjectIds" asp-items="Model.ProjectOptions" multiple class="form-select" size="8"></select>
+                        </noscript>
+                        <span class="form-text">Select all projects associated with this training.</span>
+                        <span asp-validation-for="Input.ProjectIds" class="text-danger"></span>
+                    </div>
 
-                        foreach (var leftoverId in selectedProjectSet)
-                        {
-                            selectedProjects.Add((leftoverId.ToString(CultureInfo.InvariantCulture), $"Project #{leftoverId}"));
-                        }
+                    <div class="mt-4">
+                        <label asp-for="Input.Notes" class="form-label"></label>
+                        <textarea asp-for="Input.Notes" class="form-control" rows="4"></textarea>
+                        <span asp-validation-for="Input.Notes" class="text-danger"></span>
+                    </div>
+
+                    <div class="alert alert-info small d-none mt-4 mb-0" data-legacy-hint>
+                        Legacy records capture attendee totals without maintaining a roster. You can re-enable the roster at any time by unchecking the option above.
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4" data-legacy-roster>
+                <div class="card-header bg-white py-3">
+                    <h2 class="h5 mb-0">Roster</h2>
+                </div>
+
+                <div class="card-body">
+                    @{ var sourceLabel = Model.Input.CounterSource == TrainingCounterSource.Roster ? "Roster" : "Legacy counts"; }
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+                        <div class="d-flex flex-wrap gap-2">
+                            <span class="badge bg-primary-subtle text-primary-emphasis">Officers: <span id="rosterOfficersCount">@Model.Input.CounterOfficers</span></span>
+                            <span class="badge bg-primary-subtle text-primary-emphasis">JCOs: <span id="rosterJcosCount">@Model.Input.CounterJcos</span></span>
+                            <span class="badge bg-primary-subtle text-primary-emphasis">ORs: <span id="rosterOrsCount">@Model.Input.CounterOrs</span></span>
+                            <span class="badge bg-secondary-subtle text-secondary-emphasis">Total: <span id="rosterTotalCount">@Model.Input.CounterTotal</span></span>
+                        </div>
+                        <div class="text-muted" id="rosterCounterSource">Source: @sourceLabel</div>
+                    </div>
+
+                    <partial name="_RosterGrid" model="Model" />
+
+                    @if (!Model.Input.Id.HasValue)
+                    {
+                        <p class="mt-3 mb-0 text-muted small">Save the training to persist this roster and enable direct roster updates.</p>
                     }
-                    <div class="async-multiselect js-async-multiselect"
-                         data-name="Input.ProjectIds"
-                         data-source="/api/lookups/projects"
-                         data-search-placeholder="Search projects"
-                         data-no-results="No projects found"
-                         data-remove-label="Remove project">
-                        @foreach (var selected in selectedProjects)
-                        {
-                            <input type="hidden" name="Input.ProjectIds" value="@selected.Value" data-label="@selected.Label" />
-                        }
-                    </div>
-                    <noscript>
-                        <select asp-for="Input.ProjectIds" asp-items="Model.ProjectOptions" multiple class="form-select" size="8"></select>
-                    </noscript>
-                    <span class="form-text">Select all projects associated with this training.</span>
-                    <span asp-validation-for="Input.ProjectIds" class="text-danger"></span>
                 </div>
+            </div>
 
-                <div class="mt-4">
-                    <label asp-for="Input.Notes" class="form-label"></label>
-                    <textarea asp-for="Input.Notes" class="form-control" rows="4"></textarea>
-                    <span asp-validation-for="Input.Notes" class="text-danger"></span>
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <a asp-page="./Index" class="btn btn-link">&larr; Back to tracker</a>
+                <div class="d-flex align-items-center gap-2">
+                    @if (Model.Input.Id.HasValue && Model.PendingDeleteRequest is null)
+                    {
+                        <button type="button"
+                                class="btn btn-outline-danger"
+                                data-bs-toggle="collapse"
+                                data-bs-target="#deleteRequestPanel"
+                                aria-expanded="false"
+                                aria-controls="deleteRequestPanel">
+                            Request delete
+                        </button>
+                    }
+                    <button type="submit" class="btn btn-primary">Save training</button>
                 </div>
+            </div>
+        </form>
+    }
 
-                <div class="alert alert-info small d-none mt-4 mb-0" data-legacy-hint>
-                    Legacy records capture attendee totals without maintaining a roster. You can re-enable the roster at any time by unchecking the option above.
+    @if (Model.Input.Id.HasValue && Model.PendingDeleteRequest is null)
+    {
+        <div class="collapse mt-3" id="deleteRequestPanel">
+            <div class="card border-danger">
+                <div class="card-header bg-danger-subtle text-danger fw-semibold">Request deletion</div>
+                <div class="card-body">
+                    <form method="post" asp-page-handler="RequestDelete" class="needs-validation" novalidate>
+                        <input type="hidden" name="TrainingId" value="@Model.Input.Id.Value" />
+                        <input type="hidden" name="RowVersion" value="@Model.Input.RowVersion" />
+                        <div class="mb-3">
+                            <label class="form-label" for="delete-reason">Reason</label>
+                            <textarea class="form-control" id="delete-reason" name="Reason" rows="3" required maxlength="1000"></textarea>
+                            <div class="form-text">Explain why this training should be removed.</div>
+                        </div>
+                        <button type="submit" class="btn btn-danger">Submit delete request</button>
+                    </form>
                 </div>
             </div>
         </div>
-
-        <div class="card shadow-sm mb-4" data-legacy-roster>
-            <div class="card-header bg-white py-3">
-                <h2 class="h5 mb-0">Roster</h2>
-            </div>
-
-            <div class="card-body">
-                @{ var sourceLabel = Model.Input.CounterSource == TrainingCounterSource.Roster ? "Roster" : "Legacy counts"; }
-                <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
-                    <div class="d-flex flex-wrap gap-2">
-                        <span class="badge bg-primary-subtle text-primary-emphasis">Officers: <span id="rosterOfficersCount">@Model.Input.CounterOfficers</span></span>
-                        <span class="badge bg-primary-subtle text-primary-emphasis">JCOs: <span id="rosterJcosCount">@Model.Input.CounterJcos</span></span>
-                        <span class="badge bg-primary-subtle text-primary-emphasis">ORs: <span id="rosterOrsCount">@Model.Input.CounterOrs</span></span>
-                        <span class="badge bg-secondary-subtle text-secondary-emphasis">Total: <span id="rosterTotalCount">@Model.Input.CounterTotal</span></span>
-                    </div>
-                    <div class="text-muted" id="rosterCounterSource">Source: @sourceLabel</div>
-                </div>
-
-                <partial name="_RosterGrid" model="Model" />
-
-                @if (!Model.Input.Id.HasValue)
-                {
-                    <p class="mt-3 mb-0 text-muted small">Save the training to persist this roster and enable direct roster updates.</p>
-                }
-            </div>
-        </div>
-
-        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-            <a asp-page="./Index" class="btn btn-link">&larr; Back to tracker</a>
-            <div class="d-flex align-items-center gap-2">
-                @if (Model.Input.Id.HasValue && Model.PendingDeleteRequest is null)
-                {
-                    <button type="button"
-                            class="btn btn-outline-danger"
-                            data-bs-toggle="collapse"
-                            data-bs-target="#deleteRequestPanel"
-                            aria-expanded="false"
-                            aria-controls="deleteRequestPanel">
-                        Request delete
-                    </button>
-                }
-                <button type="submit" class="btn btn-primary">Save training</button>
-            </div>
-        </div>
-    </form>
-}
+    }
+</div>
 
 @section Styles
 {
@@ -247,25 +282,4 @@ else
 {
     <partial name="_ValidationScriptsPartial" />
     <script type="module" src="~/js/project-office-reports/training/manage.js" asp-append-version="true"></script>
-}
-
-@if (Model.Input.Id.HasValue && Model.PendingDeleteRequest is null)
-{
-    <div class="collapse mt-3" id="deleteRequestPanel">
-        <div class="card border-danger">
-            <div class="card-header bg-danger-subtle text-danger fw-semibold">Request deletion</div>
-            <div class="card-body">
-                <form method="post" asp-page-handler="RequestDelete" class="needs-validation" novalidate>
-                    <input type="hidden" name="TrainingId" value="@Model.Input.Id.Value" />
-                    <input type="hidden" name="RowVersion" value="@Model.Input.RowVersion" />
-                    <div class="mb-3">
-                        <label class="form-label" for="delete-reason">Reason</label>
-                        <textarea class="form-control" id="delete-reason" name="Reason" rows="3" required maxlength="1000"></textarea>
-                        <div class="form-text">Explain why this training should be removed.</div>
-                    </div>
-                    <button type="submit" class="btn btn-danger">Submit delete request</button>
-                </form>
-            </div>
-        </div>
-    </div>
 }
