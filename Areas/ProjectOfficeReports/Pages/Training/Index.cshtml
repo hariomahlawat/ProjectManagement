@@ -12,9 +12,9 @@
             <p class="text-muted mb-0">Monitor participation, track readiness, and keep every training initiative aligned with the wider project office.</p>
         </div>
         <div class="d-flex flex-wrap align-items-center gap-2">
-            <a asp-page="./Manage" class="btn btn-primary btn-lg px-4">New training</a>
+            <a asp-page="./Manage" class="btn btn-primary">New training</a>
             <a asp-page-handler="Export"
-               class="btn btn-outline-secondary btn-lg"
+               class="btn btn-outline-secondary"
                asp-route-TypeId="@Model.Filter.TypeId"
                asp-route-ProjectId="@Model.Filter.ProjectId"
                asp-route-Category="@Model.Filter.Category"
