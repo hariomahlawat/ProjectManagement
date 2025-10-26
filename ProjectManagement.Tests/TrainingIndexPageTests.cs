@@ -24,9 +24,11 @@ namespace ProjectManagement.Tests;
 public sealed class TrainingIndexPageTests
 {
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task OnGetAsync_SetsCanApproveTrainingTracker(bool authorized)
+    [InlineData(true, true)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(false, false)]
+    public async Task OnGetAsync_SetsAuthorizationFlags(bool canManage, bool canApprove)
     {
         var dbOptions = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
@@ -48,7 +50,18 @@ public sealed class TrainingIndexPageTests
             UserName = "approver"
         }, services);
 
-        var authorizationService = new StubAuthorizationService(authorized);
+        var authorizedPolicies = new List<string>();
+        if (canManage)
+        {
+            authorizedPolicies.Add(ProjectOfficeReportsPolicies.ManageTrainingTracker);
+        }
+
+        if (canApprove)
+        {
+            authorizedPolicies.Add(ProjectOfficeReportsPolicies.ApproveTrainingTracker);
+        }
+
+        var authorizationService = new StubAuthorizationService(authorizedPolicies.ToArray());
 
         var page = new IndexModel(optionsSnapshot, readService, exportService, userManager, authorizationService)
         {
@@ -67,7 +80,8 @@ public sealed class TrainingIndexPageTests
         var result = await page.OnGetAsync(CancellationToken.None);
 
         Assert.IsType<PageResult>(result);
-        Assert.Equal(authorized, page.CanApproveTrainingTracker);
+        Assert.Equal(canManage, page.CanManageTrainingTracker);
+        Assert.Equal(canApprove, page.CanApproveTrainingTracker);
     }
 
     private sealed class StubTrainingExportService : ITrainingExportService
@@ -78,28 +92,23 @@ public sealed class TrainingIndexPageTests
 
     private sealed class StubAuthorizationService : IAuthorizationService
     {
-        private readonly bool _shouldAuthorize;
+        private readonly HashSet<string> _authorizedPolicies;
 
-        public StubAuthorizationService(bool shouldAuthorize)
+        public StubAuthorizationService(params string[] authorizedPolicies)
         {
-            _shouldAuthorize = shouldAuthorize;
+            _authorizedPolicies = new HashSet<string>(authorizedPolicies ?? Array.Empty<string>(), StringComparer.Ordinal);
         }
 
         public Task<AuthorizationResult> AuthorizeAsync(
             ClaimsPrincipal user,
             object? resource,
             IEnumerable<IAuthorizationRequirement> requirements)
-            => Task.FromResult(_shouldAuthorize ? AuthorizationResult.Success() : AuthorizationResult.Failed());
+            => Task.FromResult(AuthorizationResult.Failed());
 
         public Task<AuthorizationResult> AuthorizeAsync(ClaimsPrincipal user, object? resource, string policyName)
-        {
-            if (_shouldAuthorize && string.Equals(policyName, ProjectOfficeReportsPolicies.ApproveTrainingTracker, StringComparison.Ordinal))
-            {
-                return Task.FromResult(AuthorizationResult.Success());
-            }
-
-            return Task.FromResult(AuthorizationResult.Failed());
-        }
+            => Task.FromResult(_authorizedPolicies.Contains(policyName)
+                ? AuthorizationResult.Success()
+                : AuthorizationResult.Failed());
     }
 
     private sealed class StubOptionsSnapshot<TOptions> : IOptionsSnapshot<TOptions>

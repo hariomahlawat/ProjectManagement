@@ -46,6 +46,8 @@ public class IndexModel : PageModel
 
     public bool CanApproveTrainingTracker { get; private set; }
 
+    public bool CanManageTrainingTracker { get; private set; }
+
     [BindProperty(SupportsGet = true)]
     public FilterInput Filter { get; set; } = new();
 
@@ -134,6 +136,12 @@ public class IndexModel : PageModel
     private async Task PopulateAsync(CancellationToken cancellationToken)
     {
         IsFeatureEnabled = _options.Value.Enabled;
+
+        var manageAuthorization = await _authorizationService.AuthorizeAsync(
+            User,
+            resource: null,
+            ProjectOfficeReportsPolicies.ManageTrainingTracker);
+        CanManageTrainingTracker = manageAuthorization.Succeeded;
 
         var authorizationResult = await _authorizationService.AuthorizeAsync(
             User,

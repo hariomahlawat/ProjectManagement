@@ -13,6 +13,27 @@ public static class ProjectOfficeReportsPolicies
         "Project Office"
     };
 
+    private static readonly string[] TrainingTrackerViewerRoles =
+    {
+        "Admin",
+        "HoD",
+        "ProjectOffice",
+        "Project Office",
+        "Project Officer",
+        "Comdt",
+        "MCO",
+        "TA",
+        "Main Office"
+    };
+
+    private static readonly string[] TrainingTrackerManagerRoles =
+    {
+        "Admin",
+        "HoD",
+        "ProjectOffice",
+        "Project Office"
+    };
+
     private static readonly string[] TotTrackerSubmitterRoles =
     {
         "Admin",
@@ -35,6 +56,7 @@ public static class ProjectOfficeReportsPolicies
     public const string ApproveProliferationTracker = "ProjectOfficeReports.ApproveProliferationTracker";
     public const string ManageProliferationPreferences = "ProjectOfficeReports.ManageProliferationPreferences";
     public const string ViewTrainingTracker = "ProjectOfficeReports.ViewTrainingTracker";
+    public const string ManageTrainingTracker = "ProjectOfficeReports.ManageTrainingTracker";
     public const string ApproveTrainingTracker = "ProjectOfficeReports.ApproveTrainingTracker";
 
     public static AuthorizationPolicyBuilder RequireProjectOfficeManager(this AuthorizationPolicyBuilder builder)
@@ -124,7 +146,17 @@ public static class ProjectOfficeReportsPolicies
             throw new ArgumentNullException(nameof(builder));
         }
 
-        return builder.RequireAuthenticatedUser();
+        return builder.RequireRole(TrainingTrackerViewerRoles);
+    }
+
+    public static AuthorizationPolicyBuilder RequireTrainingTrackerManager(this AuthorizationPolicyBuilder builder)
+    {
+        if (builder is null)
+        {
+            throw new ArgumentNullException(nameof(builder));
+        }
+
+        return builder.RequireRole(TrainingTrackerManagerRoles);
     }
 
     public static AuthorizationPolicyBuilder RequireTrainingTrackerApprover(this AuthorizationPolicyBuilder builder)

@@ -33,7 +33,10 @@
                     @await Component.InvokeAsync("TrainingApprovalsBadge")
                 </a>
             }
-            <a asp-page="./Manage" class="btn btn-primary">New training</a>
+            @if (Model.CanManageTrainingTracker)
+            {
+                <a asp-page="./Manage" class="btn btn-primary">New training</a>
+            }
             @if (Model.IsFeatureEnabled)
             {
                 <button type="button"

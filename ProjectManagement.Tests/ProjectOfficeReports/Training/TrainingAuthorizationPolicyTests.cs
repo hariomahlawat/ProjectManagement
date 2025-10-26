@@ -10,7 +10,30 @@ namespace ProjectManagement.Tests.ProjectOfficeReports.Training;
 public class TrainingAuthorizationPolicyTests
 {
     [Fact]
-    public async Task RequireTrainingTrackerViewer_AllowsAuthenticatedUserWithoutRoles()
+    public async Task RequireTrainingTrackerViewer_AllowsUserWithViewerRole()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddOptions();
+        services.AddAuthorization();
+
+        await using var provider = services.BuildServiceProvider();
+        var authorizationService = provider.GetRequiredService<IAuthorizationService>();
+        var policy = new AuthorizationPolicyBuilder()
+            .RequireTrainingTrackerViewer()
+            .Build();
+        var user = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.Role, "Project Officer")
+        }, "Test"));
+
+        var result = await authorizationService.AuthorizeAsync(user, resource: null, policy);
+
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public async Task RequireTrainingTrackerViewer_DeniesUserWithoutViewerRole()
     {
         var services = new ServiceCollection();
         services.AddLogging();
@@ -26,6 +49,52 @@ public class TrainingAuthorizationPolicyTests
 
         var result = await authorizationService.AuthorizeAsync(user, resource: null, policy);
 
+        Assert.False(result.Succeeded);
+    }
+
+    [Fact]
+    public async Task RequireTrainingTrackerManager_AllowsProjectOfficeRole()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddOptions();
+        services.AddAuthorization();
+
+        await using var provider = services.BuildServiceProvider();
+        var authorizationService = provider.GetRequiredService<IAuthorizationService>();
+        var policy = new AuthorizationPolicyBuilder()
+            .RequireTrainingTrackerManager()
+            .Build();
+        var user = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.Role, "Project Office")
+        }, "Test"));
+
+        var result = await authorizationService.AuthorizeAsync(user, resource: null, policy);
+
         Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public async Task RequireTrainingTrackerManager_DeniesViewerOnlyRole()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddOptions();
+        services.AddAuthorization();
+
+        await using var provider = services.BuildServiceProvider();
+        var authorizationService = provider.GetRequiredService<IAuthorizationService>();
+        var policy = new AuthorizationPolicyBuilder()
+            .RequireTrainingTrackerManager()
+            .Build();
+        var user = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.Role, "Comdt")
+        }, "Test"));
+
+        var result = await authorizationService.AuthorizeAsync(user, resource: null, policy);
+
+        Assert.False(result.Succeeded);
     }
 }
