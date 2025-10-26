@@ -213,78 +213,6 @@ public class ManageModel : PageModel
         return RedirectToPage("./Manage", new { id = result.TrainingId.Value });
     }
 
-    public async Task<IActionResult> OnPostUpsertRosterAsync([FromBody] UpsertRosterRequest request, CancellationToken cancellationToken)
-    {
-        if (request is null)
-        {
-            return BadRequest(new { ok = false, message = "An empty request was received." });
-        }
-
-        if (request.TrainingId == Guid.Empty)
-        {
-            return BadRequest(new { ok = false, message = "A valid training identifier is required." });
-        }
-
-        var userId = _userContext.UserId;
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            return new UnauthorizedObjectResult(new { ok = false, message = "The current user could not be identified." });
-        }
-
-        var expectedRowVersion = DecodeRowVersion(request.RowVersion);
-
-        var rosterRows = request.Rows ?? new List<TrainingRosterRow>();
-
-        var result = await _writeService.UpsertRosterAsync(
-            request.TrainingId,
-            rosterRows,
-            expectedRowVersion,
-            userId,
-            cancellationToken);
-
-        if (!result.IsSuccess)
-        {
-            return result.FailureCode switch
-            {
-                TrainingRosterFailureCode.TrainingNotFound => NotFound(new { ok = false, message = result.ErrorMessage ?? "The training could not be found." }),
-                TrainingRosterFailureCode.ConcurrencyConflict => new ConflictObjectResult(new { ok = false, message = result.ErrorMessage ?? "Another user has updated this training. Reload and try again." }),
-                TrainingRosterFailureCode.MissingUserId => new UnauthorizedObjectResult(new { ok = false, message = result.ErrorMessage ?? "The current user context is missing." }),
-                TrainingRosterFailureCode.DuplicateArmyNumber => BadRequest(new { ok = false, message = result.ErrorMessage ?? "Each Army number must be unique." }),
-                TrainingRosterFailureCode.InvalidRequest => BadRequest(new { ok = false, message = result.ErrorMessage ?? "The roster request was invalid." }),
-                _ => BadRequest(new { ok = false, message = result.ErrorMessage ?? "The roster could not be saved." })
-            };
-        }
-
-        var rowVersion = result.RowVersion is { Length: > 0 }
-            ? Convert.ToBase64String(result.RowVersion)
-            : string.Empty;
-
-        var counters = result.Counters ?? new TrainingRosterCounters(0, 0, 0, 0, TrainingCounterSource.Legacy);
-
-        return new JsonResult(new
-        {
-            ok = true,
-            rowVersion,
-            counters = new
-            {
-                officers = counters.Officers,
-                jcos = counters.JuniorCommissionedOfficers,
-                ors = counters.OtherRanks,
-                total = counters.Total,
-                source = counters.Source.ToString()
-            },
-            roster = result.Roster.Select(row => new
-            {
-                id = row.Id,
-                armyNumber = row.ArmyNumber,
-                rank = row.Rank,
-                name = row.Name,
-                unitName = row.UnitName,
-                category = row.Category
-            })
-        });
-    }
-
     public async Task<IActionResult> OnPostRequestDeleteAsync(DeleteRequestForm form, CancellationToken cancellationToken)
     {
         if (form is null || form.TrainingId == Guid.Empty)
@@ -669,15 +597,6 @@ public class ManageModel : PageModel
         {
             input.ProjectIds = new List<int>();
         }
-    }
-
-    public sealed class UpsertRosterRequest
-    {
-        public Guid TrainingId { get; set; }
-
-        public string? RowVersion { get; set; }
-
-        public List<TrainingRosterRow> Rows { get; set; } = new();
     }
 
     public sealed class DeleteRequestForm

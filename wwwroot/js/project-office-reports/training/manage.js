@@ -77,12 +77,9 @@ function initRosterModule() {
     return;
   }
 
-  const trainingId = context.dataset.trainingId;
   const rosterBody = document.getElementById('rosterBody');
   const btnAdd = document.getElementById('btnAddRosterRow');
   const btnPaste = document.getElementById('btnPasteRoster');
-  const btnSave = document.getElementById('btnSaveRoster');
-  const errorAlert = document.getElementById('rosterError');
   const officersSpan = document.getElementById('rosterOfficersCount');
   const jcosSpan = document.getElementById('rosterJcosCount');
   const orsSpan = document.getElementById('rosterOrsCount');
@@ -94,8 +91,8 @@ function initRosterModule() {
   const counterOrsInput = document.querySelector('input[name="Input.CounterOrs"]');
   const counterTotalInput = document.querySelector('input[name="Input.CounterTotal"]');
   const counterSourceInput = document.querySelector('input[name="Input.CounterSource"]');
-  const rowVersionInput = document.querySelector('input[name="Input.RowVersion"]');
   const rosterPayloadInput = document.querySelector('input[name="Input.RosterPayload"]');
+  const form = context.closest('form');
 
   const base64Payload = context.dataset.rows || rosterPayloadInput?.value || '';
   if (base64Payload) {
@@ -121,26 +118,6 @@ function initRosterModule() {
     await handlePaste();
   });
 
-  if (btnSave) {
-    if (!trainingId) {
-      btnSave.disabled = true;
-      btnSave.classList.add('disabled');
-      btnSave.setAttribute('aria-disabled', 'true');
-    } else {
-      btnSave.disabled = false;
-      btnSave.classList.remove('disabled');
-      btnSave.removeAttribute('aria-disabled');
-    }
-
-    btnSave.addEventListener('click', async () => {
-      if (!trainingId) {
-        return;
-      }
-
-      await handleSave();
-    });
-  }
-
   rosterBody?.addEventListener('input', recalc);
   rosterBody?.addEventListener('change', recalc);
   rosterBody?.addEventListener('click', (event) => {
@@ -149,6 +126,10 @@ function initRosterModule() {
       target.closest('tr')?.remove();
       recalc();
     }
+  });
+
+  form?.addEventListener('submit', () => {
+    recalc();
   });
 
   function addRow(row) {
@@ -271,7 +252,7 @@ function initRosterModule() {
 
   async function handlePaste() {
     if (!navigator.clipboard || !navigator.clipboard.readText) {
-      showError('Clipboard paste is not supported in this browser.');
+      window.alert('Clipboard paste is not supported in this browser.');
       return;
     }
 
@@ -283,15 +264,14 @@ function initRosterModule() {
 
       const rows = parseClipboard(text);
       if (rows.length === 0) {
-        showError('No rows detected in the clipboard contents.');
+        window.alert('No rows detected in the clipboard contents.');
         return;
       }
 
       rows.forEach((row) => addRow(row));
       recalc();
-      showError('');
     } catch {
-      showError('Clipboard access was denied. Copy the data and paste using Ctrl+V inside a cell.');
+      window.alert('Clipboard access was denied. Copy the data and paste using Ctrl+V inside a cell.');
     }
   }
 
@@ -416,134 +396,6 @@ function initRosterModule() {
     return 2;
   }
 
-  async function handleSave() {
-    if (!btnSave || !trainingId) {
-      return;
-    }
-
-    toggleBusy(true);
-    showError('');
-
-    const normalizedRows = syncRosterPayload(collectRows());
-
-    const payload = {
-      trainingId,
-      rowVersion: context.dataset.rowVersion || '',
-      rows: normalizedRows
-    };
-
-    const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
-
-    try {
-      const response = await fetch(`${window.location.pathname}?handler=UpsertRoster`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'RequestVerificationToken': token
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const message = await extractErrorMessage(response);
-        showError(message ?? 'Failed to save roster. Please try again.');
-        return;
-      }
-
-      const data = await response.json();
-
-      if (!data || data.ok === false) {
-        const serverMessage = data && typeof data.message === 'string' ? data.message : null;
-        showError(serverMessage ?? 'Failed to save roster. Please try again.');
-        return;
-      }
-
-      const newRowVersion = data?.rowVersion || '';
-      context.dataset.rowVersion = newRowVersion;
-      if (btnSave) {
-        btnSave.dataset.rowVersion = newRowVersion;
-      }
-      if (rowVersionInput) {
-        rowVersionInput.value = newRowVersion;
-      }
-
-      const roster = Array.isArray(data?.roster) ? data.roster : [];
-      renderRoster(roster);
-
-      const counters = data?.counters || {};
-      updateCounterSummary(
-        Number(counters.officers ?? 0),
-        Number(counters.jcos ?? 0),
-        Number(counters.ors ?? 0),
-        Number(counters.total ?? 0),
-        typeof counters.source === 'string' ? counters.source : undefined
-      );
-
-      showError('');
-    } catch {
-      showError('Failed to save roster. Please try again.');
-    } finally {
-      toggleBusy(false);
-    }
-  }
-
-  function toggleBusy(isBusy) {
-    if (!btnSave) {
-      return;
-    }
-
-    if (!trainingId) {
-      btnSave.disabled = true;
-      btnSave.classList.add('disabled');
-      btnSave.setAttribute('aria-disabled', 'true');
-      if (isBusy) {
-        btnSave.setAttribute('aria-busy', 'true');
-      } else {
-        btnSave.removeAttribute('aria-busy');
-      }
-      return;
-    }
-
-    btnSave.disabled = isBusy;
-    btnSave.classList.toggle('disabled', isBusy);
-    btnSave.setAttribute('aria-busy', isBusy ? 'true' : 'false');
-    if (!isBusy) {
-      btnSave.removeAttribute('aria-disabled');
-    } else {
-      btnSave.setAttribute('aria-disabled', 'true');
-    }
-  }
-
-  function showError(message) {
-    if (!errorAlert) {
-      return;
-    }
-
-    if (!message) {
-      errorAlert.classList.add('d-none');
-      errorAlert.textContent = '';
-    } else {
-      errorAlert.classList.remove('d-none');
-      errorAlert.textContent = message;
-    }
-  }
-}
-
-function extractErrorMessage(response) {
-  return response
-    .text()
-    .then((body) => {
-      try {
-        const parsed = JSON.parse(body);
-        if (parsed && typeof parsed.message === 'string') {
-          return parsed.message;
-        }
-      } catch {
-        // ignore parse failures
-      }
-      return body && body.length > 0 ? body : null;
-    })
-    .catch(() => null);
 }
 
 function decodeBase64(value) {
