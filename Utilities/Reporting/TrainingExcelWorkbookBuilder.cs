@@ -97,7 +97,14 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
             worksheet.Cell(rowNumber, 7).Value = $"{row.Officers}-{row.JuniorCommissionedOfficers}-{row.OtherRanks}";
             worksheet.Cell(rowNumber, 8).Value = row.Total;
             worksheet.Cell(rowNumber, 9).Value = FormatSource(row.Source);
-            worksheet.Cell(rowNumber, 10).Value = string.Join(", ", row.Projects);
+            if (row.Projects is { Count: > 0 } projects)
+            {
+                worksheet.Cell(rowNumber, 10).Value = string.Join(", ", projects);
+            }
+            else
+            {
+                worksheet.Cell(rowNumber, 10).Value = string.Empty;
+            }
             worksheet.Cell(rowNumber, 11).Value = row.Notes ?? string.Empty;
         }
 
