@@ -106,4 +106,40 @@ public sealed class TrainingExcelWorkbookBuilderTests
         Assert.Equal("Include roster", summarySheet!.Cell(8, 1).GetString());
         Assert.Equal("Yes", summarySheet.Cell(8, 2).GetString());
     }
+
+    [Fact]
+    public void Build_HandlesMissingProjects()
+    {
+        var summary = new TrainingExportRow(
+            Guid.NewGuid(),
+            "Signals Refresher",
+            "2024-03-01 – 2024-03-05",
+            Officers: 4,
+            JuniorCommissionedOfficers: 2,
+            OtherRanks: 1,
+            Total: 7,
+            Source: TrainingCounterSource.Legacy,
+            Projects: null!,
+            Notes: null);
+
+        var context = new TrainingExcelWorkbookContext(
+            new[] { new TrainingExportDetail(summary, Array.Empty<TrainingRosterRow>()) },
+            DateTimeOffset.UtcNow,
+            From: null,
+            To: null,
+            Search: null,
+            IncludeRoster: false,
+            TrainingTypeName: null,
+            CategoryName: null,
+            ProjectTechnicalCategoryName: null,
+            ProjectTechnicalCategoryDisplayName: null);
+
+        var builder = new TrainingExcelWorkbookBuilder();
+
+        var workbookBytes = builder.Build(context);
+        using var workbook = new XLWorkbook(new MemoryStream(workbookBytes));
+
+        var sheet = workbook.Worksheet("Trainings");
+        Assert.Equal(string.Empty, sheet.Cell(2, 10).GetString());
+    }
 }
