@@ -20,7 +20,10 @@ public sealed record TrainingExcelWorkbookContext(
     DateOnly? From,
     DateOnly? To,
     string? Search,
-    bool IncludeRoster);
+    bool IncludeRoster,
+    string? TrainingTypeName,
+    string? CategoryName,
+    string? ProjectTechnicalCategoryName);
 
 public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
 {
@@ -118,19 +121,30 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
         worksheet.Cell(metadataRow, 2).Value = generatedAtIst.DateTime;
         worksheet.Cell(metadataRow, 2).Style.DateFormat.Format = "yyyy-MM-dd HH:mm\" IST\"";
 
-        worksheet.Cell(metadataRow + 1, 1).Value = "From";
-        worksheet.Cell(metadataRow + 1, 2).Value = context.From?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "(not set)";
+        var metadataItems = new (string Label, string Value)[]
+        {
+            ("From", context.From?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "(not set)"),
+            ("To", context.To?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "(not set)"),
+            ("Search", string.IsNullOrWhiteSpace(context.Search) ? "(not set)" : context.Search!),
+            ("Include roster", context.IncludeRoster ? "Yes" : "No"),
+            ("Training type", string.IsNullOrWhiteSpace(context.TrainingTypeName) ? "(not set)" : context.TrainingTypeName!),
+            ("Category", string.IsNullOrWhiteSpace(context.CategoryName) ? "(not set)" : context.CategoryName!),
+            (
+                "Technical category",
+                string.IsNullOrWhiteSpace(context.ProjectTechnicalCategoryName)
+                    ? "(not set)"
+                    : context.ProjectTechnicalCategoryName!)
+        };
 
-        worksheet.Cell(metadataRow + 2, 1).Value = "To";
-        worksheet.Cell(metadataRow + 2, 2).Value = context.To?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "(not set)";
+        var metadataRowIndex = metadataRow + 1;
+        foreach (var (label, value) in metadataItems)
+        {
+            worksheet.Cell(metadataRowIndex, 1).Value = label;
+            worksheet.Cell(metadataRowIndex, 2).Value = value;
+            metadataRowIndex++;
+        }
 
-        worksheet.Cell(metadataRow + 3, 1).Value = "Search";
-        worksheet.Cell(metadataRow + 3, 2).Value = string.IsNullOrWhiteSpace(context.Search) ? "(not set)" : context.Search;
-
-        worksheet.Cell(metadataRow + 4, 1).Value = "Include roster";
-        worksheet.Cell(metadataRow + 4, 2).Value = context.IncludeRoster ? "Yes" : "No";
-
-        worksheet.Range(metadataRow, 1, metadataRow + 4, 1).Style.Font.Bold = true;
+        worksheet.Range(metadataRow, 1, metadataRowIndex - 1, 1).Style.Font.Bold = true;
     }
 
     private static string FormatSource(TrainingCounterSource source)
