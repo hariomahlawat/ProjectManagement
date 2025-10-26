@@ -322,13 +322,15 @@ public class ManageModel : PageModel
                 break;
         }
 
-        if (Input.Id.HasValue)
+        var input = Input;
+
+        if (input?.Id.HasValue == true)
         {
-            var refreshed = await _readService.GetEditorAsync(Input.Id.Value, cancellationToken);
+            var refreshed = await _readService.GetEditorAsync(input.Id.Value, cancellationToken);
             if (refreshed is not null)
             {
-                Input.RowVersion = Convert.ToBase64String(refreshed.RowVersion);
-                ApplyRosterMetadata(Input, refreshed);
+                input.RowVersion = Convert.ToBase64String(refreshed.RowVersion);
+                ApplyRosterMetadata(input, refreshed);
                 ApplyPendingDeleteRequest(refreshed.PendingDeleteRequest);
             }
         }
@@ -699,7 +701,7 @@ public class ManageModel : PageModel
                 LegacyJcoCount,
                 LegacyOrCount,
                 Notes,
-                ProjectIds ?? Array.Empty<int>());
+                ProjectIds ?? new List<int>());
         }
 
         public static InputModel CreateDefault()
