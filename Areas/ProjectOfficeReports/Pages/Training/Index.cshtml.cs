@@ -98,10 +98,12 @@ public class IndexModel : PageModel
         BackfillExportDefaultsFromFilter();
 
         var query = BuildExportQuery(Export);
-        var rows = await _readService.ExportAsync(query, cancellationToken);
+        var rows = await _readService.ExportAsync(query, Export.IncludeRoster, cancellationToken);
 
         var trainingTypeName = await ResolveTrainingTypeNameAsync(Export.TypeId, cancellationToken);
-        var technicalCategoryName = await ResolveTechnicalCategoryNameAsync(Export.ProjectTechnicalCategoryId, cancellationToken);
+        var (technicalCategoryName, technicalCategoryDisplayName) = await ResolveTechnicalCategoryMetadataAsync(
+            Export.ProjectTechnicalCategoryId,
+            cancellationToken);
         var categoryDisplayName = GetCategoryDisplayName(Export.Category);
 
         var workbook = _workbookBuilder.Build(new TrainingExcelWorkbookContext(
@@ -113,7 +115,8 @@ public class IndexModel : PageModel
             Export.IncludeRoster,
             trainingTypeName,
             categoryDisplayName,
-            technicalCategoryName));
+            technicalCategoryName,
+            technicalCategoryDisplayName));
 
         var fileName = $"training-tracker-{_clock.UtcNow:yyyyMMdd-HHmmss}.xlsx";
         return File(workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
@@ -211,16 +214,21 @@ public class IndexModel : PageModel
         return trainingTypes.FirstOrDefault(option => option.Id == trainingTypeId)?.Name;
     }
 
-    private async Task<string?> ResolveTechnicalCategoryNameAsync(int? technicalCategoryId, CancellationToken cancellationToken)
+    private async Task<(string? Name, string? DisplayName)> ResolveTechnicalCategoryMetadataAsync(
+        int? technicalCategoryId,
+        CancellationToken cancellationToken)
     {
         if (!technicalCategoryId.HasValue)
         {
-            return null;
+            return (null, null);
         }
 
         var categories = await _readService.GetProjectTechnicalCategoryOptionsAsync(cancellationToken);
+        var selected = categories.FirstOrDefault(option => option.Id == technicalCategoryId.Value);
         var options = BuildTechnicalCategoryOptions(categories, technicalCategoryId);
-        return options.FirstOrDefault(option => option.Selected)?.Text;
+        var displayName = options.FirstOrDefault(option => option.Selected)?.Text;
+
+        return (selected?.Name, displayName);
     }
 
     private static string? GetCategoryDisplayName(TrainingCategory? category)
