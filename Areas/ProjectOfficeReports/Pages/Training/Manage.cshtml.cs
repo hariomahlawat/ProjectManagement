@@ -213,7 +213,7 @@ public class ManageModel : PageModel
         }
 
         TempData.ToastSuccess(Input.Id.HasValue ? "Training updated." : "Training created.");
-        return RedirectToPage("./Manage", new { id = result.TrainingId.Value });
+        return RedirectToPage("./Index");
     }
 
     public async Task<IActionResult> OnPostRequestDeleteAsync(DeleteRequestForm form, CancellationToken cancellationToken)
