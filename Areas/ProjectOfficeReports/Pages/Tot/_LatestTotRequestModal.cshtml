@@ -76,7 +76,7 @@
     var requestedMetCompletedOn = FormatDate(Model.RequestedMetCompletedOn) ?? "—";
     var requestedFoPmManufactured = FoPmLabel(Model.RequestedFirstProductionModelManufactured);
     var requestedFoPmManufacturedOn = FormatDate(Model.RequestedFirstProductionModelManufacturedOn) ?? "—";
-    var submittedBy = string.IsNullOrWhiteSpace(Model.RequestedBy) ? "—" : Model.RequestedBy;
+    var submittedBy = string.IsNullOrWhiteSpace(Model.RequestedBy) ? "Unknown" : Model.RequestedBy;
     var submittedOn = FormatTimestamp(Model.RequestedOnUtc) ?? "—";
     var decidedBy = string.IsNullOrWhiteSpace(Model.DecidedBy) ? "—" : Model.DecidedBy;
     var decidedOn = FormatTimestamp(Model.DecidedOnUtc) ?? "—";

@@ -1031,7 +1031,9 @@ namespace ProjectManagement.Pages.Projects
             DateOnly? MetCompletedOn,
             bool? FirstProductionModelManufactured,
             DateOnly? FirstProductionModelManufacturedOn,
-            string? LastApprovedByDisplay,
+            string? LastApprovedByFullName,
+            string? LastApprovedByUserName,
+            string? LastApprovedByEmail,
             DateTime? LastApprovedOnUtc);
 
         private sealed record TotRequestSnapshot(
@@ -1043,9 +1045,13 @@ namespace ProjectManagement.Pages.Projects
             DateOnly? ProposedMetCompletedOn,
             bool? ProposedFirstProductionModelManufactured,
             DateOnly? ProposedFirstProductionModelManufacturedOn,
-            string SubmittedByDisplay,
+            string? SubmittedByFullName,
+            string? SubmittedByUserName,
+            string? SubmittedByEmail,
             DateTime SubmittedOnUtc,
-            string? DecidedByDisplay,
+            string? DecidedByFullName,
+            string? DecidedByUserName,
+            string? DecidedByEmail,
             DateTime? DecidedOnUtc);
 
         private async Task<(TotSnapshot? Tot, TotRequestSnapshot? Request)> LoadTotDataAsync(int projectId, CancellationToken ct)
@@ -1089,9 +1095,9 @@ namespace ProjectManagement.Pages.Projects
                     t.MetCompletedOn,
                     t.FirstProductionModelManufactured,
                     t.FirstProductionModelManufacturedOn,
-                    t.LastApprovedByUser != null && !string.IsNullOrWhiteSpace(t.LastApprovedByUser.FullName)
-                        ? t.LastApprovedByUser.FullName
-                        : t.LastApprovedByUserId,
+                    t.LastApprovedByUser != null ? t.LastApprovedByUser.FullName : null,
+                    t.LastApprovedByUser != null ? t.LastApprovedByUser.UserName : null,
+                    t.LastApprovedByUser != null ? t.LastApprovedByUser.Email : null,
                     t.LastApprovedOnUtc));
             }
 
@@ -1103,9 +1109,9 @@ namespace ProjectManagement.Pages.Projects
                 null,
                 null,
                 null,
-                t.LastApprovedByUser != null && !string.IsNullOrWhiteSpace(t.LastApprovedByUser.FullName)
-                    ? t.LastApprovedByUser.FullName
-                    : t.LastApprovedByUserId,
+                t.LastApprovedByUser != null ? t.LastApprovedByUser.FullName : null,
+                t.LastApprovedByUser != null ? t.LastApprovedByUser.UserName : null,
+                t.LastApprovedByUser != null ? t.LastApprovedByUser.Email : null,
                 t.LastApprovedOnUtc));
         }
 
@@ -1126,13 +1132,13 @@ namespace ProjectManagement.Pages.Projects
                     r.ProposedMetCompletedOn,
                     r.ProposedFirstProductionModelManufactured,
                     r.ProposedFirstProductionModelManufacturedOn,
-                    r.SubmittedByUser != null && !string.IsNullOrWhiteSpace(r.SubmittedByUser.FullName)
-                        ? r.SubmittedByUser.FullName
-                        : r.SubmittedByUserId,
+                    r.SubmittedByUser != null ? r.SubmittedByUser.FullName : null,
+                    r.SubmittedByUser != null ? r.SubmittedByUser.UserName : null,
+                    r.SubmittedByUser != null ? r.SubmittedByUser.Email : null,
                     r.SubmittedOnUtc,
-                    r.DecidedByUser != null && !string.IsNullOrWhiteSpace(r.DecidedByUser.FullName)
-                        ? r.DecidedByUser.FullName
-                        : r.DecidedByUserId,
+                    r.DecidedByUser != null ? r.DecidedByUser.FullName : null,
+                    r.DecidedByUser != null ? r.DecidedByUser.UserName : null,
+                    r.DecidedByUser != null ? r.DecidedByUser.Email : null,
                     r.DecidedOnUtc));
             }
 
@@ -1145,13 +1151,13 @@ namespace ProjectManagement.Pages.Projects
                 null,
                 null,
                 null,
-                r.SubmittedByUser != null && !string.IsNullOrWhiteSpace(r.SubmittedByUser.FullName)
-                    ? r.SubmittedByUser.FullName
-                    : r.SubmittedByUserId,
+                r.SubmittedByUser != null ? r.SubmittedByUser.FullName : null,
+                r.SubmittedByUser != null ? r.SubmittedByUser.UserName : null,
+                r.SubmittedByUser != null ? r.SubmittedByUser.Email : null,
                 r.SubmittedOnUtc,
-                r.DecidedByUser != null && !string.IsNullOrWhiteSpace(r.DecidedByUser.FullName)
-                    ? r.DecidedByUser.FullName
-                    : r.DecidedByUserId,
+                r.DecidedByUser != null ? r.DecidedByUser.FullName : null,
+                r.DecidedByUser != null ? r.DecidedByUser.UserName : null,
+                r.DecidedByUser != null ? r.DecidedByUser.Email : null,
                 r.DecidedOnUtc));
         }
 
@@ -1303,7 +1309,10 @@ namespace ProjectManagement.Pages.Projects
                 },
                 Summary = summary,
                 Facts = facts,
-                LastApprovedBy = tot.LastApprovedByDisplay,
+                LastApprovedBy = FormatUser(
+                    tot.LastApprovedByFullName,
+                    tot.LastApprovedByUserName,
+                    tot.LastApprovedByEmail),
                 LastApprovedOnUtc = tot.LastApprovedOnUtc,
                 PendingRequest = request is { State: ProjectTotRequestDecisionState.Pending }
                     ? BuildTotRequestSummary(request)
@@ -1340,6 +1349,16 @@ namespace ProjectManagement.Pages.Projects
                 ? null
                 : request.ProposedMetDetails;
 
+            var submittedBy = FormatUser(
+                request.SubmittedByFullName,
+                request.SubmittedByUserName,
+                request.SubmittedByEmail) ?? "Unknown";
+
+            var decidedBy = FormatUser(
+                request.DecidedByFullName,
+                request.DecidedByUserName,
+                request.DecidedByEmail);
+
             return new ProjectTotSummaryViewModel.TotRequestSummary(
                 request.State,
                 stateLabel,
@@ -1351,9 +1370,9 @@ namespace ProjectManagement.Pages.Projects
                 request.ProposedMetCompletedOn,
                 request.ProposedFirstProductionModelManufactured,
                 request.ProposedFirstProductionModelManufacturedOn,
-                request.SubmittedByDisplay,
+                submittedBy,
                 request.SubmittedOnUtc,
-                request.DecidedByDisplay,
+                decidedBy,
                 request.DecidedOnUtc);
         }
 
@@ -1661,6 +1680,26 @@ namespace ProjectManagement.Pages.Projects
             }
 
             return string.Format(CultureInfo.InvariantCulture, "{0:0.##} {1}", value, units[unit]);
+        }
+
+        private static string? FormatUser(string? fullName, string? userName, string? email)
+        {
+            if (!string.IsNullOrWhiteSpace(fullName))
+            {
+                return fullName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(userName))
+            {
+                return userName;
+            }
+
+            if (!string.IsNullOrWhiteSpace(email))
+            {
+                return email;
+            }
+
+            return null;
         }
 
         private static string FormatUser(ApplicationUser? user)
