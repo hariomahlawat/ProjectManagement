@@ -143,6 +143,8 @@ builder.Services.AddAuthorization(options =>
         policy.RequireTotTrackerApprover());
     options.AddPolicy(ProjectOfficeReportsPolicies.ViewTrainingTracker, policy =>
         policy.RequireTrainingTrackerViewer());
+    options.AddPolicy(ProjectOfficeReportsPolicies.ManageTrainingTracker, policy =>
+        policy.RequireTrainingTrackerManager());
     options.AddPolicy(ProjectOfficeReportsPolicies.ApproveTrainingTracker, policy =>
         policy.RequireTrainingTrackerApprover());
     options.AddPolicy(ProjectOfficeReportsPolicies.ViewProliferationTracker, policy =>
