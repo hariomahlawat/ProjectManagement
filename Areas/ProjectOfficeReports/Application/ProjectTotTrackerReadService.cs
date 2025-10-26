@@ -170,10 +170,14 @@ public class ProjectTotTrackerReadService
                 includeTotDetailColumns && p.Tot != null ? p.Tot.FirstProductionModelManufactured : null,
                 includeTotDetailColumns && p.Tot != null ? p.Tot.FirstProductionModelManufacturedOn : null,
                 includeTotDetailColumns && p.Tot != null ? p.Tot.LastApprovedByUserId : null,
-                includeTotDetailColumns && p.Tot != null
-                    ? p.Tot.LastApprovedByUser != null
-                        ? p.Tot.LastApprovedByUser.FullName
-                        : null
+                includeTotDetailColumns && p.Tot != null && p.Tot.LastApprovedByUser != null
+                    ? p.Tot.LastApprovedByUser.FullName
+                    : null,
+                includeTotDetailColumns && p.Tot != null && p.Tot.LastApprovedByUser != null
+                    ? p.Tot.LastApprovedByUser.UserName
+                    : null,
+                includeTotDetailColumns && p.Tot != null && p.Tot.LastApprovedByUser != null
+                    ? p.Tot.LastApprovedByUser.Email
                     : null,
                 includeTotDetailColumns && p.Tot != null ? p.Tot.LastApprovedOnUtc : null,
                 p.TotRequest != null ? p.TotRequest.DecisionState : (ProjectTotRequestDecisionState?)null,
@@ -185,10 +189,14 @@ public class ProjectTotTrackerReadService
                 includeRequestDetailColumns && p.TotRequest != null ? p.TotRequest.ProposedFirstProductionModelManufactured : null,
                 includeRequestDetailColumns && p.TotRequest != null ? p.TotRequest.ProposedFirstProductionModelManufacturedOn : null,
                 p.TotRequest != null ? p.TotRequest.SubmittedByUserId : null,
-                p.TotRequest != null ? p.TotRequest.SubmittedByUser != null ? p.TotRequest.SubmittedByUser.FullName : null : null,
+                p.TotRequest != null && p.TotRequest.SubmittedByUser != null ? p.TotRequest.SubmittedByUser.FullName : null,
+                p.TotRequest != null && p.TotRequest.SubmittedByUser != null ? p.TotRequest.SubmittedByUser.UserName : null,
+                p.TotRequest != null && p.TotRequest.SubmittedByUser != null ? p.TotRequest.SubmittedByUser.Email : null,
                 p.TotRequest != null ? p.TotRequest.SubmittedOnUtc : (DateTime?)null,
                 p.TotRequest != null ? p.TotRequest.DecidedByUserId : null,
-                p.TotRequest != null ? p.TotRequest.DecidedByUser != null ? p.TotRequest.DecidedByUser.FullName : null : null,
+                p.TotRequest != null && p.TotRequest.DecidedByUser != null ? p.TotRequest.DecidedByUser.FullName : null,
+                p.TotRequest != null && p.TotRequest.DecidedByUser != null ? p.TotRequest.DecidedByUser.UserName : null,
+                p.TotRequest != null && p.TotRequest.DecidedByUser != null ? p.TotRequest.DecidedByUser.Email : null,
                 p.TotRequest != null ? p.TotRequest.DecidedOnUtc : (DateTime?)null,
                 includeRequestDetailColumns && p.TotRequest != null ? p.TotRequest.RowVersion : null,
                 includeRequestDetailColumns && p.TotRequest != null));
@@ -212,17 +220,20 @@ public class ProjectTotTrackerReadService
             remarkMap.TryGetValue(snapshot.ProjectId, out var remarks);
 
             var totMetDetails = string.IsNullOrWhiteSpace(snapshot.TotMetDetails) ? null : snapshot.TotMetDetails;
-            var totLastApprovedName = !string.IsNullOrWhiteSpace(snapshot.TotLastApprovedByFullName)
-                ? snapshot.TotLastApprovedByFullName
-                : snapshot.TotLastApprovedByUserId;
+            var totLastApprovedName = FormatUser(
+                snapshot.TotLastApprovedByFullName,
+                snapshot.TotLastApprovedByUserName,
+                snapshot.TotLastApprovedByEmail);
 
             var requestMetDetails = string.IsNullOrWhiteSpace(snapshot.RequestedMetDetails) ? null : snapshot.RequestedMetDetails;
-            var requestSubmittedBy = !string.IsNullOrWhiteSpace(snapshot.RequestedByFullName)
-                ? snapshot.RequestedByFullName
-                : snapshot.RequestedByUserId;
-            var requestDecidedBy = !string.IsNullOrWhiteSpace(snapshot.DecidedByFullName)
-                ? snapshot.DecidedByFullName
-                : snapshot.DecidedByUserId;
+            var requestSubmittedBy = FormatUser(
+                snapshot.RequestedByFullName,
+                snapshot.RequestedByUserName,
+                snapshot.RequestedByEmail);
+            var requestDecidedBy = FormatUser(
+                snapshot.DecidedByFullName,
+                snapshot.DecidedByUserName,
+                snapshot.DecidedByEmail);
 
             var leadProjectOfficer = !string.IsNullOrWhiteSpace(snapshot.LeadPoFullName)
                 ? snapshot.LeadPoFullName
@@ -323,6 +334,26 @@ public class ProjectTotTrackerReadService
         return result;
     }
 
+    private static string? FormatUser(string? fullName, string? userName, string? email)
+    {
+        if (!string.IsNullOrWhiteSpace(fullName))
+        {
+            return fullName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(userName))
+        {
+            return userName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            return email;
+        }
+
+        return null;
+    }
+
     private static string EscapeLikePattern(string value)
     {
         return value
@@ -349,6 +380,8 @@ public class ProjectTotTrackerReadService
         DateOnly? TotFirstProductionModelManufacturedOn,
         string? TotLastApprovedByUserId,
         string? TotLastApprovedByFullName,
+        string? TotLastApprovedByUserName,
+        string? TotLastApprovedByEmail,
         DateTime? TotLastApprovedOnUtc,
         ProjectTotRequestDecisionState? RequestState,
         ProjectTotStatus? RequestedStatus,
@@ -360,9 +393,13 @@ public class ProjectTotTrackerReadService
         DateOnly? RequestedFirstProductionModelManufacturedOn,
         string? RequestedByUserId,
         string? RequestedByFullName,
+        string? RequestedByUserName,
+        string? RequestedByEmail,
         DateTime? RequestedOnUtc,
         string? DecidedByUserId,
         string? DecidedByFullName,
+        string? DecidedByUserName,
+        string? DecidedByEmail,
         DateTime? DecidedOnUtc,
         byte[]? RequestRowVersion,
         bool RequestMetadataAvailable);

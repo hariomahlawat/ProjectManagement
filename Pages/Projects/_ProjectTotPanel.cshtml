@@ -107,7 +107,7 @@
                     _ => "secondary"
                 };
                 var submittedByText = string.IsNullOrWhiteSpace(request.SubmittedBy)
-                    ? "—"
+                    ? "Unknown"
                     : request.SubmittedBy;
                 var submittedOnText = FormatTimestamp(request.SubmittedOnUtc);
                 var decidedOnText = FormatTimestamp(request.DecidedOnUtc);
