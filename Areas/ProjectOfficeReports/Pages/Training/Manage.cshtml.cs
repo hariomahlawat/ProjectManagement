@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -25,6 +27,14 @@ public class ManageModel : PageModel
     private readonly TrainingTrackerReadService _readService;
     private readonly TrainingWriteService _writeService;
     private readonly IUserContext _userContext;
+
+    private static readonly JsonSerializerOptions RosterSerializerOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true
+    };
+
+    private const string RosterProcessingErrorMessage = "The roster could not be processed.";
 
     public ManageModel(
         IOptionsSnapshot<TrainingTrackerOptions> options,
@@ -100,6 +110,39 @@ public class ManageModel : PageModel
 
         ValidateInput(Input);
 
+        List<TrainingRosterRow> rosterRows;
+        if (Input.IsLegacyRecord)
+        {
+            rosterRows = new List<TrainingRosterRow>();
+            Input.HasRoster = false;
+            Input.Roster = new List<TrainingRosterRow>();
+            Input.RosterPayload = SerializeRosterPayload(Input.Roster);
+            Input.CounterSource = TrainingCounterSource.Legacy;
+        }
+        else
+        {
+            if (!TryDeserializeRosterPayload(Input.RosterPayload, out var parsedRoster, out var rosterError))
+            {
+                ModelState.AddModelError(string.Empty, rosterError ?? RosterProcessingErrorMessage);
+                rosterRows = new List<TrainingRosterRow>();
+            }
+            else
+            {
+                rosterRows = parsedRoster;
+            }
+
+            Input.HasRoster = rosterRows.Count > 0;
+            Input.Roster = CloneRoster(rosterRows);
+            Input.RosterPayload = SerializeRosterPayload(Input.Roster);
+
+            var (officers, jcos, ors, total) = CalculateRosterCounters(rosterRows);
+            Input.CounterOfficers = officers;
+            Input.CounterJcos = jcos;
+            Input.CounterOrs = ors;
+            Input.CounterTotal = total;
+            Input.CounterSource = rosterRows.Count > 0 ? TrainingCounterSource.Roster : TrainingCounterSource.Legacy;
+        }
+
         if (!ModelState.IsValid)
         {
             await LoadOptionsAsync(cancellationToken);
@@ -137,8 +180,37 @@ public class ManageModel : PageModel
             return Page();
         }
 
+        if (!result.TrainingId.HasValue)
+        {
+            ModelState.AddModelError(string.Empty, "The training could not be saved.");
+            await LoadOptionsAsync(cancellationToken);
+            return Page();
+        }
+
+        TrainingId = result.TrainingId;
+
+        var rosterResult = await _writeService.UpsertRosterAsync(
+            result.TrainingId.Value,
+            rosterRows,
+            result.RowVersion,
+            userId ?? string.Empty,
+            cancellationToken);
+
+        if (!rosterResult.IsSuccess)
+        {
+            var message = rosterResult.ErrorMessage ?? "The roster could not be saved.";
+            ModelState.AddModelError(string.Empty, message);
+            Input.Id = result.TrainingId.Value;
+            TrainingId = result.TrainingId;
+            Input.RowVersion = result.RowVersion is { Length: > 0 }
+                ? Convert.ToBase64String(result.RowVersion)
+                : string.Empty;
+            await LoadOptionsAsync(cancellationToken);
+            return Page();
+        }
+
         TempData.ToastSuccess(Input.Id.HasValue ? "Training updated." : "Training created.");
-        return RedirectToPage("./Manage", new { id = result.TrainingId });
+        return RedirectToPage("./Manage", new { id = result.TrainingId.Value });
     }
 
     public async Task<IActionResult> OnPostUpsertRosterAsync([FromBody] UpsertRosterRequest request, CancellationToken cancellationToken)
@@ -383,6 +455,7 @@ public class ManageModel : PageModel
         model.CounterOrs = editor.CounterOrs;
         model.CounterTotal = editor.CounterTotal;
         model.CounterSource = editor.CounterSource;
+        model.RosterPayload = SerializeRosterPayload(model.Roster);
     }
 
     private void ApplyPendingDeleteRequest(TrainingDeleteRequestSummary? summary)
@@ -410,6 +483,121 @@ public class ManageModel : PageModel
                 Category = row.Category
             })
             .ToList();
+    }
+
+    private static string SerializeRosterPayload(IEnumerable<TrainingRosterRow> roster)
+    {
+        var payload = roster?
+            .Select(row => new RosterPayloadRow
+            {
+                Id = row.Id,
+                ArmyNumber = row.ArmyNumber,
+                Rank = row.Rank,
+                Name = row.Name,
+                UnitName = row.UnitName,
+                Category = row.Category
+            })
+            .ToList() ?? new List<RosterPayloadRow>();
+
+        var json = JsonSerializer.Serialize(payload, RosterSerializerOptions);
+        return Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
+    }
+
+    private static bool TryDeserializeRosterPayload(string? payload, out List<TrainingRosterRow> rows, out string? errorMessage)
+    {
+        rows = new List<TrainingRosterRow>();
+        errorMessage = null;
+
+        if (string.IsNullOrWhiteSpace(payload))
+        {
+            return true;
+        }
+
+        byte[] raw;
+        try
+        {
+            raw = Convert.FromBase64String(payload);
+        }
+        catch (FormatException)
+        {
+            errorMessage = RosterProcessingErrorMessage;
+            return false;
+        }
+
+        try
+        {
+            var json = Encoding.UTF8.GetString(raw);
+            var parsed = JsonSerializer.Deserialize<List<RosterPayloadRow>>(json, RosterSerializerOptions) ?? new List<RosterPayloadRow>();
+            rows = parsed
+                .Select(row => new TrainingRosterRow
+                {
+                    Id = row.Id,
+                    ArmyNumber = string.IsNullOrWhiteSpace(row.ArmyNumber) ? null : row.ArmyNumber,
+                    Rank = row.Rank ?? string.Empty,
+                    Name = row.Name ?? string.Empty,
+                    UnitName = row.UnitName ?? string.Empty,
+                    Category = NormalizeCategory(row.Category)
+                })
+                .ToList();
+
+            return true;
+        }
+        catch (JsonException)
+        {
+            errorMessage = RosterProcessingErrorMessage;
+            return false;
+        }
+    }
+
+    private static (int Officers, int Jcos, int Ors, int Total) CalculateRosterCounters(IEnumerable<TrainingRosterRow> rows)
+    {
+        var officers = 0;
+        var jcos = 0;
+        var ors = 0;
+
+        foreach (var row in rows)
+        {
+            switch (row.Category)
+            {
+                case 0:
+                    officers += 1;
+                    break;
+                case 1:
+                    jcos += 1;
+                    break;
+                default:
+                    ors += 1;
+                    break;
+            }
+        }
+
+        var total = officers + jcos + ors;
+        return (officers, jcos, ors, total);
+    }
+
+    private static byte NormalizeCategory(int? category)
+    {
+        return category switch
+        {
+            0 => (byte)0,
+            1 => (byte)1,
+            _ => (byte)2
+        };
+    }
+
+    private sealed class RosterPayloadRow
+    {
+        public int? Id { get; set; }
+
+        public string? ArmyNumber { get; set; }
+
+        public string? Rank { get; set; }
+
+        public string? Name { get; set; }
+
+        public string? UnitName { get; set; }
+
+        public int? Category { get; set; }
     }
 
     private void ValidateInput(InputModel input)
@@ -475,11 +663,6 @@ public class ManageModel : PageModel
             {
                 ModelState.AddModelError(string.Empty, "Enter at least one attendee in the legacy counts.");
             }
-        }
-        else if (!input.Id.HasValue)
-        {
-            // A new roster-first submission will not have stored roster data yet.
-            input.HasRoster = false;
         }
 
         if (input.ProjectIds is null)
@@ -561,6 +744,8 @@ public class ManageModel : PageModel
 
         public List<TrainingRosterRow> Roster { get; set; } = new();
 
+        public string? RosterPayload { get; set; } = string.Empty;
+
         public bool HasRoster { get; set; }
 
         public int CounterOfficers { get; set; }
@@ -599,6 +784,7 @@ public class ManageModel : PageModel
                 ScheduleMode = TrainingScheduleMode.DateRange,
                 IsLegacyRecord = false,
                 Roster = new List<TrainingRosterRow>(),
+                RosterPayload = SerializeRosterPayload(Array.Empty<TrainingRosterRow>()),
                 HasRoster = false,
                 CounterOfficers = 0,
                 CounterJcos = 0,

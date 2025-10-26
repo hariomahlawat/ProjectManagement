@@ -4,17 +4,22 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.ManageModel
 
 @{
-    var rosterPayload = Model.Input.Roster ?? new List<ProjectManagement.Areas.ProjectOfficeReports.Application.TrainingRosterRow>();
-    var rosterJson = JsonSerializer.Serialize(rosterPayload.Select(row => new
+    var rosterBase64 = Model.Input.RosterPayload ?? string.Empty;
+
+    if (string.IsNullOrWhiteSpace(rosterBase64))
     {
-        id = row.Id,
-        armyNumber = row.ArmyNumber,
-        rank = row.Rank,
-        name = row.Name,
-        unitName = row.UnitName,
-        category = row.Category
-    }));
-    var rosterBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(rosterJson));
+        var rosterPayload = Model.Input.Roster ?? new List<ProjectManagement.Areas.ProjectOfficeReports.Application.TrainingRosterRow>();
+        var rosterJson = JsonSerializer.Serialize(rosterPayload.Select(row => new
+        {
+            id = row.Id,
+            armyNumber = row.ArmyNumber,
+            rank = row.Rank,
+            name = row.Name,
+            unitName = row.UnitName,
+            category = row.Category
+        }));
+        rosterBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(rosterJson));
+    }
     var trainingId = Model.Input.Id?.ToString() ?? string.Empty;
     var rowVersion = Model.Input.RowVersion ?? string.Empty;
 }

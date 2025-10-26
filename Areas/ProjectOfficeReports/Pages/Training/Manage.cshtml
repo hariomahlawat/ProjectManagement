@@ -41,6 +41,7 @@ else
         <input type="hidden" asp-for="Input.CounterOrs" />
         <input type="hidden" asp-for="Input.CounterTotal" />
         <input type="hidden" asp-for="Input.CounterSource" />
+        <input type="hidden" asp-for="Input.RosterPayload" />
 
         <div class="card shadow-sm mb-4" data-legacy-counts>
             <div class="card-body p-4">
@@ -152,26 +153,24 @@ else
             </div>
 
             <div class="card-body">
-                @if (Model.Input.Id.HasValue)
-                {
-                    var sourceLabel = Model.Input.CounterSource == TrainingCounterSource.Roster ? "Roster" : "Legacy counts";
-                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
-                        <div class="d-flex flex-wrap gap-2">
-                            <span class="badge bg-primary-subtle text-primary-emphasis">Officers: <span id="rosterOfficersCount">@Model.Input.CounterOfficers</span></span>
-                            <span class="badge bg-primary-subtle text-primary-emphasis">JCOs: <span id="rosterJcosCount">@Model.Input.CounterJcos</span></span>
-                            <span class="badge bg-primary-subtle text-primary-emphasis">ORs: <span id="rosterOrsCount">@Model.Input.CounterOrs</span></span>
-                            <span class="badge bg-secondary-subtle text-secondary-emphasis">Total: <span id="rosterTotalCount">@Model.Input.CounterTotal</span></span>
-                        </div>
-                        <div class="text-muted" id="rosterCounterSource">Source: @sourceLabel</div>
+                @{ var sourceLabel = Model.Input.CounterSource == TrainingCounterSource.Roster ? "Roster" : "Legacy counts"; }
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+                    <div class="d-flex flex-wrap gap-2">
+                        <span class="badge bg-primary-subtle text-primary-emphasis">Officers: <span id="rosterOfficersCount">@Model.Input.CounterOfficers</span></span>
+                        <span class="badge bg-primary-subtle text-primary-emphasis">JCOs: <span id="rosterJcosCount">@Model.Input.CounterJcos</span></span>
+                        <span class="badge bg-primary-subtle text-primary-emphasis">ORs: <span id="rosterOrsCount">@Model.Input.CounterOrs</span></span>
+                        <span class="badge bg-secondary-subtle text-secondary-emphasis">Total: <span id="rosterTotalCount">@Model.Input.CounterTotal</span></span>
                     </div>
+                    <div class="text-muted" id="rosterCounterSource">Source: @sourceLabel</div>
+                </div>
 
-                    <div id="rosterError" class="alert alert-danger d-none" role="alert"></div>
+                <div id="rosterError" class="alert alert-danger d-none" role="alert"></div>
 
-                    <partial name="_RosterGrid" model="Model" />
-                }
-                else
+                <partial name="_RosterGrid" model="Model" />
+
+                @if (!Model.Input.Id.HasValue)
                 {
-                    <p class="mb-0 text-muted">Save the training details before managing the roster.</p>
+                    <p class="mt-3 mb-0 text-muted small">Save the training to persist this roster and enable direct roster updates.</p>
                 }
             </div>
         </div>
