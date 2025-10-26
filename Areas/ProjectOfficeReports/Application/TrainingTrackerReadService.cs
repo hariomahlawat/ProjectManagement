@@ -105,6 +105,7 @@ public sealed class TrainingTrackerReadService
                         request.Id,
                         request.TrainingId,
                         request.RequestedByUserId,
+                        request.RequestedByUserId,
                         request.RequestedAtUtc,
                         request.Reason,
                         request.Status,
@@ -114,6 +115,35 @@ public sealed class TrainingTrackerReadService
                     .FirstOrDefault(),
                 x.RowVersion))
             .FirstOrDefaultAsync(cancellationToken);
+
+        if (projection?.PendingDeleteRequest is { } pending)
+        {
+            var requestedBy = await _db.Users
+                .AsNoTracking()
+                .Where(user => user.Id == pending.RequestedByUserId)
+                .Select(user => new
+                {
+                    user.FullName,
+                    user.UserName,
+                    user.Email
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            var requestedByDisplayName = requestedBy is not null
+                ? !string.IsNullOrWhiteSpace(requestedBy.FullName)
+                    ? requestedBy.FullName
+                    : !string.IsNullOrWhiteSpace(requestedBy.UserName)
+                        ? requestedBy.UserName!
+                        : !string.IsNullOrWhiteSpace(requestedBy.Email)
+                            ? requestedBy.Email!
+                            : pending.RequestedByUserId
+                : pending.RequestedByUserId;
+
+            projection = projection with
+            {
+                PendingDeleteRequest = pending with { RequestedByDisplayName = requestedByDisplayName }
+            };
+        }
 
         return projection;
     }
@@ -686,6 +716,7 @@ public sealed record TrainingDeleteRequestSummary(
     Guid Id,
     Guid TrainingId,
     string RequestedByUserId,
+    string RequestedByDisplayName,
     DateTimeOffset RequestedAtUtc,
     string Reason,
     TrainingDeleteRequestStatus Status,
