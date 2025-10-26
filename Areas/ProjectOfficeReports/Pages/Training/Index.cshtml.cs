@@ -26,20 +26,25 @@ public class IndexModel : PageModel
     private readonly TrainingTrackerReadService _readService;
     private readonly ITrainingExportService _exportService;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IAuthorizationService _authorizationService;
 
     public IndexModel(
         IOptionsSnapshot<TrainingTrackerOptions> options,
         TrainingTrackerReadService readService,
         ITrainingExportService exportService,
-        UserManager<ApplicationUser> userManager)
+        UserManager<ApplicationUser> userManager,
+        IAuthorizationService authorizationService)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
         _exportService = exportService ?? throw new ArgumentNullException(nameof(exportService));
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+        _authorizationService = authorizationService ?? throw new ArgumentNullException(nameof(authorizationService));
     }
 
     public bool IsFeatureEnabled { get; private set; }
+
+    public bool CanApproveTrainingTracker { get; private set; }
 
     [BindProperty(SupportsGet = true)]
     public FilterInput Filter { get; set; } = new();
@@ -129,6 +134,12 @@ public class IndexModel : PageModel
     private async Task PopulateAsync(CancellationToken cancellationToken)
     {
         IsFeatureEnabled = _options.Value.Enabled;
+
+        var authorizationResult = await _authorizationService.AuthorizeAsync(
+            User,
+            resource: null,
+            ProjectOfficeReportsPolicies.ApproveTrainingTracker);
+        CanApproveTrainingTracker = authorizationResult.Succeeded;
 
         await LoadOptionsAsync(cancellationToken);
 
