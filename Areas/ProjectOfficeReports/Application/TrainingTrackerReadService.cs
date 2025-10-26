@@ -573,7 +573,9 @@ public sealed class TrainingTrackerReadService
     {
         if (projection.StartDate.HasValue || projection.EndDate.HasValue)
         {
-            return new TrainingDateRange(projection.StartDate, projection.EndDate ?? projection.StartDate);
+            var start = projection.StartDate ?? projection.EndDate;
+            var end = projection.EndDate ?? projection.StartDate ?? start;
+            return new TrainingDateRange(start, end);
         }
 
         if (projection.TrainingYear.HasValue && projection.TrainingMonth.HasValue
@@ -595,8 +597,10 @@ public sealed class TrainingTrackerReadService
     {
         if (startDate.HasValue || endDate.HasValue)
         {
-            var start = startDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "(not set)";
-            var end = endDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? start;
+            var normalizedStart = startDate ?? endDate;
+            var normalizedEnd = endDate ?? startDate ?? normalizedStart;
+            var start = normalizedStart?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "(not set)";
+            var end = normalizedEnd?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? start;
             return start == end ? start : $"{start} – {end}";
         }
 
