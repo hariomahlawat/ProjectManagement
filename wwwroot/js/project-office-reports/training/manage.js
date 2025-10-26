@@ -12,6 +12,7 @@ function initLegacyToggle() {
 
   const toggleContainer = toggle.closest('[data-legacy-toggle]');
   const countsCard = document.querySelector('[data-legacy-counts]');
+  const legacyFields = document.querySelector('[data-legacy-fields]');
   const rosterCard = document.querySelector('[data-legacy-roster]');
   const hint = document.querySelector('[data-legacy-hint]');
 
@@ -25,6 +26,10 @@ function initLegacyToggle() {
     if (countsCard) {
       countsCard.classList.toggle('border', isLegacy);
       countsCard.classList.toggle('border-primary-subtle', isLegacy);
+    }
+
+    if (legacyFields) {
+      legacyFields.classList.toggle('d-none', !isLegacy);
     }
 
     if (rosterCard) {
