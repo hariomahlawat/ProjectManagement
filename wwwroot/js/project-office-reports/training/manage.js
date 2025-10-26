@@ -1,4 +1,7 @@
+import { initAsyncMultiselect } from '../../widgets/async-multiselect.js';
+
 (() => {
+  initAsyncMultiselect();
   initScheduleToggle();
   initLegacyToggle();
   initRosterModule();

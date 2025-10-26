@@ -1570,6 +1570,43 @@ lookupApi.MapGet("/sponsoring-units", async (
     });
 });
 
+lookupApi.MapGet("/projects", async (
+    ApplicationDbContext db,
+    [FromQuery(Name = "q")] string? query,
+    [FromQuery] int page,
+    [FromQuery] int pageSize,
+    CancellationToken cancellationToken) =>
+{
+    var term = string.IsNullOrWhiteSpace(query) ? null : query.Trim();
+    var currentPage = page < 1 ? 1 : page;
+    var size = pageSize < 1 ? 20 : Math.Min(pageSize, 50);
+
+    var projects = db.Projects
+        .AsNoTracking()
+        .Where(p => !p.IsDeleted && !p.IsArchived);
+
+    if (!string.IsNullOrEmpty(term))
+    {
+        projects = projects.Where(p => EF.Functions.ILike(p.Name, $"%{term}%"));
+    }
+
+    var total = await projects.CountAsync(cancellationToken);
+    var items = await projects
+        .OrderBy(p => p.Name)
+        .Skip((currentPage - 1) * size)
+        .Take(size)
+        .Select(p => new { id = p.Id, name = p.Name })
+        .ToListAsync(cancellationToken);
+
+    return Results.Ok(new
+    {
+        items,
+        total,
+        page = currentPage,
+        pageSize = size
+    });
+});
+
 lookupApi.MapGet("/line-directorates", async (
     ApplicationDbContext db,
     [FromQuery(Name = "q")] string? query,
