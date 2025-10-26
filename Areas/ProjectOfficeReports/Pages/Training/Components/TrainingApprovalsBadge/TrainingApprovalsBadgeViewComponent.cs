@@ -24,9 +24,11 @@ public sealed class TrainingApprovalsBadgeViewComponent : ViewComponent
 
     public async Task<IViewComponentResult> InvokeAsync()
     {
+        const string viewPath = "~/Areas/ProjectOfficeReports/Pages/Training/Components/TrainingApprovalsBadge/Default.cshtml";
+
         if (HttpContext?.User?.Identity?.IsAuthenticated != true)
         {
-            return View(0);
+            return View(viewPath, 0);
         }
 
         var authorizationResult = await _authorizationService.AuthorizeAsync(
@@ -36,7 +38,7 @@ public sealed class TrainingApprovalsBadgeViewComponent : ViewComponent
 
         if (!authorizationResult.Succeeded)
         {
-            return View(0);
+            return View(viewPath, 0);
         }
 
         var cancellationToken = HttpContext?.RequestAborted ?? CancellationToken.None;
@@ -44,8 +46,6 @@ public sealed class TrainingApprovalsBadgeViewComponent : ViewComponent
         var pendingCount = await _dbContext.TrainingDeleteRequests
             .AsNoTracking()
             .CountAsync(request => request.Status == TrainingDeleteRequestStatus.Pending, cancellationToken);
-
-        const string viewPath = "~/Areas/ProjectOfficeReports/Pages/Training/Components/TrainingApprovalsBadge/Default.cshtml";
 
         return View(viewPath, pendingCount);
     }
