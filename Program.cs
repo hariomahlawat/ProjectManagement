@@ -1644,6 +1644,44 @@ lookupApi.MapGet("/line-directorates", async (
     });
 });
 
+lookupApi.MapGet("/training-types", async (
+    ApplicationDbContext db,
+    [FromQuery(Name = "q")] string? query,
+    [FromQuery] int page,
+    [FromQuery] int pageSize,
+    CancellationToken cancellationToken) =>
+{
+    var term = string.IsNullOrWhiteSpace(query) ? null : query.Trim();
+    var currentPage = page < 1 ? 1 : page;
+    var size = pageSize < 1 ? 20 : Math.Min(pageSize, 50);
+
+    var trainingTypes = db.TrainingTypes
+        .AsNoTracking()
+        .Where(t => t.IsActive);
+
+    if (!string.IsNullOrEmpty(term))
+    {
+        trainingTypes = trainingTypes.Where(t => EF.Functions.ILike(t.Name, $"%{term}%"));
+    }
+
+    var total = await trainingTypes.CountAsync(cancellationToken);
+    var items = await trainingTypes
+        .OrderBy(t => t.DisplayOrder)
+        .ThenBy(t => t.Name)
+        .Skip((currentPage - 1) * size)
+        .Take(size)
+        .Select(t => new { id = t.Id, name = t.Name })
+        .ToListAsync(cancellationToken);
+
+    return Results.Ok(new
+    {
+        items,
+        total,
+        page = currentPage,
+        pageSize = size
+    });
+});
+
 eventsApi.MapPost("/{id:guid}/task", async (Guid id, ApplicationDbContext db, ITodoService todos, UserManager<ApplicationUser> users, ClaimsPrincipal user) =>
 {
     var ev = await db.Events.FirstOrDefaultAsync(e => e.Id == id);
