@@ -71,15 +71,13 @@ public class IndexModel : PageModel
 
         await LoadOptionsAsync(cancellationToken);
 
+        BackfillExportDefaultsFromFilter();
+
         if (!IsFeatureEnabled)
         {
             Trainings = Array.Empty<TrainingRowViewModel>();
             return Page();
         }
-
-        Export.From ??= Filter.From;
-        Export.To ??= Filter.To;
-        Export.ProjectTechnicalCategoryId ??= Filter.ProjectTechnicalCategoryId;
 
         var query = BuildQuery(Filter);
         var results = await _readService.SearchAsync(query, cancellationToken);
@@ -97,35 +95,25 @@ public class IndexModel : PageModel
             return Forbid();
         }
 
-        Export.From ??= Filter.From;
-        Export.To ??= Filter.To;
-        Export.ProjectTechnicalCategoryId ??= Filter.ProjectTechnicalCategoryId;
+        BackfillExportDefaultsFromFilter();
 
-        var query = BuildQuery(Filter);
-        if (Export.From.HasValue)
-        {
-            query.From = Export.From;
-        }
-
-        if (Export.To.HasValue)
-        {
-            query.To = Export.To;
-        }
-
-        if (Export.ProjectTechnicalCategoryId.HasValue)
-        {
-            query.ProjectTechnicalCategoryId = Export.ProjectTechnicalCategoryId;
-        }
-
+        var query = BuildExportQuery(Export);
         var rows = await _readService.ExportAsync(query, cancellationToken);
+
+        var trainingTypeName = await ResolveTrainingTypeNameAsync(Export.TypeId, cancellationToken);
+        var technicalCategoryName = await ResolveTechnicalCategoryNameAsync(Export.ProjectTechnicalCategoryId, cancellationToken);
+        var categoryDisplayName = GetCategoryDisplayName(Export.Category);
 
         var workbook = _workbookBuilder.Build(new TrainingExcelWorkbookContext(
             rows,
             _clock.UtcNow,
             query.From,
             query.To,
-            Filter.Search,
-            Export.IncludeRoster));
+            query.Search,
+            Export.IncludeRoster,
+            trainingTypeName,
+            categoryDisplayName,
+            technicalCategoryName));
 
         var fileName = $"training-tracker-{_clock.UtcNow:yyyyMMdd-HHmmss}.xlsx";
         return File(workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
@@ -152,7 +140,8 @@ public class IndexModel : PageModel
         TrainingTypes = options;
 
         var technicalCategories = await _readService.GetProjectTechnicalCategoryOptionsAsync(cancellationToken);
-        ProjectTechnicalCategoryOptions = BuildTechnicalCategoryOptions(technicalCategories, Filter.ProjectTechnicalCategoryId);
+        var selectedTechnicalCategoryId = Export.ProjectTechnicalCategoryId ?? Filter.ProjectTechnicalCategoryId;
+        ProjectTechnicalCategoryOptions = BuildTechnicalCategoryOptions(technicalCategories, selectedTechnicalCategoryId);
     }
 
     private static TrainingTrackerQuery BuildQuery(FilterInput filter)
@@ -177,6 +166,71 @@ public class IndexModel : PageModel
 
         return query;
     }
+
+    private static TrainingTrackerQuery BuildExportQuery(ExportInput export)
+    {
+        var query = new TrainingTrackerQuery
+        {
+            ProjectTechnicalCategoryId = export.ProjectTechnicalCategoryId,
+            From = export.From,
+            To = export.To,
+            Search = string.IsNullOrWhiteSpace(export.Search) ? null : export.Search.Trim()
+        };
+
+        if (export.Category.HasValue)
+        {
+            query.Category = export.Category.Value;
+        }
+
+        if (export.TypeId is { } typeId && typeId != Guid.Empty)
+        {
+            query.TrainingTypeIds.Add(typeId);
+        }
+
+        return query;
+    }
+
+    private void BackfillExportDefaultsFromFilter()
+    {
+        Export.From ??= Filter.From;
+        Export.To ??= Filter.To;
+        Export.ProjectTechnicalCategoryId ??= Filter.ProjectTechnicalCategoryId;
+        Export.TypeId ??= Filter.TypeId;
+        Export.Category ??= Filter.Category;
+        Export.Search ??= Filter.Search;
+    }
+
+    private async Task<string?> ResolveTrainingTypeNameAsync(Guid? typeId, CancellationToken cancellationToken)
+    {
+        if (typeId is not { } trainingTypeId || trainingTypeId == Guid.Empty)
+        {
+            return null;
+        }
+
+        var trainingTypes = await _readService.GetTrainingTypesAsync(cancellationToken);
+        return trainingTypes.FirstOrDefault(option => option.Id == trainingTypeId)?.Name;
+    }
+
+    private async Task<string?> ResolveTechnicalCategoryNameAsync(int? technicalCategoryId, CancellationToken cancellationToken)
+    {
+        if (!technicalCategoryId.HasValue)
+        {
+            return null;
+        }
+
+        var categories = await _readService.GetProjectTechnicalCategoryOptionsAsync(cancellationToken);
+        var options = BuildTechnicalCategoryOptions(categories, technicalCategoryId);
+        return options.FirstOrDefault(option => option.Selected)?.Text;
+    }
+
+    private static string? GetCategoryDisplayName(TrainingCategory? category)
+        => category switch
+        {
+            TrainingCategory.Officer => "Officers",
+            TrainingCategory.JuniorCommissionedOfficer => "Junior Commissioned Officers",
+            TrainingCategory.OtherRank => "Other Ranks",
+            _ => null
+        };
 
     public sealed class FilterInput
     {
@@ -203,6 +257,12 @@ public class IndexModel : PageModel
 
     public sealed class ExportInput
     {
+        [Display(Name = "Training type")]
+        public Guid? TypeId { get; set; }
+
+        [Display(Name = "Category")]
+        public TrainingCategory? Category { get; set; }
+
         [DataType(DataType.Date)]
         [Display(Name = "From")]
         public DateOnly? From { get; set; }
@@ -213,6 +273,9 @@ public class IndexModel : PageModel
 
         [Display(Name = "Project technical category")]
         public int? ProjectTechnicalCategoryId { get; set; }
+
+        [Display(Name = "Search")]
+        public string? Search { get; set; }
 
         [Display(Name = "Include roster details")]
         public bool IncludeRoster { get; set; }
