@@ -141,3 +141,101 @@
 .async-multiselect__hidden {
   display: none;
 }
+
+.training-page-header {
+  background: linear-gradient(135deg, var(--pm-training-gradient-start, #f8f9ff), var(--pm-training-gradient-end, #eef4ff));
+}
+
+.training-page-header h1 {
+  font-weight: 600;
+}
+
+.filter-card .card-header {
+  background-color: transparent;
+}
+
+.filter-card .filter-icon {
+  width: 3rem;
+  height: 3rem;
+  background: rgba(13, 110, 253, 0.1);
+  color: var(--bs-primary, #0d6efd);
+  font-size: 1.25rem;
+}
+
+.filter-card label.form-label {
+  letter-spacing: 0.04em;
+}
+
+.filter-card .btn-link {
+  color: var(--bs-primary, #0d6efd);
+}
+
+.filter-card .btn-link:hover,
+.filter-card .btn-link:focus {
+  text-decoration: none;
+  color: var(--bs-primary-hover, #0b5ed7);
+}
+
+.kpi-card {
+  background: linear-gradient(160deg, rgba(13, 110, 253, 0.08), rgba(13, 110, 253, 0));
+  border: 1px solid rgba(13, 110, 253, 0.1);
+  border-radius: 1rem;
+}
+
+.kpi-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(33, 37, 41, 0.6);
+  margin-bottom: 0.5rem;
+}
+
+.kpi-value {
+  font-size: 2rem;
+  font-weight: 600;
+  color: #1b2a4b;
+}
+
+.kpi-value-compact {
+  font-size: 1.5rem;
+}
+
+.kpi-meta {
+  font-size: 0.85rem;
+  color: rgba(33, 37, 41, 0.6);
+}
+
+.section-heading .heading-accent {
+  width: 0.5rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(13, 110, 253, 0.45), rgba(13, 110, 253, 0));
+}
+
+.empty-state {
+  background: linear-gradient(160deg, rgba(233, 236, 239, 0.5), rgba(233, 236, 239, 0));
+  border-radius: 1rem;
+}
+
+.training-table thead tr {
+  background-color: #f6f8fc;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  color: rgba(33, 37, 41, 0.6);
+}
+
+.training-table tbody tr + tr {
+  border-top: 1px solid rgba(222, 226, 230, 0.7);
+}
+
+.training-table .badge {
+  font-size: 0.75rem;
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+}
+
+.badge.bg-soft-primary {
+  background-color: rgba(13, 110, 253, 0.1);
+  color: var(--bs-primary, #0d6efd) !important;
+}
