@@ -47,6 +47,21 @@ public sealed class TrainingTrackerReadService
         return projects;
     }
 
+    public async Task<IReadOnlyList<ProjectTechnicalCategoryOption>> GetProjectTechnicalCategoryOptionsAsync(
+        CancellationToken cancellationToken)
+    {
+        var categories = await _db.TechnicalCategories
+            .AsNoTracking()
+            .Select(category => new ProjectTechnicalCategoryOption(
+                category.Id,
+                category.Name,
+                category.ParentId,
+                category.IsActive))
+            .ToListAsync(cancellationToken);
+
+        return categories;
+    }
+
     public async Task<TrainingEditorData?> GetEditorAsync(Guid id, CancellationToken cancellationToken)
     {
         var projection = await _db.Trainings
@@ -408,6 +423,13 @@ public sealed class TrainingTrackerReadService
             trainings = trainings.Where(x => x.ProjectLinks.Any(link => link.ProjectId == projectId));
         }
 
+        if (query.ProjectTechnicalCategoryId.HasValue)
+        {
+            var technicalCategoryId = query.ProjectTechnicalCategoryId.Value;
+            trainings = trainings.Where(x => x.ProjectLinks.Any(link =>
+                link.Project != null && link.Project.TechnicalCategoryId == technicalCategoryId));
+        }
+
         if (!string.IsNullOrWhiteSpace(query.Search))
         {
             var text = query.Search.Trim();
@@ -568,6 +590,8 @@ public sealed record TrainingTypeOption(Guid Id, string Name, bool RequiresProje
 
 public sealed record ProjectOption(int Id, string Name);
 
+public sealed record ProjectTechnicalCategoryOption(int Id, string Name, int? ParentId, bool IsActive);
+
 public sealed record TrainingProjectSnapshot(int ProjectId, string Name);
 
 public sealed record TrainingEditorData(
@@ -642,6 +666,8 @@ public sealed class TrainingTrackerQuery
     public IList<Guid> TrainingTypeIds { get; } = new List<Guid>();
 
     public int? ProjectId { get; set; }
+
+    public int? ProjectTechnicalCategoryId { get; set; }
 
     public TrainingCategory? Category { get; set; }
 

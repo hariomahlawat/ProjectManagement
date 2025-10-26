@@ -46,7 +46,7 @@ public class IndexModel : PageModel
 
     public IReadOnlyList<SelectListItem> TrainingTypes { get; private set; } = Array.Empty<SelectListItem>();
 
-    public IReadOnlyList<SelectListItem> ProjectOptions { get; private set; } = Array.Empty<SelectListItem>();
+    public IReadOnlyList<SelectListItem> ProjectTechnicalCategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
 
     public IReadOnlyList<SelectListItem> CategoryOptions { get; } = new List<SelectListItem>
     {
@@ -124,16 +124,15 @@ public class IndexModel : PageModel
 
         TrainingTypes = options;
 
-        ProjectOptions = (await _readService.GetProjectOptionsAsync(cancellationToken))
-            .Select(option => new SelectListItem(option.Name, option.Id.ToString()))
-            .ToList();
+        var technicalCategories = await _readService.GetProjectTechnicalCategoryOptionsAsync(cancellationToken);
+        ProjectTechnicalCategoryOptions = BuildTechnicalCategoryOptions(technicalCategories, Filter.ProjectTechnicalCategoryId);
     }
 
     private static TrainingTrackerQuery BuildQuery(FilterInput filter)
     {
         var query = new TrainingTrackerQuery
         {
-            ProjectId = filter.ProjectId,
+            ProjectTechnicalCategoryId = filter.ProjectTechnicalCategoryId,
             From = filter.From,
             To = filter.To,
             Search = string.IsNullOrWhiteSpace(filter.Search) ? null : filter.Search.Trim()
@@ -157,8 +156,8 @@ public class IndexModel : PageModel
         [Display(Name = "Training type")]
         public Guid? TypeId { get; set; }
 
-        [Display(Name = "Project")]
-        public int? ProjectId { get; set; }
+        [Display(Name = "Project technical category")]
+        public int? ProjectTechnicalCategoryId { get; set; }
 
         [Display(Name = "Category")]
         public TrainingCategory? Category { get; set; }
@@ -173,6 +172,50 @@ public class IndexModel : PageModel
 
         [Display(Name = "Search")]
         public string? Search { get; set; }
+    }
+
+    private static IReadOnlyList<SelectListItem> BuildTechnicalCategoryOptions(
+        IEnumerable<ProjectTechnicalCategoryOption> categories,
+        int? selectedId)
+    {
+        var categoryList = categories.ToList();
+
+        var lookup = categoryList
+            .Where(category => category.IsActive)
+            .ToLookup(category => category.ParentId);
+
+        var options = new List<SelectListItem>
+        {
+            new("All technical categories", string.Empty, !selectedId.HasValue)
+        };
+
+        void AddOptions(int? parentId, string prefix)
+        {
+            foreach (var category in lookup[parentId].OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase))
+            {
+                var text = string.IsNullOrEmpty(prefix) ? category.Name : $"{prefix}{category.Name}";
+                var isSelected = selectedId.HasValue && selectedId.Value == category.Id;
+                options.Add(new SelectListItem(text, category.Id.ToString(), isSelected));
+                AddOptions(category.Id, string.Concat(prefix, "— "));
+            }
+        }
+
+        AddOptions(null, string.Empty);
+
+        if (selectedId.HasValue)
+        {
+            var selectedValue = selectedId.Value.ToString();
+            if (options.All(option => !string.Equals(option.Value, selectedValue, StringComparison.Ordinal)))
+            {
+                var selected = categoryList.FirstOrDefault(category => category.Id == selectedId.Value);
+                if (selected is not null)
+                {
+                    options.Add(new SelectListItem($"{selected.Name} (inactive)", selected.Id.ToString(), true));
+                }
+            }
+        }
+
+        return options;
     }
 
     public sealed record TrainingRowViewModel(
