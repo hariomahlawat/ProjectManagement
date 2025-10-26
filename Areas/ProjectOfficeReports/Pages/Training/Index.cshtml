@@ -191,7 +191,11 @@ else
                     </div>
                     <div class="modal-footer flex-column flex-sm-row align-items-stretch align-items-sm-center gap-2 justify-content-between">
                         <div class="d-grid w-100 w-sm-auto">
-                            <button type="submit" class="btn btn-primary">Download Excel</button>
+                            <button type="submit"
+                                    class="btn btn-primary d-inline-flex align-items-center gap-2"
+                                    data-training-busy-label="Preparing Excel…">
+                                <span class="training-export-button-label">Download Excel</span>
+                            </button>
                         </div>
                     </div>
                 </form>
