@@ -83,8 +83,10 @@ public sealed class ManageModelTests
         var result = await page.OnPostSaveAsync(CancellationToken.None);
 
         var redirect = Assert.IsType<RedirectToPageResult>(result);
-        Assert.Equal("./Manage", redirect.PageName);
+        Assert.Equal("./Index", redirect.PageName);
+        Assert.Null(redirect.RouteValues);
         Assert.True(page.ModelState.IsValid);
+        Assert.True(page.TrainingId.HasValue);
     }
 
     [Fact]
@@ -195,8 +197,10 @@ public sealed class ManageModelTests
         var result = await page.OnPostSaveAsync(CancellationToken.None);
 
         var redirect = Assert.IsType<RedirectToPageResult>(result);
-        Assert.Equal("./Manage", redirect.PageName);
+        Assert.Equal("./Index", redirect.PageName);
+        Assert.Null(redirect.RouteValues);
         Assert.True(page.ModelState.IsValid);
+        Assert.True(page.TrainingId.HasValue);
     }
 
     [Fact]
@@ -313,13 +317,15 @@ public sealed class ManageModelTests
         var result = await page.OnPostSaveAsync(CancellationToken.None);
 
         var redirect = Assert.IsType<RedirectToPageResult>(result);
-        Assert.Equal("./Manage", redirect.PageName);
-        var trainingId = Assert.IsType<Guid>(redirect.RouteValues!["id"]);
+        Assert.Equal("./Index", redirect.PageName);
+        Assert.Null(redirect.RouteValues);
 
         var training = await db.Trainings
             .Include(t => t.Counters)
             .Include(t => t.Trainees)
-            .SingleAsync(t => t.Id == trainingId);
+            .SingleAsync();
+
+        Assert.Equal(training.Id, page.TrainingId);
 
         Assert.Equal(3, training.Trainees.Count);
         Assert.Equal(TrainingCounterSource.Roster, training.Counters!.Source);
