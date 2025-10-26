@@ -21,7 +21,42 @@ else
                 <div class="row g-3 align-items-end">
                     <div class="col-lg-4">
                         <label asp-for="Filter.TypeIds" class="form-label"></label>
-                        <select asp-for="Filter.TypeIds" asp-items="Model.TrainingTypes" multiple class="form-select" size="5"></select>
+                        @{ var selectedTrainingTypes = Model.TrainingTypes
+                               .Where(x => x.Selected && !string.IsNullOrWhiteSpace(x.Value))
+                               .Select(x => (Value: x.Value!, Label: x.Text ?? x.Value!))
+                               .ToList();
+
+                           var selectedTypeIdStrings = Model.Filter.TypeIds is { Length: > 0 }
+                               ? Model.Filter.TypeIds
+                                   .Where(id => id != Guid.Empty)
+                                   .Select(id => id.ToString())
+                                   .ToList()
+                               : new List<string>();
+
+                           foreach (var typeId in selectedTypeIdStrings)
+                           {
+                               if (selectedTrainingTypes.Any(x => string.Equals(x.Value, typeId, StringComparison.OrdinalIgnoreCase)))
+                               {
+                                   continue;
+                               }
+
+                               selectedTrainingTypes.Add((typeId, $"Training type #{typeId}"));
+                           }
+                         }
+                        <div class="async-multiselect js-async-multiselect"
+                             data-name="Filter.TypeIds"
+                             data-source="/api/lookups/training-types"
+                             data-search-placeholder="Search training types"
+                             data-no-results="No training types found"
+                             data-remove-label="Remove training type">
+                            @foreach (var selected in selectedTrainingTypes)
+                            {
+                                <input type="hidden" name="Filter.TypeIds" value="@selected.Value" data-label="@selected.Label" />
+                            }
+                        </div>
+                        <noscript>
+                            <select asp-for="Filter.TypeIds" asp-items="Model.TrainingTypes" multiple class="form-select" size="5"></select>
+                        </noscript>
                     </div>
                     <div class="col-lg-4">
                         <label asp-for="Filter.ProjectId" class="form-label"></label>
@@ -203,4 +238,14 @@ else
             </table>
         </div>
     }
+}
+
+@section Styles
+{
+    <link rel="stylesheet" href="~/css/project-office-reports/training/manage.css" asp-append-version="true" />
+}
+
+@section Scripts
+{
+    <script type="module" src="~/js/project-office-reports/training/index.js" asp-append-version="true"></script>
 }

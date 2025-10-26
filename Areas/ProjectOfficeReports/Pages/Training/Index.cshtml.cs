@@ -108,8 +108,15 @@ public class IndexModel : PageModel
 
     private async Task LoadOptionsAsync(CancellationToken cancellationToken)
     {
+        var selectedTypeIds = Filter.TypeIds is { Length: > 0 }
+            ? new HashSet<Guid>(Filter.TypeIds.Where(id => id != Guid.Empty))
+            : new HashSet<Guid>();
+
         TrainingTypes = (await _readService.GetTrainingTypesAsync(cancellationToken))
-            .Select(option => new SelectListItem(option.Name, option.Id.ToString()))
+            .Select(option => new SelectListItem(option.Name, option.Id.ToString())
+            {
+                Selected = selectedTypeIds.Contains(option.Id)
+            })
             .ToList();
 
         ProjectOptions = (await _readService.GetProjectOptionsAsync(cancellationToken))
