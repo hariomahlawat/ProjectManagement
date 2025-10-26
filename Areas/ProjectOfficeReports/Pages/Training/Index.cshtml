@@ -23,16 +23,19 @@
                 <span>Filters</span>
             </button>
             <a asp-page="./Manage" class="btn btn-primary">New training</a>
-            <button type="button"
-                    class="btn btn-outline-secondary d-inline-flex align-items-center gap-2"
-                    data-bs-toggle="modal"
-                    data-bs-target="#trainingExportModal"
-                    aria-controls="trainingExportModal"
-                    aria-haspopup="dialog"
-                    aria-expanded="false">
-                <i class="bi bi-download" aria-hidden="true"></i>
-                <span>Export to Excel</span>
-            </button>
+            @if (Model.IsFeatureEnabled)
+            {
+                <button type="button"
+                        class="btn btn-outline-secondary d-inline-flex align-items-center gap-2"
+                        data-bs-toggle="modal"
+                        data-bs-target="#trainingExportModal"
+                        aria-controls="trainingExportModal"
+                        aria-haspopup="dialog"
+                        aria-expanded="false">
+                    <i class="bi bi-download" aria-hidden="true"></i>
+                    <span>Export to Excel</span>
+                </button>
+            }
         </div>
     </div>
 </div>
