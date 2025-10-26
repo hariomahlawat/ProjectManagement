@@ -1531,7 +1531,7 @@ proliferationEffectiveApi.MapGet("", async (
 });
 
 var lookupApi = app.MapGroup("/api/lookups")
-    .RequireAuthorization(new AuthorizeAttribute { Roles = "Admin,HoD,Project Officer" });
+    .RequireAuthorization(new AuthorizeAttribute { Policy = ProjectOfficeReportsPolicies.ViewTrainingTracker });
 
 lookupApi.MapGet("/sponsoring-units", async (
     ApplicationDbContext db,
