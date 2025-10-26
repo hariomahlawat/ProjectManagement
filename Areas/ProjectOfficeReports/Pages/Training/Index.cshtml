@@ -1,8 +1,9 @@
 @page
 @using System.Globalization
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.IndexModel
-@{
+@{ 
     ViewData["Title"] = "Training tracker";
+    ViewData["UseFullWidth"] = true;
     var showExportModal = ViewData["ShowTrainingExportModal"] as bool? ?? false;
 }
 
