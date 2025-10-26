@@ -73,10 +73,6 @@ function initRosterModule() {
   }
 
   const trainingId = context.dataset.trainingId;
-  if (!trainingId) {
-    return;
-  }
-
   const rosterBody = document.getElementById('rosterBody');
   const btnAdd = document.getElementById('btnAddRosterRow');
   const btnPaste = document.getElementById('btnPasteRoster');
@@ -94,8 +90,9 @@ function initRosterModule() {
   const counterTotalInput = document.querySelector('input[name="Input.CounterTotal"]');
   const counterSourceInput = document.querySelector('input[name="Input.CounterSource"]');
   const rowVersionInput = document.querySelector('input[name="Input.RowVersion"]');
+  const rosterPayloadInput = document.querySelector('input[name="Input.RosterPayload"]');
 
-  const base64Payload = context.dataset.rows || '';
+  const base64Payload = context.dataset.rows || rosterPayloadInput?.value || '';
   if (base64Payload) {
     try {
       const json = decodeBase64(base64Payload);
@@ -104,6 +101,8 @@ function initRosterModule() {
     } catch {
       // ignore malformed payloads
     }
+  } else {
+    syncRosterPayload([]);
   }
 
   recalc();
@@ -117,9 +116,25 @@ function initRosterModule() {
     await handlePaste();
   });
 
-  btnSave?.addEventListener('click', async () => {
-    await handleSave();
-  });
+  if (btnSave) {
+    if (!trainingId) {
+      btnSave.disabled = true;
+      btnSave.classList.add('disabled');
+      btnSave.setAttribute('aria-disabled', 'true');
+    } else {
+      btnSave.disabled = false;
+      btnSave.classList.remove('disabled');
+      btnSave.removeAttribute('aria-disabled');
+    }
+
+    btnSave.addEventListener('click', async () => {
+      if (!trainingId) {
+        return;
+      }
+
+      await handleSave();
+    });
+  }
 
   rosterBody?.addEventListener('input', recalc);
   rosterBody?.addEventListener('change', recalc);
@@ -137,7 +152,12 @@ function initRosterModule() {
     }
 
     const data = row || {};
-    const category = typeof data.category === 'number' ? data.category : 2;
+    const category = normalizeCategoryValue(data?.category);
+    const idValue = typeof data?.id === 'number' && Number.isFinite(data.id)
+      ? String(data.id)
+      : typeof data?.id === 'string'
+        ? data.id
+        : '';
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><input class="form-control form-control-sm" data-field="armyNumber" value="${escapeHtml(data.armyNumber ?? '')}"></td>
@@ -152,7 +172,7 @@ function initRosterModule() {
         </select>
       </td>
       <td class="text-end">
-        <input type="hidden" data-field="id" value="${data.id ?? ''}">
+        <input type="hidden" data-field="id" value="${escapeHtml(idValue)}">
         <button type="button" class="btn btn-sm btn-outline-danger" data-action="delete">Remove</button>
       </td>`;
     rosterBody.appendChild(tr);
@@ -163,43 +183,53 @@ function initRosterModule() {
       return;
     }
 
+    const normalized = normalizeRows(rows);
     rosterBody.innerHTML = '';
-    if (Array.isArray(rows)) {
-      rows.forEach((row) => addRow(row));
-    }
-    recalc();
-    context.dataset.rows = encodeBase64(JSON.stringify(rows ?? []));
+    normalized.forEach((row) => addRow(row));
+    const counts = countRoster(normalized);
+    syncRosterPayload(normalized);
+    updateCounterSummary(counts.officers, counts.jcos, counts.ors, counts.total);
   }
 
   function collectRows() {
-    const rows = [];
     if (!rosterBody) {
-      return rows;
+      return [];
     }
 
+    const rawRows = [];
     rosterBody.querySelectorAll('tr').forEach((tr) => {
-      const idValue = tr.querySelector('[data-field="id"]')?.value || '';
-      const armyNumber = tr.querySelector('[data-field="armyNumber"]')?.value?.trim() || '';
-      const rank = tr.querySelector('[data-field="rank"]')?.value?.trim() || '';
-      const name = tr.querySelector('[data-field="name"]')?.value?.trim() || '';
-      const unitName = tr.querySelector('[data-field="unitName"]')?.value?.trim() || '';
-      const category = Number(tr.querySelector('[data-field="category"]')?.value ?? 2);
+      const idValue = tr.querySelector('[data-field="id"]')?.value ?? '';
+      const armyNumber = tr.querySelector('[data-field="armyNumber"]')?.value?.trim() ?? '';
+      const rank = tr.querySelector('[data-field="rank"]')?.value?.trim() ?? '';
+      const name = tr.querySelector('[data-field="name"]')?.value?.trim() ?? '';
+      const unitName = tr.querySelector('[data-field="unitName"]')?.value?.trim() ?? '';
+      const categoryValue = tr.querySelector('[data-field="category"]')?.value;
 
       if (!idValue && !armyNumber && !rank && !name && !unitName) {
         return;
       }
 
-      rows.push({
-        id: idValue ? Number(idValue) : null,
+      rawRows.push({
+        id: idValue,
         armyNumber,
         rank,
         name,
         unitName,
-        category: Number.isNaN(category) ? 2 : category
+        category: categoryValue
       });
     });
 
-    return rows;
+    return normalizeRows(rawRows);
+  }
+
+  function syncRosterPayload(rows) {
+    const normalized = normalizeRows(rows);
+    const payload = encodeBase64(JSON.stringify(normalized));
+    context.dataset.rows = payload;
+    if (rosterPayloadInput) {
+      rosterPayloadInput.value = payload;
+    }
+    return normalized;
   }
 
   function recalc() {
@@ -207,27 +237,9 @@ function initRosterModule() {
       return;
     }
 
-    let officers = 0;
-    let jcos = 0;
-    let ors = 0;
-
-    rosterBody.querySelectorAll('tr').forEach((tr) => {
-      const category = Number(tr.querySelector('[data-field="category"]')?.value ?? 2);
-      if (category === 0) {
-        officers += 1;
-      } else if (category === 1) {
-        jcos += 1;
-      } else {
-        ors += 1;
-      }
-    });
-
-    const total = officers + jcos + ors;
-
-    if (officersSpan) officersSpan.textContent = String(officers);
-    if (jcosSpan) jcosSpan.textContent = String(jcos);
-    if (orsSpan) orsSpan.textContent = String(ors);
-    if (totalSpan) totalSpan.textContent = String(total);
+    const normalized = syncRosterPayload(collectRows());
+    const counts = countRoster(normalized);
+    updateCounterSummary(counts.officers, counts.jcos, counts.ors, counts.total);
   }
 
   function updateCounterSummary(officers, jcos, ors, total, source) {
@@ -295,6 +307,89 @@ function initRosterModule() {
       });
   }
 
+  function normalizeRows(rows) {
+    if (!Array.isArray(rows)) {
+      return [];
+    }
+
+    return rows.map((row) => {
+      const idValue = row && Object.prototype.hasOwnProperty.call(row, 'id') ? row.id : null;
+      let id = null;
+      if (typeof idValue === 'number' && Number.isFinite(idValue)) {
+        id = idValue;
+      } else if (typeof idValue === 'string') {
+        const trimmed = idValue.trim();
+        if (trimmed.length > 0 && !Number.isNaN(Number(trimmed))) {
+          id = Number(trimmed);
+        }
+      }
+
+      const armyNumberValue = row?.armyNumber;
+      const rankValue = row?.rank;
+      const nameValue = row?.name;
+      const unitNameValue = row?.unitName;
+
+      return {
+        id,
+        armyNumber:
+          typeof armyNumberValue === 'string'
+            ? armyNumberValue
+            : armyNumberValue != null
+              ? String(armyNumberValue)
+              : '',
+        rank:
+          typeof rankValue === 'string'
+            ? rankValue
+            : rankValue != null
+              ? String(rankValue)
+              : '',
+        name:
+          typeof nameValue === 'string'
+            ? nameValue
+            : nameValue != null
+              ? String(nameValue)
+              : '',
+        unitName:
+          typeof unitNameValue === 'string'
+            ? unitNameValue
+            : unitNameValue != null
+              ? String(unitNameValue)
+              : '',
+        category: normalizeCategoryValue(row?.category)
+      };
+    });
+  }
+
+  function normalizeCategoryValue(value) {
+    const numeric = Number(value);
+    if (Number.isNaN(numeric)) {
+      return 2;
+    }
+
+    if (numeric === 0 || numeric === 1) {
+      return numeric;
+    }
+
+    return 2;
+  }
+
+  function countRoster(rows) {
+    const counters = { officers: 0, jcos: 0, ors: 0 };
+
+    rows.forEach((row) => {
+      if (row.category === 0) {
+        counters.officers += 1;
+      } else if (row.category === 1) {
+        counters.jcos += 1;
+      } else {
+        counters.ors += 1;
+      }
+    });
+
+    counters.total = counters.officers + counters.jcos + counters.ors;
+    return counters;
+  }
+
   function inferCategoryFromText(value) {
     if (!value) {
       return 2;
@@ -317,17 +412,19 @@ function initRosterModule() {
   }
 
   async function handleSave() {
-    if (!btnSave) {
+    if (!btnSave || !trainingId) {
       return;
     }
 
     toggleBusy(true);
     showError('');
 
+    const normalizedRows = syncRosterPayload(collectRows());
+
     const payload = {
       trainingId,
       rowVersion: context.dataset.rowVersion || '',
-      rows: collectRows()
+      rows: normalizedRows
     };
 
     const token = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
@@ -368,10 +465,6 @@ function initRosterModule() {
       const roster = Array.isArray(data?.roster) ? data.roster : [];
       renderRoster(roster);
 
-      if (Array.isArray(roster)) {
-        context.dataset.rows = encodeBase64(JSON.stringify(roster));
-      }
-
       const counters = data?.counters || {};
       updateCounterSummary(
         Number(counters.officers ?? 0),
@@ -394,8 +487,26 @@ function initRosterModule() {
       return;
     }
 
+    if (!trainingId) {
+      btnSave.disabled = true;
+      btnSave.classList.add('disabled');
+      btnSave.setAttribute('aria-disabled', 'true');
+      if (isBusy) {
+        btnSave.setAttribute('aria-busy', 'true');
+      } else {
+        btnSave.removeAttribute('aria-busy');
+      }
+      return;
+    }
+
     btnSave.disabled = isBusy;
+    btnSave.classList.toggle('disabled', isBusy);
     btnSave.setAttribute('aria-busy', isBusy ? 'true' : 'false');
+    if (!isBusy) {
+      btnSave.removeAttribute('aria-disabled');
+    } else {
+      btnSave.setAttribute('aria-disabled', 'true');
+    }
   }
 
   function showError(message) {
