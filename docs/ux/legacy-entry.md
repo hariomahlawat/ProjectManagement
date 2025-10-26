@@ -42,7 +42,7 @@ The following mock-ups outline the proposed legacy entry experience within the t
 │  Officers: 4   JCOs: 1   ORs: 15  Total: 20  │
 │  Source: Roster                              │
 │                                              │
-│ [ Add row ]  [ Paste ]  [ Save roster ]      │
+│ [ Add row ]  [ Save roster ]                 │
 └──────────────────────────────────────────────┘
 ```
 
