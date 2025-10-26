@@ -19,7 +19,7 @@ using ProjectManagement.Infrastructure.Ui;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Training;
 
-[Authorize(Policy = ProjectOfficeReportsPolicies.ViewTrainingTracker)]
+[Authorize(Policy = ProjectOfficeReportsPolicies.ManageTrainingTracker)]
 [ValidateAntiForgeryToken]
 public class ManageModel : PageModel
 {
