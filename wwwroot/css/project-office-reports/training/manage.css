@@ -199,12 +199,34 @@
   border-top: 0;
 }
 
+.training-export-button-wrapper {
+  width: 100%;
+}
+
+.training-export-button-wrapper .btn {
+  width: 100%;
+}
+
 .training-export-modal .form-text {
   color: var(--bs-secondary-color, #6c757d);
   max-width: 32rem;
 }
 
 @media (min-width: 576px) {
+  .training-export-modal .modal-footer {
+    justify-content: center;
+  }
+
+  .training-export-button-wrapper {
+    width: auto;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .training-export-button-wrapper .btn {
+    width: auto;
+  }
+
   .training-filter-modal .modal-footer {
     justify-content: space-between;
   }
