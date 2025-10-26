@@ -92,11 +92,6 @@ public class RoleBasedNavigationProviderTests
         Assert.Equal("/Training/Index", trainingTracker.Page);
         Assert.Equal(ProjectOfficeReportsPolicies.ViewTrainingTracker, trainingTracker.AuthorizationPolicy);
 
-        var trainingApprovals = Assert.Single(children.Where(c => c.Text == "Training delete approvals"));
-        Assert.Equal("/Training/Approvals", trainingApprovals.Page);
-        Assert.Equal(ProjectOfficeReportsPolicies.ApproveTrainingTracker, trainingApprovals.AuthorizationPolicy);
-        Assert.Equal("TrainingApprovalsBadge", trainingApprovals.BadgeViewComponentName);
-
         var ipr = Assert.Single(children.Where(c => c.Text == "IPR tracker"));
         Assert.Equal("/Ipr/Index", ipr.Page);
         Assert.Equal(Policies.Ipr.View, ipr.AuthorizationPolicy);
@@ -274,7 +269,6 @@ public class RoleBasedNavigationProviderTests
         var children = projectOfficeReports.Children.ToList();
 
         Assert.DoesNotContain(children, c => c.Text == "Training tracker");
-        Assert.DoesNotContain(children, c => c.Text == "Training delete approvals");
     }
 
     private static RoleBasedNavigationProvider CreateProvider(
