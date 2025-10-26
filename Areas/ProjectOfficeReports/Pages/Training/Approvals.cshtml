@@ -5,6 +5,14 @@
     ViewData["Title"] = "Training delete approvals";
 }
 
+<nav aria-label="Breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0 small">
+        <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+        <li class="breadcrumb-item"><a asp-page="./Index">Training tracker</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Delete approvals</li>
+    </ol>
+</nav>
+
 <h1 class="display-6 mb-4">Training delete approvals</h1>
 
 @if (Model.Pending.Count == 0)
