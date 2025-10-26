@@ -467,9 +467,19 @@ public class ManageModel : PageModel
             ModelState.AddModelError(nameof(Input.ScheduleMode), "Select how the training period should be captured.");
         }
 
-        if (!input.HasRoster && input.LegacyOfficerCount + input.LegacyJcoCount + input.LegacyOrCount <= 0)
+        if (input.IsLegacyRecord)
         {
-            ModelState.AddModelError(string.Empty, "Enter at least one attendee in the legacy counts.");
+            input.HasRoster = false;
+
+            if (input.LegacyOfficerCount + input.LegacyJcoCount + input.LegacyOrCount <= 0)
+            {
+                ModelState.AddModelError(string.Empty, "Enter at least one attendee in the legacy counts.");
+            }
+        }
+        else if (!input.Id.HasValue)
+        {
+            // A new roster-first submission will not have stored roster data yet.
+            input.HasRoster = false;
         }
 
         if (input.ProjectIds is null)
