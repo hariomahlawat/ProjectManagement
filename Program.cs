@@ -297,6 +297,7 @@ builder.Services.AddScoped<ISocialMediaEventPhotoService, SocialMediaEventPhotoS
 builder.Services.AddScoped<TrainingTrackerReadService>();
 builder.Services.AddScoped<TrainingWriteService>();
 builder.Services.AddScoped<ITrainingNotificationService, TrainingNotificationService>();
+builder.Services.AddScoped<ITrainingExportService, TrainingExportService>();
 builder.Services.AddSingleton<ITrainingExcelWorkbookBuilder, TrainingExcelWorkbookBuilder>();
 builder.Services.AddOptions<ProjectPhotoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectPhotos"));
