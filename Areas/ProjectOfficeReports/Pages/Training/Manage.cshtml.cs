@@ -108,7 +108,10 @@ public class ManageModel : PageModel
             Input = InputModel.CreateDefault();
         }
 
-        ValidateInput(Input);
+        var trainingTypeRequirements = (await _readService.GetTrainingTypesAsync(cancellationToken))
+            .ToDictionary(option => option.Id, option => option.RequiresProjectSelection);
+
+        ValidateInput(Input, trainingTypeRequirements);
 
         List<TrainingRosterRow> rosterRows;
         if (Input.IsLegacyRecord)
@@ -528,7 +531,7 @@ public class ManageModel : PageModel
         public int? Category { get; set; }
     }
 
-    private void ValidateInput(InputModel input)
+    private void ValidateInput(InputModel input, IReadOnlyDictionary<Guid, bool> trainingTypeRequirements)
     {
         if (input.TrainingTypeId == Guid.Empty)
         {
@@ -597,6 +600,13 @@ public class ManageModel : PageModel
         {
             input.ProjectIds = new List<int>();
         }
+
+        if (trainingTypeRequirements.TryGetValue(input.TrainingTypeId, out var requiresProjectSelection) &&
+            requiresProjectSelection &&
+            input.ProjectIds.Count == 0)
+        {
+            ModelState.AddModelError(nameof(Input.ProjectIds), "Select at least one project for simulator trainings.");
+        }
     }
 
     public sealed class DeleteRequestForm
@@ -652,7 +662,7 @@ public class ManageModel : PageModel
         [MaxLength(2000)]
         public string? Notes { get; set; }
 
-        public List<int> ProjectIds { get; set; } = new();
+        public List<int>? ProjectIds { get; set; } = new();
 
         public string? RowVersion { get; set; }
 
@@ -689,7 +699,7 @@ public class ManageModel : PageModel
                 LegacyJcoCount,
                 LegacyOrCount,
                 Notes,
-                ProjectIds);
+                ProjectIds ?? Array.Empty<int>());
         }
 
         public static InputModel CreateDefault()
