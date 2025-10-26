@@ -29,6 +29,9 @@ namespace ProjectManagement.Tests.ProjectOfficeReports.Training;
 
 public sealed class ManageModelTests
 {
+    private static readonly Guid SimulatorTrainingTypeId = new("f4a9b1c7-0a3c-46da-92ff-39b861fd4c91");
+    private static readonly Guid DroneTrainingTypeId = new("39f0d83c-5322-4a6d-bd1c-1b4dfbb5887b");
+
     [Fact]
     public async Task OnPostSaveAsync_AllowsNonLegacySubmissionWithZeroLegacyCounts()
     {
@@ -67,6 +70,118 @@ public sealed class ManageModelTests
                 StartDate = new DateOnly(2024, 1, 1),
                 EndDate = new DateOnly(2024, 1, 5),
                 ProjectIds = new List<int>(),
+                LegacyOfficerCount = 0,
+                LegacyJcoCount = 0,
+                LegacyOrCount = 0,
+                IsLegacyRecord = false,
+                HasRoster = false
+            }
+        };
+
+        ConfigurePageContext(page);
+
+        var result = await page.OnPostSaveAsync(CancellationToken.None);
+
+        var redirect = Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal("./Manage", redirect.PageName);
+        Assert.True(page.ModelState.IsValid);
+    }
+
+    [Fact]
+    public async Task OnPostSaveAsync_RequiresProjectForSimulatorTraining()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        var simulator = new TrainingType
+        {
+            Id = SimulatorTrainingTypeId,
+            Name = "Simulator",
+            IsActive = true,
+            DisplayOrder = 1,
+            CreatedByUserId = "seed",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            RowVersion = Guid.NewGuid().ToByteArray()
+        };
+
+        db.TrainingTypes.Add(simulator);
+        await db.SaveChangesAsync();
+
+        var readService = new TrainingTrackerReadService(db);
+        var clock = FakeClock.AtUtc(DateTimeOffset.UtcNow);
+        var writeService = new TrainingWriteService(db, clock, new NoOpTrainingNotificationService(), NullLogger<TrainingWriteService>.Instance);
+        var optionsSnapshot = new StubOptionsSnapshot<TrainingTrackerOptions>(new TrainingTrackerOptions { Enabled = true });
+        var userContext = new StubUserContext("creator");
+
+        var page = new ManageModel(optionsSnapshot, readService, writeService, userContext)
+        {
+            Input = new ManageModel.InputModel
+            {
+                TrainingTypeId = simulator.Id,
+                ScheduleMode = ManageModel.TrainingScheduleMode.DateRange,
+                StartDate = new DateOnly(2024, 5, 1),
+                EndDate = new DateOnly(2024, 5, 3),
+                ProjectIds = null,
+                LegacyOfficerCount = 0,
+                LegacyJcoCount = 0,
+                LegacyOrCount = 0,
+                IsLegacyRecord = false,
+                HasRoster = false
+            }
+        };
+
+        ConfigurePageContext(page);
+
+        var result = await page.OnPostSaveAsync(CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.False(page.ModelState.IsValid);
+        var projectErrors = page.ModelState[nameof(ManageModel.InputModel.ProjectIds)]?.Errors;
+        Assert.NotNull(projectErrors);
+        Assert.Contains(projectErrors!, error => error.ErrorMessage.Contains("Select at least one project", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task OnPostSaveAsync_AllowsDroneTrainingWithoutProjects()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        var drone = new TrainingType
+        {
+            Id = DroneTrainingTypeId,
+            Name = "Drone",
+            IsActive = true,
+            DisplayOrder = 1,
+            CreatedByUserId = "seed",
+            CreatedAtUtc = DateTimeOffset.UtcNow,
+            RowVersion = Guid.NewGuid().ToByteArray()
+        };
+
+        db.TrainingTypes.Add(drone);
+        await db.SaveChangesAsync();
+
+        var readService = new TrainingTrackerReadService(db);
+        var clock = FakeClock.AtUtc(DateTimeOffset.UtcNow);
+        var writeService = new TrainingWriteService(db, clock, new NoOpTrainingNotificationService(), NullLogger<TrainingWriteService>.Instance);
+        var optionsSnapshot = new StubOptionsSnapshot<TrainingTrackerOptions>(new TrainingTrackerOptions { Enabled = true });
+        var userContext = new StubUserContext("creator");
+
+        var page = new ManageModel(optionsSnapshot, readService, writeService, userContext)
+        {
+            Input = new ManageModel.InputModel
+            {
+                TrainingTypeId = drone.Id,
+                ScheduleMode = ManageModel.TrainingScheduleMode.DateRange,
+                StartDate = new DateOnly(2024, 6, 1),
+                EndDate = new DateOnly(2024, 6, 4),
+                ProjectIds = null,
                 LegacyOfficerCount = 0,
                 LegacyJcoCount = 0,
                 LegacyOrCount = 0,

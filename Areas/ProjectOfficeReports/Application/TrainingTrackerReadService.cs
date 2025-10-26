@@ -15,6 +15,7 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
 public sealed class TrainingTrackerReadService
 {
     private readonly ApplicationDbContext _db;
+    private static readonly Guid SimulatorTrainingTypeId = new("f4a9b1c7-0a3c-46da-92ff-39b861fd4c91");
 
     public TrainingTrackerReadService(ApplicationDbContext db)
     {
@@ -28,7 +29,7 @@ public sealed class TrainingTrackerReadService
             .Where(x => x.IsActive)
             .OrderBy(x => x.DisplayOrder)
             .ThenBy(x => x.Name)
-            .Select(x => new TrainingTypeOption(x.Id, x.Name))
+            .Select(x => new TrainingTypeOption(x.Id, x.Name, x.Id == SimulatorTrainingTypeId))
             .ToListAsync(cancellationToken);
 
         return types;
@@ -563,7 +564,7 @@ public sealed class TrainingTrackerReadService
     private readonly record struct TrainingDateRange(DateOnly? Start, DateOnly? End);
 }
 
-public sealed record TrainingTypeOption(Guid Id, string Name);
+public sealed record TrainingTypeOption(Guid Id, string Name, bool RequiresProjectSelection);
 
 public sealed record ProjectOption(int Id, string Name);
 
