@@ -12,6 +12,16 @@
             <p class="text-muted mb-0">Monitor participation, track readiness, and keep every training initiative aligned with the wider project office.</p>
         </div>
         <div class="d-flex flex-wrap align-items-center gap-2">
+            <button type="button"
+                    class="btn btn-outline-secondary d-inline-flex align-items-center gap-2 training-filter-trigger"
+                    data-bs-toggle="modal"
+                    data-bs-target="#trainingFiltersModal"
+                    aria-controls="trainingFiltersModal"
+                    aria-haspopup="dialog"
+                    aria-expanded="false">
+                <i class="bi bi-funnel" aria-hidden="true"></i>
+                <span>Filters</span>
+            </button>
             <a asp-page="./Manage" class="btn btn-primary">New training</a>
             <a asp-page-handler="Export"
                class="btn btn-outline-secondary"
@@ -35,59 +45,6 @@
 }
 else
 {
-    <form method="get" class="card filter-card shadow-sm border-0 mb-4">
-        <div class="card-header border-0 bg-white pb-0">
-            <div class="d-flex align-items-center gap-3">
-                <span class="filter-icon rounded-circle d-inline-flex align-items-center justify-content-center">
-                    <i class="bi bi-funnel" aria-hidden="true"></i>
-                </span>
-                <div>
-                    <h2 class="h5 mb-1">Refine training insights</h2>
-                    <p class="text-muted mb-0">Adjust the filters to focus on the teams, timeframes, and programs that matter most.</p>
-                </div>
-            </div>
-        </div>
-        <div class="card-body">
-            <div class="row g-3 align-items-end">
-                <div class="col-lg-4">
-                    <label asp-for="Filter.TypeId" class="form-label fw-semibold small text-uppercase text-secondary"></label>
-                    <select asp-for="Filter.TypeId" asp-items="Model.TrainingTypes" class="form-select"></select>
-                </div>
-                <div class="col-lg-4">
-                    <label asp-for="Filter.ProjectId" class="form-label fw-semibold small text-uppercase text-secondary"></label>
-                    <select asp-for="Filter.ProjectId" asp-items="Model.ProjectOptions" class="form-select">
-                        <option value="">All projects</option>
-                    </select>
-                </div>
-                <div class="col-lg-4">
-                    <label asp-for="Filter.Category" class="form-label fw-semibold small text-uppercase text-secondary"></label>
-                    <select asp-for="Filter.Category" asp-items="Model.CategoryOptions" class="form-select"></select>
-                </div>
-                <div class="col-md-3">
-                    <label asp-for="Filter.From" class="form-label fw-semibold small text-uppercase text-secondary"></label>
-                    <input asp-for="Filter.From" class="form-control" />
-                </div>
-                <div class="col-md-3">
-                    <label asp-for="Filter.To" class="form-label fw-semibold small text-uppercase text-secondary"></label>
-                    <input asp-for="Filter.To" class="form-control" />
-                </div>
-                <div class="col-md-4">
-                    <label asp-for="Filter.Search" class="form-label fw-semibold small text-uppercase text-secondary"></label>
-                    <input asp-for="Filter.Search" class="form-control" placeholder="Search notes or projects" />
-                </div>
-                <div class="col-md-2 d-grid">
-                    <button type="submit" class="btn btn-primary">Apply filters</button>
-                </div>
-            </div>
-            <div class="d-flex flex-wrap justify-content-between gap-2 mt-3">
-                <div class="text-muted small">
-                    Tip: Combine project and category filters to spot readiness gaps faster.
-                </div>
-                <a asp-page="./Index" class="btn btn-link btn-sm px-0">Reset filters</a>
-            </div>
-        </div>
-    </form>
-
     <div class="row g-3 mb-4">
         <div class="col-6 col-lg-3">
             <div class="card kpi-card shadow-sm border-0 h-100">
@@ -121,6 +78,64 @@ else
                 </div>
             }
         }
+    </div>
+
+    <div class="modal fade"
+         id="trainingFiltersModal"
+         tabindex="-1"
+         aria-labelledby="trainingFiltersModalLabel"
+         aria-hidden="true"
+         data-bs-focus="true">
+        <div class="modal-dialog modal-dialog-scrollable modal-lg modal-fullscreen-sm-down">
+            <div class="modal-content training-filter-modal">
+                <form method="get" class="w-100 training-filter-form">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title h5 mb-1" id="trainingFiltersModalLabel">Filters</h2>
+                            <p class="text-muted small mb-0">Adjust the filters to focus on the teams, timeframes, and programs that matter most.</p>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3 align-items-end">
+                            <div class="col-lg-4">
+                                <label asp-for="Filter.TypeId" class="form-label fw-semibold small text-uppercase text-secondary"></label>
+                                <select asp-for="Filter.TypeId" asp-items="Model.TrainingTypes" class="form-select"></select>
+                            </div>
+                            <div class="col-lg-4">
+                                <label asp-for="Filter.ProjectId" class="form-label fw-semibold small text-uppercase text-secondary"></label>
+                                <select asp-for="Filter.ProjectId" asp-items="Model.ProjectOptions" class="form-select">
+                                    <option value="">All projects</option>
+                                </select>
+                            </div>
+                            <div class="col-lg-4">
+                                <label asp-for="Filter.Category" class="form-label fw-semibold small text-uppercase text-secondary"></label>
+                                <select asp-for="Filter.Category" asp-items="Model.CategoryOptions" class="form-select"></select>
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="Filter.From" class="form-label fw-semibold small text-uppercase text-secondary"></label>
+                                <input asp-for="Filter.From" class="form-control" />
+                            </div>
+                            <div class="col-md-3">
+                                <label asp-for="Filter.To" class="form-label fw-semibold small text-uppercase text-secondary"></label>
+                                <input asp-for="Filter.To" class="form-control" />
+                            </div>
+                            <div class="col-md-6 col-lg-4">
+                                <label asp-for="Filter.Search" class="form-label fw-semibold small text-uppercase text-secondary"></label>
+                                <input asp-for="Filter.Search" class="form-control" placeholder="Search notes or projects" />
+                            </div>
+                        </div>
+                        <p class="filter-tip text-muted small mt-3 mb-0">Tip: Combine project and category filters to spot readiness gaps faster.</p>
+                    </div>
+                    <div class="modal-footer flex-column flex-sm-row align-items-stretch align-items-sm-center gap-2 justify-content-between">
+                        <a asp-page="./Index" class="btn btn-link btn-sm px-0">Reset filters</a>
+                        <div class="d-grid w-100 w-sm-auto">
+                            <button type="submit" class="btn btn-primary">Apply filters</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
     if (Model.Kpis.ByTechnicalCategory.Count > 0)
