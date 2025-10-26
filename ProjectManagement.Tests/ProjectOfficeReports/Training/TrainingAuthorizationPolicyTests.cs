@@ -24,7 +24,7 @@ public class TrainingAuthorizationPolicyTests
             .Build();
         var user = new ClaimsPrincipal(new ClaimsIdentity(authenticationType: "Test"));
 
-        var result = await authorizationService.AuthorizeAsync(user, resource: null, policy.Requirements);
+        var result = await authorizationService.AuthorizeAsync(user, resource: null, policy);
 
         Assert.True(result.Succeeded);
     }
