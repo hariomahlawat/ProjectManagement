@@ -15,7 +15,7 @@ public interface ITrainingExcelWorkbookBuilder
 }
 
 public sealed record TrainingExcelWorkbookContext(
-    IReadOnlyList<TrainingExportRow> Rows,
+    IReadOnlyList<TrainingExportDetail> Trainings,
     DateTimeOffset GeneratedAtUtc,
     DateOnly? From,
     DateOnly? To,
@@ -23,23 +23,30 @@ public sealed record TrainingExcelWorkbookContext(
     bool IncludeRoster,
     string? TrainingTypeName,
     string? CategoryName,
-    string? ProjectTechnicalCategoryName);
+    string? ProjectTechnicalCategoryName,
+    string? ProjectTechnicalCategoryDisplayName);
 
 public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
 {
     public byte[] Build(TrainingExcelWorkbookContext context)
     {
-        if (context.Rows is null)
+        if (context.Trainings is null)
         {
-            throw new ArgumentNullException(nameof(context.Rows));
+            throw new ArgumentNullException(nameof(context.Trainings));
         }
 
         using var workbook = new XLWorkbook();
         var worksheet = workbook.Worksheets.Add("Trainings");
 
         WriteHeader(worksheet);
-        WriteRows(worksheet, context.Rows);
+        WriteRows(worksheet, context.Trainings);
         ApplyMetadata(worksheet, context);
+
+        if (context.IncludeRoster)
+        {
+            var rosterWorksheet = workbook.Worksheets.Add("Roster");
+            WriteRosterWorksheet(rosterWorksheet, context.Trainings);
+        }
 
         using var stream = new MemoryStream();
         workbook.SaveAs(stream);
@@ -74,13 +81,13 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
         worksheet.SheetView.FreezeRows(1);
     }
 
-    private static void WriteRows(IXLWorksheet worksheet, IReadOnlyList<TrainingExportRow> rows)
+    private static void WriteRows(IXLWorksheet worksheet, IReadOnlyList<TrainingExportDetail> trainings)
     {
         var rowNumber = 2;
 
-        for (var index = 0; index < rows.Count; index++, rowNumber++)
+        for (var index = 0; index < trainings.Count; index++, rowNumber++)
         {
-            var row = rows[index];
+            var row = trainings[index].Summary;
             worksheet.Cell(rowNumber, 1).Value = index + 1;
             worksheet.Cell(rowNumber, 2).Value = row.TrainingTypeName;
             worksheet.Cell(rowNumber, 3).Value = row.Period;
@@ -100,7 +107,7 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
 
     private static void ApplyMetadata(IXLWorksheet worksheet, TrainingExcelWorkbookContext context)
     {
-        var lastRow = Math.Max(2, context.Rows.Count + 1);
+        var lastRow = Math.Max(2, context.Trainings.Count + 1);
         worksheet.Columns(1, 11).AdjustToContents(1, lastRow);
 
         foreach (var column in worksheet.Columns(1, 11))
@@ -114,7 +121,7 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
         worksheet.Column(10).Width = Math.Min(worksheet.Column(10).Width, 40);
         worksheet.Column(11).Width = Math.Min(worksheet.Column(11).Width, 60);
 
-        var metadataRow = context.Rows.Count + 3;
+        var metadataRow = context.Trainings.Count + 3;
         var generatedAtIst = TimeZoneInfo.ConvertTime(context.GeneratedAtUtc, TimeZoneHelper.GetIst());
 
         worksheet.Cell(metadataRow, 1).Value = "Export generated";
@@ -133,7 +140,12 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
                 "Technical category",
                 string.IsNullOrWhiteSpace(context.ProjectTechnicalCategoryName)
                     ? "(not set)"
-                    : context.ProjectTechnicalCategoryName!)
+                    : context.ProjectTechnicalCategoryName!),
+            (
+                "Technical category display",
+                string.IsNullOrWhiteSpace(context.ProjectTechnicalCategoryDisplayName)
+                    ? "(not set)"
+                    : context.ProjectTechnicalCategoryDisplayName!)
         };
 
         var metadataRowIndex = metadataRow + 1;
@@ -147,6 +159,59 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
         worksheet.Range(metadataRow, 1, metadataRowIndex - 1, 1).Style.Font.Bold = true;
     }
 
+    private static void WriteRosterWorksheet(IXLWorksheet worksheet, IReadOnlyList<TrainingExportDetail> trainings)
+    {
+        var headers = new[]
+        {
+            "Training type",
+            "Period",
+            "Army number",
+            "Rank",
+            "Name",
+            "Unit",
+            "Category"
+        };
+
+        for (var column = 0; column < headers.Length; column++)
+        {
+            worksheet.Cell(1, column + 1).Value = headers[column];
+        }
+
+        var headerRange = worksheet.Range(1, 1, 1, headers.Length);
+        headerRange.Style.Font.Bold = true;
+        worksheet.SheetView.FreezeRows(1);
+
+        var rowNumber = 2;
+        foreach (var training in trainings)
+        {
+            foreach (var trainee in training.Roster)
+            {
+                worksheet.Cell(rowNumber, 1).Value = training.Summary.TrainingTypeName;
+                worksheet.Cell(rowNumber, 2).Value = training.Summary.Period;
+                worksheet.Cell(rowNumber, 3).Value = trainee.ArmyNumber ?? string.Empty;
+                worksheet.Cell(rowNumber, 4).Value = trainee.Rank;
+                worksheet.Cell(rowNumber, 5).Value = trainee.Name;
+                worksheet.Cell(rowNumber, 6).Value = trainee.UnitName;
+                worksheet.Cell(rowNumber, 7).Value = FormatRosterCategory(trainee.Category);
+                rowNumber++;
+            }
+        }
+
+        if (rowNumber > 2)
+        {
+            worksheet.Columns(1, headers.Length).AdjustToContents(1, rowNumber - 1);
+        }
+    }
+
     private static string FormatSource(TrainingCounterSource source)
         => source == TrainingCounterSource.Legacy ? "Legacy" : "Roster";
+
+    private static string FormatRosterCategory(byte category)
+        => category switch
+        {
+            (byte)TrainingCategory.Officer => "Officer",
+            (byte)TrainingCategory.JuniorCommissionedOfficer => "Junior Commissioned Officer",
+            (byte)TrainingCategory.OtherRank => "Other Rank",
+            _ => "Unknown"
+        };
 }

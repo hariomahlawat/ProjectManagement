@@ -306,11 +306,14 @@ public sealed class TrainingTrackerReadService
         return result;
     }
 
-    public async Task<IReadOnlyList<TrainingExportRow>> ExportAsync(TrainingTrackerQuery? query, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<TrainingExportDetail>> ExportAsync(
+        TrainingTrackerQuery? query,
+        bool includeRoster,
+        CancellationToken cancellationToken)
     {
         var rows = await SearchAsync(query, cancellationToken);
 
-        return rows
+        var summaries = rows
             .Select(item => new TrainingExportRow(
                 item.Id,
                 item.TrainingTypeName,
@@ -323,6 +326,65 @@ public sealed class TrainingTrackerReadService
                 item.ProjectNames,
                 item.Notes))
             .ToList();
+
+        if (!includeRoster || summaries.Count == 0)
+        {
+            return summaries
+                .Select(summary => new TrainingExportDetail(summary, Array.Empty<TrainingRosterRow>()))
+                .ToList();
+        }
+
+        var rosterLookup = await LoadRosterAsync(rows.Select(item => item.Id).ToArray(), cancellationToken);
+
+        return summaries
+            .Select(summary =>
+            {
+                var roster = rosterLookup.TryGetValue(summary.Id, out var trainees)
+                    ? trainees
+                    : Array.Empty<TrainingRosterRow>();
+
+                return new TrainingExportDetail(summary, roster);
+            })
+            .ToList();
+    }
+
+    private async Task<Dictionary<Guid, IReadOnlyList<TrainingRosterRow>>> LoadRosterAsync(
+        Guid[] trainingIds,
+        CancellationToken cancellationToken)
+    {
+        if (trainingIds.Length == 0)
+        {
+            return new Dictionary<Guid, IReadOnlyList<TrainingRosterRow>>();
+        }
+
+        var rosterRows = await _db.TrainingTrainees
+            .AsNoTracking()
+            .Where(trainee => trainingIds.Contains(trainee.TrainingId))
+            .OrderBy(trainee => trainee.TrainingId)
+            .ThenBy(trainee => trainee.Category)
+            .ThenBy(trainee => trainee.Rank)
+            .ThenBy(trainee => trainee.Name)
+            .ThenBy(trainee => trainee.Id)
+            .Select(trainee => new
+            {
+                trainee.TrainingId,
+                Row = new TrainingRosterRow
+                {
+                    Id = trainee.Id,
+                    ArmyNumber = trainee.ArmyNumber,
+                    Rank = trainee.Rank,
+                    Name = trainee.Name,
+                    UnitName = trainee.UnitName,
+                    Category = trainee.Category
+                }
+            })
+            .ToListAsync(cancellationToken);
+
+        return rosterRows
+            .GroupBy(entry => entry.TrainingId)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<TrainingRosterRow>)group.Select(entry => entry.Row).ToList());
     }
 
     private async Task<IReadOnlyList<TechnicalCategoryKpi>> BuildTechnicalCategoryKpisAsync(
@@ -658,6 +720,8 @@ public sealed record TrainingExportRow(
     TrainingCounterSource Source,
     IReadOnlyList<string> Projects,
     string? Notes);
+
+public sealed record TrainingExportDetail(TrainingExportRow Summary, IReadOnlyList<TrainingRosterRow> Roster);
 
 public sealed class TrainingTrackerQuery
 {
