@@ -23,16 +23,16 @@
                 <span>Filters</span>
             </button>
             <a asp-page="./Manage" class="btn btn-primary">New training</a>
-            <a asp-page-handler="Export"
-               class="btn btn-outline-secondary"
-               asp-route-TypeId="@Model.Filter.TypeId"
-               asp-route-ProjectTechnicalCategoryId="@Model.Filter.ProjectTechnicalCategoryId"
-               asp-route-Category="@Model.Filter.Category"
-               asp-route-From="@Model.Filter.From?.ToString("yyyy-MM-dd")"
-               asp-route-To="@Model.Filter.To?.ToString("yyyy-MM-dd")"
-               asp-route-Search="@Model.Filter.Search">
-                Export to Excel
-            </a>
+            <button type="button"
+                    class="btn btn-outline-secondary d-inline-flex align-items-center gap-2"
+                    data-bs-toggle="modal"
+                    data-bs-target="#trainingExportModal"
+                    aria-controls="trainingExportModal"
+                    aria-haspopup="dialog"
+                    aria-expanded="false">
+                <i class="bi bi-download" aria-hidden="true"></i>
+                <span>Export to Excel</span>
+            </button>
         </div>
     </div>
 </div>
@@ -129,6 +129,64 @@ else
                         <a asp-page="./Index" class="btn btn-link btn-sm px-0">Reset filters</a>
                         <div class="d-grid w-100 w-sm-auto">
                             <button type="submit" class="btn btn-primary">Apply filters</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade"
+         id="trainingExportModal"
+         tabindex="-1"
+         aria-labelledby="trainingExportModalLabel"
+         aria-hidden="true"
+         data-bs-focus="true">
+        <div class="modal-dialog modal-dialog-scrollable modal-lg modal-fullscreen-sm-down">
+            <div class="modal-content training-export-modal">
+                <form method="get" asp-page-handler="Export" class="w-100 training-export-form">
+                    <div class="modal-header">
+                        <div>
+                            <h2 class="modal-title h5 mb-1" id="trainingExportModalLabel">Export trainings</h2>
+                            <p class="text-muted small mb-0">Choose the timeframe and technical category to tailor your Excel export.</p>
+                        </div>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3 align-items-end">
+                            <div class="col-md-6 col-lg-4">
+                                <label asp-for="Export.From" class="form-label fw-semibold small text-uppercase text-secondary"></label>
+                                <input asp-for="Export.From" class="form-control" />
+                            </div>
+                            <div class="col-md-6 col-lg-4">
+                                <label asp-for="Export.To" class="form-label fw-semibold small text-uppercase text-secondary"></label>
+                                <input asp-for="Export.To" class="form-control" />
+                            </div>
+                            <div class="col-lg-4">
+                                <label asp-for="Export.ProjectTechnicalCategoryId" class="form-label fw-semibold small text-uppercase text-secondary"></label>
+                                <select asp-for="Export.ProjectTechnicalCategoryId"
+                                        asp-items="Model.ProjectTechnicalCategoryOptions"
+                                        class="form-select"></select>
+                            </div>
+                        </div>
+                        <div class="mt-4">
+                            <div class="form-check">
+                                <input class="form-check-input" asp-for="Export.IncludeRoster" aria-describedby="trainingExportIncludeRosterHelp" />
+                                <label class="form-check-label" asp-for="Export.IncludeRoster"></label>
+                            </div>
+                            <div class="form-text" id="trainingExportIncludeRosterHelp">Include roster details in the export when available so teams can review individual attendance records.</div>
+                        </div>
+
+                        <input type="hidden" asp-for="Filter.TypeId" />
+                        <input type="hidden" asp-for="Filter.Category" />
+                        <input type="hidden" asp-for="Filter.Search" />
+                        <input type="hidden" asp-for="Filter.ProjectTechnicalCategoryId" />
+                        <input type="hidden" asp-for="Filter.From" />
+                        <input type="hidden" asp-for="Filter.To" />
+                    </div>
+                    <div class="modal-footer flex-column flex-sm-row align-items-stretch align-items-sm-center gap-2 justify-content-between">
+                        <div class="d-grid w-100 w-sm-auto">
+                            <button type="submit" class="btn btn-primary">Download Excel</button>
                         </div>
                     </div>
                 </form>

@@ -44,6 +44,9 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public FilterInput Filter { get; set; } = new();
 
+    [BindProperty(SupportsGet = true)]
+    public ExportInput Export { get; set; } = new();
+
     public IReadOnlyList<SelectListItem> TrainingTypes { get; private set; } = Array.Empty<SelectListItem>();
 
     public IReadOnlyList<SelectListItem> ProjectTechnicalCategoryOptions { get; private set; } = Array.Empty<SelectListItem>();
@@ -74,6 +77,10 @@ public class IndexModel : PageModel
             return Page();
         }
 
+        Export.From ??= Filter.From;
+        Export.To ??= Filter.To;
+        Export.ProjectTechnicalCategoryId ??= Filter.ProjectTechnicalCategoryId;
+
         var query = BuildQuery(Filter);
         var results = await _readService.SearchAsync(query, cancellationToken);
         Trainings = results.Select(TrainingRowViewModel.FromListItem).ToList();
@@ -90,15 +97,35 @@ public class IndexModel : PageModel
             return Forbid();
         }
 
+        Export.From ??= Filter.From;
+        Export.To ??= Filter.To;
+        Export.ProjectTechnicalCategoryId ??= Filter.ProjectTechnicalCategoryId;
+
         var query = BuildQuery(Filter);
+        if (Export.From.HasValue)
+        {
+            query.From = Export.From;
+        }
+
+        if (Export.To.HasValue)
+        {
+            query.To = Export.To;
+        }
+
+        if (Export.ProjectTechnicalCategoryId.HasValue)
+        {
+            query.ProjectTechnicalCategoryId = Export.ProjectTechnicalCategoryId;
+        }
+
         var rows = await _readService.ExportAsync(query, cancellationToken);
 
         var workbook = _workbookBuilder.Build(new TrainingExcelWorkbookContext(
             rows,
             _clock.UtcNow,
-            Filter.From,
-            Filter.To,
-            Filter.Search));
+            query.From,
+            query.To,
+            Filter.Search,
+            Export.IncludeRoster));
 
         var fileName = $"training-tracker-{_clock.UtcNow:yyyyMMdd-HHmmss}.xlsx";
         return File(workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
@@ -172,6 +199,23 @@ public class IndexModel : PageModel
 
         [Display(Name = "Search")]
         public string? Search { get; set; }
+    }
+
+    public sealed class ExportInput
+    {
+        [DataType(DataType.Date)]
+        [Display(Name = "From")]
+        public DateOnly? From { get; set; }
+
+        [DataType(DataType.Date)]
+        [Display(Name = "To")]
+        public DateOnly? To { get; set; }
+
+        [Display(Name = "Project technical category")]
+        public int? ProjectTechnicalCategoryId { get; set; }
+
+        [Display(Name = "Include roster details")]
+        public bool IncludeRoster { get; set; }
     }
 
     private static IReadOnlyList<SelectListItem> BuildTechnicalCategoryOptions(

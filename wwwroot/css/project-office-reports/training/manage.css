@@ -182,6 +182,28 @@
   max-width: 28rem;
 }
 
+.training-export-modal {
+  border: 0;
+  border-radius: 1rem;
+}
+
+.training-export-modal .modal-header {
+  border-bottom: 0;
+}
+
+.training-export-form label.form-label {
+  letter-spacing: 0.04em;
+}
+
+.training-export-modal .modal-footer {
+  border-top: 0;
+}
+
+.training-export-modal .form-text {
+  color: var(--bs-secondary-color, #6c757d);
+  max-width: 32rem;
+}
+
 @media (min-width: 576px) {
   .training-filter-modal .modal-footer {
     justify-content: space-between;
