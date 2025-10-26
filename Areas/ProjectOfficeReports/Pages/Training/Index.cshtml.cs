@@ -68,8 +68,6 @@ public class IndexModel : PageModel
 
         await LoadOptionsAsync(cancellationToken);
 
-        Filter.TypeIds ??= Array.Empty<Guid>();
-
         if (!IsFeatureEnabled)
         {
             Trainings = Array.Empty<TrainingRowViewModel>();
@@ -108,16 +106,23 @@ public class IndexModel : PageModel
 
     private async Task LoadOptionsAsync(CancellationToken cancellationToken)
     {
-        var selectedTypeIds = Filter.TypeIds is { Length: > 0 }
-            ? new HashSet<Guid>(Filter.TypeIds.Where(id => id != Guid.Empty))
-            : new HashSet<Guid>();
+        var selectedTypeId = Filter.TypeId is { } typeId && typeId != Guid.Empty ? typeId : (Guid?)null;
 
-        TrainingTypes = (await _readService.GetTrainingTypesAsync(cancellationToken))
+        var options = new List<SelectListItem>
+        {
+            new("All training types", string.Empty)
+            {
+                Selected = selectedTypeId is null
+            }
+        };
+
+        options.AddRange((await _readService.GetTrainingTypesAsync(cancellationToken))
             .Select(option => new SelectListItem(option.Name, option.Id.ToString())
             {
-                Selected = selectedTypeIds.Contains(option.Id)
-            })
-            .ToList();
+                Selected = selectedTypeId == option.Id
+            }));
+
+        TrainingTypes = options;
 
         ProjectOptions = (await _readService.GetProjectOptionsAsync(cancellationToken))
             .Select(option => new SelectListItem(option.Name, option.Id.ToString()))
@@ -139,12 +144,9 @@ public class IndexModel : PageModel
             query.Category = filter.Category.Value;
         }
 
-        if (filter.TypeIds is { Length: > 0 })
+        if (filter.TypeId is { } typeId && typeId != Guid.Empty)
         {
-            foreach (var id in filter.TypeIds.Where(id => id != Guid.Empty))
-            {
-                query.TrainingTypeIds.Add(id);
-            }
+            query.TrainingTypeIds.Add(typeId);
         }
 
         return query;
@@ -153,7 +155,7 @@ public class IndexModel : PageModel
     public sealed class FilterInput
     {
         [Display(Name = "Training types")]
-        public Guid[]? TypeIds { get; set; }
+        public Guid? TypeId { get; set; }
 
         [Display(Name = "Project")]
         public int? ProjectId { get; set; }
