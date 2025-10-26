@@ -19,7 +19,8 @@ public sealed record TrainingExcelWorkbookContext(
     DateTimeOffset GeneratedAtUtc,
     DateOnly? From,
     DateOnly? To,
-    string? Search);
+    string? Search,
+    bool IncludeRoster);
 
 public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
 {
@@ -126,7 +127,10 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
         worksheet.Cell(metadataRow + 3, 1).Value = "Search";
         worksheet.Cell(metadataRow + 3, 2).Value = string.IsNullOrWhiteSpace(context.Search) ? "(not set)" : context.Search;
 
-        worksheet.Range(metadataRow, 1, metadataRow + 3, 1).Style.Font.Bold = true;
+        worksheet.Cell(metadataRow + 4, 1).Value = "Include roster";
+        worksheet.Cell(metadataRow + 4, 2).Value = context.IncludeRoster ? "Yes" : "No";
+
+        worksheet.Range(metadataRow, 1, metadataRow + 4, 1).Style.Font.Bold = true;
     }
 
     private static string FormatSource(TrainingCounterSource source)
