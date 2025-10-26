@@ -1,8 +1,9 @@
 @page
 @using System.Globalization
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Training.IndexModel
-@{ 
+@{
     ViewData["Title"] = "Training tracker";
+    var showExportModal = ViewData["ShowTrainingExportModal"] as bool? ?? false;
 }
 
 <div class="training-page-header card shadow-sm border-0 mb-4">
@@ -144,10 +145,11 @@ else
          tabindex="-1"
          aria-labelledby="trainingExportModalLabel"
          aria-hidden="true"
-         data-bs-focus="true">
+         data-bs-focus="true"
+         data-training-export-auto-show="@(showExportModal ? "true" : "false")">
         <div class="modal-dialog modal-dialog-scrollable modal-lg modal-fullscreen-sm-down">
             <div class="modal-content training-export-modal">
-                <form method="get" asp-page-handler="Export" class="w-100 training-export-form">
+                <form method="post" asp-page-handler="Export" class="w-100 training-export-form">
                     <div class="modal-header">
                         <div>
                             <h2 class="modal-title h5 mb-1" id="trainingExportModalLabel">Export trainings</h2>

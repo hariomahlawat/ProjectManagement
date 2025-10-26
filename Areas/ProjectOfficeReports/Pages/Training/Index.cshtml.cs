@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -14,8 +15,7 @@ using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Application.Training.Dtos;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Configuration;
-using ProjectManagement.Services;
-using ProjectManagement.Utilities.Reporting;
+using ProjectManagement.Models;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Training;
 
@@ -24,19 +24,19 @@ public class IndexModel : PageModel
 {
     private readonly IOptionsSnapshot<TrainingTrackerOptions> _options;
     private readonly TrainingTrackerReadService _readService;
-    private readonly ITrainingExcelWorkbookBuilder _workbookBuilder;
-    private readonly IClock _clock;
+    private readonly ITrainingExportService _exportService;
+    private readonly UserManager<ApplicationUser> _userManager;
 
     public IndexModel(
         IOptionsSnapshot<TrainingTrackerOptions> options,
         TrainingTrackerReadService readService,
-        ITrainingExcelWorkbookBuilder workbookBuilder,
-        IClock clock)
+        ITrainingExportService exportService,
+        UserManager<ApplicationUser> userManager)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _readService = readService ?? throw new ArgumentNullException(nameof(readService));
-        _workbookBuilder = workbookBuilder ?? throw new ArgumentNullException(nameof(workbookBuilder));
-        _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _exportService = exportService ?? throw new ArgumentNullException(nameof(exportService));
+        _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
     }
 
     public bool IsFeatureEnabled { get; private set; }
@@ -67,27 +67,11 @@ public class IndexModel : PageModel
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
-        IsFeatureEnabled = _options.Value.Enabled;
-
-        await LoadOptionsAsync(cancellationToken);
-
-        BackfillExportDefaultsFromFilter();
-
-        if (!IsFeatureEnabled)
-        {
-            Trainings = Array.Empty<TrainingRowViewModel>();
-            return Page();
-        }
-
-        var query = BuildQuery(Filter);
-        var results = await _readService.SearchAsync(query, cancellationToken);
-        Trainings = results.Select(TrainingRowViewModel.FromListItem).ToList();
-        Kpis = await _readService.GetKpisAsync(query, cancellationToken);
-
+        await PopulateAsync(cancellationToken);
         return Page();
     }
 
-    public async Task<IActionResult> OnGetExportAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostExportAsync(CancellationToken cancellationToken)
     {
         IsFeatureEnabled = _options.Value.Enabled;
         if (!IsFeatureEnabled)
@@ -97,29 +81,70 @@ public class IndexModel : PageModel
 
         BackfillExportDefaultsFromFilter();
 
-        var query = BuildExportQuery(Export);
-        var rows = await _readService.ExportAsync(query, Export.IncludeRoster, cancellationToken);
+        if (!ModelState.IsValid)
+        {
+            await PopulateAsync(cancellationToken);
+            ViewData["ShowTrainingExportModal"] = true;
+            return Page();
+        }
 
-        var trainingTypeName = await ResolveTrainingTypeNameAsync(Export.TypeId, cancellationToken);
-        var (technicalCategoryName, technicalCategoryDisplayName) = await ResolveTechnicalCategoryMetadataAsync(
+        var userId = _userManager.GetUserId(User);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            TempData["ToastError"] = "You are not signed in or your session has expired. Please sign in again.";
+            return Challenge();
+        }
+
+        var request = new TrainingExportRequest(
+            Export.TypeId,
+            Export.Category,
             Export.ProjectTechnicalCategoryId,
-            cancellationToken);
-        var categoryDisplayName = GetCategoryDisplayName(Export.Category);
-
-        var workbook = _workbookBuilder.Build(new TrainingExcelWorkbookContext(
-            rows,
-            _clock.UtcNow,
-            query.From,
-            query.To,
-            query.Search,
+            Export.From,
+            Export.To,
+            Export.Search,
             Export.IncludeRoster,
-            trainingTypeName,
-            categoryDisplayName,
-            technicalCategoryName,
-            technicalCategoryDisplayName));
+            userId);
 
-        var fileName = $"training-tracker-{_clock.UtcNow:yyyyMMdd-HHmmss}.xlsx";
-        return File(workbook, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName);
+        var result = await _exportService.ExportAsync(request, cancellationToken);
+        if (!result.Success || result.File is null)
+        {
+            foreach (var error in result.Errors)
+            {
+                ModelState.AddModelError(string.Empty, error);
+            }
+
+            if (result.Errors.Count > 0)
+            {
+                TempData["ToastError"] = result.Errors[0];
+            }
+
+            await PopulateAsync(cancellationToken);
+            ViewData["ShowTrainingExportModal"] = true;
+            return Page();
+        }
+
+        return File(result.File.Content, result.File.ContentType, result.File.FileName);
+    }
+
+    private async Task PopulateAsync(CancellationToken cancellationToken)
+    {
+        IsFeatureEnabled = _options.Value.Enabled;
+
+        await LoadOptionsAsync(cancellationToken);
+
+        BackfillExportDefaultsFromFilter();
+
+        if (!IsFeatureEnabled)
+        {
+            Trainings = Array.Empty<TrainingRowViewModel>();
+            Kpis = new();
+            return;
+        }
+
+        var query = BuildQuery(Filter);
+        var results = await _readService.SearchAsync(query, cancellationToken);
+        Trainings = results.Select(TrainingRowViewModel.FromListItem).ToList();
+        Kpis = await _readService.GetKpisAsync(query, cancellationToken);
     }
 
     private async Task LoadOptionsAsync(CancellationToken cancellationToken)
@@ -170,29 +195,6 @@ public class IndexModel : PageModel
         return query;
     }
 
-    private static TrainingTrackerQuery BuildExportQuery(ExportInput export)
-    {
-        var query = new TrainingTrackerQuery
-        {
-            ProjectTechnicalCategoryId = export.ProjectTechnicalCategoryId,
-            From = export.From,
-            To = export.To,
-            Search = string.IsNullOrWhiteSpace(export.Search) ? null : export.Search.Trim()
-        };
-
-        if (export.Category.HasValue)
-        {
-            query.Category = export.Category.Value;
-        }
-
-        if (export.TypeId is { } typeId && typeId != Guid.Empty)
-        {
-            query.TrainingTypeIds.Add(typeId);
-        }
-
-        return query;
-    }
-
     private void BackfillExportDefaultsFromFilter()
     {
         Export.From ??= Filter.From;
@@ -202,43 +204,6 @@ public class IndexModel : PageModel
         Export.Category ??= Filter.Category;
         Export.Search ??= Filter.Search;
     }
-
-    private async Task<string?> ResolveTrainingTypeNameAsync(Guid? typeId, CancellationToken cancellationToken)
-    {
-        if (typeId is not { } trainingTypeId || trainingTypeId == Guid.Empty)
-        {
-            return null;
-        }
-
-        var trainingTypes = await _readService.GetTrainingTypesAsync(cancellationToken);
-        return trainingTypes.FirstOrDefault(option => option.Id == trainingTypeId)?.Name;
-    }
-
-    private async Task<(string? Name, string? DisplayName)> ResolveTechnicalCategoryMetadataAsync(
-        int? technicalCategoryId,
-        CancellationToken cancellationToken)
-    {
-        if (!technicalCategoryId.HasValue)
-        {
-            return (null, null);
-        }
-
-        var categories = await _readService.GetProjectTechnicalCategoryOptionsAsync(cancellationToken);
-        var selected = categories.FirstOrDefault(option => option.Id == technicalCategoryId.Value);
-        var options = BuildTechnicalCategoryOptions(categories, technicalCategoryId);
-        var displayName = options.FirstOrDefault(option => option.Selected)?.Text;
-
-        return (selected?.Name, displayName);
-    }
-
-    private static string? GetCategoryDisplayName(TrainingCategory? category)
-        => category switch
-        {
-            TrainingCategory.Officer => "Officers",
-            TrainingCategory.JuniorCommissionedOfficer => "Junior Commissioned Officers",
-            TrainingCategory.OtherRank => "Other Ranks",
-            _ => null
-        };
 
     public sealed class FilterInput
     {
