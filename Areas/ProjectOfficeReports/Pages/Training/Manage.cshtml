@@ -1,4 +1,5 @@
 @page "{id?}"
+@using System.Collections.Generic
 @using System.Globalization
 @using ProjectManagement.Areas.ProjectOfficeReports.Domain
 @using ProjectManagement.Areas.ProjectOfficeReports.Pages.Training
@@ -132,7 +133,49 @@ else
 
                 <div class="mt-4">
                     <label asp-for="Input.ProjectIds" class="form-label">Linked projects</label>
-                    <select asp-for="Input.ProjectIds" asp-items="Model.ProjectOptions" multiple class="form-select" size="8"></select>
+                    @{
+                        var selectedProjectIds = Model.Input?.ProjectIds ?? new List<int>();
+                        var selectedProjectSet = new HashSet<int>(selectedProjectIds);
+                        var selectedProjects = new List<(string Value, string Label)>();
+
+                        foreach (var option in Model.ProjectOptions)
+                        {
+                            if (string.IsNullOrWhiteSpace(option.Value))
+                            {
+                                continue;
+                            }
+
+                            if (!int.TryParse(option.Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedId))
+                            {
+                                continue;
+                            }
+
+                            if (selectedProjectSet.Contains(parsedId))
+                            {
+                                selectedProjects.Add((option.Value, option.Text ?? option.Value));
+                                selectedProjectSet.Remove(parsedId);
+                            }
+                        }
+
+                        foreach (var leftoverId in selectedProjectSet)
+                        {
+                            selectedProjects.Add((leftoverId.ToString(CultureInfo.InvariantCulture), $"Project #{leftoverId}"));
+                        }
+                    }
+                    <div class="async-multiselect js-async-multiselect"
+                         data-name="Input.ProjectIds"
+                         data-source="/api/lookups/projects"
+                         data-search-placeholder="Search projects"
+                         data-no-results="No projects found"
+                         data-remove-label="Remove project">
+                        @foreach (var selected in selectedProjects)
+                        {
+                            <input type="hidden" name="Input.ProjectIds" value="@selected.Value" data-label="@selected.Label" />
+                        }
+                    </div>
+                    <noscript>
+                        <select asp-for="Input.ProjectIds" asp-items="Model.ProjectOptions" multiple class="form-select" size="8"></select>
+                    </noscript>
                     <span class="form-text">Select all projects associated with this training.</span>
                     <span asp-validation-for="Input.ProjectIds" class="text-danger"></span>
                 </div>
@@ -193,6 +236,11 @@ else
             </div>
         </div>
     </form>
+}
+
+@section Styles
+{
+    <link rel="stylesheet" href="~/css/project-office-reports/training/manage.css" asp-append-version="true" />
 }
 
 @section Scripts
