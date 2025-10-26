@@ -172,6 +172,7 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
         {
             "Training type",
             "Period",
+            "Projects",
             "Army number",
             "Rank",
             "Name",
@@ -195,11 +196,16 @@ public sealed class TrainingExcelWorkbookBuilder : ITrainingExcelWorkbookBuilder
             {
                 worksheet.Cell(rowNumber, 1).Value = training.Summary.TrainingTypeName;
                 worksheet.Cell(rowNumber, 2).Value = training.Summary.Period;
-                worksheet.Cell(rowNumber, 3).Value = trainee.ArmyNumber ?? string.Empty;
-                worksheet.Cell(rowNumber, 4).Value = trainee.Rank;
-                worksheet.Cell(rowNumber, 5).Value = trainee.Name;
-                worksheet.Cell(rowNumber, 6).Value = trainee.UnitName;
-                worksheet.Cell(rowNumber, 7).Value = FormatRosterCategory(trainee.Category);
+                var projects = training.Summary.Projects is { Count: > 0 }
+                    ? string.Join(", ", training.Summary.Projects)
+                    : string.Empty;
+
+                worksheet.Cell(rowNumber, 3).Value = projects;
+                worksheet.Cell(rowNumber, 4).Value = trainee.ArmyNumber ?? string.Empty;
+                worksheet.Cell(rowNumber, 5).Value = trainee.Rank;
+                worksheet.Cell(rowNumber, 6).Value = trainee.Name;
+                worksheet.Cell(rowNumber, 7).Value = trainee.UnitName;
+                worksheet.Cell(rowNumber, 8).Value = FormatRosterCategory(trainee.Category);
                 rowNumber++;
             }
         }

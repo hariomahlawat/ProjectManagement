@@ -208,8 +208,9 @@ public sealed class TrainingExportServiceTests
         var rosterSheet = workbook.Worksheet("Roster");
         Assert.Equal("Roster", rosterSheet.Name);
         Assert.Equal("Infantry Bootcamp", rosterSheet.Cell(2, 1).GetString());
-        Assert.Equal("45 Signals", rosterSheet.Cell(2, 6).GetString());
-        Assert.Equal(0, rosterSheet.Cell(2, 7).GetValue<int>());
+        Assert.Equal("Project Atlas", rosterSheet.Cell(2, 3).GetString());
+        Assert.Equal("45 Signals", rosterSheet.Cell(2, 7).GetString());
+        Assert.Equal(0, rosterSheet.Cell(2, 8).GetValue<int>());
     }
 
     private static ApplicationDbContext CreateContext()
