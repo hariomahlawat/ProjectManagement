@@ -79,7 +79,6 @@ function initRosterModule() {
 
   const rosterBody = document.getElementById('rosterBody');
   const btnAdd = document.getElementById('btnAddRosterRow');
-  const btnPaste = document.getElementById('btnPasteRoster');
   const officersSpan = document.getElementById('rosterOfficersCount');
   const jcosSpan = document.getElementById('rosterJcosCount');
   const orsSpan = document.getElementById('rosterOrsCount');
@@ -112,10 +111,6 @@ function initRosterModule() {
   btnAdd?.addEventListener('click', () => {
     addRow();
     recalc();
-  });
-
-  btnPaste?.addEventListener('click', async () => {
-    await handlePaste();
   });
 
   rosterBody?.addEventListener('input', recalc);
@@ -248,48 +243,6 @@ function initRosterModule() {
     if (counterOrsInput) counterOrsInput.value = String(ors);
     if (counterTotalInput) counterTotalInput.value = String(total);
     if (counterSourceInput) counterSourceInput.value = source || (total > 0 ? 'Roster' : 'Legacy');
-  }
-
-  async function handlePaste() {
-    if (!navigator.clipboard || !navigator.clipboard.readText) {
-      window.alert('Clipboard paste is not supported in this browser.');
-      return;
-    }
-
-    try {
-      const text = await navigator.clipboard.readText();
-      if (!text) {
-        return;
-      }
-
-      const rows = parseClipboard(text);
-      if (rows.length === 0) {
-        window.alert('No rows detected in the clipboard contents.');
-        return;
-      }
-
-      rows.forEach((row) => addRow(row));
-      recalc();
-    } catch {
-      window.alert('Clipboard access was denied. Copy the data and paste using Ctrl+V inside a cell.');
-    }
-  }
-
-  function parseClipboard(text) {
-    return text
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0)
-      .map((line) => {
-        const cells = line.split(/\t/);
-        return {
-          armyNumber: cells[0] ?? '',
-          rank: cells[1] ?? '',
-          name: cells[2] ?? '',
-          unitName: cells[3] ?? '',
-          category: inferCategoryFromText(cells[4])
-        };
-      });
   }
 
   function normalizeRows(rows) {
