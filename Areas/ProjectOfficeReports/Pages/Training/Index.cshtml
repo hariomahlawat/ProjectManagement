@@ -15,7 +15,7 @@
             <a asp-page="./Manage" class="btn btn-primary btn-lg px-4">New training</a>
             <a asp-page-handler="Export"
                class="btn btn-outline-secondary btn-lg"
-               asp-route-TypeIds="@Model.Filter.TypeIds"
+               asp-route-TypeId="@Model.Filter.TypeId"
                asp-route-ProjectId="@Model.Filter.ProjectId"
                asp-route-Category="@Model.Filter.Category"
                asp-route-From="@Model.Filter.From?.ToString("yyyy-MM-dd")"
@@ -50,60 +50,8 @@ else
         <div class="card-body">
             <div class="row g-3 align-items-end">
                 <div class="col-lg-4">
-                    <label asp-for="Filter.TypeIds" class="form-label fw-semibold small text-uppercase text-secondary"></label>
-                        @{ var selectedTrainingTypes = Model.TrainingTypes
-                               .Where(x => x.Selected && !string.IsNullOrWhiteSpace(x.Value))
-                               .Select(x => (Value: x.Value!, Label: x.Text ?? x.Value!))
-                               .ToList();
-
-                           var selectedTypeIdStrings = Model.Filter.TypeIds is { Length: > 0 }
-                               ? Model.Filter.TypeIds
-                                   .Where(id => id != Guid.Empty)
-                                   .Select(id => id.ToString())
-                                   .ToList()
-                               : new List<string>();
-
-                           foreach (var typeId in selectedTypeIdStrings)
-                           {
-                               if (selectedTrainingTypes.Any(x => string.Equals(x.Value, typeId, StringComparison.OrdinalIgnoreCase)))
-                               {
-                                   continue;
-                               }
-
-                               selectedTrainingTypes.Add((Value: typeId, Label: $"Training type #{typeId}"));
-                           }
-                         }
-                    <div class="async-multiselect js-async-multiselect"
-                         data-name="Filter.TypeIds"
-                         data-source="/api/lookups/training-types"
-                         data-search-placeholder="Search training types"
-                         data-no-results="No training types found"
-                         data-remove-label="Remove training type">
-                        @foreach (var selected in selectedTrainingTypes)
-                        {
-                            <input type="hidden" name="Filter.TypeIds" value="@selected.Value" data-label="@selected.Label" />
-                        }
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <form method="get" class="card shadow-sm w-100 me-3">
-            <div class="card-body">
-                <div class="row g-3 align-items-end">
-                    <div class="col-lg-4">
-                        <label asp-for="Filter.TypeId" class="form-label"></label>
-                        <select asp-for="Filter.TypeId" asp-items="Model.TrainingTypes" class="form-select"></select>
-                    </div>
-                    <div class="col-lg-4">
-                        <label asp-for="Filter.ProjectId" class="form-label"></label>
-                        <select asp-for="Filter.ProjectId" asp-items="Model.ProjectOptions" class="form-select">
-                            <option value="">All projects</option>
-                        </select>
-                    </div>
-                    <div class="col-lg-4">
-                        <label asp-for="Filter.Category" class="form-label"></label>
-                        <select asp-for="Filter.Category" asp-items="Model.CategoryOptions" class="form-select"></select>
-                    </div>
-                    <noscript>
-                        <select asp-for="Filter.TypeIds" asp-items="Model.TrainingTypes" multiple class="form-select" size="5"></select>
-                    </noscript>
+                    <label asp-for="Filter.TypeId" class="form-label fw-semibold small text-uppercase text-secondary"></label>
+                    <select asp-for="Filter.TypeId" asp-items="Model.TrainingTypes" class="form-select"></select>
                 </div>
                 <div class="col-lg-4">
                     <label asp-for="Filter.ProjectId" class="form-label fw-semibold small text-uppercase text-secondary"></label>
@@ -137,20 +85,6 @@ else
                 </div>
                 <a asp-page="./Index" class="btn btn-link btn-sm px-0">Reset filters</a>
             </div>
-        </form>
-
-        <div class="flex-shrink-0 d-flex flex-column gap-2">
-            <a asp-page="./Manage" class="btn btn-success">New training</a>
-            <a asp-page-handler="Export"
-               class="btn btn-outline-secondary"
-               asp-route-TypeId="@Model.Filter.TypeId"
-               asp-route-ProjectId="@Model.Filter.ProjectId"
-               asp-route-Category="@Model.Filter.Category"
-               asp-route-From="@Model.Filter.From?.ToString("yyyy-MM-dd")"
-               asp-route-To="@Model.Filter.To?.ToString("yyyy-MM-dd")"
-               asp-route-Search="@Model.Filter.Search">
-                Export to Excel
-            </a>
         </div>
     </form>
 

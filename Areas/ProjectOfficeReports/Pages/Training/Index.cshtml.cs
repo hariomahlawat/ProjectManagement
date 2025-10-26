@@ -106,27 +106,20 @@ public class IndexModel : PageModel
 
     private async Task LoadOptionsAsync(CancellationToken cancellationToken)
     {
-        var selectedTypeIds = (Filter.TypeIds ?? Array.Empty<Guid>())
-            .Where(id => id != Guid.Empty)
-            .ToHashSet();
-
-        if (selectedTypeIds.Count == 0 && Filter.TypeId is { } fallbackTypeId && fallbackTypeId != Guid.Empty)
-        {
-            selectedTypeIds.Add(fallbackTypeId);
-        }
+        var selectedTypeId = Filter.TypeId.GetValueOrDefault();
 
         var options = new List<SelectListItem>
         {
             new("All training types", string.Empty)
             {
-                Selected = selectedTypeIds.Count == 0
+                Selected = selectedTypeId == Guid.Empty
             }
         };
 
         options.AddRange((await _readService.GetTrainingTypesAsync(cancellationToken))
             .Select(option => new SelectListItem(option.Name, option.Id.ToString())
             {
-                Selected = selectedTypeIds.Contains(option.Id)
+                Selected = option.Id == selectedTypeId
             }));
 
         TrainingTypes = options;
@@ -151,22 +144,7 @@ public class IndexModel : PageModel
             query.Category = filter.Category.Value;
         }
 
-        if (filter.TypeIds is { Length: > 0 })
-        {
-            foreach (var typeId in filter.TypeIds)
-            {
-                if (typeId == Guid.Empty)
-                {
-                    continue;
-                }
-
-                if (!query.TrainingTypeIds.Contains(typeId))
-                {
-                    query.TrainingTypeIds.Add(typeId);
-                }
-            }
-        }
-        else if (filter.TypeId is { } typeId && typeId != Guid.Empty)
+        if (filter.TypeId is { } typeId && typeId != Guid.Empty)
         {
             query.TrainingTypeIds.Add(typeId);
         }
@@ -176,9 +154,6 @@ public class IndexModel : PageModel
 
     public sealed class FilterInput
     {
-        [Display(Name = "Training types")]
-        public Guid[]? TypeIds { get; set; }
-
         [Display(Name = "Training type")]
         public Guid? TypeId { get; set; }
 
