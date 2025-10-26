@@ -95,11 +95,12 @@ public sealed class TrainingExcelWorkbookBuilderTests
         Assert.Equal("Training type", rosterSheet.Cell(1, 1).GetString());
         Assert.Equal("Advanced Signals", rosterSheet.Cell(2, 1).GetString());
         Assert.Equal("2024-02-01 – 2024-02-10", rosterSheet.Cell(2, 2).GetString());
-        Assert.Equal("12345", rosterSheet.Cell(2, 3).GetString());
-        Assert.Equal("Maj", rosterSheet.Cell(2, 4).GetString());
-        Assert.Equal("Alice", rosterSheet.Cell(2, 5).GetString());
-        Assert.Equal("Unit 1", rosterSheet.Cell(2, 6).GetString());
-        Assert.Equal("Officer", rosterSheet.Cell(2, 7).GetString());
+        Assert.Equal("Project X", rosterSheet.Cell(2, 3).GetString());
+        Assert.Equal("12345", rosterSheet.Cell(2, 4).GetString());
+        Assert.Equal("Maj", rosterSheet.Cell(2, 5).GetString());
+        Assert.Equal("Alice", rosterSheet.Cell(2, 6).GetString());
+        Assert.Equal("Unit 1", rosterSheet.Cell(2, 7).GetString());
+        Assert.Equal("Officer", rosterSheet.Cell(2, 8).GetString());
 
         Assert.True(workbook.Worksheets.TryGetWorksheet("Trainings", out var summarySheet));
         Assert.NotNull(summarySheet);
