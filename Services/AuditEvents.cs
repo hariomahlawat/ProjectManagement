@@ -570,6 +570,96 @@ public static class Audit
 
             return new AuditEvent("ProjectOfficeReports.Proliferation.GranularRecorded", actorUserId, data);
         }
+
+        public static AuditEvent ActivityTypeAdded(Guid activityTypeId, string name, int ordinal, string userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ActivityTypeId"] = activityTypeId.ToString(),
+                ["Name"] = name,
+                ["Ordinal"] = ordinal.ToString(CultureInfo.InvariantCulture)
+            };
+
+            return new AuditEvent("ProjectOfficeReports.ActivityTypeAdded", userId, data);
+        }
+
+        public static AuditEvent ActivityTypeUpdated(Guid activityTypeId, string name, bool isActive, int ordinal, string userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ActivityTypeId"] = activityTypeId.ToString(),
+                ["Name"] = name,
+                ["IsActive"] = isActive ? "true" : "false",
+                ["Ordinal"] = ordinal.ToString(CultureInfo.InvariantCulture)
+            };
+
+            return new AuditEvent("ProjectOfficeReports.ActivityTypeUpdated", userId, data);
+        }
+
+        public static AuditEvent ActivityTypeDeleted(Guid activityTypeId, string userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ActivityTypeId"] = activityTypeId.ToString()
+            };
+
+            return new AuditEvent("ProjectOfficeReports.ActivityTypeDeleted", userId, data);
+        }
+
+        public static AuditEvent MiscActivityCreated(Guid activityId, string nomenclature, string userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ActivityId"] = activityId.ToString(),
+                ["Nomenclature"] = nomenclature
+            };
+
+            return new AuditEvent("ProjectOfficeReports.MiscActivityCreated", userId, data);
+        }
+
+        public static AuditEvent MiscActivityUpdated(Guid activityId, string nomenclature, string userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ActivityId"] = activityId.ToString(),
+                ["Nomenclature"] = nomenclature
+            };
+
+            return new AuditEvent("ProjectOfficeReports.MiscActivityUpdated", userId, data);
+        }
+
+        public static AuditEvent MiscActivityDeleted(Guid activityId, string userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ActivityId"] = activityId.ToString()
+            };
+
+            return new AuditEvent("ProjectOfficeReports.MiscActivityDeleted", userId, data);
+        }
+
+        public static AuditEvent ActivityMediaUploaded(Guid activityId, Guid mediaId, string userId, string fileName)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ActivityId"] = activityId.ToString(),
+                ["MediaId"] = mediaId.ToString(),
+                ["FileName"] = fileName
+            };
+
+            return new AuditEvent("ProjectOfficeReports.ActivityMediaUploaded", userId, data);
+        }
+
+        public static AuditEvent ActivityMediaDeleted(Guid activityId, Guid mediaId, string userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ActivityId"] = activityId.ToString(),
+                ["MediaId"] = mediaId.ToString()
+            };
+
+            return new AuditEvent("ProjectOfficeReports.ActivityMediaDeleted", userId, data);
+        }
     }
 }
 
