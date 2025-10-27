@@ -1,0 +1,35 @@
+@using ProjectManagement.ViewModels
+@model PdfPreviewViewModel
+
+<div class="pdf-preview card shadow-sm border-0 h-100">
+    <div class="card-header bg-white border-0">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+            <div>
+                <h1 class="h4 mb-0">@Model.Title</h1>
+                <p class="text-muted small mb-1">@Model.FileName</p>
+                <p class="text-muted mb-0">@Model.UploadedSummary</p>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-outline-secondary"
+                   asp-page="/Projects/Overview"
+                   asp-route-id="@Model.ProjectId">Back to project</a>
+                <a class="btn btn-primary"
+                   href="@Model.SourceUrl"
+                   target="_blank"
+                   rel="noopener"
+                   download="@Model.FileName">Download PDF</a>
+            </div>
+        </div>
+    </div>
+    <div class="card-body">
+        <div class="ratio ratio-4x3 border rounded overflow-hidden shadow-sm">
+            <iframe src="@Model.SourceUrl"
+                    title="@Model.Title"
+                    class="w-100 h-100 border-0"
+                    loading="lazy"></iframe>
+        </div>
+        <p class="text-muted small mt-3 mb-0">
+            Having trouble viewing? <a href="@Model.SourceUrl" target="_blank" rel="noopener">Open the PDF in a new tab</a>.
+        </p>
+    </div>
+</div>

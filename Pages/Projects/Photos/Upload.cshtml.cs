@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -93,15 +94,26 @@ public class UploadModel : PageModel
             ModelState.AddModelError(string.Empty, "The form has expired. Please reload and try again.");
         }
 
-        if (Input.File is null || Input.File.Length == 0)
+        var files = (Input.Files ?? new List<IFormFile>()).Where(f => f is { Length: > 0 }).ToList();
+        if (files.Count == 0)
         {
-            ModelState.AddModelError("Input.File", "Please select a file to upload.");
+            ModelState.AddModelError("Input.Files", "Please select at least one photo to upload.");
         }
 
-        var crop = BuildCrop(Input);
-        if (crop is null && HasPartialCrop(Input))
+        var isMulti = files.Count > 1;
+        ProjectPhotoCrop? crop = null;
+        if (!isMulti)
         {
-            ModelState.AddModelError(string.Empty, "Crop requires X, Y, Width, and Height values.");
+            crop = BuildCrop(Input);
+            if (crop is null && HasPartialCrop(Input))
+            {
+                ModelState.AddModelError(string.Empty, "Crop requires X, Y, Width, and Height values.");
+            }
+        }
+        else
+        {
+            Input.CropX = Input.CropY = Input.CropWidth = Input.CropHeight = null;
+            Input.Caption = null;
         }
 
         var userId = _userContext.UserId;
@@ -149,34 +161,59 @@ public class UploadModel : PageModel
 
         try
         {
-            await using var stream = Input.File!.OpenReadStream();
-            if (crop.HasValue)
+            if (isMulti)
             {
-                await _photoService.AddAsync(project.Id,
-                    stream,
-                    Input.File.FileName,
-                    Input.File.ContentType,
-                    userId,
-                    Input.SetAsCover,
-                    Input.Caption,
-                    crop.Value,
-                    Input.LinkToTot ? project.Tot!.Id : (int?)null,
-                    cancellationToken);
+                var first = true;
+                foreach (var file in files)
+                {
+                    await using var stream = file.OpenReadStream();
+                    await _photoService.AddAsync(project.Id,
+                        stream,
+                        file.FileName,
+                        file.ContentType,
+                        userId,
+                        Input.SetAsCover && first,
+                        null,
+                        Input.LinkToTot ? project.Tot!.Id : (int?)null,
+                        cancellationToken);
+                    first = false;
+                }
+
+                TempData["Flash"] = $"{files.Count} photos uploaded.";
             }
             else
             {
-                await _photoService.AddAsync(project.Id,
-                    stream,
-                    Input.File.FileName,
-                    Input.File.ContentType,
-                    userId,
-                    Input.SetAsCover,
-                    Input.Caption,
-                    Input.LinkToTot ? project.Tot!.Id : (int?)null,
-                    cancellationToken);
+                var file = files[0];
+                await using var stream = file.OpenReadStream();
+                if (crop.HasValue)
+                {
+                    await _photoService.AddAsync(project.Id,
+                        stream,
+                        file.FileName,
+                        file.ContentType,
+                        userId,
+                        Input.SetAsCover,
+                        Input.Caption,
+                        crop.Value,
+                        Input.LinkToTot ? project.Tot!.Id : (int?)null,
+                        cancellationToken);
+                }
+                else
+                {
+                    await _photoService.AddAsync(project.Id,
+                        stream,
+                        file.FileName,
+                        file.ContentType,
+                        userId,
+                        Input.SetAsCover,
+                        Input.Caption,
+                        Input.LinkToTot ? project.Tot!.Id : (int?)null,
+                        cancellationToken);
+                }
+
+                TempData["Flash"] = "Photo uploaded.";
             }
 
-            TempData["Flash"] = "Photo uploaded.";
             return RedirectToPage("./Index", new { id });
         }
         catch (InvalidOperationException ex)
@@ -192,6 +229,105 @@ public class UploadModel : PageModel
             ModelState.AddModelError(string.Empty, ex.Message);
             return Page();
         }
+    }
+
+    public async Task<IActionResult> OnPostBatchAsync(int id, CancellationToken cancellationToken)
+    {
+        var userId = _userContext.UserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Challenge();
+        }
+
+        var project = await _db.Projects
+            .Include(p => p.Tot)
+            .SingleOrDefaultAsync(p => p.Id == id, cancellationToken);
+
+        if (project is null)
+        {
+            return NotFound();
+        }
+
+        if (!UserCanManageProject(project, userId))
+        {
+            return Forbid();
+        }
+
+        var files = Request.Form.Files;
+        if (files.Count == 0)
+        {
+            return BadRequest(new { success = false, message = "Select a photo to upload." });
+        }
+
+        var setAsCover = TryParseBool(Request.Form["Input.SetAsCover"]);
+        var linkToTot = TryParseBool(Request.Form["Input.LinkToTot"]);
+        var caption = Request.Form["Input.Caption"].ToString();
+        var allowCaption = files.Count == 1;
+
+        var rowVersionValue = Request.Form["Input.RowVersion"].ToString();
+        var rowVersionBytes = ParseRowVersion(rowVersionValue);
+        if (rowVersionBytes is not null && !project.RowVersion.SequenceEqual(rowVersionBytes))
+        {
+            return Conflict(new { success = false, message = "The project changed while uploading. Reload and try again." });
+        }
+
+        if (linkToTot)
+        {
+            if (project.Tot is null)
+            {
+                return BadRequest(new { success = false, message = "Transfer of Technology is not configured for this project." });
+            }
+
+            if (project.Tot.Status == ProjectTotStatus.NotRequired)
+            {
+                return BadRequest(new { success = false, message = "Transfer of Technology is not required for this project." });
+            }
+        }
+
+        var responses = new List<object>();
+        var allSucceeded = true;
+        var first = true;
+
+        foreach (var file in files)
+        {
+            if (file.Length == 0)
+            {
+                allSucceeded = false;
+                responses.Add(new { name = file.FileName, success = false, error = "File is empty." });
+                continue;
+            }
+
+            try
+            {
+                await using var stream = file.OpenReadStream();
+                await _photoService.AddAsync(project.Id,
+                    stream,
+                    file.FileName,
+                    file.ContentType,
+                    userId,
+                    setAsCover && first,
+                    allowCaption ? caption : null,
+                    linkToTot ? project.Tot?.Id : null,
+                    cancellationToken);
+                responses.Add(new { name = file.FileName, success = true });
+                first = false;
+            }
+            catch (Exception ex)
+            {
+                allSucceeded = false;
+                _logger.LogError(ex, "Error during batch photo upload for project {ProjectId}", id);
+                responses.Add(new { name = file.FileName, success = false, error = ex.Message });
+            }
+        }
+
+        await _db.Entry(project).ReloadAsync(cancellationToken);
+
+        return new JsonResult(new
+        {
+            success = allSucceeded,
+            items = responses,
+            rowVersion = Convert.ToBase64String(project.RowVersion)
+        });
     }
 
     private static byte[]? ParseRowVersion(string rowVersion)
@@ -245,13 +381,15 @@ public class UploadModel : PageModel
         return values.Any(v => v.HasValue) && values.Any(v => !v.HasValue);
     }
 
+    private static bool TryParseBool(string? value) => bool.TryParse(value, out var result) && result;
+
     public class UploadInput
     {
         public int ProjectId { get; set; }
 
         public string RowVersion { get; set; } = string.Empty;
 
-        public IFormFile? File { get; set; }
+        public List<IFormFile> Files { get; set; } = new();
 
         public string? Caption { get; set; }
 

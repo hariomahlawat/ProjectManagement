@@ -1,0 +1,105 @@
+@using System
+@using System.Globalization
+@using ProjectManagement.ViewModels
+@model ProjectVideoGalleryViewModel
+@{
+    var modalId = $"project-video-modal-{Model.ProjectId}";
+    string FormatDuration(TimeSpan value)
+        => value.TotalHours >= 1
+            ? value.ToString("h\\:mm\\:ss", CultureInfo.InvariantCulture)
+            : value.ToString("m\\:ss", CultureInfo.InvariantCulture);
+}
+
+@if (Model.Videos.Items.Count == 0)
+{
+    <div class="border rounded p-4 text-center text-muted bg-light-subtle">
+        <p class="mb-2">No videos are available yet for this project.</p>
+        @if (Model.CanManageVideos)
+        {
+            <a class="btn btn-sm btn-primary"
+               asp-page="/Projects/Videos/Upload"
+               asp-route-id="@Model.ProjectId"
+               aria-label="Upload the first project video">Upload video</a>
+        }
+    </div>
+}
+else
+{
+    if (Model.CanManageVideos)
+    {
+        <div class="d-flex justify-content-end gap-2 mb-3">
+            <a class="btn btn-sm btn-outline-secondary"
+               asp-page="/Projects/Videos/Index"
+               asp-route-id="@Model.ProjectId"
+               aria-label="Manage project videos">Manage videos</a>
+            <a class="btn btn-sm btn-primary"
+               asp-page="/Projects/Videos/Upload"
+               asp-route-id="@Model.ProjectId"
+               aria-label="Upload a new project video">Upload video</a>
+        </div>
+    }
+
+    <div class="row g-3" data-video-gallery data-video-modal-id="@modalId">
+        @for (var index = 0; index < Model.Videos.Items.Count; index++)
+        {
+            var video = Model.Videos.Items[index];
+            var openLabel = $"Play {video.Title}";
+            <div class="col-sm-6 col-md-4">
+                <article class="card h-100 border-0 shadow-sm position-relative" data-video-card>
+                    <button type="button"
+                            class="btn btn-link text-decoration-none p-0 w-100"
+                            data-video-trigger
+                            data-video-src="@video.PlaybackUrl"
+                            data-video-poster="@video.ThumbnailUrl"
+                            data-video-title="@video.Title"
+                            aria-label="@openLabel">
+                        <div class="ratio ratio-16x9">
+                            <img src="@video.ThumbnailUrl"
+                                 alt="Preview frame for @video.Title"
+                                 class="w-100 h-100 object-fit-cover rounded-top" />
+                            <span class="position-absolute top-50 start-50 translate-middle btn btn-primary rounded-circle shadow">
+                                <i class="bi bi-play-fill" aria-hidden="true"></i>
+                                <span class="visually-hidden">Play</span>
+                            </span>
+                        </div>
+                    </button>
+                    <div class="card-body p-3">
+                        <h4 class="h6 mb-2">@video.Title</h4>
+                        <div class="d-flex justify-content-between align-items-center text-muted small">
+                            @if (video.Duration.HasValue)
+                            {
+                                <span>Duration: @FormatDuration(video.Duration.Value)</span>
+                            }
+                            else
+                            {
+                                <span></span>
+                            }
+                            <a class="text-decoration-none"
+                               href="@video.PlaybackUrl"
+                               target="_blank"
+                               rel="noopener">Open</a>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        }
+    </div>
+
+    <div class="modal fade" id="@modalId" tabindex="-1" aria-hidden="true" data-video-modal>
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5" data-video-modal-title>Video playback</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="ratio ratio-16x9 bg-black rounded overflow-hidden">
+                        <video data-video-player controls preload="metadata" class="w-100 h-100">
+                            <p>Your browser does not support embedded videos. <a data-video-download href="#">Download instead.</a></p>
+                        </video>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}

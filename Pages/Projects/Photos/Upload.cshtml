@@ -75,26 +75,43 @@
 
 <h1 class="mb-4">Upload Project Photo</h1>
 
-<form method="post" enctype="multipart/form-data">
+<form method="post" enctype="multipart/form-data" data-photo-upload-form>
     <input asp-for="Input.ProjectId" type="hidden" />
     <input asp-for="Input.RowVersion" type="hidden" />
     <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
 
-    <div class="mb-3">
-        <label asp-for="Input.File" class="form-label">Photo</label>
-        <input asp-for="Input.File" class="form-control" type="file" accept="image/*" />
-        <span asp-validation-for="Input.File" class="text-danger"></span>
-        <div class="form-text">
+    <div class="mb-3" data-photo-upload-zone>
+        <label asp-for="Input.Files" class="form-label">Photos</label>
+        <div class="project-photo-drop border border-2 border-secondary-subtle rounded-3 p-4 text-center"
+             data-photo-upload-drop
+             tabindex="0"
+             role="button"
+             aria-describedby="photo-upload-help">
+            <div class="fw-semibold" data-photo-upload-prompt>Drag &amp; drop photos or browse</div>
+            <div class="text-muted small" data-photo-upload-status></div>
+        </div>
+        <input asp-for="Input.Files"
+               class="form-control visually-hidden"
+               type="file"
+               accept="image/*"
+               multiple
+               data-photo-upload-input
+               data-max-count="12"
+               data-max-size="@photoOptions.MaxFileSizeBytes" />
+        <span asp-validation-for="Input.Files" class="text-danger"></span>
+        <div class="form-text" id="photo-upload-help">
             Supported formats: @allowedFormatsText.
             Minimum dimensions: @photoOptions.MinWidth &times; @photoOptions.MinHeight pixels.
-            Maximum file size: @maxFileSizeText.
+            Maximum file size: @maxFileSizeText. Select one photo to enable cropping and captions.
         </div>
+        <div class="photo-upload-feedback mt-3" data-photo-upload-list hidden aria-live="polite"></div>
     </div>
 
     <div class="mb-3">
         <label asp-for="Input.Caption" class="form-label">Caption (optional)</label>
-        <textarea asp-for="Input.Caption" class="form-control" rows="3"></textarea>
+        <textarea asp-for="Input.Caption" class="form-control" rows="3" data-photo-upload-caption></textarea>
         <span asp-validation-for="Input.Caption" class="text-danger"></span>
+        <p class="text-muted small mb-0" data-photo-upload-multi-note hidden>Captions apply when a single photo is selected.</p>
     </div>
 
     @if (Model.Project.Tot is not null)
@@ -129,7 +146,7 @@
         <p class="text-muted small project-photo-editor__fallback">JavaScript is disabled, so the photo will be centre-cropped automatically.</p>
         <div class="project-photo-editor"
              data-photo-editor
-             data-photo-editor-input="#Input_File"
+             data-photo-editor-input="#Input_Files"
              aria-describedby="project-photo-editor-placeholder project-photo-preview-helper">
             <div class="project-photo-editor__canvas">
                 <img data-photo-editor-image alt="Selected photo ready for cropping" />
@@ -186,4 +203,5 @@
 @section Scripts {
     <script src="~/lib/cropperjs/dist/cropper.js" asp-append-version="true"></script>
     <script src="~/js/widgets/project-photo-gallery.js" asp-append-version="true"></script>
+    <script src="~/js/projects/photo-upload.js" asp-append-version="true"></script>
 }

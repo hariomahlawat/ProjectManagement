@@ -3910,6 +3910,15 @@ body.has-project-photo-preview-dialog {
   display: none;
 }
 
+.project-photo-editor--disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.has-multiple-photo-files .project-photo-editor__fallback {
+  display: block !important;
+}
+
 .pm-photo-grid-item .pm-photo-cover-badge {
   position: absolute;
 }
