@@ -154,6 +154,66 @@ public sealed class SocialMediaExportServiceTests
     }
 
     [Fact]
+    public async Task ExportAsync_TrimsPlatformNameBeforeBuildingWorkbook()
+    {
+        using var context = CreateContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 6, 1, 7, 45, 0, TimeSpan.Zero));
+        var audit = new RecordingAudit();
+
+        var eventType = SocialMediaTestData.CreateEventType(name: "Town Hall");
+        var platform = SocialMediaTestData.CreatePlatform(name: "Facebook");
+        var socialEvent = SocialMediaTestData.CreateEvent(
+            eventType.Id,
+            platform.Id,
+            dateOfEvent: new DateOnly(2024, 5, 20),
+            title: "Town hall recap",
+            description: "Key takeaways shared with the community.",
+            timestamp: clock.UtcNow,
+            platform: platform);
+
+        context.SocialMediaEventTypes.Add(eventType);
+        context.SocialMediaPlatforms.Add(platform);
+        context.SocialMediaEvents.Add(socialEvent);
+        await context.SaveChangesAsync();
+
+        var photoService = new StubSocialMediaEventPhotoService();
+        var eventService = new SocialMediaEventService(context, clock, photoService);
+        var workbookBuilder = new RecordingSocialMediaWorkbookBuilder();
+        var exportService = new SocialMediaExportService(
+            eventService,
+            workbookBuilder,
+            new SocialMediaPdfReportBuilder(),
+            photoService,
+            clock,
+            audit,
+            NullLogger<SocialMediaExportService>.Instance);
+
+        var result = await exportService.ExportAsync(
+            new SocialMediaExportRequest(
+                EventTypeId: eventType.Id,
+                StartDate: null,
+                EndDate: null,
+                SearchQuery: null,
+                PlatformId: platform.Id,
+                PlatformName: "   Facebook  ",
+                OnlyActiveEventTypes: false,
+                RequestedByUserId: "auditor"),
+            CancellationToken.None);
+
+        Assert.True(result.Success);
+        var file = Assert.IsType<SocialMediaExportFile>(result.File);
+        Assert.Equal(RecordingSocialMediaWorkbookBuilder.ExpectedBytes, file.Content);
+
+        var captured = Assert.NotNull(workbookBuilder.CapturedContext);
+        Assert.Equal("Facebook", captured.PlatformFilter);
+        var row = Assert.Single(captured.Rows);
+        Assert.Equal("Facebook", row.Platform);
+
+        var auditEntry = Assert.Single(audit.Entries);
+        Assert.Equal("Facebook", auditEntry.Data["Platform"]);
+    }
+
+    [Fact]
     public async Task ExportPdfAsync_WithValidInput_ProducesReportAndAudit()
     {
         using var context = CreateContext();
