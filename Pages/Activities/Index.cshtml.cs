@@ -353,7 +353,14 @@ public sealed class IndexModel : PageModel
 
     private RouteValueDictionary BuildRouteValues()
     {
-        return new RouteValueDictionary(BuildRoute(Page, SortBy, SortDirection, PageSize));
+        var values = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var pair in BuildRoute(Page, SortBy, SortDirection, PageSize))
+        {
+            values[pair.Key] = pair.Value;
+        }
+
+        return new RouteValueDictionary(values);
     }
 
     private static string EscapeCsv(string? value)
