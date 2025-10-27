@@ -612,7 +612,10 @@ public sealed class MiscActivityService : IMiscActivityService
 
     private IQueryable<MiscActivity> CreateFilteredQuery(MiscActivityQueryOptions options)
     {
-        var query = _db.MiscActivities.AsNoTracking().Include(x => x.ActivityType).Include(x => x.Media);
+        IQueryable<MiscActivity> query = _db.MiscActivities
+            .AsNoTracking()
+            .Include(x => x.ActivityType)
+            .Include(x => x.Media);
 
         if (!options.IncludeDeleted)
         {

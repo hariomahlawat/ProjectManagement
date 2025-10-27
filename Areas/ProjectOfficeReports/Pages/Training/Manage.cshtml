@@ -225,7 +225,7 @@
 
                     <partial name="_RosterGrid" model="Model" />
 
-                    @if (!Model.Input.Id.HasValue)
+                    @if (!input.Id.HasValue)
                     {
                         <p class="mt-3 mb-0 text-muted small">Save the training to persist this roster and enable direct roster updates.</p>
                     }
@@ -235,7 +235,7 @@
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <a asp-page="./Index" class="btn btn-link">&larr; Back to tracker</a>
                 <div class="d-flex align-items-center gap-2">
-                    @if (Model.Input.Id.HasValue && Model.PendingDeleteRequest is null)
+                @if (input.Id.HasValue && Model.PendingDeleteRequest is null)
                     {
                         <button type="button"
                                 class="btn btn-outline-danger"
@@ -252,7 +252,7 @@
         </form>
     }
 
-    @if (Model.Input.Id.HasValue && Model.PendingDeleteRequest is null)
+        @if (input.Id.HasValue && Model.PendingDeleteRequest is null)
     {
         <div class="collapse mt-3" id="deleteRequestPanel">
             <div class="card border-danger">

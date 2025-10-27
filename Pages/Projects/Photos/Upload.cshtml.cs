@@ -268,7 +268,7 @@ public class UploadModel : PageModel
         var rowVersionBytes = ParseRowVersion(rowVersionValue);
         if (rowVersionBytes is not null && !project.RowVersion.SequenceEqual(rowVersionBytes))
         {
-            return Conflict(new { success = false, message = "The project changed while uploading. Reload and try again." });
+            return StatusCode(StatusCodes.Status409Conflict, new { success = false, message = "The project changed while uploading. Reload and try again." });
         }
 
         if (linkToTot)
