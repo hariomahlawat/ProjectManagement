@@ -153,7 +153,8 @@ public sealed class ActivityIndexPageTests
         Assert.Equal(exportFile.FileName, fileResult.FileDownloadName);
         Assert.Equal(exportFile.Content, fileResult.FileContents);
 
-        var request = Assert.NotNull(exportService.LastRequest);
+        Assert.NotNull(exportService.LastRequest);
+        var request = exportService.LastRequest!;
         Assert.Equal(ActivityListSort.Title, request.Sort);
         Assert.False(request.SortDescending);
         Assert.Equal(new DateOnly(2024, 1, 1), request.FromDate);
