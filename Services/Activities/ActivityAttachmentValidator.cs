@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using ProjectManagement.Utilities;
 
 namespace ProjectManagement.Services.Activities;
@@ -14,7 +15,7 @@ internal sealed class ActivityAttachmentValidator : IActivityAttachmentValidator
 {
     public const long MaxAttachmentSizeBytes = 25 * 1024 * 1024; // 25 MB
 
-    private static readonly HashSet<string> AllowedContentTypes = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly string[] AllowedContentTypeList =
     {
         "application/pdf",
         "image/png",
@@ -25,6 +26,21 @@ internal sealed class ActivityAttachmentValidator : IActivityAttachmentValidator
         "video/quicktime",
         "video/webm"
     };
+
+    private static readonly HashSet<string> AllowedContentTypes = new(AllowedContentTypeList, StringComparer.OrdinalIgnoreCase);
+
+    private static readonly IReadOnlyDictionary<string, string[]> AllowedExtensionsByContentType =
+        new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["application/pdf"] = new[] { ".pdf" },
+            ["image/png"] = new[] { ".png" },
+            ["image/jpeg"] = new[] { ".jpg", ".jpeg" },
+            ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"] = new[] { ".docx" },
+            ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"] = new[] { ".xlsx" },
+            ["video/mp4"] = new[] { ".mp4" },
+            ["video/quicktime"] = new[] { ".mov" },
+            ["video/webm"] = new[] { ".webm" }
+        };
 
     public void Validate(ActivityAttachmentUpload upload)
     {
@@ -67,7 +83,25 @@ internal sealed class ActivityAttachmentValidator : IActivityAttachmentValidator
 
         if (string.IsNullOrWhiteSpace(upload.ContentType) || !AllowedContentTypes.Contains(upload.ContentType))
         {
-            AddError(nameof(upload.ContentType), "File type is not allowed.");
+            AddError(nameof(upload.ContentType),
+                $"File type is not allowed. Allowed types: {string.Join(", ", AllowedContentTypeList)}.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(upload.FileName) &&
+            !string.IsNullOrWhiteSpace(upload.ContentType) &&
+            AllowedExtensionsByContentType.TryGetValue(upload.ContentType, out var allowedExtensions))
+        {
+            var extension = Path.GetExtension(upload.FileName);
+
+            if (string.IsNullOrWhiteSpace(extension))
+            {
+                AddError(nameof(upload.FileName), "File must include an extension.");
+            }
+            else if (!allowedExtensions.Contains(extension, StringComparer.OrdinalIgnoreCase))
+            {
+                AddError(nameof(upload.FileName),
+                    $"File extension does not match the declared file type. Allowed extensions: {string.Join(", ", allowedExtensions)}.");
+            }
         }
 
         if (upload.Length <= 0)

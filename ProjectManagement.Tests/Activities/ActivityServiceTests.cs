@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Security.Claims;
 using System.Text;
 using System.Threading;
@@ -131,6 +132,41 @@ public class ActivityAttachmentValidatorTests
         var upload = new ActivityAttachmentUpload(new MemoryStream(new byte[] { 1 }), "file.exe", "application/octet-stream", 1);
         var ex = Assert.Throws<ActivityValidationException>(() => _validator.Validate(upload));
         Assert.Contains(nameof(upload.ContentType), ex.Errors.Keys);
+    }
+
+    [Theory]
+    [InlineData("document.pdf", "application/pdf")]
+    [InlineData("image.PNG", "image/png")]
+    [InlineData("photo.jpeg", "image/jpeg")]
+    [InlineData("notes.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")]
+    [InlineData("sheet.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")]
+    [InlineData("clip.mp4", "video/mp4")]
+    [InlineData("recording.MOV", "video/quicktime")]
+    [InlineData("screen.webm", "video/webm")]
+    public void Validate_AllowsWhitelistedTypesAndExtensions(string fileName, string contentType)
+    {
+        var upload = new ActivityAttachmentUpload(new MemoryStream(new byte[] { 1 }), fileName, contentType, 1);
+        _validator.Validate(upload);
+    }
+
+    [Fact]
+    public void Validate_ThrowsWhenExtensionDoesNotMatchContentType()
+    {
+        var upload = new ActivityAttachmentUpload(new MemoryStream(new byte[] { 1 }), "clip.mov", "video/mp4", 1);
+        var ex = Assert.Throws<ActivityValidationException>(() => _validator.Validate(upload));
+
+        Assert.Contains(nameof(upload.FileName), ex.Errors.Keys);
+        Assert.Contains("extension", ex.Errors[nameof(upload.FileName)].Single());
+    }
+
+    [Fact]
+    public void Validate_ThrowsWhenExtensionMissing()
+    {
+        var upload = new ActivityAttachmentUpload(new MemoryStream(new byte[] { 1 }), "clip", "video/mp4", 1);
+        var ex = Assert.Throws<ActivityValidationException>(() => _validator.Validate(upload));
+
+        Assert.Contains(nameof(upload.FileName), ex.Errors.Keys);
+        Assert.Contains("include an extension", ex.Errors[nameof(upload.FileName)].Single());
     }
 }
 
