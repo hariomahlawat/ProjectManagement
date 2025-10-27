@@ -101,7 +101,7 @@ public sealed class IndexModel : PageModel
         var result = await _activityService.ListAsync(request, cancellationToken);
 
         var currentUserId = _userManager.GetUserId(User) ?? string.Empty;
-        var isAdminOrHod = IsAdminOrHod(User);
+        var isManager = IsManager(User);
 
         var rows = result.Items.Select(item =>
         {
@@ -109,7 +109,7 @@ public sealed class IndexModel : PageModel
                 ? (string.IsNullOrWhiteSpace(item.CreatedByEmail) ? item.CreatedByUserId : item.CreatedByEmail)
                 : item.CreatedByDisplayName;
 
-            var canManage = isAdminOrHod || string.Equals(item.CreatedByUserId, currentUserId, StringComparison.OrdinalIgnoreCase);
+            var canManage = isManager || string.Equals(item.CreatedByUserId, currentUserId, StringComparison.OrdinalIgnoreCase);
 
             return new ActivityListRowViewModel(
                 item.Id,
@@ -148,7 +148,7 @@ public sealed class IndexModel : PageModel
 
         await BuildFilterOptionsAsync(cancellationToken);
 
-        CanCreateActivities = isAdminOrHod;
+        CanCreateActivities = isManager;
         CanExportActivities = result.TotalCount > 0;
 
         return Page();
@@ -326,9 +326,12 @@ public sealed class IndexModel : PageModel
             .ToList();
     }
 
-    private static bool IsAdminOrHod(ClaimsPrincipal user)
+    private static bool IsManager(ClaimsPrincipal user)
     {
-        return user.IsInRole("Admin") || user.IsInRole("HoD");
+        return user.IsInRole("Admin") ||
+               user.IsInRole("HoD") ||
+               user.IsInRole("ProjectOffice") ||
+               user.IsInRole("TA");
     }
 
     private static int NormalizePageSize(int requested)

@@ -225,7 +225,7 @@ public sealed class ActivityService : IActivityService
         var principal = _userContext.User;
         var userId = RequireUserId();
 
-        if (IsAdminOrHod(principal))
+        if (IsManager(principal))
         {
             return;
         }
@@ -241,7 +241,7 @@ public sealed class ActivityService : IActivityService
         var principal = _userContext.User;
         var userId = RequireUserId();
 
-        if (IsAdminOrHod(principal))
+        if (IsManager(principal))
         {
             return;
         }
@@ -253,8 +253,18 @@ public sealed class ActivityService : IActivityService
         }
     }
 
-    private static bool IsAdminOrHod(ClaimsPrincipal principal)
+    private static readonly string[] ManagerRoles = { "Admin", "HoD", "ProjectOffice", "TA" };
+
+    private static bool IsManager(ClaimsPrincipal principal)
     {
-        return principal.IsInRole("Admin") || principal.IsInRole("HoD");
+        foreach (var role in ManagerRoles)
+        {
+            if (principal.IsInRole(role))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }
