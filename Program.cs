@@ -212,6 +212,8 @@ builder.Services.AddScoped<IActivityTypeRepository, ActivityTypeRepository>();
 builder.Services.AddScoped<IActivityInputValidator, ActivityInputValidator>();
 builder.Services.AddScoped<IActivityTypeValidator, ActivityTypeValidator>();
 builder.Services.AddScoped<IActivityAttachmentValidator, ActivityAttachmentValidator>();
+builder.Services.AddScoped<IActivityAttachmentStorage, FileSystemActivityAttachmentStorage>();
+builder.Services.AddScoped<IActivityAttachmentManager, ActivityAttachmentManager>();
 builder.Services.AddScoped<IActivityService, ActivityService>();
 builder.Services.AddScoped<IActivityTypeService, ActivityTypeService>();
 builder.Services.AddScoped<IActivityExportService, ActivityExportService>();

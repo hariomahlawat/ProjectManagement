@@ -19,6 +19,9 @@ public interface IActivityService
 
     Task<IReadOnlyList<Activity>> ListByTypeAsync(int activityTypeId, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<ActivityAttachmentMetadata>> GetAttachmentMetadataAsync(int activityId,
+                                                                              CancellationToken cancellationToken = default);
+
     Task<ActivityAttachment> AddAttachmentAsync(int activityId,
                                                 ActivityAttachmentUpload upload,
                                                 CancellationToken cancellationToken = default);

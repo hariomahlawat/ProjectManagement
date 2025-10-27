@@ -142,6 +142,7 @@ public class ActivityServiceTests : IDisposable
     private readonly ActivityInputValidator _inputValidator;
     private readonly ActivityTypeValidator _typeValidator;
     private readonly ActivityAttachmentValidator _attachmentValidator;
+    private readonly ActivityAttachmentManager _attachmentManager;
     private readonly TestUserContext _userContext;
     private readonly TestClock _clock = new();
     private readonly TestUploadRootProvider _uploadRoot;
@@ -157,12 +158,13 @@ public class ActivityServiceTests : IDisposable
         _attachmentValidator = new ActivityAttachmentValidator();
         _userContext = new TestUserContext("owner");
         _uploadRoot = new TestUploadRootProvider();
+        var storage = new FileSystemActivityAttachmentStorage(_uploadRoot, NullLogger<FileSystemActivityAttachmentStorage>.Instance);
+        _attachmentManager = new ActivityAttachmentManager(_activityRepository, storage, _attachmentValidator, _clock);
         _service = new ActivityService(_activityRepository,
             _inputValidator,
-            _attachmentValidator,
+            _attachmentManager,
             _userContext,
             _clock,
-            _uploadRoot,
             NullLogger<ActivityService>.Instance);
     }
 
@@ -188,10 +190,9 @@ public class ActivityServiceTests : IDisposable
         var otherUser = new TestUserContext("other");
         var otherService = new ActivityService(_activityRepository,
             _inputValidator,
-            _attachmentValidator,
+            _attachmentManager,
             otherUser,
             _clock,
-            _uploadRoot,
             NullLogger<ActivityService>.Instance);
 
         await Assert.ThrowsAsync<ActivityAuthorizationException>(() => otherService.UpdateAsync(created.Id, new ActivityInput("Workshop", null, null, type.Id, null, null)));
@@ -206,10 +207,9 @@ public class ActivityServiceTests : IDisposable
         var hodContext = new TestUserContext("hod-user", isHoD: true);
         var hodService = new ActivityService(_activityRepository,
             _inputValidator,
-            _attachmentValidator,
+            _attachmentManager,
             hodContext,
             _clock,
-            _uploadRoot,
             NullLogger<ActivityService>.Instance);
 
         var updated = await hodService.UpdateAsync(created.Id, new ActivityInput("Seminar Updated", null, null, type.Id, null, null));
@@ -227,6 +227,23 @@ public class ActivityServiceTests : IDisposable
         var stored = await _activityRepository.GetByIdAsync(created.Id);
         Assert.True(stored!.IsDeleted);
         Assert.NotNull(stored.DeletedAtUtc);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RemovesStoredAttachments()
+    {
+        var type = await EnsureActivityTypeAsync();
+        var created = await _service.CreateAsync(new ActivityInput("Archive", null, null, type.Id, null, null));
+
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes("hello"));
+        var upload = new ActivityAttachmentUpload(stream, "notes.pdf", "application/pdf", stream.Length);
+        var attachment = await _service.AddAttachmentAsync(created.Id, upload);
+        var path = Path.Combine(_uploadRoot.RootPath, attachment.StorageKey.Replace('/', Path.DirectorySeparatorChar));
+        Assert.True(File.Exists(path));
+
+        await _service.DeleteAsync(created.Id);
+
+        Assert.False(File.Exists(path));
     }
 
     [Fact]
@@ -262,6 +279,43 @@ public class ActivityServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task AddAttachmentAsync_EnforcesAttachmentLimit()
+    {
+        var type = await EnsureActivityTypeAsync();
+        var created = await _service.CreateAsync(new ActivityInput("Briefing", null, null, type.Id, null, null));
+
+        for (var i = 0; i < ActivityAttachmentManager.MaxAttachmentsPerActivity; i++)
+        {
+            await using var stream = new MemoryStream(Encoding.UTF8.GetBytes($"file-{i}"));
+            var upload = new ActivityAttachmentUpload(stream, $"file-{i}.pdf", "application/pdf", stream.Length);
+            await _service.AddAttachmentAsync(created.Id, upload);
+        }
+
+        await using var overflowStream = new MemoryStream(Encoding.UTF8.GetBytes("overflow"));
+        var overflowUpload = new ActivityAttachmentUpload(overflowStream, "overflow.pdf", "application/pdf", overflowStream.Length);
+
+        var ex = await Assert.ThrowsAsync<ActivityValidationException>(() => _service.AddAttachmentAsync(created.Id, overflowUpload));
+        Assert.Contains(nameof(Activity.Attachments), ex.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task GetAttachmentMetadataAsync_ReturnsDownloadLink()
+    {
+        var type = await EnsureActivityTypeAsync();
+        var created = await _service.CreateAsync(new ActivityInput("Review", null, null, type.Id, null, null));
+
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes("hello"));
+        var upload = new ActivityAttachmentUpload(stream, "  diagram?.pdf  ", "application/pdf", stream.Length);
+        var attachment = await _service.AddAttachmentAsync(created.Id, upload);
+
+        var metadata = await _service.GetAttachmentMetadataAsync(created.Id);
+        var item = Assert.Single(metadata);
+        Assert.Equal(ActivityAttachmentValidator.SanitizeFileName(upload.FileName), item.FileName);
+        Assert.Equal($"/files/{attachment.StorageKey}", item.DownloadUrl);
+        Assert.Equal(attachment.Id, item.Id);
+    }
+
+    [Fact]
     public async Task ActivityTypeService_RestrictsNonPrivilegedUsers()
     {
         var typeService = new ActivityTypeService(_activityTypeRepository, _typeValidator, _userContext, _clock);
@@ -284,7 +338,7 @@ public class ActivityServiceTests : IDisposable
         var type = await EnsureActivityTypeAsync();
         await _service.CreateAsync(new ActivityInput("Planning", null, "HQ", type.Id, _clock.UtcNow, _clock.UtcNow.AddHours(1)));
 
-        var exportService = new ActivityExportService(_activityRepository, _activityTypeRepository);
+        var exportService = new ActivityExportService(_activityRepository, _activityTypeRepository, _attachmentManager);
         var result = await exportService.ExportByTypeAsync(type.Id);
 
         Assert.Equal("text/csv", result.ContentType);
