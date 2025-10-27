@@ -285,6 +285,8 @@ builder.Services.AddSingleton<ISocialMediaPdfReportBuilder, SocialMediaPdfReport
 builder.Services.AddSingleton<IProliferationExcelWorkbookBuilder, ProliferationExcelWorkbookBuilder>();
 builder.Services.AddSingleton<IIprExcelWorkbookBuilder, IprExcelWorkbookBuilder>();
 builder.Services.AddScoped<VisitTypeService>();
+builder.Services.AddScoped<IActivityTypeService, ActivityTypeService>();
+builder.Services.AddScoped<IMiscActivityService, MiscActivityService>();
 builder.Services.AddScoped<SocialMediaEventTypeService>();
 builder.Services.AddScoped<SocialMediaPlatformService>();
 builder.Services.AddScoped<VisitService>();
@@ -307,6 +309,8 @@ builder.Services.AddOptions<VisitPhotoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectOfficeReports:VisitPhotos"));
 builder.Services.AddOptions<SocialMediaPhotoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectOfficeReports:SocialMediaPhotos"));
+builder.Services.AddOptions<MiscActivityMediaOptions>()
+    .Bind(builder.Configuration.GetSection("ProjectOfficeReports:MiscActivityMedia"));
 builder.Services.AddOptions<TrainingTrackerOptions>()
     .Bind(builder.Configuration.GetSection("ProjectOfficeReports:TrainingTracker"));
 builder.Services.AddOptions<ProjectDocumentOptions>()
