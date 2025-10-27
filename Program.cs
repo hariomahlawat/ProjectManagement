@@ -159,7 +159,7 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(ProjectOfficeReportsPolicies.ManageProliferationPreferences, policy =>
         policy.RequireProliferationPreferenceManager());
     options.AddPolicy(Policies.Ipr.View, policy =>
-        policy.RequireAuthenticatedUser());
+        policy.RequireRole(Policies.Ipr.ViewAllowedRoles));
     options.AddPolicy(Policies.Ipr.Edit, policy =>
         policy.RequireRole(Policies.Ipr.EditAllowedRoles));
 });

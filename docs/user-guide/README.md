@@ -10,6 +10,8 @@ This guide walks each persona through the major areas of the suite. Every sectio
 | **Heads of Department (HoD)** | Approve project plans, manage departmental calendar, maintain process checklists | Projects (stage approvals, plan review), Calendar, Process designer, Holidays, Project office reports | Tasks, Celebrations, Notifications |
 | **Project Officers (PO)** | Prepare project data, update procurement facts, draft plans | Projects (facts, plans, comments, photos, videos), Tasks | Calendar (read/write own events), Celebrations, Project office reports (read) |
 | **Project Office** | Maintain visit logs, ToT status, social media campaigns, proliferation data, IPR registry | Project office reports (Visits, Social Media, ToT, Proliferation, IPR), Tasks | Projects (read), Calendar (read), Celebrations (read) |
+| **Commandant (Comdt)** | Review high-level governance dashboards and IPR filings | — | Project office reports (read), Projects (read), Dashboard |
+| **Materiel Control Officer (MCO)** | Monitor readiness trackers and approve process updates | Process designer | Project office reports (read), Projects (read), Dashboard |
 | **Teaching Assistants (TA)** | Maintain celebrations and shared calendar logistics | Celebrations, Calendar, Tasks | Projects (read), Notifications |
 | **Staff** | Manage personal tasks, follow announcements | Tasks, Dashboard widgets | Calendar (read), Celebrations (read), Notifications |
 
