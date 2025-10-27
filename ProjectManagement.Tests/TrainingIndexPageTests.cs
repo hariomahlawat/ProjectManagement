@@ -165,14 +165,14 @@ public sealed class TrainingIndexPageTests
         var tempData = new TempDataDictionary(httpContext, tempDataProvider);
         var viewContext = new ViewContext(actionContext, viewResult.View, viewData, tempData, writer, new HtmlHelperOptions());
 
-        model.PageContext = new PageContext(actionContext)
+        var pageContext = new PageContext(actionContext)
         {
-            ViewData = viewData,
-            ModelState = viewContext.ModelState
+            ViewData = viewData
         };
-        model.RouteData = routeData;
+
+        model.PageContext = pageContext;
+        model.ViewData = viewData;
         model.TempData = tempData;
-        model.ViewContext = viewContext;
 
         await viewResult.View.RenderAsync(viewContext);
         return writer.ToString();
