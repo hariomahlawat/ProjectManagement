@@ -13,7 +13,10 @@ The Project Office Reports area bundles multiple operational trackers under a si
 | `ViewTotTracker` / `ManageTotTracker` / `ApproveTotTracker` | Admin, HoD, Project Office |
 | `ViewProliferationTracker` / `SubmitProliferationTracker` / `ApproveProliferationTracker` | Admin, HoD, Project Office |
 | `ManageProliferationPreferences` | Admin |
-| `Policies.Ipr.View` / `Policies.Ipr.Edit` | Admin, HoD, Project Office, Comdt, MCO |
+| `Policies.Ipr.View` | Admin, HoD, Project Office (aliases `Project Office`/`ProjectOffice`), Comdt, MCO |
+| `Policies.Ipr.Edit` | Admin, HoD, Project Office (aliases `Project Office`/`ProjectOffice`) |
+
+> **Deployment note:** The identity provider must emit `role` claims matching the strings above (`Admin`, `HoD`, `Project Office`/`ProjectOffice`, `Comdt`, `MCO`). Without these claims, users will receive `403 Forbidden` responses when accessing the IPR tracker.
 
 Navigation is generated dynamically by `RoleBasedNavigationProvider`, which hides trackers the user cannot access. (see Services/Navigation/RoleBasedNavigationProvider.cs lines 16-152)
 
