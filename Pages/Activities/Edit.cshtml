@@ -22,6 +22,7 @@
 
     <form method="post" class="needs-validation" novalidate enctype="multipart/form-data">
         <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+        <input asp-for="Input.Id" type="hidden" />
 
         <div class="card mb-3">
             <div class="card-header">Activity details</div>
