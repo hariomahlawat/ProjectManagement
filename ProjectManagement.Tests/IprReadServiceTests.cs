@@ -165,6 +165,15 @@ public sealed class IprReadServiceTests
         db.Projects.Add(project);
         await db.SaveChangesAsync();
 
+        var uploader = new ApplicationUser
+        {
+            Id = "uploader-1",
+            FullName = "Riley Chen",
+            UserName = "rchen"
+        };
+
+        db.Users.Add(uploader);
+
         var grantedWithDate = new IprRecord
         {
             IprFilingNumber = "IPR-010",
@@ -174,7 +183,29 @@ public sealed class IprReadServiceTests
             FiledAtUtc = new DateTimeOffset(2023, 12, 20, 0, 0, 0, TimeSpan.Zero),
             Notes = "Ready for publication",
             ProjectId = project.Id,
-            Project = project
+            Project = project,
+            Attachments = new List<IprAttachment>
+            {
+                new()
+                {
+                    OriginalFileName = "gamma-evidence.pdf",
+                    StorageKey = "gamma/1",
+                    ContentType = "application/pdf",
+                    FileSize = 40960,
+                    UploadedByUserId = uploader.Id,
+                    UploadedAtUtc = new DateTimeOffset(2023, 12, 25, 9, 0, 0, TimeSpan.Zero)
+                },
+                new()
+                {
+                    OriginalFileName = "gamma-archived.pdf",
+                    StorageKey = "gamma/2",
+                    ContentType = "application/pdf",
+                    FileSize = 1024,
+                    UploadedByUserId = uploader.Id,
+                    UploadedAtUtc = new DateTimeOffset(2023, 12, 26, 9, 0, 0, TimeSpan.Zero),
+                    IsArchived = true
+                }
+            }
         };
 
         var grantedWithoutDate = new IprRecord
@@ -211,16 +242,24 @@ public sealed class IprReadServiceTests
         var rows = await service.GetExportAsync(filter);
 
         Assert.Equal(2, rows.Count);
+        Assert.Equal(grantedWithDate.Id, rows[0].Id);
         Assert.Equal("IPR-010", rows[0].FilingNumber);
         Assert.Equal("Gamma", rows[0].Title);
         Assert.Equal(project.Name, rows[0].ProjectName);
         Assert.Equal("Ready for publication", rows[0].Remarks);
         Assert.Equal(new DateTimeOffset(2023, 12, 20, 0, 0, 0, TimeSpan.Zero), rows[0].FiledAtUtc);
+        var attachment = Assert.Single(rows[0].Attachments);
+        Assert.Equal("gamma-evidence.pdf", attachment.FileName);
+        Assert.Equal("application/pdf", attachment.ContentType);
+        Assert.Equal(40960, attachment.FileSize);
+        Assert.Equal("Riley Chen", attachment.UploadedBy);
+        Assert.Equal(new DateTimeOffset(2023, 12, 25, 9, 0, 0, TimeSpan.Zero), attachment.UploadedAtUtc);
 
         Assert.Equal("IPR-011", rows[1].FilingNumber);
         Assert.Null(rows[1].ProjectName);
         Assert.Null(rows[1].FiledAtUtc);
         Assert.Equal("Awaiting certificate", rows[1].Remarks);
+        Assert.Empty(rows[1].Attachments);
     }
 
     [Fact]

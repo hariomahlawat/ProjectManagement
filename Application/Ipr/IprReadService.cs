@@ -128,19 +128,59 @@ public sealed class IprReadService : IIprReadService
 
         var query = BuildFilteredQuery(_db.IprRecords.AsNoTracking(), filter);
 
-        var items = await query
+        var queryResults = await query
             .OrderByDescending(x => x.FiledAtUtc ?? DateTimeOffset.MinValue)
             .ThenBy(x => x.Id)
-            .Select(x => new IprExportRowDto(
+            .Select(x => new
+            {
+                x.Id,
                 x.IprFilingNumber,
                 x.Title,
                 x.Status,
                 x.FiledBy,
                 x.FiledAtUtc,
                 x.GrantedAtUtc,
-                x.Project != null ? x.Project.Name : null,
-                x.Notes))
+                ProjectName = x.Project != null ? x.Project.Name : null,
+                x.Notes,
+                Attachments = x.Attachments
+                    .Where(a => !a.IsArchived)
+                    .OrderByDescending(a => a.UploadedAtUtc)
+                    .Select(a => new
+                    {
+                        a.Id,
+                        a.OriginalFileName,
+                        a.ContentType,
+                        a.FileSize,
+                        a.UploadedAtUtc,
+                        UploadedByFullName = a.UploadedByUser != null ? a.UploadedByUser.FullName : null,
+                        UploadedByUserName = a.UploadedByUser != null ? a.UploadedByUser.UserName : null,
+                        a.UploadedByUserId
+                    })
+                    .ToList()
+            })
             .ToListAsync(cancellationToken);
+
+        var items = queryResults
+            .Select(x => new IprExportRowDto(
+                x.Id,
+                x.IprFilingNumber,
+                x.Title,
+                x.Status,
+                x.FiledBy,
+                x.FiledAtUtc,
+                x.GrantedAtUtc,
+                x.ProjectName,
+                x.Notes,
+                x.Attachments
+                    .Select(a => new IprExportAttachmentDto(
+                        a.Id,
+                        a.OriginalFileName,
+                        a.ContentType,
+                        a.FileSize,
+                        FormatUploadedBy(a.UploadedByFullName, a.UploadedByUserName, a.UploadedByUserId),
+                        a.UploadedAtUtc))
+                    .ToList()))
+            .ToList();
 
         return items;
     }

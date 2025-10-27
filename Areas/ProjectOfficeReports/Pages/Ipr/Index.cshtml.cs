@@ -142,6 +142,8 @@ public sealed class IndexModel : PageModel
 
     public bool CanEdit { get; private set; }
 
+    public bool CanExport { get; private set; }
+
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         NormalizeFilters();
@@ -153,6 +155,12 @@ public sealed class IndexModel : PageModel
 
     public async Task<IActionResult> OnGetExportAsync(CancellationToken cancellationToken)
     {
+        var authorizationResult = await _authorizationService.AuthorizeAsync(User, null, Policies.Ipr.View);
+        if (!authorizationResult.Succeeded)
+        {
+            return Forbid();
+        }
+
         NormalizeFilters();
         var filter = BuildFilter();
         var file = await _exportService.ExportAsync(filter, cancellationToken);
@@ -700,8 +708,11 @@ public sealed class IndexModel : PageModel
 
     private async Task EvaluateAuthorizationAsync()
     {
-        var result = await _authorizationService.AuthorizeAsync(User, null, Policies.Ipr.Edit);
-        CanEdit = result.Succeeded;
+        var viewResult = await _authorizationService.AuthorizeAsync(User, null, Policies.Ipr.View);
+        CanExport = viewResult.Succeeded;
+
+        var editResult = await _authorizationService.AuthorizeAsync(User, null, Policies.Ipr.Edit);
+        CanEdit = editResult.Succeeded;
     }
 
     private void NormalizeFilters()

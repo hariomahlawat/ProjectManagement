@@ -21,6 +21,7 @@ public sealed class IprExportServiceTests
         var rows = new List<IprExportRowDto>
         {
             new(
+                1,
                 "IPR-001",
                 "Alpha",
                 IprStatus.Filed,
@@ -28,8 +29,19 @@ public sealed class IprExportServiceTests
                 new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero),
                 new DateTimeOffset(2024, 2, 10, 0, 0, 0, TimeSpan.Zero),
                 "Project Beacon",
-                "Initial filing"),
+                "Initial filing",
+                new List<IprExportAttachmentDto>
+                {
+                    new(
+                        10,
+                        "specification.pdf",
+                        "application/pdf",
+                        20992,
+                        "Alice Johnson",
+                        new DateTimeOffset(2024, 1, 5, 8, 15, 0, TimeSpan.Zero))
+                }),
             new(
+                2,
                 "IPR-002",
                 null,
                 IprStatus.FilingUnderProcess,
@@ -37,7 +49,8 @@ public sealed class IprExportServiceTests
                 null,
                 null,
                 null,
-                null)
+                null,
+                Array.Empty<IprExportAttachmentDto>())
         };
 
         var filter = new IprFilter();
@@ -78,6 +91,27 @@ public sealed class IprExportServiceTests
         Assert.True(worksheet.Cell(3, 7).IsEmpty());
         Assert.Equal("", worksheet.Cell(3, 8).GetString());
         Assert.Equal("", worksheet.Cell(3, 9).GetString());
+        Assert.Equal(1, worksheet.Cell(2, 10).GetValue<int>());
+        Assert.Equal(0, worksheet.Cell(3, 10).GetValue<int>());
+
+        var attachmentsWorksheet = workbook.Worksheet("Attachments");
+        Assert.Equal("IPR filing no", attachmentsWorksheet.Cell(1, 1).GetString());
+        Assert.Equal("Attachment name", attachmentsWorksheet.Cell(1, 2).GetString());
+        Assert.Equal("Content type", attachmentsWorksheet.Cell(1, 3).GetString());
+        Assert.Equal("File size (KB)", attachmentsWorksheet.Cell(1, 4).GetString());
+        Assert.Equal("Uploaded by", attachmentsWorksheet.Cell(1, 5).GetString());
+        Assert.Equal("Uploaded at", attachmentsWorksheet.Cell(1, 6).GetString());
+        Assert.Equal("Download link", attachmentsWorksheet.Cell(1, 7).GetString());
+
+        Assert.Equal("IPR-001", attachmentsWorksheet.Cell(2, 1).GetString());
+        Assert.Equal("specification.pdf", attachmentsWorksheet.Cell(2, 2).GetString());
+        Assert.Equal("application/pdf", attachmentsWorksheet.Cell(2, 3).GetString());
+        Assert.Equal(20.5, Math.Round(attachmentsWorksheet.Cell(2, 4).GetDouble(), 2));
+        Assert.Equal("Alice Johnson", attachmentsWorksheet.Cell(2, 5).GetString());
+        Assert.Equal(new DateTime(2024, 1, 5, 13, 45, 0), attachmentsWorksheet.Cell(2, 6).GetDateTime());
+        Assert.Equal(
+            "=HYPERLINK(\"/ProjectOfficeReports/Ipr/Download?iprRecordId=1&attachmentId=10\",\"specification.pdf\")",
+            attachmentsWorksheet.Cell(2, 7).FormulaA1);
     }
 
     [Fact]

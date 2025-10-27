@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using ClosedXML.Excel;
 using ProjectManagement.Application.Ipr;
 using ProjectManagement.Infrastructure.Data;
@@ -26,6 +27,7 @@ public sealed class IprExcelWorkbookBuilder : IIprExcelWorkbookBuilder
 
         WriteHeaderRow(worksheet);
         WriteDataRows(worksheet, context.Rows);
+        WriteAttachmentsWorksheet(workbook, context.Rows);
 
         worksheet.Column(3).Style.NumberFormat.Format = "@";
         worksheet.SheetView.FreezeRows(1);
@@ -49,7 +51,8 @@ public sealed class IprExcelWorkbookBuilder : IIprExcelWorkbookBuilder
             "Filing date",
             "Grant date",
             "Project",
-            "Remarks"
+            "Remarks",
+            "Attachment count"
         };
 
         for (var column = 0; column < headers.Length; column++)
@@ -96,6 +99,7 @@ public sealed class IprExcelWorkbookBuilder : IIprExcelWorkbookBuilder
 
             worksheet.Cell(rowNumber, 8).Value = record.ProjectName ?? string.Empty;
             worksheet.Cell(rowNumber, 9).Value = record.Remarks ?? string.Empty;
+            worksheet.Cell(rowNumber, 10).Value = record.Attachments.Count;
         }
     }
 
@@ -109,4 +113,70 @@ public sealed class IprExcelWorkbookBuilder : IIprExcelWorkbookBuilder
             IprStatus.Withdrawn => "Withdrawn",
             _ => status.ToString()
         };
+
+    private static void WriteAttachmentsWorksheet(XLWorkbook workbook, IReadOnlyList<IprExportRowDto> rows)
+    {
+        var attachmentRows = rows
+            .SelectMany(record => record.Attachments.Select(attachment => (record, attachment)))
+            .ToList();
+
+        var worksheet = workbook.Worksheets.Add("Attachments");
+
+        var headers = new[]
+        {
+            "IPR filing no",
+            "Attachment name",
+            "Content type",
+            "File size (KB)",
+            "Uploaded by",
+            "Uploaded at",
+            "Download link"
+        };
+
+        for (var column = 0; column < headers.Length; column++)
+        {
+            var cell = worksheet.Cell(1, column + 1);
+            cell.Value = headers[column];
+            cell.Style.Font.Bold = true;
+        }
+
+        worksheet.Range(1, 1, 1, headers.Length).Style.Fill.BackgroundColor = XLColor.FromHtml("#F2F2F2");
+        worksheet.Range(1, 1, 1, headers.Length).Style.Border.BottomBorder = XLBorderStyleValues.Thin;
+
+        if (attachmentRows.Count > 0)
+        {
+            var istZone = TimeZoneHelper.GetIst();
+
+            for (var index = 0; index < attachmentRows.Count; index++)
+            {
+                var (record, attachment) = attachmentRows[index];
+                var rowNumber = index + 2;
+
+                worksheet.Cell(rowNumber, 1).Value = record.FilingNumber ?? string.Empty;
+                worksheet.Cell(rowNumber, 2).Value = attachment.FileName;
+                worksheet.Cell(rowNumber, 3).Value = attachment.ContentType;
+
+                var sizeCell = worksheet.Cell(rowNumber, 4);
+                sizeCell.Value = Math.Round(attachment.FileSize / 1024d, 2);
+                sizeCell.Style.NumberFormat.Format = "#,##0.00";
+
+                worksheet.Cell(rowNumber, 5).Value = attachment.UploadedBy;
+
+                var uploadedAtIst = TimeZoneInfo.ConvertTime(attachment.UploadedAtUtc, istZone);
+                var uploadedCell = worksheet.Cell(rowNumber, 6);
+                uploadedCell.Value = uploadedAtIst.DateTime;
+                uploadedCell.Style.DateFormat.Format = "dd-mmm-yyyy hh:mm";
+
+                var downloadCell = worksheet.Cell(rowNumber, 7);
+                var downloadPath = $"/ProjectOfficeReports/Ipr/Download?iprRecordId={record.Id}&attachmentId={attachment.Id}";
+                downloadCell.FormulaA1 = $"=HYPERLINK(\"{downloadPath}\",\"{EscapeForHyperlinkText(attachment.FileName)}\")";
+            }
+        }
+
+        worksheet.SheetView.FreezeRows(1);
+        worksheet.Columns().AdjustToContents();
+    }
+
+    private static string EscapeForHyperlinkText(string text)
+        => text.Replace("\"", "\"\"");
 }
