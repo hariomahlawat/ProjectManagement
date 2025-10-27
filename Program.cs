@@ -293,6 +293,7 @@ builder.Services.AddSingleton<IIprExcelWorkbookBuilder, IprExcelWorkbookBuilder>
 builder.Services.AddScoped<VisitTypeService>();
 builder.Services.AddScoped<IActivityTypeService, ActivityTypeService>();
 builder.Services.AddScoped<IMiscActivityService, MiscActivityService>();
+builder.Services.AddScoped<IMiscActivityViewService, MiscActivityViewService>();
 builder.Services.AddScoped<SocialMediaEventTypeService>();
 builder.Services.AddScoped<SocialMediaPlatformService>();
 builder.Services.AddScoped<VisitService>();
