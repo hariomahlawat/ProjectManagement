@@ -50,6 +50,7 @@ public class RoleBasedNavigationProviderTests
         Assert.Contains(children, c => c.Text == "Project trash");
         Assert.Contains(children, c => c.Text == "Document recycle bin");
         Assert.Contains(children, c => c.Text == "Calendar deleted events");
+        Assert.Contains(children, c => c.Text == "Activity types" && c.Page == "/ActivityTypes/Index");
 
         var archivedProjects = children.Single(c => c.Text == "Archived projects");
         Assert.True(archivedProjects.RouteValues?.ContainsKey("IncludeArchived"));
@@ -133,6 +134,34 @@ public class RoleBasedNavigationProviderTests
             Assert.DoesNotContain(children, c => c.Text == "Visit types");
             Assert.DoesNotContain(children, c => c.Text == "Social media event types");
         }
+    }
+
+    [Fact]
+    public async Task Navigation_IncludesActivityTypesForHod()
+    {
+        var user = new ApplicationUser
+        {
+            Id = "hod-1",
+            UserName = "hod"
+        };
+
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var userManager = new StubUserManager(user, services, "HoD");
+        var httpContextAccessor = new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
+                }, "Test"))
+            }
+        };
+
+        var provider = CreateProvider(userManager, httpContextAccessor);
+        var navigation = await provider.GetNavigationAsync();
+
+        Assert.Contains(navigation, item => item.Text == "Activity types" && item.Page == "/ActivityTypes/Index");
     }
 
     [Fact]

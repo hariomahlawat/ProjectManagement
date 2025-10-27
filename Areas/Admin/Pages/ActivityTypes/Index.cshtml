@@ -1,0 +1,110 @@
+@page
+@model ProjectManagement.Areas.Admin.Pages.ActivityTypes.IndexModel
+@{
+    ViewData["Title"] = "Activity types";
+}
+
+<nav aria-label="breadcrumb" class="mb-2">
+  <ol class="breadcrumb small mb-0">
+    <li class="breadcrumb-item"><a asp-area="Admin" asp-page="/Index">Admin</a></li>
+    <li class="breadcrumb-item active" aria-current="page">Activity types</li>
+  </ol>
+</nav>
+
+<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+  <h1 class="h3 mb-0">Activity types</h1>
+  <a asp-page="./Create" class="btn btn-primary">
+    <i class="bi bi-plus-lg me-1" aria-hidden="true"></i>
+    Add activity type
+  </a>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+  <div class="alert alert-success" role="status">@Model.StatusMessage</div>
+}
+@if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+{
+  <div class="alert alert-danger" role="alert">@Model.ErrorMessage</div>
+}
+
+@if (Model.ActivityTypes.Count == 0)
+{
+  <div class="alert alert-info" role="status">
+    No activity types have been created yet. Add one to make it available in activity forms.
+  </div>
+}
+else
+{
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead>
+        <tr>
+          <th scope="col">Name</th>
+          <th scope="col" class="w-50">Description</th>
+          <th scope="col">Status</th>
+          <th scope="col" class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+      @foreach (var type in Model.ActivityTypes)
+      {
+        <tr>
+          <td>
+            <div class="fw-semibold">@type.Name</div>
+            @if (type.LastModifiedAtUtc is { } modified)
+            {
+              <div class="small text-muted">Updated @($"{modified.ToLocalTime():g}")</div>
+            }
+          </td>
+          <td>
+            @if (!string.IsNullOrWhiteSpace(type.Description))
+            {
+              <div>@type.Description</div>
+            }
+            else
+            {
+              <span class="text-muted">No description</span>
+            }
+          </td>
+          <td>
+            @if (type.IsActive)
+            {
+              <span class="badge rounded-pill text-bg-success">Active</span>
+            }
+            else
+            {
+              <span class="badge rounded-pill text-bg-secondary">Inactive</span>
+            }
+          </td>
+          <td class="text-end">
+            <div class="btn-group" role="group" aria-label="Actions for @type.Name">
+              <a asp-page="./Edit" asp-route-id="@type.Id" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-pencil" aria-hidden="true"></i>
+                <span class="visually-hidden">Edit</span>
+                <span class="d-none d-sm-inline">Edit</span>
+              </a>
+              <form method="post" asp-page-handler="Toggle" asp-route-id="@type.Id" class="d-inline">
+                <button type="submit" class="btn btn-sm @(type.IsActive ? "btn-outline-secondary" : "btn-outline-success")">
+                  @if (type.IsActive)
+                  {
+                    <i class="bi bi-slash-circle" aria-hidden="true"></i>
+                    <span class="visually-hidden">Deactivate</span>
+                    <span class="d-none d-sm-inline">Deactivate</span>
+                  }
+                  else
+                  {
+                    <i class="bi bi-check-circle" aria-hidden="true"></i>
+                    <span class="visually-hidden">Activate</span>
+                    <span class="d-none d-sm-inline">Activate</span>
+                  }
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+      }
+      </tbody>
+    </table>
+  </div>
+}
