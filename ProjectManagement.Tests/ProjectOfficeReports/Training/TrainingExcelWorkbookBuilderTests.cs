@@ -17,7 +17,7 @@ public sealed class TrainingExcelWorkbookBuilderTests
         var summary = new TrainingExportRow(
             Guid.NewGuid(),
             "Signals Refresher",
-            "2024-01-01 – 2024-01-05",
+            "2024-01-01 – 2024-01-05 (5 days)",
             Officers: 5,
             JuniorCommissionedOfficers: 3,
             OtherRanks: 2,
@@ -58,7 +58,7 @@ public sealed class TrainingExcelWorkbookBuilderTests
         var summary = new TrainingExportRow(
             Guid.NewGuid(),
             "Advanced Signals",
-            "2024-02-01 – 2024-02-10",
+            "2024-02-01 – 2024-02-10 (10 days)",
             Officers: 2,
             JuniorCommissionedOfficers: 1,
             OtherRanks: 0,
@@ -94,7 +94,7 @@ public sealed class TrainingExcelWorkbookBuilderTests
         Assert.NotNull(rosterSheet);
         Assert.Equal("Training type", rosterSheet.Cell(1, 1).GetString());
         Assert.Equal("Advanced Signals", rosterSheet.Cell(2, 1).GetString());
-        Assert.Equal("2024-02-01 – 2024-02-10", rosterSheet.Cell(2, 2).GetString());
+        Assert.Equal("2024-02-01 – 2024-02-10 (10 days)", rosterSheet.Cell(2, 2).GetString());
         Assert.Equal("Project X", rosterSheet.Cell(2, 3).GetString());
         Assert.Equal("12345", rosterSheet.Cell(2, 4).GetString());
         Assert.Equal("Maj", rosterSheet.Cell(2, 5).GetString());
@@ -114,7 +114,7 @@ public sealed class TrainingExcelWorkbookBuilderTests
         var summary = new TrainingExportRow(
             Guid.NewGuid(),
             "Signals Refresher",
-            "2024-03-01 – 2024-03-05",
+            "2024-03-01 – 2024-03-05 (5 days)",
             Officers: 4,
             JuniorCommissionedOfficers: 2,
             OtherRanks: 1,
