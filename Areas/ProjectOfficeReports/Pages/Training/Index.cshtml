@@ -277,7 +277,12 @@ else
                         <td>
                             <div class="fw-semibold">@training.TrainingTypeName</div>
                         </td>
-                        <td class="text-muted small">@training.Period</td>
+                        <td class="text-muted small">
+                            @training.Period@if (!string.IsNullOrWhiteSpace(training.PeriodDayCount))
+                            {
+                                <text> (@training.PeriodDayCount)</text>
+                            }
+                        </td>
                         <td><span class="badge bg-soft-primary text-primary">@training.Strength</span></td>
                         <td class="fw-semibold">@training.Total.ToString("N0", CultureInfo.CurrentCulture)</td>
                         <td>

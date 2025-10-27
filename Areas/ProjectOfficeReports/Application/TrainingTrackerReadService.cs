@@ -631,7 +631,16 @@ public sealed class TrainingTrackerReadService
             var normalizedEnd = endDate ?? startDate ?? normalizedStart;
             var start = normalizedStart?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "(not set)";
             var end = normalizedEnd?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? start;
-            return start == end ? start : $"{start} – {end}";
+            var period = start == end ? start : $"{start} – {end}";
+
+            if (startDate.HasValue && normalizedEnd.HasValue)
+            {
+                var dayCount = normalizedEnd.Value.DayNumber - startDate.Value.DayNumber + 1;
+                var dayCountText = FormatDayCount(dayCount);
+                return string.Concat(period, " (", dayCountText, ")");
+            }
+
+            return period;
         }
 
         if (trainingYear.HasValue && trainingMonth.HasValue)
@@ -641,6 +650,19 @@ public sealed class TrainingTrackerReadService
         }
 
         return "(unspecified)";
+    }
+
+    private static string FormatDayCount(int dayCount)
+    {
+        if (dayCount <= 1)
+        {
+            return "1 day";
+        }
+
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            "{0} days",
+            dayCount);
     }
 
     private sealed record TrainingDeleteRequestProjection(

@@ -323,9 +323,19 @@ public sealed class TrainingNotificationService : ITrainingNotificationService
     {
         if (context.StartDate.HasValue || context.EndDate.HasValue)
         {
+            var normalizedEnd = context.EndDate ?? context.StartDate;
             var start = context.StartDate?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? "(not set)";
             var end = context.EndDate?.ToString("dd MMM yyyy", CultureInfo.InvariantCulture) ?? start;
-            return start == end ? start : $"{start} – {end}";
+            var period = start == end ? start : $"{start} – {end}";
+
+            if (context.StartDate.HasValue && normalizedEnd.HasValue)
+            {
+                var dayCount = normalizedEnd.Value.DayNumber - context.StartDate.Value.DayNumber + 1;
+                var dayCountText = FormatDayCount(dayCount);
+                return string.Concat(period, " (", dayCountText, ")");
+            }
+
+            return period;
         }
 
         if (context.TrainingMonth.HasValue && context.TrainingYear.HasValue)
@@ -335,6 +345,19 @@ public sealed class TrainingNotificationService : ITrainingNotificationService
         }
 
         return "(unspecified)";
+    }
+
+    private static string FormatDayCount(int dayCount)
+    {
+        if (dayCount <= 1)
+        {
+            return "1 day";
+        }
+
+        return string.Format(
+            CultureInfo.InvariantCulture,
+            "{0} days",
+            dayCount);
     }
 
     private static string Truncate(string value, int maxLength)

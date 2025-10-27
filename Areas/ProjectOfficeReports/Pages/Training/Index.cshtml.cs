@@ -327,10 +327,12 @@ public class IndexModel : PageModel
         string? Notes,
         IReadOnlyList<string> ProjectNames)
     {
+        public string? PeriodDayCount { get; init; }
+
         public static TrainingRowViewModel FromListItem(TrainingListItem item)
         {
             var strength = $"{item.CounterOfficers:N0} – {item.CounterJcos:N0} – {item.CounterOrs:N0}";
-            var period = FormatPeriod(item);
+            var (period, dayCount) = FormatPeriod(item);
             return new TrainingRowViewModel(
                 item.Id,
                 item.TrainingTypeName,
@@ -339,25 +341,52 @@ public class IndexModel : PageModel
                 item.CounterTotal,
                 item.CounterSource,
                 item.Notes,
-                item.ProjectNames);
+                item.ProjectNames)
+            {
+                PeriodDayCount = dayCount
+            };
         }
 
-        private static string FormatPeriod(TrainingListItem item)
+        private static (string Period, string? DayCount) FormatPeriod(TrainingListItem item)
         {
             if (item.StartDate.HasValue || item.EndDate.HasValue)
             {
+                var normalizedEnd = item.EndDate ?? item.StartDate;
+
                 var start = item.StartDate?.ToString("dd-MMM-yyyy", CultureInfo.InvariantCulture) ?? "(not set)";
                 var end = item.EndDate?.ToString("dd-MMM-yyyy", CultureInfo.InvariantCulture) ?? start;
-                return start == end ? start : $"{start} – {end}";
+                var period = start == end ? start : $"{start} – {end}";
+
+                if (item.StartDate.HasValue && normalizedEnd.HasValue)
+                {
+                    var dayCount = normalizedEnd.Value.DayNumber - item.StartDate.Value.DayNumber + 1;
+                    var dayCountText = FormatDayCount(dayCount);
+                    return (period, dayCountText);
+                }
+
+                return (period, null);
             }
 
             if (item.TrainingYear.HasValue && item.TrainingMonth.HasValue)
             {
                 var monthName = CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(item.TrainingMonth.Value);
-                return $"{monthName} {item.TrainingYear.Value}";
+                return ($"{monthName} {item.TrainingYear.Value}", null);
             }
 
-            return "(unspecified)";
+            return ("(unspecified)", null);
+        }
+
+        private static string FormatDayCount(int dayCount)
+        {
+            if (dayCount <= 1)
+            {
+                return "1 day";
+            }
+
+            return string.Format(
+                CultureInfo.InvariantCulture,
+                "{0} days",
+                dayCount);
         }
     }
 }
