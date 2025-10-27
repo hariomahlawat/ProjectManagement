@@ -264,7 +264,10 @@ else
                                 <th scope="col">Source</th>
                                 <th scope="col">Projects</th>
                                 <th scope="col">Notes</th>
-                                <th scope="col" class="text-end">Actions</th>
+                                @if (Model.CanManageTrainingTracker)
+                                {
+                                    <th scope="col" class="text-end">Actions</th>
+                                }
                             </tr>
                         </thead>
                         <tbody>
@@ -312,9 +315,12 @@ else
                                 @training.Notes
                             }
                         </td>
-                        <td class="text-end">
-                            <a asp-page="./Manage" asp-route-id="@training.Id" class="btn btn-sm btn-outline-primary">Manage</a>
-                        </td>
+                        @if (Model.CanManageTrainingTracker)
+                        {
+                            <td class="text-end">
+                                <a asp-page="./Manage" asp-route-id="@training.Id" class="btn btn-sm btn-outline-primary">Manage</a>
+                            </td>
+                        }
                     </tr>
                 }
                         </tbody>
