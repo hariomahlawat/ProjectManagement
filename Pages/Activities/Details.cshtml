@@ -1,0 +1,322 @@
+@page "{id:int}"
+@model ProjectManagement.Pages.Activities.DetailsModel
+@using System.Globalization
+@{
+    var activity = Model.Activity;
+    if (activity is null)
+    {
+        <div class="alert alert-danger mt-4" role="alert">The requested activity could not be found.</div>;
+        return;
+    }
+
+    ViewData["Title"] = activity.Title;
+
+    string FormatDate(DateTimeOffset? value)
+    {
+        return value?.ToLocalTime().ToString("dd MMM yyyy, HH:mm", CultureInfo.CurrentCulture) ?? "—";
+    }
+
+    string FormatUser(string? displayName, string? userId)
+    {
+        if (!string.IsNullOrWhiteSpace(displayName))
+        {
+            return displayName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(userId))
+        {
+            return userId;
+        }
+
+        return "Unknown";
+    }
+
+    string FormatFileSize(long bytes)
+    {
+        if (bytes <= 0)
+        {
+            return "0 B";
+        }
+
+        var sizes = new[] { "B", "KB", "MB", "GB" };
+        var order = Math.Min((int)Math.Floor(Math.Log(bytes, 1024)), sizes.Length - 1);
+        var value = bytes / Math.Pow(1024, order);
+        return $"{value:0.#} {sizes[order]}";
+    }
+}
+
+<div class="container-xxl activities-details-page" data-module="activities-index">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a asp-page="/Activities/Index">Activities</a></li>
+            <li class="breadcrumb-item active" aria-current="page">Details</li>
+        </ol>
+    </nav>
+
+    <div class="pm-card pm-shadow mb-4">
+        <div class="pm-card-header d-flex flex-column flex-md-row gap-3 align-items-start align-items-md-center">
+            <div class="flex-grow-1">
+                <h1 class="pm-card-title mb-1">@activity.Title</h1>
+                <p class="pm-card-subtitle mb-0 text-muted">@activity.ActivityType?.Name ?? "Activity"</p>
+            </div>
+            @if (Model.CanManage)
+            {
+                <div class="d-flex flex-wrap gap-2">
+                    <a class="btn btn-outline-secondary btn-sm" asp-page="./Edit" asp-route-id="@activity.Id">
+                        <i class="bi bi-pencil" aria-hidden="true"></i>
+                        <span>Edit</span>
+                    </a>
+                    <form method="post"
+                          asp-page="./Index"
+                          asp-page-handler="Delete"
+                          asp-route-id="@activity.Id"
+                          class="d-inline"
+                          data-activities-delete-form
+                          data-confirm="Delete this activity?">
+                        @Html.AntiForgeryToken()
+                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                            <i class="bi bi-trash" aria-hidden="true"></i>
+                            <span>Delete</span>
+                        </button>
+                    </form>
+                </div>
+            }
+        </div>
+        <div class="pm-card-body">
+            <dl class="row mb-0">
+                <dt class="col-sm-3">Scheduled start</dt>
+                <dd class="col-sm-9">@FormatDate(activity.ScheduledStartUtc)</dd>
+
+                <dt class="col-sm-3">Scheduled end</dt>
+                <dd class="col-sm-9">@FormatDate(activity.ScheduledEndUtc)</dd>
+
+                <dt class="col-sm-3">Location</dt>
+                <dd class="col-sm-9">@(string.IsNullOrWhiteSpace(activity.Location) ? "—" : activity.Location)</dd>
+
+                <dt class="col-sm-3">Created</dt>
+                <dd class="col-sm-9">@FormatDate(activity.CreatedAtUtc) by @FormatUser(activity.CreatedByUser?.FullName, activity.CreatedByUserId)</dd>
+
+                <dt class="col-sm-3">Last updated</dt>
+                <dd class="col-sm-9">
+                    @if (activity.LastModifiedAtUtc is { } updated)
+                    {
+                        @FormatDate(updated) @:by @FormatUser(activity.LastModifiedByUser?.FullName, activity.LastModifiedByUserId)
+                    }
+                    else
+                    {
+                        @:—
+                    }
+                </dd>
+            </dl>
+        </div>
+    </div>
+
+    <div class="pm-card pm-shadow mb-4">
+        <div class="pm-card-header">
+            <h2 class="h5 mb-0">Description</h2>
+        </div>
+        <div class="pm-card-body">
+            @if (string.IsNullOrWhiteSpace(activity.Description))
+            {
+                <p class="text-muted mb-0">No description provided.</p>
+            }
+            else
+            {
+                <p class="mb-0" style="white-space: pre-wrap;">@activity.Description</p>
+            }
+        </div>
+    </div>
+
+    <div class="pm-card pm-shadow mb-4">
+        <div class="pm-card-header d-flex flex-column flex-lg-row gap-3 align-items-start align-items-lg-center">
+            <div>
+                <h2 class="h5 mb-1">Attachments</h2>
+                <p class="text-muted mb-0">@Model.Attachments.Count attachment@(Model.Attachments.Count == 1 ? string.Empty : "s"). Allowed types: @Model.AllowedAttachmentSummary. Max size: @(Math.Ceiling(Model.MaxAttachmentSizeBytes / 1048576.0)) MB.</p>
+            </div>
+            @if (Model.CanManage)
+            {
+                <div class="ms-lg-auto">
+                    <form method="post" asp-page-handler="Upload" asp-route-id="@activity.Id" enctype="multipart/form-data" class="d-flex flex-column flex-sm-row gap-2">
+                        @Html.AntiForgeryToken()
+                        <input type="file" name="Uploads" multiple class="form-control" accept="application/pdf,image/png,image/jpeg,video/mp4,video/quicktime,video/webm,.pdf,.png,.jpg,.jpeg,.mp4,.mov,.webm" @(Model.RemainingAttachmentSlots <= 0 ? "disabled" : null) />
+                        <button type="submit" class="btn btn-primary" @(Model.RemainingAttachmentSlots <= 0 ? "disabled" : null)>
+                            <i class="bi bi-upload" aria-hidden="true"></i>
+                            <span>Upload</span>
+                        </button>
+                    </form>
+                    @if (Model.RemainingAttachmentSlots <= 0)
+                    {
+                        <p class="text-muted small mb-0 mt-2">This activity already has the maximum number of attachments.</p>
+                    }
+                    else
+                    {
+                        <p class="text-muted small mb-0 mt-2">You can upload @Model.RemainingAttachmentSlots more attachment@(Model.RemainingAttachmentSlots == 1 ? string.Empty : "s").</p>
+                    }
+                </div>
+            }
+        </div>
+        <div class="pm-card-body">
+            @if (Model.Attachments.Count == 0)
+            {
+                <p class="text-muted mb-0">No attachments uploaded yet.</p>
+            }
+            else
+            {
+                if (Model.PhotoAttachments.Count > 0)
+                {
+                    <section class="mb-4">
+                        <h3 class="h6 mb-3">Photos</h3>
+                        <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-4 g-3">
+                            @foreach (var photo in Model.PhotoAttachments)
+                            {
+                                var modalId = $"photo-modal-{photo.Id}";
+                                <div class="col">
+                                    <div class="card h-100">
+                                        <button type="button"
+                                                class="btn btn-link p-0 text-start"
+                                                data-bs-toggle="modal"
+                                                data-bs-target="#{modalId}"
+                                                aria-label="View photo @photo.FileName">
+                                            <img src="@photo.DownloadUrl" alt="@photo.FileName" class="card-img-top" />
+                                        </button>
+                                        <div class="card-body">
+                                            <h4 class="card-title h6 mb-1">@photo.FileName</h4>
+                                            <p class="card-text text-muted small mb-2">Uploaded @photo.UploadedAtUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm", CultureInfo.CurrentCulture)</p>
+                                            <p class="card-text text-muted small mb-0">@FormatFileSize(photo.FileSize)</p>
+                                        </div>
+                                        <div class="card-footer bg-transparent border-0 pt-0">
+                                            <a class="btn btn-sm btn-outline-secondary" href="@photo.DownloadUrl">Download</a>
+                                            @if (Model.CanManage)
+                                            {
+                                                <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@photo.Id" class="d-inline" data-activities-delete-form data-confirm="Remove this attachment?">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                                                </form>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="modal fade" id="@modalId" tabindex="-1" aria-hidden="true">
+                                    <div class="modal-dialog modal-dialog-centered modal-lg">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h4 class="modal-title h5 mb-0">@photo.FileName</h4>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <img src="@photo.DownloadUrl" alt="@photo.FileName" class="img-fluid" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </section>
+                }
+
+                if (Model.VideoAttachments.Count > 0)
+                {
+                    <section class="mb-4">
+                        <h3 class="h6 mb-3">Videos</h3>
+                        <div class="row row-cols-1 row-cols-md-2 g-3">
+                            @foreach (var video in Model.VideoAttachments)
+                            {
+                                <div class="col">
+                                    <div class="card h-100">
+                                        <div class="ratio ratio-16x9">
+                                            <video controls preload="metadata">
+                                                <source src="@video.DownloadUrl" type="@video.ContentType" />
+                                                Your browser does not support the video tag.
+                                            </video>
+                                        </div>
+                                        <div class="card-body">
+                                            <h4 class="card-title h6 mb-1">@video.FileName</h4>
+                                            <p class="card-text text-muted small mb-2">Uploaded @video.UploadedAtUtc.ToLocalTime().ToString("dd MMM yyyy, HH:mm", CultureInfo.CurrentCulture)</p>
+                                            <p class="card-text text-muted small mb-0">@FormatFileSize(video.FileSize)</p>
+                                        </div>
+                                        <div class="card-footer bg-transparent border-0 pt-0">
+                                            <a class="btn btn-sm btn-outline-secondary" href="@video.DownloadUrl">Download</a>
+                                            @if (Model.CanManage)
+                                            {
+                                                <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@video.Id" class="d-inline" data-activities-delete-form data-confirm="Remove this attachment?">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                                                </form>
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </section>
+                }
+
+                if (Model.PdfAttachments.Count > 0)
+                {
+                    <section class="mb-4">
+                        <h3 class="h6 mb-3">PDFs</h3>
+                        <div class="row row-cols-1 g-3">
+                            @foreach (var pdf in Model.PdfAttachments)
+                            {
+                                <div class="col">
+                                    <div class="card">
+                                        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                            <div>
+                                                <h4 class="card-title h6 mb-1">@pdf.FileName</h4>
+                                                <p class="card-text text-muted small mb-0">@FormatFileSize(pdf.FileSize)</p>
+                                            </div>
+                                            <a class="btn btn-sm btn-outline-secondary" href="@pdf.DownloadUrl">Download</a>
+                                            @if (Model.CanManage)
+                                            {
+                                                <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@pdf.Id" class="d-inline" data-activities-delete-form data-confirm="Remove this attachment?">
+                                                    @Html.AntiForgeryToken()
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                                                </form>
+                                            }
+                                        </div>
+                                        <div class="card-body p-0">
+                                            <iframe src="@pdf.DownloadUrl" title="@pdf.FileName" style="width: 100%; min-height: 420px; border: 0;"></iframe>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </section>
+                }
+
+                if (Model.OtherAttachments.Count > 0)
+                {
+                    <section>
+                        <h3 class="h6 mb-3">Other files</h3>
+                        <ul class="list-group">
+                            @foreach (var file in Model.OtherAttachments)
+                            {
+                                <li class="list-group-item d-flex flex-wrap justify-content-between align-items-center gap-2">
+                                    <div>
+                                        <div class="fw-semibold">@file.FileName</div>
+                                        <div class="text-muted small">@FormatFileSize(file.FileSize)</div>
+                                    </div>
+                                    <div class="d-flex flex-wrap gap-2">
+                                        <a class="btn btn-sm btn-outline-secondary" href="@file.DownloadUrl">Download</a>
+                                        @if (Model.CanManage)
+                                        {
+                                            <form method="post" asp-page-handler="RemoveAttachment" asp-route-id="@activity.Id" asp-route-attachmentId="@file.Id" class="d-inline" data-activities-delete-form data-confirm="Remove this attachment?">
+                                                @Html.AntiForgeryToken()
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                                            </form>
+                                        }
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    </section>
+                }
+            }
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/pages/activities-index.js" asp-append-version="true"></script>
+}
