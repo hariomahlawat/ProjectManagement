@@ -211,13 +211,14 @@
                 </div>
 
                 <div class="card-body">
-                    @{ var sourceLabel = Model.Input.CounterSource == TrainingCounterSource.Roster ? "Roster" : "Legacy counts"; }
+                    @{ var input = Model.Input ?? ManageModel.InputModel.CreateDefault();
+                       var sourceLabel = input.CounterSource == TrainingCounterSource.Roster ? "Roster" : "Legacy counts"; }
                     <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
                         <div class="d-flex flex-wrap gap-2">
-                            <span class="badge bg-primary-subtle text-primary-emphasis">Officers: <span id="rosterOfficersCount">@Model.Input.CounterOfficers</span></span>
-                            <span class="badge bg-primary-subtle text-primary-emphasis">JCOs: <span id="rosterJcosCount">@Model.Input.CounterJcos</span></span>
-                            <span class="badge bg-primary-subtle text-primary-emphasis">ORs: <span id="rosterOrsCount">@Model.Input.CounterOrs</span></span>
-                            <span class="badge bg-secondary-subtle text-secondary-emphasis">Total: <span id="rosterTotalCount">@Model.Input.CounterTotal</span></span>
+                            <span class="badge bg-primary-subtle text-primary-emphasis">Officers: <span id="rosterOfficersCount">@input.CounterOfficers</span></span>
+                            <span class="badge bg-primary-subtle text-primary-emphasis">JCOs: <span id="rosterJcosCount">@input.CounterJcos</span></span>
+                            <span class="badge bg-primary-subtle text-primary-emphasis">ORs: <span id="rosterOrsCount">@input.CounterOrs</span></span>
+                            <span class="badge bg-secondary-subtle text-secondary-emphasis">Total: <span id="rosterTotalCount">@input.CounterTotal</span></span>
                         </div>
                         <div class="text-muted" id="rosterCounterSource">Source: @sourceLabel</div>
                     </div>
