@@ -7,6 +7,7 @@
 @{
     var pageTitle = Model.TrainingId.HasValue ? "Edit training" : "New training";
     ViewData["Title"] = pageTitle;
+    var input = Model.Input ?? ManageModel.InputModel.CreateDefault();
 }
 
 <div class="container-fluid py-3">
@@ -211,8 +212,7 @@
                 </div>
 
                 <div class="card-body">
-                    @{ var input = Model.Input ?? ManageModel.InputModel.CreateDefault();
-                       var sourceLabel = input.CounterSource == TrainingCounterSource.Roster ? "Roster" : "Legacy counts"; }
+                    @{ var sourceLabel = input.CounterSource == TrainingCounterSource.Roster ? "Roster" : "Legacy counts"; }
                     <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
                         <div class="d-flex flex-wrap gap-2">
                             <span class="badge bg-primary-subtle text-primary-emphasis">Officers: <span id="rosterOfficersCount">@input.CounterOfficers</span></span>
@@ -259,8 +259,8 @@
                 <div class="card-header bg-danger-subtle text-danger fw-semibold">Request deletion</div>
                 <div class="card-body">
                     <form method="post" asp-page-handler="RequestDelete" class="needs-validation" novalidate>
-                        <input type="hidden" name="TrainingId" value="@Model.Input.Id.Value" />
-                        <input type="hidden" name="RowVersion" value="@Model.Input.RowVersion" />
+                        <input type="hidden" name="TrainingId" value="@input.Id.Value" />
+                        <input type="hidden" name="RowVersion" value="@input.RowVersion" />
                         <div class="mb-3">
                             <label class="form-label" for="delete-reason">Reason</label>
                             <textarea class="form-control" id="delete-reason" name="Reason" rows="3" required maxlength="1000"></textarea>
