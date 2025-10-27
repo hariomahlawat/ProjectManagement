@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- Prevent parallel builds to avoid file locking conflicts in DefineStaticWebAssets cache generation -->
+    <BuildInParallel>false</BuildInParallel>
+  </PropertyGroup>
+</Project>
