@@ -32,7 +32,7 @@
 
 @if (Model.Activity is null)
 {
-    <partial name="_StatusMessage" model="" />
+    <div class="alert alert-warning" role="status">The activity could not be found.</div>
     return;
 }
 
@@ -79,7 +79,7 @@
                     var modifier = string.IsNullOrWhiteSpace(Model.Activity.LastModifiedByDisplayName)
                         ? Model.Activity.LastModifiedByUserId
                         : Model.Activity.LastModifiedByDisplayName;
-                    @:@Model.Activity.LastModifiedAtUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm") by @modifier
+                    <text>@Model.Activity.LastModifiedAtUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm") by @modifier</text>
                 }
                 else
                 {
@@ -91,10 +91,10 @@
             {
                 <dt class="col-sm-3">Deleted</dt>
                 <dd class="col-sm-9">
-                    var deleter = string.IsNullOrWhiteSpace(Model.Activity.DeletedByDisplayName)
+                    @{ var deleter = string.IsNullOrWhiteSpace(Model.Activity.DeletedByDisplayName)
                         ? Model.Activity.DeletedByUserId
-                        : Model.Activity.DeletedByDisplayName;
-                    @:@Model.Activity.DeletedUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm") by @deleter
+                        : Model.Activity.DeletedByDisplayName; }
+                    <text>@Model.Activity.DeletedUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm") by @deleter</text>
                 </dd>
             }
 
