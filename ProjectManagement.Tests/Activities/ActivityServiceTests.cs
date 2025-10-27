@@ -5,6 +5,7 @@ using System.Security.Claims;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Contracts.Activities;
@@ -369,17 +370,52 @@ public class ActivityServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ActivityExportService_ProducesCsv()
+    public async Task ActivityExportService_ProducesSpreadsheetWithAttachmentLinks()
     {
         var type = await EnsureActivityTypeAsync();
-        await _service.CreateAsync(new ActivityInput("Planning", null, "HQ", type.Id, _clock.UtcNow, _clock.UtcNow.AddHours(1)));
+        var activity = await _service.CreateAsync(new ActivityInput("Planning", null, "HQ", type.Id, _clock.UtcNow, _clock.UtcNow.AddHours(1)));
 
-        var exportService = new ActivityExportService(_activityRepository, _activityTypeRepository, _attachmentManager);
-        var result = await exportService.ExportByTypeAsync(type.Id);
+        await using (var pdfStream = new MemoryStream(Encoding.UTF8.GetBytes("plan")))
+        {
+            var upload = new ActivityAttachmentUpload(pdfStream, "plan.pdf", "application/pdf", pdfStream.Length);
+            await _service.AddAttachmentAsync(activity.Id, upload);
+        }
 
-        Assert.Equal("text/csv", result.ContentType);
-        var csv = Encoding.UTF8.GetString(result.Content);
-        Assert.Contains("Planning", csv);
+        await using (var photoStream = new MemoryStream(Encoding.UTF8.GetBytes("photo")))
+        {
+            var upload = new ActivityAttachmentUpload(photoStream, "photo.jpg", "image/jpeg", photoStream.Length);
+            await _service.AddAttachmentAsync(activity.Id, upload);
+        }
+
+        var exportService = new ActivityExportService(_activityRepository, _attachmentManager);
+        var export = await exportService.ExportAsync(new ActivityExportRequest(ActivityTypeId: type.Id));
+
+        Assert.NotNull(export);
+        Assert.StartsWith("MiscActivities_", export!.FileName, StringComparison.Ordinal);
+        Assert.EndsWith(".xlsx", export.FileName, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(ActivityExportService.ExcelContentType, export.ContentType);
+
+        using var stream = new MemoryStream(export.Content);
+        using var workbook = new XLWorkbook(stream);
+        var worksheet = workbook.Worksheet("Activities");
+
+        Assert.Equal("Title", worksheet.Cell(1, 1).GetString());
+        Assert.Equal("Attachment links", worksheet.Cell(1, 11).GetString());
+
+        var attachmentsCell = worksheet.Cell(2, 11);
+        Assert.Equal(2, worksheet.Cell(2, 10).GetValue<int>());
+        Assert.Contains("HYPERLINK", attachmentsCell.FormulaA1, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("plan.pdf", attachmentsCell.FormulaA1, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("photo.jpg", attachmentsCell.FormulaA1, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ActivityExportService_ReturnsNullWhenNoResults()
+    {
+        var exportService = new ActivityExportService(_activityRepository, _attachmentManager);
+        var export = await exportService.ExportAsync(new ActivityExportRequest(ActivityTypeId: 999));
+
+        Assert.Null(export);
     }
 
     private async Task<ActivityType> EnsureActivityTypeAsync()

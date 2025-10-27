@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Security.Claims;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -26,14 +25,17 @@ public sealed class IndexModel : PageModel
 
     private readonly IActivityService _activityService;
     private readonly IActivityTypeService _activityTypeService;
+    private readonly IActivityExportService _activityExportService;
     private readonly UserManager<ApplicationUser> _userManager;
 
     public IndexModel(IActivityService activityService,
                       IActivityTypeService activityTypeService,
+                      IActivityExportService activityExportService,
                       UserManager<ApplicationUser> userManager)
     {
         _activityService = activityService;
         _activityTypeService = activityTypeService;
+        _activityExportService = activityExportService;
         _userManager = userManager;
     }
 
@@ -175,8 +177,7 @@ public sealed class IndexModel : PageModel
 
     public async Task<IActionResult> OnPostExportAsync(CancellationToken cancellationToken)
     {
-        var request = new ActivityListRequest(1,
-            0,
+        var exportRequest = new ActivityExportRequest(
             SortBy,
             IsSortDescending,
             FromDate,
@@ -186,36 +187,15 @@ public sealed class IndexModel : PageModel
             CreatedBySearch: CreatedBy,
             AttachmentType);
 
-        var result = await _activityService.ListAsync(request, cancellationToken);
+        var export = await _activityExportService.ExportAsync(exportRequest, cancellationToken);
 
-        if (result.TotalCount == 0)
+        if (export is null)
         {
             TempData["ToastMessage"] = "No activities match the selected filters.";
             return RedirectToPage(null, BuildRouteValues());
         }
 
-        var builder = new StringBuilder();
-        builder.AppendLine("Title,Type,Scheduled Start,Scheduled End,Created At,Created By,Pdf Attachments,Photo Attachments,Video Attachments,Total Attachments");
-
-        foreach (var item in result.Items)
-        {
-            builder
-                .Append(EscapeCsv(item.Title)).Append(',')
-                .Append(EscapeCsv(item.ActivityTypeName)).Append(',')
-                .Append(EscapeCsv(FormatInstant(item.ScheduledStartUtc))).Append(',')
-                .Append(EscapeCsv(FormatInstant(item.ScheduledEndUtc))).Append(',')
-                .Append(EscapeCsv(item.CreatedAtUtc.ToString("u", CultureInfo.InvariantCulture))).Append(',')
-                .Append(EscapeCsv(item.CreatedByDisplayName ?? item.CreatedByEmail ?? item.CreatedByUserId)).Append(',')
-                .Append(item.PdfAttachmentCount.ToString(CultureInfo.InvariantCulture)).Append(',')
-                .Append(item.PhotoAttachmentCount.ToString(CultureInfo.InvariantCulture)).Append(',')
-                .Append(item.VideoAttachmentCount.ToString(CultureInfo.InvariantCulture)).Append(',')
-                .Append(item.AttachmentCount.ToString(CultureInfo.InvariantCulture))
-                .AppendLine();
-        }
-
-        var bytes = Encoding.UTF8.GetBytes(builder.ToString());
-        var fileName = $"activities-{DateTime.UtcNow:yyyyMMddHHmmss}.csv";
-        return File(bytes, "text/csv", fileName);
+        return File(export.Content, export.ContentType, export.FileName);
     }
 
     public Dictionary<string, string?> BuildRoute(int? page = null,
@@ -359,28 +339,4 @@ public sealed class IndexModel : PageModel
         return new RouteValueDictionary(BuildRoute(Page, SortBy, SortDirection, PageSize));
     }
 
-    private static string EscapeCsv(string? value)
-    {
-        if (string.IsNullOrEmpty(value))
-        {
-            return string.Empty;
-        }
-
-        if (value.Contains('"'))
-        {
-            value = value.Replace("\"", "\"\"");
-        }
-
-        if (value.Contains(',') || value.Contains('\n'))
-        {
-            return $"\"{value}\"";
-        }
-
-        return value;
-    }
-
-    private static string FormatInstant(DateTimeOffset? instant)
-    {
-        return instant?.ToString("u", CultureInfo.InvariantCulture) ?? string.Empty;
-    }
 }
