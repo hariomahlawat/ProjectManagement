@@ -1,0 +1,158 @@
+@using System.Globalization
+@using ProjectManagement.Models
+@using ProjectManagement.ViewModels
+@model ProjectPhotoGalleryViewModel
+@{
+    var previewTiles = Model.Photos.PreviewTiles;
+    var lightboxPhotos = Model.Photos.LightboxPhotos;
+    var remainingPhotos = Model.Photos.RemainingCount;
+    var hasPreview = previewTiles.Count > 0;
+    string? galleryModalId = null;
+    ProjectPhotoLightboxViewModel? galleryModalModel = null;
+    if (lightboxPhotos.Count > 0)
+    {
+        galleryModalId = $"project-gallery-modal-{Model.ProjectId}";
+        galleryModalModel = new ProjectPhotoLightboxViewModel(
+            Model.ProjectId,
+            Model.ProjectName,
+            lightboxPhotos,
+            Model.Photos.CoverPhoto?.Id,
+            Model.Photos.CoverPhotoVersion,
+            galleryModalId);
+    }
+
+    string ProjectPhotoUrl(ProjectPhoto photo, string size, int? version)
+        => Url.Page("/Projects/Photos/View", new { id = Model.ProjectId, photoId = photo.Id, size, v = version ?? photo.Version })!;
+}
+
+<div class="project-gallery"
+     data-gallery
+     data-gallery-project="@Model.ProjectId"
+     data-gallery-modal-id="@(galleryModalId ?? string.Empty)">
+    <div class="project-gallery__header d-flex flex-wrap justify-content-between align-items-start gap-2">
+        <div>
+            <h3 class="h6 mb-2">Gallery</h3>
+            <p class="text-muted small mb-0">Browse highlights from recent uploads.</p>
+        </div>
+        @if (Model.CanManagePhotos)
+        {
+            <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-sm btn-outline-secondary"
+                   asp-page="/Projects/Photos/Index"
+                   asp-route-id="@Model.ProjectId"
+                   aria-label="Manage photos for this project">Manage photos</a>
+                <a class="btn btn-sm btn-primary"
+                   asp-page="/Projects/Photos/Upload"
+                   asp-route-id="@Model.ProjectId"
+                   aria-label="Upload a new project photo">Upload photo</a>
+            </div>
+        }
+    </div>
+
+    @if (hasPreview)
+    {
+        <div class="project-gallery__grid" role="list">
+            @for (var i = 0; i < previewTiles.Count; i++)
+            {
+                var tile = previewTiles[i];
+                var photo = tile.Photo;
+                var thumbUrl = ProjectPhotoUrl(photo, "sm", photo.Version);
+                var mediumUrl = ProjectPhotoUrl(photo, "md", photo.Version);
+                var largeUrl = ProjectPhotoUrl(photo, "xl", photo.Version);
+                var thumbSrcSet = string.Join(", ", new[]
+                {
+                    $"{thumbUrl} 1x",
+                    $"{mediumUrl} 1.5x",
+                    $"{largeUrl} 2x"
+                });
+                var captionText = string.IsNullOrWhiteSpace(photo.Caption) ? null : photo.Caption;
+                var altText = captionText ?? $"{Model.ProjectName} photo";
+                <a class="project-gallery__item position-relative"
+                   role="listitem"
+                   href="@largeUrl"
+                   data-gallery-trigger
+                   data-gallery-photo-id="@photo.Id"
+                   data-gallery-full="@largeUrl"
+                   data-gallery-srcset="@thumbSrcSet"
+                   data-gallery-caption="@captionText"
+                   data-gallery-alt="@altText"
+                   aria-label="View photo @(i + 1) of @lightboxPhotos.Count@(captionText is null ? string.Empty : $": {captionText}")">
+                    @if (tile.ShowTotBadge)
+                    {
+                        <span class="badge text-bg-info position-absolute top-0 start-0 m-2">ToT</span>
+                    }
+                    <div class="project-gallery__media">
+                        <picture>
+                            <source type="image/webp" srcset="@thumbSrcSet" />
+                            <img class="project-gallery__img"
+                                 loading="lazy"
+                                 width="320"
+                                 height="240"
+                                 src="@thumbUrl"
+                                 srcset="@thumbSrcSet"
+                                 alt="@altText" />
+                        </picture>
+                    </div>
+                    <div class="project-gallery__overlay" aria-hidden="true">
+                        <span class="project-gallery__overlay-text">@(captionText ?? "View photo")</span>
+                    </div>
+                </a>
+            }
+
+            @if (lightboxPhotos.Count > previewTiles.Count)
+            {
+                <a class="project-gallery__item project-gallery__item--cta"
+                   role="listitem"
+                   href="@Url.Page("/Projects/Photos/Index", new { id = Model.ProjectId })"
+                   data-gallery-open
+                   aria-controls="@galleryModalId"
+                   aria-label="View the full project photo gallery">
+                    <div class="project-gallery__cta-body">
+                        <span class="project-gallery__cta-icon" aria-hidden="true">&#128247;</span>
+                        <span class="project-gallery__cta-text">View gallery</span>
+                        @if (remainingPhotos > 0)
+                        {
+                            <span class="project-gallery__cta-meta">+@remainingPhotos more</span>
+                        }
+                    </div>
+                </a>
+            }
+        </div>
+    }
+    else
+    {
+        var emptyStateHeadingId = $"project-photo-empty-title-{Model.ProjectId}";
+        var emptyStateDescriptionId = $"{emptyStateHeadingId}-desc";
+        <div class="project-photo-empty border rounded bg-light-subtle text-center"
+             role="region"
+             aria-labelledby="@emptyStateHeadingId"
+             aria-describedby="@emptyStateDescriptionId">
+            <div class="project-photo-empty-body">
+                <span class="project-photo-empty-icon" aria-hidden="true">
+                    <i class="bi bi-images"></i>
+                </span>
+                <h3 id="@emptyStateHeadingId" class="h6 fw-semibold mb-2">
+                    @(Model.SelectedTotId.HasValue && !string.IsNullOrWhiteSpace(Model.SelectedTotLabel)
+                        ? $"No {Model.SelectedTotLabel} photos yet"
+                        : "No photos yet")
+                </h3>
+                <p id="@emptyStateDescriptionId" class="mb-3 text-muted">
+                    @(Model.SelectedTotId.HasValue && !string.IsNullOrWhiteSpace(Model.SelectedTotLabel)
+                        ? "This filter doesn't have any photos yet. Try switching filters or add one now."
+                        : "Add a cover or gallery photo to help everyone recognise this project at a glance.")
+                </p>
+                @if (Model.CanManagePhotos)
+                {
+                    <a class="btn btn-primary"
+                       asp-page="/Projects/Photos/Index"
+                       asp-route-id="@Model.ProjectId"
+                       aria-label="Upload the first project photo">Upload photo</a>
+                }
+            </div>
+        </div>
+    }
+</div>
+@if (galleryModalModel is not null)
+{
+    <partial name="_ProjectPhotoLightbox" model="galleryModalModel" />
+}

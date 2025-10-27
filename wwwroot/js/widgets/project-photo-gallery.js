@@ -963,14 +963,20 @@
     }
 
     function handleFileChange() {
-      const [file] = fileInput.files || [];
-      if (!file || !file.type || !file.type.startsWith('image/')) {
+      const files = Array.from(fileInput.files || []);
+      if (files.length !== 1) {
         const initialUrl = editor.getAttribute('data-photo-editor-initial-url');
         if (initialUrl) {
           setImageSource(initialUrl, false);
         } else {
           resetEditor();
         }
+        return;
+      }
+
+      const [file] = files;
+      if (!file || !file.type || !file.type.startsWith('image/')) {
+        resetEditor();
         return;
       }
 
