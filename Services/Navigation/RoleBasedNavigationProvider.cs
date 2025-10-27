@@ -153,6 +153,14 @@ public class RoleBasedNavigationProvider : INavigationProvider
             Children = projectOfficeReportsChildren
         });
 
+        var activityTypesNavigationItem = new NavigationItem
+        {
+            Text = "Activity types",
+            Area = "Admin",
+            Page = "/ActivityTypes/Index",
+            RequiredRoles = new[] { "Admin", "HoD" }
+        };
+
         if (roleSet.Contains("Admin"))
         {
             items.Add(new NavigationItem
@@ -212,6 +220,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
                         Page = "/Categories/Index",
                         RequiredRoles = new[] { "Admin" }
                     },
+                    activityTypesNavigationItem,
                     new NavigationItem
                     {
                         Text = "Technical categories",
@@ -264,6 +273,11 @@ public class RoleBasedNavigationProvider : INavigationProvider
                     }
                 }
             });
+        }
+
+        if (roleSet.Contains("HoD") && !roleSet.Contains("Admin"))
+        {
+            items.Add(activityTypesNavigationItem);
         }
 
         if (roleSet.Contains("HoD") || roleSet.Contains("Admin"))
