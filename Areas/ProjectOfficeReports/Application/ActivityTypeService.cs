@@ -41,16 +41,6 @@ public interface IActivityTypeService
 
 public sealed class ActivityTypeService : IActivityTypeService
 {
-    private static readonly string[] ManagerRoles =
-    {
-        "Admin",
-        "HoD",
-        "ProjectOffice",
-        "Project Office",
-        "Project Officer",
-        "TA"
-    };
-
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly IAuditService _audit;
@@ -270,7 +260,7 @@ public sealed class ActivityTypeService : IActivityTypeService
             return false;
         }
 
-        if (!ManagerRoles.Any(principal.IsInRole))
+        if (!ProjectOfficeReportsPolicies.IsActivityTypeManager(principal))
         {
             return false;
         }

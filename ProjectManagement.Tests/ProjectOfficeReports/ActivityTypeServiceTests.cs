@@ -31,13 +31,31 @@ public sealed class ActivityTypeServiceTests
         Assert.Empty(audit.Entries);
     }
 
+    [Theory]
+    [InlineData("Project Officer")]
+    [InlineData("TA")]
+    public async Task CreateAsync_WithStaffRole_ReturnsUnauthorized(string role)
+    {
+        await using var context = CreateContext();
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 1, 9, 0, 0, TimeSpan.Zero));
+        var audit = new RecordingAudit();
+        var userContext = new StubUserContext(CreatePrincipal("user-staff", role), "user-staff");
+        var service = new ActivityTypeService(context, clock, audit, userContext);
+
+        var result = await service.CreateAsync("Operations", null, 0, CancellationToken.None);
+
+        Assert.Equal(ActivityTypeMutationOutcome.Unauthorized, result.Outcome);
+        Assert.Empty(await context.ActivityTypes.ToListAsync());
+        Assert.Empty(audit.Entries);
+    }
+
     [Fact]
     public async Task CreateAsync_WithValidInput_PersistsEntityAndAudit()
     {
         await using var context = CreateContext();
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 2, 9, 30, 0, TimeSpan.Zero));
         var audit = new RecordingAudit();
-        var userContext = new StubUserContext(CreatePrincipal("manager-1", "ProjectOffice"), "manager-1");
+        var userContext = new StubUserContext(CreatePrincipal("manager-1", "HoD"), "manager-1");
         var service = new ActivityTypeService(context, clock, audit, userContext);
 
         var result = await service.CreateAsync("Operations", "General project office work", 2, CancellationToken.None);
@@ -127,7 +145,7 @@ public sealed class ActivityTypeServiceTests
         await using var context = CreateContext();
         var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 5, 5, 9, 0, 0, TimeSpan.Zero));
         var audit = new RecordingAudit();
-        var userContext = new StubUserContext(CreatePrincipal("manager-4", "ProjectOffice"), "manager-4");
+        var userContext = new StubUserContext(CreatePrincipal("manager-4", "Admin"), "manager-4");
         var typeId = Guid.NewGuid();
         context.ActivityTypes.Add(new ActivityType
         {

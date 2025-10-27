@@ -1,0 +1,58 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.ActivityTypes.EditModel
+@{
+    ViewData["Title"] = "Edit activity type";
+}
+
+<div class="mb-4">
+    <a class="text-decoration-none" asp-page="Index"><i class="bi bi-arrow-left"></i> Back to list</a>
+</div>
+
+<h1 class="h3 mb-3">Edit activity type</h1>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <form method="post">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+            <input asp-for="Input.Id" type="hidden" />
+            <input asp-for="Input.RowVersion" type="hidden" />
+
+            <div class="mb-3">
+                <label asp-for="Input.Name" class="form-label"></label>
+                <input asp-for="Input.Name" class="form-control" autocomplete="off" />
+                <span asp-validation-for="Input.Name" class="text-danger"></span>
+            </div>
+
+            <div class="mb-3">
+                <label asp-for="Input.Description" class="form-label"></label>
+                <textarea asp-for="Input.Description" class="form-control" rows="3"></textarea>
+                <span asp-validation-for="Input.Description" class="text-danger"></span>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <label asp-for="Input.Ordinal" class="form-label"></label>
+                    <input asp-for="Input.Ordinal" class="form-control" min="0" />
+                    <span class="form-text">Lower values appear first in drop-downs.</span>
+                    <span asp-validation-for="Input.Ordinal" class="text-danger"></span>
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <div class="form-check form-switch">
+                        <input asp-for="Input.IsActive" class="form-check-input" />
+                        <label asp-for="Input.IsActive" class="form-check-label"></label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <a asp-page="Index" class="btn btn-outline-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Save changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
