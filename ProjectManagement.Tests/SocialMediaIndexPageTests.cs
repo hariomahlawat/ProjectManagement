@@ -128,6 +128,56 @@ public sealed class SocialMediaIndexPageTests
         Assert.Equal("viewer", exportService.LastPdfRequest?.RequestedByUserId);
     }
 
+    [Fact]
+    public async Task OnPostExportAsync_WhenExportFails_ShowsValidationErrors()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .Options;
+
+        await using var db = new ApplicationDbContext(options);
+
+        var eventType = SocialMediaTestData.CreateEventType(name: "Recap");
+        var platform = SocialMediaTestData.CreatePlatform(name: "Instagram");
+        var socialEvent = SocialMediaTestData.CreateEvent(eventType.Id, platform.Id, platform: platform);
+
+        db.SocialMediaEventTypes.Add(eventType);
+        db.SocialMediaPlatforms.Add(platform);
+        db.SocialMediaEvents.Add(socialEvent);
+        await db.SaveChangesAsync();
+
+        var clock = FakeClock.AtUtc(new DateTimeOffset(2024, 3, 1, 7, 0, 0, TimeSpan.Zero));
+        var photoService = new StubSocialMediaEventPhotoService();
+        var eventService = new SocialMediaEventService(db, clock, photoService);
+        var audit = new RecordingAudit();
+        var platformService = new SocialMediaPlatformService(db, clock, audit);
+
+        var exportService = new StubSocialMediaExportService(
+            SocialMediaExportResult.Failure("Unable to generate Excel export."),
+            SocialMediaExportResult.Failure("Unexpected PDF call"));
+
+        var authorization = new DenyManageAuthorizationService();
+        using var userManager = CreateUserManager(db);
+        var page = new IndexModel(eventService, exportService, platformService, authorization, userManager);
+
+        ConfigurePageContext(page, CreatePrincipal("author", "Editor"));
+
+        var result = await page.OnPostExportAsync(CancellationToken.None);
+
+        Assert.IsType<PageResult>(result);
+        Assert.True(page.ViewData.ContainsKey("ShowExportModal"));
+        var showModal = Assert.IsType<bool>(page.ViewData["ShowExportModal"]);
+        Assert.True(showModal);
+        Assert.False(page.ModelState.IsValid);
+        var errors = page.ModelState[string.Empty].Errors;
+        Assert.Contains(errors, error => error.ErrorMessage == "Unable to generate Excel export.");
+        var toast = Assert.IsType<string>(page.TempData["ToastError"]);
+        Assert.Equal("Unable to generate Excel export.", toast);
+        Assert.NotNull(exportService.LastExcelRequest);
+        Assert.Equal("author", exportService.LastExcelRequest?.RequestedByUserId);
+        Assert.NotEmpty(page.Events);
+    }
+
     private static void ConfigurePageContext(PageModel page, ClaimsPrincipal user)
     {
         var httpContext = new DefaultHttpContext { User = user };

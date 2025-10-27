@@ -93,3 +93,16 @@ internal sealed class CapturingSocialMediaPdfBuilder : ISocialMediaPdfReportBuil
         return new byte[] { 0x01, 0x02, 0x03 };
     }
 }
+
+internal sealed class RecordingSocialMediaWorkbookBuilder : ISocialMediaExcelWorkbookBuilder
+{
+    public static readonly byte[] ExpectedBytes = { 0x21, 0x22, 0x23 };
+
+    public SocialMediaExcelWorkbookContext? CapturedContext { get; private set; }
+
+    public byte[] Build(SocialMediaExcelWorkbookContext context)
+    {
+        CapturedContext = context ?? throw new ArgumentNullException(nameof(context));
+        return ExpectedBytes;
+    }
+}
