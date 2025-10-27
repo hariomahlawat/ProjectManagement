@@ -89,6 +89,9 @@ namespace ProjectManagement.Data
         public DbSet<SocialMediaPlatform> SocialMediaPlatforms => Set<SocialMediaPlatform>();
         public DbSet<SocialMediaEvent> SocialMediaEvents => Set<SocialMediaEvent>();
         public DbSet<SocialMediaEventPhoto> SocialMediaEventPhotos => Set<SocialMediaEventPhoto>();
+        public DbSet<ActivityType> ActivityTypes => Set<ActivityType>();
+        public DbSet<MiscActivity> MiscActivities => Set<MiscActivity>();
+        public DbSet<ActivityMedia> ActivityMedia => Set<ActivityMedia>();
         public DbSet<TrainingType> TrainingTypes => Set<TrainingType>();
         public DbSet<Training> Trainings => Set<Training>();
         public DbSet<TrainingCounters> TrainingCounters => Set<TrainingCounters>();
@@ -380,6 +383,129 @@ namespace ProjectManagement.Data
                 else if (!Database.IsNpgsql())
                 {
                     e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+            });
+
+            builder.Entity<ActivityType>(e =>
+            {
+                ConfigureRowVersion(e);
+                e.Property(x => x.Name).HasMaxLength(128).IsRequired();
+                e.Property(x => x.Description).HasMaxLength(512);
+                e.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.LastModifiedByUserId).HasMaxLength(450);
+                e.Property(x => x.Ordinal).HasDefaultValue(0);
+                e.Property(x => x.IsActive).HasDefaultValue(true);
+                e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+
+                if (Database.IsNpgsql())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone");
+                    e.Property(x => x.LastModifiedAtUtc).HasColumnType("timestamp with time zone");
+                }
+
+                e.HasIndex(x => x.Name)
+                    .IsUnique()
+                    .HasDatabaseName("UX_ActivityTypes_Name");
+
+                e.HasIndex(x => x.IsActive)
+                    .HasDatabaseName("IX_ActivityTypes_IsActive");
+
+                if (Database.IsSqlServer())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else if (!Database.IsNpgsql())
+                {
+                    e.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+            });
+
+            builder.Entity<MiscActivity>(e =>
+            {
+                ConfigureRowVersion(e);
+                e.Property(x => x.Nomenclature).HasMaxLength(256).IsRequired();
+                e.Property(x => x.OccurrenceDate).HasColumnType("date").IsRequired();
+                e.Property(x => x.Description).HasMaxLength(4000);
+                e.Property(x => x.ExternalLink).HasMaxLength(1024);
+                e.Property(x => x.CapturedByUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.LastModifiedByUserId).HasMaxLength(450);
+                e.Property(x => x.DeletedByUserId).HasMaxLength(450);
+                e.Property(x => x.CapturedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+
+                if (Database.IsNpgsql())
+                {
+                    e.Property(x => x.CapturedAtUtc).HasColumnType("timestamp with time zone");
+                    e.Property(x => x.LastModifiedAtUtc).HasColumnType("timestamp with time zone");
+                    e.Property(x => x.DeletedUtc).HasColumnType("timestamp with time zone");
+                }
+
+                e.HasIndex(x => x.OccurrenceDate)
+                    .HasDatabaseName("IX_MiscActivities_OccurrenceDate");
+
+                e.HasIndex(x => x.ActivityTypeId)
+                    .HasDatabaseName("IX_MiscActivities_ActivityTypeId");
+
+                var uniqueIndex = e.HasIndex(x => new { x.OccurrenceDate, x.Nomenclature })
+                    .HasDatabaseName("UX_MiscActivities_OccurrenceDate_Nomenclature")
+                    .IsUnique();
+
+                if (Database.IsSqlServer())
+                {
+                    uniqueIndex.HasFilter("[DeletedUtc] IS NULL");
+                    e.Property(x => x.CapturedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else if (Database.IsNpgsql())
+                {
+                    uniqueIndex.HasFilter("\"DeletedUtc\" IS NULL");
+                }
+                else
+                {
+                    uniqueIndex.HasFilter("DeletedUtc IS NULL");
+                    e.Property(x => x.CapturedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+
+                e.HasOne(x => x.ActivityType)
+                    .WithMany(x => x.Activities)
+                    .HasForeignKey(x => x.ActivityTypeId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                e.HasMany(x => x.Media)
+                    .WithOne(x => x.Activity)
+                    .HasForeignKey(x => x.ActivityId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ActivityMedia>(e =>
+            {
+                ConfigureRowVersion(e);
+                e.Property(x => x.StorageKey).HasMaxLength(260).IsRequired();
+                e.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
+                e.Property(x => x.MediaType).HasMaxLength(128).IsRequired();
+                e.Property(x => x.Caption).HasMaxLength(256);
+                e.Property(x => x.UploadedByUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.UploadedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                e.Property(x => x.FileSize).HasColumnType("bigint");
+
+                if (Database.IsNpgsql())
+                {
+                    e.Property(x => x.UploadedAtUtc).HasColumnType("timestamp with time zone");
+                }
+
+                e.HasIndex(x => new { x.ActivityId, x.UploadedAtUtc })
+                    .HasDatabaseName("IX_ActivityMedia_ActivityId_UploadedAtUtc");
+
+                e.HasOne(x => x.Activity)
+                    .WithMany(x => x.Media)
+                    .HasForeignKey(x => x.ActivityId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                if (Database.IsSqlServer())
+                {
+                    e.Property(x => x.UploadedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else if (!Database.IsNpgsql())
+                {
+                    e.Property(x => x.UploadedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
                 }
             });
 
