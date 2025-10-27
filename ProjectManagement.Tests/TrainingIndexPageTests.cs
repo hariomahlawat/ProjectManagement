@@ -171,7 +171,6 @@ public sealed class TrainingIndexPageTests
         };
 
         model.PageContext = pageContext;
-        model.ViewData = viewData;
         model.TempData = tempData;
 
         await viewResult.View.RenderAsync(viewContext);

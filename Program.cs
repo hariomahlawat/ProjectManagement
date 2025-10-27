@@ -31,6 +31,7 @@ using ProjectManagement.Services.ProjectOfficeReports.Training;
 using ProjectManagement.Services.Documents;
 using ProjectManagement.Services.Storage;
 using ProjectManagement.Infrastructure;
+using ProjectManagement.Infrastructure.Activities;
 using Markdig;
 using Ganss.Xss;
 using System.Security.Claims;
@@ -40,6 +41,7 @@ using Microsoft.Extensions.Options;
 using ProjectManagement.Helpers;
 using ProjectManagement.Configuration;
 using ProjectManagement.Contracts;
+using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Contracts.Stages;
 using ProjectManagement.Utilities.Reporting;
 using System.Text.Json;
@@ -204,6 +206,8 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IUserContext, HttpUserContext>();
+builder.Services.AddScoped<IActivityRepository, ActivityRepository>();
+builder.Services.AddScoped<IActivityTypeRepository, ActivityTypeRepository>();
 builder.Services.Configure<UserLifecycleOptions>(
     builder.Configuration.GetSection("UserLifecycle"));
 builder.Services.Configure<IprAttachmentOptions>(
