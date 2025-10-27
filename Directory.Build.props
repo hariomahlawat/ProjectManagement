@@ -2,5 +2,7 @@
   <PropertyGroup>
     <!-- Prevent parallel builds to avoid file locking conflicts in DefineStaticWebAssets cache generation -->
     <BuildInParallel>false</BuildInParallel>
+    <!-- Disable the DefineStaticWebAssets cache to avoid locked rpswa.dswa.cache.json errors on Windows builds -->
+    <StaticWebAssetsCacheDefineStaticWebAssetsEnabled>false</StaticWebAssetsCacheDefineStaticWebAssetsEnabled>
   </PropertyGroup>
 </Project>
