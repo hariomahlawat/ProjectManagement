@@ -218,12 +218,12 @@ public sealed class IndexModel : PageModel
         return File(bytes, "text/csv", fileName);
     }
 
-    public Dictionary<string, string> BuildRoute(int? page = null,
+    public Dictionary<string, string?> BuildRoute(int? page = null,
                                                  ActivityListSort? sort = null,
                                                  string? sortDir = null,
                                                  int? pageSize = null)
     {
-        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
         {
             ["Page"] = (page ?? Page).ToString(CultureInfo.InvariantCulture),
             ["PageSize"] = (pageSize ?? PageSize).ToString(CultureInfo.InvariantCulture),
@@ -259,9 +259,9 @@ public sealed class IndexModel : PageModel
         return values;
     }
 
-    public Dictionary<string, string> BuildRouteForDelete(int id)
+    public Dictionary<string, string?> BuildRouteForDelete(int id)
     {
-        var values = new Dictionary<string, string>(BuildRoute(Page, SortBy, SortDirection, PageSize))
+        var values = new Dictionary<string, string?>(BuildRoute(Page, SortBy, SortDirection, PageSize), StringComparer.OrdinalIgnoreCase)
         {
             ["id"] = id.ToString(CultureInfo.InvariantCulture)
         };
