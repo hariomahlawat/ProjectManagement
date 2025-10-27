@@ -42,7 +42,9 @@ public sealed class MiscActivityService : IMiscActivityService
         "Admin",
         "HoD",
         "ProjectOffice",
-        "Project Office"
+        "Project Office",
+        "Project Officer",
+        "TA"
     };
 
     private readonly ApplicationDbContext _db;

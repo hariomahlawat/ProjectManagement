@@ -46,7 +46,9 @@ public sealed class ActivityTypeService : IActivityTypeService
         "Admin",
         "HoD",
         "ProjectOffice",
-        "Project Office"
+        "Project Office",
+        "Project Officer",
+        "TA"
     };
 
     private readonly ApplicationDbContext _db;

@@ -13,6 +13,35 @@ public static class ProjectOfficeReportsPolicies
         "Project Office"
     };
 
+    private static readonly string[] MiscActivityViewerRoles =
+    {
+        "Admin",
+        "HoD",
+        "ProjectOffice",
+        "Project Office",
+        "Project Officer",
+        "TA",
+        "Main Office",
+        "Comdt",
+        "MCO"
+    };
+
+    private static readonly string[] MiscActivityManagerRoles =
+    {
+        "Admin",
+        "HoD",
+        "ProjectOffice",
+        "Project Office",
+        "Project Officer",
+        "TA"
+    };
+
+    private static readonly string[] MiscActivityApproverRoles =
+    {
+        "Admin",
+        "HoD"
+    };
+
     private static readonly string[] TrainingTrackerViewerRoles =
     {
         "Admin",
@@ -48,6 +77,9 @@ public static class ProjectOfficeReportsPolicies
     public const string ViewVisits = "ProjectOfficeReports.ViewVisits";
     public const string ManageVisits = "ProjectOfficeReports.ManageVisits";
     public const string ManageSocialMediaEvents = "ProjectOfficeReports.ManageSocialMediaEvents";
+    public const string ViewMiscActivities = "ProjectOfficeReports.ViewMiscActivities";
+    public const string ManageMiscActivities = "ProjectOfficeReports.ManageMiscActivities";
+    public const string DeleteMiscActivities = "ProjectOfficeReports.DeleteMiscActivities";
     public const string ViewTotTracker = "ProjectOfficeReports.ViewTotTracker";
     public const string ManageTotTracker = "ProjectOfficeReports.ManageTotTracker";
     public const string ApproveTotTracker = "ProjectOfficeReports.ApproveTotTracker";
@@ -67,6 +99,36 @@ public static class ProjectOfficeReportsPolicies
         }
 
         return builder.RequireRole(ProjectOfficeRoles);
+    }
+
+    public static AuthorizationPolicyBuilder RequireMiscActivityViewer(this AuthorizationPolicyBuilder builder)
+    {
+        if (builder is null)
+        {
+            throw new ArgumentNullException(nameof(builder));
+        }
+
+        return builder.RequireRole(MiscActivityViewerRoles);
+    }
+
+    public static AuthorizationPolicyBuilder RequireMiscActivityManager(this AuthorizationPolicyBuilder builder)
+    {
+        if (builder is null)
+        {
+            throw new ArgumentNullException(nameof(builder));
+        }
+
+        return builder.RequireRole(MiscActivityManagerRoles);
+    }
+
+    public static AuthorizationPolicyBuilder RequireMiscActivityApprover(this AuthorizationPolicyBuilder builder)
+    {
+        if (builder is null)
+        {
+            throw new ArgumentNullException(nameof(builder));
+        }
+
+        return builder.RequireRole(MiscActivityApproverRoles);
     }
 
     public static AuthorizationPolicyBuilder RequireTotTrackerViewer(this AuthorizationPolicyBuilder builder)

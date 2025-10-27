@@ -135,6 +135,12 @@ builder.Services.AddAuthorization(options =>
         policy.RequireProjectOfficeManager());
     options.AddPolicy(ProjectOfficeReportsPolicies.ManageSocialMediaEvents, policy =>
         policy.RequireProjectOfficeManager());
+    options.AddPolicy(ProjectOfficeReportsPolicies.ViewMiscActivities, policy =>
+        policy.RequireMiscActivityViewer());
+    options.AddPolicy(ProjectOfficeReportsPolicies.ManageMiscActivities, policy =>
+        policy.RequireMiscActivityManager());
+    options.AddPolicy(ProjectOfficeReportsPolicies.DeleteMiscActivities, policy =>
+        policy.RequireMiscActivityApprover());
     options.AddPolicy(ProjectOfficeReportsPolicies.ViewTotTracker, policy =>
         policy.RequireTotTrackerViewer());
     options.AddPolicy(ProjectOfficeReportsPolicies.ManageTotTracker, policy =>
