@@ -82,7 +82,7 @@ public sealed record MiscActivityMediaDto(
     string RowVersion,
     string StorageKey);
 
-public sealed class MiscActivityCreateDto
+public class MiscActivityCreateDto
 {
     public Guid? ActivityTypeId { get; set; }
 
