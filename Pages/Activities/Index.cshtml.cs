@@ -38,7 +38,7 @@ public sealed class IndexModel : PageModel
     }
 
     [BindProperty(SupportsGet = true)]
-    public int Page { get; set; } = 1;
+    public new int Page { get; set; } = 1;
 
     [BindProperty(SupportsGet = true)]
     public int PageSize { get; set; } = 25;
@@ -218,15 +218,15 @@ public sealed class IndexModel : PageModel
         return File(bytes, "text/csv", fileName);
     }
 
-    public RouteValueDictionary BuildRoute(int? page = null,
-                                           ActivityListSort? sort = null,
-                                           string? sortDir = null,
-                                           int? pageSize = null)
+    public Dictionary<string, string> BuildRoute(int? page = null,
+                                                 ActivityListSort? sort = null,
+                                                 string? sortDir = null,
+                                                 int? pageSize = null)
     {
-        var values = new RouteValueDictionary
+        var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
-            ["Page"] = page ?? Page,
-            ["PageSize"] = pageSize ?? PageSize,
+            ["Page"] = (page ?? Page).ToString(CultureInfo.InvariantCulture),
+            ["PageSize"] = (pageSize ?? PageSize).ToString(CultureInfo.InvariantCulture),
             ["SortBy"] = (sort ?? SortBy).ToString(),
             ["SortDir"] = sortDir ?? SortDirection
         };
@@ -243,7 +243,7 @@ public sealed class IndexModel : PageModel
 
         if (ActivityTypeId.HasValue)
         {
-            values["ActivityTypeId"] = ActivityTypeId.Value;
+            values["ActivityTypeId"] = ActivityTypeId.Value.ToString(CultureInfo.InvariantCulture);
         }
 
         if (!string.IsNullOrWhiteSpace(CreatedBy))
@@ -259,10 +259,13 @@ public sealed class IndexModel : PageModel
         return values;
     }
 
-    public RouteValueDictionary BuildRouteForDelete(int id)
+    public Dictionary<string, string> BuildRouteForDelete(int id)
     {
-        var values = BuildRoute(Page, SortBy, SortDirection, PageSize);
-        values["id"] = id;
+        var values = new Dictionary<string, string>(BuildRoute(Page, SortBy, SortDirection, PageSize))
+        {
+            ["id"] = id.ToString(CultureInfo.InvariantCulture)
+        };
+
         return values;
     }
 
@@ -350,8 +353,7 @@ public sealed class IndexModel : PageModel
 
     private RouteValueDictionary BuildRouteValues()
     {
-        var routeValues = BuildRoute(Page, SortBy, SortDirection, PageSize);
-        return routeValues;
+        return new RouteValueDictionary(BuildRoute(Page, SortBy, SortDirection, PageSize));
     }
 
     private static string EscapeCsv(string? value)
