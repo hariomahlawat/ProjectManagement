@@ -34,7 +34,7 @@ public sealed class ActivityExportService : IActivityExportService
 
         var activities = await _activityRepository.ListByTypeAsync(activityTypeId, cancellationToken);
         var builder = new StringBuilder();
-        builder.AppendLine("Title,Start (UTC),End (UTC),Location,Owner,Created,Last Modified,Attachments");
+        builder.AppendLine("Title,Start (UTC),End (UTC),Location,Owner,Created,Last Modified,Attachments,Attachment Summary");
 
         foreach (var activity in activities)
         {
