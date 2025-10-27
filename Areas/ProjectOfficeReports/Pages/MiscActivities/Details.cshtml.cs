@@ -61,8 +61,7 @@ public sealed class DetailsModel : PageModel
             return NotFound();
         }
 
-        Upload.MaxFileSizeBytes = Activity.Upload.MaxFileSizeBytes;
-        Upload.AllowedContentTypes = Activity.Upload.AllowedContentTypes;
+        Upload = ApplyUploadLimits(Upload, Activity.Upload);
 
         if (!ModelState.IsValid)
         {
@@ -131,12 +130,31 @@ public sealed class DetailsModel : PageModel
         Activity = await _viewService.GetDetailAsync(id, cancellationToken);
         if (Activity is not null)
         {
-            Upload.RowVersion = Activity.Upload.RowVersion;
-            Upload.MaxFileSizeBytes = Activity.Upload.MaxFileSizeBytes;
-            Upload.AllowedContentTypes = Activity.Upload.AllowedContentTypes;
+            Upload = ApplyUploadLimits(
+                new MiscActivityMediaUploadViewModel
+                {
+                    File = Upload.File,
+                    Caption = Upload.Caption,
+                    RowVersion = Activity.Upload.RowVersion
+                },
+                Activity.Upload);
         }
 
         return Page();
+    }
+
+    private static MiscActivityMediaUploadViewModel ApplyUploadLimits(
+        MiscActivityMediaUploadViewModel source,
+        MiscActivityMediaUploadViewModel limits)
+    {
+        return new MiscActivityMediaUploadViewModel
+        {
+            File = source.File,
+            Caption = source.Caption,
+            RowVersion = source.RowVersion,
+            MaxFileSizeBytes = limits.MaxFileSizeBytes,
+            AllowedContentTypes = limits.AllowedContentTypes
+        };
     }
 
     private async Task PopulatePermissionsAsync()

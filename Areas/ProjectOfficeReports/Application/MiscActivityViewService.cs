@@ -60,6 +60,7 @@ public sealed class MiscActivityViewService : IMiscActivityViewService
         var userIds = activities
             .SelectMany(item => new[] { item.CapturedByUserId, item.LastModifiedByUserId })
             .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id!)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
