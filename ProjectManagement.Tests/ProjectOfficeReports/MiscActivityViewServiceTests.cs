@@ -26,6 +26,8 @@ public sealed class MiscActivityViewServiceTests
             "Description",
             "https://example.test",
             3,
+            2,
+            1,
             false,
             DateTimeOffset.UtcNow.AddDays(-2),
             "user-1",
@@ -51,7 +53,13 @@ public sealed class MiscActivityViewServiceTests
 
         var activityService = new StubMiscActivityService
         {
-            ListItems = new[] { listItem }
+            ListItems = new[] { listItem },
+            Creators = new[] { new MiscActivityCreatorOption("user-1", "User One") },
+            UserDisplayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["user-1"] = "User One",
+                ["user-2"] = "User Two"
+            }
         };
 
         var activityTypeService = new StubActivityTypeService
@@ -67,7 +75,11 @@ public sealed class MiscActivityViewServiceTests
             "  workshop  ",
             false,
             MiscActivitySortField.Nomenclature,
-            false);
+            false,
+            null,
+            MiscActivityAttachmentTypeFilter.Any,
+            1,
+            25);
 
         var result = await viewService.GetIndexAsync(query, CancellationToken.None);
 
@@ -82,8 +94,17 @@ public sealed class MiscActivityViewServiceTests
         Assert.Equal("Capability Building", item.ActivityTypeName);
         Assert.Equal("Networking Workshop", item.Nomenclature);
         Assert.Equal("AQID", item.RowVersion);
+        Assert.Equal(2, item.ImageCount);
+        Assert.Equal(1, item.DocumentCount);
+        Assert.Equal("User One", item.CapturedByDisplayName);
+        Assert.Equal("User Two", item.LastModifiedByDisplayName);
         Assert.Equal(2, result.Filter.ActivityTypeOptions.Count);
         Assert.True(result.Filter.ActivityTypeOptions[0].Selected);
+        Assert.Equal(2, result.Filter.CreatorOptions.Count);
+        Assert.Equal(MiscActivityAttachmentTypeFilter.Any, result.Filter.AttachmentType);
+        Assert.Equal(1, result.Pagination.PageNumber);
+        Assert.Equal(25, result.Pagination.PageSize);
+        Assert.Equal(1, result.Pagination.TotalCount);
     }
 
     [Fact]
@@ -130,7 +151,13 @@ public sealed class MiscActivityViewServiceTests
 
         var activityService = new StubMiscActivityService
         {
-            Activity = activity
+            Activity = activity,
+            UserDisplayNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["capturer"] = "Capture R",
+                ["modifier"] = "Modifier",
+                ["deleter"] = "Deleter"
+            }
         };
 
         var activityTypeService = new StubActivityTypeService();
@@ -145,6 +172,10 @@ public sealed class MiscActivityViewServiceTests
         Assert.Single(result.Media);
         Assert.Equal("report.pdf", result.Media[0].OriginalFileName);
         Assert.Equal("BQQD", result.Media[0].RowVersion);
+        Assert.Equal("Capture R", result.CapturedByDisplayName);
+        Assert.Equal("Modifier", result.LastModifiedByDisplayName);
+        Assert.Equal("Deleter", result.DeletedByDisplayName);
+        Assert.Equal("Capture R", result.Media[0].UploadedByDisplayName);
         Assert.Equal("CQkJ", result.RowVersion);
         Assert.Equal(viewServiceOptions.MaxFileSizeBytes, result.Upload.MaxFileSizeBytes);
         Assert.Equal(viewServiceOptions.AllowedContentTypes, result.Upload.AllowedContentTypes);
@@ -249,11 +280,18 @@ public sealed class MiscActivityViewServiceTests
 
         public MiscActivityQueryOptions? LastQueryOptions { get; private set; }
 
+        public IReadOnlyList<MiscActivityCreatorOption> Creators { get; set; } = Array.Empty<MiscActivityCreatorOption>();
+
+        public IReadOnlyDictionary<string, string> UserDisplayNames { get; set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
         public Task<IReadOnlyList<MiscActivityListItem>> SearchAsync(MiscActivityQueryOptions options, CancellationToken cancellationToken)
         {
             LastQueryOptions = options;
             return Task.FromResult(ListItems);
         }
+
+        public Task<int> CountAsync(MiscActivityQueryOptions options, CancellationToken cancellationToken)
+            => Task.FromResult(ListItems.Count);
 
         public Task<IReadOnlyList<MiscActivityExportRow>> ExportAsync(MiscActivityQueryOptions options, CancellationToken cancellationToken)
             => throw new NotImplementedException();
@@ -276,6 +314,38 @@ public sealed class MiscActivityViewServiceTests
 
         public Task<MiscActivityDeletionResult> DeleteAsync(Guid id, byte[] rowVersion, CancellationToken cancellationToken)
             => throw new NotImplementedException();
+
+        public Task<ActivityMediaUploadResult> UploadMediaAsync(ActivityMediaUploadRequest request, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public Task<ActivityMediaDeletionResult> DeleteMediaAsync(ActivityMediaDeletionRequest request, CancellationToken cancellationToken)
+            => throw new NotImplementedException();
+
+        public Task<IReadOnlyList<MiscActivityCreatorOption>> GetCreatorsAsync(CancellationToken cancellationToken)
+            => Task.FromResult(Creators);
+
+        public Task<IReadOnlyDictionary<string, string>> GetUserDisplayNamesAsync(IEnumerable<string> userIds, CancellationToken cancellationToken)
+        {
+            var results = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var id in userIds ?? Array.Empty<string>())
+            {
+                if (string.IsNullOrWhiteSpace(id))
+                {
+                    continue;
+                }
+
+                if (UserDisplayNames.TryGetValue(id, out var name))
+                {
+                    results[id] = name;
+                }
+                else if (!results.ContainsKey(id))
+                {
+                    results[id] = id;
+                }
+            }
+
+            return Task.FromResult<IReadOnlyDictionary<string, string>>(results);
+        }
     }
 
     private sealed class StubActivityTypeService : IActivityTypeService

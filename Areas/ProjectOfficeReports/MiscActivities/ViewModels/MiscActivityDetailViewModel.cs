@@ -25,13 +25,19 @@ public sealed class MiscActivityDetailViewModel
 
     public string CapturedByUserId { get; init; } = string.Empty;
 
+    public string CapturedByDisplayName { get; init; } = string.Empty;
+
     public DateTimeOffset? LastModifiedAtUtc { get; init; }
 
     public string? LastModifiedByUserId { get; init; }
 
+    public string? LastModifiedByDisplayName { get; init; }
+
     public DateTimeOffset? DeletedUtc { get; init; }
 
     public string? DeletedByUserId { get; init; }
+
+    public string? DeletedByDisplayName { get; init; }
 
     public string RowVersion { get; init; } = string.Empty;
 

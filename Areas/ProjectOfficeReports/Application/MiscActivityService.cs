@@ -20,6 +20,8 @@ public interface IMiscActivityService
 {
     Task<IReadOnlyList<MiscActivityListItem>> SearchAsync(MiscActivityQueryOptions options, CancellationToken cancellationToken);
 
+    Task<int> CountAsync(MiscActivityQueryOptions options, CancellationToken cancellationToken);
+
     Task<IReadOnlyList<MiscActivityExportRow>> ExportAsync(MiscActivityQueryOptions options, CancellationToken cancellationToken);
 
     Task<MiscActivity?> FindAsync(Guid id, CancellationToken cancellationToken);
@@ -33,6 +35,10 @@ public interface IMiscActivityService
     Task<ActivityMediaUploadResult> UploadMediaAsync(ActivityMediaUploadRequest request, CancellationToken cancellationToken);
 
     Task<ActivityMediaDeletionResult> DeleteMediaAsync(ActivityMediaDeletionRequest request, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<MiscActivityCreatorOption>> GetCreatorsAsync(CancellationToken cancellationToken);
+
+    Task<IReadOnlyDictionary<string, string>> GetUserDisplayNamesAsync(IEnumerable<string> userIds, CancellationToken cancellationToken);
 }
 
 public sealed class MiscActivityService : IMiscActivityService
@@ -83,6 +89,12 @@ public sealed class MiscActivityService : IMiscActivityService
         var query = CreateFilteredQuery(options);
         query = ApplySorting(query, options);
 
+        var pageSize = options.PageSize <= 0 ? 25 : options.PageSize;
+        var pageNumber = options.PageNumber <= 0 ? 1 : options.PageNumber;
+        var skip = (pageNumber - 1) * pageSize;
+
+        query = query.Skip(skip).Take(pageSize);
+
         return await query
             .Select(x => new MiscActivityListItem(
                 x.Id,
@@ -93,6 +105,8 @@ public sealed class MiscActivityService : IMiscActivityService
                 x.Description,
                 x.ExternalLink,
                 x.Media.Count,
+                x.Media.Count(m => m.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)),
+                x.Media.Count(m => string.Equals(m.MediaType, "application/pdf", StringComparison.OrdinalIgnoreCase)),
                 x.DeletedUtc != null,
                 x.CapturedAtUtc,
                 x.CapturedByUserId,
@@ -121,6 +135,17 @@ public sealed class MiscActivityService : IMiscActivityService
                 x.ExternalLink,
                 x.Media.Count))
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<int> CountAsync(MiscActivityQueryOptions options, CancellationToken cancellationToken)
+    {
+        if (options is null)
+        {
+            throw new ArgumentNullException(nameof(options));
+        }
+
+        var query = CreateFilteredQuery(options);
+        return await query.CountAsync(cancellationToken);
     }
 
     public async Task<MiscActivity?> FindAsync(Guid id, CancellationToken cancellationToken)
@@ -523,6 +548,68 @@ public sealed class MiscActivityService : IMiscActivityService
         return ActivityMediaDeletionResult.Success(activity.RowVersion);
     }
 
+    public async Task<IReadOnlyList<MiscActivityCreatorOption>> GetCreatorsAsync(CancellationToken cancellationToken)
+    {
+        var creatorIds = await _db.MiscActivities.AsNoTracking()
+            .Select(x => x.CapturedByUserId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        if (creatorIds.Count == 0)
+        {
+            return Array.Empty<MiscActivityCreatorOption>();
+        }
+
+        var displayNames = await GetUserDisplayNamesAsync(creatorIds, cancellationToken);
+
+        return creatorIds
+            .Select(id => new MiscActivityCreatorOption(id, displayNames.TryGetValue(id, out var name) ? name : id))
+            .OrderBy(option => option.DisplayName, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+    }
+
+    public async Task<IReadOnlyDictionary<string, string>> GetUserDisplayNamesAsync(
+        IEnumerable<string> userIds,
+        CancellationToken cancellationToken)
+    {
+        if (userIds is null)
+        {
+            throw new ArgumentNullException(nameof(userIds));
+        }
+
+        var distinct = userIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (distinct.Count == 0)
+        {
+            return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var users = await _db.Users.AsNoTracking()
+            .Where(user => distinct.Contains(user.Id))
+            .Select(user => new { user.Id, user.FullName, user.UserName, user.Email })
+            .ToListAsync(cancellationToken);
+
+        var results = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var user in users)
+        {
+            results[user.Id] = FormatDisplayName(user.FullName, user.UserName, user.Email, user.Id);
+        }
+
+        foreach (var id in distinct)
+        {
+            if (!results.ContainsKey(id))
+            {
+                results[id] = id;
+            }
+        }
+
+        return results;
+    }
+
     private IQueryable<MiscActivity> CreateFilteredQuery(MiscActivityQueryOptions options)
     {
         var query = _db.MiscActivities.AsNoTracking().Include(x => x.ActivityType).Include(x => x.Media);
@@ -565,6 +652,23 @@ public sealed class MiscActivityService : IMiscActivityService
                     x.Nomenclature.Contains(text) ||
                     (x.Description != null && x.Description.Contains(text)));
             }
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.CapturedByUserId))
+        {
+            var capturedBy = options.CapturedByUserId.Trim();
+            query = query.Where(x => x.CapturedByUserId == capturedBy);
+        }
+
+        if (options.AttachmentType != MiscActivityAttachmentTypeFilter.Any)
+        {
+            query = options.AttachmentType switch
+            {
+                MiscActivityAttachmentTypeFilter.Images => query.Where(x => x.Media.Any(m => m.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))),
+                MiscActivityAttachmentTypeFilter.Documents => query.Where(x => x.Media.Any(m => string.Equals(m.MediaType, "application/pdf", StringComparison.OrdinalIgnoreCase))),
+                MiscActivityAttachmentTypeFilter.WithoutAttachments => query.Where(x => !x.Media.Any()),
+                _ => query
+            };
         }
 
         return query;
@@ -704,6 +808,26 @@ public sealed class MiscActivityService : IMiscActivityService
             _ => null
         };
     }
+
+    private static string FormatDisplayName(string? fullName, string? userName, string? email, string fallback)
+    {
+        if (!string.IsNullOrWhiteSpace(fullName))
+        {
+            return fullName.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(userName))
+        {
+            return userName!;
+        }
+
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            return email!;
+        }
+
+        return fallback;
+    }
 }
 
 public sealed record MiscActivityQueryOptions(
@@ -713,7 +837,11 @@ public sealed record MiscActivityQueryOptions(
     string? SearchText,
     bool IncludeDeleted,
     MiscActivitySortField SortField = MiscActivitySortField.OccurrenceDate,
-    bool SortDescending = true);
+    bool SortDescending = true,
+    string? CapturedByUserId = null,
+    MiscActivityAttachmentTypeFilter AttachmentType = MiscActivityAttachmentTypeFilter.Any,
+    int PageNumber = 1,
+    int PageSize = 25);
 
 public enum MiscActivitySortField
 {
@@ -731,6 +859,8 @@ public sealed record MiscActivityListItem(
     string? Description,
     string? ExternalLink,
     int MediaCount,
+    int ImageCount,
+    int DocumentCount,
     bool IsDeleted,
     DateTimeOffset CapturedAtUtc,
     string CapturedByUserId,
@@ -745,6 +875,16 @@ public sealed record MiscActivityExportRow(
     string? Description,
     string? ExternalLink,
     int MediaCount);
+
+public sealed record MiscActivityCreatorOption(string UserId, string DisplayName);
+
+public enum MiscActivityAttachmentTypeFilter
+{
+    Any,
+    Images,
+    Documents,
+    WithoutAttachments
+}
 
 public sealed record MiscActivityCreateRequest(
     Guid? ActivityTypeId,

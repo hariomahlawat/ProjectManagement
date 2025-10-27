@@ -1,0 +1,215 @@
+@page "{id:guid}"
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.MiscActivities.DetailsModel
+@using System.Globalization
+@using System.Linq
+@{
+    if (Model.Activity is null)
+    {
+        ViewData["Title"] = "Activity details";
+    }
+    else
+    {
+        ViewData["Title"] = Model.Activity.Nomenclature;
+    }
+
+    string FormatFileSize(long bytes)
+    {
+        if (bytes >= 1024 * 1024)
+        {
+            return string.Format(CultureInfo.CurrentCulture, "{0:N1} MB", bytes / (1024d * 1024d));
+        }
+
+        if (bytes >= 1024)
+        {
+            return string.Format(CultureInfo.CurrentCulture, "{0:N1} KB", bytes / 1024d);
+        }
+
+        return string.Format(CultureInfo.CurrentCulture, "{0:N0} bytes", bytes);
+    }
+
+    bool IsImage(string? mediaType) => !string.IsNullOrWhiteSpace(mediaType) && mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
+}
+
+@if (Model.Activity is null)
+{
+    <partial name="_StatusMessage" model="" />
+    return;
+}
+
+<nav aria-label="Breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+        <li class="breadcrumb-item"><a asp-page="Index">Miscellaneous activities</a></li>
+        <li class="breadcrumb-item active" aria-current="page">@Model.Activity.Nomenclature</li>
+    </ol>
+</nav>
+
+@if (TempData["Flash"] is string flash && !string.IsNullOrWhiteSpace(flash))
+{
+    <div class="alert alert-success">@flash</div>
+}
+
+<section class="card mb-4">
+    <div class="card-body">
+        <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+            <div>
+                <h1 class="mb-1">@Model.Activity.Nomenclature</h1>
+                <div class="text-muted">@Model.Activity.OccurrenceDate.ToString("dddd, dd MMMM yyyy")</div>
+                @if (Model.Activity.IsDeleted)
+                {
+                    <span class="badge bg-warning-subtle text-warning-emphasis mt-2">Deleted</span>
+                }
+            </div>
+            <div class="text-end">
+                @if (!string.IsNullOrWhiteSpace(Model.Activity.ActivityTypeName))
+                {
+                    <span class="badge text-bg-secondary">@Model.Activity.ActivityTypeName</span>
+                }
+            </div>
+        </div>
+
+        <dl class="row mt-4 mb-0">
+            <dt class="col-sm-3">Captured by</dt>
+            <dd class="col-sm-9">@(string.IsNullOrWhiteSpace(Model.Activity.CapturedByDisplayName) ? Model.Activity.CapturedByUserId : Model.Activity.CapturedByDisplayName) on @Model.Activity.CapturedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</dd>
+
+            <dt class="col-sm-3">Last modified</dt>
+            <dd class="col-sm-9">
+                @if (Model.Activity.LastModifiedAtUtc.HasValue)
+                {
+                    var modifier = string.IsNullOrWhiteSpace(Model.Activity.LastModifiedByDisplayName)
+                        ? Model.Activity.LastModifiedByUserId
+                        : Model.Activity.LastModifiedByDisplayName;
+                    @:@Model.Activity.LastModifiedAtUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm") by @modifier
+                }
+                else
+                {
+                    <span class="text-muted">No updates</span>
+                }
+            </dd>
+
+            @if (Model.Activity.DeletedUtc.HasValue)
+            {
+                <dt class="col-sm-3">Deleted</dt>
+                <dd class="col-sm-9">
+                    var deleter = string.IsNullOrWhiteSpace(Model.Activity.DeletedByDisplayName)
+                        ? Model.Activity.DeletedByUserId
+                        : Model.Activity.DeletedByDisplayName;
+                    @:@Model.Activity.DeletedUtc.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm") by @deleter
+                </dd>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(Model.Activity.ExternalLink))
+            {
+                <dt class="col-sm-3">External link</dt>
+                <dd class="col-sm-9"><a href="@Model.Activity.ExternalLink" target="_blank" rel="noopener">@Model.Activity.ExternalLink</a></dd>
+            }
+        </dl>
+    </div>
+</section>
+
+<section class="card mb-4">
+    <div class="card-body">
+        <h2 class="h5">Description</h2>
+        @if (string.IsNullOrWhiteSpace(Model.Activity.Description))
+        {
+            <p class="text-muted mb-0">No description captured.</p>
+        }
+        else
+        {
+            <p class="mb-0">@Model.Activity.Description</p>
+        }
+    </div>
+</section>
+
+@if (Model.CanManage && !Model.Activity.IsDeleted)
+{
+    <section class="card mb-4">
+        <div class="card-body">
+            <h2 class="h5">Upload attachment</h2>
+            <form method="post" asp-page-handler="Upload" enctype="multipart/form-data" class="row g-3" data-misc-upload>
+                <input type="hidden" asp-for="Upload.RowVersion" />
+                <div asp-validation-summary="ModelOnly" class="col-12 text-danger"></div>
+                <div class="col-12 col-md-6">
+                    <label asp-for="Upload.File" class="form-label">File</label>
+                    <input asp-for="Upload.File" class="form-control" type="file" accept="@string.Join(",", Model.Upload.AllowedContentTypes)" data-max-size="@Model.Upload.MaxFileSizeBytes" data-allowed-types="@string.Join(",", Model.Upload.AllowedContentTypes)" />
+                    <span asp-validation-for="Upload.File" class="text-danger"></span>
+                    <small class="text-muted">Max size: @FormatFileSize(Model.Upload.MaxFileSizeBytes). Allowed types: @string.Join(", ", Model.Upload.AllowedContentTypes).</small>
+                </div>
+                <div class="col-12 col-md-6">
+                    <label asp-for="Upload.Caption" class="form-label">Caption</label>
+                    <input asp-for="Upload.Caption" class="form-control" />
+                    <span asp-validation-for="Upload.Caption" class="text-danger"></span>
+                </div>
+                <div class="col-12 d-flex justify-content-end">
+                    <button type="submit" class="btn btn-primary">Upload file</button>
+                </div>
+            </form>
+        </div>
+    </section>
+}
+
+@{
+    var images = Model.Activity.Media.Where(m => IsImage(m.MediaType)).ToList();
+    var documents = Model.Activity.Media.Where(m => !IsImage(m.MediaType)).ToList();
+}
+
+<section class="card mb-4">
+    <div class="card-body">
+        <h2 class="h5">Gallery</h2>
+        @if (images.Count == 0)
+        {
+            <p class="text-muted mb-0">No images uploaded yet.</p>
+        }
+        else
+        {
+            <div class="row g-3">
+                @foreach (var media in images)
+                {
+                    var imageUrl = Url.Content($"~/uploads/{media.StorageKey}");
+                    <div class="col-12 col-md-4">
+                        <div class="card h-100">
+                            <img src="@imageUrl" class="card-img-top" alt="@media.Caption" />
+                            <div class="card-body">
+                                <h3 class="h6 card-title">@media.Caption ?? media.OriginalFileName</h3>
+                                <p class="card-text text-muted mb-2">Uploaded @media.UploadedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm") by @(string.IsNullOrWhiteSpace(media.UploadedByDisplayName) ? media.UploadedByUserId : media.UploadedByDisplayName)</p>
+                                <p class="card-text"><small class="text-muted">@FormatFileSize(media.FileSize)</small></p>
+                                <a href="@imageUrl" target="_blank" class="btn btn-sm btn-outline-secondary">Open image</a>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</section>
+
+<section class="card mb-4">
+    <div class="card-body">
+        <h2 class="h5">Documents</h2>
+        @if (documents.Count == 0)
+        {
+            <p class="text-muted mb-0">No documents uploaded yet.</p>
+        }
+        else
+        {
+            <div class="list-group">
+                @foreach (var media in documents)
+                {
+                    var fileUrl = Url.Content($"~/uploads/{media.StorageKey}");
+                    <a href="@fileUrl" target="_blank" class="list-group-item list-group-item-action d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="fw-semibold">@media.OriginalFileName</div>
+                            <div class="text-muted small">Uploaded @media.UploadedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm") by @(string.IsNullOrWhiteSpace(media.UploadedByDisplayName) ? media.UploadedByUserId : media.UploadedByDisplayName)</div>
+                        </div>
+                        <span class="badge text-bg-light">@FormatFileSize(media.FileSize)</span>
+                    </a>
+                }
+            </div>
+        }
+    </div>
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/project-office/misc-activities.js"></script>
+}

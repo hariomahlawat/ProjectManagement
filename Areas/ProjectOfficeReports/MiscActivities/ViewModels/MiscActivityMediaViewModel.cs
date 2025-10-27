@@ -22,6 +22,8 @@ public sealed class MiscActivityMediaViewModel
 
     public string UploadedByUserId { get; init; } = string.Empty;
 
+    public string UploadedByDisplayName { get; init; } = string.Empty;
+
     public string RowVersion { get; init; } = string.Empty;
 
     public string StorageKey { get; init; } = string.Empty;

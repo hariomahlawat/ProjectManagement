@@ -134,7 +134,13 @@ public sealed class MiscActivityServiceTests
             new DateOnly(2024, 4, 1),
             new DateOnly(2024, 4, 30),
             "reports",
-            IncludeDeleted: false);
+            IncludeDeleted: false,
+            SortField: MiscActivitySortField.OccurrenceDate,
+            SortDescending: true,
+            CapturedByUserId: null,
+            AttachmentType: MiscActivityAttachmentTypeFilter.Any,
+            PageNumber: 1,
+            PageSize: 25);
 
         var results = await service.SearchAsync(options, CancellationToken.None);
 
