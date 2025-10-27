@@ -20,7 +20,10 @@ internal sealed class ActivityAttachmentValidator : IActivityAttachmentValidator
         "image/png",
         "image/jpeg",
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "video/mp4",
+        "video/quicktime",
+        "video/webm"
     };
 
     public void Validate(ActivityAttachmentUpload upload)
