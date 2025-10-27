@@ -7,6 +7,10 @@
 @{
     var pageTitle = Model.TrainingId.HasValue ? "Edit training" : "New training";
     ViewData["Title"] = pageTitle;
+
+    var input = Model.Input ?? ManageModel.InputModel.CreateDefault();
+    var existingTrainingId = input.Id ?? Model.TrainingId;
+    var canRequestDelete = existingTrainingId.HasValue && Model.PendingDeleteRequest is null;
 }
 
 <div class="container-fluid py-3">
@@ -211,10 +215,7 @@
                 </div>
 
                 <div class="card-body">
-                    @{ var input = Model.Input ?? ManageModel.InputModel.CreateDefault();
-                       var sourceLabel = input.CounterSource == TrainingCounterSource.Roster ? "Roster" : "Legacy counts";
-                       var existingTrainingId = Model.Input?.Id;
-                       var canRequestDelete = existingTrainingId.HasValue && Model.PendingDeleteRequest is null; }
+                    @{ var sourceLabel = input.CounterSource == TrainingCounterSource.Roster ? "Roster" : "Legacy counts"; }
                     <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
                         <div class="d-flex flex-wrap gap-2">
                             <span class="badge bg-primary-subtle text-primary-emphasis">Officers: <span id="rosterOfficersCount">@input.CounterOfficers</span></span>
