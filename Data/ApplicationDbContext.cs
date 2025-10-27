@@ -12,6 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Activities;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Plans;
 using ProjectManagement.Models.Scheduling;
@@ -101,6 +102,9 @@ namespace ProjectManagement.Data
         public DbSet<ProliferationYearPreference> ProliferationYearPreferences => Set<ProliferationYearPreference>();
         public DbSet<IprRecord> IprRecords => Set<IprRecord>();
         public DbSet<IprAttachment> IprAttachments => Set<IprAttachment>();
+        public DbSet<ActivityType> ActivityTypes => Set<ActivityType>();
+        public DbSet<Activity> Activities => Set<Activity>();
+        public DbSet<ActivityAttachment> ActivityAttachments => Set<ActivityAttachment>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -2047,6 +2051,185 @@ namespace ProjectManagement.Data
                     .WithMany(x => x.Trainees)
                     .HasForeignKey(x => x.TrainingId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ActivityType>(entity =>
+            {
+                ConfigureRowVersion(entity);
+                entity.ToTable("ActivityTypes");
+                entity.Property(x => x.Name).HasMaxLength(120).IsRequired();
+                entity.Property(x => x.Description).HasMaxLength(512);
+                entity.Property(x => x.IsActive).HasDefaultValue(true);
+                entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.LastModifiedByUserId).HasMaxLength(450);
+                entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                if (Database.IsNpgsql())
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone");
+                    entity.Property(x => x.LastModifiedAtUtc).HasColumnType("timestamp with time zone");
+                }
+                else if (Database.IsSqlServer())
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+
+                entity.HasIndex(x => x.Name)
+                    .HasDatabaseName("UX_ActivityTypes_Name")
+                    .IsUnique();
+
+                entity.HasOne(x => x.CreatedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.CreatedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(x => x.LastModifiedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.LastModifiedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                var activityTypeSeedCreatedAt = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero);
+                entity.HasData(
+                    new ActivityType
+                    {
+                        Id = 1,
+                        Name = "Training",
+                        Description = "Formal training activities.",
+                        IsActive = true,
+                        CreatedAtUtc = activityTypeSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("2f9f5b6c-0bfe-4f23-9d3c-0fd22a6f6a4b").ToByteArray()
+                    },
+                    new ActivityType
+                    {
+                        Id = 2,
+                        Name = "Engagement",
+                        Description = "Stakeholder engagement or outreach.",
+                        IsActive = true,
+                        CreatedAtUtc = activityTypeSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("c9b1c4a7-2e3a-4a37-9b0a-5be85f4ed957").ToByteArray()
+                    });
+            });
+
+            builder.Entity<Activity>(entity =>
+            {
+                ConfigureRowVersion(entity);
+                entity.ToTable("Activities");
+                entity.Property(x => x.Title).HasMaxLength(200).IsRequired();
+                entity.Property(x => x.Description).HasMaxLength(2000);
+                entity.Property(x => x.Location).HasMaxLength(450);
+                entity.Property(x => x.CreatedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.LastModifiedByUserId).HasMaxLength(450);
+                entity.Property(x => x.DeletedByUserId).HasMaxLength(450);
+                entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+                entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                if (Database.IsNpgsql())
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasColumnType("timestamp with time zone");
+                    entity.Property(x => x.LastModifiedAtUtc).HasColumnType("timestamp with time zone");
+                    entity.Property(x => x.DeletedAtUtc).HasColumnType("timestamp with time zone");
+                    entity.Property(x => x.ScheduledStartUtc).HasColumnType("timestamp with time zone");
+                    entity.Property(x => x.ScheduledEndUtc).HasColumnType("timestamp with time zone");
+                }
+                else if (Database.IsSqlServer())
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else
+                {
+                    entity.Property(x => x.CreatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+
+                entity.HasIndex(x => x.ActivityTypeId)
+                    .HasDatabaseName("IX_Activities_ActivityTypeId");
+
+                entity.HasIndex(x => x.CreatedAtUtc)
+                    .HasDatabaseName("IX_Activities_CreatedAtUtc");
+
+                entity.HasIndex(x => x.ScheduledStartUtc)
+                    .HasDatabaseName("IX_Activities_ScheduledStartUtc");
+
+                var uniqueActivityTitle = entity.HasIndex(x => new { x.ActivityTypeId, x.Title })
+                    .HasDatabaseName("UX_Activities_ActivityTypeId_Title")
+                    .IsUnique();
+
+                if (Database.IsNpgsql())
+                {
+                    uniqueActivityTitle.HasFilter("\"IsDeleted\" = FALSE");
+                }
+                else if (Database.IsSqlServer())
+                {
+                    uniqueActivityTitle.HasFilter("[IsDeleted] = 0");
+                }
+                else
+                {
+                    uniqueActivityTitle.HasFilter("IsDeleted = 0");
+                }
+
+                entity.HasOne(x => x.ActivityType)
+                    .WithMany(x => x.Activities)
+                    .HasForeignKey(x => x.ActivityTypeId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(x => x.CreatedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.CreatedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(x => x.LastModifiedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.LastModifiedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasOne(x => x.DeletedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.DeletedByUserId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasMany(x => x.Attachments)
+                    .WithOne(x => x.Activity)
+                    .HasForeignKey(x => x.ActivityId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ActivityAttachment>(entity =>
+            {
+                ConfigureRowVersion(entity);
+                entity.ToTable("ActivityAttachments");
+                entity.Property(x => x.StorageKey).HasMaxLength(260).IsRequired();
+                entity.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
+                entity.Property(x => x.ContentType).HasMaxLength(128).IsRequired();
+                entity.Property(x => x.UploadedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.FileSize).HasConversion<long>();
+                entity.Property(x => x.UploadedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+
+                if (Database.IsNpgsql())
+                {
+                    entity.Property(x => x.UploadedAtUtc).HasColumnType("timestamp with time zone");
+                }
+                else if (Database.IsSqlServer())
+                {
+                    entity.Property(x => x.UploadedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else
+                {
+                    entity.Property(x => x.UploadedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+
+                entity.HasIndex(x => x.ActivityId)
+                    .HasDatabaseName("IX_ActivityAttachments_ActivityId");
+
+                entity.HasIndex(x => x.UploadedAtUtc)
+                    .HasDatabaseName("IX_ActivityAttachments_UploadedAtUtc");
+
+                entity.HasOne(x => x.UploadedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.UploadedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             builder.Entity<TrainingDeleteRequest>(entity =>
