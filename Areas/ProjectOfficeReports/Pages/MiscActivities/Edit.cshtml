@@ -1,0 +1,56 @@
+@page "{id:guid}"
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.MiscActivities.EditModel
+@{
+    ViewData["Title"] = "Edit activity";
+}
+
+<nav aria-label="Breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+        <li class="breadcrumb-item"><a asp-page="Index">Miscellaneous activities</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Edit</li>
+    </ol>
+</nav>
+
+<section class="card">
+    <div class="card-body">
+        <h1 class="h4 mb-3">Edit activity</h1>
+        <form method="post" class="row g-3">
+            <input type="hidden" asp-for="Form.RowVersion" />
+            <div asp-validation-summary="ModelOnly" class="col-12 text-danger"></div>
+            <div class="col-12 col-md-6">
+                <label asp-for="Form.ActivityTypeId" class="form-label">Activity type</label>
+                <select asp-for="Form.ActivityTypeId" class="form-select" asp-items="Model.Form.ActivityTypeOptions"></select>
+                <span asp-validation-for="Form.ActivityTypeId" class="text-danger"></span>
+            </div>
+            <div class="col-12 col-md-6">
+                <label asp-for="Form.OccurrenceDate" class="form-label">Activity date</label>
+                <input asp-for="Form.OccurrenceDate" type="date" class="form-control" />
+                <span asp-validation-for="Form.OccurrenceDate" class="text-danger"></span>
+            </div>
+            <div class="col-12">
+                <label asp-for="Form.Nomenclature" class="form-label">Nomenclature</label>
+                <input asp-for="Form.Nomenclature" class="form-control" />
+                <span asp-validation-for="Form.Nomenclature" class="text-danger"></span>
+            </div>
+            <div class="col-12">
+                <label asp-for="Form.Description" class="form-label">Description</label>
+                <textarea asp-for="Form.Description" class="form-control" rows="4"></textarea>
+                <span asp-validation-for="Form.Description" class="text-danger"></span>
+            </div>
+            <div class="col-12">
+                <label asp-for="Form.ExternalLink" class="form-label">External link</label>
+                <input asp-for="Form.ExternalLink" class="form-control" />
+                <span asp-validation-for="Form.ExternalLink" class="text-danger"></span>
+            </div>
+            <div class="col-12 d-flex justify-content-end gap-2">
+                <a asp-page="Details" asp-route-id="@Model.ActivityId" class="btn btn-outline-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary">Save changes</button>
+            </div>
+        </form>
+    </div>
+</section>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

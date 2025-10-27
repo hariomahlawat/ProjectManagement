@@ -227,7 +227,11 @@ public sealed class MiscActivitiesController : ControllerBase
             search,
             query.IncludeDeleted,
             query.Sort,
-            query.Desc);
+            query.Desc,
+            query.CreatorUserId,
+            query.AttachmentType,
+            query.Page,
+            query.PageSize);
     }
 
     private static MiscActivityListItemDto MapListItem(MiscActivityListItem item)
@@ -241,6 +245,8 @@ public sealed class MiscActivitiesController : ControllerBase
             item.Description,
             item.ExternalLink,
             item.MediaCount,
+            item.ImageCount,
+            item.DocumentCount,
             item.IsDeleted,
             item.CapturedAtUtc,
             item.CapturedByUserId,

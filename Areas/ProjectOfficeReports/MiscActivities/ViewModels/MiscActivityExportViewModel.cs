@@ -46,6 +46,12 @@ public sealed class MiscActivityExportViewModel : IValidatableObject
             StartDate,
             EndDate,
             trimmedSearch,
-            IncludeDeleted);
+            IncludeDeleted,
+            MiscActivitySortField.OccurrenceDate,
+            true,
+            null,
+            MiscActivityAttachmentTypeFilter.Any,
+            1,
+            int.MaxValue);
     }
 }

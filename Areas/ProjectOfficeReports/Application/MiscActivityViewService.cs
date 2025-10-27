@@ -52,8 +52,26 @@ public sealed class MiscActivityViewService : IMiscActivityViewService
         CancellationToken cancellationToken)
     {
         var normalized = NormalizeQueryOptions(options);
+        var totalCount = await _activityService.CountAsync(normalized, cancellationToken);
         var activities = await _activityService.SearchAsync(normalized, cancellationToken);
         var activityTypes = await _activityTypeService.GetAllAsync(includeInactive: true, cancellationToken);
+        var creators = await _activityService.GetCreatorsAsync(cancellationToken);
+
+        var userIds = activities
+            .SelectMany(item => new[] { item.CapturedByUserId, item.LastModifiedByUserId })
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var userDisplayNames = userIds.Count == 0
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : (IReadOnlyDictionary<string, string>)await _activityService.GetUserDisplayNamesAsync(userIds, cancellationToken);
+
+        var pageNumber = normalized.PageNumber <= 0 ? 1 : normalized.PageNumber;
+        var pageSize = normalized.PageSize <= 0 ? 25 : normalized.PageSize;
+        var totalPages = pageSize <= 0
+            ? 1
+            : Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
 
         var filter = new MiscActivityIndexFilterViewModel
         {
@@ -64,17 +82,30 @@ public sealed class MiscActivityViewService : IMiscActivityViewService
             IncludeDeleted = normalized.IncludeDeleted,
             Sort = normalized.SortField,
             SortDescending = normalized.SortDescending,
-            ActivityTypeOptions = BuildActivityTypeOptions(activityTypes, normalized.ActivityTypeId)
+            CreatorUserId = normalized.CapturedByUserId,
+            AttachmentType = normalized.AttachmentType,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            ActivityTypeOptions = BuildActivityTypeOptions(activityTypes, normalized.ActivityTypeId),
+            CreatorOptions = BuildCreatorOptions(creators, normalized.CapturedByUserId),
+            AttachmentTypeOptions = BuildAttachmentTypeOptions(normalized.AttachmentType)
         };
 
         var items = activities
-            .Select(MapListItem)
+            .Select(item => MapListItem(item, userDisplayNames))
             .ToList();
 
         return new MiscActivityIndexViewModel
         {
             Filter = filter,
-            Activities = items
+            Activities = items,
+            Pagination = new MiscActivityIndexPaginationViewModel
+            {
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalCount = totalCount,
+                TotalPages = totalPages
+            }
         };
     }
 
@@ -117,6 +148,19 @@ public sealed class MiscActivityViewService : IMiscActivityViewService
             return null;
         }
 
+        var userIds = new List<string?>
+        {
+            activity.CapturedByUserId,
+            activity.LastModifiedByUserId,
+            activity.DeletedByUserId
+        };
+
+        userIds.AddRange(activity.Media.Select(m => m.UploadedByUserId));
+
+        var displayNames = await _activityService.GetUserDisplayNamesAsync(
+            userIds.Where(id => !string.IsNullOrWhiteSpace(id)).Select(id => id!),
+            cancellationToken);
+
         var upload = new MiscActivityMediaUploadViewModel
         {
             RowVersion = Convert.ToBase64String(activity.RowVersion),
@@ -127,7 +171,7 @@ public sealed class MiscActivityViewService : IMiscActivityViewService
         var media = activity.Media
             .OrderByDescending(x => x.UploadedAtUtc)
             .ThenBy(x => x.OriginalFileName, StringComparer.OrdinalIgnoreCase)
-            .Select(MapMedia)
+            .Select(x => MapMedia(x, displayNames))
             .ToList();
 
         return new MiscActivityDetailViewModel
@@ -142,10 +186,13 @@ public sealed class MiscActivityViewService : IMiscActivityViewService
             IsDeleted = activity.DeletedUtc.HasValue,
             CapturedAtUtc = activity.CapturedAtUtc,
             CapturedByUserId = activity.CapturedByUserId,
+            CapturedByDisplayName = ResolveDisplayName(displayNames, activity.CapturedByUserId),
             LastModifiedAtUtc = activity.LastModifiedAtUtc,
             LastModifiedByUserId = activity.LastModifiedByUserId,
+            LastModifiedByDisplayName = ResolveDisplayName(displayNames, activity.LastModifiedByUserId),
             DeletedUtc = activity.DeletedUtc,
             DeletedByUserId = activity.DeletedByUserId,
+            DeletedByDisplayName = ResolveDisplayName(displayNames, activity.DeletedByUserId),
             RowVersion = Convert.ToBase64String(activity.RowVersion),
             Media = media,
             Upload = upload
@@ -172,6 +219,12 @@ public sealed class MiscActivityViewService : IMiscActivityViewService
     private static MiscActivityQueryOptions NormalizeQueryOptions(MiscActivityQueryOptions options)
     {
         var trimmedSearch = string.IsNullOrWhiteSpace(options.SearchText) ? null : options.SearchText.Trim();
+        var trimmedCreator = string.IsNullOrWhiteSpace(options.CapturedByUserId)
+            ? null
+            : options.CapturedByUserId.Trim();
+        var pageSize = options.PageSize <= 0 ? 25 : Math.Min(options.PageSize, 100);
+        var pageNumber = options.PageNumber <= 0 ? 1 : options.PageNumber;
+
         return new MiscActivityQueryOptions(
             options.ActivityTypeId,
             options.StartDate,
@@ -179,10 +232,16 @@ public sealed class MiscActivityViewService : IMiscActivityViewService
             trimmedSearch,
             options.IncludeDeleted,
             options.SortField,
-            options.SortDescending);
+            options.SortDescending,
+            trimmedCreator,
+            options.AttachmentType,
+            pageNumber,
+            pageSize);
     }
 
-    private static MiscActivityListItemViewModel MapListItem(MiscActivityListItem item)
+    private static MiscActivityListItemViewModel MapListItem(
+        MiscActivityListItem item,
+        IReadOnlyDictionary<string, string> displayNames)
     {
         return new MiscActivityListItemViewModel
         {
@@ -194,16 +253,22 @@ public sealed class MiscActivityViewService : IMiscActivityViewService
             Description = item.Description,
             ExternalLink = item.ExternalLink,
             MediaCount = item.MediaCount,
+            ImageCount = item.ImageCount,
+            DocumentCount = item.DocumentCount,
             IsDeleted = item.IsDeleted,
             CapturedAtUtc = item.CapturedAtUtc,
             CapturedByUserId = item.CapturedByUserId,
+            CapturedByDisplayName = ResolveDisplayName(displayNames, item.CapturedByUserId),
             LastModifiedAtUtc = item.LastModifiedAtUtc,
             LastModifiedByUserId = item.LastModifiedByUserId,
+            LastModifiedByDisplayName = ResolveDisplayName(displayNames, item.LastModifiedByUserId),
             RowVersion = Convert.ToBase64String(item.RowVersion)
         };
     }
 
-    private static MiscActivityMediaViewModel MapMedia(ActivityMedia media)
+    private static MiscActivityMediaViewModel MapMedia(
+        ActivityMedia media,
+        IReadOnlyDictionary<string, string> displayNames)
     {
         return new MiscActivityMediaViewModel
         {
@@ -216,6 +281,7 @@ public sealed class MiscActivityViewService : IMiscActivityViewService
             Height = media.Height,
             UploadedAtUtc = media.UploadedAtUtc,
             UploadedByUserId = media.UploadedByUserId,
+            UploadedByDisplayName = ResolveDisplayName(displayNames, media.UploadedByUserId),
             RowVersion = Convert.ToBase64String(media.RowVersion),
             StorageKey = media.StorageKey
         };
@@ -234,5 +300,46 @@ public sealed class MiscActivityViewService : IMiscActivityViewService
                 Disabled = !type.IsActive
             })
             .ToList();
+    }
+
+    private static IReadOnlyList<SelectListItem> BuildCreatorOptions(
+        IReadOnlyList<MiscActivityCreatorOption> creators,
+        string? selectedId)
+    {
+        var options = new List<SelectListItem>
+        {
+            new("All creators", string.Empty)
+        };
+
+        foreach (var creator in creators.OrderBy(c => c.DisplayName, StringComparer.CurrentCultureIgnoreCase))
+        {
+            options.Add(new SelectListItem(creator.DisplayName, creator.UserId)
+            {
+                Selected = !string.IsNullOrWhiteSpace(selectedId) && string.Equals(creator.UserId, selectedId, StringComparison.OrdinalIgnoreCase)
+            });
+        }
+
+        return options;
+    }
+
+    private static IReadOnlyList<SelectListItem> BuildAttachmentTypeOptions(MiscActivityAttachmentTypeFilter selected)
+    {
+        return new List<SelectListItem>
+        {
+            new("All attachments", MiscActivityAttachmentTypeFilter.Any.ToString()) { Selected = selected == MiscActivityAttachmentTypeFilter.Any },
+            new("Images", MiscActivityAttachmentTypeFilter.Images.ToString()) { Selected = selected == MiscActivityAttachmentTypeFilter.Images },
+            new("Documents", MiscActivityAttachmentTypeFilter.Documents.ToString()) { Selected = selected == MiscActivityAttachmentTypeFilter.Documents },
+            new("Without attachments", MiscActivityAttachmentTypeFilter.WithoutAttachments.ToString()) { Selected = selected == MiscActivityAttachmentTypeFilter.WithoutAttachments }
+        };
+    }
+
+    private static string ResolveDisplayName(IReadOnlyDictionary<string, string> displayNames, string? userId)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            return string.Empty;
+        }
+
+        return displayNames.TryGetValue(userId, out var name) ? name : userId;
     }
 }

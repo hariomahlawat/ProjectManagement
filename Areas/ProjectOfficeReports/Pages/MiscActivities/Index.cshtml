@@ -1,0 +1,245 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.MiscActivities.IndexModel
+@{
+    ViewData["Title"] = "Miscellaneous activities";
+    var filter = Model.ViewModel.Filter;
+    string? FormatDate(DateOnly? value) => value?.ToString("yyyy-MM-dd");
+}
+
+<nav aria-label="Breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+        <li class="breadcrumb-item active" aria-current="page">Miscellaneous activities</li>
+    </ol>
+</nav>
+
+<section class="mb-4">
+    <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3">
+        <div>
+            <h1 class="mb-1">Miscellaneous activities</h1>
+            <p class="text-muted mb-0">Track engagements, uploads and supporting documents for the project office.</p>
+        </div>
+        @if (Model.CanManage)
+        {
+            <a asp-page="Create" class="btn btn-primary d-inline-flex align-items-center gap-2">
+                <i class="bi bi-plus-circle" aria-hidden="true"></i>
+                <span>New activity</span>
+            </a>
+        }
+    </div>
+</section>
+
+<section class="card mb-4">
+    <div class="card-body">
+        <h2 class="h5">Filter activities</h2>
+        <form method="get" class="row g-3 mt-2" role="search">
+            <input type="hidden" name="PageNumber" value="1" />
+            <input type="hidden" asp-for="PageSize" />
+            <div class="col-12 col-md-3">
+                <label class="form-label" asp-for="ActivityTypeId">Activity type</label>
+                <select asp-for="ActivityTypeId" class="form-select" asp-items="filter.ActivityTypeOptions"></select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" asp-for="StartDate">From</label>
+                <input asp-for="StartDate" type="date" class="form-control" />
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" asp-for="EndDate">To</label>
+                <input asp-for="EndDate" type="date" class="form-control" />
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label" asp-for="CreatorUserId">Captured by</label>
+                <select asp-for="CreatorUserId" class="form-select" asp-items="filter.CreatorOptions"></select>
+            </div>
+            <div class="col-12 col-md-2">
+                <label class="form-label" asp-for="AttachmentType">Attachment type</label>
+                <select asp-for="AttachmentType" class="form-select" asp-items="filter.AttachmentTypeOptions"></select>
+            </div>
+            <div class="col-12 col-md-4">
+                <label class="form-label" asp-for="Search">Search</label>
+                <input asp-for="Search" class="form-control" placeholder="Nomenclature or description" />
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" asp-for="Sort">Sort by</label>
+                <select asp-for="Sort" class="form-select">
+                    <option value="OccurrenceDate">Activity date</option>
+                    <option value="CreatedAt">Captured date</option>
+                    <option value="Nomenclature">Nomenclature</option>
+                </select>
+            </div>
+            <div class="col-6 col-md-2">
+                <label class="form-label" asp-for="SortDescending">Order</label>
+                <select asp-for="SortDescending" class="form-select">
+                    <option value="true">Descending</option>
+                    <option value="false">Ascending</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-3 d-flex align-items-center">
+                <div class="form-check mt-4">
+                    <input asp-for="IncludeDeleted" class="form-check-input" />
+                    <label class="form-check-label" asp-for="IncludeDeleted">Include deleted</label>
+                </div>
+            </div>
+            <div class="col-12 col-md-auto align-self-end">
+                <button type="submit" class="btn btn-outline-primary d-inline-flex align-items-center gap-2">
+                    <i class="bi bi-funnel" aria-hidden="true"></i>
+                    <span>Apply</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</section>
+
+<section class="card">
+    <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="h5 mb-0">Activities (@Model.ViewModel.Pagination.TotalCount)</h2>
+            @if (filter.ActivityTypeId.HasValue || filter.StartDate.HasValue || filter.EndDate.HasValue || !string.IsNullOrWhiteSpace(filter.Search) || filter.IncludeDeleted || !string.IsNullOrWhiteSpace(filter.CreatorUserId) || filter.AttachmentType != MiscActivityAttachmentTypeFilter.Any)
+            {
+                <a asp-page="Index" class="btn btn-link">Clear filters</a>
+            }
+        </div>
+
+        @if (Model.ViewModel.Activities.Count == 0)
+        {
+            <div class="alert alert-info" role="status">
+                No activities match the current filters.
+            </div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th scope="col">Date</th>
+                            <th scope="col">Nomenclature</th>
+                            <th scope="col">Type</th>
+                            <th scope="col">Captured by</th>
+                            <th scope="col" class="text-center">Attachments</th>
+                            <th scope="col">Updated</th>
+                            <th scope="col" class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var activity in Model.ViewModel.Activities)
+                        {
+                            <tr class="@(activity.IsDeleted ? "table-warning" : string.Empty)">
+                                <td data-title="Date">@activity.OccurrenceDate.ToString("dd MMM yyyy")</td>
+                                <td data-title="Nomenclature">
+                                    <a asp-page="Details" asp-route-id="@activity.Id" class="fw-semibold">@activity.Nomenclature</a>
+                                    @if (activity.IsDeleted)
+                                    {
+                                        <span class="badge bg-warning-subtle text-warning-emphasis ms-2">Deleted</span>
+                                    }
+                                </td>
+                                <td data-title="Type">@(string.IsNullOrWhiteSpace(activity.ActivityTypeName) ? "—" : activity.ActivityTypeName)</td>
+                                <td data-title="Captured by">
+                                    @(string.IsNullOrWhiteSpace(activity.CapturedByDisplayName)
+                                        ? activity.CapturedByUserId
+                                        : activity.CapturedByDisplayName)
+                                </td>
+                                <td data-title="Attachments" class="text-center">
+                                    @if (activity.MediaCount == 0)
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                    else
+                                    {
+                                        <div class="d-inline-flex gap-2">
+                                            @if (activity.ImageCount > 0)
+                                            {
+                                                <span class="badge text-bg-light" title="Images">
+                                                    <i class="bi bi-image" aria-hidden="true"></i>
+                                                    <span class="ms-1">@activity.ImageCount</span>
+                                                </span>
+                                            }
+                                            @if (activity.DocumentCount > 0)
+                                            {
+                                                <span class="badge text-bg-light" title="Documents">
+                                                    <i class="bi bi-file-earmark-text" aria-hidden="true"></i>
+                                                    <span class="ms-1">@activity.DocumentCount</span>
+                                                </span>
+                                            }
+                                            @if (activity.MediaCount > activity.ImageCount + activity.DocumentCount)
+                                            {
+                                                <span class="badge text-bg-light" title="Other attachments">
+                                                    <i class="bi bi-paperclip" aria-hidden="true"></i>
+                                                    <span class="ms-1">@(activity.MediaCount - activity.ImageCount - activity.DocumentCount)</span>
+                                                </span>
+                                            }
+                                        </div>
+                                    }
+                                </td>
+                                <td data-title="Updated">
+                                    @if (activity.LastModifiedAtUtc.HasValue)
+                                    {
+                                        <div>@activity.LastModifiedAtUtc.Value.ToLocalTime().ToString("dd MMM yyyy")</div>
+                                        <small class="text-muted">@(string.IsNullOrWhiteSpace(activity.LastModifiedByDisplayName)
+                                            ? activity.LastModifiedByUserId
+                                            : activity.LastModifiedByDisplayName)</small>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">—</span>
+                                    }
+                                </td>
+                                <td class="text-end">
+                                    <div class="btn-group btn-group-sm" role="group">
+                                        <a asp-page="Details" asp-route-id="@activity.Id" class="btn btn-outline-secondary">View</a>
+                                        @if (Model.CanManage)
+                                        {
+                                            <a asp-page="Edit" asp-route-id="@activity.Id" class="btn btn-outline-primary">Edit</a>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (Model.ViewModel.Pagination.TotalPages > 1)
+            {
+                var currentPage = Model.ViewModel.Pagination.PageNumber;
+                var previousPage = currentPage - 1;
+                var nextPage = currentPage + 1;
+                <nav aria-label="Activity pagination" class="mt-3">
+                    <ul class="pagination justify-content-center">
+                        <li class="page-item @(Model.ViewModel.Pagination.HasPrevious ? string.Empty : "disabled")">
+                            <a class="page-link"
+                               asp-page="Index"
+                               asp-route-ActivityTypeId="@filter.ActivityTypeId"
+                               asp-route-StartDate="@FormatDate(filter.StartDate)"
+                               asp-route-EndDate="@FormatDate(filter.EndDate)"
+                               asp-route-Search="@filter.Search"
+                               asp-route-IncludeDeleted="@filter.IncludeDeleted"
+                               asp-route-Sort="@filter.Sort"
+                               asp-route-SortDescending="@filter.SortDescending"
+                               asp-route-CreatorUserId="@filter.CreatorUserId"
+                               asp-route-AttachmentType="@filter.AttachmentType"
+                               asp-route-PageSize="@filter.PageSize"
+                               asp-route-PageNumber="@previousPage">Previous</a>
+                        </li>
+                        <li class="page-item disabled"><span class="page-link">Page @currentPage of @Model.ViewModel.Pagination.TotalPages</span></li>
+                        <li class="page-item @(Model.ViewModel.Pagination.HasNext ? string.Empty : "disabled")">
+                            <a class="page-link"
+                               asp-page="Index"
+                               asp-route-ActivityTypeId="@filter.ActivityTypeId"
+                               asp-route-StartDate="@FormatDate(filter.StartDate)"
+                               asp-route-EndDate="@FormatDate(filter.EndDate)"
+                               asp-route-Search="@filter.Search"
+                               asp-route-IncludeDeleted="@filter.IncludeDeleted"
+                               asp-route-Sort="@filter.Sort"
+                               asp-route-SortDescending="@filter.SortDescending"
+                               asp-route-CreatorUserId="@filter.CreatorUserId"
+                               asp-route-AttachmentType="@filter.AttachmentType"
+                               asp-route-PageSize="@filter.PageSize"
+                               asp-route-PageNumber="@nextPage">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            }
+        }
+    </div>
+</section>

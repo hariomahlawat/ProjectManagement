@@ -21,6 +21,14 @@ public sealed record MiscActivityListQueryDto
     public MiscActivitySortField Sort { get; init; } = MiscActivitySortField.OccurrenceDate;
 
     public bool Desc { get; init; } = true;
+
+    public string? CreatorUserId { get; init; }
+
+    public MiscActivityAttachmentTypeFilter AttachmentType { get; init; } = MiscActivityAttachmentTypeFilter.Any;
+
+    public int Page { get; init; } = 1;
+
+    public int PageSize { get; init; } = 25;
 }
 
 public sealed record MiscActivityListResponseDto(IReadOnlyList<MiscActivityListItemDto> Items);
@@ -34,6 +42,8 @@ public sealed record MiscActivityListItemDto(
     string? Description,
     string? ExternalLink,
     int MediaCount,
+    int ImageCount,
+    int DocumentCount,
     bool IsDeleted,
     DateTimeOffset CapturedAtUtc,
     string CapturedByUserId,

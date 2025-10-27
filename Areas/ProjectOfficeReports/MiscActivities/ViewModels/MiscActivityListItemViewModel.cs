@@ -20,15 +20,23 @@ public sealed class MiscActivityListItemViewModel
 
     public int MediaCount { get; init; }
 
+    public int ImageCount { get; init; }
+
+    public int DocumentCount { get; init; }
+
     public bool IsDeleted { get; init; }
 
     public DateTimeOffset CapturedAtUtc { get; init; }
 
     public string CapturedByUserId { get; init; } = string.Empty;
 
+    public string CapturedByDisplayName { get; init; } = string.Empty;
+
     public DateTimeOffset? LastModifiedAtUtc { get; init; }
 
     public string? LastModifiedByUserId { get; init; }
+
+    public string? LastModifiedByDisplayName { get; init; }
 
     public string RowVersion { get; init; } = string.Empty;
 }
