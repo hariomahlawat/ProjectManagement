@@ -6,7 +6,11 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Abstractions;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using ProjectManagement.Contracts.Activities;
@@ -48,15 +52,14 @@ public sealed class ActivityIndexPageTests
         {
             new() { Id = 1, Name = "Briefing", CreatedByUserId = "seed" }
         });
+        var exportService = new StubActivityExportService();
 
         var services = new ServiceCollection().BuildServiceProvider();
         var user = new ApplicationUser { Id = "user-1", UserName = "manager" };
         using var userManager = new StubUserManager(user, services, "Admin");
 
-        var page = new IndexModel(activityService, typeService, userManager)
-        {
-            PageContext = CreatePageContext("user-1", new[] { new Claim(ClaimTypes.Role, "Admin") })
-        };
+        var page = new IndexModel(activityService, typeService, exportService, userManager);
+        ConfigurePage(page, CreatePrincipal("user-1", new[] { new Claim(ClaimTypes.Role, "Admin") }));
 
         var actionResult = await page.OnGetAsync(CancellationToken.None);
 
@@ -100,15 +103,14 @@ public sealed class ActivityIndexPageTests
         {
             new() { Id = 2, Name = "Training", CreatedByUserId = "seed" }
         });
+        var exportService = new StubActivityExportService();
 
         var services = new ServiceCollection().BuildServiceProvider();
         var user = new ApplicationUser { Id = "viewer-1", UserName = "viewer" };
         using var userManager = new StubUserManager(user, services);
 
-        var page = new IndexModel(activityService, typeService, userManager)
-        {
-            PageContext = CreatePageContext("viewer-1")
-        };
+        var page = new IndexModel(activityService, typeService, exportService, userManager);
+        ConfigurePage(page, CreatePrincipal("viewer-1", null));
 
         var actionResult = await page.OnGetAsync(CancellationToken.None);
 
@@ -120,7 +122,68 @@ public sealed class ActivityIndexPageTests
         Assert.False(row.CanDelete);
     }
 
-    private static PageContext CreatePageContext(string userId, IEnumerable<Claim>? additionalClaims = null)
+    [Fact]
+    public async Task OnPostExportAsync_UsesFiltersAndReturnsFile()
+    {
+        var activityService = new StubActivityService(new ActivityListResult(Array.Empty<ActivityListItem>(), 0, 1, 25, ActivityListSort.ScheduledStart, true));
+        var typeService = new StubActivityTypeService(Array.Empty<ActivityType>());
+        var exportFile = new ActivityExportResult("MiscActivities_20240101_1200.xlsx", ActivityExportService.ExcelContentType, new byte[] { 0x01, 0x02 });
+        var exportService = new StubActivityExportService(exportFile);
+
+        var services = new ServiceCollection().BuildServiceProvider();
+        var user = new ApplicationUser { Id = "viewer", UserName = "viewer" };
+        using var userManager = new StubUserManager(user, services);
+
+        var page = new IndexModel(activityService, typeService, exportService, userManager)
+        {
+            SortBy = ActivityListSort.Title,
+            SortDir = "asc",
+            FromDate = new DateOnly(2024, 1, 1),
+            ToDate = new DateOnly(2024, 1, 31),
+            ActivityTypeId = 7,
+            CreatedBy = "alex",
+            AttachmentType = ActivityAttachmentTypeFilter.Photo
+        };
+        ConfigurePage(page, CreatePrincipal("viewer", null));
+
+        var result = await page.OnPostExportAsync(CancellationToken.None);
+
+        var fileResult = Assert.IsType<FileContentResult>(result);
+        Assert.Equal(exportFile.ContentType, fileResult.ContentType);
+        Assert.Equal(exportFile.FileName, fileResult.FileDownloadName);
+        Assert.Equal(exportFile.Content, fileResult.FileContents);
+
+        var request = Assert.NotNull(exportService.LastRequest);
+        Assert.Equal(ActivityListSort.Title, request.Sort);
+        Assert.False(request.SortDescending);
+        Assert.Equal(new DateOnly(2024, 1, 1), request.FromDate);
+        Assert.Equal(new DateOnly(2024, 1, 31), request.ToDate);
+        Assert.Equal(7, request.ActivityTypeId);
+        Assert.Equal("alex", request.CreatedBySearch);
+        Assert.Equal(ActivityAttachmentTypeFilter.Photo, request.AttachmentType);
+    }
+
+    [Fact]
+    public async Task OnPostExportAsync_ShowsToastWhenNoResults()
+    {
+        var activityService = new StubActivityService(new ActivityListResult(Array.Empty<ActivityListItem>(), 0, 1, 25, ActivityListSort.ScheduledStart, true));
+        var typeService = new StubActivityTypeService(Array.Empty<ActivityType>());
+        var exportService = new StubActivityExportService(null);
+
+        var services = new ServiceCollection().BuildServiceProvider();
+        var user = new ApplicationUser { Id = "viewer", UserName = "viewer" };
+        using var userManager = new StubUserManager(user, services);
+
+        var page = new IndexModel(activityService, typeService, exportService, userManager);
+        ConfigurePage(page, CreatePrincipal("viewer", null));
+
+        var result = await page.OnPostExportAsync(CancellationToken.None);
+
+        Assert.IsType<RedirectToPageResult>(result);
+        Assert.Equal("No activities match the selected filters.", page.TempData?["ToastMessage"]);
+    }
+
+    private static ClaimsPrincipal CreatePrincipal(string userId, IEnumerable<Claim>? additionalClaims)
     {
         var identityClaims = new List<Claim>
         {
@@ -132,15 +195,20 @@ public sealed class ActivityIndexPageTests
             identityClaims.AddRange(additionalClaims);
         }
 
-        var httpContext = new DefaultHttpContext
+        return new ClaimsPrincipal(new ClaimsIdentity(identityClaims, "TestAuth"));
+    }
+
+    private static void ConfigurePage(IndexModel page, ClaimsPrincipal user)
+    {
+        var httpContext = new DefaultHttpContext { User = user };
+        var actionContext = new ActionContext(httpContext, new RouteData(), new PageActionDescriptor());
+
+        page.PageContext = new PageContext(actionContext)
         {
-            User = new ClaimsPrincipal(new ClaimsIdentity(identityClaims, "TestAuth"))
+            ViewData = new ViewDataDictionary(new EmptyModelMetadataProvider(), new ModelStateDictionary())
         };
 
-        return new PageContext
-        {
-            HttpContext = httpContext
-        };
+        page.TempData = new TempDataDictionary(httpContext, new DictionaryTempDataProvider());
     }
 
     private sealed class StubActivityService : IActivityService
@@ -185,6 +253,24 @@ public sealed class ActivityIndexPageTests
         public Task<ActivityType> UpdateAsync(int activityTypeId, ActivityTypeInput input, CancellationToken cancellationToken = default) => throw new NotImplementedException();
 
         public Task<IReadOnlyList<ActivityType>> ListAsync(CancellationToken cancellationToken = default) => Task.FromResult(_types);
+    }
+
+    private sealed class StubActivityExportService : IActivityExportService
+    {
+        private readonly ActivityExportResult? _result;
+
+        public StubActivityExportService(ActivityExportResult? result = null)
+        {
+            _result = result;
+        }
+
+        public ActivityExportRequest? LastRequest { get; private set; }
+
+        public Task<ActivityExportResult?> ExportAsync(ActivityExportRequest request, CancellationToken cancellationToken = default)
+        {
+            LastRequest = request;
+            return Task.FromResult(_result);
+        }
     }
 
     private sealed class StubUserManager : UserManager<ApplicationUser>
@@ -237,5 +323,14 @@ public sealed class ActivityIndexPageTests
         public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken cancellationToken) => Task.CompletedTask;
 
         public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class DictionaryTempDataProvider : ITempDataProvider
+    {
+        public IDictionary<string, object?> LoadTempData(HttpContext context) => new Dictionary<string, object?>();
+
+        public void SaveTempData(HttpContext context, IDictionary<string, object?> values)
+        {
+        }
     }
 }
