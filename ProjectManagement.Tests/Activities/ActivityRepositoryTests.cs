@@ -2,9 +2,11 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Activities;
 using ProjectManagement.Models.Activities;
+using ProjectManagement.Models;
 using Xunit;
 
 namespace ProjectManagement.Tests.Activities;
@@ -148,5 +150,104 @@ public class ActivityRepositoryTests
         await repository.RemoveAttachmentAsync(storedAttachment!);
 
         Assert.Empty(context.ActivityAttachments);
+    }
+
+    [Fact]
+    public async Task ListAsync_FiltersAndSortsCorrectly()
+    {
+        await using var context = CreateContext();
+        var repository = new ActivityRepository(context);
+
+        var creator = new ApplicationUser
+        {
+            Id = "creator-1",
+            UserName = "creator",
+            NormalizedUserName = "CREATOR",
+            Email = "creator@example.test",
+            NormalizedEmail = "CREATOR@EXAMPLE.TEST",
+            FullName = "Casey Creator"
+        };
+
+        context.Users.Add(creator);
+
+        var typeA = new ActivityType { Name = "Briefing", CreatedByUserId = "system" };
+        var typeB = new ActivityType { Name = "Training", CreatedByUserId = "system" };
+        context.ActivityTypes.AddRange(typeA, typeB);
+        await context.SaveChangesAsync();
+
+        var now = DateTimeOffset.UtcNow;
+
+        var activityWithPdf = new Activity
+        {
+            Title = "Security briefing",
+            CreatedByUserId = creator.Id!,
+            CreatedAtUtc = now.AddHours(-2),
+            ScheduledStartUtc = now.AddDays(1),
+            ActivityTypeId = typeA.Id,
+            Attachments =
+            {
+                new ActivityAttachment
+                {
+                    StorageKey = "files/brief.pdf",
+                    OriginalFileName = "brief.pdf",
+                    ContentType = "application/pdf",
+                    UploadedByUserId = creator.Id!,
+                    UploadedAtUtc = now.AddHours(-2)
+                }
+            }
+        };
+
+        var activityWithPhoto = new Activity
+        {
+            Title = "Team workshop",
+            CreatedByUserId = creator.Id!,
+            CreatedAtUtc = now.AddHours(-1),
+            ActivityTypeId = typeB.Id,
+            Attachments =
+            {
+                new ActivityAttachment
+                {
+                    StorageKey = "files/workshop.jpg",
+                    OriginalFileName = "workshop.jpg",
+                    ContentType = "image/jpeg",
+                    UploadedByUserId = creator.Id!,
+                    UploadedAtUtc = now.AddHours(-1)
+                }
+            }
+        };
+
+        var deletedActivity = new Activity
+        {
+            Title = "Obsolete",
+            CreatedByUserId = creator.Id!,
+            CreatedAtUtc = now.AddHours(-3),
+            ActivityTypeId = typeA.Id,
+            IsDeleted = true
+        };
+
+        context.Activities.AddRange(activityWithPdf, activityWithPhoto, deletedActivity);
+        await context.SaveChangesAsync();
+
+        var request = new ActivityListRequest(
+            Page: 1,
+            PageSize: 10,
+            Sort: ActivityListSort.CreatedAt,
+            SortDescending: false,
+            FromDate: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1)),
+            ToDate: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)),
+            ActivityTypeId: typeA.Id,
+            CreatedByUserId: null,
+            CreatedBySearch: "Casey",
+            AttachmentType: ActivityAttachmentTypeFilter.Pdf);
+
+        var result = await repository.ListAsync(request);
+
+        Assert.Equal(1, result.TotalCount);
+        var item = Assert.Single(result.Items);
+        Assert.Equal(activityWithPdf.Title, item.Title);
+        Assert.Equal(1, item.PdfAttachmentCount);
+        Assert.Equal(0, item.PhotoAttachmentCount);
+        Assert.Equal(1, item.AttachmentCount);
+        Assert.Equal(typeA.Name, item.ActivityTypeName);
     }
 }

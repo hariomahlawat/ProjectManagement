@@ -11,6 +11,8 @@ namespace ProjectManagement.Contracts.Activities
 
         Task<IReadOnlyList<Activity>> ListByTypeAsync(int activityTypeId, CancellationToken cancellationToken = default);
 
+        Task<ActivityListResult> ListAsync(ActivityListRequest request, CancellationToken cancellationToken = default);
+
         Task AddAsync(Activity activity, CancellationToken cancellationToken = default);
 
         Task UpdateAsync(Activity activity, CancellationToken cancellationToken = default);
