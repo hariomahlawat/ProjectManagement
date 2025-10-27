@@ -94,7 +94,7 @@
                         </div>
                     </div>
 
-                    <div class="row g-4 mt-1 @(Model.Input.ScheduleMode == ManageModel.TrainingScheduleMode.DateRange ? string.Empty : "d-none")" data-training-schedule="date-range">
+                    <div class="row g-4 mt-1 @(input.ScheduleMode == ManageModel.TrainingScheduleMode.DateRange ? string.Empty : "d-none")" data-training-schedule="date-range">
                         <div class="col-md-6">
                             <label asp-for="Input.StartDate" class="form-label"></label>
                             <input asp-for="Input.StartDate" class="form-control" />
@@ -107,7 +107,7 @@
                         </div>
                     </div>
 
-                    <div class="row g-4 mt-1 @(Model.Input.ScheduleMode == ManageModel.TrainingScheduleMode.MonthAndYear ? string.Empty : "d-none")" data-training-schedule="month-year">
+                    <div class="row g-4 mt-1 @(input.ScheduleMode == ManageModel.TrainingScheduleMode.MonthAndYear ? string.Empty : "d-none")" data-training-schedule="month-year">
                         <div class="col-md-6">
                             <label asp-for="Input.TrainingMonth" class="form-label"></label>
                             <select asp-for="Input.TrainingMonth" class="form-select">
@@ -262,7 +262,7 @@
                 <div class="card-header bg-danger-subtle text-danger fw-semibold">Request deletion</div>
                 <div class="card-body">
                     <form method="post" asp-page-handler="RequestDelete" class="needs-validation" novalidate>
-                        <input type="hidden" name="TrainingId" value="@existingTrainingId.Value" />
+                        <input type="hidden" name="TrainingId" value="@(existingTrainingId!.Value)" />
                         <input type="hidden" name="RowVersion" value="@Model.Input?.RowVersion" />
                         <div class="mb-3">
                             <label class="form-label" for="delete-reason">Reason</label>
