@@ -103,12 +103,36 @@ public class RoleBasedNavigationProvider : INavigationProvider
             });
         }
 
+        var canManageActivityTypes = ProjectOfficeReportsPolicies.HasActivityTypeManagerRole(roleSet);
+        var canViewActivityTypes = ProjectOfficeReportsPolicies.HasActivityTypeViewerRole(roleSet);
+
         var proliferationTracker = new NavigationItem
         {
             Text = "Proliferation tracker",
             Area = "ProjectOfficeReports",
             Page = "/Proliferation/Index"
         };
+
+        if (canManageActivityTypes)
+        {
+            projectOfficeReportsChildren.Add(new NavigationItem
+            {
+                Text = "Activity types",
+                Area = "ProjectOfficeReports",
+                Page = "/Admin/ActivityTypes/Index",
+                AuthorizationPolicy = ProjectOfficeReportsPolicies.ManageActivityTypes
+            });
+        }
+        else if (canViewActivityTypes)
+        {
+            projectOfficeReportsChildren.Add(new NavigationItem
+            {
+                Text = "Activity types",
+                Area = "ProjectOfficeReports",
+                Page = "/MiscActivities/ActivityTypes/Index",
+                AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewActivityTypes
+            });
+        }
 
         projectOfficeReportsChildren.Add(new NavigationItem
         {

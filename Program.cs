@@ -141,6 +141,10 @@ builder.Services.AddAuthorization(options =>
         policy.RequireMiscActivityManager());
     options.AddPolicy(ProjectOfficeReportsPolicies.DeleteMiscActivities, policy =>
         policy.RequireMiscActivityApprover());
+    options.AddPolicy(ProjectOfficeReportsPolicies.ViewActivityTypes, policy =>
+        policy.RequireActivityTypeViewer());
+    options.AddPolicy(ProjectOfficeReportsPolicies.ManageActivityTypes, policy =>
+        policy.RequireActivityTypeManager());
     options.AddPolicy(ProjectOfficeReportsPolicies.ViewTotTracker, policy =>
         policy.RequireTotTrackerViewer());
     options.AddPolicy(ProjectOfficeReportsPolicies.ManageTotTracker, policy =>

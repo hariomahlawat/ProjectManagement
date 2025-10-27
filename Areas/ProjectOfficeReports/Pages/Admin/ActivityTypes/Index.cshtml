@@ -1,0 +1,76 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Admin.ActivityTypes.IndexModel
+@using System
+@{
+    ViewData["Title"] = "Activity types";
+}
+
+<div class="d-flex flex-column flex-md-row align-items-md-center justify-content-md-between gap-3 mb-4">
+    <div>
+        <h1 class="h3 mb-1">Activity types</h1>
+        <p class="text-muted mb-0">Manage the reference data available when logging misc activities.</p>
+    </div>
+    <div class="ms-md-auto">
+        <a class="btn btn-primary" asp-page="New"><i class="bi bi-plus-lg me-1"></i>New activity type</a>
+    </div>
+</div>
+
+@if (Model.Items.Count == 0)
+{
+    <div class="alert alert-info">
+        No activity types have been created yet.
+    </div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-striped align-middle">
+            <thead>
+                <tr>
+                    <th scope="col">Name</th>
+                    <th scope="col">Description</th>
+                    <th scope="col">Status</th>
+                    <th scope="col" class="text-center">Ordinal</th>
+                    <th scope="col" class="text-center">Activities</th>
+                    <th scope="col" class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var item in Model.Items)
+            {
+                <tr>
+                    <td class="fw-semibold">@item.Name</td>
+                    <td class="text-muted">@(!string.IsNullOrWhiteSpace(item.Description) ? item.Description : "—")</td>
+                    <td>
+                        @if (item.IsActive)
+                        {
+                            <span class="badge text-bg-success">Active</span>
+                        }
+                        else
+                        {
+                            <span class="badge text-bg-secondary">Inactive</span>
+                        }
+                    </td>
+                    <td class="text-center">@item.Ordinal</td>
+                    <td class="text-center">@item.ActivityCount</td>
+                    <td class="text-end">
+                        <div class="btn-group" role="group" aria-label="Activity type actions">
+                            <a class="btn btn-sm btn-outline-secondary" asp-page="Edit" asp-route-id="@item.Id">Edit</a>
+                            <form method="post" asp-page-handler="Delete" asp-route-id="@item.Id" class="d-inline">
+                                <input type="hidden" name="rowVersion" value="@Convert.ToBase64String(item.RowVersion)" />
+                                <button type="submit"
+                                        class="btn btn-sm btn-outline-danger"
+                                        title="Delete activity type"
+                                        onclick="return confirm('Delete this activity type?');"
+                                        @(item.ActivityCount > 0 ? "disabled" : null)>
+                                    Delete
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}

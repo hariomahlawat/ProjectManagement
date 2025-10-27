@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Application;
@@ -24,6 +26,25 @@ public static class ProjectOfficeReportsPolicies
         "Main Office",
         "Comdt",
         "MCO"
+    };
+
+    private static readonly string[] ActivityTypeViewerRoles =
+    {
+        "Admin",
+        "HoD",
+        "ProjectOffice",
+        "Project Office",
+        "Project Officer",
+        "TA",
+        "Main Office",
+        "Comdt",
+        "MCO"
+    };
+
+    private static readonly string[] ActivityTypeManagerRoles =
+    {
+        "Admin",
+        "HoD"
     };
 
     private static readonly string[] MiscActivityManagerRoles =
@@ -90,6 +111,8 @@ public static class ProjectOfficeReportsPolicies
     public const string ViewTrainingTracker = "ProjectOfficeReports.ViewTrainingTracker";
     public const string ManageTrainingTracker = "ProjectOfficeReports.ManageTrainingTracker";
     public const string ApproveTrainingTracker = "ProjectOfficeReports.ApproveTrainingTracker";
+    public const string ViewActivityTypes = "ProjectOfficeReports.ViewActivityTypes";
+    public const string ManageActivityTypes = "ProjectOfficeReports.ManageActivityTypes";
 
     public static AuthorizationPolicyBuilder RequireProjectOfficeManager(this AuthorizationPolicyBuilder builder)
     {
@@ -111,6 +134,16 @@ public static class ProjectOfficeReportsPolicies
         return builder.RequireRole(MiscActivityViewerRoles);
     }
 
+    public static AuthorizationPolicyBuilder RequireActivityTypeViewer(this AuthorizationPolicyBuilder builder)
+    {
+        if (builder is null)
+        {
+            throw new ArgumentNullException(nameof(builder));
+        }
+
+        return builder.RequireRole(ActivityTypeViewerRoles);
+    }
+
     public static AuthorizationPolicyBuilder RequireMiscActivityManager(this AuthorizationPolicyBuilder builder)
     {
         if (builder is null)
@@ -119,6 +152,16 @@ public static class ProjectOfficeReportsPolicies
         }
 
         return builder.RequireRole(MiscActivityManagerRoles);
+    }
+
+    public static AuthorizationPolicyBuilder RequireActivityTypeManager(this AuthorizationPolicyBuilder builder)
+    {
+        if (builder is null)
+        {
+            throw new ArgumentNullException(nameof(builder));
+        }
+
+        return builder.RequireRole(ActivityTypeManagerRoles);
     }
 
     public static AuthorizationPolicyBuilder RequireMiscActivityApprover(this AuthorizationPolicyBuilder builder)
@@ -229,5 +272,59 @@ public static class ProjectOfficeReportsPolicies
         }
 
         return builder.RequireRole(TotTrackerApproverRoles);
+    }
+
+    internal static bool HasActivityTypeViewerRole(ISet<string> roles)
+    {
+        if (roles is null)
+        {
+            throw new ArgumentNullException(nameof(roles));
+        }
+
+        foreach (var role in ActivityTypeViewerRoles)
+        {
+            if (roles.Contains(role))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal static bool HasActivityTypeManagerRole(ISet<string> roles)
+    {
+        if (roles is null)
+        {
+            throw new ArgumentNullException(nameof(roles));
+        }
+
+        foreach (var role in ActivityTypeManagerRoles)
+        {
+            if (roles.Contains(role))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal static bool IsActivityTypeManager(ClaimsPrincipal? principal)
+    {
+        if (principal is null)
+        {
+            return false;
+        }
+
+        foreach (var role in ActivityTypeManagerRoles)
+        {
+            if (principal.IsInRole(role))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

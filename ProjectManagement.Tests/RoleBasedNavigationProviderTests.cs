@@ -133,6 +133,17 @@ public class RoleBasedNavigationProviderTests
             Assert.DoesNotContain(children, c => c.Text == "Visit types");
             Assert.DoesNotContain(children, c => c.Text == "Social media event types");
         }
+
+        if (isAdmin)
+        {
+            var activityTypes = Assert.Single(children.Where(c => c.Text == "Activity types"));
+            Assert.Equal("/Admin/ActivityTypes/Index", activityTypes.Page);
+            Assert.Equal(ProjectOfficeReportsPolicies.ManageActivityTypes, activityTypes.AuthorizationPolicy);
+        }
+        else
+        {
+            Assert.DoesNotContain(children, c => c.Text == "Activity types");
+        }
     }
 
     [Fact]
@@ -175,6 +186,42 @@ public class RoleBasedNavigationProviderTests
     }
 
     [Theory]
+    [InlineData("Project Officer")]
+    [InlineData("TA")]
+    [InlineData("Main Office")]
+    public async Task Navigation_IncludesActivityTypesForViewerRoles(string role)
+    {
+        var user = new ApplicationUser
+        {
+            Id = $"user-{role.Replace(' ', '-').ToLowerInvariant()}",
+            UserName = role.ToLowerInvariant()
+        };
+
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var userManager = new StubUserManager(user, services, role);
+        var httpContextAccessor = new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
+                }, "Test"))
+            }
+        };
+
+        var provider = CreateProvider(userManager, httpContextAccessor);
+        var navigation = await provider.GetNavigationAsync();
+
+        var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
+        var children = projectOfficeReports.Children.ToList();
+
+        var activityTypes = Assert.Single(children.Where(c => c.Text == "Activity types"));
+        Assert.Equal("/MiscActivities/ActivityTypes/Index", activityTypes.Page);
+        Assert.Equal(ProjectOfficeReportsPolicies.ViewActivityTypes, activityTypes.AuthorizationPolicy);
+    }
+
+    [Theory]
     [InlineData("HoD")]
     [InlineData("ProjectOffice")]
     [InlineData("Project Office")]
@@ -212,6 +259,18 @@ public class RoleBasedNavigationProviderTests
         Assert.Equal("/Ipr/Index", ipr.Page);
         Assert.Equal(Policies.Ipr.View, ipr.AuthorizationPolicy);
         Assert.Null(ipr.RequiredRoles);
+
+        var activityTypes = Assert.Single(children.Where(c => c.Text == "Activity types"));
+        if (string.Equals(role, "HoD", StringComparison.OrdinalIgnoreCase))
+        {
+            Assert.Equal("/Admin/ActivityTypes/Index", activityTypes.Page);
+            Assert.Equal(ProjectOfficeReportsPolicies.ManageActivityTypes, activityTypes.AuthorizationPolicy);
+        }
+        else
+        {
+            Assert.Equal("/MiscActivities/ActivityTypes/Index", activityTypes.Page);
+            Assert.Equal(ProjectOfficeReportsPolicies.ViewActivityTypes, activityTypes.AuthorizationPolicy);
+        }
 
         var proliferation = Assert.Single(children.Where(c => c.Text == "Proliferation tracker"));
         Assert.Equal("/Proliferation/Index", proliferation.Page);
