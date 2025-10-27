@@ -29,6 +29,7 @@ using ProjectManagement.Services.Remarks;
 using ProjectManagement.Services.Notifications;
 using ProjectManagement.Services.ProjectOfficeReports.Training;
 using ProjectManagement.Services.Documents;
+using ProjectManagement.Services.Activities;
 using ProjectManagement.Services.Storage;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Infrastructure.Activities;
@@ -208,6 +209,12 @@ builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IUserContext, HttpUserContext>();
 builder.Services.AddScoped<IActivityRepository, ActivityRepository>();
 builder.Services.AddScoped<IActivityTypeRepository, ActivityTypeRepository>();
+builder.Services.AddScoped<IActivityInputValidator, ActivityInputValidator>();
+builder.Services.AddScoped<IActivityTypeValidator, ActivityTypeValidator>();
+builder.Services.AddScoped<IActivityAttachmentValidator, ActivityAttachmentValidator>();
+builder.Services.AddScoped<IActivityService, ActivityService>();
+builder.Services.AddScoped<IActivityTypeService, ActivityTypeService>();
+builder.Services.AddScoped<IActivityExportService, ActivityExportService>();
 builder.Services.Configure<UserLifecycleOptions>(
     builder.Configuration.GetSection("UserLifecycle"));
 builder.Services.Configure<IprAttachmentOptions>(
