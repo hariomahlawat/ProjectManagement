@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
+using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Models.Activities;
 
 namespace ProjectManagement.Services.Activities;
@@ -18,6 +19,8 @@ public interface IActivityService
     Task<Activity?> GetAsync(int activityId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<Activity>> ListByTypeAsync(int activityTypeId, CancellationToken cancellationToken = default);
+
+    Task<ActivityListResult> ListAsync(ActivityListRequest request, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<ActivityAttachmentMetadata>> GetAttachmentMetadataAsync(int activityId,
                                                                               CancellationToken cancellationToken = default);

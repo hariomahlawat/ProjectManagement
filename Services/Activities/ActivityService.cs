@@ -121,6 +121,29 @@ public sealed class ActivityService : IActivityService
         return _activityRepository.ListByTypeAsync(activityTypeId, cancellationToken);
     }
 
+    public Task<ActivityListResult> ListAsync(ActivityListRequest request, CancellationToken cancellationToken = default)
+    {
+        if (request is null)
+        {
+            throw new ArgumentNullException(nameof(request));
+        }
+
+        var page = request.Page <= 0 ? 1 : request.Page;
+        var pageSize = request.PageSize;
+        if (pageSize > 0)
+        {
+            pageSize = Math.Min(pageSize, 100);
+        }
+
+        var normalized = request with
+        {
+            Page = page,
+            PageSize = pageSize
+        };
+
+        return _activityRepository.ListAsync(normalized, cancellationToken);
+    }
+
     public async Task<IReadOnlyList<ActivityAttachmentMetadata>> GetAttachmentMetadataAsync(int activityId,
                                                                                            CancellationToken cancellationToken = default)
     {
