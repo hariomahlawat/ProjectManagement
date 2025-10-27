@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,12 +13,15 @@ public sealed class ActivityExportService : IActivityExportService
 {
     private readonly IActivityRepository _activityRepository;
     private readonly IActivityTypeRepository _activityTypeRepository;
+    private readonly IActivityAttachmentManager _attachmentManager;
 
     public ActivityExportService(IActivityRepository activityRepository,
-                                 IActivityTypeRepository activityTypeRepository)
+                                 IActivityTypeRepository activityTypeRepository,
+                                 IActivityAttachmentManager attachmentManager)
     {
         _activityRepository = activityRepository;
         _activityTypeRepository = activityTypeRepository;
+        _attachmentManager = attachmentManager;
     }
 
     public async Task<ActivityExportResult> ExportByTypeAsync(int activityTypeId, CancellationToken cancellationToken = default)
@@ -41,7 +45,11 @@ public sealed class ActivityExportService : IActivityExportService
             var owner = activity.CreatedByUserId;
             var created = activity.CreatedAtUtc.ToString("u", CultureInfo.InvariantCulture);
             var modified = activity.LastModifiedAtUtc?.ToString("u", CultureInfo.InvariantCulture) ?? created;
-            var attachmentCount = activity.Attachments.Count.ToString(CultureInfo.InvariantCulture);
+            var attachmentMetadata = _attachmentManager.CreateMetadata(activity);
+            var attachmentCount = attachmentMetadata.Count.ToString(CultureInfo.InvariantCulture);
+            var attachmentSummary = attachmentMetadata.Count == 0
+                ? string.Empty
+                : Escape(string.Join(" | ", attachmentMetadata.Select(a => $"{a.FileName} ({a.DownloadUrl})")));
 
             builder.Append(title).Append(',')
                    .Append(start).Append(',')
@@ -50,7 +58,8 @@ public sealed class ActivityExportService : IActivityExportService
                    .Append(Escape(owner)).Append(',')
                    .Append(created).Append(',')
                    .Append(modified).Append(',')
-                   .Append(attachmentCount)
+                   .Append(attachmentCount).Append(',')
+                   .Append(attachmentSummary)
                    .AppendLine();
         }
 

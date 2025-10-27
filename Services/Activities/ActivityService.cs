@@ -1,14 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Models.Activities;
-using ProjectManagement.Services.Storage;
 
 namespace ProjectManagement.Services.Activities;
 
@@ -16,26 +13,23 @@ public sealed class ActivityService : IActivityService
 {
     private readonly IActivityRepository _activityRepository;
     private readonly IActivityInputValidator _inputValidator;
-    private readonly IActivityAttachmentValidator _attachmentValidator;
+    private readonly IActivityAttachmentManager _attachmentManager;
     private readonly IUserContext _userContext;
     private readonly IClock _clock;
-    private readonly IUploadRootProvider _uploadRootProvider;
     private readonly ILogger<ActivityService> _logger;
 
     public ActivityService(IActivityRepository activityRepository,
                            IActivityInputValidator inputValidator,
-                           IActivityAttachmentValidator attachmentValidator,
+                           IActivityAttachmentManager attachmentManager,
                            IUserContext userContext,
                            IClock clock,
-                           IUploadRootProvider uploadRootProvider,
                            ILogger<ActivityService> logger)
     {
         _activityRepository = activityRepository;
         _inputValidator = inputValidator;
-        _attachmentValidator = attachmentValidator;
+        _attachmentManager = attachmentManager;
         _userContext = userContext;
         _clock = clock;
-        _uploadRootProvider = uploadRootProvider;
         _logger = logger;
     }
 
@@ -98,6 +92,8 @@ public sealed class ActivityService : IActivityService
 
         EnsureCanManage(activity);
 
+        await _attachmentManager.RemoveAllAsync(activity, cancellationToken);
+
         var userId = RequireUserId();
         var now = _clock.UtcNow;
         activity.IsDeleted = true;
@@ -125,6 +121,18 @@ public sealed class ActivityService : IActivityService
         return _activityRepository.ListByTypeAsync(activityTypeId, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<ActivityAttachmentMetadata>> GetAttachmentMetadataAsync(int activityId,
+                                                                                           CancellationToken cancellationToken = default)
+    {
+        var activity = await _activityRepository.GetByIdAsync(activityId, cancellationToken);
+        if (activity is null || activity.IsDeleted)
+        {
+            return Array.Empty<ActivityAttachmentMetadata>();
+        }
+
+        return _attachmentManager.CreateMetadata(activity);
+    }
+
     public async Task<ActivityAttachment> AddAttachmentAsync(int activityId,
                                                              ActivityAttachmentUpload upload,
                                                              CancellationToken cancellationToken = default)
@@ -136,30 +144,14 @@ public sealed class ActivityService : IActivityService
         }
 
         EnsureCanManage(activity);
-        _attachmentValidator.Validate(upload);
-
         var userId = RequireUserId();
-        var storageKey = BuildStorageKey(activityId, upload.FileName);
-        var fullPath = ResolveAbsolutePath(storageKey);
 
-        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-        await using (var fileStream = new FileStream(fullPath, FileMode.Create, FileAccess.Write, FileShare.None))
-        {
-            await upload.Content.CopyToAsync(fileStream, cancellationToken);
-        }
+        var attachment = await _attachmentManager.AddAsync(activity, upload, userId, cancellationToken);
 
-        var attachment = new ActivityAttachment
-        {
-            ActivityId = activity.Id,
-            StorageKey = storageKey,
-            OriginalFileName = upload.FileName,
-            ContentType = upload.ContentType,
-            FileSize = upload.Length,
-            UploadedByUserId = userId,
-            UploadedAtUtc = _clock.UtcNow
-        };
+        activity.LastModifiedByUserId = userId;
+        activity.LastModifiedAtUtc = _clock.UtcNow;
+        await _activityRepository.UpdateAsync(activity, cancellationToken);
 
-        await _activityRepository.AddAttachmentAsync(attachment, cancellationToken);
         return attachment;
     }
 
@@ -179,20 +171,19 @@ public sealed class ActivityService : IActivityService
 
         EnsureCanManageAttachment(activity, attachment);
 
-        await _activityRepository.RemoveAttachmentAsync(attachment, cancellationToken);
-
         try
         {
-            var fullPath = ResolveAbsolutePath(attachment.StorageKey);
-            if (File.Exists(fullPath))
-            {
-                File.Delete(fullPath);
-            }
+            await _attachmentManager.RemoveAsync(attachment, cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to delete attachment file for activity {ActivityId}.", activity.Id);
+            _logger.LogWarning(ex, "Failed to remove attachment {AttachmentId} for activity {ActivityId}.", attachment.Id, activity.Id);
+            throw;
         }
+
+        activity.LastModifiedByUserId = RequireUserId();
+        activity.LastModifiedAtUtc = _clock.UtcNow;
+        await _activityRepository.UpdateAsync(activity, cancellationToken);
     }
 
     private string RequireUserId()
@@ -242,18 +233,5 @@ public sealed class ActivityService : IActivityService
     private static bool IsAdminOrHod(ClaimsPrincipal principal)
     {
         return principal.IsInRole("Admin") || principal.IsInRole("HoD");
-    }
-
-    private string BuildStorageKey(int activityId, string originalFileName)
-    {
-        var sanitized = ActivityAttachmentValidator.SanitizeFileName(originalFileName);
-        var fileName = $"{Guid.NewGuid():N}_{sanitized}";
-        return $"activities/{activityId}/{fileName}";
-    }
-
-    private string ResolveAbsolutePath(string storageKey)
-    {
-        var relativePath = storageKey.Replace('/', Path.DirectorySeparatorChar);
-        return Path.Combine(_uploadRootProvider.RootPath, relativePath);
     }
 }
