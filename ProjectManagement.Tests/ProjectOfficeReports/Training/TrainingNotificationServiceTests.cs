@@ -18,7 +18,7 @@ public sealed class TrainingNotificationServiceTests
 
         var roles = Assert.IsType<string[]>(field!.GetValue(null));
         var orderedRoles = roles.OrderBy(role => role, StringComparer.OrdinalIgnoreCase).ToArray();
-        var expected = new[] { "Admin", "HoD", "Project Office" };
+        var expected = new[] { "Admin", "HoD" };
         var orderedExpected = expected.OrderBy(role => role, StringComparer.OrdinalIgnoreCase).ToArray();
 
         Assert.Equal(orderedExpected, orderedRoles);
