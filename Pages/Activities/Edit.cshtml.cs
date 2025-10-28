@@ -19,7 +19,7 @@ using ProjectManagement.Services.Activities;
 
 namespace ProjectManagement.Pages.Activities;
 
-[Authorize]
+[Authorize(Roles = "Admin,HoD,Project Office,TA")]
 public sealed class EditModel : PageModel
 {
     private static readonly IReadOnlyList<string> AttachmentExtensions = new[]
@@ -101,6 +101,11 @@ public sealed class EditModel : PageModel
 
     public async Task<IActionResult> OnGetAsync(int? id, CancellationToken cancellationToken)
     {
+        if (!IsManager(User))
+        {
+            return Forbid();
+        }
+
         if (id.HasValue)
         {
             var activity = await _activityService.GetAsync(id.Value, cancellationToken);
@@ -123,6 +128,11 @@ public sealed class EditModel : PageModel
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
+        if (!IsManager(User))
+        {
+            return Forbid();
+        }
+
         Input ??= new InputModel();
         Activity? existing = null;
 
@@ -332,6 +342,15 @@ public sealed class EditModel : PageModel
         };
 
         ExistingAttachmentCount = activity.Attachments?.Count ?? 0;
+    }
+
+    private static bool IsManager(ClaimsPrincipal user)
+    {
+        return user.IsInRole("Admin") ||
+               user.IsInRole("HoD") ||
+               user.IsInRole("Project Office") ||
+               user.IsInRole("ProjectOffice") ||
+               user.IsInRole("TA");
     }
 
     private void AddErrorsToModelState(ActivityValidationException ex)
