@@ -43,13 +43,59 @@
 
   const exportForm = moduleRoot.querySelector('[data-activities-export-form]');
   if (exportForm) {
-    exportForm.addEventListener('submit', () => {
-      const button = exportForm.querySelector('button');
-      if (button) {
-        button.dataset.originalText = button.innerHTML;
-        button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Exporting…';
-        button.setAttribute('aria-busy', 'true');
+    const exportButton = exportForm.querySelector('button');
+    if (exportButton) {
+      const busyMarkup = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Exporting…';
+
+      function restoreExportButton() {
+        if (!exportButton.dataset.originalText) {
+          return;
+        }
+
+        exportButton.innerHTML = exportButton.dataset.originalText;
+        delete exportButton.dataset.originalText;
+        exportButton.removeAttribute('aria-busy');
+        exportButton.disabled = false;
       }
-    });
+
+      exportForm.addEventListener('submit', () => {
+        if (exportButton.hasAttribute('aria-busy')) {
+          return;
+        }
+
+        if (!exportButton.dataset.originalText) {
+          exportButton.dataset.originalText = exportButton.innerHTML;
+        }
+
+        exportButton.innerHTML = busyMarkup;
+        exportButton.setAttribute('aria-busy', 'true');
+        exportButton.disabled = true;
+
+        let cleanedUp = false;
+        let timeoutId;
+
+        function cleanup() {
+          if (cleanedUp) {
+            return;
+          }
+
+          cleanedUp = true;
+          window.clearTimeout(timeoutId);
+          restoreExportButton();
+          window.removeEventListener('focus', cleanup);
+          document.removeEventListener('visibilitychange', handleVisibilityChange);
+        }
+
+        function handleVisibilityChange() {
+          if (document.visibilityState === 'visible') {
+            cleanup();
+          }
+        }
+
+        window.addEventListener('focus', cleanup);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        timeoutId = window.setTimeout(cleanup, 2500);
+      });
+    }
   }
 })();
