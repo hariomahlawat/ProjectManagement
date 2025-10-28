@@ -264,6 +264,24 @@ public class ActivityServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdateAsync_AllowsProjectOfficeManager()
+    {
+        var type = await EnsureActivityTypeAsync();
+        var created = await _service.CreateAsync(new ActivityInput("Briefing", null, null, type.Id, null, null));
+
+        var projectOfficeContext = new TestUserContext("po-user", isProjectOffice: true);
+        var projectOfficeService = new ActivityService(_activityRepository,
+            _inputValidator,
+            _attachmentManager,
+            projectOfficeContext,
+            _clock,
+            NullLogger<ActivityService>.Instance);
+
+        var updated = await projectOfficeService.UpdateAsync(created.Id, new ActivityInput("Briefing Updated", null, null, type.Id, null, null));
+        Assert.Equal("Briefing Updated", updated.Title);
+    }
+
+    [Fact]
     public async Task DeleteAsync_MarksActivityDeleted()
     {
         var type = await EnsureActivityTypeAsync();
@@ -449,7 +467,7 @@ public class ActivityServiceTests : IDisposable
 
 internal sealed class TestUserContext : IUserContext
 {
-    public TestUserContext(string userId, bool isAdmin = false, bool isHoD = false)
+    public TestUserContext(string userId, bool isAdmin = false, bool isHoD = false, bool isProjectOffice = false)
     {
         UserId = userId;
         var identity = new ClaimsIdentity();
@@ -461,6 +479,10 @@ internal sealed class TestUserContext : IUserContext
         if (isHoD)
         {
             identity.AddClaim(new Claim(ClaimTypes.Role, "HoD"));
+        }
+        if (isProjectOffice)
+        {
+            identity.AddClaim(new Claim(ClaimTypes.Role, "Project Office"));
         }
 
         User = new ClaimsPrincipal(identity);
