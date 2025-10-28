@@ -127,9 +127,9 @@ public class ActivityRepositoryTests
 
         var attachment = new ActivityAttachment
         {
-            StorageKey = "files/brief.docx",
-            OriginalFileName = "brief.docx",
-            ContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            StorageKey = "files/brief.pdf",
+            OriginalFileName = "brief.pdf",
+            ContentType = "application/pdf",
             FileSize = 64,
             UploadedByUserId = "user-1"
         };
