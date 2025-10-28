@@ -14,8 +14,8 @@ namespace ProjectManagement.Services.Activities;
 
 public sealed class ActivityDeleteRequestService : IActivityDeleteRequestService
 {
-    private static readonly string[] RequesterRoles = { "Admin", "HoD", "Project Office", "TA" };
-    private static readonly string[] ApproverRoles = { "Admin", "HoD" };
+    private static readonly string[] RequesterRoles = ActivityRoleLists.ManagerRoles;
+    private static readonly string[] ApproverRoles = ActivityRoleLists.DeleteApproverRoles;
 
     private readonly ApplicationDbContext _dbContext;
     private readonly IActivityService _activityService;

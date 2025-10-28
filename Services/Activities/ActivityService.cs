@@ -90,7 +90,7 @@ public sealed class ActivityService : IActivityService
             throw new KeyNotFoundException("Activity not found.");
         }
 
-        EnsureCanManage(activity);
+        EnsureCanDelete();
 
         await _attachmentManager.RemoveAllAsync(activity, cancellationToken);
 
@@ -220,6 +220,17 @@ public sealed class ActivityService : IActivityService
         return userId;
     }
 
+    private void EnsureCanDelete()
+    {
+        var principal = _userContext.User;
+        RequireUserId();
+
+        if (!IsApprover(principal))
+        {
+            throw new ActivityAuthorizationException("You are not authorised to delete this activity.");
+        }
+    }
+
     private void EnsureCanManage(Activity activity)
     {
         var principal = _userContext.User;
@@ -253,17 +264,22 @@ public sealed class ActivityService : IActivityService
         }
     }
 
-    private static readonly string[] ManagerRoles =
-    {
-        "Admin",
-        "HoD",
-        "Project Office",
-        "TA"
-    };
-
     private static bool IsManager(ClaimsPrincipal principal)
     {
-        foreach (var role in ManagerRoles)
+        foreach (var role in ActivityRoleLists.ManagerRoles)
+        {
+            if (principal.IsInRole(role))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsApprover(ClaimsPrincipal principal)
+    {
+        foreach (var role in ActivityRoleLists.DeleteApproverRoles)
         {
             if (principal.IsInRole(role))
             {
