@@ -128,7 +128,6 @@ public class RoleBasedNavigationProvider : INavigationProvider
         projectOfficeReportsChildren.Add(new NavigationItem
         {
             Text = "Miscellaneous activities",
-            Area = "ProjectOfficeReports",
             Page = "/Activities/Index"
         });
 
