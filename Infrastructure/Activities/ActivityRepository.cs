@@ -62,14 +62,6 @@ namespace ProjectManagement.Infrastructure.Activities
                 query = query.Where(x => x.CreatedByUserId == request.CreatedByUserId);
             }
 
-            if (!string.IsNullOrWhiteSpace(request.CreatedBySearch))
-            {
-                var search = request.CreatedBySearch.Trim().ToLowerInvariant();
-                query = query.Where(x => x.CreatedByUser != null &&
-                    ((x.CreatedByUser.FullName != null && x.CreatedByUser.FullName.ToLower().Contains(search)) ||
-                     (x.CreatedByUser.Email != null && x.CreatedByUser.Email.ToLower().Contains(search))));
-            }
-
             if (request.FromDate.HasValue)
             {
                 var from = new DateTimeOffset(request.FromDate.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc));

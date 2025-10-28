@@ -58,7 +58,6 @@
                 <input type="hidden" name="FromDate" value="@(Model.FromDate?.ToString("yyyy-MM-dd"))" />
                 <input type="hidden" name="ToDate" value="@(Model.ToDate?.ToString("yyyy-MM-dd"))" />
                 <input type="hidden" name="ActivityTypeId" value="@(Model.ActivityTypeId?.ToString())" />
-                <input type="hidden" name="CreatedBy" value="@(Model.CreatedBy ?? string.Empty)" />
                 <input type="hidden" name="AttachmentType" value="@Model.AttachmentType" />
                 <input type="hidden" name="SortBy" value="@Model.SortBy" />
                 <input type="hidden" name="SortDir" value="@Model.SortDirection" />
@@ -91,6 +90,7 @@
         <div class="offcanvas-body">
             <form method="get" class="row g-3 activities-filter-form" aria-label="Activity filters">
                 <input type="hidden" name="Page" value="1" />
+                <input type="hidden" asp-for="SortBy" />
                 <div class="col-12 col-sm-6">
                     <label class="form-label" asp-for="FromDate">From date</label>
                     <input asp-for="FromDate" class="form-control" type="date" />
@@ -103,17 +103,9 @@
                     <label class="form-label" asp-for="ActivityTypeId">Activity type</label>
                     <select asp-for="ActivityTypeId" class="form-select" asp-items="Model.ActivityTypeOptions"></select>
                 </div>
-                <div class="col-12">
+                <div class="col-12 col-sm-6">
                     <label class="form-label" asp-for="AttachmentType">Attachment type</label>
                     <select asp-for="AttachmentType" class="form-select" asp-items="Model.AttachmentTypeOptions" data-activities-autosubmit></select>
-                </div>
-                <div class="col-12">
-                    <label class="form-label" asp-for="CreatedBy">Created by</label>
-                    <input asp-for="CreatedBy" class="form-control" placeholder="Name or email" />
-                </div>
-                <div class="col-12">
-                    <label class="form-label" asp-for="SortBy">Sort by</label>
-                    <select asp-for="SortBy" class="form-select" asp-items="Model.SortOptions" data-activities-autosubmit></select>
                 </div>
                 <div class="col-12 col-sm-6">
                     <label class="form-label" for="SortDir">Order</label>
@@ -347,10 +339,6 @@
             count++;
         }
         if (Model.ActivityTypeId.HasValue)
-        {
-            count++;
-        }
-        if (!string.IsNullOrWhiteSpace(Model.CreatedBy))
         {
             count++;
         }

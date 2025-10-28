@@ -40,7 +40,6 @@ public sealed class ActivityExportService : IActivityExportService
             request.ToDate,
             request.ActivityTypeId,
             request.CreatedByUserId,
-            request.CreatedBySearch,
             request.AttachmentType);
 
         var result = await _activityRepository.ListAsync(listRequest, cancellationToken);
