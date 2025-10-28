@@ -13,7 +13,7 @@ namespace ProjectManagement.Services.ProjectOfficeReports.Training;
 
 public sealed class TrainingNotificationService : ITrainingNotificationService
 {
-    private static readonly string[] ApproverRoles = { "Admin", "HoD", "ProjectOffice" };
+    private static readonly string[] ApproverRoles = { "Admin", "HoD", "Project Office" };
 
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly INotificationPublisher _publisher;
