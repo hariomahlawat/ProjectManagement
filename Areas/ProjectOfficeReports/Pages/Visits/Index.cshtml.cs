@@ -198,7 +198,7 @@ public class IndexModel : PageModel
 
     private bool IsProjectOfficeMember()
     {
-        return User.IsInRole("ProjectOffice") || User.IsInRole("Project Office");
+        return User.IsInRole("Project Office") || User.IsInRole("ProjectOffice");
     }
 
     private static DateOnly? ParseDate(string? value)

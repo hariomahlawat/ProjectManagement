@@ -46,7 +46,7 @@ public class NewModel : PageModel
 
     public VisitPhotosViewModel EmptyPhotoGallery { get; } = new(Guid.Empty, Array.Empty<VisitPhoto>(), null, false);
 
-    public bool CanManage => User.IsInRole("Admin") || User.IsInRole("HoD") || User.IsInRole("ProjectOffice");
+    public bool CanManage => User.IsInRole("Admin") || User.IsInRole("HoD") || IsProjectOfficeMember();
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -176,7 +176,7 @@ public class NewModel : PageModel
 
     private bool IsProjectOfficeMember()
     {
-        return User.IsInRole("ProjectOffice") || User.IsInRole("Project Office");
+        return User.IsInRole("Project Office") || User.IsInRole("ProjectOffice");
     }
 
     public class InputModel
