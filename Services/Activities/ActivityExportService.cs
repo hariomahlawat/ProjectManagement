@@ -14,6 +14,7 @@ public sealed class ActivityExportService : IActivityExportService
 {
     private readonly IActivityRepository _activityRepository;
     private readonly IActivityAttachmentManager _attachmentManager;
+    private static readonly TimeZoneInfo IndiaTimeZone = GetIndiaTimeZone();
 
     public const string ExcelContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
@@ -102,9 +103,9 @@ public sealed class ActivityExportService : IActivityExportService
         {
             "Title",
             "Activity type",
-            "Scheduled start date (UTC)",
-            "Scheduled end date (UTC)",
-            "Created date (UTC)",
+            "Scheduled start date",
+            "Scheduled end date",
+            "Created date",
             "Created by",
             "PDF attachments",
             "Photo attachments",
@@ -168,8 +169,31 @@ public sealed class ActivityExportService : IActivityExportService
             return;
         }
 
-        cell.Value = value.Value.UtcDateTime.Date;
+        var localDate = TimeZoneInfo.ConvertTime(value.Value.UtcDateTime, IndiaTimeZone).Date;
+        cell.Value = localDate;
         cell.Style.DateFormat.Format = "yyyy-mm-dd";
+    }
+
+    private static TimeZoneInfo GetIndiaTimeZone()
+    {
+        string[] timeZoneIds = { "India Standard Time", "Asia/Kolkata" };
+
+        foreach (var timeZoneId in timeZoneIds)
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+            }
+            catch (TimeZoneNotFoundException)
+            {
+            }
+            catch (InvalidTimeZoneException)
+            {
+            }
+        }
+
+        var offset = TimeSpan.FromHours(5.5);
+        return TimeZoneInfo.CreateCustomTimeZone("Asia/Kolkata", offset, "India Standard Time", "India Standard Time");
     }
 
     private static string ResolveCreatedBy(ActivityListItem item)
