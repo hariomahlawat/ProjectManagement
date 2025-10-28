@@ -125,6 +125,13 @@ public class RoleBasedNavigationProvider : INavigationProvider
             Page = "/SocialMedia/Index"
         });
 
+        projectOfficeReportsChildren.Add(new NavigationItem
+        {
+            Text = "Miscellaneous activities",
+            Area = "ProjectOfficeReports",
+            Page = "/Activities/Index"
+        });
+
         projectOfficeReportsChildren.Add(proliferationTracker);
 
         if (roleSet.Contains("Admin"))
