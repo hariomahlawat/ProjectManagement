@@ -11,10 +11,8 @@
 
     ViewData["Title"] = activity.Title;
 
-    string FormatDate(DateTimeOffset? value)
-    {
-        return value?.ToLocalTime().ToString("dd MMM yyyy, HH:mm", CultureInfo.CurrentCulture) ?? "—";
-    }
+    string FormatEventDate(DateTimeOffset? value) => value?.ToLocalTime().ToString("dd MMM yyyy", CultureInfo.CurrentCulture) ?? "—";
+    string FormatTimestamp(DateTimeOffset? value) => value?.ToLocalTime().ToString("dd MMM yyyy, HH:mm", CultureInfo.CurrentCulture) ?? "—";
 
     string FormatUser(string? displayName, string? userId)
     {
@@ -84,23 +82,23 @@
         </div>
         <div class="pm-card-body">
             <dl class="row mb-0">
-                <dt class="col-sm-3">Scheduled start</dt>
-                <dd class="col-sm-9">@FormatDate(activity.ScheduledStartUtc)</dd>
+                <dt class="col-sm-3">Event start</dt>
+                <dd class="col-sm-9">@FormatEventDate(activity.ScheduledStartUtc)</dd>
 
-                <dt class="col-sm-3">Scheduled end</dt>
-                <dd class="col-sm-9">@FormatDate(activity.ScheduledEndUtc)</dd>
+                <dt class="col-sm-3">Event end</dt>
+                <dd class="col-sm-9">@FormatEventDate(activity.ScheduledEndUtc)</dd>
 
                 <dt class="col-sm-3">Location</dt>
                 <dd class="col-sm-9">@(string.IsNullOrWhiteSpace(activity.Location) ? "—" : activity.Location)</dd>
 
                 <dt class="col-sm-3">Created</dt>
-                <dd class="col-sm-9">@FormatDate(activity.CreatedAtUtc) by @FormatUser(activity.CreatedByUser?.FullName, activity.CreatedByUserId)</dd>
+                <dd class="col-sm-9">@FormatTimestamp(activity.CreatedAtUtc) by @FormatUser(activity.CreatedByUser?.FullName, activity.CreatedByUserId)</dd>
 
                 <dt class="col-sm-3">Last updated</dt>
                 <dd class="col-sm-9">
                     @if (activity.LastModifiedAtUtc is { } updated)
                     {
-                        @FormatDate(updated) @:by @FormatUser(activity.LastModifiedByUser?.FullName, activity.LastModifiedByUserId)
+                        @FormatTimestamp(updated) @:by @FormatUser(activity.LastModifiedByUser?.FullName, activity.LastModifiedByUserId)
                     }
                     else
                     {
