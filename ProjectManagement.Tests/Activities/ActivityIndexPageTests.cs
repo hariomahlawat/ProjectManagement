@@ -53,12 +53,13 @@ public sealed class ActivityIndexPageTests
             new() { Id = 1, Name = "Briefing", CreatedByUserId = "seed" }
         });
         var exportService = new StubActivityExportService();
+        var deleteRequestService = new StubActivityDeleteRequestService();
 
         var services = new ServiceCollection().BuildServiceProvider();
         var user = new ApplicationUser { Id = "user-1", UserName = "manager" };
         using var userManager = new StubUserManager(user, services, "Admin");
 
-        var page = new IndexModel(activityService, typeService, exportService, userManager);
+        var page = new IndexModel(activityService, typeService, exportService, deleteRequestService, userManager);
         ConfigurePage(page, CreatePrincipal("user-1", new[] { new Claim(ClaimTypes.Role, "Admin") }));
 
         var actionResult = await page.OnGetAsync(CancellationToken.None);
@@ -104,12 +105,13 @@ public sealed class ActivityIndexPageTests
             new() { Id = 2, Name = "Training", CreatedByUserId = "seed" }
         });
         var exportService = new StubActivityExportService();
+        var deleteRequestService = new StubActivityDeleteRequestService();
 
         var services = new ServiceCollection().BuildServiceProvider();
         var user = new ApplicationUser { Id = "viewer-1", UserName = "viewer" };
         using var userManager = new StubUserManager(user, services);
 
-        var page = new IndexModel(activityService, typeService, exportService, userManager);
+        var page = new IndexModel(activityService, typeService, exportService, deleteRequestService, userManager);
         ConfigurePage(page, CreatePrincipal("viewer-1", null));
 
         var actionResult = await page.OnGetAsync(CancellationToken.None);
@@ -129,12 +131,13 @@ public sealed class ActivityIndexPageTests
         var typeService = new StubActivityTypeService(Array.Empty<ActivityType>());
         var exportFile = new ActivityExportResult("MiscActivities_20240101_1200.xlsx", ActivityExportService.ExcelContentType, new byte[] { 0x01, 0x02 });
         var exportService = new StubActivityExportService(exportFile);
+        var deleteRequestService = new StubActivityDeleteRequestService();
 
         var services = new ServiceCollection().BuildServiceProvider();
         var user = new ApplicationUser { Id = "viewer", UserName = "viewer" };
         using var userManager = new StubUserManager(user, services);
 
-        var page = new IndexModel(activityService, typeService, exportService, userManager)
+        var page = new IndexModel(activityService, typeService, exportService, deleteRequestService, userManager)
         {
             SortBy = ActivityListSort.Title,
             SortDir = "asc",
@@ -168,12 +171,13 @@ public sealed class ActivityIndexPageTests
         var activityService = new StubActivityService(new ActivityListResult(Array.Empty<ActivityListItem>(), 0, 1, 25, ActivityListSort.ScheduledStart, true));
         var typeService = new StubActivityTypeService(Array.Empty<ActivityType>());
         var exportService = new StubActivityExportService(null);
+        var deleteRequestService = new StubActivityDeleteRequestService();
 
         var services = new ServiceCollection().BuildServiceProvider();
         var user = new ApplicationUser { Id = "viewer", UserName = "viewer" };
         using var userManager = new StubUserManager(user, services);
 
-        var page = new IndexModel(activityService, typeService, exportService, userManager);
+        var page = new IndexModel(activityService, typeService, exportService, deleteRequestService, userManager);
         ConfigurePage(page, CreatePrincipal("viewer", null));
 
         var result = await page.OnPostExportAsync(CancellationToken.None);
@@ -270,6 +274,21 @@ public sealed class ActivityIndexPageTests
             LastRequest = request;
             return Task.FromResult(_result);
         }
+    }
+
+    private sealed class StubActivityDeleteRequestService : IActivityDeleteRequestService
+    {
+        public Task<int> RequestAsync(int activityId, string? reason, CancellationToken cancellationToken = default)
+            => Task.FromResult(0);
+
+        public Task ApproveAsync(int requestId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task RejectAsync(int requestId, string? reason, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
+
+        public Task<IReadOnlyList<ActivityDeleteRequestSummary>> GetPendingAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<ActivityDeleteRequestSummary>>(Array.Empty<ActivityDeleteRequestSummary>());
     }
 
     private sealed class StubUserManager : UserManager<ApplicationUser>
