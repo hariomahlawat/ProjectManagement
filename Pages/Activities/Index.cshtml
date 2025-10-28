@@ -10,7 +10,8 @@
     var totalCount = vm?.TotalCount ?? 0;
     var resultsStart = hasRows ? ((currentPage - 1) * pageSize) + 1 : 0;
     var resultsEnd = hasRows ? resultsStart + vm!.Rows.Count - 1 : 0;
-    string FormatDate(DateTimeOffset? value) => value?.ToLocalTime().ToString("dd MMM yyyy, HH:mm", System.Globalization.CultureInfo.CurrentCulture) ?? "—";
+    string FormatEventDate(DateTimeOffset? value) => value?.ToLocalTime().ToString("dd MMM yyyy", System.Globalization.CultureInfo.CurrentCulture) ?? "—";
+    string FormatTimestamp(DateTimeOffset? value) => value?.ToLocalTime().ToString("dd MMM yyyy, HH:mm", System.Globalization.CultureInfo.CurrentCulture) ?? "—";
 }
 
 @section Styles
@@ -168,7 +169,7 @@
                                 </th>
                                 <th scope="col">
                                     <a class="activities-sort-link" asp-page="./Index" asp-all-route-data="Model.BuildRoute(page: 1, sort: ActivityListSort.ScheduledStart, sortDir: Model.GetSortDirectionFor(ActivityListSort.ScheduledStart))">
-                                        Schedule
+                                        Event date
                                         <i class="@Model.GetSortIconClass(ActivityListSort.ScheduledStart)" aria-hidden="true"></i>
                                     </a>
                                 </th>
@@ -201,16 +202,16 @@
                                     </td>
                                     <td>
                                         <div class="activities-table__schedule">
-                                            <div><i class="bi bi-clock" aria-hidden="true"></i> <span>@FormatDate(row.ScheduledStartUtc)</span></div>
+                                            <div><i class="bi bi-clock" aria-hidden="true"></i> <span>@FormatEventDate(row.ScheduledStartUtc)</span></div>
                                             @if (row.ScheduledEndUtc.HasValue)
                                             {
-                                                <div class="text-muted"><i class="bi bi-arrow-right" aria-hidden="true"></i> <span>@FormatDate(row.ScheduledEndUtc)</span></div>
+                                                <div class="text-muted"><i class="bi bi-arrow-right" aria-hidden="true"></i> <span>@FormatEventDate(row.ScheduledEndUtc)</span></div>
                                             }
                                         </div>
                                     </td>
                                     <td>
                                         <div class="activities-table__creator">@row.CreatedByDisplayName</div>
-                                        <div class="text-muted small">@FormatDate(row.CreatedAtUtc)</div>
+                                        <div class="text-muted small">@FormatTimestamp(row.CreatedAtUtc)</div>
                                     </td>
                                     <td>
                                         <div class="d-flex flex-wrap gap-2 align-items-center">
