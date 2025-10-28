@@ -24,6 +24,9 @@ namespace ProjectManagement.Infrastructure.Activities
             return _dbContext.Activities
                 .Include(x => x.ActivityType)
                 .Include(x => x.Attachments)
+                .Include(x => x.CreatedByUser)
+                .Include(x => x.LastModifiedByUser)
+                .Include(x => x.DeletedByUser)
                 .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
         }
 
@@ -33,6 +36,9 @@ namespace ProjectManagement.Infrastructure.Activities
                 .AsNoTracking()
                 .Include(x => x.ActivityType)
                 .Include(x => x.Attachments)
+                .Include(x => x.CreatedByUser)
+                .Include(x => x.LastModifiedByUser)
+                .Include(x => x.DeletedByUser)
                 .Where(x => x.ActivityTypeId == activityTypeId && !x.IsDeleted)
                 .OrderByDescending(x => x.ScheduledStartUtc ?? x.CreatedAtUtc)
                 .ToListAsync(cancellationToken);
