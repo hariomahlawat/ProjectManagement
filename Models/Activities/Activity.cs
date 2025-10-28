@@ -55,6 +55,8 @@ namespace ProjectManagement.Models.Activities
         public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
         public ICollection<ActivityAttachment> Attachments { get; set; } = new List<ActivityAttachment>();
+
+        public ICollection<ActivityDeleteRequest> DeleteRequests { get; set; } = new List<ActivityDeleteRequest>();
     }
 
     public class ActivityAttachment

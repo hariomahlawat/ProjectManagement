@@ -105,6 +105,7 @@ namespace ProjectManagement.Data
         public DbSet<ActivityType> ActivityTypes => Set<ActivityType>();
         public DbSet<Activity> Activities => Set<Activity>();
         public DbSet<ActivityAttachment> ActivityAttachments => Set<ActivityAttachment>();
+        public DbSet<ActivityDeleteRequest> ActivityDeleteRequests => Set<ActivityDeleteRequest>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -2230,6 +2231,71 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.UploadedByUserId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            builder.Entity<ActivityDeleteRequest>(entity =>
+            {
+                ConfigureRowVersion(entity);
+                entity.ToTable("ActivityDeleteRequests");
+                entity.Property(x => x.RequestedByUserId).HasMaxLength(450).IsRequired();
+                entity.Property(x => x.ApprovedByUserId).HasMaxLength(450);
+                entity.Property(x => x.RejectedByUserId).HasMaxLength(450);
+                entity.Property(x => x.Reason).HasMaxLength(1000);
+                entity.Property(x => x.RequestedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                if (Database.IsNpgsql())
+                {
+                    entity.Property(x => x.RequestedAtUtc).HasColumnType("timestamp with time zone");
+                    entity.Property(x => x.ApprovedAtUtc).HasColumnType("timestamp with time zone");
+                    entity.Property(x => x.RejectedAtUtc).HasColumnType("timestamp with time zone");
+                }
+                else if (Database.IsSqlServer())
+                {
+                    entity.Property(x => x.RequestedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else
+                {
+                    entity.Property(x => x.RequestedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
+
+                entity.HasOne(x => x.Activity)
+                    .WithMany(x => x.DeleteRequests)
+                    .HasForeignKey(x => x.ActivityId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(x => x.RequestedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.RequestedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(x => x.ApprovedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.ApprovedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(x => x.RejectedByUser)
+                    .WithMany()
+                    .HasForeignKey(x => x.RejectedByUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(x => x.RequestedAtUtc)
+                    .HasDatabaseName("IX_ActivityDeleteRequests_RequestedAtUtc");
+
+                var pendingIndex = entity.HasIndex(x => x.ActivityId)
+                    .HasDatabaseName("UX_ActivityDeleteRequests_ActivityId_Pending")
+                    .IsUnique();
+
+                if (Database.IsNpgsql())
+                {
+                    pendingIndex.HasFilter("\"ApprovedAtUtc\" IS NULL AND \"RejectedAtUtc\" IS NULL");
+                }
+                else if (Database.IsSqlServer())
+                {
+                    pendingIndex.HasFilter("[ApprovedAtUtc] IS NULL AND [RejectedAtUtc] IS NULL");
+                }
+                else
+                {
+                    pendingIndex.HasFilter("ApprovedAtUtc IS NULL AND RejectedAtUtc IS NULL");
+                }
             });
 
             builder.Entity<TrainingDeleteRequest>(entity =>

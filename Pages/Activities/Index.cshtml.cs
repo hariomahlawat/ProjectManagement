@@ -26,16 +26,19 @@ public sealed class IndexModel : PageModel
     private readonly IActivityService _activityService;
     private readonly IActivityTypeService _activityTypeService;
     private readonly IActivityExportService _activityExportService;
+    private readonly IActivityDeleteRequestService _deleteRequestService;
     private readonly UserManager<ApplicationUser> _userManager;
 
     public IndexModel(IActivityService activityService,
                       IActivityTypeService activityTypeService,
                       IActivityExportService activityExportService,
+                      IActivityDeleteRequestService deleteRequestService,
                       UserManager<ApplicationUser> userManager)
     {
         _activityService = activityService;
         _activityTypeService = activityTypeService;
         _activityExportService = activityExportService;
+        _deleteRequestService = deleteRequestService;
         _userManager = userManager;
     }
 
@@ -80,6 +83,8 @@ public sealed class IndexModel : PageModel
 
     public bool CanExportActivities { get; private set; }
 
+    public bool IsDeleteApprover { get; private set; }
+
     public bool IsSortDescending => string.IsNullOrWhiteSpace(SortDir) || !string.Equals(SortDir, "asc", StringComparison.OrdinalIgnoreCase);
 
     public string SortDirection => IsSortDescending ? "desc" : "asc";
@@ -104,6 +109,9 @@ public sealed class IndexModel : PageModel
 
         var currentUserId = _userManager.GetUserId(User) ?? string.Empty;
         var isManager = IsManager(User);
+        var isApprover = IsApprover(User);
+
+        IsDeleteApprover = isApprover;
 
         var rows = result.Items.Select(item =>
         {
@@ -112,6 +120,7 @@ public sealed class IndexModel : PageModel
                 : item.CreatedByDisplayName;
 
             var canManage = isManager || string.Equals(item.CreatedByUserId, currentUserId, StringComparison.OrdinalIgnoreCase);
+            var canRequestDelete = isManager;
 
             return new ActivityListRowViewModel(
                 item.Id,
@@ -128,7 +137,7 @@ public sealed class IndexModel : PageModel
                 item.PhotoAttachmentCount,
                 item.VideoAttachmentCount,
                 canManage,
-                canManage);
+                canRequestDelete);
         }).ToList();
 
         var totalPages = result.PageSize <= 0
@@ -156,16 +165,26 @@ public sealed class IndexModel : PageModel
         return Page();
     }
 
-    public async Task<IActionResult> OnPostDeleteAsync(int id, CancellationToken cancellationToken)
+    public async Task<IActionResult> OnPostRequestDeleteAsync(int id, CancellationToken cancellationToken)
     {
+        if (id <= 0)
+        {
+            TempData["Error"] = "The selected activity could not be found.";
+            return RedirectToPage(null, BuildRouteValues());
+        }
+
         try
         {
-            await _activityService.DeleteAsync(id, cancellationToken);
-            TempData["ToastMessage"] = "Activity deleted.";
+            await _deleteRequestService.RequestAsync(id, reason: null, cancellationToken);
+            TempData["ToastMessage"] = "Delete request submitted for approval.";
         }
         catch (ActivityAuthorizationException)
         {
-            TempData["Error"] = "You are not authorised to delete this activity.";
+            TempData["Error"] = "You are not authorised to request deletion for this activity.";
+        }
+        catch (InvalidOperationException)
+        {
+            TempData["Error"] = "A delete request is already pending for this activity.";
         }
         catch (KeyNotFoundException)
         {
@@ -239,7 +258,7 @@ public sealed class IndexModel : PageModel
         return values;
     }
 
-    public Dictionary<string, string?> BuildRouteForDelete(int id)
+    public Dictionary<string, string?> BuildRouteForDeleteRequest(int id)
     {
         var values = new Dictionary<string, string?>(BuildRoute(Page, SortBy, SortDirection, PageSize), StringComparer.OrdinalIgnoreCase)
         {

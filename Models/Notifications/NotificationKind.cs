@@ -18,5 +18,8 @@ public enum NotificationKind
     ProjectAssignmentChanged = 41,
     TrainingDeleteRequested = 90,
     TrainingDeleteApproved = 91,
-    TrainingDeleteRejected = 92
+    TrainingDeleteRejected = 92,
+    ActivityDeleteRequested = 93,
+    ActivityDeleteApproved = 94,
+    ActivityDeleteRejected = 95
 }
