@@ -386,7 +386,8 @@ public sealed class EditModel : PageModel
         }
 
         var local = value.Value.ToLocalTime();
-        return local.DateTime;
+        var date = local.Date;
+        return DateTime.SpecifyKind(date, DateTimeKind.Local);
     }
 
     private static DateTimeOffset? ConvertToUtc(DateTime? value)
@@ -396,7 +397,8 @@ public sealed class EditModel : PageModel
             return null;
         }
 
-        var local = DateTime.SpecifyKind(value.Value, DateTimeKind.Local);
+        var localDate = value.Value.Date;
+        var local = DateTime.SpecifyKind(localDate, DateTimeKind.Local);
         return new DateTimeOffset(local).ToUniversalTime();
     }
 
@@ -421,10 +423,10 @@ public sealed class EditModel : PageModel
         [Display(Name = "Activity type")]
         public int? ActivityTypeId { get; set; }
 
-        [Display(Name = "Scheduled start")]
+        [Display(Name = "Start date")]
         public DateTime? ScheduledStart { get; set; }
 
-        [Display(Name = "Scheduled end")]
+        [Display(Name = "End date")]
         public DateTime? ScheduledEnd { get; set; }
 
         [Display(Name = "Attachments")]

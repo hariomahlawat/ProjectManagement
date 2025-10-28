@@ -73,7 +73,7 @@ internal sealed class ActivityInputValidator : IActivityInputValidator
         if (input.ScheduledStartUtc.HasValue && input.ScheduledEndUtc.HasValue &&
             input.ScheduledEndUtc.Value < input.ScheduledStartUtc.Value)
         {
-            AddError(nameof(input.ScheduledEndUtc), "Scheduled end must be greater than or equal to the start time.");
+            AddError(nameof(input.ScheduledEndUtc), "End date must be on or after the start date.");
         }
 
         if (errors.Count > 0)
