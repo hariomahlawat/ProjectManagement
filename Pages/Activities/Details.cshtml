@@ -55,7 +55,7 @@
         <div class="pm-card-header d-flex flex-column flex-md-row gap-3 align-items-start align-items-md-center">
             <div class="flex-grow-1">
                 <h1 class="pm-card-title mb-1">@activity.Title</h1>
-                <p class="pm-card-subtitle mb-0 text-muted">@activity.ActivityType?.Name ?? "Activity"</p>
+                <p class="pm-card-subtitle mb-0 text-muted">@(activity.ActivityType?.Name ?? "Activity")</p>
             </div>
             @if (Model.CanManage)
             {
