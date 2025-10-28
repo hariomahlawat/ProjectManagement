@@ -24,7 +24,6 @@ public sealed class DetailsModel : PageModel
         "Admin",
         "HoD",
         "Project Office",
-        "ProjectOffice",
         "TA"
     };
     private static readonly IReadOnlyList<string> AttachmentSummaryLabels = new[]

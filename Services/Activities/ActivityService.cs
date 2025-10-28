@@ -258,7 +258,6 @@ public sealed class ActivityService : IActivityService
         "Admin",
         "HoD",
         "Project Office",
-        "ProjectOffice",
         "TA"
     };
 
