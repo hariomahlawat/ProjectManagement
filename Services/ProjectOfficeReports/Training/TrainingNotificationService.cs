@@ -13,7 +13,9 @@ namespace ProjectManagement.Services.ProjectOfficeReports.Training;
 
 public sealed class TrainingNotificationService : ITrainingNotificationService
 {
-    private static readonly string[] ApproverRoles = { "Admin", "HoD" };
+    // Include both canonical and legacy Project Office role names to cover deployments that
+    // still provision the older "ProjectOffice" identifier.
+    private static readonly string[] ApproverRoles = { "Admin", "HoD", "Project Office", "ProjectOffice" };
 
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly INotificationPublisher _publisher;
