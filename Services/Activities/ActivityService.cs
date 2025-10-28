@@ -253,7 +253,14 @@ public sealed class ActivityService : IActivityService
         }
     }
 
-    private static readonly string[] ManagerRoles = { "Admin", "HoD", "ProjectOffice", "TA" };
+    private static readonly string[] ManagerRoles =
+    {
+        "Admin",
+        "HoD",
+        "Project Office",
+        "ProjectOffice",
+        "TA"
+    };
 
     private static bool IsManager(ClaimsPrincipal principal)
     {
