@@ -282,12 +282,14 @@ public class ActivityServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task DeleteAsync_MarksActivityDeleted()
+    public async Task DeleteAsync_AllowsAdminUser()
     {
         var type = await EnsureActivityTypeAsync();
         var created = await _service.CreateAsync(new ActivityInput("Review", null, null, type.Id, null, null));
 
-        await _service.DeleteAsync(created.Id);
+        var adminService = CreateService(new TestUserContext("admin", isAdmin: true));
+
+        await adminService.DeleteAsync(created.Id);
 
         var stored = await _activityRepository.GetByIdAsync(created.Id);
         Assert.True(stored!.IsDeleted);
@@ -306,9 +308,39 @@ public class ActivityServiceTests : IDisposable
         var path = Path.Combine(_uploadRoot.RootPath, attachment.StorageKey.Replace('/', Path.DirectorySeparatorChar));
         Assert.True(File.Exists(path));
 
-        await _service.DeleteAsync(created.Id);
+        var adminService = CreateService(new TestUserContext("admin", isAdmin: true));
+
+        await adminService.DeleteAsync(created.Id);
 
         Assert.False(File.Exists(path));
+    }
+
+    [Fact]
+    public async Task DeleteAsync_RejectsProjectOfficeUser()
+    {
+        var type = await EnsureActivityTypeAsync();
+        var created = await _service.CreateAsync(new ActivityInput("Review", null, null, type.Id, null, null));
+
+        var projectOfficeService = CreateService(new TestUserContext("po-user", isProjectOffice: true));
+
+        await Assert.ThrowsAsync<ActivityAuthorizationException>(() => projectOfficeService.DeleteAsync(created.Id));
+
+        var stored = await _activityRepository.GetByIdAsync(created.Id);
+        Assert.False(stored!.IsDeleted);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_AllowsHoDUser()
+    {
+        var type = await EnsureActivityTypeAsync();
+        var created = await _service.CreateAsync(new ActivityInput("Review", null, null, type.Id, null, null));
+
+        var hodService = CreateService(new TestUserContext("hod-user", isHoD: true));
+
+        await hodService.DeleteAsync(created.Id);
+
+        var stored = await _activityRepository.GetByIdAsync(created.Id);
+        Assert.True(stored!.IsDeleted);
     }
 
     [Fact]
@@ -444,6 +476,16 @@ public class ActivityServiceTests : IDisposable
         var export = await exportService.ExportAsync(new ActivityExportRequest(ActivityTypeId: 999));
 
         Assert.Null(export);
+    }
+
+    private ActivityService CreateService(TestUserContext userContext)
+    {
+        return new ActivityService(_activityRepository,
+            _inputValidator,
+            _attachmentManager,
+            userContext,
+            _clock,
+            NullLogger<ActivityService>.Instance);
     }
 
     private async Task<ActivityType> EnsureActivityTypeAsync()
