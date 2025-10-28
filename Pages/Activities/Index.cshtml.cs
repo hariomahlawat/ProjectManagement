@@ -64,9 +64,6 @@ public sealed class IndexModel : PageModel
     public int? ActivityTypeId { get; set; }
 
     [BindProperty(SupportsGet = true)]
-    public string? CreatedBy { get; set; }
-
-    [BindProperty(SupportsGet = true)]
     public ActivityAttachmentTypeFilter AttachmentType { get; set; } = ActivityAttachmentTypeFilter.Any;
 
     public ActivityListViewModel? ViewModel { get; private set; }
@@ -74,8 +71,6 @@ public sealed class IndexModel : PageModel
     public IReadOnlyList<SelectListItem> ActivityTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
 
     public IReadOnlyList<SelectListItem> AttachmentTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
-
-    public IReadOnlyList<SelectListItem> SortOptions { get; private set; } = Array.Empty<SelectListItem>();
 
     public IReadOnlyList<SelectListItem> PageSizeOptions { get; private set; } = Array.Empty<SelectListItem>();
 
@@ -102,7 +97,6 @@ public sealed class IndexModel : PageModel
             ToDate,
             ActivityTypeId,
             CreatedByUserId: null,
-            CreatedBySearch: CreatedBy,
             AttachmentType);
 
         var result = await _activityService.ListAsync(request, cancellationToken);
@@ -154,8 +148,7 @@ public sealed class IndexModel : PageModel
             AttachmentType,
             FromDate,
             ToDate,
-            ActivityTypeId,
-            CreatedBy);
+            ActivityTypeId);
 
         await BuildFilterOptionsAsync(cancellationToken);
 
@@ -203,7 +196,6 @@ public sealed class IndexModel : PageModel
             ToDate,
             ActivityTypeId,
             CreatedByUserId: null,
-            CreatedBySearch: CreatedBy,
             AttachmentType);
 
         var export = await _activityExportService.ExportAsync(exportRequest, cancellationToken);
@@ -243,11 +235,6 @@ public sealed class IndexModel : PageModel
         if (ActivityTypeId.HasValue)
         {
             values["ActivityTypeId"] = ActivityTypeId.Value.ToString(CultureInfo.InvariantCulture);
-        }
-
-        if (!string.IsNullOrWhiteSpace(CreatedBy))
-        {
-            values["CreatedBy"] = CreatedBy;
         }
 
         if (AttachmentType != ActivityAttachmentTypeFilter.Any)
@@ -310,14 +297,6 @@ public sealed class IndexModel : PageModel
             new("PDF", ActivityAttachmentTypeFilter.Pdf.ToString(), AttachmentType == ActivityAttachmentTypeFilter.Pdf),
             new("Photo", ActivityAttachmentTypeFilter.Photo.ToString(), AttachmentType == ActivityAttachmentTypeFilter.Photo),
             new("Video", ActivityAttachmentTypeFilter.Video.ToString(), AttachmentType == ActivityAttachmentTypeFilter.Video)
-        };
-
-        SortOptions = new List<SelectListItem>
-        {
-            new("Scheduled", ActivityListSort.ScheduledStart.ToString(), SortBy == ActivityListSort.ScheduledStart),
-            new("Created", ActivityListSort.CreatedAt.ToString(), SortBy == ActivityListSort.CreatedAt),
-            new("Title", ActivityListSort.Title.ToString(), SortBy == ActivityListSort.Title),
-            new("Activity type", ActivityListSort.ActivityType.ToString(), SortBy == ActivityListSort.ActivityType)
         };
 
         PageSizeOptions = AllowedPageSizes

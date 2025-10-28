@@ -15,8 +15,7 @@ public sealed record ActivityListViewModel(
     ActivityAttachmentTypeFilter AttachmentFilter,
     DateOnly? FromDate,
     DateOnly? ToDate,
-    int? ActivityTypeId,
-    string? CreatedBySearch);
+    int? ActivityTypeId);
 
 public sealed record ActivityListRowViewModel(
     int Id,

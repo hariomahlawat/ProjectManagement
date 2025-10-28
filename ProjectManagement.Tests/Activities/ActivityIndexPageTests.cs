@@ -141,7 +141,6 @@ public sealed class ActivityIndexPageTests
             FromDate = new DateOnly(2024, 1, 1),
             ToDate = new DateOnly(2024, 1, 31),
             ActivityTypeId = 7,
-            CreatedBy = "alex",
             AttachmentType = ActivityAttachmentTypeFilter.Photo
         };
         ConfigurePage(page, CreatePrincipal("viewer", null));
@@ -160,7 +159,6 @@ public sealed class ActivityIndexPageTests
         Assert.Equal(new DateOnly(2024, 1, 1), request.FromDate);
         Assert.Equal(new DateOnly(2024, 1, 31), request.ToDate);
         Assert.Equal(7, request.ActivityTypeId);
-        Assert.Equal("alex", request.CreatedBySearch);
         Assert.Equal(ActivityAttachmentTypeFilter.Photo, request.AttachmentType);
     }
 

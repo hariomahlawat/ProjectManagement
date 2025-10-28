@@ -28,7 +28,6 @@ public sealed record ActivityListRequest(
     DateOnly? ToDate = null,
     int? ActivityTypeId = null,
     string? CreatedByUserId = null,
-    string? CreatedBySearch = null,
     ActivityAttachmentTypeFilter AttachmentType = ActivityAttachmentTypeFilter.Any);
 
 public sealed record ActivityListItem(

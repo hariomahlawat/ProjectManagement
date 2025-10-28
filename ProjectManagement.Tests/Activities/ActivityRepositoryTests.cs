@@ -237,7 +237,6 @@ public class ActivityRepositoryTests
             ToDate: DateOnly.FromDateTime(DateTime.UtcNow.AddDays(2)),
             ActivityTypeId: typeA.Id,
             CreatedByUserId: null,
-            CreatedBySearch: "Casey",
             AttachmentType: ActivityAttachmentTypeFilter.Pdf);
 
         var result = await repository.ListAsync(request);
