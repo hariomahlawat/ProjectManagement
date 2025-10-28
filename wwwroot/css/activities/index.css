@@ -9,12 +9,17 @@
   width: 100%;
 }
 
-.activities-filter [type="date"] {
+.activities-filter-offcanvas {
+  --bs-offcanvas-width: min(420px, 100%);
+}
+
+.activities-filter-form .form-control,
+.activities-filter-form .form-select,
+.activities-filter-form [type="date"] {
   min-height: 2.75rem;
 }
 
-.activities-filter .form-select,
-.activities-filter .form-control {
+.activities-filter-form .btn {
   min-height: 2.75rem;
 }
 

@@ -34,6 +34,14 @@
                 </div>
             </div>
             <div class="pm-card-actions d-flex gap-2 flex-wrap justify-content-md-end w-100 w-md-auto">
+                <button type="button"
+                        class="btn btn-outline-primary btn-sm"
+                        data-bs-toggle="offcanvas"
+                        data-bs-target="#activitiesFilterOffcanvas"
+                        aria-controls="activitiesFilterOffcanvas">
+                    <i class="bi bi-funnel" aria-hidden="true"></i>
+                    <span>Filters</span>
+                </button>
                 <form method="post"
                       asp-page-handler="Export"
                       asp-all-route-data="Model.BuildRoute()"
@@ -56,45 +64,55 @@
                 }
             </div>
         </div>
-        <div class="pm-card-body">
-            <form method="get" class="row g-3 activities-filter" aria-label="Activity filters">
+    </div>
+
+    <div class="offcanvas offcanvas-end activities-filter-offcanvas"
+         tabindex="-1"
+         id="activitiesFilterOffcanvas"
+         aria-labelledby="activitiesFilterOffcanvasLabel">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title" id="activitiesFilterOffcanvasLabel">Activity filters</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+            <form method="get" class="row g-3 activities-filter-form" aria-label="Activity filters">
                 <input type="hidden" name="Page" value="1" />
-                <div class="col-12 col-sm-6 col-lg-3">
+                <div class="col-12 col-sm-6">
                     <label class="form-label" asp-for="FromDate">From date</label>
                     <input asp-for="FromDate" class="form-control" type="date" />
                 </div>
-                <div class="col-12 col-sm-6 col-lg-3">
+                <div class="col-12 col-sm-6">
                     <label class="form-label" asp-for="ToDate">To date</label>
                     <input asp-for="ToDate" class="form-control" type="date" />
                 </div>
-                <div class="col-12 col-md-4 col-lg-3">
+                <div class="col-12">
                     <label class="form-label" asp-for="ActivityTypeId">Activity type</label>
                     <select asp-for="ActivityTypeId" class="form-select" asp-items="Model.ActivityTypeOptions"></select>
                 </div>
-                <div class="col-12 col-md-4 col-lg-3">
+                <div class="col-12">
                     <label class="form-label" asp-for="AttachmentType">Attachment type</label>
                     <select asp-for="AttachmentType" class="form-select" asp-items="Model.AttachmentTypeOptions" data-activities-autosubmit></select>
                 </div>
-                <div class="col-12 col-md-4 col-lg-3">
+                <div class="col-12">
                     <label class="form-label" asp-for="CreatedBy">Created by</label>
                     <input asp-for="CreatedBy" class="form-control" placeholder="Name or email" />
                 </div>
-                <div class="col-12 col-md-4 col-lg-3">
+                <div class="col-12">
                     <label class="form-label" asp-for="SortBy">Sort by</label>
                     <select asp-for="SortBy" class="form-select" asp-items="Model.SortOptions" data-activities-autosubmit></select>
                 </div>
-                <div class="col-6 col-md-4 col-lg-2">
+                <div class="col-12 col-sm-6">
                     <label class="form-label" for="SortDir">Order</label>
                     <select id="SortDir" name="SortDir" class="form-select" data-activities-autosubmit>
                         <option value="desc" selected="@(Model.IsSortDescending ? "selected" : null)">Descending</option>
                         <option value="asc" selected="@(!Model.IsSortDescending ? "selected" : null)">Ascending</option>
                     </select>
                 </div>
-                <div class="col-6 col-md-4 col-lg-2">
+                <div class="col-12 col-sm-6">
                     <label class="form-label" asp-for="PageSize">Page size</label>
                     <select asp-for="PageSize" class="form-select" asp-items="Model.PageSizeOptions" data-activities-autosubmit></select>
                 </div>
-                <div class="col-12 col-lg-4 d-flex align-items-end justify-content-lg-end gap-2">
+                <div class="col-12 d-flex flex-wrap gap-2 justify-content-end">
                     <button type="submit" class="btn btn-primary">
                         <i class="bi bi-funnel" aria-hidden="true"></i>
                         <span>Apply</span>

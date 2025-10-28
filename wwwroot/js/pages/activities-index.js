@@ -4,7 +4,10 @@
     return;
   }
 
-  const filterForm = moduleRoot.querySelector('.activities-filter');
+  const filterOffcanvas = document.getElementById('activitiesFilterOffcanvas');
+  const filterForm = filterOffcanvas
+    ? filterOffcanvas.querySelector('form')
+    : moduleRoot.querySelector('.activities-filter, .activities-filter-form');
   if (filterForm) {
     const autoSubmitInputs = filterForm.querySelectorAll('[data-activities-autosubmit]');
     autoSubmitInputs.forEach((input) => {
