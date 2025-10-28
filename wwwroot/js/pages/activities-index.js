@@ -26,6 +26,55 @@
     });
   }
 
+  const modalElement = document.getElementById('activitiesDeleteConfirmModal');
+  const modalMessage = modalElement ? modalElement.querySelector('[data-delete-confirm-message]') : null;
+  const modalConfirmButton = modalElement ? modalElement.querySelector('[data-delete-confirm-accept]') : null;
+  const defaultMessage = modalMessage ? modalMessage.dataset.defaultMessage : null;
+  const modalInstance = modalElement && window.bootstrap ? new window.bootstrap.Modal(modalElement) : null;
+
+  let pendingForm = null;
+  let pendingSubmitter = null;
+
+  if (modalElement) {
+    modalElement.addEventListener('hidden.bs.modal', () => {
+      pendingForm = null;
+      pendingSubmitter = null;
+      if (modalMessage && defaultMessage) {
+        modalMessage.textContent = defaultMessage;
+      }
+    });
+  }
+
+  if (modalConfirmButton && modalInstance) {
+    modalConfirmButton.addEventListener('click', () => {
+      if (!pendingForm) {
+        modalInstance.hide();
+        return;
+      }
+
+      const formToSubmit = pendingForm;
+      const submitter = pendingSubmitter;
+
+      pendingForm = null;
+      pendingSubmitter = null;
+
+      formToSubmit.dataset.activitiesDeleteConfirmed = 'true';
+      modalInstance.hide();
+
+      window.setTimeout(() => {
+        if (typeof formToSubmit.requestSubmit === 'function') {
+          if (submitter) {
+            formToSubmit.requestSubmit(submitter);
+          } else {
+            formToSubmit.requestSubmit();
+          }
+        } else {
+          formToSubmit.submit();
+        }
+      }, 150);
+    });
+  }
+
   moduleRoot.addEventListener('submit', (event) => {
     const form = event.target.closest('form');
     if (!form) {
@@ -33,8 +82,27 @@
     }
 
     if (form.matches('[data-activities-delete-form]')) {
+      if (form.dataset.activitiesDeleteConfirmed === 'true') {
+        delete form.dataset.activitiesDeleteConfirmed;
+        return;
+      }
+
       const trigger = event.submitter || form.querySelector('[data-confirm]');
-      const confirmationMessage = trigger ? trigger.getAttribute('data-confirm') : form.getAttribute('data-confirm');
+      const confirmationMessage = trigger
+        ? trigger.getAttribute('data-confirm')
+        : form.getAttribute('data-confirm');
+
+      if (modalInstance && modalConfirmButton) {
+        event.preventDefault();
+        pendingForm = form;
+        pendingSubmitter = event.submitter || null;
+        if (modalMessage) {
+          modalMessage.textContent = confirmationMessage || defaultMessage || '';
+        }
+        modalInstance.show();
+        return;
+      }
+
       if (confirmationMessage && !window.confirm(confirmationMessage)) {
         event.preventDefault();
       }
