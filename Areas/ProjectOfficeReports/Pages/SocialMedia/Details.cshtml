@@ -30,7 +30,7 @@
         <div class="social-hero__content">
             <span class="social-hero__eyebrow">Project office reports</span>
             <h1 class="social-hero__title">@Model.Event?.Title</h1>
-            <p class="social-hero__subtitle">@Model.Event?.Description ?? "No description available."</p>
+            <p class="social-hero__subtitle">@(Model.Event?.Description ?? "No description available.")</p>
             <div class="social-hero__meta">
                 <span class="social-hero__meta-item"><i class="bi bi-calendar-event" aria-hidden="true"></i> @Model.Event?.DateOfEvent.ToString("dd MMM yyyy")</span>
                 <span class="social-hero__meta-item"><i class="bi bi-megaphone" aria-hidden="true"></i> @Model.EventType?.Name</span>
