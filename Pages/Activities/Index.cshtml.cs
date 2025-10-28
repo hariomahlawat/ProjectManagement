@@ -333,6 +333,12 @@ public sealed class IndexModel : PageModel
                user.IsInRole("TA");
     }
 
+    private static bool IsApprover(ClaimsPrincipal user)
+    {
+        return user.IsInRole("Admin") ||
+               user.IsInRole("HoD");
+    }
+
     private static int NormalizePageSize(int requested)
     {
         if (requested <= 0)
