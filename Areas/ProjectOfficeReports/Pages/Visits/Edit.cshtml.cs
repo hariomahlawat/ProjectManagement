@@ -371,7 +371,7 @@ public class EditModel : PageModel
 
     private bool IsProjectOfficeMember()
     {
-        return User.IsInRole("ProjectOffice") || User.IsInRole("Project Office");
+        return User.IsInRole("Project Office") || User.IsInRole("ProjectOffice");
     }
 
     private void ClearInputValidationErrors()
