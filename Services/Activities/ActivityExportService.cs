@@ -103,8 +103,8 @@ public sealed class ActivityExportService : IActivityExportService
         {
             "Title",
             "Activity type",
-            "Scheduled start date",
-            "Scheduled end date",
+            "Start date",
+            "End date",
             "Created date",
             "Created by",
             "PDF attachments",
