@@ -79,26 +79,51 @@ public class ActivityRepositoryTests
         context.ActivityTypes.Add(type);
         await context.SaveChangesAsync();
 
+        var creator = new ApplicationUser
+        {
+            Id = "user-1",
+            UserName = "creator",
+            NormalizedUserName = "CREATOR",
+            Email = "creator@example.test",
+            NormalizedEmail = "CREATOR@EXAMPLE.TEST",
+            FullName = "Casey Creator"
+        };
+
+        var modifier = new ApplicationUser
+        {
+            Id = "user-2",
+            UserName = "modifier",
+            NormalizedUserName = "MODIFIER",
+            Email = "modifier@example.test",
+            NormalizedEmail = "MODIFIER@EXAMPLE.TEST",
+            FullName = "Morgan Modifier"
+        };
+
+        context.Users.AddRange(creator, modifier);
+        await context.SaveChangesAsync();
+
         context.Activities.AddRange(
             new Activity
             {
                 Title = "Second",
                 ActivityTypeId = type.Id,
-                CreatedByUserId = "user-1",
+                CreatedByUserId = creator.Id!,
+                LastModifiedByUserId = modifier.Id!,
                 ScheduledStartUtc = DateTimeOffset.UtcNow.AddDays(1)
             },
             new Activity
             {
                 Title = "First",
                 ActivityTypeId = type.Id,
-                CreatedByUserId = "user-1",
+                CreatedByUserId = creator.Id!,
+                LastModifiedByUserId = modifier.Id!,
                 ScheduledStartUtc = DateTimeOffset.UtcNow.AddDays(2)
             },
             new Activity
             {
                 Title = "Deleted",
                 ActivityTypeId = type.Id,
-                CreatedByUserId = "user-1",
+                CreatedByUserId = creator.Id!,
                 IsDeleted = true
             });
         await context.SaveChangesAsync();
@@ -109,6 +134,82 @@ public class ActivityRepositoryTests
         Assert.Equal("First", results[0].Title);
         Assert.Equal("Second", results[1].Title);
         Assert.DoesNotContain(results, x => x.Title == "Deleted");
+        Assert.All(results, x =>
+        {
+            Assert.NotNull(x.CreatedByUser);
+            Assert.Equal(creator.FullName, x.CreatedByUser!.FullName);
+            Assert.NotNull(x.LastModifiedByUser);
+            Assert.Equal(modifier.FullName, x.LastModifiedByUser!.FullName);
+        });
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_IncludesUserNavigationProperties()
+    {
+        await using var context = CreateContext();
+        var repository = new ActivityRepository(context);
+
+        var type = new ActivityType
+        {
+            Name = "Operations",
+            CreatedByUserId = "system"
+        };
+        context.ActivityTypes.Add(type);
+
+        var creator = new ApplicationUser
+        {
+            Id = "creator-1",
+            UserName = "creator",
+            NormalizedUserName = "CREATOR",
+            Email = "creator@example.test",
+            NormalizedEmail = "CREATOR@EXAMPLE.TEST",
+            FullName = "Casey Creator"
+        };
+
+        var modifier = new ApplicationUser
+        {
+            Id = "modifier-1",
+            UserName = "modifier",
+            NormalizedUserName = "MODIFIER",
+            Email = "modifier@example.test",
+            NormalizedEmail = "MODIFIER@EXAMPLE.TEST",
+            FullName = "Morgan Modifier"
+        };
+
+        var deleter = new ApplicationUser
+        {
+            Id = "deleter-1",
+            UserName = "deleter",
+            NormalizedUserName = "DELETER",
+            Email = "deleter@example.test",
+            NormalizedEmail = "DELETER@EXAMPLE.TEST",
+            FullName = "Devin Deleter"
+        };
+
+        context.Users.AddRange(creator, modifier, deleter);
+        await context.SaveChangesAsync();
+
+        var activity = new Activity
+        {
+            Title = "Mission planning",
+            ActivityTypeId = type.Id,
+            CreatedByUserId = creator.Id!,
+            LastModifiedByUserId = modifier.Id!,
+            LastModifiedAtUtc = DateTimeOffset.UtcNow,
+            DeletedByUserId = deleter.Id!,
+            DeletedAtUtc = DateTimeOffset.UtcNow,
+            IsDeleted = true
+        };
+
+        context.Activities.Add(activity);
+        await context.SaveChangesAsync();
+
+        var stored = await repository.GetByIdAsync(activity.Id);
+
+        Assert.NotNull(stored);
+        Assert.Equal(creator.FullName, stored!.CreatedByUser?.FullName);
+        Assert.Equal(modifier.FullName, stored.LastModifiedByUser?.FullName);
+        Assert.Equal(deleter.FullName, stored.DeletedByUser?.FullName);
     }
 
     [Fact]
