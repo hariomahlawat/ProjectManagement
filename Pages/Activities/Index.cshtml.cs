@@ -310,6 +310,7 @@ public sealed class IndexModel : PageModel
     {
         return user.IsInRole("Admin") ||
                user.IsInRole("HoD") ||
+               user.IsInRole("Project Office") ||
                user.IsInRole("ProjectOffice") ||
                user.IsInRole("TA");
     }
