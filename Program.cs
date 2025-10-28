@@ -219,6 +219,8 @@ builder.Services.AddScoped<IActivityAttachmentValidator, ActivityAttachmentValid
 builder.Services.AddScoped<IActivityAttachmentStorage, FileSystemActivityAttachmentStorage>();
 builder.Services.AddScoped<IActivityAttachmentManager, ActivityAttachmentManager>();
 builder.Services.AddScoped<IActivityService, ActivityService>();
+builder.Services.AddScoped<IActivityDeleteRequestService, ActivityDeleteRequestService>();
+builder.Services.AddScoped<IActivityNotificationService, ActivityNotificationService>();
 builder.Services.AddScoped<IActivityTypeService, ActivityTypeService>();
 builder.Services.AddScoped<IActivityExportService, ActivityExportService>();
 builder.Services.Configure<UserLifecycleOptions>(

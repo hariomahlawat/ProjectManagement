@@ -1543,6 +1543,102 @@ namespace ProjectManagement.Migrations
                     b.ToTable("ActivityAttachments", (string)null);
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.Activities.ActivityDeleteRequest", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ActivityId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("ApprovedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ApprovedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTimeOffset?>("RejectedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RejectedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTimeOffset>("RequestedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<string>("RequestedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActivityId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ActivityDeleteRequests_ActivityId_Pending")
+                        .HasFilter("\"ApprovedAtUtc\" IS NULL AND \"RejectedAtUtc\" IS NULL");
+
+                    b.HasIndex("ApprovedByUserId");
+
+                    b.HasIndex("RejectedByUserId");
+
+                    b.HasIndex("RequestedAtUtc")
+                        .HasDatabaseName("IX_ActivityDeleteRequests_RequestedAtUtc");
+
+                    b.HasIndex("RequestedByUserId");
+
+                    b.ToTable("ActivityDeleteRequests", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.Activities.ActivityDeleteRequest", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Activities.Activity", "Activity")
+                        .WithMany("DeleteRequests")
+                        .HasForeignKey("ActivityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "ApprovedByUser")
+                        .WithMany()
+                        .HasForeignKey("ApprovedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "RejectedByUser")
+                        .WithMany()
+                        .HasForeignKey("RejectedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ProjectManagement.Models.ApplicationUser", "RequestedByUser")
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Activity");
+
+                    b.Navigation("ApprovedByUser");
+
+                    b.Navigation("RejectedByUser");
+
+                    b.Navigation("RequestedByUser");
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.Activities.ActivityType", b =>
                 {
                     b.Property<int>("Id")
@@ -5676,6 +5772,8 @@ namespace ProjectManagement.Migrations
             modelBuilder.Entity("ProjectManagement.Models.Activities.Activity", b =>
                 {
                     b.Navigation("Attachments");
+
+                    b.Navigation("DeleteRequests");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.Activities.ActivityType", b =>

@@ -66,15 +66,15 @@
                     </a>
                     <form method="post"
                           asp-page="./Index"
-                          asp-page-handler="Delete"
+                          asp-page-handler="RequestDelete"
                           asp-route-id="@activity.Id"
                           class="d-inline"
                           data-activities-delete-form
-                          data-confirm="Delete this activity?">
+                          data-confirm="Request deletion of this activity?">
                         @Html.AntiForgeryToken()
                         <button type="submit" class="btn btn-outline-danger btn-sm">
                             <i class="bi bi-trash" aria-hidden="true"></i>
-                            <span>Delete</span>
+                            <span>Request delete</span>
                         </button>
                     </form>
                 </div>
