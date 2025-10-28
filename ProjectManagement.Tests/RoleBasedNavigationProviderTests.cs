@@ -137,6 +137,36 @@ public class RoleBasedNavigationProviderTests
     }
 
     [Fact]
+    public async Task Navigation_DoesNotIncludeActivityDeleteApprovals()
+    {
+        var user = new ApplicationUser
+        {
+            Id = "admin-approver",
+            UserName = "admin"
+        };
+
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var userManager = new StubUserManager(user, services, "Admin", "HoD");
+        var httpContextAccessor = new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
+                }, "Test"))
+            }
+        };
+
+        var provider = CreateProvider(userManager, httpContextAccessor);
+        var navigation = await provider.GetNavigationAsync();
+
+        var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
+
+        Assert.DoesNotContain(projectOfficeReports.Children, c => string.Equals(c.Text, "Activity delete approvals", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Navigation_IncludesActivityTypesForHod()
     {
         var user = new ApplicationUser

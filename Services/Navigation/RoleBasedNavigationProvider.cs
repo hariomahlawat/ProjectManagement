@@ -131,13 +131,6 @@ public class RoleBasedNavigationProvider : INavigationProvider
             Page = "/Activities/Index"
         });
 
-        projectOfficeReportsChildren.Add(new NavigationItem
-        {
-            Text = "Activity delete approvals",
-            Page = "/Activities/Approvals",
-            RequiredRoles = new[] { "Admin", "HoD" }
-        });
-
         projectOfficeReportsChildren.Add(proliferationTracker);
 
         if (roleSet.Contains("Admin"))
