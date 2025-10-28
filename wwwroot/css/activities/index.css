@@ -5,12 +5,28 @@
   margin-top: 1.5rem;
 }
 
-.activities-card .pm-card-header {
-  width: 100%;
-}
-
 .activities-filter-offcanvas {
   --bs-offcanvas-width: min(420px, 100%);
+}
+
+.activities-header {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.activities-header__heading {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.activities-header__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  width: 100%;
+  justify-content: flex-start;
 }
 
 .activities-filter-form .form-control,
@@ -106,12 +122,15 @@
   margin-top: 1.5rem;
 }
 
-@media (max-width: 767.98px) {
-  .activities-card .pm-card-header {
-    align-items: stretch;
+@media (min-width: 768px) {
+  .activities-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
   }
 
-  .activities-card .pm-card-actions {
-    justify-content: stretch;
+  .activities-header__actions {
+    justify-content: flex-end;
+    width: auto;
   }
 }

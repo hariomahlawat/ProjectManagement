@@ -25,45 +25,43 @@
 }
 
 <div class="container-xxl activities-page" data-module="activities-index">
-    <div class="pm-card pm-shadow activities-card">
-        <div class="pm-card-header align-items-start align-items-md-center flex-column flex-md-row gap-3">
-            <div class="pm-card-heading">
-                <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-calendar-event"></i></span>
-                <div>
-                    <h1 class="pm-card-title mb-1">Activities</h1>
-                    <p class="pm-card-subtitle mb-0">Review scheduled engagements and supporting media.</p>
-                </div>
+    <div class="activities-header">
+        <div class="activities-header__heading">
+            <span class="pm-card-icon" aria-hidden="true"><i class="bi bi-calendar-event"></i></span>
+            <div>
+                <h1 class="pm-card-title mb-1">Activities</h1>
+                <p class="pm-card-subtitle mb-0">Review scheduled engagements and supporting media.</p>
             </div>
-            <div class="pm-card-actions d-flex gap-2 flex-wrap justify-content-md-end w-100 w-md-auto">
-                <button type="button"
-                        class="btn btn-outline-primary btn-sm"
-                        data-bs-toggle="offcanvas"
-                        data-bs-target="#activitiesFilterOffcanvas"
-                        aria-controls="activitiesFilterOffcanvas">
-                    <i class="bi bi-funnel" aria-hidden="true"></i>
-                    <span>Filters</span>
+        </div>
+        <div class="activities-header__actions">
+            <button type="button"
+                    class="btn btn-outline-primary btn-sm"
+                    data-bs-toggle="offcanvas"
+                    data-bs-target="#activitiesFilterOffcanvas"
+                    aria-controls="activitiesFilterOffcanvas">
+                <i class="bi bi-funnel" aria-hidden="true"></i>
+                <span>Filters</span>
+            </button>
+            <form method="post"
+                  asp-page-handler="Export"
+                  asp-all-route-data="Model.BuildRoute()"
+                  class="d-inline"
+                  data-activities-export-form>
+                @Html.AntiForgeryToken()
+                <button type="submit"
+                        class="btn btn-outline-secondary btn-sm"
+                        @(Model.CanExportActivities ? null : "disabled")>
+                    <i class="bi bi-download" aria-hidden="true"></i>
+                    <span>Export spreadsheet</span>
                 </button>
-                <form method="post"
-                      asp-page-handler="Export"
-                      asp-all-route-data="Model.BuildRoute()"
-                      class="d-inline"
-                      data-activities-export-form>
-                    @Html.AntiForgeryToken()
-                    <button type="submit"
-                            class="btn btn-outline-secondary btn-sm"
-                            @(Model.CanExportActivities ? null : "disabled")>
-                        <i class="bi bi-download" aria-hidden="true"></i>
-                        <span>Export spreadsheet</span>
-                    </button>
-                </form>
-                @if (Model.CanCreateActivities)
-                {
-                    <a class="btn btn-primary btn-sm" asp-page="./Edit">
-                        <i class="bi bi-plus-lg" aria-hidden="true"></i>
-                        <span>Add activity</span>
-                    </a>
-                }
-            </div>
+            </form>
+            @if (Model.CanCreateActivities)
+            {
+                <a class="btn btn-primary btn-sm" asp-page="./Edit">
+                    <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                    <span>Add activity</span>
+                </a>
+            }
         </div>
     </div>
 
