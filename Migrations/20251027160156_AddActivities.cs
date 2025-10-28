@@ -11,77 +11,80 @@ namespace ProjectManagement.Migrations
     /// <inheritdoc />
     public partial class AddActivities : Migration
     {
+        private const string SystemUserId = "system";
+        private const string SystemUserConcurrencyStamp = "bb39c1ff-8e46-4d36-9f54-8d3c86d1a0cb";
+        private const string SystemUserSecurityStamp = "4e908fe6-75f1-4f1f-8f68-201268dfc4f2";
+        private static readonly DateTime SystemUserCreatedUtc = new(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            var systemUserCreatedUtc = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-            var systemUserConcurrencyStamp = "bb39c1ff-8e46-4d36-9f54-8d3c86d1a0cb";
-            var systemUserSecurityStamp = "4e908fe6-75f1-4f1f-8f68-201268dfc4f2";
+            var systemUserCreatedUtcSqlLiteral = SystemUserCreatedUtc.ToString("yyyy-MM-dd HH:mm:ss");
 
-            migrationBuilder.InsertData(
-                table: "AspNetUsers",
-                columns: new[]
-                {
-                    "Id",
-                    "AccessFailedCount",
-                    "ConcurrencyStamp",
-                    "CreatedUtc",
-                    "DeletionRequestedByUserId",
-                    "DeletionRequestedUtc",
-                    "DisabledByUserId",
-                    "DisabledUtc",
-                    "Email",
-                    "EmailConfirmed",
-                    "FullName",
-                    "IsDisabled",
-                    "LastLoginUtc",
-                    "LockoutEnabled",
-                    "LockoutEnd",
-                    "LoginCount",
-                    "MustChangePassword",
-                    "NormalizedEmail",
-                    "NormalizedUserName",
-                    "PasswordHash",
-                    "PendingDeletion",
-                    "PhoneNumber",
-                    "PhoneNumberConfirmed",
-                    "Rank",
-                    "SecurityStamp",
-                    "ShowCelebrationsInCalendar",
-                    "TwoFactorEnabled",
-                    "UserName"
-                },
-                values: new object[]
-                {
-                    "system",
-                    0,
-                    systemUserConcurrencyStamp,
-                    systemUserCreatedUtc,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    false,
-                    "System Account",
-                    false,
-                    null,
-                    false,
-                    null,
-                    0,
-                    false,
-                    null,
-                    "SYSTEM",
-                    null,
-                    false,
-                    null,
-                    false,
-                    "System",
-                    systemUserSecurityStamp,
-                    true,
-                    false,
-                    "system"
-                });
+            migrationBuilder.Sql($@"
+INSERT INTO \"AspNetUsers\" (
+    \"Id\",
+    \"AccessFailedCount\",
+    \"ConcurrencyStamp\",
+    \"CreatedUtc\",
+    \"DeletionRequestedByUserId\",
+    \"DeletionRequestedUtc\",
+    \"DisabledByUserId\",
+    \"DisabledUtc\",
+    \"Email\",
+    \"EmailConfirmed\",
+    \"FullName\",
+    \"IsDisabled\",
+    \"LastLoginUtc\",
+    \"LockoutEnabled\",
+    \"LockoutEnd\",
+    \"LoginCount\",
+    \"MustChangePassword\",
+    \"NormalizedEmail\",
+    \"NormalizedUserName\",
+    \"PasswordHash\",
+    \"PendingDeletion\",
+    \"PhoneNumber\",
+    \"PhoneNumberConfirmed\",
+    \"Rank\",
+    \"SecurityStamp\",
+    \"ShowCelebrationsInCalendar\",
+    \"TwoFactorEnabled\",
+    \"UserName\"
+)
+SELECT
+    '{SystemUserId}',
+    0,
+    '{SystemUserConcurrencyStamp}',
+    TIMESTAMP '{systemUserCreatedUtcSqlLiteral}',
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    FALSE,
+    'System Account',
+    FALSE,
+    NULL,
+    FALSE,
+    NULL,
+    0,
+    FALSE,
+    NULL,
+    'SYSTEM',
+    NULL,
+    FALSE,
+    NULL,
+    FALSE,
+    'System',
+    '{SystemUserSecurityStamp}',
+    TRUE,
+    FALSE,
+    '{SystemUserId}'
+WHERE NOT EXISTS (
+    SELECT 1 FROM \"AspNetUsers\" WHERE \"Id\" = '{SystemUserId}'
+);
+");
 
             migrationBuilder.CreateTable(
                 name: "ActivityTypes",
@@ -413,10 +416,12 @@ namespace ProjectManagement.Migrations
             migrationBuilder.DropTable(
                 name: "ActivityTypes");
 
-            migrationBuilder.DeleteData(
-                table: "AspNetUsers",
-                keyColumn: "Id",
-                keyValue: "system");
+            migrationBuilder.Sql($@"
+DELETE FROM \"AspNetUsers\"
+WHERE \"Id\" = '{SystemUserId}'
+  AND \"ConcurrencyStamp\" = '{SystemUserConcurrencyStamp}'
+  AND \"SecurityStamp\" = '{SystemUserSecurityStamp}';
+");
 
             migrationBuilder.UpdateData(
                 table: "TrainingRankCategoryMap",
