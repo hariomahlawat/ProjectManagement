@@ -24,7 +24,7 @@ public sealed class EditModel : PageModel
 {
     private static readonly IReadOnlyList<string> AttachmentExtensions = new[]
     {
-        "pdf", "png", "jpg", "jpeg", "docx", "xlsx", "mp4", "mov", "webm"
+        "pdf", "png", "jpg", "jpeg", "mp4", "mov", "webm"
     };
 
     private static readonly IReadOnlyList<string> AttachmentContentTypes = new[]
@@ -32,8 +32,6 @@ public sealed class EditModel : PageModel
         "application/pdf",
         "image/png",
         "image/jpeg",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "video/mp4",
         "video/quicktime",
         "video/webm"
@@ -41,7 +39,7 @@ public sealed class EditModel : PageModel
 
     private static readonly IReadOnlyList<string> AttachmentSummaryLabels = new[]
     {
-        "PDF", "PNG", "JPG", "DOCX", "XLSX", "MP4", "MOV", "WEBM"
+        "PDF", "PNG", "JPG/JPEG", "MP4", "MOV", "WEBM"
     };
 
     private readonly IActivityService _activityService;
@@ -89,11 +87,13 @@ public sealed class EditModel : PageModel
         "application/pdf",
         "image/png",
         "image/jpeg",
-        ".docx",
-        ".xlsx",
         "video/mp4",
         "video/quicktime",
         "video/webm",
+        ".pdf",
+        ".png",
+        ".jpg",
+        ".jpeg",
         ".mp4",
         ".mov",
         ".webm"

@@ -29,7 +29,7 @@ public sealed class DetailsModel : PageModel
     };
     private static readonly IReadOnlyList<string> AttachmentSummaryLabels = new[]
     {
-        "PDF", "PNG", "JPG", "DOCX", "XLSX", "MP4", "MOV", "WEBM"
+        "PDF", "PNG", "JPG/JPEG", "MP4", "MOV", "WEBM"
     };
 
     private readonly IActivityService _activityService;

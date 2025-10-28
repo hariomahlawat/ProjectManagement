@@ -20,8 +20,6 @@ internal sealed class ActivityAttachmentValidator : IActivityAttachmentValidator
         "application/pdf",
         "image/png",
         "image/jpeg",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "video/mp4",
         "video/quicktime",
         "video/webm"
@@ -35,8 +33,6 @@ internal sealed class ActivityAttachmentValidator : IActivityAttachmentValidator
             ["application/pdf"] = new[] { ".pdf" },
             ["image/png"] = new[] { ".png" },
             ["image/jpeg"] = new[] { ".jpg", ".jpeg" },
-            ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"] = new[] { ".docx" },
-            ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"] = new[] { ".xlsx" },
             ["video/mp4"] = new[] { ".mp4" },
             ["video/quicktime"] = new[] { ".mov" },
             ["video/webm"] = new[] { ".webm" }

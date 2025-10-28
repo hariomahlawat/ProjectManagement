@@ -139,8 +139,6 @@ public class ActivityAttachmentValidatorTests
     [InlineData("document.pdf", "application/pdf")]
     [InlineData("image.PNG", "image/png")]
     [InlineData("photo.jpeg", "image/jpeg")]
-    [InlineData("notes.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")]
-    [InlineData("sheet.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")]
     [InlineData("clip.mp4", "video/mp4")]
     [InlineData("recording.MOV", "video/quicktime")]
     [InlineData("screen.webm", "video/webm")]
@@ -148,6 +146,18 @@ public class ActivityAttachmentValidatorTests
     {
         var upload = new ActivityAttachmentUpload(new MemoryStream(new byte[] { 1 }), fileName, contentType, 1);
         _validator.Validate(upload);
+    }
+
+    [Theory]
+    [InlineData("notes.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")]
+    [InlineData("sheet.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")]
+    public void Validate_RejectsRemovedOfficeDocumentTypes(string fileName, string contentType)
+    {
+        var upload = new ActivityAttachmentUpload(new MemoryStream(new byte[] { 1 }), fileName, contentType, 1);
+
+        var ex = Assert.Throws<ActivityValidationException>(() => _validator.Validate(upload));
+
+        Assert.Contains(nameof(upload.ContentType), ex.Errors.Keys);
     }
 
     [Fact]
