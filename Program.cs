@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.UI.Services;
 using Microsoft.AspNetCore.Http;
@@ -62,6 +63,8 @@ using ProjectManagement.Services.Navigation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
+
+Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
 var runForecastBackfill = args.Any(a => string.Equals(a, "--backfill-forecast", StringComparison.OrdinalIgnoreCase));
 
