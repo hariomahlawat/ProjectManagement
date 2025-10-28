@@ -477,8 +477,9 @@ app.Use(async (ctx, next) =>
 
     var isDocumentViewer = ctx.Request.Path.StartsWithSegments("/Projects/Documents/View", StringComparison.OrdinalIgnoreCase);
     var isDocumentPreview = ctx.Request.Path.StartsWithSegments("/Projects/Documents/Preview", StringComparison.OrdinalIgnoreCase);
+    var isAttachmentResponse = ctx.Request.Path.StartsWithSegments("/files", StringComparison.OrdinalIgnoreCase);
 
-    var isDocumentPreviewContext = isDocumentViewer || isDocumentPreview;
+    var isDocumentPreviewContext = isDocumentViewer || isDocumentPreview || isAttachmentResponse;
 
     if (isDocumentPreviewContext)
     {
