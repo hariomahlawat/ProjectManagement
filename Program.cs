@@ -62,6 +62,7 @@ using ProjectManagement.Contracts.Notifications;
 using ProjectManagement.Services.Navigation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.FileProviders;
 using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
@@ -514,6 +515,15 @@ app.Use(async (ctx, next) =>
             $"connect-src {connectSrcDirective};";
     }
     await next();
+});
+
+var uploadRoot = app.Services.GetRequiredService<IUploadRootProvider>();
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(uploadRoot.RootPath),
+    RequestPath = "/files",
+    ServeUnknownFileTypes = true,
 });
 
 app.UseStaticFiles();
