@@ -102,9 +102,9 @@ public sealed class ActivityExportService : IActivityExportService
         {
             "Title",
             "Activity type",
-            "Scheduled start (UTC)",
-            "Scheduled end (UTC)",
-            "Created at (UTC)",
+            "Scheduled start date (UTC)",
+            "Scheduled end date (UTC)",
+            "Created date (UTC)",
             "Created by",
             "PDF attachments",
             "Photo attachments",
@@ -168,8 +168,8 @@ public sealed class ActivityExportService : IActivityExportService
             return;
         }
 
-        cell.Value = value.Value.UtcDateTime;
-        cell.Style.DateFormat.Format = "yyyy-mm-dd hh:mm";
+        cell.Value = value.Value.UtcDateTime.Date;
+        cell.Style.DateFormat.Format = "yyyy-mm-dd";
     }
 
     private static string ResolveCreatedBy(ActivityListItem item)
