@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
@@ -21,6 +24,8 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
     private readonly IAuditService _audit = audit;
     private readonly ILogger<ManageModel> _logger = logger;
 
+    private const int PageSize = 10;
+
     public IList<FfcCountry> Countries { get; private set; } = [];
     private bool CanManageCountries => User.IsInRole("Admin") || User.IsInRole("HoD");
 
@@ -28,6 +33,25 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
 
     [FromQuery]
     public long? EditId { get; set; }
+
+    [FromQuery(Name = "q")]
+    public string? Query { get; set; }
+
+    [FromQuery(Name = "page")]
+    public int PageNumber { get; set; } = 1;
+
+    [FromQuery(Name = "sort")]
+    public string? Sort { get; set; }
+
+    [FromQuery(Name = "dir")]
+    public string? SortDirection { get; set; }
+
+    public int TotalCount { get; private set; }
+    public int TotalPages { get; private set; }
+    public string CurrentSort { get; private set; } = "name";
+    public string CurrentSortDirection { get; private set; } = "asc";
+    public bool IsSortDescending => string.Equals(CurrentSortDirection, "desc", StringComparison.OrdinalIgnoreCase);
+    public bool HasQuery => !string.IsNullOrWhiteSpace(Query);
 
     [BindProperty]
     public InputModel Input { get; set; } = new();
@@ -38,34 +62,35 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         public string Name { get; set; } = string.Empty;
         public string? IsoCode { get; set; }
         public bool IsActive { get; set; } = true;
+        public string? RowVersion { get; set; }
     }
 
     public async Task<IActionResult> OnGetAsync()
     {
-        Countries = await _db.FfcCountries
-            .OrderBy(x => x.Name)
-            .AsNoTracking()
-            .ToListAsync();
+        await LoadCountriesAsync();
 
-        if (EditId.HasValue)
+        if (!EditId.HasValue)
         {
-            var entity = await _db.FfcCountries
-                .AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Id == EditId.Value);
-
-            if (entity is null)
-            {
-                return NotFound();
-            }
-
-            Input = new InputModel
-            {
-                Id = entity.Id,
-                Name = entity.Name,
-                IsoCode = entity.IsoCode,
-                IsActive = entity.IsActive
-            };
+            return Page();
         }
+
+        var entity = await _db.FfcCountries
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == EditId.Value);
+
+        if (entity is null)
+        {
+            return NotFound();
+        }
+
+        Input = new InputModel
+        {
+            Id = entity.Id,
+            Name = entity.Name,
+            IsoCode = entity.IsoCode,
+            IsActive = entity.IsActive,
+            RowVersion = Convert.ToBase64String(entity.RowVersion)
+        };
 
         return Page();
     }
@@ -80,7 +105,8 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         await ValidateInputAsync(Input, isEdit: false);
         if (!ModelState.IsValid)
         {
-            return await ReloadPageAsync();
+            await LoadCountriesAsync();
+            return Page();
         }
 
         var normalizedName = Input.Name?.Trim() ?? string.Empty;
@@ -107,7 +133,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         });
 
         TempData["StatusMessage"] = "Country created.";
-        return RedirectToPage();
+        return RedirectToPage(new RouteValueDictionary(BuildRoute(page: 1)));
     }
 
     public async Task<IActionResult> OnPostUpdateAsync()
@@ -125,7 +151,8 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         await ValidateInputAsync(Input, isEdit: true);
         if (!ModelState.IsValid)
         {
-            return await ReloadPageAsync(Input.Id);
+            await LoadCountriesAsync(Input.Id);
+            return Page();
         }
 
         var entity = await _db.FfcCountries.FirstOrDefaultAsync(x => x.Id == Input.Id);
@@ -143,11 +170,53 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
             ? null
             : Input.IsoCode!.Trim().ToUpperInvariant();
 
+        if (!string.IsNullOrWhiteSpace(Input.RowVersion))
+        {
+            try
+            {
+                var originalRowVersion = Convert.FromBase64String(Input.RowVersion);
+                _db.Entry(entity).Property(x => x.RowVersion).OriginalValue = originalRowVersion;
+            }
+            catch (FormatException)
+            {
+                ModelState.AddModelError(string.Empty, "Invalid concurrency token provided.");
+                await LoadCountriesAsync(Input.Id);
+                return Page();
+            }
+        }
+
         entity.Name = normalizedName;
         entity.IsoCode = normalizedIso;
         entity.IsActive = Input.IsActive;
 
-        await _db.SaveChangesAsync();
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ModelState.AddModelError(string.Empty, "The country was updated by someone else. Review the latest values and try again.");
+            await _db.Entry(entity).ReloadAsync();
+
+            var refreshed = await _db.FfcCountries
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == Input.Id);
+
+            if (refreshed is not null)
+            {
+                Input = new InputModel
+                {
+                    Id = refreshed.Id,
+                    Name = refreshed.Name,
+                    IsoCode = refreshed.IsoCode,
+                    IsActive = refreshed.IsActive,
+                    RowVersion = Convert.ToBase64String(refreshed.RowVersion)
+                };
+            }
+
+            await LoadCountriesAsync(Input.Id);
+            return Page();
+        }
 
         await TryLogAsync("ProjectOfficeReports.FFC.CountryUpdated", new Dictionary<string, string?>
         {
@@ -161,7 +230,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         });
 
         TempData["StatusMessage"] = "Country updated.";
-        return RedirectToPage();
+        return RedirectToPage(new RouteValueDictionary(BuildRoute()));
     }
 
     public async Task<IActionResult> OnPostToggleActiveAsync(long id)
@@ -189,7 +258,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         });
 
         TempData["StatusMessage"] = entity.IsActive ? "Country activated." : "Country deactivated.";
-        return RedirectToPage();
+        return RedirectToPage(new RouteValueDictionary(BuildRoute()));
     }
 
     public async Task<IActionResult> OnGetEditAsync(long id)
@@ -213,6 +282,10 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
             {
                 ModelState.AddModelError(nameof(Input) + "." + nameof(Input.IsoCode), "ISO code must be exactly 3 characters.");
             }
+            else if (!Regex.IsMatch(trimmedIso, "^[A-Za-z]{3}$"))
+            {
+                ModelState.AddModelError(nameof(Input) + "." + nameof(Input.IsoCode), "ISO code must contain only letters.");
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(trimmedName))
@@ -231,15 +304,112 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         }
     }
 
-    private async Task<PageResult> ReloadPageAsync(long? keepEditingId = null)
+    private async Task LoadCountriesAsync(long? keepEditingId = null)
     {
-        Countries = await _db.FfcCountries
-            .OrderBy(x => x.Name)
+        Query = string.IsNullOrWhiteSpace(Query) ? null : Query!.Trim();
+
+        var queryable = _db.FfcCountries.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(Query))
+        {
+            var term = Query.ToLowerInvariant();
+            queryable = queryable.Where(x => x.Name.ToLower().Contains(term) || (x.IsoCode != null && x.IsoCode.ToLower().Contains(term)));
+        }
+
+        var sort = (Sort ?? string.Empty).Trim().ToLowerInvariant();
+        var direction = string.Equals(SortDirection, "desc", StringComparison.OrdinalIgnoreCase);
+
+        queryable = sort switch
+        {
+            "iso" => direction
+                ? queryable.OrderByDescending(x => x.IsoCode ?? string.Empty).ThenBy(x => x.Name)
+                : queryable.OrderBy(x => x.IsoCode ?? string.Empty).ThenBy(x => x.Name),
+            "status" => direction
+                ? queryable.OrderByDescending(x => x.IsActive).ThenBy(x => x.Name)
+                : queryable.OrderBy(x => x.IsActive).ThenBy(x => x.Name),
+            _ =>
+                direction
+                    ? queryable.OrderByDescending(x => x.Name)
+                    : queryable.OrderBy(x => x.Name)
+        };
+
+        CurrentSort = sort switch
+        {
+            "iso" => "iso",
+            "status" => "status",
+            _ => "name"
+        };
+
+        CurrentSortDirection = direction ? "desc" : "asc";
+
+        TotalCount = await queryable.CountAsync();
+        TotalPages = Math.Max(1, (int)Math.Ceiling(TotalCount / (double)PageSize));
+
+        if (PageNumber < 1)
+        {
+            PageNumber = 1;
+        }
+        else if (PageNumber > TotalPages)
+        {
+            PageNumber = TotalPages;
+        }
+
+        Countries = await queryable
             .AsNoTracking()
+            .Skip((PageNumber - 1) * PageSize)
+            .Take(PageSize)
             .ToListAsync();
 
-        EditId = keepEditingId;
-        return Page();
+        EditId = keepEditingId ?? EditId;
+    }
+
+    public Dictionary<string, string?> BuildRoute(int? page = null, string? sort = null, string? dir = null, string? query = null)
+    {
+        var effectiveQuery = query ?? Query;
+        var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["page"] = (page ?? PageNumber).ToString(CultureInfo.InvariantCulture),
+            ["sort"] = (sort ?? CurrentSort),
+            ["dir"] = (dir ?? CurrentSortDirection),
+            ["q"] = effectiveQuery
+        };
+
+        if (string.IsNullOrWhiteSpace(effectiveQuery))
+        {
+            values.Remove("q");
+        }
+
+        return values;
+    }
+
+    public Dictionary<string, string?> BuildRouteForEdit(long id)
+    {
+        var values = new Dictionary<string, string?>(BuildRoute())
+        {
+            ["id"] = id.ToString(CultureInfo.InvariantCulture)
+        };
+
+        return values;
+    }
+
+    public string GetSortDirectionFor(string column)
+    {
+        if (string.Equals(CurrentSort, column, StringComparison.OrdinalIgnoreCase))
+        {
+            return IsSortDescending ? "asc" : "desc";
+        }
+
+        return column == "name" ? "asc" : "asc";
+    }
+
+    public string GetSortIconClass(string column)
+    {
+        if (!string.Equals(CurrentSort, column, StringComparison.OrdinalIgnoreCase))
+        {
+            return "bi bi-arrow-down-up text-muted";
+        }
+
+        return IsSortDescending ? "bi bi-arrow-down" : "bi bi-arrow-up";
     }
 
     private async Task TryLogAsync(string action, IDictionary<string, string?> data)

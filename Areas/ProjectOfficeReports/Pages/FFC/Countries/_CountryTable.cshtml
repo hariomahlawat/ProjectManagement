@@ -1,30 +1,75 @@
-@model IList<ProjectManagement.Areas.ProjectOfficeReports.Domain.FfcCountry>
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Countries.ManageModel
 
 <table class="table table-sm align-middle">
     <thead>
         <tr>
-            <th>Name</th>
-            <th>ISO</th>
-            <th>Status</th>
+            <th>
+                <a asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: 1, sort: "name", dir: Model.GetSortDirectionFor("name"))" class="text-decoration-none d-inline-flex align-items-center gap-1">
+                    <span>Name</span>
+                    <i class="@Model.GetSortIconClass("name")"></i>
+                </a>
+            </th>
+            <th>
+                <a asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: 1, sort: "iso", dir: Model.GetSortDirectionFor("iso"))" class="text-decoration-none d-inline-flex align-items-center gap-1">
+                    <span>ISO</span>
+                    <i class="@Model.GetSortIconClass("iso")"></i>
+                </a>
+            </th>
+            <th>
+                <a asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: 1, sort: "status", dir: Model.GetSortDirectionFor("status"))" class="text-decoration-none d-inline-flex align-items-center gap-1">
+                    <span>Status</span>
+                    <i class="@Model.GetSortIconClass("status")"></i>
+                </a>
+            </th>
             <th class="text-end">Actions</th>
         </tr>
     </thead>
     <tbody>
-    @foreach (var country in Model)
+    @if (!Model.Countries.Any())
     {
         <tr>
-            <td>@country.Name</td>
-            <td>@country.IsoCode</td>
-            <td>@(country.IsActive ? "Active" : "Inactive")</td>
-            <td class="text-end">
-                <authorize roles="Admin,HoD">
-                    <a asp-page="Manage" asp-page-handler="Edit" asp-route-id="@country.Id" class="btn btn-link btn-sm">Edit</a>
-                    <form method="post" asp-page="Manage" asp-page-handler="ToggleActive" asp-route-id="@country.Id" class="d-inline">
-                        <button type="submit" class="btn btn-link btn-sm">@(country.IsActive ? "Deactivate" : "Activate")</button>
-                    </form>
-                </authorize>
-            </td>
+            <td colspan="4" class="text-center text-muted">No countries found.</td>
         </tr>
+    }
+    else
+    {
+        foreach (var country in Model.Countries)
+        {
+            <tr>
+                <td>@country.Name</td>
+                <td>@country.IsoCode</td>
+                <td>@(country.IsActive ? "Active" : "Inactive")</td>
+                <td class="text-end">
+                    <authorize roles="Admin,HoD">
+                        <a asp-page="./Manage" asp-page-handler="Edit" asp-all-route-data="Model.BuildRouteForEdit(country.Id)" class="btn btn-link btn-sm">Edit</a>
+                        <form method="post" asp-page="./Manage" asp-page-handler="ToggleActive" asp-route-id="@country.Id" asp-all-route-data="Model.BuildRoute()" class="d-inline">
+                            <button type="submit" class="btn btn-link btn-sm">@(country.IsActive ? "Deactivate" : "Activate")</button>
+                        </form>
+                    </authorize>
+                </td>
+            </tr>
+        }
     }
     </tbody>
 </table>
+
+<nav aria-label="Countries pagination" class="mt-2">
+    <ul class="pagination pagination-sm mb-0">
+        <li class="page-item @(Model.PageNumber <= 1 ? "disabled" : string.Empty)">
+            <a class="page-link" asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: Math.Max(1, Model.PageNumber - 1))" aria-label="Previous" tabindex="@(Model.PageNumber <= 1 ? -1 : 0)">
+                <span aria-hidden="true">&laquo;</span>
+            </a>
+        </li>
+        @for (var page = 1; page <= Model.TotalPages; page++)
+        {
+            <li class="page-item @(page == Model.PageNumber ? "active" : string.Empty)">
+                <a class="page-link" asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: page)">@page</a>
+            </li>
+        }
+        <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : string.Empty)">
+            <a class="page-link" asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: Math.Min(Model.TotalPages, Model.PageNumber + 1))" aria-label="Next" tabindex="@(Model.PageNumber >= Model.TotalPages ? -1 : 0)">
+                <span aria-hidden="true">&raquo;</span>
+            </a>
+        </li>
+    </ul>
+</nav>

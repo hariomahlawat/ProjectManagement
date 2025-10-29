@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -11,6 +10,7 @@ using ProjectManagement.Application.Security;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
+using ProjectManagement.Helpers;
 using ProjectManagement.Services;
 
 namespace ProjectManagement.Application.Ffc;
@@ -45,7 +45,7 @@ public class FfcAttachmentStorage(
 
         if (_options.MaxFileSizeBytes > 0 && file.Length > _options.MaxFileSizeBytes)
         {
-            return (false, $"File exceeds maximum size of {FormatFileSize(_options.MaxFileSizeBytes)}.", null);
+            return (false, $"File exceeds maximum size of {FileSizeFormatter.FormatFileSize(_options.MaxFileSizeBytes)}.", null);
         }
 
         var tmpPath = Path.GetTempFileName();
@@ -105,23 +105,4 @@ public class FfcAttachmentStorage(
         return principal.IsInRole("Admin") || principal.IsInRole("HoD");
     }
 
-    private static string FormatFileSize(long bytes)
-    {
-        if (bytes < 1024)
-        {
-            return string.Format(CultureInfo.InvariantCulture, "{0} B", bytes);
-        }
-
-        double value = bytes;
-        string[] units = { "B", "KB", "MB", "GB", "TB" };
-        var unit = 0;
-
-        while (value >= 1024 && unit < units.Length - 1)
-        {
-            value /= 1024;
-            unit++;
-        }
-
-        return string.Format(CultureInfo.InvariantCulture, unit == 0 ? "{0} {1}" : "{0:0.#} {1}", value, units[unit]);
-    }
 }

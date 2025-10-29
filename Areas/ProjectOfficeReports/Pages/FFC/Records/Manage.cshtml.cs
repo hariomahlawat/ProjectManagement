@@ -2,11 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
+using System.Linq;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
@@ -22,12 +24,27 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
     private readonly IAuditService _audit = audit;
     private readonly ILogger<ManageModel> _logger = logger;
 
+    private const int PageSize = 10;
+
     public IList<FfcRecord> Records { get; private set; } = [];
     private bool CanManageRecords => User.IsInRole("Admin") || User.IsInRole("HoD");
     public SelectList CountrySelect { get; private set; } = default!;
     public bool IsEditMode => EditId.HasValue;
 
     [FromQuery] public long? EditId { get; set; }
+
+    [FromQuery(Name = "q")] public string? Query { get; set; }
+    [FromQuery(Name = "page")] public int PageNumber { get; set; } = 1;
+    [FromQuery(Name = "sort")] public string? Sort { get; set; }
+    [FromQuery(Name = "dir")] public string? SortDirection { get; set; }
+
+    public int TotalCount { get; private set; }
+    public int TotalPages { get; private set; }
+    public string CurrentSort { get; private set; } = "year";
+    public string CurrentSortDirection { get; private set; } = "desc";
+    public bool IsSortDescending => string.Equals(CurrentSortDirection, "desc", StringComparison.OrdinalIgnoreCase);
+    public bool HasQuery => !string.IsNullOrWhiteSpace(Query);
+    public bool HasActiveCountries { get; private set; }
 
     [BindProperty] public InputModel Input { get; set; } = new();
 
@@ -59,10 +76,11 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
 
     public async Task<IActionResult> OnGetAsync()
     {
-        await LoadPageAsync();
-        if (EditId.HasValue)
+        var editId = EditId;
+        await LoadPageAsync(editId);
+        if (editId.HasValue)
         {
-            var r = await _db.FfcRecords.AsNoTracking().FirstOrDefaultAsync(x => x.Id == EditId.Value);
+            var r = await _db.FfcRecords.AsNoTracking().FirstOrDefaultAsync(x => x.Id == editId.Value);
             if (r is null) return NotFound();
             Input = MapToInput(r);
         }
@@ -89,7 +107,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         await TryLogAsync("ProjectOfficeReports.FFC.RecordCreated", data);
 
         TempData["StatusMessage"] = "Record created.";
-        return RedirectToPage();
+        return RedirectToPage(new RouteValueDictionary(BuildRoute(page: 1)));
     }
 
     public async Task<IActionResult> OnPostUpdateAsync()
@@ -125,16 +143,64 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         await TryLogAsync("ProjectOfficeReports.FFC.RecordUpdated", data);
 
         TempData["StatusMessage"] = "Record updated.";
-        return RedirectToPage();
+        return RedirectToPage(new RouteValueDictionary(BuildRoute()));
     }
 
     private async Task LoadPageAsync(long? keepEditId = null)
     {
-        Records = await _db.FfcRecords
+        Query = string.IsNullOrWhiteSpace(Query) ? null : Query!.Trim();
+
+        var queryable = _db.FfcRecords
             .Include(x => x.Country)
-            .OrderByDescending(x => x.Year)
-            .ThenBy(x => x.Country.Name)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(Query))
+        {
+            var term = Query.ToLowerInvariant();
+            var hasYear = short.TryParse(Query, out var year);
+
+            queryable = queryable.Where(x =>
+                x.Country.Name.ToLower().Contains(term) ||
+                (hasYear && x.Year == year));
+        }
+
+        var sort = (Sort ?? string.Empty).Trim().ToLowerInvariant();
+        var descending = !string.Equals(SortDirection, "asc", StringComparison.OrdinalIgnoreCase);
+
+        queryable = sort switch
+        {
+            "country" => descending
+                ? queryable.OrderByDescending(x => x.Country.Name).ThenByDescending(x => x.Year)
+                : queryable.OrderBy(x => x.Country.Name).ThenByDescending(x => x.Year),
+            _ => descending
+                ? queryable.OrderByDescending(x => x.Year).ThenBy(x => x.Country.Name)
+                : queryable.OrderBy(x => x.Year).ThenBy(x => x.Country.Name)
+        };
+
+        CurrentSort = sort switch
+        {
+            "country" => "country",
+            _ => "year"
+        };
+
+        CurrentSortDirection = descending ? "desc" : "asc";
+
+        TotalCount = await queryable.CountAsync();
+        TotalPages = Math.Max(1, (int)Math.Ceiling(TotalCount / (double)PageSize));
+
+        if (PageNumber < 1)
+        {
+            PageNumber = 1;
+        }
+        else if (PageNumber > TotalPages)
+        {
+            PageNumber = TotalPages;
+        }
+
+        Records = await queryable
             .AsNoTracking()
+            .Skip((PageNumber - 1) * PageSize)
+            .Take(PageSize)
             .ToListAsync();
 
         var countries = await _db.FfcCountries
@@ -143,8 +209,58 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
             .Select(c => new { c.Id, c.Name })
             .ToListAsync();
 
+        HasActiveCountries = countries.Count > 0;
         CountrySelect = new SelectList(countries, "Id", "Name");
         EditId = keepEditId;
+    }
+
+    public Dictionary<string, string?> BuildRoute(int? page = null, string? sort = null, string? dir = null, string? query = null)
+    {
+        var effectiveQuery = query ?? Query;
+        var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["page"] = (page ?? PageNumber).ToString(CultureInfo.InvariantCulture),
+            ["sort"] = (sort ?? CurrentSort),
+            ["dir"] = (dir ?? CurrentSortDirection),
+            ["q"] = effectiveQuery
+        };
+
+        if (string.IsNullOrWhiteSpace(effectiveQuery))
+        {
+            values.Remove("q");
+        }
+
+        return values;
+    }
+
+    public Dictionary<string, string?> BuildRouteForEdit(long id)
+    {
+        var values = new Dictionary<string, string?>(BuildRoute())
+        {
+            ["id"] = id.ToString(CultureInfo.InvariantCulture)
+        };
+
+        return values;
+    }
+
+    public string GetSortDirectionFor(string column)
+    {
+        if (string.Equals(CurrentSort, column, StringComparison.OrdinalIgnoreCase))
+        {
+            return IsSortDescending ? "asc" : "desc";
+        }
+
+        return column == "year" ? "desc" : "asc";
+    }
+
+    public string GetSortIconClass(string column)
+    {
+        if (!string.Equals(CurrentSort, column, StringComparison.OrdinalIgnoreCase))
+        {
+            return "bi bi-arrow-down-up text-muted";
+        }
+
+        return IsSortDescending ? "bi bi-arrow-down" : "bi bi-arrow-up";
     }
 
     private static InputModel MapToInput(FfcRecord r) => new()

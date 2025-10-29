@@ -82,6 +82,27 @@ public sealed class FfcAttachmentStorageTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveAsync_ReturnsError_WhenContentTypeInvalid()
+    {
+        var storage = CreateStorage(new StubUserContext(isAdmin: true, isHoD: false));
+
+        await using var stream = new MemoryStream(new byte[] { 1, 2, 3 });
+        var formFile = new FormFile(stream, 0, stream.Length, "upload", "note.txt")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "text/plain"
+        };
+
+        var result = await storage.SaveAsync(42, formFile, FfcAttachmentKind.Pdf, null);
+
+        Assert.False(result.Success);
+        Assert.Equal("Only PDF/JPEG/PNG/WEBP allowed.", result.ErrorMessage);
+        Assert.Null(result.Attachment);
+        Assert.Equal(0, await _db.FfcAttachments.CountAsync());
+        Assert.Equal(0, _validator.CallCount);
+    }
+
+    [Fact]
     public async Task DeleteAsync_Throws_WhenUserNotAuthorised()
     {
         var filePath = Path.Combine(_environment.ContentRootPath, "existing.pdf");
