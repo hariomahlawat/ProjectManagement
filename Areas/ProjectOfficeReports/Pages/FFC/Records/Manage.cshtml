@@ -9,7 +9,24 @@
 
 <div class="row g-4">
     <div class="col-xl-7">
-        <partial name="_RecordTable" model="Model.Records" />
+        <form method="get" class="row gy-2 gx-2 align-items-end mb-3">
+            <div class="col-md-6">
+                <label class="form-label" for="record-search">Search</label>
+                <input type="search" class="form-control" id="record-search" name="q" value="@Model.Query" />
+            </div>
+            <input type="hidden" name="page" value="1" />
+            <input type="hidden" name="sort" value="@Model.CurrentSort" />
+            <input type="hidden" name="dir" value="@Model.CurrentSortDirection" />
+            <div class="col-md-auto">
+                <button type="submit" class="btn btn-outline-primary">Search</button>
+                @if (Model.HasQuery)
+                {
+                    <a asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: 1, query: string.Empty)" class="btn btn-link">Clear</a>
+                }
+            </div>
+        </form>
+
+        <partial name="_RecordTable" model="Model" />
     </div>
 
     <div class="col-xl-5">
@@ -24,17 +41,23 @@
                         {
                             <input type="hidden" asp-for="Input.Id" />
                         }
+                        @if (!Model.HasActiveCountries)
+                        {
+                            <div class="alert alert-info" role="alert">
+                                No active countries available. <a asp-page="../Countries/Manage" class="alert-link">Manage countries</a> to add one before creating records.
+                            </div>
+                        }
                         <partial name="_RecordForm"
                                  model="new ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.FfcRecordFormModel(Model.Input, Model.CountrySelect, Model.IsEditMode)" />
                         <div class="d-flex gap-2">
                             @if (Model.IsEditMode)
                             {
                                 <button type="submit" asp-page-handler="Update" class="btn btn-primary">Save changes</button>
-                                <a asp-page-handler="" class="btn btn-secondary">Cancel</a>
+                                <a asp-page="Manage" asp-all-route-data="Model.BuildRoute(query: Model.Query)" class="btn btn-secondary">Cancel</a>
                             }
                             else
                             {
-                                <button type="submit" asp-page-handler="Create" class="btn btn-primary">Create</button>
+                                <button type="submit" asp-page-handler="Create" class="btn btn-primary" @(Model.HasActiveCountries ? null : "disabled")>Create</button>
                             }
                         </div>
                     </form>

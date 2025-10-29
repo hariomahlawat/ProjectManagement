@@ -16,7 +16,7 @@
             {
                 <tr>
                     <td>@p.Name</td>
-                    <td>@p.LinkedProjectId</td>
+                    <td>@(p.LinkedProject?.Name ?? "— none —")</td>
                     <td>@p.Remarks</td>
                     <td class="text-end">
                         <authorize roles="Admin,HoD">

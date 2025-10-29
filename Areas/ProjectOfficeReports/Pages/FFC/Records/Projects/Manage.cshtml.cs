@@ -42,8 +42,12 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         Record = await _db.FfcRecords.Include(r => r.Country).FirstOrDefaultAsync(r => r.Id == RecordId)
                   ?? throw new Exception("Record not found.");
 
-        Items = await _db.FfcProjects.Where(p => p.FfcRecordId == RecordId)
-                    .OrderBy(p => p.Name).AsNoTracking().ToListAsync();
+        Items = await _db.FfcProjects
+            .Where(p => p.FfcRecordId == RecordId)
+            .Include(p => p.LinkedProject)
+            .OrderBy(p => p.Name)
+            .AsNoTracking()
+            .ToListAsync();
 
         LinkedProjects = new SelectList(await _db.Projects
             .OrderBy(p => p.Name)

@@ -1,32 +1,11 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.Attachments.UploadModel
 @using System
-@{
+@using ProjectManagement.Helpers
+@{ 
     ViewData["Title"] = "FFC Attachments";
 
-    string FormatFileSize(long bytes)
-    {
-        if (bytes <= 0)
-        {
-            return "0 bytes";
-        }
-
-        string[] suffixes = { "bytes", "KB", "MB", "GB", "TB" };
-        double size = bytes;
-        var suffixIndex = 0;
-
-        while (size >= 1024 && suffixIndex < suffixes.Length - 1)
-        {
-            size /= 1024;
-            suffixIndex++;
-        }
-
-        return suffixIndex == 0
-            ? FormattableString.Invariant($"{bytes} {suffixes[suffixIndex]}")
-            : FormattableString.Invariant($"{size:0.#} {suffixes[suffixIndex]}");
-    }
-
-    var maxFileSizeText = FormatFileSize(Model.MaxFileSizeBytes);
+    var maxFileSizeText = FileSizeFormatter.FormatFileSize(Model.MaxFileSizeBytes);
 }
 <h1 class="h5 mb-2">Attachments for @Model.Record.Country.Name (@Model.Record.Year)</h1>
 <partial name="_StatusMessage" />
@@ -42,7 +21,7 @@
                     <td>@a.Kind</td>
                     <td>@a.Caption</td>
                     <td>@a.ContentType</td>
-                    <td>@a.SizeBytes</td>
+                    <td>@FileSizeFormatter.FormatFileSize(a.SizeBytes)</td>
                     <td class="text-end">
                         <authorize roles="Admin,HoD">
                             <form method="post" asp-page-handler="Delete" asp-route-recordId="@Model.Record.Id" asp-route-id="@a.Id" class="d-inline">
