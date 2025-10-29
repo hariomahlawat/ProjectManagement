@@ -31,6 +31,7 @@ public sealed record ActivityListRowViewModel(
     int PdfAttachmentCount,
     int PhotoAttachmentCount,
     int VideoAttachmentCount,
+    bool HasPendingDelete,
     bool CanEdit,
     bool CanDelete)
 {

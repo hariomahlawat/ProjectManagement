@@ -44,7 +44,8 @@ public sealed class ActivityIndexPageTests
                 3,
                 1,
                 1,
-                1)
+                1,
+                false)
         }, 1, 1, 25, ActivityListSort.ScheduledStart, true);
 
         var activityService = new StubActivityService(result);
@@ -96,7 +97,8 @@ public sealed class ActivityIndexPageTests
                 2,
                 0,
                 1,
-                1)
+                1,
+                false)
         }, 1, 1, 25, ActivityListSort.ScheduledStart, true);
 
         var activityService = new StubActivityService(result);
@@ -144,7 +146,8 @@ public sealed class ActivityIndexPageTests
                 1,
                 0,
                 1,
-                0)
+                0,
+                false)
         }, 1, 1, 25, ActivityListSort.ScheduledStart, true);
 
         var activityService = new StubActivityService(result);

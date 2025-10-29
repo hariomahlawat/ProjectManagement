@@ -201,6 +201,12 @@
                                                 <span>@row.Location</span>
                                             </div>
                                         }
+                                        @if (row.HasPendingDelete)
+                                        {
+                                            <div class="mt-2">
+                                                <span class="badge text-bg-warning text-dark">Pending delete approval</span>
+                                            </div>
+                                        }
                                     </td>
                                     <td>
                                         <span class="badge rounded-pill text-bg-light activities-type-badge">@row.ActivityType</span>
