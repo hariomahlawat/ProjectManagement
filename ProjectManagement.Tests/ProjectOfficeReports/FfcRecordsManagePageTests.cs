@@ -160,7 +160,14 @@ public sealed class FfcRecordsManagePageTests
 
     private sealed class StubAuditService : IAuditService
     {
-        public Task LogAsync(string action, string? userId, string? userName, IDictionary<string, string?> data, HttpContext http)
+        public Task LogAsync(
+            string action,
+            string? message = null,
+            string level = "Info",
+            string? userId = null,
+            string? userName = null,
+            IDictionary<string, string?>? data = null,
+            HttpContext? http = null)
             => Task.CompletedTask;
     }
 
