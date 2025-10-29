@@ -6,6 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Activities;
 using ProjectManagement.Services;
