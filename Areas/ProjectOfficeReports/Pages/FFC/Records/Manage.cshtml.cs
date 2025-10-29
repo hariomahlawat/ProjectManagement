@@ -107,7 +107,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         await TryLogAsync("ProjectOfficeReports.FFC.RecordCreated", data);
 
         TempData["StatusMessage"] = "Record created.";
-        return RedirectToPage(new RouteValueDictionary(BuildRoute(page: 1)));
+        return RedirectToManage(BuildRoute(page: 1));
     }
 
     public async Task<IActionResult> OnPostUpdateAsync()
@@ -143,7 +143,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         await TryLogAsync("ProjectOfficeReports.FFC.RecordUpdated", data);
 
         TempData["StatusMessage"] = "Record updated.";
-        return RedirectToPage(new RouteValueDictionary(BuildRoute()));
+        return RedirectToManage();
     }
 
     private async Task LoadPageAsync(long? keepEditId = null)
@@ -241,6 +241,12 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         };
 
         return values;
+    }
+
+    private IActionResult RedirectToManage(Dictionary<string, string?>? routeValues = null)
+    {
+        var values = routeValues ?? BuildRoute();
+        return RedirectToPage("./Manage", new RouteValueDictionary(values));
     }
 
     public string GetSortDirectionFor(string column)
