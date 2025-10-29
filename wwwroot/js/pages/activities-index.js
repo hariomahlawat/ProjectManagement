@@ -31,6 +31,7 @@
   const modalConfirmButton = modalElement ? modalElement.querySelector('[data-delete-confirm-accept]') : null;
   const defaultMessage = modalMessage ? modalMessage.dataset.defaultMessage : null;
   const modalInstance = modalElement && window.bootstrap ? new window.bootstrap.Modal(modalElement) : null;
+  const confirmedDeleteForms = new WeakSet();
 
   let pendingForm = null;
   let pendingSubmitter = null;
@@ -58,7 +59,7 @@
       pendingForm = null;
       pendingSubmitter = null;
 
-      formToSubmit.dataset.activitiesDeleteConfirmed = 'true';
+      confirmedDeleteForms.add(formToSubmit);
       modalInstance.hide();
 
       window.setTimeout(() => {
@@ -82,8 +83,8 @@
     }
 
     if (form.matches('[data-activities-delete-form]')) {
-      if (form.dataset.activitiesDeleteConfirmed === 'true') {
-        delete form.dataset.activitiesDeleteConfirmed;
+      if (confirmedDeleteForms.has(form)) {
+        confirmedDeleteForms.delete(form);
         return;
       }
 
