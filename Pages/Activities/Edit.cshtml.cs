@@ -19,7 +19,7 @@ using ProjectManagement.Services.Activities;
 
 namespace ProjectManagement.Pages.Activities;
 
-[Authorize(Roles = "Admin,HoD,Project Office,TA")]
+[Authorize(Roles = "Admin,HoD,Project Officer,Project Office,TA")]
 public sealed class EditModel : PageModel
 {
     private static readonly IReadOnlyList<string> AttachmentExtensions = new[]
@@ -346,10 +346,15 @@ public sealed class EditModel : PageModel
 
     private static bool IsManager(ClaimsPrincipal user)
     {
-        return user.IsInRole("Admin") ||
-               user.IsInRole("HoD") ||
-               user.IsInRole("Project Office") ||
-               user.IsInRole("TA");
+        foreach (var role in ActivityRoleLists.ManagerRoles)
+        {
+            if (user.IsInRole(role))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void AddErrorsToModelState(ActivityValidationException ex)

@@ -77,6 +77,54 @@ public sealed class ActivityIndexPageTests
     }
 
     [Fact]
+    public async Task OnGetAsync_AllowsProjectOfficerToManage()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var result = new ActivityListResult(new List<ActivityListItem>
+        {
+            new(5,
+                "Stakeholder Sync",
+                "Briefing",
+                3,
+                "HQ",
+                now.AddDays(3),
+                null,
+                now.AddDays(-1),
+                "po-user",
+                "Poppy Officer",
+                "poppy@example.test",
+                2,
+                0,
+                1,
+                1)
+        }, 1, 1, 25, ActivityListSort.ScheduledStart, true);
+
+        var activityService = new StubActivityService(result);
+        var typeService = new StubActivityTypeService(new List<ActivityType>
+        {
+            new() { Id = 3, Name = "Briefing", CreatedByUserId = "seed" }
+        });
+        var exportService = new StubActivityExportService();
+        var deleteRequestService = new StubActivityDeleteRequestService();
+
+        var services = new ServiceCollection().BuildServiceProvider();
+        var user = new ApplicationUser { Id = "po-user", UserName = "projectofficer" };
+        using var userManager = new StubUserManager(user, services, "Project Officer");
+
+        var page = new IndexModel(activityService, typeService, exportService, deleteRequestService, userManager);
+        ConfigurePage(page, CreatePrincipal("po-user", new[] { new Claim(ClaimTypes.Role, "Project Officer") }));
+
+        var actionResult = await page.OnGetAsync(CancellationToken.None);
+
+        Assert.IsType<PageResult>(actionResult);
+        Assert.NotNull(page.ViewModel);
+        Assert.True(page.CanCreateActivities);
+        var row = Assert.Single(page.ViewModel!.Rows);
+        Assert.True(row.CanEdit);
+        Assert.True(row.CanDelete);
+    }
+
+    [Fact]
     public async Task OnGetAsync_DisablesManagementForOtherUser()
     {
         var now = DateTimeOffset.UtcNow;

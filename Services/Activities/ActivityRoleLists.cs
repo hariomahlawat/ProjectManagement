@@ -6,6 +6,7 @@ internal static class ActivityRoleLists
     {
         "Admin",
         "HoD",
+        "Project Officer",
         "Project Office",
         "TA"
     };
