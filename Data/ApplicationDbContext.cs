@@ -2098,7 +2098,7 @@ namespace ProjectManagement.Data
                     {
                         Id = 1,
                         Name = "Adm Activities",
-                        Description = "Administrative coordination and oversight tasks.",
+                        Description = "All types of administrative tasks/ events or activities.",
                         IsActive = true,
                         CreatedAtUtc = activityTypeSeedCreatedAt,
                         CreatedByUserId = "system",
@@ -2108,7 +2108,7 @@ namespace ProjectManagement.Data
                     {
                         Id = 2,
                         Name = "Inspections",
-                        Description = "On-site or remote compliance inspections.",
+                        Description = "All internal and external inspections.",
                         IsActive = true,
                         CreatedAtUtc = activityTypeSeedCreatedAt,
                         CreatedByUserId = "system",
