@@ -4,15 +4,15 @@
     <thead>
         <tr>
             <th>
-                <a asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: 1, sort: "year", dir: Model.GetSortDirectionFor("year"))" class="text-decoration-none d-inline-flex align-items-center gap-1">
+                <a asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: 1, sort: "year", dir: Model.GetSortDirectionFor("year"))' class="text-decoration-none d-inline-flex align-items-center gap-1">
                     <span>Year</span>
-                    <i class="@Model.GetSortIconClass("year")"></i>
+                    <i class='@Model.GetSortIconClass("year")'></i>
                 </a>
             </th>
             <th>
-                <a asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: 1, sort: "country", dir: Model.GetSortDirectionFor("country"))" class="text-decoration-none d-inline-flex align-items-center gap-1">
+                <a asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: 1, sort: "country", dir: Model.GetSortDirectionFor("country"))' class="text-decoration-none d-inline-flex align-items-center gap-1">
                     <span>Country</span>
-                    <i class="@Model.GetSortIconClass("country")"></i>
+                    <i class='@Model.GetSortIconClass("country")'></i>
                 </a>
             </th>
             <th>IPA</th>
@@ -32,19 +32,19 @@
     }
     else
     {
-        foreach (var r in Model.Records)
+        foreach (var record in Model.Records)
         {
             <tr>
-                <td>@r.Year</td>
-                <td>@r.Country?.Name</td>
-                <td>@(r.IpaYes ? (r.IpaDate?.ToString() ?? "Yes") : "No")</td>
-                <td>@(r.GslYes ? (r.GslDate?.ToString() ?? "Yes") : "No")</td>
-                <td>@(r.DeliveryYes ? (r.DeliveryDate?.ToString() ?? "Yes") : "No")</td>
-                <td>@(r.InstallationYes ? (r.InstallationDate?.ToString() ?? "Yes") : "No")</td>
-                <td class="text-truncate" style="max-width:220px;" title="@r.OverallRemarks">@r.OverallRemarks</td>
+                <td>@record.Year</td>
+                <td>@record.Country?.Name</td>
+                <td>@(record.IpaYes ? (record.IpaDate?.ToString() ?? "Yes") : "No")</td>
+                <td>@(record.GslYes ? (record.GslDate?.ToString() ?? "Yes") : "No")</td>
+                <td>@(record.DeliveryYes ? (record.DeliveryDate?.ToString() ?? "Yes") : "No")</td>
+                <td>@(record.InstallationYes ? (record.InstallationDate?.ToString() ?? "Yes") : "No")</td>
+                <td class="text-truncate" style="max-width:220px;" title="@record.OverallRemarks">@record.OverallRemarks</td>
                 <td class="text-end">
                     <authorize roles="Admin,HoD">
-                        <a asp-page="./Manage" asp-page-handler="Edit" asp-all-route-data="Model.BuildRouteForEdit(r.Id)" class="btn btn-link btn-sm">Edit</a>
+                        <a asp-page="./Manage" asp-page-handler="Edit" asp-all-route-data="Model.BuildRouteForEdit(record.Id)" class="btn btn-link btn-sm">Edit</a>
                     </authorize>
                     @if (!(User.IsInRole("Admin") || User.IsInRole("HoD")))
                     {
@@ -60,18 +60,18 @@
 <nav aria-label="Records pagination" class="mt-2">
     <ul class="pagination pagination-sm mb-0">
         <li class="page-item @(Model.PageNumber <= 1 ? "disabled" : string.Empty)">
-            <a class="page-link" asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: Math.Max(1, Model.PageNumber - 1))" aria-label="Previous" tabindex="@(Model.PageNumber <= 1 ? -1 : 0)">
+            <a class="page-link" asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: Math.Max(1, Model.PageNumber - 1))' aria-label="Previous" tabindex="@(Model.PageNumber <= 1 ? -1 : 0)">
                 <span aria-hidden="true">&laquo;</span>
             </a>
         </li>
-        @for (var page = 1; page <= Model.TotalPages; page++)
+        @for (var pageNumber = 1; pageNumber <= Model.TotalPages; pageNumber++)
         {
-            <li class="page-item @(page == Model.PageNumber ? "active" : string.Empty)">
-                <a class="page-link" asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: page)">@page</a>
+            <li class="page-item @(pageNumber == Model.PageNumber ? "active" : string.Empty)">
+                <a class="page-link" asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: pageNumber)'>@pageNumber</a>
             </li>
         }
         <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : string.Empty)">
-            <a class="page-link" asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: Math.Min(Model.TotalPages, Model.PageNumber + 1))" aria-label="Next" tabindex="@(Model.PageNumber >= Model.TotalPages ? -1 : 0)">
+            <a class="page-link" asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: Math.Min(Model.TotalPages, Model.PageNumber + 1))' aria-label="Next" tabindex="@(Model.PageNumber >= Model.TotalPages ? -1 : 0)">
                 <span aria-hidden="true">&raquo;</span>
             </a>
         </li>
