@@ -269,6 +269,7 @@
                                             @if (row.CanDelete)
                                             {
                                                 <form method="post"
+                                                      asp-page="./Index"
                                                       asp-page-handler="RequestDelete"
                                                       asp-all-route-data="Model.BuildRouteForDeleteRequest(row.Id)"
                                                       class="d-inline"
