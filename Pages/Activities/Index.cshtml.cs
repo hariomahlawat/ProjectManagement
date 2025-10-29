@@ -131,6 +131,7 @@ public sealed class IndexModel : PageModel
                 item.PdfAttachmentCount,
                 item.PhotoAttachmentCount,
                 item.VideoAttachmentCount,
+                item.HasPendingDelete,
                 canManage,
                 canRequestDelete);
         }).ToList();

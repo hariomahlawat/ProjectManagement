@@ -349,5 +349,45 @@ public class ActivityRepositoryTests
         Assert.Equal(0, item.PhotoAttachmentCount);
         Assert.Equal(1, item.AttachmentCount);
         Assert.Equal(typeA.Name, item.ActivityTypeName);
+        Assert.False(item.HasPendingDelete);
+    }
+
+    [Fact]
+    public async Task ListAsync_FlagsPendingDeleteRequests()
+    {
+        await using var context = CreateContext();
+        var repository = new ActivityRepository(context);
+
+        var type = new ActivityType
+        {
+            Name = "Briefing",
+            CreatedByUserId = "seed"
+        };
+
+        context.ActivityTypes.Add(type);
+        await context.SaveChangesAsync();
+
+        var activity = new Activity
+        {
+            Title = "Pending approval",
+            CreatedByUserId = "owner",
+            ActivityTypeId = type.Id,
+            CreatedAtUtc = DateTimeOffset.UtcNow
+        };
+
+        activity.DeleteRequests.Add(new ActivityDeleteRequest
+        {
+            Activity = activity,
+            RequestedByUserId = "owner",
+            RequestedAtUtc = DateTimeOffset.UtcNow
+        });
+
+        context.Activities.Add(activity);
+        await context.SaveChangesAsync();
+
+        var result = await repository.ListAsync(new ActivityListRequest(PageSize: 10));
+
+        var item = Assert.Single(result.Items);
+        Assert.True(item.HasPendingDelete);
     }
 }

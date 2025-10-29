@@ -45,7 +45,8 @@ public sealed record ActivityListItem(
     int AttachmentCount,
     int PdfAttachmentCount,
     int PhotoAttachmentCount,
-    int VideoAttachmentCount);
+    int VideoAttachmentCount,
+    bool HasPendingDelete);
 
 public sealed record ActivityListResult(
     IReadOnlyList<ActivityListItem> Items,

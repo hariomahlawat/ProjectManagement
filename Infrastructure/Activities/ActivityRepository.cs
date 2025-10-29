@@ -140,7 +140,8 @@ namespace ProjectManagement.Infrastructure.Activities
                     x.Attachments.Count,
                     x.Attachments.Count(a => a.ContentType == "application/pdf" || a.OriginalFileName.EndsWith(".pdf")),
                     x.Attachments.Count(a => a.ContentType.StartsWith("image/")),
-                    x.Attachments.Count(a => a.ContentType.StartsWith("video/"))))
+                    x.Attachments.Count(a => a.ContentType.StartsWith("video/")),
+                    x.DeleteRequests.Any(r => r.ApprovedAtUtc == null && r.RejectedAtUtc == null)))
                 .ToListAsync(cancellationToken);
 
             return new ActivityListResult(items, total, page, pageSize > 0 ? pageSize : total, request.Sort, request.SortDescending);
