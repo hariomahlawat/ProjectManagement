@@ -57,7 +57,7 @@
                             }
                             else
                             {
-                                <button type="submit" asp-page-handler="Create" class="btn btn-primary" disabled="@(!Model.HasActiveCountries)">Create</button>
+                                <button type="submit" asp-page-handler="Create" class="btn btn-primary" disabled="@(Model.HasActiveCountries ? null : "disabled")">Create</button>
                             }
                         </div>
                     </form>
