@@ -2097,22 +2097,62 @@ namespace ProjectManagement.Data
                     new ActivityType
                     {
                         Id = 1,
-                        Name = "Training",
-                        Description = "Formal training activities.",
+                        Name = "Adm Activities",
+                        Description = "Administrative coordination and oversight tasks.",
                         IsActive = true,
                         CreatedAtUtc = activityTypeSeedCreatedAt,
                         CreatedByUserId = "system",
-                        RowVersion = new Guid("2f9f5b6c-0bfe-4f23-9d3c-0fd22a6f6a4b").ToByteArray()
+                        RowVersion = new Guid("a9c3d0d8-0ff9-49c0-8b76-5fc11d5c10de").ToByteArray()
                     },
                     new ActivityType
                     {
                         Id = 2,
-                        Name = "Engagement",
-                        Description = "Stakeholder engagement or outreach.",
+                        Name = "Inspections",
+                        Description = "On-site or remote compliance inspections.",
                         IsActive = true,
                         CreatedAtUtc = activityTypeSeedCreatedAt,
                         CreatedByUserId = "system",
-                        RowVersion = new Guid("c9b1c4a7-2e3a-4a37-9b0a-5be85f4ed957").ToByteArray()
+                        RowVersion = new Guid("1bcf5f8d-94b6-4fbb-89df-d1df0f9e9c42").ToByteArray()
+                    },
+                    new ActivityType
+                    {
+                        Id = 3,
+                        Name = "Academia Interaction",
+                        Description = "Engagements with academic institutions and partners.",
+                        IsActive = true,
+                        CreatedAtUtc = activityTypeSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("dc9b1c7a-4f83-4d17-8e37-9fd2665a1e3b").ToByteArray()
+                    },
+                    new ActivityType
+                    {
+                        Id = 4,
+                        Name = "Industry Interaction",
+                        Description = "Collaboration with industry stakeholders and forums.",
+                        IsActive = true,
+                        CreatedAtUtc = activityTypeSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("70be99f8-1137-4e7f-9e63-2f086b5c684d").ToByteArray()
+                    },
+                    new ActivityType
+                    {
+                        Id = 5,
+                        Name = "Seminar/ Lecture",
+                        Description = "Educational seminars, lectures, and talks.",
+                        IsActive = true,
+                        CreatedAtUtc = activityTypeSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("c775fa92-432d-49b9-8f62-6f8eea0c7e9b").ToByteArray()
+                    },
+                    new ActivityType
+                    {
+                        Id = 6,
+                        Name = "Misc",
+                        Description = "Activities that do not fit other defined categories.",
+                        IsActive = true,
+                        CreatedAtUtc = activityTypeSeedCreatedAt,
+                        CreatedByUserId = "system",
+                        RowVersion = new Guid("5c020d8c-7a4b-4f4f-8822-9f6cf208887f").ToByteArray()
                     });
             });
 
