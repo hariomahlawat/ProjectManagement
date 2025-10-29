@@ -10,16 +10,16 @@ using ProjectManagement.Data;
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.Attachments;
 
 [Authorize]
-public class UploadModel(AppDbContext db, IFfcAttachmentStorage storage) : PageModel
+public class UploadModel(ApplicationDbContext db, IFfcAttachmentStorage storage) : PageModel
 {
-    private readonly AppDbContext _db = db;
+    private readonly ApplicationDbContext _db = db;
     private readonly IFfcAttachmentStorage _storage = storage;
 
     [FromQuery] public long RecordId { get; set; }
     public FfcRecord Record { get; private set; } = default!;
     public IList<FfcAttachment> Items { get; private set; } = [];
 
-    [BindProperty] public IFormFile? File { get; set; }
+    [BindProperty] public IFormFile? UploadFile { get; set; }
     [BindProperty] public FfcAttachmentKind Kind { get; set; } = FfcAttachmentKind.PDF;
     [BindProperty] public string? Caption { get; set; }
 
@@ -38,16 +38,16 @@ public class UploadModel(AppDbContext db, IFfcAttachmentStorage storage) : PageM
     [Authorize(Roles = "Admin,HoD")]
     public async Task<IActionResult> OnPostUploadAsync(long recordId)
     {
-        if (File is null || File.Length == 0)
+        if (UploadFile is null || UploadFile.Length == 0)
         {
-            ModelState.AddModelError(nameof(File), "Select a file.");
+            ModelState.AddModelError(nameof(UploadFile), "Select a file.");
             return await OnGetAsync(recordId);
         }
 
-        var result = await _storage.SaveAsync(recordId, File, Kind, Caption);
+        var result = await _storage.SaveAsync(recordId, UploadFile, Kind, Caption);
         if (!result.Success)
         {
-            ModelState.AddModelError(nameof(File), result.ErrorMessage ?? "Upload failed.");
+            ModelState.AddModelError(nameof(UploadFile), result.ErrorMessage ?? "Upload failed.");
             return await OnGetAsync(recordId);
         }
 

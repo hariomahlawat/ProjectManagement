@@ -9,9 +9,9 @@ using ProjectManagement.Data;
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.Projects;
 
 [Authorize]
-public class ManageModel(AppDbContext db) : PageModel
+public class ManageModel(ApplicationDbContext db) : PageModel
 {
-    private readonly AppDbContext _db = db;
+    private readonly ApplicationDbContext _db = db;
 
     [FromQuery] public long RecordId { get; set; }
     public FfcRecord Record { get; private set; } = default!;

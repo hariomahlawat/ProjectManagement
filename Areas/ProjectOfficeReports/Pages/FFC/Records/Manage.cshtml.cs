@@ -10,9 +10,9 @@ using ProjectManagement.Data;
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records;
 
 [Authorize]
-public class ManageModel(AppDbContext db) : PageModel
+public class ManageModel(ApplicationDbContext db) : PageModel
 {
-    private readonly AppDbContext _db = db;
+    private readonly ApplicationDbContext _db = db;
 
     public IList<FfcRecord> Records { get; private set; } = [];
     public SelectList CountrySelect { get; private set; } = default!;
