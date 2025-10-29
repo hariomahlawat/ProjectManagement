@@ -17,6 +17,7 @@ public class ManageModel(ApplicationDbContext db) : PageModel
     public FfcRecord Record { get; private set; } = default!;
     public IList<FfcProject> Items { get; private set; } = [];
     public SelectList LinkedProjects { get; private set; } = default!;
+    private bool CanManageProjects => User.IsInRole("Admin") || User.IsInRole("HoD");
 
     [BindProperty] public InputModel Input { get; set; } = new();
 
@@ -25,7 +26,7 @@ public class ManageModel(ApplicationDbContext db) : PageModel
         public long? Id { get; set; }
         public string Name { get; set; } = string.Empty;
         public string? Remarks { get; set; }
-        public long? LinkedProjectId { get; set; }
+        public int? LinkedProjectId { get; set; }
     }
 
     public async Task<IActionResult> OnGetAsync(long recordId, long? id)
@@ -51,9 +52,10 @@ public class ManageModel(ApplicationDbContext db) : PageModel
         return Page();
     }
 
-    [Authorize(Roles = "Admin,HoD")]
     public async Task<IActionResult> OnPostCreateAsync(long recordId)
     {
+        if (!CanManageProjects) return Forbid();
+
         RecordId = recordId;
         if (string.IsNullOrWhiteSpace(Input.Name))
             ModelState.AddModelError(nameof(Input.Name), "Name is required.");
@@ -74,9 +76,10 @@ public class ManageModel(ApplicationDbContext db) : PageModel
         return RedirectToPage(new { recordId });
     }
 
-    [Authorize(Roles = "Admin,HoD")]
     public async Task<IActionResult> OnPostUpdateAsync(long recordId)
     {
+        if (!CanManageProjects) return Forbid();
+
         RecordId = recordId;
         if (Input.Id is null) return BadRequest();
         if (string.IsNullOrWhiteSpace(Input.Name))
@@ -96,9 +99,10 @@ public class ManageModel(ApplicationDbContext db) : PageModel
         return RedirectToPage(new { recordId });
     }
 
-    [Authorize(Roles = "Admin,HoD")]
     public async Task<IActionResult> OnPostDeleteAsync(long recordId, long id)
     {
+        if (!CanManageProjects) return Forbid();
+
         var p = await _db.FfcProjects.FirstOrDefaultAsync(x => x.Id == id && x.FfcRecordId == recordId);
         if (p is null) return NotFound();
         _db.FfcProjects.Remove(p);

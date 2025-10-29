@@ -15,6 +15,7 @@ public class ManageModel(ApplicationDbContext db) : PageModel
     private readonly ApplicationDbContext _db = db;
 
     public IList<FfcRecord> Records { get; private set; } = [];
+    private bool CanManageRecords => User.IsInRole("Admin") || User.IsInRole("HoD");
     public SelectList CountrySelect { get; private set; } = default!;
     public bool IsEditMode => EditId.HasValue;
 
@@ -60,9 +61,10 @@ public class ManageModel(ApplicationDbContext db) : PageModel
         return Page();
     }
 
-    [Authorize(Roles = "Admin,HoD")]
     public async Task<IActionResult> OnPostCreateAsync()
     {
+        if (!CanManageRecords) return Forbid();
+
         await ValidateAsync(Input);
         if (!ModelState.IsValid)
         {
@@ -78,9 +80,10 @@ public class ManageModel(ApplicationDbContext db) : PageModel
         return RedirectToPage();
     }
 
-    [Authorize(Roles = "Admin,HoD")]
     public async Task<IActionResult> OnPostUpdateAsync()
     {
+        if (!CanManageRecords) return Forbid();
+
         if (Input.Id is null) return BadRequest();
         await ValidateAsync(Input);
         if (!ModelState.IsValid)

@@ -18,9 +18,10 @@ public class UploadModel(ApplicationDbContext db, IFfcAttachmentStorage storage)
     [FromQuery] public long RecordId { get; set; }
     public FfcRecord Record { get; private set; } = default!;
     public IList<FfcAttachment> Items { get; private set; } = [];
+    private bool CanManageAttachments => User.IsInRole("Admin") || User.IsInRole("HoD");
 
     [BindProperty] public IFormFile? UploadFile { get; set; }
-    [BindProperty] public FfcAttachmentKind Kind { get; set; } = FfcAttachmentKind.PDF;
+    [BindProperty] public FfcAttachmentKind Kind { get; set; } = FfcAttachmentKind.Pdf;
     [BindProperty] public string? Caption { get; set; }
 
     public async Task<IActionResult> OnGetAsync(long recordId)
@@ -35,9 +36,10 @@ public class UploadModel(ApplicationDbContext db, IFfcAttachmentStorage storage)
         return Page();
     }
 
-    [Authorize(Roles = "Admin,HoD")]
     public async Task<IActionResult> OnPostUploadAsync(long recordId)
     {
+        if (!CanManageAttachments) return Forbid();
+
         if (UploadFile is null || UploadFile.Length == 0)
         {
             ModelState.AddModelError(nameof(UploadFile), "Select a file.");
@@ -55,9 +57,10 @@ public class UploadModel(ApplicationDbContext db, IFfcAttachmentStorage storage)
         return RedirectToPage(new { recordId });
     }
 
-    [Authorize(Roles = "Admin,HoD")]
     public async Task<IActionResult> OnPostDeleteAsync(long recordId, long id)
     {
+        if (!CanManageAttachments) return Forbid();
+
         var a = await _db.FfcAttachments.FirstOrDefaultAsync(x => x.Id == id && x.FfcRecordId == recordId);
         if (a is null) return NotFound();
 
