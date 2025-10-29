@@ -1,26 +1,40 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using ProjectManagement.Application.Security;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
+using ProjectManagement.Services;
 
 namespace ProjectManagement.Application.Ffc;
 
-public class FfcAttachmentStorage(ApplicationDbContext db, IFileSecurityValidator validator, IWebHostEnvironment env) : IFfcAttachmentStorage
+public class FfcAttachmentStorage(
+    ApplicationDbContext db,
+    IFileSecurityValidator validator,
+    IWebHostEnvironment env,
+    IUserContext userContext) : IFfcAttachmentStorage
 {
     private readonly ApplicationDbContext _db = db;
     private readonly IFileSecurityValidator _validator = validator;
     private readonly IWebHostEnvironment _env = env;
+    private readonly IUserContext _userContext = userContext;
+
+    private const string AuthorizationError = "Only Admin or HoD roles can manage attachments.";
 
     private static readonly HashSet<string> AllowedContent = new(StringComparer.OrdinalIgnoreCase)
         { "application/pdf", "image/jpeg", "image/png", "image/webp" };
 
     public async Task<(bool Success, string? ErrorMessage)> SaveAsync(long recordId, IFormFile file, FfcAttachmentKind kind, string? caption)
     {
+        if (!IsAdminOrHod(_userContext.User))
+        {
+            return (false, AuthorizationError);
+        }
+
         if (!AllowedContent.Contains(file.ContentType))
             return (false, "Only PDF/JPEG/PNG/WEBP allowed.");
 
@@ -62,6 +76,11 @@ public class FfcAttachmentStorage(ApplicationDbContext db, IFileSecurityValidato
 
     public async Task DeleteAsync(FfcAttachment attachment)
     {
+        if (!IsAdminOrHod(_userContext.User))
+        {
+            throw new FfcAttachmentAuthorizationException(AuthorizationError);
+        }
+
         _db.FfcAttachments.Remove(attachment);
         await _db.SaveChangesAsync();
 
@@ -69,5 +88,10 @@ public class FfcAttachmentStorage(ApplicationDbContext db, IFileSecurityValidato
         {
             File.Delete(attachment.FilePath);
         }
+    }
+
+    private static bool IsAdminOrHod(ClaimsPrincipal principal)
+    {
+        return principal.IsInRole("Admin") || principal.IsInRole("HoD");
     }
 }
