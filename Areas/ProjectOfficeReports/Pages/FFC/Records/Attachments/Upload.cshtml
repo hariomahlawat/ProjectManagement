@@ -9,7 +9,7 @@
     string FormatFileSize(long bytes) => FileSizeFormatter.FormatFileSize(bytes);
 }
 <h1 class="h5 mb-2">Attachments for @Model.Record.Country.Name (@Model.Record.Year)</h1>
-<partial name="_StatusMessage" />
+<partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
 
 <div class="row g-4">
     <div class="col-lg-6">
@@ -34,7 +34,7 @@
             }
             </tbody>
         </table>
-        <a asp-page="../Manage" asp-page-handler="Edit" asp-route-id="@Model.Record.Id" class="btn btn-secondary btn-sm">Back</a>
+        <a asp-page="../Manage" asp-route-editId="@Model.Record.Id" class="btn btn-secondary btn-sm">Back</a>
     </div>
 
     <div class="col-lg-6">
