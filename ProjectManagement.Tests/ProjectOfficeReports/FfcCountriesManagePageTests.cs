@@ -38,7 +38,7 @@ public sealed class FfcCountriesManagePageTests
 
         var redirect = Assert.IsType<RedirectToPageResult>(result);
         Assert.Null(redirect.PageName);
-        var routeValues = Assert.NotNull(redirect.RouteValues);
+        var routeValues = Assert.IsType<RouteValueDictionary>(redirect.RouteValues);
         Assert.Equal("1", routeValues["page"] as string);
 
         var created = await db.FfcCountries.AsNoTracking().SingleAsync();
