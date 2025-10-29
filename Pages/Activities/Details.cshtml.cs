@@ -19,13 +19,7 @@ namespace ProjectManagement.Pages.Activities;
 [Authorize]
 public sealed class DetailsModel : PageModel
 {
-    private static readonly string[] ManagerRoles =
-    {
-        "Admin",
-        "HoD",
-        "Project Office",
-        "TA"
-    };
+    private static readonly IReadOnlyList<string> ManagerRoles = ActivityRoleLists.ManagerRoles;
     private static readonly IReadOnlyList<string> AttachmentSummaryLabels = new[]
     {
         "PDF", "PNG", "JPG/JPEG", "MP4", "MOV", "WEBM"

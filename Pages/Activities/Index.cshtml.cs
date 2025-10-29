@@ -312,10 +312,15 @@ public sealed class IndexModel : PageModel
 
     private static bool IsManager(ClaimsPrincipal user)
     {
-        return user.IsInRole("Admin") ||
-               user.IsInRole("HoD") ||
-               user.IsInRole("Project Office") ||
-               user.IsInRole("TA");
+        foreach (var role in ActivityRoleLists.ManagerRoles)
+        {
+            if (user.IsInRole(role))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool IsApprover(ClaimsPrincipal user)
