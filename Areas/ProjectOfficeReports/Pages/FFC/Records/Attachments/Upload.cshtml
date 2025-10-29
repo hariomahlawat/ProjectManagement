@@ -42,7 +42,7 @@
                     <td>@a.Kind</td>
                     <td>@a.Caption</td>
                     <td>@a.ContentType</td>
-                    <td>@a.SizeBytes</td>
+                    <td>@FormatFileSize(a.SizeBytes)</td>
                     <td class="text-end">
                         <authorize roles="Admin,HoD">
                             <form method="post" asp-page-handler="Delete" asp-route-recordId="@Model.Record.Id" asp-route-id="@a.Id" class="d-inline">

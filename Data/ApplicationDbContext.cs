@@ -478,6 +478,7 @@ namespace ProjectManagement.Data
 
             builder.Entity<FfcCountry>(entity =>
             {
+                ConfigureRowVersion(entity);
                 entity.ToTable("FfcCountries");
                 entity.Property(x => x.Name).HasMaxLength(128).IsRequired();
                 entity.Property(x => x.IsoCode).HasMaxLength(3);

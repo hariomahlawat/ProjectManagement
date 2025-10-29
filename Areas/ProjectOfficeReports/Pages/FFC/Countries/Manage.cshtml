@@ -24,6 +24,7 @@
                         @if (Model.IsEditMode)
                         {
                             <input type="hidden" asp-for="Input.Id" />
+                            <input type="hidden" asp-for="Input.RowVersion" />
                         }
                         <partial name="_CountryForm" model="Model.Input" />
                         <div class="d-flex gap-2">

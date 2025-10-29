@@ -1,3 +1,5 @@
+using System;
+
 namespace ProjectManagement.Areas.ProjectOfficeReports.Domain;
 
 public class FfcCountry
@@ -8,6 +10,7 @@ public class FfcCountry
     public bool IsActive { get; set; } = true;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 
     public ICollection<FfcRecord> Records { get; set; } = new List<FfcRecord>();
 }
