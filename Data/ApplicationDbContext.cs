@@ -581,7 +581,7 @@ namespace ProjectManagement.Data
 
                 var kindConverter = new ValueConverter<FfcAttachmentKind, string>(
                     static value => value.ToString().ToUpperInvariant(),
-                    static value => Enum.Parse<FfcAttachmentKind>(value, ignoreCase: true));
+                    static value => Enum.Parse<FfcAttachmentKind>(value, true));
 
                 var kindComparer = new ValueComparer<FfcAttachmentKind>(
                     static (left, right) => left == right,
