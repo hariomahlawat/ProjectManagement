@@ -6,6 +6,7 @@ using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -163,7 +164,7 @@ public sealed class IndexModel : PageModel
         if (id <= 0)
         {
             TempData["Error"] = "The selected activity could not be found.";
-            return RedirectToPage(null, BuildRouteValues());
+            return Redirect(BuildIndexRedirectUrl());
         }
 
         try
@@ -189,7 +190,7 @@ public sealed class IndexModel : PageModel
             TempData["Error"] = "The selected activity could not be found.";
         }
 
-        return RedirectToPage(null, BuildRouteValues());
+        return Redirect(BuildIndexRedirectUrl());
     }
 
     public async Task<IActionResult> OnPostExportAsync(CancellationToken cancellationToken)
@@ -346,6 +347,12 @@ public sealed class IndexModel : PageModel
     private RouteValueDictionary BuildRouteValues()
     {
         return new RouteValueDictionary(BuildRoute(Page, SortBy, SortDirection, PageSize));
+    }
+
+    private string BuildIndexRedirectUrl()
+    {
+        var queryString = QueryString.Create(BuildRoute(Page, SortBy, SortDirection, PageSize));
+        return string.Concat("/Activities/Index", queryString.HasValue ? queryString.ToUriComponent() : string.Empty);
     }
 
 }
