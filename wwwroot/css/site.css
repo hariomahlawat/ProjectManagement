@@ -215,6 +215,75 @@ body {
     padding: 1.25rem 1.5rem;
 }
 
+/* ---------- FFC record cards ---------- */
+.ffc-record-card {
+    width: 100%;
+}
+
+.ffc-record-card-statuses {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.ffc-record-card-status {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    padding: .75rem;
+    border: 1px solid rgba(15, 23, 42, .08);
+    border-radius: .75rem;
+    background-color: var(--pm-card);
+}
+
+.ffc-record-card-status-title {
+    font-size: .75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--pm-muted);
+}
+
+.ffc-record-card-status-value {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .5rem;
+}
+
+.ffc-record-card-status-date {
+    font-size: .75rem;
+    color: var(--pm-muted);
+}
+
+.ffc-record-card-status-remarks {
+    font-size: .8125rem;
+    color: var(--pm-muted);
+}
+
+.ffc-record-card-section-title {
+    font-size: .8125rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: var(--pm-muted);
+    margin-bottom: .5rem;
+}
+
+.ffc-record-card-projects {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+}
+
+.ffc-record-card-project {
+    font-size: .875rem;
+}
+
+.ffc-record-card-project-remarks {
+    margin-top: .25rem;
+}
+
 /* ---------- IPR tracker tweaks ---------- */
 .card.shadow-sm {
     box-shadow: 0 1rem 1.5rem -1rem rgba(0,0,0,.15);

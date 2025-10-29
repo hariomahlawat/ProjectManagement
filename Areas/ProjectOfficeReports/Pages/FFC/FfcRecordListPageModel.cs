@@ -48,7 +48,12 @@ public abstract class FfcRecordListPageModel : PageModel
 
         var queryable = Db.FfcRecords
             .Include(x => x.Country)
+            .Include(x => x.Projects)
+                .ThenInclude(p => p.LinkedProject)
+            .Include(x => x.Attachments)
             .AsQueryable();
+
+        queryable = ApplyRecordFilters(queryable);
 
         if (!string.IsNullOrWhiteSpace(Query))
         {
@@ -94,11 +99,14 @@ public abstract class FfcRecordListPageModel : PageModel
         }
 
         Records = await queryable
+            .AsSplitQuery()
             .AsNoTracking()
             .Skip((PageNumber - 1) * PageSize)
             .Take(PageSize)
             .ToListAsync();
     }
+
+    protected virtual IQueryable<FfcRecord> ApplyRecordFilters(IQueryable<FfcRecord> queryable) => queryable;
 
     public Dictionary<string, string?> BuildRoute(int? page = null, string? sort = null, string? dir = null, string? query = null)
     {
