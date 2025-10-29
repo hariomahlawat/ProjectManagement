@@ -175,6 +175,11 @@ public sealed class IndexModel : PageModel
         {
             TempData["Error"] = "You are not authorised to request deletion for this activity.";
         }
+        catch (ActivityValidationException ex)
+        {
+            var error = ex.Errors.SelectMany(pair => pair.Value).FirstOrDefault();
+            TempData["Error"] = error ?? "The delete request could not be submitted.";
+        }
         catch (InvalidOperationException)
         {
             TempData["Error"] = "A delete request is already pending for this activity.";

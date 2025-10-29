@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Data.Common;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
@@ -9,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using ProjectManagement.Data;
 using ProjectManagement.Models.Activities;
 using ProjectManagement.Services;
+using Npgsql;
 
 namespace ProjectManagement.Services.Activities;
 
@@ -69,6 +71,7 @@ public sealed class ActivityDeleteRequestService : IActivityDeleteRequestService
         }
 
         var trimmedReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+        ValidateReason(trimmedReason);
         var now = _clock.UtcNow;
 
         var request = new ActivityDeleteRequest
@@ -80,7 +83,15 @@ public sealed class ActivityDeleteRequestService : IActivityDeleteRequestService
         };
 
         await _dbContext.ActivityDeleteRequests.AddAsync(request, cancellationToken);
-        await _dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException ex) when (IsPendingRequestConflict(ex))
+        {
+            _logger.LogWarning(ex, "Concurrent delete request detected for activity {ActivityId}.", activityId);
+            throw new InvalidOperationException("A delete request is already pending for this activity.", ex);
+        }
 
         var requester = await _dbContext.Users
             .AsNoTracking()
@@ -297,5 +308,80 @@ public sealed class ActivityDeleteRequestService : IActivityDeleteRequestService
         }
 
         return value.Trim();
+    }
+
+    private static void ValidateReason(string? trimmedReason)
+    {
+        if (trimmedReason is null)
+        {
+            return;
+        }
+
+        if (trimmedReason.Length <= 1000)
+        {
+            return;
+        }
+
+        var errors = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase)
+        {
+            [nameof(ActivityDeleteRequest.Reason)] =
+            [
+                "Reason cannot exceed 1000 characters."
+            ]
+        };
+
+        throw new ActivityValidationException(errors);
+    }
+
+    private static bool IsPendingRequestConflict(DbUpdateException exception)
+    {
+        const string ConstraintName = "UX_ActivityDeleteRequests_ActivityId_Pending";
+
+        if (exception.InnerException is PostgresException postgres)
+        {
+            return postgres.SqlState == PostgresErrorCodes.UniqueViolation &&
+                   string.Equals(postgres.ConstraintName, ConstraintName, StringComparison.Ordinal);
+        }
+
+        if (exception.InnerException is DbException dbException)
+        {
+            var type = dbException.GetType();
+            var numberProperty = type.GetProperty("Number");
+            if (numberProperty?.GetValue(dbException) is int sqlNumber && (sqlNumber == 2601 || sqlNumber == 2627))
+            {
+                if (!string.IsNullOrEmpty(dbException.Message) &&
+                    dbException.Message.IndexOf(ConstraintName, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            var sqlStateProperty = type.GetProperty("SqlState");
+            if (sqlStateProperty?.GetValue(dbException) is string sqlState &&
+                string.Equals(sqlState, PostgresErrorCodes.UniqueViolation, StringComparison.Ordinal))
+            {
+                var constraintProperty = type.GetProperty("ConstraintName");
+                if (constraintProperty?.GetValue(dbException) is string constraint &&
+                    string.Equals(constraint, ConstraintName, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+
+            if (!string.IsNullOrEmpty(dbException.Message) &&
+                dbException.Message.IndexOf(ConstraintName, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrEmpty(dbException.Source) &&
+                dbException.Source.IndexOf(ConstraintName, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+        }
+
+        var message = exception.InnerException?.Message ?? exception.Message;
+        return message.IndexOf(ConstraintName, StringComparison.OrdinalIgnoreCase) >= 0;
     }
 }
