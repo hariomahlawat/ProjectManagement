@@ -11,6 +11,7 @@ using ProjectManagement.Data;
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Countries;
 
 [Authorize]
+[AutoValidateAntiforgeryToken]
 public class ManageModel(ApplicationDbContext db) : PageModel
 {
     private readonly ApplicationDbContext _db = db;
