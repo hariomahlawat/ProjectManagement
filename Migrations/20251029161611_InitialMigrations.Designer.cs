@@ -2085,6 +2085,39 @@ namespace ProjectManagement.Migrations
                         .HasDatabaseName("UserNameIndex");
 
                     b.ToTable("AspNetUsers", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = "system",
+                            AccessFailedCount = 0,
+                            ConcurrencyStamp = "bb6d6cb5-52dd-432c-95d4-6b6a92d6a0d3",
+                            CreatedUtc = new DateTime(2024, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DeletionRequestedByUserId = (string)null,
+                            DeletionRequestedUtc = (DateTime?)null,
+                            DisabledByUserId = (string)null,
+                            DisabledUtc = (DateTime?)null,
+                            Email = "system@example.local",
+                            EmailConfirmed = true,
+                            FullName = "System Account",
+                            IsDisabled = false,
+                            LastLoginUtc = (DateTime?)null,
+                            LockoutEnabled = false,
+                            LockoutEnd = (DateTimeOffset?)null,
+                            LoginCount = 0,
+                            MustChangePassword = false,
+                            NormalizedEmail = "SYSTEM@EXAMPLE.LOCAL",
+                            NormalizedUserName = "SYSTEM",
+                            PasswordHash = (string)null,
+                            PendingDeletion = false,
+                            PhoneNumber = (string)null,
+                            PhoneNumberConfirmed = false,
+                            Rank = "System",
+                            SecurityStamp = "c3f1e44d-21c7-4cd1-8d3a-2212333e2ef2",
+                            ShowCelebrationsInCalendar = true,
+                            TwoFactorEnabled = false,
+                            UserName = "system"
+                        });
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.AuditLog", b =>

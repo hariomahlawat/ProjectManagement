@@ -115,6 +115,39 @@ namespace ProjectManagement.Data
         {
             base.OnModelCreating(builder);
 
+            var systemUserCreatedUtc = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            builder.Entity<ApplicationUser>().HasData(
+                new ApplicationUser
+                {
+                    Id = "system",
+                    UserName = "system",
+                    NormalizedUserName = "SYSTEM",
+                    Email = "system@example.local",
+                    NormalizedEmail = "SYSTEM@EXAMPLE.LOCAL",
+                    EmailConfirmed = true,
+                    MustChangePassword = false,
+                    FullName = "System Account",
+                    Rank = "System",
+                    LastLoginUtc = null,
+                    LoginCount = 0,
+                    CreatedUtc = systemUserCreatedUtc,
+                    IsDisabled = false,
+                    DisabledUtc = null,
+                    DisabledByUserId = null,
+                    PendingDeletion = false,
+                    DeletionRequestedUtc = null,
+                    DeletionRequestedByUserId = null,
+                    ShowCelebrationsInCalendar = true,
+                    SecurityStamp = "c3f1e44d-21c7-4cd1-8d3a-2212333e2ef2",
+                    ConcurrencyStamp = "bb6d6cb5-52dd-432c-95d4-6b6a92d6a0d3",
+                    LockoutEnabled = false,
+                    LockoutEnd = null,
+                    TwoFactorEnabled = false,
+                    AccessFailedCount = 0,
+                    PhoneNumberConfirmed = false
+                });
+
             builder.Entity<Project>(e =>
             {
                 e.Property(x => x.Name).HasMaxLength(100).IsRequired();
