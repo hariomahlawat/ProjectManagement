@@ -87,6 +87,49 @@ public sealed class FfcRecordsManagePageTests
         Assert.Equal("Record created.", page.TempData["StatusMessage"]);
     }
 
+    [Fact]
+    public async Task OnPostUpdateAsync_WithInactiveExistingCountry_AllowsUpdate()
+    {
+        await using var db = CreateDbContext();
+        var country = await SeedCountryAsync(db);
+        var page = CreatePage(db);
+        ConfigurePageContext(page, CreateAdminPrincipal());
+
+        var record = new FfcRecord
+        {
+            CountryId = country.Id,
+            Year = 2024
+        };
+
+        db.FfcRecords.Add(record);
+        await db.SaveChangesAsync();
+
+        country.IsActive = false;
+        await db.SaveChangesAsync();
+
+        page.Input = new ManageModel.InputModel
+        {
+            Id = record.Id,
+            CountryId = country.Id,
+            Year = 2026,
+            IpaYes = true,
+            IpaDate = new DateOnly(2026, 1, 1)
+        };
+
+        var result = await page.OnPostUpdateAsync();
+
+        var redirect = Assert.IsType<RedirectToPageResult>(result);
+        Assert.Null(redirect.PageName);
+        Assert.True(page.ModelState.IsValid);
+
+        var updated = await db.FfcRecords.FindAsync(record.Id);
+        Assert.NotNull(updated);
+        Assert.Equal((short)2026, updated!.Year);
+        Assert.True(updated.IpaYes);
+        Assert.Equal(new DateOnly(2026, 1, 1), updated.IpaDate);
+        Assert.Equal("Record updated.", page.TempData["StatusMessage"]);
+    }
+
     private static void SetIpaMismatch(ManageModel.InputModel input)
     {
         input.IpaYes = false;

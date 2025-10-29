@@ -212,8 +212,25 @@ public class ManageModel : FfcRecordListPageModel
 
     private async Task ValidateAsync(InputModel i)
     {
-        if (!await Db.FfcCountries.AnyAsync(c => c.Id == i.CountryId && c.IsActive))
-            ModelState.AddModelError(nameof(Input) + "." + nameof(Input.CountryId), "Select a valid active country.");
+        var hasActiveCountry = await Db.FfcCountries.AnyAsync(c => c.Id == i.CountryId && c.IsActive);
+        if (!hasActiveCountry)
+        {
+            var isExistingInactive = false;
+            if (i.Id is { } id)
+            {
+                var existingCountryId = await Db.FfcRecords
+                    .Where(r => r.Id == id)
+                    .Select(r => (long?)r.CountryId)
+                    .FirstOrDefaultAsync();
+
+                isExistingInactive = existingCountryId.HasValue && existingCountryId.Value == i.CountryId;
+            }
+
+            if (!isExistingInactive)
+            {
+                ModelState.AddModelError(nameof(Input) + "." + nameof(Input.CountryId), "Select a valid active country.");
+            }
+        }
 
         if (i.Year is < 2000 or > 2100)
             ModelState.AddModelError(nameof(Input) + "." + nameof(Input.Year), "Year must be between 2000 and 2100.");
