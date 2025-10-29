@@ -25,7 +25,7 @@
                             <input type="hidden" asp-for="Input.Id" />
                         }
                         <partial name="_RecordForm"
-                                 model="(Model.Input, Model.CountrySelect, Model.IsEditMode)" />
+                                 model="new ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.FfcRecordFormModel(Model.Input, Model.CountrySelect, Model.IsEditMode)" />
                         <div class="d-flex gap-2">
                             @if (Model.IsEditMode)
                             {

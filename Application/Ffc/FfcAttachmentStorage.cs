@@ -10,9 +10,9 @@ using ProjectManagement.Data;
 
 namespace ProjectManagement.Application.Ffc;
 
-public class FfcAttachmentStorage(AppDbContext db, IFileSecurityValidator validator, IWebHostEnvironment env) : IFfcAttachmentStorage
+public class FfcAttachmentStorage(ApplicationDbContext db, IFileSecurityValidator validator, IWebHostEnvironment env) : IFfcAttachmentStorage
 {
-    private readonly AppDbContext _db = db;
+    private readonly ApplicationDbContext _db = db;
     private readonly IFileSecurityValidator _validator = validator;
     private readonly IWebHostEnvironment _env = env;
 
