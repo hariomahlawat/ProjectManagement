@@ -268,13 +268,17 @@
                                             }
                                             @if (row.CanDelete)
                                             {
+                                                var deleteRouteValues = Model.BuildRouteForDeleteRequest(row.Id);
                                                 <form method="post"
                                                       asp-page="./Index"
                                                       asp-page-handler="RequestDelete"
-                                                      asp-all-route-data="Model.BuildRouteForDeleteRequest(row.Id)"
                                                       class="d-inline"
                                                       data-activities-delete-form>
                                                     @Html.AntiForgeryToken()
+                                                    @foreach (var routeValue in deleteRouteValues)
+                                                    {
+                                                        <input type="hidden" name="@routeValue.Key" value="@(routeValue.Value ?? string.Empty)" />
+                                                    }
                                                     <button type="submit"
                                                             class="btn btn-outline-danger js-activities-confirm-delete"
                                                             data-confirm="Request deletion of this activity?">
