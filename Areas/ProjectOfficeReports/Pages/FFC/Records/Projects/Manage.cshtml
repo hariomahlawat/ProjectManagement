@@ -16,7 +16,16 @@
             {
                 <tr>
                     <td>@p.Name</td>
-                    <td>@p.LinkedProjectId</td>
+                    <td>
+                        @if (p.LinkedProject is not null)
+                        {
+                            <span title="ID @p.LinkedProjectId">@p.LinkedProject.Name</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">&mdash; none &mdash;</span>
+                        }
+                    </td>
                     <td>@p.Remarks</td>
                     <td class="text-end">
                         <authorize roles="Admin,HoD">

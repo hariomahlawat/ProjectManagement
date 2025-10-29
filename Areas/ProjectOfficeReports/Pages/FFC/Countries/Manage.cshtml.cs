@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -38,6 +39,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         public string Name { get; set; } = string.Empty;
         public string? IsoCode { get; set; }
         public bool IsActive { get; set; } = true;
+        public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     }
 
     public async Task<IActionResult> OnGetAsync()
@@ -63,7 +65,8 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
                 Id = entity.Id,
                 Name = entity.Name,
                 IsoCode = entity.IsoCode,
-                IsActive = entity.IsActive
+                IsActive = entity.IsActive,
+                RowVersion = entity.RowVersion
             };
         }
 
@@ -122,6 +125,12 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
             return BadRequest();
         }
 
+        if (Input.RowVersion is null || Input.RowVersion.Length == 0)
+        {
+            ModelState.AddModelError(string.Empty, "The country information was outdated. Please reload the page and try again.");
+            return await ReloadPageAsync(Input.Id);
+        }
+
         await ValidateInputAsync(Input, isEdit: true);
         if (!ModelState.IsValid)
         {
@@ -147,7 +156,35 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         entity.IsoCode = normalizedIso;
         entity.IsActive = Input.IsActive;
 
-        await _db.SaveChangesAsync();
+        _db.Entry(entity).Property(x => x.RowVersion).OriginalValue = Input.RowVersion;
+
+        try
+        {
+            await _db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ModelState.AddModelError(string.Empty, "The country was modified by another user. The latest values are now loaded—please review and try again.");
+
+            var databaseEntity = await _db.FfcCountries
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == entity.Id);
+
+            if (databaseEntity is not null)
+            {
+                Input = new InputModel
+                {
+                    Id = databaseEntity.Id,
+                    Name = databaseEntity.Name,
+                    IsoCode = databaseEntity.IsoCode,
+                    IsActive = databaseEntity.IsActive,
+                    RowVersion = databaseEntity.RowVersion
+                };
+                return await ReloadPageAsync(Input.Id);
+            }
+
+            return await ReloadPageAsync();
+        }
 
         await TryLogAsync("ProjectOfficeReports.FFC.CountryUpdated", new Dictionary<string, string?>
         {
@@ -209,9 +246,14 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         if (!string.IsNullOrWhiteSpace(input.IsoCode))
         {
             var trimmedIso = input.IsoCode!.Trim();
+            input.IsoCode = trimmedIso;
             if (trimmedIso.Length != 3)
             {
                 ModelState.AddModelError(nameof(Input) + "." + nameof(Input.IsoCode), "ISO code must be exactly 3 characters.");
+            }
+            else if (!Regex.IsMatch(trimmedIso, "^[A-Za-z]{3}$"))
+            {
+                ModelState.AddModelError(nameof(Input) + "." + nameof(Input.IsoCode), "ISO code must be three letters.");
             }
         }
 
