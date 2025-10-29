@@ -1,17 +1,24 @@
+using System;
+using System.Collections.Generic;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
+using ProjectManagement.Services;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.Projects;
 
 [Authorize]
-public class ManageModel(ApplicationDbContext db) : PageModel
+public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<ManageModel> logger) : PageModel
 {
     private readonly ApplicationDbContext _db = db;
+    private readonly IAuditService _audit = audit;
+    private readonly ILogger<ManageModel> _logger = logger;
 
     [FromQuery] public long RecordId { get; set; }
     public FfcRecord Record { get; private set; } = default!;
@@ -72,6 +79,8 @@ public class ManageModel(ApplicationDbContext db) : PageModel
         _db.FfcProjects.Add(entity);
         await _db.SaveChangesAsync();
 
+        await TryLogAsync("ProjectOfficeReports.FFC.RecordProjectCreated", BuildProjectData(entity, "After"));
+
         TempData["StatusMessage"] = "Project added.";
         return RedirectToPage(new { recordId });
     }
@@ -90,11 +99,21 @@ public class ManageModel(ApplicationDbContext db) : PageModel
         var p = await _db.FfcProjects.FirstOrDefaultAsync(x => x.Id == Input.Id && x.FfcRecordId == recordId);
         if (p is null) return NotFound();
 
+        var before = BuildProjectData(p, "Before");
+
         p.Name = Input.Name.Trim();
         p.Remarks = string.IsNullOrWhiteSpace(Input.Remarks) ? null : Input.Remarks.Trim();
         p.LinkedProjectId = Input.LinkedProjectId;
 
         await _db.SaveChangesAsync();
+
+        var data = new Dictionary<string, string?>(before);
+        foreach (var kvp in BuildProjectData(p, "After"))
+        {
+            data[kvp.Key] = kvp.Value;
+        }
+
+        await TryLogAsync("ProjectOfficeReports.FFC.RecordProjectUpdated", data);
         TempData["StatusMessage"] = "Project updated.";
         return RedirectToPage(new { recordId });
     }
@@ -105,10 +124,44 @@ public class ManageModel(ApplicationDbContext db) : PageModel
 
         var p = await _db.FfcProjects.FirstOrDefaultAsync(x => x.Id == id && x.FfcRecordId == recordId);
         if (p is null) return NotFound();
+
+        var auditData = BuildProjectData(p, "Before");
+
         _db.FfcProjects.Remove(p);
         await _db.SaveChangesAsync();
 
+        await TryLogAsync("ProjectOfficeReports.FFC.RecordProjectDeleted", auditData);
+
         TempData["StatusMessage"] = "Project removed.";
         return RedirectToPage(new { recordId });
+    }
+
+    private async Task TryLogAsync(string action, IDictionary<string, string?> data)
+    {
+        try
+        {
+            await _audit.LogAsync(
+                action,
+                userId: User.FindFirstValue(ClaimTypes.NameIdentifier),
+                userName: User.Identity?.Name,
+                data: data,
+                http: HttpContext);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to write audit log for action {Action}.", action);
+        }
+    }
+
+    private static Dictionary<string, string?> BuildProjectData(FfcProject project, string prefix)
+    {
+        return new Dictionary<string, string?>
+        {
+            [$"{prefix}.ProjectId"] = project.Id.ToString(),
+            [$"{prefix}.RecordId"] = project.FfcRecordId.ToString(),
+            [$"{prefix}.Name"] = project.Name,
+            [$"{prefix}.Remarks"] = project.Remarks,
+            [$"{prefix}.LinkedProjectId"] = project.LinkedProjectId?.ToString()
+        };
     }
 }

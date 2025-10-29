@@ -1,13 +1,19 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Application.Ffc;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
-using ProjectManagement.Data;
 using ProjectManagement.Configuration;
+using ProjectManagement.Data;
+using ProjectManagement.Services;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.Attachments;
 
@@ -15,11 +21,15 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.Attachm
 public class UploadModel(
     ApplicationDbContext db,
     IFfcAttachmentStorage storage,
-    IOptions<FfcAttachmentOptions> options) : PageModel
+    IOptions<FfcAttachmentOptions> options,
+    IAuditService audit,
+    ILogger<UploadModel> logger) : PageModel
 {
     private readonly ApplicationDbContext _db = db;
     private readonly IFfcAttachmentStorage _storage = storage;
     private readonly FfcAttachmentOptions _options = options.Value;
+    private readonly IAuditService _audit = audit;
+    private readonly ILogger<UploadModel> _logger = logger;
 
     [FromQuery] public long RecordId { get; set; }
     public FfcRecord Record { get; private set; } = default!;
@@ -60,6 +70,20 @@ public class UploadModel(
             return await OnGetAsync(recordId);
         }
 
+        if (result.Attachment is { } attachment)
+        {
+            await TryLogAsync("ProjectOfficeReports.FFC.AttachmentUploaded", new Dictionary<string, string?>
+            {
+                ["AttachmentId"] = attachment.Id.ToString(),
+                ["RecordId"] = attachment.FfcRecordId.ToString(),
+                ["Kind"] = attachment.Kind.ToString(),
+                ["Caption"] = attachment.Caption,
+                ["ContentType"] = attachment.ContentType,
+                ["SizeBytes"] = attachment.SizeBytes.ToString(CultureInfo.InvariantCulture),
+                ["OriginalFileName"] = UploadFile.FileName
+            });
+        }
+
         TempData["StatusMessage"] = "File uploaded.";
         return RedirectToPage(new { recordId });
     }
@@ -71,8 +95,37 @@ public class UploadModel(
         var a = await _db.FfcAttachments.FirstOrDefaultAsync(x => x.Id == id && x.FfcRecordId == recordId);
         if (a is null) return NotFound();
 
+        var data = new Dictionary<string, string?>
+        {
+            ["AttachmentId"] = a.Id.ToString(),
+            ["RecordId"] = a.FfcRecordId.ToString(),
+            ["Kind"] = a.Kind.ToString(),
+            ["Caption"] = a.Caption,
+            ["ContentType"] = a.ContentType,
+            ["SizeBytes"] = a.SizeBytes.ToString(CultureInfo.InvariantCulture)
+        };
+
         await _storage.DeleteAsync(a);
+
+        await TryLogAsync("ProjectOfficeReports.FFC.AttachmentDeleted", data);
         TempData["StatusMessage"] = "Attachment removed.";
         return RedirectToPage(new { recordId });
+    }
+
+    private async Task TryLogAsync(string action, IDictionary<string, string?> data)
+    {
+        try
+        {
+            await _audit.LogAsync(
+                action,
+                userId: User.FindFirstValue(ClaimTypes.NameIdentifier),
+                userName: User.Identity?.Name,
+                data: data,
+                http: HttpContext);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to write audit log for action {Action}.", action);
+        }
     }
 }

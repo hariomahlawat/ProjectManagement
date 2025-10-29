@@ -1,19 +1,25 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
+using ProjectManagement.Services;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Countries;
 
 [Authorize]
-public class ManageModel(ApplicationDbContext db) : PageModel
+public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<ManageModel> logger) : PageModel
 {
     private readonly ApplicationDbContext _db = db;
+    private readonly IAuditService _audit = audit;
+    private readonly ILogger<ManageModel> _logger = logger;
 
     public IList<FfcCountry> Countries { get; private set; } = [];
     private bool CanManageCountries => User.IsInRole("Admin") || User.IsInRole("HoD");
@@ -92,6 +98,14 @@ public class ManageModel(ApplicationDbContext db) : PageModel
         _db.FfcCountries.Add(entity);
         await _db.SaveChangesAsync();
 
+        await TryLogAsync("ProjectOfficeReports.FFC.CountryCreated", new Dictionary<string, string?>
+        {
+            ["CountryId"] = entity.Id.ToString(),
+            ["Name"] = entity.Name,
+            ["IsoCode"] = entity.IsoCode,
+            ["IsActive"] = entity.IsActive.ToString()
+        });
+
         TempData["StatusMessage"] = "Country created.";
         return RedirectToPage();
     }
@@ -120,6 +134,10 @@ public class ManageModel(ApplicationDbContext db) : PageModel
             return NotFound();
         }
 
+        var originalName = entity.Name;
+        var originalIso = entity.IsoCode;
+        var originalActive = entity.IsActive;
+
         var normalizedName = Input.Name?.Trim() ?? string.Empty;
         var normalizedIso = string.IsNullOrWhiteSpace(Input.IsoCode)
             ? null
@@ -130,6 +148,17 @@ public class ManageModel(ApplicationDbContext db) : PageModel
         entity.IsActive = Input.IsActive;
 
         await _db.SaveChangesAsync();
+
+        await TryLogAsync("ProjectOfficeReports.FFC.CountryUpdated", new Dictionary<string, string?>
+        {
+            ["CountryId"] = entity.Id.ToString(),
+            ["Name.Before"] = originalName,
+            ["Name.After"] = entity.Name,
+            ["IsoCode.Before"] = originalIso,
+            ["IsoCode.After"] = entity.IsoCode,
+            ["IsActive.Before"] = originalActive.ToString(),
+            ["IsActive.After"] = entity.IsActive.ToString()
+        });
 
         TempData["StatusMessage"] = "Country updated.";
         return RedirectToPage();
@@ -148,8 +177,16 @@ public class ManageModel(ApplicationDbContext db) : PageModel
             return NotFound();
         }
 
-        entity.IsActive = !entity.IsActive;
+        var previousActive = entity.IsActive;
+        entity.IsActive = !previousActive;
         await _db.SaveChangesAsync();
+
+        await TryLogAsync("ProjectOfficeReports.FFC.CountryStatusChanged", new Dictionary<string, string?>
+        {
+            ["CountryId"] = entity.Id.ToString(),
+            ["IsActive.Before"] = previousActive.ToString(),
+            ["IsActive.After"] = entity.IsActive.ToString()
+        });
 
         TempData["StatusMessage"] = entity.IsActive ? "Country activated." : "Country deactivated.";
         return RedirectToPage();
@@ -203,5 +240,22 @@ public class ManageModel(ApplicationDbContext db) : PageModel
 
         EditId = keepEditingId;
         return Page();
+    }
+
+    private async Task TryLogAsync(string action, IDictionary<string, string?> data)
+    {
+        try
+        {
+            await _audit.LogAsync(
+                action,
+                userId: User.FindFirstValue(ClaimTypes.NameIdentifier),
+                userName: User.Identity?.Name,
+                data: data,
+                http: HttpContext);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to write audit log for action {Action}.", action);
+        }
     }
 }

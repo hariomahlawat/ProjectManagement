@@ -1,18 +1,26 @@
+using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
+using ProjectManagement.Services;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records;
 
 [Authorize]
-public class ManageModel(ApplicationDbContext db) : PageModel
+public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<ManageModel> logger) : PageModel
 {
     private readonly ApplicationDbContext _db = db;
+    private readonly IAuditService _audit = audit;
+    private readonly ILogger<ManageModel> _logger = logger;
 
     public IList<FfcRecord> Records { get; private set; } = [];
     private bool CanManageRecords => User.IsInRole("Admin") || User.IsInRole("HoD");
@@ -76,6 +84,10 @@ public class ManageModel(ApplicationDbContext db) : PageModel
         _db.FfcRecords.Add(entity);
         await _db.SaveChangesAsync();
 
+        var data = BuildRecordData(entity, "After");
+        data["RecordId"] = entity.Id.ToString();
+        await TryLogAsync("ProjectOfficeReports.FFC.RecordCreated", data);
+
         TempData["StatusMessage"] = "Record created.";
         return RedirectToPage();
     }
@@ -95,8 +107,22 @@ public class ManageModel(ApplicationDbContext db) : PageModel
         var entity = await _db.FfcRecords.FirstOrDefaultAsync(x => x.Id == Input.Id);
         if (entity is null) return NotFound();
 
+        var before = BuildRecordData(entity, "Before");
+
         MapToEntity(Input, entity);
         await _db.SaveChangesAsync();
+
+        var data = new Dictionary<string, string?>(before)
+        {
+            ["RecordId"] = entity.Id.ToString()
+        };
+
+        foreach (var kvp in BuildRecordData(entity, "After"))
+        {
+            data[kvp.Key] = kvp.Value;
+        }
+
+        await TryLogAsync("ProjectOfficeReports.FFC.RecordUpdated", data);
 
         TempData["StatusMessage"] = "Record updated.";
         return RedirectToPage();
@@ -185,5 +211,47 @@ public class ManageModel(ApplicationDbContext db) : PageModel
     {
         EditId = id;
         return await OnGetAsync();
+    }
+
+    private async Task TryLogAsync(string action, IDictionary<string, string?> data)
+    {
+        try
+        {
+            await _audit.LogAsync(
+                action,
+                userId: User.FindFirstValue(ClaimTypes.NameIdentifier),
+                userName: User.Identity?.Name,
+                data: data,
+                http: HttpContext);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to write audit log for action {Action}.", action);
+        }
+    }
+
+    private static Dictionary<string, string?> BuildRecordData(FfcRecord record, string prefix)
+    {
+        static string? FormatDate(DateOnly? value) => value?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+        return new Dictionary<string, string?>
+        {
+            [$"{prefix}.CountryId"] = record.CountryId.ToString(),
+            [$"{prefix}.Year"] = record.Year.ToString(CultureInfo.InvariantCulture),
+            [$"{prefix}.IpaYes"] = record.IpaYes.ToString(),
+            [$"{prefix}.IpaDate"] = FormatDate(record.IpaDate),
+            [$"{prefix}.IpaRemarks"] = record.IpaRemarks,
+            [$"{prefix}.GslYes"] = record.GslYes.ToString(),
+            [$"{prefix}.GslDate"] = FormatDate(record.GslDate),
+            [$"{prefix}.GslRemarks"] = record.GslRemarks,
+            [$"{prefix}.DeliveryYes"] = record.DeliveryYes.ToString(),
+            [$"{prefix}.DeliveryDate"] = FormatDate(record.DeliveryDate),
+            [$"{prefix}.DeliveryRemarks"] = record.DeliveryRemarks,
+            [$"{prefix}.InstallationYes"] = record.InstallationYes.ToString(),
+            [$"{prefix}.InstallationDate"] = FormatDate(record.InstallationDate),
+            [$"{prefix}.InstallationRemarks"] = record.InstallationRemarks,
+            [$"{prefix}.OverallRemarks"] = record.OverallRemarks,
+            [$"{prefix}.IsDeleted"] = record.IsDeleted.ToString()
+        };
     }
 }

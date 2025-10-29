@@ -33,19 +33,19 @@ public class FfcAttachmentStorage(
     private static readonly HashSet<string> AllowedContent = new(StringComparer.OrdinalIgnoreCase)
         { "application/pdf", "image/jpeg", "image/png", "image/webp" };
 
-    public async Task<(bool Success, string? ErrorMessage)> SaveAsync(long recordId, IFormFile file, FfcAttachmentKind kind, string? caption)
+    public async Task<(bool Success, string? ErrorMessage, FfcAttachment? Attachment)> SaveAsync(long recordId, IFormFile file, FfcAttachmentKind kind, string? caption)
     {
         if (!IsAdminOrHod(_userContext.User))
         {
-            return (false, AuthorizationError);
+            return (false, AuthorizationError, null);
         }
 
         if (!AllowedContent.Contains(file.ContentType))
-            return (false, "Only PDF/JPEG/PNG/WEBP allowed.");
+            return (false, "Only PDF/JPEG/PNG/WEBP allowed.", null);
 
         if (_options.MaxFileSizeBytes > 0 && file.Length > _options.MaxFileSizeBytes)
         {
-            return (false, $"File exceeds maximum size of {FormatFileSize(_options.MaxFileSizeBytes)}.");
+            return (false, $"File exceeds maximum size of {FormatFileSize(_options.MaxFileSizeBytes)}.", null);
         }
 
         var tmpPath = Path.GetTempFileName();
@@ -57,7 +57,7 @@ public class FfcAttachmentStorage(
         if (!await _validator.IsSafeAsync(tmpPath, file.ContentType))
         {
             File.Delete(tmpPath);
-            return (false, "File failed security checks.");
+            return (false, "File failed security checks.", null);
         }
 
         var storeRoot = Path.Combine(_env.ContentRootPath, "App_Data", "ffc");
@@ -81,7 +81,7 @@ public class FfcAttachmentStorage(
         _db.FfcAttachments.Add(attachment);
         await _db.SaveChangesAsync();
 
-        return (true, null);
+        return (true, null, attachment);
     }
 
     public async Task DeleteAsync(FfcAttachment attachment)

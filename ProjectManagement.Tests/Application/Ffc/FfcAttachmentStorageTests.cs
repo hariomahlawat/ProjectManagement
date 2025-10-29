@@ -53,6 +53,7 @@ public sealed class FfcAttachmentStorageTests : IDisposable
 
         Assert.False(result.Success);
         Assert.Equal("Only Admin or HoD roles can manage attachments.", result.ErrorMessage);
+        Assert.Null(result.Attachment);
         Assert.Equal(0, await _db.FfcAttachments.CountAsync());
     }
 
@@ -75,6 +76,7 @@ public sealed class FfcAttachmentStorageTests : IDisposable
 
         Assert.False(result.Success);
         Assert.Equal("File exceeds maximum size of 1 MB.", result.ErrorMessage);
+        Assert.Null(result.Attachment);
         Assert.Equal(0, await _db.FfcAttachments.CountAsync());
         Assert.Equal(0, _validator.CallCount);
     }
