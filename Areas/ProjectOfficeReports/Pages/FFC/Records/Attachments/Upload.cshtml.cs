@@ -1,0 +1,68 @@
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Application.Ffc;
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
+using ProjectManagement.Data;
+
+namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.Attachments;
+
+[Authorize]
+public class UploadModel(AppDbContext db, IFfcAttachmentStorage storage) : PageModel
+{
+    private readonly AppDbContext _db = db;
+    private readonly IFfcAttachmentStorage _storage = storage;
+
+    [FromQuery] public long RecordId { get; set; }
+    public FfcRecord Record { get; private set; } = default!;
+    public IList<FfcAttachment> Items { get; private set; } = [];
+
+    [BindProperty] public IFormFile? File { get; set; }
+    [BindProperty] public FfcAttachmentKind Kind { get; set; } = FfcAttachmentKind.PDF;
+    [BindProperty] public string? Caption { get; set; }
+
+    public async Task<IActionResult> OnGetAsync(long recordId)
+    {
+        RecordId = recordId;
+        Record = await _db.FfcRecords.Include(r => r.Country).FirstOrDefaultAsync(r => r.Id == recordId)
+                  ?? throw new Exception("Record not found.");
+
+        Items = await _db.FfcAttachments.Where(a => a.FfcRecordId == recordId)
+                    .OrderByDescending(a => a.UploadedAt).AsNoTracking().ToListAsync();
+
+        return Page();
+    }
+
+    [Authorize(Roles = "Admin,HoD")]
+    public async Task<IActionResult> OnPostUploadAsync(long recordId)
+    {
+        if (File is null || File.Length == 0)
+        {
+            ModelState.AddModelError(nameof(File), "Select a file.");
+            return await OnGetAsync(recordId);
+        }
+
+        var result = await _storage.SaveAsync(recordId, File, Kind, Caption);
+        if (!result.Success)
+        {
+            ModelState.AddModelError(nameof(File), result.ErrorMessage ?? "Upload failed.");
+            return await OnGetAsync(recordId);
+        }
+
+        TempData["StatusMessage"] = "File uploaded.";
+        return RedirectToPage(new { recordId });
+    }
+
+    [Authorize(Roles = "Admin,HoD")]
+    public async Task<IActionResult> OnPostDeleteAsync(long recordId, long id)
+    {
+        var a = await _db.FfcAttachments.FirstOrDefaultAsync(x => x.Id == id && x.FfcRecordId == recordId);
+        if (a is null) return NotFound();
+
+        await _storage.DeleteAsync(a);
+        TempData["StatusMessage"] = "Attachment removed.";
+        return RedirectToPage(new { recordId });
+    }
+}

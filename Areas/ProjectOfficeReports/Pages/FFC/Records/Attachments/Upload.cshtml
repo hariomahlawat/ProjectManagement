@@ -1,0 +1,63 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.Attachments.UploadModel
+@{
+    ViewData["Title"] = "FFC Attachments";
+}
+<h1 class="h5 mb-2">Attachments for @Model.Record.Country.Name (@Model.Record.Year)</h1>
+<partial name="_StatusMessage" />
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <table class="table table-sm">
+            <thead><tr><th>Kind</th><th>Caption</th><th>Type</th><th>Size</th><th class="text-end">Actions</th></tr></thead>
+            <tbody>
+            @foreach (var a in Model.Items)
+            {
+                <tr>
+                    <td>@a.Kind</td>
+                    <td>@a.Caption</td>
+                    <td>@a.ContentType</td>
+                    <td>@a.SizeBytes</td>
+                    <td class="text-end">
+                        <authorize roles="Admin,HoD">
+                            <form method="post" asp-page-handler="Delete" asp-route-recordId="@Model.Record.Id" asp-route-id="@a.Id" class="d-inline">
+                                <button class="btn btn-link btn-sm" type="submit">Delete</button>
+                            </form>
+                        </authorize>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+        <a asp-page="../Manage" asp-page-handler="Edit" asp-route-id="@Model.Record.Id" class="btn btn-secondary btn-sm">Back</a>
+    </div>
+
+    <div class="col-lg-6">
+        <authorize roles="Admin,HoD">
+            <div class="card">
+                <div class="card-header">Upload</div>
+                <div class="card-body">
+                    <form method="post" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label asp-for="File" class="form-label">File</label>
+                            <input asp-for="File" type="file" class="form-control" />
+                            <span asp-validation-for="File" class="text-danger"></span>
+                        </div>
+                        <div class="mb-3">
+                            <label asp-for="Kind" class="form-label">Kind</label>
+                            <select asp-for="Kind" class="form-select">
+                                <option value="0">PDF</option>
+                                <option value="1">PHOTO</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label asp-for="Caption" class="form-label">Caption (optional)</label>
+                            <input asp-for="Caption" class="form-control" />
+                        </div>
+                        <button type="submit" asp-page-handler="Upload" asp-route-recordId="@Model.Record.Id" class="btn btn-primary">Upload</button>
+                    </form>
+                </div>
+            </div>
+        </authorize>
+    </div>
+</div>
