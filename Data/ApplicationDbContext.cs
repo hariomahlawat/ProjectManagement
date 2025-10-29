@@ -102,6 +102,10 @@ namespace ProjectManagement.Data
         public DbSet<ProliferationYearPreference> ProliferationYearPreferences => Set<ProliferationYearPreference>();
         public DbSet<IprRecord> IprRecords => Set<IprRecord>();
         public DbSet<IprAttachment> IprAttachments => Set<IprAttachment>();
+        public DbSet<FfcCountry> FfcCountries => Set<FfcCountry>();
+        public DbSet<FfcRecord> FfcRecords => Set<FfcRecord>();
+        public DbSet<FfcProject> FfcProjects => Set<FfcProject>();
+        public DbSet<FfcAttachment> FfcAttachments => Set<FfcAttachment>();
         public DbSet<ActivityType> ActivityTypes => Set<ActivityType>();
         public DbSet<Activity> Activities => Set<Activity>();
         public DbSet<ActivityAttachment> ActivityAttachments => Set<ActivityAttachment>();
@@ -469,6 +473,153 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.ArchivedByUserId)
                     .OnDelete(DeleteBehavior.SetNull);
+            });
+
+
+            builder.Entity<FfcCountry>(entity =>
+            {
+                entity.ToTable("FfcCountries");
+                entity.Property(x => x.Name).HasMaxLength(128).IsRequired();
+                entity.Property(x => x.IsoCode).HasMaxLength(3);
+                entity.Property(x => x.IsActive).HasDefaultValue(true);
+                entity.Property(x => x.CreatedAt).HasDefaultValueSql("now() at time zone 'utc'");
+                entity.Property(x => x.UpdatedAt).HasDefaultValueSql("now() at time zone 'utc'");
+
+                if (Database.IsNpgsql())
+                {
+                    entity.Property(x => x.CreatedAt).HasColumnType("timestamp with time zone");
+                    entity.Property(x => x.UpdatedAt).HasColumnType("timestamp with time zone");
+                }
+
+                entity.HasIndex(x => x.Name)
+                    .IsUnique()
+                    .HasDatabaseName("UX_FfcCountries_Name");
+            });
+
+            builder.Entity<FfcRecord>(entity =>
+            {
+                ConfigureRowVersion(entity);
+                entity.ToTable("FfcRecords");
+                entity.Property(x => x.Year).HasColumnType("smallint");
+                entity.Property(x => x.IpaYes).HasDefaultValue(false);
+                entity.Property(x => x.GslYes).HasDefaultValue(false);
+                entity.Property(x => x.DeliveryYes).HasDefaultValue(false);
+                entity.Property(x => x.InstallationYes).HasDefaultValue(false);
+                entity.Property(x => x.IsDeleted).HasDefaultValue(false);
+                entity.Property(x => x.CreatedByUserId).HasMaxLength(450);
+                entity.Property(x => x.CreatedAt).HasDefaultValueSql("now() at time zone 'utc'");
+                entity.Property(x => x.UpdatedAt).HasDefaultValueSql("now() at time zone 'utc'");
+
+                if (Database.IsNpgsql())
+                {
+                    entity.Property(x => x.CreatedAt).HasColumnType("timestamp with time zone");
+                    entity.Property(x => x.UpdatedAt).HasColumnType("timestamp with time zone");
+                }
+
+                entity.HasIndex(x => new { x.CountryId, x.Year })
+                    .HasDatabaseName("IX_FfcRecords_CountryId_Year");
+                entity.HasIndex(x => new { x.IpaYes, x.GslYes, x.DeliveryYes, x.InstallationYes })
+                    .HasDatabaseName("IX_FfcRecords_StatusFlags");
+
+                entity.HasOne(x => x.Country)
+                    .WithMany(x => x.Records)
+                    .HasForeignKey(x => x.CountryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasMany(x => x.Projects)
+                    .WithOne(x => x.Record)
+                    .HasForeignKey(x => x.FfcRecordId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasMany(x => x.Attachments)
+                    .WithOne(x => x.Record)
+                    .HasForeignKey(x => x.FfcRecordId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.ToTable(tb =>
+                {
+                    tb.HasCheckConstraint("CK_FfcRecords_IpaDateRequiresFlag", "\"IpaDate\" IS NULL OR \"IpaYes\" = TRUE");
+                    tb.HasCheckConstraint("CK_FfcRecords_GslDateRequiresFlag", "\"GslDate\" IS NULL OR \"GslYes\" = TRUE");
+                    tb.HasCheckConstraint("CK_FfcRecords_DeliveryDateRequiresFlag", "\"DeliveryDate\" IS NULL OR \"DeliveryYes\" = TRUE");
+                    tb.HasCheckConstraint("CK_FfcRecords_InstallationDateRequiresFlag", "\"InstallationDate\" IS NULL OR \"InstallationYes\" = TRUE");
+                });
+            });
+
+            builder.Entity<FfcProject>(entity =>
+            {
+                entity.ToTable("FfcProjects");
+                entity.Property(x => x.Name).HasMaxLength(256).IsRequired();
+                entity.Property(x => x.Remarks).HasColumnType("text");
+                entity.Property(x => x.CreatedAt).HasDefaultValueSql("now() at time zone 'utc'");
+                entity.Property(x => x.UpdatedAt).HasDefaultValueSql("now() at time zone 'utc'");
+
+                if (Database.IsNpgsql())
+                {
+                    entity.Property(x => x.CreatedAt).HasColumnType("timestamp with time zone");
+                    entity.Property(x => x.UpdatedAt).HasColumnType("timestamp with time zone");
+                }
+
+                entity.HasIndex(x => x.FfcRecordId)
+                    .HasDatabaseName("IX_FfcProjects_FfcRecordId");
+                entity.HasIndex(x => x.LinkedProjectId)
+                    .HasDatabaseName("IX_FfcProjects_LinkedProjectId");
+
+                entity.HasOne(x => x.Record)
+                    .WithMany(x => x.Projects)
+                    .HasForeignKey(x => x.FfcRecordId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(x => x.LinkedProject)
+                    .WithMany()
+                    .HasForeignKey(x => x.LinkedProjectId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            builder.Entity<FfcAttachment>(entity =>
+            {
+                entity.ToTable("FfcAttachments");
+
+                var kindConverter = new ValueConverter<FfcAttachmentKind, string>(
+                    static value => value.ToString().ToUpperInvariant(),
+                    static value => Enum.Parse<FfcAttachmentKind>(value, ignoreCase: true));
+
+                var kindComparer = new ValueComparer<FfcAttachmentKind>(
+                    static (left, right) => left == right,
+                    static value => value.GetHashCode(),
+                    static value => value);
+
+                entity.Property(x => x.Kind)
+                    .HasConversion(kindConverter, kindComparer)
+                    .HasMaxLength(16)
+                    .IsRequired();
+
+                entity.Property(x => x.FilePath).HasMaxLength(1024).IsRequired();
+                entity.Property(x => x.ContentType).HasMaxLength(128).IsRequired();
+                entity.Property(x => x.SizeBytes).HasColumnType("bigint");
+                entity.Property(x => x.ChecksumSha256).HasMaxLength(64);
+                entity.Property(x => x.Caption).HasMaxLength(256);
+                entity.Property(x => x.UploadedByUserId).HasMaxLength(450);
+                entity.Property(x => x.UploadedAt).HasDefaultValueSql("now() at time zone 'utc'");
+
+                if (Database.IsNpgsql())
+                {
+                    entity.Property(x => x.UploadedAt).HasColumnType("timestamp with time zone");
+                }
+
+                entity.HasIndex(x => x.FfcRecordId)
+                    .HasDatabaseName("IX_FfcAttachments_FfcRecordId");
+                entity.HasIndex(x => x.Kind)
+                    .HasDatabaseName("IX_FfcAttachments_Kind");
+
+                entity.HasOne(x => x.Record)
+                    .WithMany(x => x.Attachments)
+                    .HasForeignKey(x => x.FfcRecordId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.ToTable(tb =>
+                {
+                    tb.HasCheckConstraint("CK_FfcAttachments_SizeBytes", "\"SizeBytes\" >= 0");
+                });
             });
 
 
