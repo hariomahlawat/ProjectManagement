@@ -36,6 +36,51 @@
   let pendingForm = null;
   let pendingSubmitter = null;
 
+  function markDeleteButtonBusy(button) {
+    if (!(button instanceof HTMLElement) || button.dataset.deleteBusy === 'true') {
+      return;
+    }
+
+    const originalContent = button.innerHTML;
+    button.dataset.deleteBusy = 'true';
+    button.dataset.deleteBusyOriginal = originalContent;
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
+    button.innerHTML =
+      '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>' + originalContent;
+
+    let cleanedUp = false;
+    let timeoutId;
+
+    function cleanup() {
+      if (cleanedUp) {
+        return;
+      }
+
+      cleanedUp = true;
+      window.clearTimeout(timeoutId);
+      button.innerHTML = button.dataset.deleteBusyOriginal || originalContent;
+      delete button.dataset.deleteBusyOriginal;
+      delete button.dataset.deleteBusy;
+      button.removeAttribute('aria-busy');
+      button.disabled = false;
+      window.removeEventListener('focus', cleanup);
+      window.removeEventListener('pagehide', cleanup);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        cleanup();
+      }
+    }
+
+    window.addEventListener('focus', cleanup);
+    window.addEventListener('pagehide', cleanup, { once: true });
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    timeoutId = window.setTimeout(cleanup, 4000);
+  }
+
   if (modalElement) {
     modalElement.addEventListener('hidden.bs.modal', () => {
       pendingForm = null;
@@ -83,8 +128,14 @@
     }
 
     if (form.matches('[data-activities-delete-form]')) {
+      const submitter =
+        (event.submitter instanceof HTMLElement && event.submitter) ||
+        form.querySelector('[data-confirm]') ||
+        form.querySelector('button[type="submit"]');
+
       if (confirmedDeleteForms.has(form)) {
         confirmedDeleteForms.delete(form);
+        markDeleteButtonBusy(submitter);
         return;
       }
 
@@ -106,7 +157,10 @@
 
       if (confirmationMessage && !window.confirm(confirmationMessage)) {
         event.preventDefault();
+        return;
       }
+
+      markDeleteButtonBusy(submitter);
     }
   });
 
