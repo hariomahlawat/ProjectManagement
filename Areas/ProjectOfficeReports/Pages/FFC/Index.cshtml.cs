@@ -1,5 +1,7 @@
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
@@ -19,4 +21,7 @@ public class IndexModel : FfcRecordListPageModel
         CanManageRecords = User.IsInRole("Admin") || User.IsInRole("HoD");
         await LoadRecordsAsync();
     }
+
+    protected override IQueryable<FfcRecord> ApplyRecordFilters(IQueryable<FfcRecord> queryable)
+        => queryable.Where(record => !record.IsDeleted);
 }
