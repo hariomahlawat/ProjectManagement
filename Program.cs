@@ -44,7 +44,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Helpers;
-using ProjectManagement.Configuration;
 using ProjectManagement.Contracts;
 using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Contracts.Stages;
