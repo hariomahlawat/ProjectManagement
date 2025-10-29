@@ -309,11 +309,6 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Record");
                 });
 
-            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.FfcCountry", b =>
-                {
-                    b.Navigation("Records");
-                });
-
             modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.FfcProject", b =>
                 {
                     b.HasOne("ProjectManagement.Models.Project", "LinkedProject")
