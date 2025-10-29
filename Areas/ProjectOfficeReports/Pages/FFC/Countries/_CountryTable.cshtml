@@ -1,0 +1,30 @@
+@model IList<ProjectManagement.Areas.ProjectOfficeReports.Domain.FfcCountry>
+
+<table class="table table-sm align-middle">
+    <thead>
+        <tr>
+            <th>Name</th>
+            <th>ISO</th>
+            <th>Status</th>
+            <th class="text-end">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var country in Model)
+    {
+        <tr>
+            <td>@country.Name</td>
+            <td>@country.IsoCode</td>
+            <td>@(country.IsActive ? "Active" : "Inactive")</td>
+            <td class="text-end">
+                <authorize roles="Admin,HoD">
+                    <a asp-page="Manage" asp-page-handler="Edit" asp-route-id="@country.Id" class="btn btn-link btn-sm">Edit</a>
+                    <form method="post" asp-page="Manage" asp-page-handler="ToggleActive" asp-route-id="@country.Id" class="d-inline">
+                        <button type="submit" class="btn btn-link btn-sm">@(country.IsActive ? "Deactivate" : "Activate")</button>
+                    </form>
+                </authorize>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>

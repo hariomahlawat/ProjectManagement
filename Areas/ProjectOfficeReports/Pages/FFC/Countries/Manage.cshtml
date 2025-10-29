@@ -1,0 +1,45 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Countries.ManageModel
+@{
+    ViewData["Title"] = "FFC Countries";
+}
+
+<h1 class="h3 mb-3">FFC Countries</h1>
+
+<partial name="_StatusMessage" />
+
+<div class="row g-4">
+    <div class="col-lg-7">
+        <partial name="_CountryTable" model="Model.Countries" />
+    </div>
+
+    <div class="col-lg-5">
+        <authorize roles="Admin,HoD">
+            <div class="card">
+                <div class="card-header">
+                    @(Model.IsEditMode ? "Edit Country" : "New Country")
+                </div>
+                <div class="card-body">
+                    <form method="post" class="vstack gap-3">
+                        @if (Model.IsEditMode)
+                        {
+                            <input type="hidden" asp-for="Input.Id" />
+                        }
+                        <partial name="_CountryForm" model="Model.Input" />
+                        <div class="d-flex gap-2">
+                            @if (Model.IsEditMode)
+                            {
+                                <button type="submit" asp-page-handler="Update" class="btn btn-primary">Save changes</button>
+                                <a asp-page="Manage" class="btn btn-secondary">Cancel</a>
+                            }
+                            else
+                            {
+                                <button type="submit" asp-page-handler="Create" class="btn btn-primary">Create</button>
+                            }
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </authorize>
+    </div>
+</div>
