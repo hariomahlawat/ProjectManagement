@@ -1,12 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Application.Security;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Services;
 
@@ -16,12 +19,14 @@ public class FfcAttachmentStorage(
     ApplicationDbContext db,
     IFileSecurityValidator validator,
     IWebHostEnvironment env,
-    IUserContext userContext) : IFfcAttachmentStorage
+    IUserContext userContext,
+    IOptions<FfcAttachmentOptions> options) : IFfcAttachmentStorage
 {
     private readonly ApplicationDbContext _db = db;
     private readonly IFileSecurityValidator _validator = validator;
     private readonly IWebHostEnvironment _env = env;
     private readonly IUserContext _userContext = userContext;
+    private readonly FfcAttachmentOptions _options = options.Value;
 
     private const string AuthorizationError = "Only Admin or HoD roles can manage attachments.";
 
@@ -37,6 +42,11 @@ public class FfcAttachmentStorage(
 
         if (!AllowedContent.Contains(file.ContentType))
             return (false, "Only PDF/JPEG/PNG/WEBP allowed.");
+
+        if (_options.MaxFileSizeBytes > 0 && file.Length > _options.MaxFileSizeBytes)
+        {
+            return (false, $"File exceeds maximum size of {FormatFileSize(_options.MaxFileSizeBytes)}.");
+        }
 
         var tmpPath = Path.GetTempFileName();
         await using (var fs = File.Create(tmpPath))
@@ -93,5 +103,25 @@ public class FfcAttachmentStorage(
     private static bool IsAdminOrHod(ClaimsPrincipal principal)
     {
         return principal.IsInRole("Admin") || principal.IsInRole("HoD");
+    }
+
+    private static string FormatFileSize(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return string.Format(CultureInfo.InvariantCulture, "{0} B", bytes);
+        }
+
+        double value = bytes;
+        string[] units = { "B", "KB", "MB", "GB", "TB" };
+        var unit = 0;
+
+        while (value >= 1024 && unit < units.Length - 1)
+        {
+            value /= 1024;
+            unit++;
+        }
+
+        return string.Format(CultureInfo.InvariantCulture, unit == 0 ? "{0} {1}" : "{0:0.#} {1}", value, units[unit]);
     }
 }
