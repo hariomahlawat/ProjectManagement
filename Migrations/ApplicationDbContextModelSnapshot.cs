@@ -298,6 +298,55 @@ namespace ProjectManagement.Migrations
                     b.ToTable("ProliferationYearly", (string)null);
                 });
 
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.FfcAttachment", b =>
+                {
+                    b.HasOne("ProjectManagement.Areas.ProjectOfficeReports.Domain.FfcRecord", "Record")
+                        .WithMany("Attachments")
+                        .HasForeignKey("FfcRecordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Record");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.FfcCountry", b =>
+                {
+                    b.Navigation("Records");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.FfcProject", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Project", "LinkedProject")
+                        .WithMany()
+                        .HasForeignKey("LinkedProjectId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("ProjectManagement.Areas.ProjectOfficeReports.Domain.FfcRecord", "Record")
+                        .WithMany("Projects")
+                        .HasForeignKey("FfcRecordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("LinkedProject");
+
+                    b.Navigation("Record");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.FfcRecord", b =>
+                {
+                    b.HasOne("ProjectManagement.Areas.ProjectOfficeReports.Domain.FfcCountry", "Country")
+                        .WithMany("Records")
+                        .HasForeignKey("CountryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Attachments");
+
+                    b.Navigation("Country");
+
+                    b.Navigation("Projects");
+                });
+
             modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.SocialMediaEvent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1109,6 +1158,251 @@ namespace ProjectManagement.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.FfcAttachment", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Caption")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("ChecksumSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("FilePath")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<long>("FfcRecordId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("UploadedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<string>("UploadedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FfcRecordId")
+                        .HasDatabaseName("IX_FfcAttachments_FfcRecordId");
+
+                    b.HasIndex("Kind")
+                        .HasDatabaseName("IX_FfcAttachments_Kind");
+
+                    b.ToTable("FfcAttachments", t =>
+                        {
+                            t.HasCheckConstraint("CK_FfcAttachments_SizeBytes", "\"SizeBytes\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.FfcCountry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<string>("IsoCode")
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique()
+                        .HasDatabaseName("UX_FfcCountries_Name");
+
+                    b.ToTable("FfcCountries");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.FfcProject", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<long>("FfcRecordId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("LinkedProjectId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("Remarks")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FfcRecordId")
+                        .HasDatabaseName("IX_FfcProjects_FfcRecordId");
+
+                    b.HasIndex("LinkedProjectId")
+                        .HasDatabaseName("IX_FfcProjects_LinkedProjectId");
+
+                    b.ToTable("FfcProjects");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.FfcRecord", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long>("CountryId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<bool>("DeliveryYes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateOnly?>("DeliveryDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("DeliveryRemarks")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("GslYes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateOnly?>("GslDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("GslRemarks")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("InstallationYes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateOnly?>("InstallationDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("InstallationRemarks")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IpaYes")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateOnly?>("IpaDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("IpaRemarks")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("OverallRemarks")
+                        .HasColumnType("text");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasColumnType("bytea");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.Property<short>("Year")
+                        .HasColumnType("smallint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CountryId", "Year")
+                        .HasDatabaseName("IX_FfcRecords_CountryId_Year");
+
+                    b.HasIndex("IpaYes", "GslYes", "DeliveryYes", "InstallationYes")
+                        .HasDatabaseName("IX_FfcRecords_StatusFlags");
+
+                    b.ToTable("FfcRecords", t =>
+                        {
+                            t.HasCheckConstraint("CK_FfcRecords_IpaDateRequiresFlag", "\"IpaDate\" IS NULL OR \"IpaYes\" = TRUE");
+                            t.HasCheckConstraint("CK_FfcRecords_GslDateRequiresFlag", "\"GslDate\" IS NULL OR \"GslYes\" = TRUE");
+                            t.HasCheckConstraint("CK_FfcRecords_DeliveryDateRequiresFlag", "\"DeliveryDate\" IS NULL OR \"DeliveryYes\" = TRUE");
+                            t.HasCheckConstraint("CK_FfcRecords_InstallationDateRequiresFlag", "\"InstallationDate\" IS NULL OR \"InstallationYes\" = TRUE");
+                        });
+                });
             modelBuilder.Entity("ProjectManagement.Areas.ProjectOfficeReports.Domain.Visit", b =>
                 {
                     b.Property<Guid>("Id")
