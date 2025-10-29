@@ -4,10 +4,13 @@ using System.Linq;
 using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Navigation;
 using Xunit;
@@ -54,20 +57,17 @@ public class RoleBasedNavigationProviderTests
         Assert.Equal(true, archivedProjects.RouteValues?["IncludeArchived"]);
     }
 
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task Navigation_ProjectOfficeReportsContainsFfcNode(bool isAdmin)
+    [Fact]
+    public async Task Navigation_ProjectOfficeReportsIncludesAuthorizedChildren()
     {
         var user = new ApplicationUser
         {
-            Id = isAdmin ? "admin-2" : "user-1",
-            UserName = isAdmin ? "admin" : "user"
+            Id = "project-office-1",
+            UserName = "projectoffice"
         };
 
         using var services = new ServiceCollection().BuildServiceProvider();
-        var roles = isAdmin ? new[] { "Admin" } : Array.Empty<string>();
-        var userManager = new StubUserManager(user, services, roles);
+        var userManager = new StubUserManager(user, services, "ProjectOffice");
         var httpContextAccessor = new HttpContextAccessor
         {
             HttpContext = new DefaultHttpContext
@@ -79,15 +79,96 @@ public class RoleBasedNavigationProviderTests
             }
         };
 
-        var provider = CreateProvider(userManager, httpContextAccessor);
+        var authorizedPolicies = new[]
+        {
+            ProjectOfficeReportsPolicies.ViewVisits,
+            ProjectOfficeReportsPolicies.ManageSocialMediaEvents,
+            ProjectOfficeReportsPolicies.ViewTrainingTracker,
+            ProjectOfficeReportsPolicies.ViewTotTracker,
+            ProjectOfficeReportsPolicies.ViewProliferationTracker,
+            Policies.Ipr.View
+        };
+
+        var authorizationService = new TestAuthorizationService(authorizedPolicies);
+        var provider = CreateProvider(userManager, httpContextAccessor, authorizationService);
         var navigation = await provider.GetNavigationAsync();
 
         var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
-        var child = Assert.Single(projectOfficeReports.Children);
+        var children = projectOfficeReports.Children.ToList();
 
+        Assert.Collection(children,
+            item =>
+            {
+                Assert.Equal("Visits tracker", item.Text);
+                Assert.Equal(ProjectOfficeReportsPolicies.ViewVisits, item.AuthorizationPolicy);
+            },
+            item =>
+            {
+                Assert.Equal("Social media tracker", item.Text);
+                Assert.Equal(ProjectOfficeReportsPolicies.ManageSocialMediaEvents, item.AuthorizationPolicy);
+            },
+            item =>
+            {
+                Assert.Equal("Training tracker", item.Text);
+                Assert.Equal(ProjectOfficeReportsPolicies.ViewTrainingTracker, item.AuthorizationPolicy);
+                Assert.Equal("TrainingApprovalsBadge", item.BadgeViewComponentName);
+            },
+            item =>
+            {
+                Assert.Equal("ToT tracker", item.Text);
+                Assert.Equal(ProjectOfficeReportsPolicies.ViewTotTracker, item.AuthorizationPolicy);
+            },
+            item =>
+            {
+                Assert.Equal("Proliferation tracker", item.Text);
+                Assert.Equal(ProjectOfficeReportsPolicies.ViewProliferationTracker, item.AuthorizationPolicy);
+            },
+            item =>
+            {
+                Assert.Equal("IPR tracker", item.Text);
+                Assert.Equal(Policies.Ipr.View, item.AuthorizationPolicy);
+            },
+            item =>
+            {
+                Assert.Equal("FFC simulators", item.Text);
+                Assert.Null(item.AuthorizationPolicy);
+            });
+
+        Assert.All(children, item => Assert.Equal("ProjectOfficeReports", item.Area));
+    }
+
+    [Fact]
+    public async Task Navigation_ProjectOfficeReportsExcludesUnauthorizedChildren()
+    {
+        var user = new ApplicationUser
+        {
+            Id = "project-office-unauthorized",
+            UserName = "limited"
+        };
+
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var userManager = new StubUserManager(user, services, "ProjectOffice");
+        var httpContextAccessor = new HttpContextAccessor
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
+                }, "Test"))
+            }
+        };
+
+        var authorizationService = new TestAuthorizationService(Array.Empty<string>());
+        var provider = CreateProvider(userManager, httpContextAccessor, authorizationService);
+        var navigation = await provider.GetNavigationAsync();
+
+        var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
+        var children = projectOfficeReports.Children.ToList();
+
+        var child = Assert.Single(children);
         Assert.Equal("FFC simulators", child.Text);
-        Assert.Equal("ProjectOfficeReports", child.Area);
-        Assert.Equal("/FFC/Index", child.Page);
+        Assert.Null(child.AuthorizationPolicy);
     }
 
     [Fact]
@@ -150,9 +231,13 @@ public class RoleBasedNavigationProviderTests
 
     private static RoleBasedNavigationProvider CreateProvider(
         UserManager<ApplicationUser> userManager,
-        IHttpContextAccessor httpContextAccessor)
+        IHttpContextAccessor httpContextAccessor,
+        IAuthorizationService? authorizationService = null)
     {
-        return new RoleBasedNavigationProvider(userManager, httpContextAccessor);
+        return new RoleBasedNavigationProvider(
+            userManager,
+            httpContextAccessor,
+            authorizationService ?? new TestAuthorizationService());
     }
 
     private sealed class StubUserManager : UserManager<ApplicationUser>
@@ -179,6 +264,42 @@ public class RoleBasedNavigationProviderTests
         public override Task<ApplicationUser?> GetUserAsync(ClaimsPrincipal principal) => Task.FromResult<ApplicationUser?>(_user);
 
         public override Task<IList<string>> GetRolesAsync(ApplicationUser user) => Task.FromResult(_roles);
+    }
+
+    private sealed class TestAuthorizationService : IAuthorizationService
+    {
+        private readonly bool _allowAllPolicies;
+        private readonly HashSet<string> _allowedPolicies;
+
+        public TestAuthorizationService()
+        {
+            _allowAllPolicies = true;
+            _allowedPolicies = new HashSet<string>(StringComparer.Ordinal);
+        }
+
+        public TestAuthorizationService(IEnumerable<string> allowedPolicies)
+        {
+            _allowAllPolicies = false;
+            _allowedPolicies = new HashSet<string>(allowedPolicies, StringComparer.Ordinal);
+        }
+
+        public Task<AuthorizationResult> AuthorizeAsync(
+            ClaimsPrincipal user,
+            object? resource,
+            IEnumerable<IAuthorizationRequirement> requirements)
+        {
+            return Task.FromResult(AuthorizationResult.Success());
+        }
+
+        public Task<AuthorizationResult> AuthorizeAsync(ClaimsPrincipal user, object? resource, string policyName)
+        {
+            if (_allowAllPolicies || _allowedPolicies.Contains(policyName))
+            {
+                return Task.FromResult(AuthorizationResult.Success());
+            }
+
+            return Task.FromResult(AuthorizationResult.Failed());
+        }
     }
 
     private sealed class StubUserStore : IUserStore<ApplicationUser>
