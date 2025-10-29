@@ -386,7 +386,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
     {
         var values = new Dictionary<string, string?>(BuildRoute())
         {
-            ["id"] = id.ToString(CultureInfo.InvariantCulture)
+            ["editId"] = id.ToString(CultureInfo.InvariantCulture)
         };
 
         return values;
