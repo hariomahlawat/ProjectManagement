@@ -4,21 +4,21 @@
     <thead>
         <tr>
             <th>
-                <a asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: 1, sort: "name", dir: Model.GetSortDirectionFor("name"))" class="text-decoration-none d-inline-flex align-items-center gap-1">
+                <a asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: 1, sort: "name", dir: Model.GetSortDirectionFor("name"))' class="text-decoration-none d-inline-flex align-items-center gap-1">
                     <span>Name</span>
-                    <i class="@Model.GetSortIconClass("name")"></i>
+                    <i class='@Model.GetSortIconClass("name")'></i>
                 </a>
             </th>
             <th>
-                <a asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: 1, sort: "iso", dir: Model.GetSortDirectionFor("iso"))" class="text-decoration-none d-inline-flex align-items-center gap-1">
+                <a asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: 1, sort: "iso", dir: Model.GetSortDirectionFor("iso"))' class="text-decoration-none d-inline-flex align-items-center gap-1">
                     <span>ISO</span>
-                    <i class="@Model.GetSortIconClass("iso")"></i>
+                    <i class='@Model.GetSortIconClass("iso")'></i>
                 </a>
             </th>
             <th>
-                <a asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: 1, sort: "status", dir: Model.GetSortDirectionFor("status"))" class="text-decoration-none d-inline-flex align-items-center gap-1">
+                <a asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: 1, sort: "status", dir: Model.GetSortDirectionFor("status"))' class="text-decoration-none d-inline-flex align-items-center gap-1">
                     <span>Status</span>
-                    <i class="@Model.GetSortIconClass("status")"></i>
+                    <i class='@Model.GetSortIconClass("status")'></i>
                 </a>
             </th>
             <th class="text-end">Actions</th>
@@ -56,18 +56,18 @@
 <nav aria-label="Countries pagination" class="mt-2">
     <ul class="pagination pagination-sm mb-0">
         <li class="page-item @(Model.PageNumber <= 1 ? "disabled" : string.Empty)">
-            <a class="page-link" asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: Math.Max(1, Model.PageNumber - 1))" aria-label="Previous" tabindex="@(Model.PageNumber <= 1 ? -1 : 0)">
+            <a class="page-link" asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: Math.Max(1, Model.PageNumber - 1))' aria-label="Previous" tabindex="@(Model.PageNumber <= 1 ? -1 : 0)">
                 <span aria-hidden="true">&laquo;</span>
             </a>
         </li>
-        @for (var page = 1; page <= Model.TotalPages; page++)
+        @for (var pageNumber = 1; pageNumber <= Model.TotalPages; pageNumber++)
         {
-            <li class="page-item @(page == Model.PageNumber ? "active" : string.Empty)">
-                <a class="page-link" asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: page)">@page</a>
+            <li class="page-item @(pageNumber == Model.PageNumber ? "active" : string.Empty)">
+                <a class="page-link" asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: pageNumber)'>@pageNumber</a>
             </li>
         }
         <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : string.Empty)">
-            <a class="page-link" asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: Math.Min(Model.TotalPages, Model.PageNumber + 1))" aria-label="Next" tabindex="@(Model.PageNumber >= Model.TotalPages ? -1 : 0)">
+            <a class="page-link" asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: Math.Min(Model.TotalPages, Model.PageNumber + 1))' aria-label="Next" tabindex="@(Model.PageNumber >= Model.TotalPages ? -1 : 0)">
                 <span aria-hidden="true">&raquo;</span>
             </a>
         </li>
