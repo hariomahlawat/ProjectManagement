@@ -24,6 +24,30 @@ namespace ProjectManagement.Tests.ProjectOfficeReports;
 public sealed class FfcProjectsManagePageTests
 {
     [Fact]
+    public async Task OnGetAsync_WithUnknownRecord_ReturnsNotFound()
+    {
+        await using var db = CreateDbContext();
+        var page = CreatePage(db);
+
+        var result = await page.OnGetAsync(123, null);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
+    public async Task OnPostCreateAsync_WithUnknownRecord_ReturnsNotFound()
+    {
+        await using var db = CreateDbContext();
+        var page = CreatePage(db);
+        ConfigurePageContext(page, CreateAdminPrincipal());
+        page.Input = new ManageModel.InputModel { Name = "New Project" };
+
+        var result = await page.OnPostCreateAsync(999);
+
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    [Fact]
     public async Task OnPostCreateAsync_WithLinkedProject_CreatesProject()
     {
         await using var db = CreateDbContext();
