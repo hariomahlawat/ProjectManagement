@@ -2374,6 +2374,71 @@ namespace ProjectManagement.Migrations
                 });
 
             migrationBuilder.InsertData(
+                table: "AspNetUsers",
+                columns: new[]
+                {
+                    "Id",
+                    "AccessFailedCount",
+                    "ConcurrencyStamp",
+                    "CreatedUtc",
+                    "DeletionRequestedByUserId",
+                    "DeletionRequestedUtc",
+                    "DisabledByUserId",
+                    "DisabledUtc",
+                    "Email",
+                    "EmailConfirmed",
+                    "FullName",
+                    "IsDisabled",
+                    "LastLoginUtc",
+                    "LockoutEnabled",
+                    "LockoutEnd",
+                    "LoginCount",
+                    "MustChangePassword",
+                    "NormalizedEmail",
+                    "NormalizedUserName",
+                    "PasswordHash",
+                    "PendingDeletion",
+                    "PhoneNumber",
+                    "PhoneNumberConfirmed",
+                    "Rank",
+                    "SecurityStamp",
+                    "ShowCelebrationsInCalendar",
+                    "TwoFactorEnabled",
+                    "UserName"
+                },
+                values: new object[]
+                {
+                    "system",
+                    0,
+                    "bb6d6cb5-52dd-432c-95d4-6b6a92d6a0d3",
+                    new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
+                    null,
+                    null,
+                    null,
+                    null,
+                    "system@example.local",
+                    true,
+                    "System Account",
+                    false,
+                    null,
+                    false,
+                    null,
+                    0,
+                    false,
+                    "SYSTEM@EXAMPLE.LOCAL",
+                    "SYSTEM",
+                    null,
+                    false,
+                    null,
+                    false,
+                    "System",
+                    "c3f1e44d-21c7-4cd1-8d3a-2212333e2ef2",
+                    true,
+                    false,
+                    "system"
+                });
+
+            migrationBuilder.InsertData(
                 table: "ActivityTypes",
                 columns: new[] { "Id", "CreatedAtUtc", "CreatedByUserId", "Description", "IsActive", "LastModifiedAtUtc", "LastModifiedByUserId", "Name", "RowVersion" },
                 values: new object[,]
