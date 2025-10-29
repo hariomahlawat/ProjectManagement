@@ -7,9 +7,11 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Application.Ffc;
 using ProjectManagement.Application.Security;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
+using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Services;
 using ProjectManagement.Tests.Fakes;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace ProjectManagement.Tests.Application.Ffc;
@@ -55,6 +57,29 @@ public sealed class FfcAttachmentStorageTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveAsync_ReturnsError_WhenFileTooLarge()
+    {
+        var options = new FfcAttachmentOptions { MaxFileSizeBytes = 1 * 1024 * 1024 };
+        var storage = CreateStorage(new StubUserContext(isAdmin: true, isHoD: false), options);
+
+        var oversized = new byte[checked((int)(options.MaxFileSizeBytes + 1))];
+        await using var stream = new MemoryStream(oversized);
+
+        var formFile = new FormFile(stream, 0, stream.Length, "upload", "test.pdf")
+        {
+            Headers = new HeaderDictionary(),
+            ContentType = "application/pdf"
+        };
+
+        var result = await storage.SaveAsync(123, formFile, FfcAttachmentKind.Pdf, "Test");
+
+        Assert.False(result.Success);
+        Assert.Equal("File exceeds maximum size of 1 MB.", result.ErrorMessage);
+        Assert.Equal(0, await _db.FfcAttachments.CountAsync());
+        Assert.Equal(0, _validator.CallCount);
+    }
+
+    [Fact]
     public async Task DeleteAsync_Throws_WhenUserNotAuthorised()
     {
         var filePath = Path.Combine(_environment.ContentRootPath, "existing.pdf");
@@ -83,9 +108,14 @@ public sealed class FfcAttachmentStorageTests : IDisposable
         Assert.Equal(1, await _db.FfcAttachments.CountAsync());
     }
 
-    private FfcAttachmentStorage CreateStorage(IUserContext userContext)
+    private FfcAttachmentStorage CreateStorage(IUserContext userContext, FfcAttachmentOptions? options = null)
     {
-        return new FfcAttachmentStorage(_db, _validator, _environment, userContext);
+        return new FfcAttachmentStorage(
+            _db,
+            _validator,
+            _environment,
+            userContext,
+            Options.Create(options ?? new FfcAttachmentOptions()));
     }
 
     public void Dispose()
@@ -100,8 +130,11 @@ public sealed class FfcAttachmentStorageTests : IDisposable
 
     private sealed class TestFileSecurityValidator : IFileSecurityValidator
     {
+        public int CallCount { get; private set; }
+
         public Task<bool> IsSafeAsync(string filePath, string contentType, System.Threading.CancellationToken cancellationToken = default)
         {
+            CallCount++;
             return Task.FromResult(true);
         }
     }

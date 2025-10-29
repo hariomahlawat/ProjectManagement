@@ -3,17 +3,23 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Application.Ffc;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
+using ProjectManagement.Configuration;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.Attachments;
 
 [Authorize]
-public class UploadModel(ApplicationDbContext db, IFfcAttachmentStorage storage) : PageModel
+public class UploadModel(
+    ApplicationDbContext db,
+    IFfcAttachmentStorage storage,
+    IOptions<FfcAttachmentOptions> options) : PageModel
 {
     private readonly ApplicationDbContext _db = db;
     private readonly IFfcAttachmentStorage _storage = storage;
+    private readonly FfcAttachmentOptions _options = options.Value;
 
     [FromQuery] public long RecordId { get; set; }
     public FfcRecord Record { get; private set; } = default!;
@@ -23,6 +29,7 @@ public class UploadModel(ApplicationDbContext db, IFfcAttachmentStorage storage)
     [BindProperty] public IFormFile? UploadFile { get; set; }
     [BindProperty] public FfcAttachmentKind Kind { get; set; } = FfcAttachmentKind.Pdf;
     [BindProperty] public string? Caption { get; set; }
+    public long MaxFileSizeBytes => _options.MaxFileSizeBytes;
 
     public async Task<IActionResult> OnGetAsync(long recordId)
     {

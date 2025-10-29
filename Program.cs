@@ -38,6 +38,7 @@ using ProjectManagement.Infrastructure;
 using ProjectManagement.Infrastructure.Activities;
 using Markdig;
 using Ganss.Xss;
+using ProjectManagement.Configuration;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Logging;
@@ -229,6 +230,8 @@ builder.Services.Configure<UserLifecycleOptions>(
     builder.Configuration.GetSection("UserLifecycle"));
 builder.Services.Configure<IprAttachmentOptions>(
     builder.Configuration.GetSection("IprAttachments"));
+builder.Services.Configure<FfcAttachmentOptions>(
+    builder.Configuration.GetSection("FfcAttachments"));
 builder.Services.AddSingleton<IprAttachmentStorage>();
 builder.Services.AddScoped<IFileSecurityValidator, FileSecurityValidator>();
 builder.Services.AddScoped<IFfcAttachmentStorage, FfcAttachmentStorage>();
