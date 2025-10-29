@@ -19,7 +19,13 @@
                     <td>@p.LinkedProjectId</td>
                     <td>@p.Remarks</td>
                     <td class="text-end">
-                        <a asp-page="./Manage" asp-route-recordId="@Model.Record.Id" asp-route-id="@p.Id" class="btn btn-link btn-sm">Edit</a>
+                        <authorize roles="Admin,HoD">
+                            <a asp-page="./Manage" asp-route-recordId="@Model.Record.Id" asp-route-id="@p.Id" class="btn btn-link btn-sm">Edit</a>
+                        </authorize>
+                        @if (!(User.IsInRole("Admin") || User.IsInRole("HoD")))
+                        {
+                            <span class="text-muted">Read only</span>
+                        }
                         <authorize roles="Admin,HoD">
                             <form method="post" asp-page-handler="Delete" asp-route-recordId="@Model.Record.Id" asp-route-id="@p.Id" class="d-inline">
                                 <button class="btn btn-link btn-sm" type="submit">Delete</button>

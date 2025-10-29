@@ -25,7 +25,13 @@
             <td>@(r.InstallationYes ? (r.InstallationDate?.ToString() ?? "Yes") : "No")</td>
             <td class="text-truncate" style="max-width:220px;">@r.OverallRemarks</td>
             <td class="text-end">
-                <a asp-page="Manage" asp-page-handler="Edit" asp-route-id="@r.Id" class="btn btn-link btn-sm">Edit</a>
+                <authorize roles="Admin,HoD">
+                    <a asp-page="Manage" asp-page-handler="Edit" asp-route-id="@r.Id" class="btn btn-link btn-sm">Edit</a>
+                </authorize>
+                @if (!(User.IsInRole("Admin") || User.IsInRole("HoD")))
+                {
+                    <span class="text-muted">Read only</span>
+                }
             </td>
         </tr>
     }
