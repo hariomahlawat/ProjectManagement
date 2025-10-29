@@ -71,6 +71,11 @@ public class RoleBasedNavigationProvider : INavigationProvider
             {
                 Text = "Analytics",
                 Page = "/Analytics/Index"
+            },
+            new()
+            {
+                Text = "Miscellaneous activities",
+                Page = "/Activities/Index"
             }
         };
 
@@ -123,12 +128,6 @@ public class RoleBasedNavigationProvider : INavigationProvider
             Text = "Social media tracker",
             Area = "ProjectOfficeReports",
             Page = "/SocialMedia/Index"
-        });
-
-        projectOfficeReportsChildren.Add(new NavigationItem
-        {
-            Text = "Miscellaneous activities",
-            Page = "/Activities/Index"
         });
 
         projectOfficeReportsChildren.Add(proliferationTracker);
