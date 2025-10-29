@@ -31,7 +31,6 @@
   const modalConfirmButton = modalElement ? modalElement.querySelector('[data-delete-confirm-accept]') : null;
   const defaultMessage = modalMessage ? modalMessage.dataset.defaultMessage : null;
   const modalInstance = modalElement && window.bootstrap ? new window.bootstrap.Modal(modalElement) : null;
-  const confirmedDeleteForms = new WeakSet();
 
   let pendingForm = null;
   let pendingSubmitter = null;
@@ -104,20 +103,24 @@
       pendingForm = null;
       pendingSubmitter = null;
 
-      confirmedDeleteForms.add(formToSubmit);
+      formToSubmit.dataset.activitiesDeleteConfirmed = 'true';
       modalInstance.hide();
 
-      window.setTimeout(() => {
-        if (typeof formToSubmit.requestSubmit === 'function') {
-          if (submitter) {
-            formToSubmit.requestSubmit(submitter);
-          } else {
-            formToSubmit.requestSubmit();
-          }
-        } else {
-          formToSubmit.submit();
-        }
-      }, 150);
+      const buttonToClick =
+        submitter ||
+        formToSubmit.querySelector('[data-confirm]') ||
+        formToSubmit.querySelector('button[type="submit"]');
+
+      if (buttonToClick && typeof buttonToClick.click === 'function') {
+        buttonToClick.click();
+        return;
+      }
+
+      if (typeof formToSubmit.requestSubmit === 'function') {
+        formToSubmit.requestSubmit();
+      } else {
+        formToSubmit.submit();
+      }
     });
   }
 
@@ -133,8 +136,8 @@
         form.querySelector('[data-confirm]') ||
         form.querySelector('button[type="submit"]');
 
-      if (confirmedDeleteForms.has(form)) {
-        confirmedDeleteForms.delete(form);
+      if (form.dataset.activitiesDeleteConfirmed === 'true') {
+        delete form.dataset.activitiesDeleteConfirmed;
         markDeleteButtonBusy(submitter);
         return;
       }
