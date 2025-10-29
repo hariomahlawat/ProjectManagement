@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -38,28 +39,36 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
 
     public async Task<IActionResult> OnGetAsync(long recordId, long? id)
     {
-        RecordId = recordId;
-        Record = await _db.FfcRecords.Include(r => r.Country).FirstOrDefaultAsync(r => r.Id == RecordId)
-                  ?? throw new Exception("Record not found.");
-
-        Items = await _db.FfcProjects
-            .Where(p => p.FfcRecordId == RecordId)
-            .Include(p => p.LinkedProject)
-            .OrderBy(p => p.Name)
-            .AsNoTracking()
-            .ToListAsync();
-
-        LinkedProjects = new SelectList(await _db.Projects
-            .OrderBy(p => p.Name)
-            .Select(p => new { p.Id, p.Name })
-            .ToListAsync(), "Id", "Name");
+        if (!await TryLoadRecordAsync(recordId))
+        {
+            return NotFound();
+        }
 
         if (id.HasValue)
         {
-            var p = await _db.FfcProjects.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id.Value && x.FfcRecordId == RecordId);
-            if (p is null) return NotFound();
-            Input = new() { Id = p.Id, Name = p.Name, Remarks = p.Remarks, LinkedProjectId = p.LinkedProjectId };
+            var project = await _db.FfcProjects
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == id.Value && x.FfcRecordId == RecordId);
+            if (project is null)
+            {
+                return NotFound();
+            }
+
+            Input = new()
+            {
+                Id = project.Id,
+                Name = project.Name,
+                Remarks = project.Remarks,
+                LinkedProjectId = project.LinkedProjectId
+            };
         }
+        else
+        {
+            Input = new();
+        }
+
+        await LoadPageDataAsync(recordId, Input.LinkedProjectId);
+
         return Page();
     }
 
@@ -67,11 +76,19 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
     {
         if (!CanManageProjects) return Forbid();
 
-        RecordId = recordId;
+        if (!await TryLoadRecordAsync(recordId))
+        {
+            return NotFound();
+        }
+
         if (string.IsNullOrWhiteSpace(Input.Name))
             ModelState.AddModelError(nameof(Input.Name), "Name is required.");
 
-        if (!ModelState.IsValid) return await OnGetAsync(recordId, null);
+        if (!ModelState.IsValid)
+        {
+            await LoadPageDataAsync(recordId, Input.LinkedProjectId);
+            return Page();
+        }
 
         var entity = new FfcProject
         {
@@ -95,10 +112,20 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
 
         RecordId = recordId;
         if (Input.Id is null) return BadRequest();
+
+        if (!await TryLoadRecordAsync(recordId))
+        {
+            return NotFound();
+        }
+
         if (string.IsNullOrWhiteSpace(Input.Name))
             ModelState.AddModelError(nameof(Input.Name), "Name is required.");
 
-        if (!ModelState.IsValid) return await OnGetAsync(recordId, Input.Id);
+        if (!ModelState.IsValid)
+        {
+            await LoadPageDataAsync(recordId, Input.LinkedProjectId);
+            return Page();
+        }
 
         var p = await _db.FfcProjects.FirstOrDefaultAsync(x => x.Id == Input.Id && x.FfcRecordId == recordId);
         if (p is null) return NotFound();
@@ -125,6 +152,11 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
     public async Task<IActionResult> OnPostDeleteAsync(long recordId, long id)
     {
         if (!CanManageProjects) return Forbid();
+
+        if (!await TryLoadRecordAsync(recordId))
+        {
+            return NotFound();
+        }
 
         var p = await _db.FfcProjects.FirstOrDefaultAsync(x => x.Id == id && x.FfcRecordId == recordId);
         if (p is null) return NotFound();
@@ -167,5 +199,40 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
             [$"{prefix}.Remarks"] = project.Remarks,
             [$"{prefix}.LinkedProjectId"] = project.LinkedProjectId?.ToString()
         };
+    }
+
+    private async Task<bool> TryLoadRecordAsync(long recordId)
+    {
+        RecordId = recordId;
+
+        var record = await _db.FfcRecords
+            .Include(r => r.Country)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.Id == recordId);
+
+        if (record is null)
+        {
+            return false;
+        }
+
+        Record = record;
+        return true;
+    }
+
+    private async Task LoadPageDataAsync(long recordId, int? selectedLinkedProjectId)
+    {
+        Items = await _db.FfcProjects
+            .Where(p => p.FfcRecordId == recordId)
+            .Include(p => p.LinkedProject)
+            .OrderBy(p => p.Name)
+            .AsNoTracking()
+            .ToListAsync();
+
+        var linkedProjects = await _db.Projects
+            .OrderBy(p => p.Name)
+            .Select(p => new { p.Id, p.Name })
+            .ToListAsync();
+
+        LinkedProjects = new SelectList(linkedProjects, "Id", "Name", selectedLinkedProjectId);
     }
 }

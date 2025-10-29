@@ -43,12 +43,12 @@ public class UploadModel(
 
     public async Task<IActionResult> OnGetAsync(long recordId)
     {
-        RecordId = recordId;
-        Record = await _db.FfcRecords.Include(r => r.Country).FirstOrDefaultAsync(r => r.Id == recordId)
-                  ?? throw new Exception("Record not found.");
+        if (!await TryLoadRecordAsync(recordId))
+        {
+            return NotFound();
+        }
 
-        Items = await _db.FfcAttachments.Where(a => a.FfcRecordId == recordId)
-                    .OrderByDescending(a => a.UploadedAt).AsNoTracking().ToListAsync();
+        await LoadAttachmentItemsAsync(recordId);
 
         return Page();
     }
@@ -57,17 +57,24 @@ public class UploadModel(
     {
         if (!CanManageAttachments) return Forbid();
 
+        if (!await TryLoadRecordAsync(recordId))
+        {
+            return NotFound();
+        }
+
         if (UploadFile is null || UploadFile.Length == 0)
         {
             ModelState.AddModelError(nameof(UploadFile), "Select a file.");
-            return await OnGetAsync(recordId);
+            await LoadAttachmentItemsAsync(recordId);
+            return Page();
         }
 
         var result = await _storage.SaveAsync(recordId, UploadFile, Kind, Caption);
         if (!result.Success)
         {
             ModelState.AddModelError(nameof(UploadFile), result.ErrorMessage ?? "Upload failed.");
-            return await OnGetAsync(recordId);
+            await LoadAttachmentItemsAsync(recordId);
+            return Page();
         }
 
         if (result.Attachment is { } attachment)
@@ -91,6 +98,11 @@ public class UploadModel(
     public async Task<IActionResult> OnPostDeleteAsync(long recordId, long id)
     {
         if (!CanManageAttachments) return Forbid();
+
+        if (!await TryLoadRecordAsync(recordId))
+        {
+            return NotFound();
+        }
 
         var a = await _db.FfcAttachments.FirstOrDefaultAsync(x => x.Id == id && x.FfcRecordId == recordId);
         if (a is null) return NotFound();
@@ -127,5 +139,31 @@ public class UploadModel(
         {
             _logger.LogError(ex, "Failed to write audit log for action {Action}.", action);
         }
+    }
+
+    private async Task<bool> TryLoadRecordAsync(long recordId)
+    {
+        RecordId = recordId;
+        var record = await _db.FfcRecords
+            .Include(r => r.Country)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.Id == recordId);
+
+        if (record is null)
+        {
+            return false;
+        }
+
+        Record = record;
+        return true;
+    }
+
+    private async Task LoadAttachmentItemsAsync(long recordId)
+    {
+        Items = await _db.FfcAttachments
+            .Where(a => a.FfcRecordId == recordId)
+            .OrderByDescending(a => a.UploadedAt)
+            .AsNoTracking()
+            .ToListAsync();
     }
 }
