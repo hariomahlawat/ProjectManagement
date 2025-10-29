@@ -269,23 +269,26 @@
                                             @if (row.CanDelete)
                                             {
                                                 var deleteRouteValues = Model.BuildRouteForDeleteRequest(row.Id);
+                                                var deleteFormId = $"delete-form-{row.Id}";
                                                 <form method="post"
                                                       asp-page="./Index"
                                                       asp-page-handler="RequestDelete"
                                                       class="d-inline"
+                                                      id="@deleteFormId"
                                                       data-activities-delete-form>
                                                     @Html.AntiForgeryToken()
                                                     @foreach (var routeValue in deleteRouteValues)
                                                     {
                                                         <input type="hidden" name="@routeValue.Key" value="@(routeValue.Value ?? string.Empty)" />
                                                     }
-                                                    <button type="submit"
-                                                            class="btn btn-outline-danger js-activities-confirm-delete"
-                                                            data-confirm="Request deletion of this activity?">
-                                                        <span class="visually-hidden">Request delete</span>
-                                                        <i class="bi bi-trash" aria-hidden="true"></i>
-                                                    </button>
                                                 </form>
+                                                <button type="submit"
+                                                        class="btn btn-outline-danger js-activities-confirm-delete"
+                                                        form="@deleteFormId"
+                                                        data-confirm="Request deletion of this activity?">
+                                                    <span class="visually-hidden">Request delete</span>
+                                                    <i class="bi bi-trash" aria-hidden="true"></i>
+                                                </button>
                                             }
                                         </div>
                                     </td>
