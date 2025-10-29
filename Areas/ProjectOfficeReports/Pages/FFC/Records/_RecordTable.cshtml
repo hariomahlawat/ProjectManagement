@@ -1,0 +1,33 @@
+@model IList<ProjectManagement.Areas.ProjectOfficeReports.Domain.FfcRecord>
+
+<table class="table table-sm align-middle">
+    <thead>
+        <tr>
+            <th>Year</th>
+            <th>Country</th>
+            <th>IPA</th>
+            <th>GSL</th>
+            <th>Delivery</th>
+            <th>Installation</th>
+            <th>Remarks</th>
+            <th class="text-end">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+    @foreach (var r in Model)
+    {
+        <tr>
+            <td>@r.Year</td>
+            <td>@r.Country?.Name</td>
+            <td>@(r.IpaYes ? (r.IpaDate?.ToString() ?? "Yes") : "No")</td>
+            <td>@(r.GslYes ? (r.GslDate?.ToString() ?? "Yes") : "No")</td>
+            <td>@(r.DeliveryYes ? (r.DeliveryDate?.ToString() ?? "Yes") : "No")</td>
+            <td>@(r.InstallationYes ? (r.InstallationDate?.ToString() ?? "Yes") : "No")</td>
+            <td class="text-truncate" style="max-width:220px;">@r.OverallRemarks</td>
+            <td class="text-end">
+                <a asp-page="Manage" asp-page-handler="Edit" asp-route-id="@r.Id" class="btn btn-link btn-sm">Edit</a>
+            </td>
+        </tr>
+    }
+    </tbody>
+</table>

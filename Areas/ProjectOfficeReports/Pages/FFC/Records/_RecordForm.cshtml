@@ -1,0 +1,107 @@
+@using Microsoft.AspNetCore.Mvc.Rendering
+@model (ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.ManageModel.InputModel input,
+        SelectList countryList,
+        bool isEdit)
+
+<div>
+    <label class="form-label">Country</label>
+    <select asp-for="input.CountryId" class="form-select" asp-items="Model.countryList"></select>
+    <span asp-validation-for="input.CountryId" class="text-danger"></span>
+</div>
+
+<div>
+    <label asp-for="input.Year" class="form-label">Year</label>
+    <input asp-for="input.Year" class="form-control" />
+    <span asp-validation-for="input.Year" class="text-danger"></span>
+</div>
+
+<hr />
+<h6 class="mb-2">IPA</h6>
+<div class="form-check">
+    <input class="form-check-input" asp-for="input.IpaYes" />
+    <label class="form-check-label" asp-for="input.IpaYes">Yes</label>
+</div>
+<div class="row g-3">
+    <div class="col-md-6">
+        <label asp-for="input.IpaDate" class="form-label">Date (optional)</label>
+        <input asp-for="input.IpaDate" type="date" class="form-control" />
+        <span asp-validation-for="input.IpaDate" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="input.IpaRemarks" class="form-label">Remarks</label>
+        <input asp-for="input.IpaRemarks" class="form-control" />
+    </div>
+</div>
+
+<hr />
+<h6 class="mb-2">GSL</h6>
+<div class="form-check">
+    <input class="form-check-input" asp-for="input.GslYes" />
+    <label class="form-check-label" asp-for="input.GslYes">Yes</label>
+</div>
+<div class="row g-3">
+    <div class="col-md-6">
+        <label asp-for="input.GslDate" class="form-label">Date (optional)</label>
+        <input asp-for="input.GslDate" type="date" class="form-control" />
+        <span asp-validation-for="input.GslDate" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="input.GslRemarks" class="form-label">Remarks</label>
+        <input asp-for="input.GslRemarks" class="form-control" />
+    </div>
+</div>
+
+<hr />
+<h6 class="mb-2">Delivery</h6>
+<div class="form-check">
+    <input class="form-check-input" asp-for="input.DeliveryYes" />
+    <label class="form-check-label" asp-for="input.DeliveryYes">Yes</label>
+</div>
+<div class="row g-3">
+    <div class="col-md-6">
+        <label asp-for="input.DeliveryDate" class="form-label">Date (optional)</label>
+        <input asp-for="input.DeliveryDate" type="date" class="form-control" />
+        <span asp-validation-for="input.DeliveryDate" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="input.DeliveryRemarks" class="form-label">Remarks</label>
+        <input asp-for="input.DeliveryRemarks" class="form-control" />
+    </div>
+</div>
+
+<hr />
+<h6 class="mb-2">Installation</h6>
+<div class="form-check">
+    <input class="form-check-input" asp-for="input.InstallationYes" />
+    <label class="form-check-label" asp-for="input.InstallationYes">Yes</label>
+</div>
+<div class="row g-3">
+    <div class="col-md-6">
+        <label asp-for="input.InstallationDate" class="form-label">Date (optional)</label>
+        <input asp-for="input.InstallationDate" type="date" class="form-control" />
+        <span asp-validation-for="input.InstallationDate" class="text-danger"></span>
+    </div>
+    <div class="col-md-6">
+        <label asp-for="input.InstallationRemarks" class="form-label">Remarks</label>
+        <input asp-for="input.InstallationRemarks" class="form-control" />
+    </div>
+</div>
+
+<hr />
+<div>
+    <label asp-for="input.OverallRemarks" class="form-label">Overall Remarks</label>
+    <textarea asp-for="input.OverallRemarks" rows="3" class="form-control"></textarea>
+</div>
+
+@if (Model.isEdit)
+{
+    <div class="form-check mt-2">
+        <input class="form-check-input" asp-for="input.IsDeleted" />
+        <label class="form-check-label" asp-for="input.IsDeleted">Soft deleted</label>
+    </div>
+
+    <div class="mt-3">
+        <a asp-page="./Projects/Manage" asp-route-recordId="@Model.input.Id" class="btn btn-outline-secondary btn-sm">Manage Projects</a>
+        <a asp-page="./Attachments/Upload" asp-route-recordId="@Model.input.Id" class="btn btn-outline-secondary btn-sm">Manage Attachments</a>
+    </div>
+}
