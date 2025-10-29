@@ -64,6 +64,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
+using Microsoft.AspNetCore.Authentication;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
@@ -517,15 +518,6 @@ app.Use(async (ctx, next) =>
     await next();
 });
 
-var uploadRoot = app.Services.GetRequiredService<IUploadRootProvider>();
-
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(uploadRoot.RootPath),
-    RequestPath = "/files",
-    ServeUnknownFileTypes = true,
-});
-
 app.UseStaticFiles();
 app.UseRouting();
 
@@ -533,6 +525,28 @@ app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+var uploadRoot = app.Services.GetRequiredService<IUploadRootProvider>();
+
+app.Map("/files", filesApp =>
+{
+    filesApp.Use(async (context, next) =>
+    {
+        if (context.User?.Identity?.IsAuthenticated != true)
+        {
+            await context.ChallengeAsync();
+            return;
+        }
+
+        await next();
+    });
+
+    filesApp.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new PhysicalFileProvider(uploadRoot.RootPath),
+        ServeUnknownFileTypes = true,
+    });
+});
 
 app.MapHub<NotificationsHub>("/hubs/notifications")
     .RequireAuthorization();
