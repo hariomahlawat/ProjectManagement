@@ -243,7 +243,9 @@ public sealed class EditModel : PageModel
 
     private void ValidateUploadedFiles(Activity? existingActivity)
     {
-        if (Input.Files is null || Input.Files.Count == 0)
+        var files = Input?.Files;
+
+        if (files is null || files.Count == 0)
         {
             return;
         }
@@ -257,7 +259,7 @@ public sealed class EditModel : PageModel
             return;
         }
 
-        if (Input.Files.Count > remainingSlots)
+        if (files.Count > remainingSlots)
         {
             var message = remainingSlots == 1
                 ? "Only one additional attachment can be uploaded."
@@ -265,7 +267,7 @@ public sealed class EditModel : PageModel
             ModelState.AddModelError(nameof(Input.Files), message);
         }
 
-        foreach (var file in Input.Files)
+        foreach (var file in files)
         {
             if (file is null)
             {
@@ -301,7 +303,9 @@ public sealed class EditModel : PageModel
 
     private async Task SaveAttachmentsAsync(Activity activity, CancellationToken cancellationToken)
     {
-        if (Input.Files is null || Input.Files.Count == 0)
+        var files = Input?.Files;
+
+        if (files is null || files.Count == 0)
         {
             ExistingAttachmentCount = activity.Attachments?.Count ?? 0;
             return;
@@ -313,7 +317,7 @@ public sealed class EditModel : PageModel
             throw new ActivityAuthorizationException("A signed-in user is required.");
         }
 
-        foreach (var file in Input.Files)
+        foreach (var file in files)
         {
             if (file is null || file.Length <= 0)
             {
@@ -435,6 +439,6 @@ public sealed class EditModel : PageModel
         public DateTime? ScheduledEnd { get; set; }
 
         [Display(Name = "Attachments")]
-        public IList<IFormFile> Files { get; set; } = new List<IFormFile>();
+        public IList<IFormFile>? Files { get; set; }
     }
 }
