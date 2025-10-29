@@ -1,0 +1,128 @@
+@page
+@using System.Globalization
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.IndexModel
+@{
+    ViewData["Title"] = "FFC simulators";
+}
+
+<h1 class="h3 mb-3">FFC simulators</h1>
+<p class="text-muted">Review the status of FFC simulator deliveries by country and year. Use the filters below to locate specific entries.</p>
+
+@if (Model.CanManageRecords)
+{
+    <div class="mb-3 d-flex flex-wrap gap-2">
+        <a asp-area="ProjectOfficeReports" asp-page="/FFC/Records/Manage" class="btn btn-outline-secondary btn-sm">
+            Manage records
+        </a>
+        <a asp-area="ProjectOfficeReports" asp-page="/FFC/Countries/Manage" class="btn btn-outline-secondary btn-sm">
+            Manage countries
+        </a>
+    </div>
+}
+
+<partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
+
+<form method="get" class="row gy-2 gx-2 align-items-end mb-3">
+    <div class="col-md-6">
+        <label class="form-label" for="record-search">Search</label>
+        <input type="search" class="form-control" id="record-search" name="q" value="@Model.Query" />
+    </div>
+    <input type="hidden" name="page" value="1" />
+    <input type="hidden" name="sort" value="@Model.CurrentSort" />
+    <input type="hidden" name="dir" value="@Model.CurrentSortDirection" />
+    <div class="col-md-auto">
+        <button type="submit" class="btn btn-outline-primary">Search</button>
+        @if (Model.HasQuery)
+        {
+            <a asp-page="./Index" asp-all-route-data="Model.BuildRoute(page: 1, query: string.Empty)" class="btn btn-link">Clear</a>
+        }
+    </div>
+</form>
+
+<table class="table table-sm align-middle">
+    <thead>
+        <tr>
+            <th>
+                <a asp-page="./Index" asp-all-route-data='Model.BuildRoute(page: 1, sort: "year", dir: Model.GetSortDirectionFor("year"))' class="text-decoration-none d-inline-flex align-items-center gap-1">
+                    <span>Year</span>
+                    <i class='@Model.GetSortIconClass("year")'></i>
+                </a>
+            </th>
+            <th>
+                <a asp-page="./Index" asp-all-route-data='Model.BuildRoute(page: 1, sort: "country", dir: Model.GetSortDirectionFor("country"))' class="text-decoration-none d-inline-flex align-items-center gap-1">
+                    <span>Country</span>
+                    <i class='@Model.GetSortIconClass("country")'></i>
+                </a>
+            </th>
+            <th>IPA</th>
+            <th>GSL</th>
+            <th>Delivery</th>
+            <th>Installation</th>
+            <th>Remarks</th>
+            <th class="text-end">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+    @if (!Model.Records.Any())
+    {
+        <tr>
+            <td colspan="8" class="text-center text-muted">No records found.</td>
+        </tr>
+    }
+    else
+    {
+        foreach (var record in Model.Records)
+        {
+            <tr>
+                <td>@record.Year</td>
+                <td>@record.Country?.Name</td>
+                <td>@(record.IpaYes ? (record.IpaDate?.ToString() ?? "Yes") : "No")</td>
+                <td>@(record.GslYes ? (record.GslDate?.ToString() ?? "Yes") : "No")</td>
+                <td>@(record.DeliveryYes ? (record.DeliveryDate?.ToString() ?? "Yes") : "No")</td>
+                <td>@(record.InstallationYes ? (record.InstallationDate?.ToString() ?? "Yes") : "No")</td>
+                <td class="text-truncate" style="max-width:220px;" title="@record.OverallRemarks">@record.OverallRemarks</td>
+                <td class="text-end">
+                    @if (Model.CanManageRecords)
+                    {
+                        <a asp-area="ProjectOfficeReports"
+                           asp-page="/FFC/Records/Manage"
+                           asp-route-editId="@record.Id"
+                           asp-route-page="@Model.PageNumber"
+                           asp-route-sort="@Model.CurrentSort"
+                           asp-route-dir="@Model.CurrentSortDirection"
+                           asp-route-q="@Model.Query"
+                           class="btn btn-link btn-sm">Edit</a>
+                    }
+                    <a asp-area="ProjectOfficeReports" asp-page="/FFC/Records/Projects/Manage" asp-route-recordId="@record.Id" class="btn btn-link btn-sm">Projects</a>
+                    <a asp-area="ProjectOfficeReports" asp-page="/FFC/Records/Attachments/Upload" asp-route-recordId="@record.Id" class="btn btn-link btn-sm">Attachments</a>
+                    @if (!Model.CanManageRecords)
+                    {
+                        <span class="text-muted">Read only</span>
+                    }
+                </td>
+            </tr>
+        }
+    }
+    </tbody>
+</table>
+
+<nav aria-label="Records pagination" class="mt-2">
+    <ul class="pagination pagination-sm mb-0">
+        <li class="page-item @(Model.PageNumber <= 1 ? "disabled" : string.Empty)">
+            <a class="page-link" asp-page="./Index" asp-all-route-data='Model.BuildRoute(page: Math.Max(1, Model.PageNumber - 1))' aria-label="Previous" tabindex="@(Model.PageNumber <= 1 ? -1 : 0)">
+                <span aria-hidden="true">&laquo;</span>
+            </a>
+        </li>
+        @for (var pageNumber = 1; pageNumber <= Model.TotalPages; pageNumber++)
+        {
+            <li class="page-item @(pageNumber == Model.PageNumber ? "active" : string.Empty)">
+                <a class="page-link" asp-page="./Index" asp-all-route-data='Model.BuildRoute(page: pageNumber)'>@pageNumber</a>
+            </li>
+        }
+        <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : string.Empty)">
+            <a class="page-link" asp-page="./Index" asp-all-route-data='Model.BuildRoute(page: Math.Min(Model.TotalPages, Model.PageNumber + 1))' aria-label="Next" tabindex="@(Model.PageNumber >= Model.TotalPages ? -1 : 0)">
+                <span aria-hidden="true">&raquo;</span>
+            </a>
+        </li>
+    </ul>
+</nav>

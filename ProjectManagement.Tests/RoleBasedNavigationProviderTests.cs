@@ -8,9 +8,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Options;
-using ProjectManagement.Areas.ProjectOfficeReports.Application;
-using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Navigation;
 using Xunit;
@@ -60,7 +57,7 @@ public class RoleBasedNavigationProviderTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task Navigation_IncludesProjectOfficeReportsVisitsNode(bool isAdmin)
+    public async Task Navigation_ProjectOfficeReportsContainsFfcNode(bool isAdmin)
     {
         var user = new ApplicationUser
         {
@@ -86,54 +83,11 @@ public class RoleBasedNavigationProviderTests
         var navigation = await provider.GetNavigationAsync();
 
         var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
-        var children = projectOfficeReports.Children.ToList();
+        var child = Assert.Single(projectOfficeReports.Children);
 
-        Assert.Contains(children, c => c.Text == "Visits" && c.Page == "/Visits/Index");
-        var trainingTracker = Assert.Single(children.Where(c => c.Text == "Training tracker"));
-        Assert.Equal("/Training/Index", trainingTracker.Page);
-        Assert.Equal(ProjectOfficeReportsPolicies.ViewTrainingTracker, trainingTracker.AuthorizationPolicy);
-
-        var ipr = Assert.Single(children.Where(c => c.Text == "IPR tracker"));
-        Assert.Equal("/Ipr/Index", ipr.Page);
-        Assert.Equal(Policies.Ipr.View, ipr.AuthorizationPolicy);
-        Assert.Null(ipr.RequiredRoles);
-
-        var proliferation = Assert.Single(children.Where(c => c.Text == "Proliferation tracker"));
-        Assert.Equal("/Proliferation/Index", proliferation.Page);
-
-        Assert.Contains(children, c => c.Text == "Social media tracker" && c.Page == "/SocialMedia/Index");
-
-        if (isAdmin)
-        {
-            var proliferationChildren = proliferation.Children?.ToList();
-            Assert.NotNull(proliferationChildren);
-
-            Assert.Contains(proliferationChildren!, c => c.Text == "Overview" && c.Page == "/Proliferation/Index");
-
-            var reconciliation = Assert.Single(proliferationChildren!.Where(c => c.Text == "Reconciliation"));
-            Assert.Equal("/Proliferation/Reconciliation", reconciliation.Page);
-            Assert.Equal(new[] { "HoD", "Admin" }, reconciliation.RequiredRoles);
-
-            var adminChild = Assert.Single(proliferationChildren.Where(c => c.Text == "Administration"));
-            Assert.Equal("/Proliferation/Admin/Index", adminChild.Page);
-            Assert.Equal(new[] { "Admin" }, adminChild.RequiredRoles);
-        }
-
-        if (isAdmin)
-        {
-            var visitTypes = Assert.Single(children.Where(c => c.Text == "Visit types"));
-            Assert.Equal("/VisitTypes/Index", visitTypes.Page);
-            Assert.Equal(new[] { "Admin" }, visitTypes.RequiredRoles);
-
-            var socialMediaTypes = Assert.Single(children.Where(c => c.Text == "Social media event types"));
-            Assert.Equal("/Admin/SocialMediaTypes/Index", socialMediaTypes.Page);
-            Assert.Equal(new[] { "Admin" }, socialMediaTypes.RequiredRoles);
-        }
-        else
-        {
-            Assert.DoesNotContain(children, c => c.Text == "Visit types");
-            Assert.DoesNotContain(children, c => c.Text == "Social media event types");
-        }
+        Assert.Equal("FFC simulators", child.Text);
+        Assert.Equal("ProjectOfficeReports", child.Area);
+        Assert.Equal("/FFC/Index", child.Page);
     }
 
     [Fact]
@@ -194,153 +148,11 @@ public class RoleBasedNavigationProviderTests
         Assert.Contains(navigation, item => item.Text == "Activity types" && item.Page == "/ActivityTypes/Index");
     }
 
-    [Fact]
-    public async Task Navigation_IncludesSocialMediaTrackerForAuthenticatedUser()
-    {
-        var user = new ApplicationUser
-        {
-            Id = "user-basic",
-            UserName = "user"
-        };
-
-        using var services = new ServiceCollection().BuildServiceProvider();
-        var userManager = new StubUserManager(user, services, Array.Empty<string>());
-        var httpContextAccessor = new HttpContextAccessor
-        {
-            HttpContext = new DefaultHttpContext
-            {
-                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
-                }, "Test"))
-            }
-        };
-
-        var provider = CreateProvider(userManager, httpContextAccessor);
-        var navigation = await provider.GetNavigationAsync();
-
-        var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
-        var children = projectOfficeReports.Children.ToList();
-
-        Assert.Contains(children, c => c.Text == "Social media tracker" && c.Page == "/SocialMedia/Index");
-        Assert.Contains(children, c => c.Text == "Training tracker" && c.Page == "/Training/Index");
-        Assert.DoesNotContain(children, c => c.Text == "Visit types");
-        Assert.DoesNotContain(children, c => c.Text == "Social media event types");
-
-        var ipr = Assert.Single(children.Where(c => c.Text == "IPR tracker"));
-        Assert.Equal("/Ipr/Index", ipr.Page);
-        Assert.Equal(Policies.Ipr.View, ipr.AuthorizationPolicy);
-        Assert.Null(ipr.RequiredRoles);
-    }
-
-    [Theory]
-    [InlineData("HoD")]
-    [InlineData("ProjectOffice")]
-    [InlineData("Project Office")]
-    public async Task Navigation_IncludesSocialMediaTrackerForProjectOfficeManagers(string role)
-    {
-        var user = new ApplicationUser
-        {
-            Id = $"user-{role}",
-            UserName = role.ToLowerInvariant()
-        };
-
-        using var services = new ServiceCollection().BuildServiceProvider();
-        var userManager = new StubUserManager(user, services, role);
-        var httpContextAccessor = new HttpContextAccessor
-        {
-            HttpContext = new DefaultHttpContext
-            {
-                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
-                }, "Test"))
-            }
-        };
-
-        var provider = CreateProvider(userManager, httpContextAccessor);
-        var navigation = await provider.GetNavigationAsync();
-
-        var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
-        var children = projectOfficeReports.Children.ToList();
-
-        Assert.Contains(children, c => c.Text == "Social media tracker" && c.Page == "/SocialMedia/Index");
-        Assert.Contains(children, c => c.Text == "Training tracker" && c.Page == "/Training/Index");
-
-        var ipr = Assert.Single(children.Where(c => c.Text == "IPR tracker"));
-        Assert.Equal("/Ipr/Index", ipr.Page);
-        Assert.Equal(Policies.Ipr.View, ipr.AuthorizationPolicy);
-        Assert.Null(ipr.RequiredRoles);
-
-        var proliferation = Assert.Single(children.Where(c => c.Text == "Proliferation tracker"));
-        Assert.Equal("/Proliferation/Index", proliferation.Page);
-
-        var proliferationChildren = proliferation.Children?.ToList();
-        Assert.NotNull(proliferationChildren);
-        Assert.Contains(proliferationChildren!, c => c.Text == "Overview" && c.Page == "/Proliferation/Index");
-
-        if (role == "HoD" || role == "Admin")
-        {
-            var reconciliation = Assert.Single(proliferationChildren!.Where(c => c.Text == "Reconciliation"));
-            Assert.Equal(new[] { "HoD", "Admin" }, reconciliation.RequiredRoles);
-        }
-        else
-        {
-            Assert.DoesNotContain(proliferationChildren!, c => c.Text == "Reconciliation");
-        }
-
-        if (role == "Admin")
-        {
-            Assert.Contains(proliferationChildren!, c => c.Text == "Administration" && c.Page == "/Proliferation/Admin/Index");
-        }
-        else
-        {
-            Assert.DoesNotContain(proliferationChildren!, c => c.Text == "Administration");
-        }
-    }
-
-    [Fact]
-    public async Task TrainingTrackerNavigationHiddenWhenFeatureDisabled()
-    {
-        var user = new ApplicationUser
-        {
-            Id = "user-disabled",
-            UserName = "user"
-        };
-
-        using var services = new ServiceCollection().BuildServiceProvider();
-        var userManager = new StubUserManager(user, services, Array.Empty<string>());
-        var httpContextAccessor = new HttpContextAccessor
-        {
-            HttpContext = new DefaultHttpContext
-            {
-                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
-                {
-                    new Claim(ClaimTypes.NameIdentifier, user.Id!)
-                }, "Test"))
-            }
-        };
-
-        var provider = CreateProvider(userManager, httpContextAccessor, trainingTrackerEnabled: false);
-        var navigation = await provider.GetNavigationAsync();
-
-        var projectOfficeReports = navigation.Single(item => item.Text == "Project office reports");
-        var children = projectOfficeReports.Children.ToList();
-
-        Assert.DoesNotContain(children, c => c.Text == "Training tracker");
-    }
-
     private static RoleBasedNavigationProvider CreateProvider(
         UserManager<ApplicationUser> userManager,
-        IHttpContextAccessor httpContextAccessor,
-        bool trainingTrackerEnabled = true)
+        IHttpContextAccessor httpContextAccessor)
     {
-        var options = new StubOptionsMonitor<TrainingTrackerOptions>(new TrainingTrackerOptions
-        {
-            Enabled = trainingTrackerEnabled
-        });
-
-        return new RoleBasedNavigationProvider(userManager, httpContextAccessor, options);
+        return new RoleBasedNavigationProvider(userManager, httpContextAccessor);
     }
 
     private sealed class StubUserManager : UserManager<ApplicationUser>
@@ -367,31 +179,6 @@ public class RoleBasedNavigationProviderTests
         public override Task<ApplicationUser?> GetUserAsync(ClaimsPrincipal principal) => Task.FromResult<ApplicationUser?>(_user);
 
         public override Task<IList<string>> GetRolesAsync(ApplicationUser user) => Task.FromResult(_roles);
-    }
-
-    private sealed class StubOptionsMonitor<T> : IOptionsMonitor<T>
-    {
-        private T _currentValue;
-
-        public StubOptionsMonitor(T currentValue)
-        {
-            _currentValue = currentValue;
-        }
-
-        public T CurrentValue => _currentValue;
-
-        public T Get(string? name) => _currentValue;
-
-        public IDisposable OnChange(Action<T, string> listener) => NullDisposable.Instance;
-
-        private sealed class NullDisposable : IDisposable
-        {
-            public static readonly NullDisposable Instance = new();
-
-            public void Dispose()
-            {
-            }
-        }
     }
 
     private sealed class StubUserStore : IUserStore<ApplicationUser>
