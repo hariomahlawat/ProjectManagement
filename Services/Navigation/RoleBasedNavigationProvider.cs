@@ -3,9 +3,6 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Options;
-using ProjectManagement.Areas.ProjectOfficeReports.Application;
-using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Navigation;
 
@@ -17,16 +14,12 @@ public class RoleBasedNavigationProvider : INavigationProvider
 
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IHttpContextAccessor _httpContextAccessor;
-    private readonly IOptionsMonitor<TrainingTrackerOptions> _trainingTrackerOptions;
-
     public RoleBasedNavigationProvider(
         UserManager<ApplicationUser> userManager,
-        IHttpContextAccessor httpContextAccessor,
-        IOptionsMonitor<TrainingTrackerOptions> trainingTrackerOptions)
+        IHttpContextAccessor httpContextAccessor)
     {
         _userManager = userManager;
         _httpContextAccessor = httpContextAccessor;
-        _trainingTrackerOptions = trainingTrackerOptions;
     }
 
     public async Task<IReadOnlyList<NavigationItem>> GetNavigationAsync()
@@ -79,91 +72,15 @@ public class RoleBasedNavigationProvider : INavigationProvider
             }
         };
 
-        var trainingTrackerEnabled = _trainingTrackerOptions.CurrentValue?.Enabled ?? false;
-
         var projectOfficeReportsChildren = new List<NavigationItem>
         {
             new()
             {
-                Text = "Visits",
+                Text = "FFC simulators",
                 Area = "ProjectOfficeReports",
-                Page = "/Visits/Index"
-            },
-            new()
-            {
-                Text = "ToT tracker",
-                Area = "ProjectOfficeReports",
-                Page = "/Tot/Index"
+                Page = "/FFC/Index"
             }
         };
-
-        if (trainingTrackerEnabled)
-        {
-            projectOfficeReportsChildren.Add(new NavigationItem
-            {
-                Text = "Training tracker",
-                Area = "ProjectOfficeReports",
-                Page = "/Training/Index",
-                AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewTrainingTracker
-            });
-        }
-
-        var proliferationTracker = new NavigationItem
-        {
-            Text = "Proliferation tracker",
-            Area = "ProjectOfficeReports",
-            Page = "/Proliferation/Index"
-        };
-
-        projectOfficeReportsChildren.Add(new NavigationItem
-        {
-            Text = "IPR tracker",
-            Area = "ProjectOfficeReports",
-            Page = "/Ipr/Index",
-            AuthorizationPolicy = Policies.Ipr.View
-        });
-
-        projectOfficeReportsChildren.Add(new NavigationItem
-        {
-            Text = "Social media tracker",
-            Area = "ProjectOfficeReports",
-            Page = "/SocialMedia/Index"
-        });
-
-        projectOfficeReportsChildren.Add(new NavigationItem
-        {
-            Text = "FFC – Countries",
-            Area = "ProjectOfficeReports",
-            Page = "/FFC/Countries/Manage",
-            RequiredRoles = new[] { "Admin", "HoD" }
-        });
-
-        projectOfficeReportsChildren.Add(new NavigationItem
-        {
-            Text = "FFC – Records",
-            Area = "ProjectOfficeReports",
-            Page = "/FFC/Records/Manage"
-        });
-
-        projectOfficeReportsChildren.Add(proliferationTracker);
-
-        if (roleSet.Contains("Admin"))
-        {
-            projectOfficeReportsChildren.Add(new NavigationItem
-            {
-                Text = "Visit types",
-                Area = "ProjectOfficeReports",
-                Page = "/VisitTypes/Index",
-                RequiredRoles = new[] { "Admin" }
-            });
-            projectOfficeReportsChildren.Add(new NavigationItem
-            {
-                Text = "Social media event types",
-                Area = "ProjectOfficeReports",
-                Page = "/Admin/SocialMediaTypes/Index",
-                RequiredRoles = new[] { "Admin" }
-            });
-        }
 
         items.Add(new NavigationItem
         {
