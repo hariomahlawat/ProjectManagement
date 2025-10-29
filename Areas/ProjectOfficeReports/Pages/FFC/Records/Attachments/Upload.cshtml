@@ -6,6 +6,7 @@
     ViewData["Title"] = "FFC Attachments";
 
     var maxFileSizeText = FileSizeFormatter.FormatFileSize(Model.MaxFileSizeBytes);
+    string FormatFileSize(long bytes) => FileSizeFormatter.FormatFileSize(bytes);
 }
 <h1 class="h5 mb-2">Attachments for @Model.Record.Country.Name (@Model.Record.Year)</h1>
 <partial name="_StatusMessage" />
@@ -21,7 +22,7 @@
                     <td>@a.Kind</td>
                     <td>@a.Caption</td>
                     <td>@a.ContentType</td>
-                    <td>@FileSizeFormatter.FormatFileSize(a.SizeBytes)</td>
+                    <td>@FormatFileSize(a.SizeBytes)</td>
                     <td class="text-end">
                         <authorize roles="Admin,HoD">
                             <form method="post" asp-page-handler="Delete" asp-route-recordId="@Model.Record.Id" asp-route-id="@a.Id" class="d-inline">

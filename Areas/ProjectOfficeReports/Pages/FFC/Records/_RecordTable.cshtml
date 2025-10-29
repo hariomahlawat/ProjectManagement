@@ -46,6 +46,8 @@
                     <authorize roles="Admin,HoD">
                         <a asp-page="./Manage" asp-page-handler="Edit" asp-all-route-data="Model.BuildRouteForEdit(record.Id)" class="btn btn-link btn-sm">Edit</a>
                     </authorize>
+                    <a asp-page="./Projects/Manage" asp-route-recordId="@record.Id" class="btn btn-link btn-sm">Projects</a>
+                    <a asp-page="./Attachments/Upload" asp-route-recordId="@record.Id" class="btn btn-link btn-sm">Attachments</a>
                     @if (!(User.IsInRole("Admin") || User.IsInRole("HoD")))
                     {
                         <span class="text-muted">Read only</span>

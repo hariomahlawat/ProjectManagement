@@ -130,6 +130,21 @@ public class RoleBasedNavigationProvider : INavigationProvider
             Page = "/SocialMedia/Index"
         });
 
+        projectOfficeReportsChildren.Add(new NavigationItem
+        {
+            Text = "FFC – Countries",
+            Area = "ProjectOfficeReports",
+            Page = "/FFC/Countries/Manage",
+            RequiredRoles = new[] { "Admin", "HoD" }
+        });
+
+        projectOfficeReportsChildren.Add(new NavigationItem
+        {
+            Text = "FFC – Records",
+            Area = "ProjectOfficeReports",
+            Page = "/FFC/Records/Manage"
+        });
+
         projectOfficeReportsChildren.Add(proliferationTracker);
 
         if (roleSet.Contains("Admin"))
