@@ -376,11 +376,6 @@ body {
     color: var(--pm-text);
 }
 
-.ffc-record-card__subtitle {
-    font-size: .875rem;
-    color: var(--pm-text-secondary);
-}
-
 .ffc-record-card__summary {
     display: grid;
     gap: .5rem;
