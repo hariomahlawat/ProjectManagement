@@ -133,7 +133,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         });
 
         TempData["StatusMessage"] = "Country created.";
-        return RedirectToPage(new RouteValueDictionary(BuildRoute(page: 1)));
+        return RedirectToManage(BuildRoute(page: 1));
     }
 
     public async Task<IActionResult> OnPostUpdateAsync()
@@ -230,7 +230,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         });
 
         TempData["StatusMessage"] = "Country updated.";
-        return RedirectToPage(new RouteValueDictionary(BuildRoute()));
+        return RedirectToManage();
     }
 
     public async Task<IActionResult> OnPostToggleActiveAsync(long id)
@@ -258,7 +258,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         });
 
         TempData["StatusMessage"] = entity.IsActive ? "Country activated." : "Country deactivated.";
-        return RedirectToPage(new RouteValueDictionary(BuildRoute()));
+        return RedirectToManage();
     }
 
     public async Task<IActionResult> OnGetEditAsync(long id)
@@ -361,6 +361,12 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
             .ToListAsync();
 
         EditId = keepEditingId ?? EditId;
+    }
+
+    private IActionResult RedirectToManage(Dictionary<string, string?>? routeValues = null)
+    {
+        var values = routeValues ?? BuildRoute();
+        return RedirectToPage("./Manage", new RouteValueDictionary(values));
     }
 
     public Dictionary<string, string?> BuildRoute(int? page = null, string? sort = null, string? dir = null, string? query = null)
