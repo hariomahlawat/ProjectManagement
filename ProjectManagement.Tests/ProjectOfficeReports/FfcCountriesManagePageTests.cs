@@ -1,10 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using System.Linq;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -23,6 +26,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Countries;
 using ProjectManagement.Data;
 using ProjectManagement.Services;
@@ -176,6 +180,82 @@ public sealed class FfcCountriesManagePageTests
         Assert.Contains("Only administrators or heads of department can manage FFC records or countries", content, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task ManagePage_EditMode_RendersInputPrefixedFields()
+    {
+        using var factory = new FfcCountriesManagePageFactory();
+        long countryId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var country = new FfcCountry { Name = "Canada", IsoCode = "CAN" };
+            db.FfcCountries.Add(country);
+            await db.SaveChangesAsync();
+            countryId = country.Id;
+        }
+
+        var client = CreateClientForUser(factory, "admin-user", "Admin");
+        var response = await client.GetAsync($"/ProjectOfficeReports/FFC/Countries/Manage?editId={countryId}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Contains("name=\"Input.Name\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"Input.IsoCode\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"Input.IsActive\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task PostUpdate_WithInputPrefixedForm_PersistsChanges()
+    {
+        using var factory = new FfcCountriesManagePageFactory();
+        long countryId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var country = new FfcCountry { Name = "Chile", IsoCode = "CHL", IsActive = true };
+            db.FfcCountries.Add(country);
+            await db.SaveChangesAsync();
+            countryId = country.Id;
+        }
+
+        var client = CreateClientForUser(factory, "admin-user", "Admin");
+        var editResponse = await client.GetAsync($"/ProjectOfficeReports/FFC/Countries/Manage?editId={countryId}");
+        editResponse.EnsureSuccessStatusCode();
+
+        var editHtml = await editResponse.Content.ReadAsStringAsync();
+        var antiforgeryToken = ExtractInputValue(editHtml, "__RequestVerificationToken");
+        var rowVersion = ExtractInputValue(editHtml, "Input.RowVersion");
+
+        var formData = new List<KeyValuePair<string, string>>
+        {
+            new("__RequestVerificationToken", antiforgeryToken),
+            new("Input.Id", countryId.ToString(CultureInfo.InvariantCulture)),
+            new("Input.RowVersion", rowVersion),
+            new("Input.Name", "Chile Updated"),
+            new("Input.IsoCode", "CHL"),
+            new("Input.IsActive", "false")
+        };
+
+        var request = new HttpRequestMessage(HttpMethod.Post, "/ProjectOfficeReports/FFC/Countries/Manage?handler=Update")
+        {
+            Content = new FormUrlEncodedContent(formData)
+        };
+
+        var postResponse = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.Redirect, postResponse.StatusCode);
+
+        await using (var verificationScope = factory.Services.CreateAsyncScope())
+        {
+            var db = verificationScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var updated = await db.FfcCountries.AsNoTracking().SingleAsync(x => x.Id == countryId);
+            Assert.Equal("Chile Updated", updated.Name);
+            Assert.Equal("CHL", updated.IsoCode);
+            Assert.False(updated.IsActive);
+        }
+    }
+
     private static ManageModel CreatePage(ApplicationDbContext db)
     {
         return new ManageModel(db, new StubAuditService(), NullLogger<ManageModel>.Instance);
@@ -313,5 +393,13 @@ public sealed class FfcCountriesManagePageTests
         public void SaveTempData(HttpContext context, IDictionary<string, object?> values)
         {
         }
+    }
+
+    private static string ExtractInputValue(string html, string inputName)
+    {
+        var pattern = $"name=\"{Regex.Escape(inputName)}\"[^>]*value=\"([^\"]*)\"";
+        var match = Regex.Match(html, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Assert.True(match.Success, $"Failed to find input '{inputName}' in the rendered HTML.");
+        return match.Groups[1].Value;
     }
 }
