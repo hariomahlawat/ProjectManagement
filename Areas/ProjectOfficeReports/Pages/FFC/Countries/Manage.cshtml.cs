@@ -17,7 +17,7 @@ using ProjectManagement.Services;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Countries;
 
-[Authorize]
+[Authorize(Roles = "Admin,HoD")]
 public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<ManageModel> logger) : PageModel
 {
     private readonly ApplicationDbContext _db = db;
