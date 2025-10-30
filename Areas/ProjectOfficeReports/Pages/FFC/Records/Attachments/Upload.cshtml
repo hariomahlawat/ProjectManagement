@@ -29,58 +29,98 @@
 
     <div class="row g-4">
         <div class="col-lg-6">
-            <table class="table table-sm">
-                <thead><tr><th>Kind</th><th>Caption</th><th>Type</th><th>Size</th><th class="text-end">Actions</th></tr></thead>
-            <tbody>
-            @foreach (var a in Model.Items)
-            {
-                <tr>
-                    <td>@a.Kind</td>
-                    <td>@a.Caption</td>
-                    <td>@a.ContentType</td>
-                    <td>@FormatFileSize(a.SizeBytes)</td>
-                    <td class="text-end">
-                        <authorize roles="Admin,HoD">
-                            <form method="post" asp-page-handler="Delete" asp-route-recordId="@Model.Record.Id" asp-route-id="@a.Id" class="d-inline">
-                                <button class="btn btn-link btn-sm" type="submit">Delete</button>
-                            </form>
-                        </authorize>
-                    </td>
-                </tr>
-            }
-            </tbody>
-        </table>
-        <a asp-page="../Manage" asp-route-editId="@Model.Record.Id" class="btn btn-secondary btn-sm">Back</a>
-    </div>
-
-    <div class="col-lg-6">
-        <authorize roles="Admin,HoD">
-            <div class="card">
-                <div class="card-header">Upload</div>
-                <div class="card-body">
-                    <form method="post" enctype="multipart/form-data">
-                        <div class="mb-3">
-                            <label asp-for="UploadFile" class="form-label">File</label>
-                            <input asp-for="UploadFile" type="file" class="form-control" />
-                            <span asp-validation-for="UploadFile" class="text-danger"></span>
-                            <span class="form-text text-muted">Maximum size @maxFileSizeText.</span>
+            <div class="card pm-card pm-shadow h-100">
+                <div class="card-header pm-card-header border-0 pb-0">
+                    <div class="pm-card-heading">
+                        <div>
+                            <h2 class="pm-card-title h5 mb-1">Uploaded files</h2>
+                            <p class="pm-card-subtitle text-muted mb-0">Track the supporting documents associated with this record.</p>
                         </div>
-                        <div class="mb-3">
-                            <label asp-for="Kind" class="form-label">Kind</label>
-                            <select asp-for="Kind" class="form-select">
-                                <option value="0">PDF</option>
-                                <option value="1">PHOTO</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label asp-for="Caption" class="form-label">Caption (optional)</label>
-                            <input asp-for="Caption" class="form-control" />
-                        </div>
-                        <button type="submit" asp-page-handler="Upload" asp-route-recordId="@Model.Record.Id" class="btn btn-primary">Upload</button>
-                    </form>
+                    </div>
+                </div>
+                <div class="card-body pm-card-body pt-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Kind</th>
+                                    <th>Caption</th>
+                                    <th>Type</th>
+                                    <th>Size</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @if (!Model.Items.Any())
+                            {
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">No uploads yet. Files you add will appear here for quick access.</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var a in Model.Items)
+                                {
+                                    <tr>
+                                        <td>@a.Kind</td>
+                                        <td>@a.Caption</td>
+                                        <td>@a.ContentType</td>
+                                        <td>@FormatFileSize(a.SizeBytes)</td>
+                                        <td class="text-end">
+                                            <authorize roles="Admin,HoD">
+                                                <form method="post" asp-page-handler="Delete" asp-route-recordId="@Model.Record.Id" asp-route-id="@a.Id" class="d-inline">
+                                                    <button class="btn btn-outline-danger btn-sm" type="submit">Delete</button>
+                                                </form>
+                                            </authorize>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex justify-content-end mt-3">
+                        <a asp-page="../Manage" asp-route-editId="@Model.Record.Id" class="btn btn-outline-secondary btn-sm">Back</a>
+                    </div>
                 </div>
             </div>
-        </authorize>
-    </div>
+        </div>
+
+        <div class="col-lg-6">
+            <authorize roles="Admin,HoD">
+                <div class="pm-card pm-shadow h-100">
+                    <div class="pm-card-header">
+                        <div class="pm-card-heading">
+                            <div>
+                                <h2 class="pm-card-title h5 mb-0">Upload</h2>
+                                <p class="pm-card-subtitle text-muted mb-0">Share supporting documents with the project office team.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pm-card-body">
+                        <form method="post" enctype="multipart/form-data" class="vstack gap-3">
+                            <div>
+                                <label asp-for="UploadFile" class="form-label">File</label>
+                                <input asp-for="UploadFile" type="file" class="form-control" />
+                                <span asp-validation-for="UploadFile" class="text-danger"></span>
+                                <span class="form-text text-muted">Maximum size @maxFileSizeText.</span>
+                            </div>
+                            <div>
+                                <label asp-for="Kind" class="form-label">Kind</label>
+                                <select asp-for="Kind" class="form-select">
+                                    <option value="0">PDF</option>
+                                    <option value="1">PHOTO</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label asp-for="Caption" class="form-label">Caption (optional)</label>
+                                <input asp-for="Caption" class="form-control" />
+                            </div>
+                            <button type="submit" asp-page-handler="Upload" asp-route-recordId="@Model.Record.Id" class="btn btn-primary">Upload</button>
+                        </form>
+                    </div>
+                </div>
+            </authorize>
+        </div>
     </div>
 </div>

@@ -25,76 +25,117 @@
 
     <div class="row g-4">
         <div class="col-lg-7">
-            <table class="table table-sm align-middle">
-                <thead><tr><th>Name</th><th>Linked</th><th>Remarks</th><th class="text-end">Actions</th></tr></thead>
-            <tbody>
-            @foreach (var p in Model.Items)
-            {
-                <tr>
-                    <td>@p.Name</td>
-                    <td>@(p.LinkedProject?.Name ?? "— none —")</td>
-                    <td>@p.Remarks</td>
-                    <td class="text-end">
-                        <authorize roles="Admin,HoD">
-                            <a asp-page="./Manage" asp-route-recordId="@Model.Record.Id" asp-route-id="@p.Id" class="btn btn-link btn-sm">Edit</a>
-                        </authorize>
-                        @if (!(User.IsInRole("Admin") || User.IsInRole("HoD")))
-                        {
-                            <span class="text-muted">Read only</span>
-                        }
-                        <authorize roles="Admin,HoD">
-                            <form method="post" asp-page-handler="Delete" asp-route-recordId="@Model.Record.Id" asp-route-id="@p.Id" class="d-inline">
-                                <button class="btn btn-link btn-sm" type="submit">Delete</button>
-                            </form>
-                        </authorize>
-                    </td>
-                </tr>
-            }
-            </tbody>
-        </table>
-        <a asp-page="../Manage" asp-route-editId="@Model.Record.Id" class="btn btn-secondary btn-sm">Back</a>
-    </div>
-
-    <div class="col-lg-5">
-        <authorize roles="Admin,HoD">
-            <div class="card">
-                <div class="card-header">@(Model.Input.Id.HasValue ? "Edit Project" : "Add Project")</div>
-                <div class="card-body">
-                    <form method="post">
-                        @if (Model.Input.Id.HasValue)
-                        {
-                            <input type="hidden" asp-for="Input.Id" />
-                            <button type="submit" asp-page-handler="Update" asp-route-recordId="@Model.Record.Id" class="d-none"></button>
-                        }
-                        <div class="mb-3">
-                            <label asp-for="Input.Name" class="form-label">Name</label>
-                            <input asp-for="Input.Name" class="form-control" />
-                            <span asp-validation-for="Input.Name" class="text-danger"></span>
+            <div class="card pm-card pm-shadow h-100">
+                <div class="card-header pm-card-header border-0 pb-0">
+                    <div class="pm-card-heading">
+                        <div>
+                            <h2 class="pm-card-title h5 mb-1">Linked projects</h2>
+                            <p class="pm-card-subtitle text-muted mb-0">Review existing links and keep simulator details in sync.</p>
                         </div>
-                        <div class="mb-3">
-                            <label asp-for="Input.LinkedProjectId" class="form-label">Link to Project (optional)</label>
-                            <select asp-for="Input.LinkedProjectId" class="form-select" asp-items="Model.LinkedProjects">
-                                <option value="">-- none --</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label asp-for="Input.Remarks" class="form-label">Remarks</label>
-                            <input asp-for="Input.Remarks" class="form-control" />
-                        </div>
-
-                        @if (Model.Input.Id.HasValue)
-                        {
-                            <button type="submit" asp-page-handler="Update" asp-route-recordId="@Model.Record.Id" class="btn btn-primary">Save changes</button>
-                            <a asp-page="./Manage" asp-route-recordId="@Model.Record.Id" class="btn btn-secondary">Cancel</a>
-                        }
-                        else
-                        {
-                            <button type="submit" asp-page-handler="Create" asp-route-recordId="@Model.Record.Id" class="btn btn-primary">Add</button>
-                        }
-                    </form>
+                    </div>
+                </div>
+                <div class="card-body pm-card-body pt-0">
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Linked</th>
+                                    <th>Remarks</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @if (!Model.Items.Any())
+                            {
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">No projects linked yet. Add one using the form to the right.</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var p in Model.Items)
+                                {
+                                    <tr>
+                                        <td>@p.Name</td>
+                                        <td>@(p.LinkedProject?.Name ?? "— none —")</td>
+                                        <td>@p.Remarks</td>
+                                        <td class="text-end">
+                                            <authorize roles="Admin,HoD">
+                                                <a asp-page="./Manage" asp-route-recordId="@Model.Record.Id" asp-route-id="@p.Id" class="btn btn-outline-secondary btn-sm">Edit</a>
+                                            </authorize>
+                                            @if (!(User.IsInRole("Admin") || User.IsInRole("HoD")))
+                                            {
+                                                <span class="text-muted">Read only</span>
+                                            }
+                                            <authorize roles="Admin,HoD">
+                                                <form method="post" asp-page-handler="Delete" asp-route-recordId="@Model.Record.Id" asp-route-id="@p.Id" class="d-inline">
+                                                    <button class="btn btn-outline-danger btn-sm" type="submit">Delete</button>
+                                                </form>
+                                            </authorize>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex justify-content-end mt-3">
+                        <a asp-page="../Manage" asp-route-editId="@Model.Record.Id" class="btn btn-outline-secondary btn-sm">Back</a>
+                    </div>
                 </div>
             </div>
-        </authorize>
-    </div>
+        </div>
+
+        <div class="col-lg-5">
+            <authorize roles="Admin,HoD">
+                <div class="pm-card pm-shadow h-100">
+                    <div class="pm-card-header">
+                        <div class="pm-card-heading">
+                            <div>
+                                <h2 class="pm-card-title h5 mb-0">@(Model.Input.Id.HasValue ? "Edit project" : "Add project")</h2>
+                                <p class="pm-card-subtitle text-muted mb-0">Capture project details and link simulator deliveries.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pm-card-body">
+                        <form method="post" class="vstack gap-3">
+                            @if (Model.Input.Id.HasValue)
+                            {
+                                <input type="hidden" asp-for="Input.Id" />
+                                <button type="submit" asp-page-handler="Update" asp-route-recordId="@Model.Record.Id" class="d-none"></button>
+                            }
+                            <div>
+                                <label asp-for="Input.Name" class="form-label">Name</label>
+                                <input asp-for="Input.Name" class="form-control" />
+                                <span asp-validation-for="Input.Name" class="text-danger"></span>
+                            </div>
+                            <div>
+                                <label asp-for="Input.LinkedProjectId" class="form-label">Link to Project (optional)</label>
+                                <select asp-for="Input.LinkedProjectId" class="form-select" asp-items="Model.LinkedProjects">
+                                    <option value="">-- none --</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label asp-for="Input.Remarks" class="form-label">Remarks</label>
+                                <input asp-for="Input.Remarks" class="form-control" />
+                            </div>
+
+                            @if (Model.Input.Id.HasValue)
+                            {
+                                <div class="d-flex gap-2">
+                                    <button type="submit" asp-page-handler="Update" asp-route-recordId="@Model.Record.Id" class="btn btn-primary">Save changes</button>
+                                    <a asp-page="./Manage" asp-route-recordId="@Model.Record.Id" class="btn btn-outline-secondary">Cancel</a>
+                                </div>
+                            }
+                            else
+                            {
+                                <button type="submit" asp-page-handler="Create" asp-route-recordId="@Model.Record.Id" class="btn btn-primary">Add</button>
+                            }
+                        </form>
+                    </div>
+                </div>
+            </authorize>
+        </div>
     </div>
 </div>
