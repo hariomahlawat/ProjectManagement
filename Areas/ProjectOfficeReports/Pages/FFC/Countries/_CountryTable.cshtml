@@ -1,6 +1,7 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Countries.ManageModel
 
-<table class="table table-sm align-middle">
+<div class="table-responsive">
+<table class="table table-sm align-middle mb-0">
     <thead>
         <tr>
             <th>
@@ -36,9 +37,13 @@
         foreach (var country in Model.Countries)
         {
             <tr>
-                <td>@country.Name</td>
+                <td class="text-break" style="min-width:160px;">
+                    <span class="d-inline-block text-truncate w-100" style="max-width:260px;" data-bs-toggle="tooltip" data-bs-placement="top" title="@country.Name">@country.Name</span>
+                </td>
                 <td>@country.IsoCode</td>
-                <td>@(country.IsActive ? "Active" : "Inactive")</td>
+                <td class="text-center">
+                    <span class="badge @(country.IsActive ? "bg-success-subtle text-success-emphasis" : "bg-secondary-subtle text-secondary-emphasis")">@(country.IsActive ? "Active" : "Inactive")</span>
+                </td>
                 <td class="text-end">
                     <authorize roles="Admin,HoD">
                         <a asp-page="./Manage" asp-all-route-data="Model.BuildRouteForEdit(country.Id)" class="btn btn-link btn-sm">Edit</a>
@@ -53,6 +58,7 @@
     }
     </tbody>
 </table>
+</div>
 
 <nav aria-label="Countries pagination" class="mt-2">
     <ul class="pagination pagination-sm mb-0">
