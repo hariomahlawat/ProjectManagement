@@ -5,18 +5,18 @@
 }
 
 <div class="container-fluid py-3">
-    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
         <div>
             <p class="text-uppercase text-muted small mb-1">Project office reports</p>
-            <h1 class="h3 mb-1">Manage FFC records</h1>
+            <h1 class="h4 mb-2">Manage FFC records</h1>
             <nav aria-label="Breadcrumb">
-                <ol class="breadcrumb mb-2 small">
+                <ol class="breadcrumb mb-0 small">
                     <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
                     <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/FFC/Index">FFC simulators</a></li>
                     <li class="breadcrumb-item active" aria-current="page">Manage records</li>
                 </ol>
             </nav>
-            <p class="text-muted mb-0">Create, edit, or remove simulator delivery records and keep information up to date.</p>
+            <p class="text-muted mb-0 mt-2">Create, edit, or remove simulator delivery records and keep information up to date.</p>
         </div>
 
         <div class="d-flex flex-wrap gap-2">
@@ -30,64 +30,74 @@
     </div>
 
     <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
+    <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3" role="alert"></div>
 
     <div class="row g-4">
         <div class="col-xl-7">
-            <form method="get" class="row gy-2 gx-2 align-items-end mb-3">
-                <div class="col-md-6">
-                <label class="form-label" for="record-search">Search</label>
-                <input type="search" class="form-control" id="record-search" name="q" value="@Model.Query" />
-            </div>
-            <input type="hidden" name="page" value="1" />
-            <input type="hidden" name="sort" value="@Model.CurrentSort" />
-            <input type="hidden" name="dir" value="@Model.CurrentSortDirection" />
-            <div class="col-md-auto">
-                <button type="submit" class="btn btn-outline-primary">Search</button>
-                @if (Model.HasQuery)
-                {
-                    <a asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: 1, query: string.Empty)" class="btn btn-link">Clear</a>
-                }
-            </div>
-        </form>
-
-        <partial name="_RecordTable" model="Model" />
-    </div>
-
-    <div class="col-xl-5">
-        <authorize roles="Admin,HoD">
-            <div class="card">
-                <div class="card-header">
-                    @(Model.IsEditMode ? "Edit Record" : "New Record")
-                </div>
-                <div class="card-body">
-                    <form method="post" class="vstack gap-3">
-                        @if (Model.IsEditMode)
-                        {
-                            <input type="hidden" asp-for="Input.Id" />
-                        }
-                        @if (!Model.HasActiveCountries)
-                        {
-                            <div class="alert alert-info" role="alert">
-                                No active countries available. <a asp-page="../Countries/Manage" class="alert-link">Manage countries</a> to add one before creating records.
-                            </div>
-                        }
-                        <partial name="_RecordForm"
-                                 model="new ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.FfcRecordFormModel(Model.Input, Model.CountrySelect, Model.IsEditMode)" />
-                        <div class="d-flex gap-2">
-                            @if (Model.IsEditMode)
+            <div class="card pm-card pm-shadow h-100">
+                <div class="card-header pm-card-header border-0 pb-0">
+                    <form method="get" class="row gy-2 gx-2 align-items-end">
+                        <div class="col-md-6">
+                            <label class="form-label" for="record-search">Search</label>
+                            <input type="search" class="form-control" id="record-search" name="q" value="@Model.Query" />
+                        </div>
+                        <input type="hidden" name="page" value="1" />
+                        <input type="hidden" name="sort" value="@Model.CurrentSort" />
+                        <input type="hidden" name="dir" value="@Model.CurrentSortDirection" />
+                        <div class="col-md-auto">
+                            <button type="submit" class="btn btn-outline-primary">Search</button>
+                            @if (Model.HasQuery)
                             {
-                                <button type="submit" asp-page-handler="Update" class="btn btn-primary">Save changes</button>
-                                <a asp-page="Manage" asp-all-route-data="Model.BuildRoute(query: Model.Query)" class="btn btn-secondary">Cancel</a>
-                            }
-                            else
-                            {
-                                <button type="submit" asp-page-handler="Create" class="btn btn-primary" disabled="@(!Model.HasActiveCountries)">Create</button>
+                                <a asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: 1, query: string.Empty)" class="btn btn-link">Clear</a>
                             }
                         </div>
                     </form>
                 </div>
+                <div class="card-body pm-card-body pt-0">
+                    <partial name="_RecordTable" model="Model" />
+                </div>
             </div>
-        </authorize>
-    </div>
+        </div>
+
+        <div class="col-xl-5">
+            <authorize roles="Admin,HoD">
+                <div class="pm-card pm-shadow h-100">
+                    <div class="pm-card-header">
+                        <div class="pm-card-heading">
+                            <div>
+                                <h2 class="pm-card-title h5 mb-0">@(Model.IsEditMode ? "Edit record" : "New record")</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pm-card-body">
+                        <form method="post" class="vstack gap-3">
+                            @if (Model.IsEditMode)
+                            {
+                                <input type="hidden" asp-for="Input.Id" />
+                            }
+                            @if (!Model.HasActiveCountries)
+                            {
+                                <div class="alert alert-info" role="alert">
+                                    No active countries available. <a asp-page="../Countries/Manage" class="alert-link">Manage countries</a> to add one before creating records.
+                                </div>
+                            }
+                            <partial name="_RecordForm"
+                                     model="new ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.FfcRecordFormModel(Model.Input, Model.CountrySelect, Model.IsEditMode)" />
+                            <div class="d-flex gap-2">
+                                @if (Model.IsEditMode)
+                                {
+                                    <button type="submit" asp-page-handler="Update" class="btn btn-primary">Save changes</button>
+                                    <a asp-page="Manage" asp-all-route-data="Model.BuildRoute(query: Model.Query)" class="btn btn-secondary">Cancel</a>
+                                }
+                                else
+                                {
+                                    <button type="submit" asp-page-handler="Create" class="btn btn-primary" disabled="@(!Model.HasActiveCountries)">Create</button>
+                                }
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </authorize>
+        </div>
     </div>
 </div>
