@@ -98,8 +98,11 @@ public abstract class FfcRecordListPageModel : PageModel
             PageNumber = TotalPages;
         }
 
-        Records = await queryable
-            .AsSplitQuery()
+        var pagedQuery = Db.Database.IsRelational()
+            ? queryable.AsSplitQuery()
+            : queryable;
+
+        Records = await pagedQuery
             .AsNoTracking()
             .Skip((PageNumber - 1) * PageSize)
             .Take(PageSize)
