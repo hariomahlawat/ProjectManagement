@@ -5,113 +5,120 @@
     ViewData["Title"] = "FFC simulators";
 }
 
-<h1 class="h3 mb-3">FFC simulators</h1>
-<p class="text-muted">Review the status of FFC simulator deliveries by country and year. Use the filters below to locate specific entries.</p>
-
-@if (Model.CanManageRecords)
-{
-    <div class="mb-3 d-flex flex-wrap gap-2">
-        <a asp-area="ProjectOfficeReports" asp-page="/FFC/Records/Manage" class="btn btn-outline-secondary btn-sm">
-            Manage records
-        </a>
-        <a asp-area="ProjectOfficeReports" asp-page="/FFC/Countries/Manage" class="btn btn-outline-secondary btn-sm">
-            Manage countries
-        </a>
-    </div>
-}
-
-<partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
-
-<form method="get" class="row gy-2 gx-2 align-items-end mb-3">
-    <div class="col-md-6">
-        <label class="form-label" for="record-search">Search</label>
-        <input type="search" class="form-control" id="record-search" name="q" value="@Model.Query" />
-    </div>
-    <input type="hidden" name="page" value="1" />
-    <input type="hidden" name="sort" value="@Model.CurrentSort" />
-    <input type="hidden" name="dir" value="@Model.CurrentSortDirection" />
-    <div class="col-md-auto">
-        <button type="submit" class="btn btn-outline-primary">Search</button>
-        @if (Model.HasQuery)
+<section class="ffc-index">
+    <header class="ffc-index__header">
+        <div class="ffc-index__intro">
+            <span class="ffc-index__eyebrow">Project office report</span>
+            <h1 class="ffc-index__title">FFC simulators</h1>
+            <p class="ffc-index__description">Review the status of FFC simulator deliveries by country and year. Use the filters below to locate specific entries.</p>
+        </div>
+        @if (Model.CanManageRecords)
         {
-            <a asp-page="./Index" asp-all-route-data="Model.BuildRoute(page: 1, query: string.Empty)" class="btn btn-link">Clear</a>
-        }
-    </div>
-</form>
-
-<div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-    <div class="text-muted small">
-        Sorted by <span class="fw-semibold">@(Model.CurrentSort == "country" ? "Country" : "Year")</span>
-        (@(Model.CurrentSortDirection == "desc" ? "descending" : "ascending")).
-    </div>
-    <div class="btn-group btn-group-sm" role="group" aria-label="Sort records">
-        <a class="btn btn-outline-secondary @(Model.CurrentSort == "year" ? "active" : string.Empty)"
-           asp-page="./Index"
-           asp-all-route-data='Model.BuildRoute(page: 1, sort: "year", dir: Model.GetSortDirectionFor("year"))'>
-            <span class="d-inline-flex align-items-center gap-1">
-                <span>Year</span>
-                <i class='@Model.GetSortIconClass("year")'></i>
-            </span>
-        </a>
-        <a class="btn btn-outline-secondary @(Model.CurrentSort == "country" ? "active" : string.Empty)"
-           asp-page="./Index"
-           asp-all-route-data='Model.BuildRoute(page: 1, sort: "country", dir: Model.GetSortDirectionFor("country"))'>
-            <span class="d-inline-flex align-items-center gap-1">
-                <span>Country</span>
-                <i class='@Model.GetSortIconClass("country")'></i>
-            </span>
-        </a>
-    </div>
-</div>
-
-@if (Model.TotalCount > 0)
-{
-    <p class="text-muted small">Showing @Model.Records.Count of @Model.TotalCount record@(Model.TotalCount == 1 ? string.Empty : "s").</p>
-}
-
-@if (!Model.Records.Any())
-{
-    <div class="alert alert-secondary" role="status">
-        No records match your filters. Try adjusting the search term or resetting the filters.
-    </div>
-}
-else
-{
-    <div class="row row-cols-1 row-cols-xl-2 g-3">
-        @foreach (var record in Model.Records)
-        {
-            <div class="col d-flex">
-                @await Html.PartialAsync("_FfcRecordCard", new ProjectManagement.Areas.ProjectOfficeReports.ViewModels.FfcRecordCardViewModel
-                {
-                    Record = record,
-                    CanManageRecords = Model.CanManageRecords,
-                    PageNumber = Model.PageNumber,
-                    CurrentSort = Model.CurrentSort,
-                    CurrentSortDirection = Model.CurrentSortDirection,
-                    Query = Model.Query
-                })
+            <div class="ffc-index__actions">
+                <a asp-area="ProjectOfficeReports" asp-page="/FFC/Records/Manage" class="btn btn-outline-secondary btn-sm">Manage records</a>
+                <a asp-area="ProjectOfficeReports" asp-page="/FFC/Countries/Manage" class="btn btn-outline-secondary btn-sm">Manage countries</a>
             </div>
         }
-    </div>
-}
+    </header>
 
-<nav aria-label="Records pagination" class="mt-2">
-    <ul class="pagination pagination-sm mb-0">
-        <li class="page-item @(Model.PageNumber <= 1 ? "disabled" : string.Empty)">
-            <a class="page-link" asp-page="./Index" asp-all-route-data='Model.BuildRoute(page: Math.Max(1, Model.PageNumber - 1))' aria-label="Previous" tabindex="@(Model.PageNumber <= 1 ? -1 : 0)">
-                <span aria-hidden="true">&laquo;</span>
-            </a>
-        </li>
-        @for (var pageNumber = 1; pageNumber <= Model.TotalPages; pageNumber++)
-        {
-            <li class="page-item @(pageNumber == Model.PageNumber ? "active" : string.Empty)">
-                <a class="page-link" asp-page="./Index" asp-all-route-data='Model.BuildRoute(page: pageNumber)'>@pageNumber</a>
+    <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
+
+    <div class="pm-card pm-shadow ffc-index__filters">
+        <form method="get" class="ffc-index__filters-form">
+            <input type="hidden" name="page" value="1" />
+            <input type="hidden" name="sort" value="@Model.CurrentSort" />
+            <input type="hidden" name="dir" value="@Model.CurrentSortDirection" />
+
+            <div class="ffc-index__filters-grid">
+                <div class="ffc-index__filter ffc-index__filter--search">
+                    <label class="form-label" for="record-search">Search records</label>
+                    <input type="search" class="form-control" id="record-search" name="q" value="@Model.Query" />
+                </div>
+                <div class="ffc-index__filter ffc-index__filter--sort">
+                    <span class="ffc-index__filter-label">Sort by</span>
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Sort records">
+                        <a class="btn btn-outline-secondary @(Model.CurrentSort == "year" ? "active" : string.Empty)"
+                           asp-page="./Index"
+                           asp-all-route-data='Model.BuildRoute(page: 1, sort: "year", dir: Model.GetSortDirectionFor("year"))'>
+                            <span class="d-inline-flex align-items-center gap-1">
+                                <span>Year</span>
+                                <i class='@Model.GetSortIconClass("year")'></i>
+                            </span>
+                        </a>
+                        <a class="btn btn-outline-secondary @(Model.CurrentSort == "country" ? "active" : string.Empty)"
+                           asp-page="./Index"
+                           asp-all-route-data='Model.BuildRoute(page: 1, sort: "country", dir: Model.GetSortDirectionFor("country"))'>
+                            <span class="d-inline-flex align-items-center gap-1">
+                                <span>Country</span>
+                                <i class='@Model.GetSortIconClass("country")'></i>
+                            </span>
+                        </a>
+                    </div>
+                </div>
+                <div class="ffc-index__filter ffc-index__filter--actions">
+                    <button type="submit" class="btn btn-primary btn-sm">Search</button>
+                    @if (Model.HasQuery)
+                    {
+                        <a asp-page="./Index" asp-all-route-data="Model.BuildRoute(page: 1, query: string.Empty)" class="btn btn-link btn-sm">Clear</a>
+                    }
+                </div>
+            </div>
+
+            <div class="ffc-index__meta text-muted small">
+                <span>Sorted by <span class="fw-semibold">@(Model.CurrentSort == "country" ? "Country" : "Year")</span> (@(Model.CurrentSortDirection == "desc" ? "descending" : "ascending")).</span>
+                @if (Model.TotalCount > 0)
+                {
+                    <span class="ffc-index__meta-separator" aria-hidden="true">&middot;</span>
+                    <span>Showing @Model.Records.Count of @Model.TotalCount record@(Model.TotalCount == 1 ? string.Empty : "s").</span>
+                }
+            </div>
+        </form>
+    </div>
+
+    @if (!Model.Records.Any())
+    {
+        <div class="alert alert-secondary" role="status">
+            No records match your filters. Try adjusting the search term or resetting the filters.
+        </div>
+    }
+    else
+    {
+        <section class="ffc-record-grid" aria-label="FFC simulator records">
+            @foreach (var record in Model.Records)
+            {
+                <div class="ffc-record-grid__item">
+                    @await Html.PartialAsync("_FfcRecordCard", new ProjectManagement.Areas.ProjectOfficeReports.ViewModels.FfcRecordCardViewModel
+                    {
+                        Record = record,
+                        CanManageRecords = Model.CanManageRecords,
+                        PageNumber = Model.PageNumber,
+                        CurrentSort = Model.CurrentSort,
+                        CurrentSortDirection = Model.CurrentSortDirection,
+                        Query = Model.Query
+                    })
+                </div>
+            }
+        </section>
+    }
+
+    <nav aria-label="Records pagination" class="ffc-index__pagination">
+        <ul class="pagination pagination-sm mb-0">
+            <li class="page-item @(Model.PageNumber <= 1 ? "disabled" : string.Empty)">
+                <a class="page-link" asp-page="./Index" asp-all-route-data='Model.BuildRoute(page: Math.Max(1, Model.PageNumber - 1))' aria-label="Previous" tabindex="@(Model.PageNumber <= 1 ? -1 : 0)">
+                    <span aria-hidden="true">&laquo;</span>
+                </a>
             </li>
-        }
-        <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : string.Empty)">
-            <a class="page-link" asp-page="./Index" asp-all-route-data='Model.BuildRoute(page: Math.Min(Model.TotalPages, Model.PageNumber + 1))' aria-label="Next" tabindex="@(Model.PageNumber >= Model.TotalPages ? -1 : 0)">
-                <span aria-hidden="true">&raquo;</span>
-            </a>
-        </li>
-    </ul>
-</nav>
+            @for (var pageNumber = 1; pageNumber <= Model.TotalPages; pageNumber++)
+            {
+                <li class="page-item @(pageNumber == Model.PageNumber ? "active" : string.Empty)">
+                    <a class="page-link" asp-page="./Index" asp-all-route-data='Model.BuildRoute(page: pageNumber)'>@pageNumber</a>
+                </li>
+            }
+            <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : string.Empty)">
+                <a class="page-link" asp-page="./Index" asp-all-route-data='Model.BuildRoute(page: Math.Min(Model.TotalPages, Model.PageNumber + 1))' aria-label="Next" tabindex="@(Model.PageNumber >= Model.TotalPages ? -1 : 0)">
+                    <span aria-hidden="true">&raquo;</span>
+                </a>
+            </li>
+        </ul>
+    </nav>
+</section>
