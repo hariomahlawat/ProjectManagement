@@ -222,48 +222,10 @@ body {
     gap: 1.5rem;
 }
 
-.ffc-index__header {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1.5rem;
-}
-
-.ffc-index__intro {
+.ffc-index__support {
     display: flex;
     flex-direction: column;
-    gap: .75rem;
-    max-width: 42rem;
-}
-
-.ffc-index__eyebrow {
-    font-size: .75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .08em;
-    color: var(--pm-muted);
-}
-
-.ffc-index__title {
-    margin: 0;
-    font-size: clamp(1.5rem, 1.5vw + 1.2rem, 2.25rem);
-    font-weight: 600;
-    color: var(--pm-text);
-}
-
-.ffc-index__description {
-    margin: 0;
-    font-size: 1rem;
-    line-height: 1.6;
-    color: var(--pm-text-secondary);
-}
-
-.ffc-index__actions {
-    display: flex;
-    flex-wrap: wrap;
     gap: .5rem;
-    align-items: center;
 }
 
 .ffc-index__filters {
