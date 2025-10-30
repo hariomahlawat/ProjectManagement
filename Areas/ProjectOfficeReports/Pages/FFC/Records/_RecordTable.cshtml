@@ -1,81 +1,129 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.ManageModel
 
-<table class="table table-sm align-middle">
-    <thead>
-        <tr>
-            <th>
-                <a asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: 1, sort: "year", dir: Model.GetSortDirectionFor("year"))' class="text-decoration-none d-inline-flex align-items-center gap-1">
-                    <span>Year</span>
-                    <i class='@Model.GetSortIconClass("year")'></i>
-                </a>
-            </th>
-            <th>
-                <a asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: 1, sort: "country", dir: Model.GetSortDirectionFor("country"))' class="text-decoration-none d-inline-flex align-items-center gap-1">
-                    <span>Country</span>
-                    <i class='@Model.GetSortIconClass("country")'></i>
-                </a>
-            </th>
-            <th>IPA</th>
-            <th>GSL</th>
-            <th>Delivery</th>
-            <th>Installation</th>
-            <th>Remarks</th>
-            <th class="text-end">Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-    @if (!Model.Records.Any())
-    {
-        <tr>
-            <td colspan="8" class="text-center text-muted">No records found.</td>
-        </tr>
-    }
-    else
-    {
-        foreach (var record in Model.Records)
-        {
-            <tr>
-                <td>@record.Year</td>
-                <td>@record.Country?.Name</td>
-                <td>@(record.IpaYes ? (record.IpaDate?.ToString() ?? "Yes") : "No")</td>
-                <td>@(record.GslYes ? (record.GslDate?.ToString() ?? "Yes") : "No")</td>
-                <td>@(record.DeliveryYes ? (record.DeliveryDate?.ToString() ?? "Yes") : "No")</td>
-                <td>@(record.InstallationYes ? (record.InstallationDate?.ToString() ?? "Yes") : "No")</td>
-                <td class="text-truncate" style="max-width:220px;" title="@record.OverallRemarks">@record.OverallRemarks</td>
-                <td class="text-end">
-                    <authorize roles="Admin,HoD">
-                        <a asp-page="./Manage" asp-all-route-data="Model.BuildRouteForEdit(record.Id)" class="btn btn-link btn-sm">Edit</a>
-                    </authorize>
-                    <a asp-page="./Projects/Manage" asp-route-recordId="@record.Id" class="btn btn-link btn-sm">Projects</a>
-                    <a asp-page="./Attachments/Upload" asp-route-recordId="@record.Id" class="btn btn-link btn-sm">Attachments</a>
-                    @if (!(User.IsInRole("Admin") || User.IsInRole("HoD")))
-                    {
-                        <span class="text-muted">Read only</span>
-                    }
-                </td>
-            </tr>
-        }
-    }
-    </tbody>
-</table>
-
-<nav aria-label="Records pagination" class="mt-2">
-    <ul class="pagination pagination-sm mb-0">
-        <li class="page-item @(Model.PageNumber <= 1 ? "disabled" : string.Empty)">
-            <a class="page-link" asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: Math.Max(1, Model.PageNumber - 1))' aria-label="Previous" tabindex="@(Model.PageNumber <= 1 ? -1 : 0)">
-                <span aria-hidden="true">&laquo;</span>
-            </a>
-        </li>
-        @for (var pageNumber = 1; pageNumber <= Model.TotalPages; pageNumber++)
-        {
-            <li class="page-item @(pageNumber == Model.PageNumber ? "active" : string.Empty)">
-                <a class="page-link" asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: pageNumber)'>@pageNumber</a>
-            </li>
-        }
-        <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : string.Empty)">
-            <a class="page-link" asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: Math.Min(Model.TotalPages, Model.PageNumber + 1))' aria-label="Next" tabindex="@(Model.PageNumber >= Model.TotalPages ? -1 : 0)">
-                <span aria-hidden="true">&raquo;</span>
-            </a>
-        </li>
-    </ul>
-</nav>
+<div class="pm-table-card">
+    <div class="pm-table-scroll">
+        <table class="pm-data-table">
+            <thead>
+                <tr>
+                    <th>
+                        <a asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: 1, sort: "year", dir: Model.GetSortDirectionFor("year"))' class="text-decoration-none d-inline-flex align-items-center gap-1">
+                            <span>Year</span>
+                            <i class='@Model.GetSortIconClass("year")'></i>
+                        </a>
+                    </th>
+                    <th>
+                        <a asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: 1, sort: "country", dir: Model.GetSortDirectionFor("country"))' class="text-decoration-none d-inline-flex align-items-center gap-1">
+                            <span>Country</span>
+                            <i class='@Model.GetSortIconClass("country")'></i>
+                        </a>
+                    </th>
+                    <th>IPA</th>
+                    <th>GSL</th>
+                    <th>Delivery</th>
+                    <th>Installation</th>
+                    <th>Remarks</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            @if (!Model.Records.Any())
+            {
+                <tr>
+                    <td colspan="8" class="text-center text-muted py-4">No records found.</td>
+                </tr>
+            }
+            else
+            {
+                foreach (var record in Model.Records)
+                {
+                    <tr>
+                        <td><span class="fw-semibold text-dark">@record.Year</span></td>
+                        <td>@record.Country?.Name</td>
+                        <td>
+                            <div class="d-flex flex-column gap-1">
+                                <span class="pm-status-chip @(record.IpaYes ? "pm-status-positive" : "pm-status-neutral")">@(record.IpaYes ? "Complete" : "Pending")</span>
+                                @if (record.IpaDate.HasValue)
+                                {
+                                    <span class="text-muted small">@record.IpaDate</span>
+                                }
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex flex-column gap-1">
+                                <span class="pm-status-chip @(record.GslYes ? "pm-status-positive" : "pm-status-neutral")">@(record.GslYes ? "Complete" : "Pending")</span>
+                                @if (record.GslDate.HasValue)
+                                {
+                                    <span class="text-muted small">@record.GslDate</span>
+                                }
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex flex-column gap-1">
+                                <span class="pm-status-chip @(record.DeliveryYes ? "pm-status-positive" : "pm-status-neutral")">@(record.DeliveryYes ? "Complete" : "Pending")</span>
+                                @if (record.DeliveryDate.HasValue)
+                                {
+                                    <span class="text-muted small">@record.DeliveryDate</span>
+                                }
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex flex-column gap-1">
+                                <span class="pm-status-chip @(record.InstallationYes ? "pm-status-positive" : "pm-status-neutral")">@(record.InstallationYes ? "Complete" : "Pending")</span>
+                                @if (record.InstallationDate.HasValue)
+                                {
+                                    <span class="text-muted small">@record.InstallationDate</span>
+                                }
+                            </div>
+                        </td>
+                        <td>
+                            @if (string.IsNullOrWhiteSpace(record.OverallRemarks))
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                            else
+                            {
+                                <span class="d-inline-block text-truncate" style="max-width: 240px;" title="@record.OverallRemarks">@record.OverallRemarks</span>
+                            }
+                        </td>
+                        <td class="text-end">
+                            <div class="d-inline-flex flex-wrap justify-content-end gap-1">
+                                <authorize roles="Admin,HoD">
+                                    <a asp-page="./Manage" asp-all-route-data="Model.BuildRouteForEdit(record.Id)" class="pm-button pm-button-ghost pm-button-sm">Edit</a>
+                                </authorize>
+                                <a asp-page="./Projects/Manage" asp-route-recordId="@record.Id" class="pm-button pm-button-ghost pm-button-sm">Projects</a>
+                                <a asp-page="./Attachments/Upload" asp-route-recordId="@record.Id" class="pm-button pm-button-ghost pm-button-sm">Attachments</a>
+                                @if (!(User.IsInRole("Admin") || User.IsInRole("HoD")))
+                                {
+                                    <span class="text-muted small">Read only</span>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+    <div class="pm-table-footer pm-pagination">
+        <nav aria-label="Records pagination">
+            <ul class="pagination pagination-sm">
+                <li class="page-item @(Model.PageNumber <= 1 ? "disabled" : string.Empty)">
+                    <a class="page-link" asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: Math.Max(1, Model.PageNumber - 1))' aria-label="Previous" tabindex="@(Model.PageNumber <= 1 ? -1 : 0)">
+                        <span aria-hidden="true">&laquo;</span>
+                    </a>
+                </li>
+                @for (var pageNumber = 1; pageNumber <= Model.TotalPages; pageNumber++)
+                {
+                    <li class="page-item @(pageNumber == Model.PageNumber ? "active" : string.Empty)">
+                        <a class="page-link" asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: pageNumber)'>@pageNumber</a>
+                    </li>
+                }
+                <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : string.Empty)">
+                    <a class="page-link" asp-page="./Manage" asp-all-route-data='Model.BuildRoute(page: Math.Min(Model.TotalPages, Model.PageNumber + 1))' aria-label="Next" tabindex="@(Model.PageNumber >= Model.TotalPages ? -1 : 0)">
+                        <span aria-hidden="true">&raquo;</span>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+</div>

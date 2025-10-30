@@ -1,4 +1,5 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.ViewModels.FfcRecordCardViewModel
+@using System
 @using System.Globalization
 @using System.Linq
 @using ProjectManagement.Areas.ProjectOfficeReports.Domain
@@ -6,10 +7,10 @@
     var record = Model.Record;
     var milestoneStatuses = new[]
     {
-        new { Title = "IPA", IsComplete = record.IpaYes, Date = record.IpaDate, Remarks = record.IpaRemarks },
-        new { Title = "GSL", IsComplete = record.GslYes, Date = record.GslDate, Remarks = record.GslRemarks },
-        new { Title = "Delivery", IsComplete = record.DeliveryYes, Date = record.DeliveryDate, Remarks = record.DeliveryRemarks },
-        new { Title = "Installation", IsComplete = record.InstallationYes, Date = record.InstallationDate, Remarks = record.InstallationRemarks }
+        new { Title = "IPA", Icon = "bi bi-briefcase-check", IsComplete = record.IpaYes, Date = record.IpaDate, Remarks = record.IpaRemarks },
+        new { Title = "GSL", Icon = "bi bi-clipboard-check", IsComplete = record.GslYes, Date = record.GslDate, Remarks = record.GslRemarks },
+        new { Title = "Delivery", Icon = "bi bi-truck", IsComplete = record.DeliveryYes, Date = record.DeliveryDate, Remarks = record.DeliveryRemarks },
+        new { Title = "Installation", Icon = "bi bi-hammer", IsComplete = record.InstallationYes, Date = record.InstallationDate, Remarks = record.InstallationRemarks }
     };
 
     var projects = record.Projects
@@ -21,45 +22,62 @@
     var pdfCount = attachments.Count(a => a.Kind == FfcAttachmentKind.Pdf);
     var photoCount = attachments.Count(a => a.Kind == FfcAttachmentKind.Photo);
 
+    var completedMilestones = milestoneStatuses.Count(status => status.IsComplete);
+    var milestoneCount = milestoneStatuses.Length;
+    var completionPercent = milestoneCount == 0 ? 0 : (int)Math.Round((double)completedMilestones / milestoneCount * 100, MidpointRounding.AwayFromZero);
+
     static string FormatDate(DateOnly? value) => value?.ToString("d MMM yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
 }
 
-<div class="card pm-card pm-shadow h-100 ffc-record-card">
-    <div class="card-header pm-card-header">
-        <div class="d-flex flex-column gap-2">
-            <div class="d-flex flex-wrap align-items-center gap-2">
-                <span class="badge text-bg-primary">@record.Year</span>
-                <h2 class="h5 mb-0">@record.Country?.Name</h2>
-            </div>
-            <div class="text-muted small">Review the delivery progress and linked projects for this country-year pairing.</div>
+<div class="pm-card pm-shadow h-100 ffc-record-card">
+    <div class="pm-card-header ffc-record-card-header">
+        <div class="ffc-record-card-identity">
+            <span class="pm-badge">FY @record.Year</span>
+            <h2 class="h5 mb-0">@record.Country?.Name</h2>
+        </div>
+        <div class="ffc-record-card-progress">
+            <div class="ffc-record-card-progress-bar" style="width: @completionPercent%"></div>
+        </div>
+        <div class="ffc-record-card-progress-meta">
+            <span class="ffc-record-card-progress-value">@completedMilestones / @milestoneCount milestones complete</span>
+            <span class="ffc-record-card-progress-percentage">@completionPercent%</span>
         </div>
     </div>
-    <div class="card-body pm-card-body d-flex flex-column">
-        <div class="ffc-record-card-statuses">
+    <div class="pm-card-body ffc-record-card-body">
+        <div class="ffc-record-card-status-list">
             @foreach (var status in milestoneStatuses)
             {
                 var dateText = FormatDate(status.Date);
-                <div class="ffc-record-card-status">
-                    <div class="ffc-record-card-status-title">@status.Title</div>
-                    <div class="ffc-record-card-status-value">
-                        <span class="badge rounded-pill @(status.IsComplete ? "text-bg-success" : "text-bg-secondary")">
-                            @(status.IsComplete ? "Yes" : "No")
-                        </span>
-                        @if (!string.IsNullOrWhiteSpace(dateText))
+                var statusClass = status.IsComplete ? "is-complete" : "is-pending";
+                <article class="ffc-record-card-status @statusClass">
+                    <div class="ffc-record-card-status-icon" aria-hidden="true">
+                        <i class="@status.Icon"></i>
+                    </div>
+                    <div class="ffc-record-card-status-content">
+                        <div class="ffc-record-card-status-title">@status.Title</div>
+                        <div class="ffc-record-card-status-meta">
+                            <span class="pm-status-chip @(status.IsComplete ? "pm-status-positive" : "pm-status-neutral")">
+                                @(status.IsComplete ? "Complete" : "Pending")
+                            </span>
+                            @if (!string.IsNullOrWhiteSpace(dateText))
+                            {
+                                <span class="ffc-record-card-status-date">@dateText</span>
+                            }
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(status.Remarks))
                         {
-                            <span class="ffc-record-card-status-date">@dateText</span>
+                            <p class="ffc-record-card-status-remarks mb-0">@status.Remarks</p>
                         }
                     </div>
-                    @if (!string.IsNullOrWhiteSpace(status.Remarks))
-                    {
-                        <p class="ffc-record-card-status-remarks mb-0">@status.Remarks</p>
-                    }
-                </div>
+                </article>
             }
         </div>
 
-        <div class="ffc-record-card-section mt-4">
-            <h3 class="ffc-record-card-section-title">Overall remarks</h3>
+        <section class="ffc-record-card-section">
+            <header class="ffc-record-card-section-header">
+                <h3 class="ffc-record-card-section-title">Overall remarks</h3>
+                <span class="ffc-record-card-section-meta">Context &amp; follow-ups</span>
+            </header>
             @if (string.IsNullOrWhiteSpace(record.OverallRemarks))
             {
                 <p class="text-muted small mb-0">No overall remarks recorded.</p>
@@ -68,10 +86,13 @@
             {
                 <p class="mb-0">@record.OverallRemarks</p>
             }
-        </div>
+        </section>
 
-        <div class="ffc-record-card-section mt-4">
-            <h3 class="ffc-record-card-section-title">Projects</h3>
+        <section class="ffc-record-card-section">
+            <header class="ffc-record-card-section-header">
+                <h3 class="ffc-record-card-section-title">Projects</h3>
+                <span class="ffc-record-card-section-meta">@projects.Count linked</span>
+            </header>
             @if (projects.Count == 0)
             {
                 <p class="text-muted small mb-0">No projects linked yet.</p>
@@ -82,27 +103,30 @@
                     @foreach (var project in projects.Take(3))
                     {
                         <li class="ffc-record-card-project">
-                            <span class="fw-semibold">@project.Name</span>
+                            <div class="ffc-record-card-project-name">@project.Name</div>
                             @if (project.LinkedProject is not null)
                             {
-                                <span class="text-muted">(@project.LinkedProject.Name)</span>
+                                <div class="ffc-record-card-project-linked text-muted">Linked: @project.LinkedProject.Name</div>
                             }
                             @if (!string.IsNullOrWhiteSpace(project.Remarks))
                             {
-                                <div class="ffc-record-card-project-remarks small text-muted">@project.Remarks</div>
+                                <div class="ffc-record-card-project-remarks">@project.Remarks</div>
                             }
                         </li>
                     }
                 </ul>
                 @if (projects.Count > 3)
                 {
-                    <p class="text-muted small mt-2 mb-0">+@(projects.Count - 3) more project(s)</p>
+                    <p class="text-muted small mt-2 mb-0">+@(projects.Count - 3) additional project@(projects.Count - 3 == 1 ? string.Empty : "s")</p>
                 }
             }
-        </div>
+        </section>
 
-        <div class="ffc-record-card-section mt-4">
-            <h3 class="ffc-record-card-section-title">Attachments</h3>
+        <section class="ffc-record-card-section">
+            <header class="ffc-record-card-section-header">
+                <h3 class="ffc-record-card-section-title">Attachments</h3>
+                <span class="ffc-record-card-section-meta">@attachmentCount item@(attachmentCount == 1 ? string.Empty : "s")</span>
+            </header>
             @if (attachmentCount == 0)
             {
                 <p class="text-muted small mb-0">No attachments uploaded.</p>
@@ -115,19 +139,18 @@
                     .Where(part => !string.IsNullOrWhiteSpace(part))
                     .ToArray();
                 <p class="small mb-0">
-                    <span class="fw-semibold">@attachmentCount</span> attachment@(attachmentCount == 1 ? string.Empty : "s")
-                    @if (parts.Length > 0)
+                    Ready for review @if (parts.Length > 0)
                     {
                         <span class="text-muted">(@string.Join(" • ", parts))</span>
                     }
                 </p>
             }
-        </div>
+        </section>
 
-        <div class="mt-4 pt-2">
+        <footer class="ffc-record-card-footer">
             @if (Model.CanManageRecords)
             {
-                <div class="d-flex flex-wrap gap-2">
+                <div class="pm-page-actions">
                     <a asp-area="ProjectOfficeReports"
                        asp-page="/FFC/Records/Manage"
                        asp-route-editId="@record.Id"
@@ -135,21 +158,30 @@
                        asp-route-sort="@Model.CurrentSort"
                        asp-route-dir="@Model.CurrentSortDirection"
                        asp-route-q="@Model.Query"
-                       class="btn btn-outline-primary btn-sm">Manage record</a>
+                       class="pm-button pm-button-primary">
+                        <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                        Manage record
+                    </a>
                     <a asp-area="ProjectOfficeReports"
                        asp-page="/FFC/Records/Projects/Manage"
                        asp-route-recordId="@record.Id"
-                       class="btn btn-outline-secondary btn-sm">Projects</a>
+                       class="pm-button pm-button-secondary">
+                        <i class="bi bi-diagram-3" aria-hidden="true"></i>
+                        Projects
+                    </a>
                     <a asp-area="ProjectOfficeReports"
                        asp-page="/FFC/Records/Attachments/Upload"
                        asp-route-recordId="@record.Id"
-                       class="btn btn-outline-secondary btn-sm">Attachments</a>
+                       class="pm-button pm-button-ghost">
+                        <i class="bi bi-paperclip" aria-hidden="true"></i>
+                        Attachments
+                    </a>
                 </div>
             }
             else
             {
                 <p class="text-muted small mb-0">You have read-only access to this record.</p>
             }
-        </div>
+        </footer>
     </div>
 </div>

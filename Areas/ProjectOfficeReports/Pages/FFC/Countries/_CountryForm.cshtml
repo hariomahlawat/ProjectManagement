@@ -1,21 +1,21 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Countries.ManageModel.InputModel
 
-<div>
+<div class="pm-form-field">
     <label asp-for="Name" class="form-label">Name</label>
     <input asp-for="Name" class="form-control" />
     <span asp-validation-for="Name" class="text-danger"></span>
 </div>
 
-<div>
-    <label asp-for="IsoCode" class="form-label">ISO Code (optional)</label>
-    <input asp-for="IsoCode" class="form-control" />
-    <span class="form-text">Three letters, e.g., IND</span>
+<div class="pm-form-field">
+    <label asp-for="IsoCode" class="form-label">ISO code</label>
+    <input asp-for="IsoCode" class="form-control" placeholder="e.g. IND" />
+    <span class="form-text">Three letters (ISO 3166-1 alpha-3).</span>
     <span asp-validation-for="IsoCode" class="text-danger"></span>
 </div>
 
 @if (Model.Id.HasValue)
 {
-    <div class="form-check mt-2">
+    <div class="form-check form-switch pm-form-switch">
         <input class="form-check-input" asp-for="IsActive" />
         <label class="form-check-label" asp-for="IsActive">Active</label>
     </div>

@@ -1,76 +1,90 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.ManageModel
 @{
-    ViewData["Title"] = "FFC Records";
+    ViewData["Title"] = "Friendly Foreign Countries records";
 }
 
-<h1 class="h3 mb-3">FFC Records</h1>
-<div class="mb-3 d-flex flex-wrap gap-2">
-    <a asp-area="ProjectOfficeReports" asp-page="/FFC/Index" class="btn btn-outline-secondary btn-sm">
-        View overview
-    </a>
-    <a asp-area="ProjectOfficeReports" asp-page="/FFC/Countries/Manage" class="btn btn-outline-secondary btn-sm">
-        Manage countries
-    </a>
-</div>
-<partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
+<section class="pm-page">
+    <header class="pm-page-header">
+        <div>
+            <span class="pm-pill">Friendly Foreign Countries administration</span>
+            <h1 class="pm-page-title">Friendly Foreign Countries record workspace</h1>
+            <p class="pm-page-subtitle">Add, update, and audit simulator milestones in a focused view that keeps filters, data grid, and form tools side-by-side.</p>
+        </div>
+        <div class="pm-page-actions">
+            <a asp-area="ProjectOfficeReports" asp-page="/FFC/Index" class="pm-button pm-button-secondary">
+                <i class="bi bi-grid" aria-hidden="true"></i>
+                View overview
+            </a>
+            <a asp-area="ProjectOfficeReports" asp-page="/FFC/Countries/Manage" class="pm-button pm-button-ghost">
+                <i class="bi bi-geo-alt" aria-hidden="true"></i>
+                Manage countries
+            </a>
+        </div>
+    </header>
 
-<div class="row g-4">
-    <div class="col-xl-7">
-        <form method="get" class="row gy-2 gx-2 align-items-end mb-3">
-            <div class="col-md-6">
-                <label class="form-label" for="record-search">Search</label>
-                <input type="search" class="form-control" id="record-search" name="q" value="@Model.Query" />
-            </div>
-            <input type="hidden" name="page" value="1" />
-            <input type="hidden" name="sort" value="@Model.CurrentSort" />
-            <input type="hidden" name="dir" value="@Model.CurrentSortDirection" />
-            <div class="col-md-auto">
-                <button type="submit" class="btn btn-outline-primary">Search</button>
-                @if (Model.HasQuery)
-                {
-                    <a asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: 1, query: string.Empty)" class="btn btn-link">Clear</a>
-                }
-            </div>
-        </form>
+    <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
 
-        <partial name="_RecordTable" model="Model" />
-    </div>
-
-    <div class="col-xl-5">
-        <authorize roles="Admin,HoD">
-            <div class="card">
-                <div class="card-header">
-                    @(Model.IsEditMode ? "Edit Record" : "New Record")
+    <div class="pm-split pm-split-narrow">
+        <div class="pm-surface-block">
+            <form method="get" class="pm-filter-bar" aria-label="Filter records">
+                <div class="pm-filter-meta">Quick search</div>
+                <div class="pm-filter-grid">
+                    <div class="pm-form-field">
+                        <label class="form-label" for="record-search">Search</label>
+                        <input type="search" class="form-control" id="record-search" name="q" value="@Model.Query" placeholder="Country, remarks, year…" />
+                    </div>
                 </div>
-                <div class="card-body">
-                    <form method="post" class="vstack gap-3">
-                        @if (Model.IsEditMode)
-                        {
-                            <input type="hidden" asp-for="Input.Id" />
-                        }
-                        @if (!Model.HasActiveCountries)
-                        {
-                            <div class="alert alert-info" role="alert">
-                                No active countries available. <a asp-page="../Countries/Manage" class="alert-link">Manage countries</a> to add one before creating records.
-                            </div>
-                        }
-                        <partial name="_RecordForm"
-                                 model="new ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.FfcRecordFormModel(Model.Input, Model.CountrySelect, Model.IsEditMode)" />
-                        <div class="d-flex gap-2">
+                <input type="hidden" name="page" value="1" />
+                <input type="hidden" name="sort" value="@Model.CurrentSort" />
+                <input type="hidden" name="dir" value="@Model.CurrentSortDirection" />
+                <div class="pm-filter-actions">
+                    <button type="submit" class="pm-button pm-button-primary">Search</button>
+                    @if (Model.HasQuery)
+                    {
+                        <a asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: 1, query: string.Empty)" class="pm-button pm-button-ghost">Clear</a>
+                    }
+                </div>
+            </form>
+
+            <partial name="_RecordTable" model="Model" />
+        </div>
+
+        <div>
+            <authorize roles="Admin,HoD">
+                <div class="pm-form-card">
+                    <div class="pm-card-header">
+                        @(Model.IsEditMode ? "Edit record" : "Create record")
+                    </div>
+                    <div class="pm-card-body">
+                        <form method="post" class="pm-form">
                             @if (Model.IsEditMode)
                             {
-                                <button type="submit" asp-page-handler="Update" class="btn btn-primary">Save changes</button>
-                                <a asp-page="Manage" asp-all-route-data="Model.BuildRoute(query: Model.Query)" class="btn btn-secondary">Cancel</a>
+                                <input type="hidden" asp-for="Input.Id" />
                             }
-                            else
+                            @if (!Model.HasActiveCountries)
                             {
-                                <button type="submit" asp-page-handler="Create" class="btn btn-primary" disabled="@(!Model.HasActiveCountries)">Create</button>
+                                <div class="alert alert-info" role="alert">
+                                    No active countries available. <a asp-page="../Countries/Manage" class="alert-link">Manage countries</a> to add one before creating records.
+                                </div>
                             }
-                        </div>
-                    </form>
+                            <partial name="_RecordForm"
+                                     model="new ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.FfcRecordFormModel(Model.Input, Model.CountrySelect, Model.IsEditMode)" />
+                            <div class="pm-form-footer">
+                                @if (Model.IsEditMode)
+                                {
+                                    <button type="submit" asp-page-handler="Update" class="pm-button pm-button-primary">Save changes</button>
+                                    <a asp-page="Manage" asp-all-route-data="Model.BuildRoute(query: Model.Query)" class="pm-button pm-button-ghost">Cancel</a>
+                                }
+                                else
+                                {
+                                    <button type="submit" asp-page-handler="Create" class="pm-button pm-button-primary" disabled="@(!Model.HasActiveCountries)">Create record</button>
+                                }
+                            </div>
+                        </form>
+                    </div>
                 </div>
-            </div>
-        </authorize>
+            </authorize>
+        </div>
     </div>
-</div>
+</section>

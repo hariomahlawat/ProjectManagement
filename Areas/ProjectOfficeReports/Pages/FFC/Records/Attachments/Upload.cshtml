@@ -2,68 +2,103 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.Attachments.UploadModel
 @using System
 @using ProjectManagement.Helpers
-@{ 
-    ViewData["Title"] = "FFC Attachments";
+@{
+    ViewData["Title"] = "Friendly Foreign Countries attachments";
 
     var maxFileSizeText = FileSizeFormatter.FormatFileSize(Model.MaxFileSizeBytes);
     string FormatFileSize(long bytes) => FileSizeFormatter.FormatFileSize(bytes);
 }
-<h1 class="h5 mb-2">Attachments for @Model.Record.Country.Name (@Model.Record.Year)</h1>
-<partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
+<section class="pm-page">
+    <header class="pm-page-header">
+        <div>
+            <span class="pm-pill">Friendly Foreign Countries records</span>
+            <h1 class="pm-page-title">Attachments for @Model.Record.Country.Name (@Model.Record.Year)</h1>
+            <p class="pm-page-subtitle">Review supporting documents and imagery linked to this simulator record, or upload new files for collaboration.</p>
+        </div>
+        <div class="pm-page-actions">
+            <a asp-page="../Manage" asp-route-editId="@Model.Record.Id" class="pm-button pm-button-ghost">
+                <i class="bi bi-arrow-left" aria-hidden="true"></i>
+                Back to record
+            </a>
+        </div>
+    </header>
 
-<div class="row g-4">
-    <div class="col-lg-6">
-        <table class="table table-sm">
-            <thead><tr><th>Kind</th><th>Caption</th><th>Type</th><th>Size</th><th class="text-end">Actions</th></tr></thead>
-            <tbody>
-            @foreach (var a in Model.Items)
-            {
-                <tr>
-                    <td>@a.Kind</td>
-                    <td>@a.Caption</td>
-                    <td>@a.ContentType</td>
-                    <td>@FormatFileSize(a.SizeBytes)</td>
-                    <td class="text-end">
-                        <authorize roles="Admin,HoD">
-                            <form method="post" asp-page-handler="Delete" asp-route-recordId="@Model.Record.Id" asp-route-id="@a.Id" class="d-inline">
-                                <button class="btn btn-link btn-sm" type="submit">Delete</button>
-                            </form>
-                        </authorize>
-                    </td>
-                </tr>
-            }
-            </tbody>
-        </table>
-        <a asp-page="../Manage" asp-route-editId="@Model.Record.Id" class="btn btn-secondary btn-sm">Back</a>
-    </div>
+    <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
 
-    <div class="col-lg-6">
+    <div class="pm-split">
+        <div class="pm-table-card">
+            <div class="pm-table-scroll">
+                <table class="pm-data-table">
+                    <thead>
+                        <tr>
+                            <th>Kind</th>
+                            <th>Caption</th>
+                            <th>Type</th>
+                            <th>Size</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @if (!Model.Items.Any())
+                    {
+                        <tr>
+                            <td colspan="5" class="text-center text-muted py-4">No attachments uploaded yet.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        foreach (var a in Model.Items)
+                        {
+                            <tr>
+                                <td>
+                                    <span class="pm-status-chip pm-status-neutral text-uppercase">@a.Kind</span>
+                                </td>
+                                <td>@(string.IsNullOrWhiteSpace(a.Caption) ? "—" : a.Caption)</td>
+                                <td>@a.ContentType</td>
+                                <td>@FormatFileSize(a.SizeBytes)</td>
+                                <td class="text-end">
+                                    <authorize roles="Admin,HoD">
+                                        <form method="post" asp-page-handler="Delete" asp-route-recordId="@Model.Record.Id" asp-route-id="@a.Id" class="d-inline">
+                                            <button class="pm-button pm-button-ghost pm-button-sm" type="submit">Delete</button>
+                                        </form>
+                                    </authorize>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <authorize roles="Admin,HoD">
-            <div class="card">
-                <div class="card-header">Upload</div>
-                <div class="card-body">
-                    <form method="post" enctype="multipart/form-data">
-                        <div class="mb-3">
+            <div class="pm-form-card">
+                <div class="pm-card-header">Upload attachment</div>
+                <div class="pm-card-body">
+                    <form method="post" enctype="multipart/form-data" class="pm-form">
+                        <div class="pm-form-field">
                             <label asp-for="UploadFile" class="form-label">File</label>
                             <input asp-for="UploadFile" type="file" class="form-control" />
                             <span asp-validation-for="UploadFile" class="text-danger"></span>
                             <span class="form-text text-muted">Maximum size @maxFileSizeText.</span>
                         </div>
-                        <div class="mb-3">
+                        <div class="pm-form-field">
                             <label asp-for="Kind" class="form-label">Kind</label>
                             <select asp-for="Kind" class="form-select">
                                 <option value="0">PDF</option>
-                                <option value="1">PHOTO</option>
+                                <option value="1">Photo</option>
                             </select>
                         </div>
-                        <div class="mb-3">
+                        <div class="pm-form-field">
                             <label asp-for="Caption" class="form-label">Caption (optional)</label>
-                            <input asp-for="Caption" class="form-control" />
+                            <input asp-for="Caption" class="form-control" placeholder="Brief description" />
                         </div>
-                        <button type="submit" asp-page-handler="Upload" asp-route-recordId="@Model.Record.Id" class="btn btn-primary">Upload</button>
+                        <div class="pm-form-footer">
+                            <button type="submit" asp-page-handler="Upload" asp-route-recordId="@Model.Record.Id" class="pm-button pm-button-primary">Upload file</button>
+                        </div>
                     </form>
                 </div>
             </div>
         </authorize>
     </div>
-</div>
+</section>

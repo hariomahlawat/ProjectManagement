@@ -1,104 +1,107 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.FfcRecordFormModel
 
-<div>
-    <label class="form-label">Country</label>
+<div class="pm-form-field">
+    <label class="form-label" asp-for="Input.CountryId">Country</label>
     <select asp-for="Input.CountryId" class="form-select" asp-items="Model.CountryList"></select>
     <span asp-validation-for="Input.CountryId" class="text-danger"></span>
 </div>
 
-<div>
+<div class="pm-form-field">
     <label asp-for="Input.Year" class="form-label">Year</label>
     <input asp-for="Input.Year" class="form-control" />
     <span asp-validation-for="Input.Year" class="text-danger"></span>
 </div>
 
-<hr />
-<h6 class="mb-2">IPA</h6>
-<div class="form-check">
-    <input class="form-check-input" asp-for="Input.IpaYes" />
-    <label class="form-check-label" asp-for="Input.IpaYes">Yes</label>
-</div>
-<div class="row g-3">
-    <div class="col-md-6">
-        <label asp-for="Input.IpaDate" class="form-label">Date (optional)</label>
-        <input asp-for="Input.IpaDate" type="date" class="form-control" />
-        <span asp-validation-for="Input.IpaDate" class="text-danger"></span>
+<fieldset class="pm-form-section">
+    <legend>IPA</legend>
+    <div class="form-check form-switch pm-form-switch">
+        <input class="form-check-input" asp-for="Input.IpaYes" />
+        <label class="form-check-label" asp-for="Input.IpaYes">Mark as complete</label>
     </div>
-    <div class="col-md-6">
-        <label asp-for="Input.IpaRemarks" class="form-label">Remarks</label>
-        <input asp-for="Input.IpaRemarks" class="form-control" />
+    <div class="pm-form-grid">
+        <div class="pm-form-field">
+            <label asp-for="Input.IpaDate" class="form-label">Completion date</label>
+            <input asp-for="Input.IpaDate" type="date" class="form-control" />
+            <span asp-validation-for="Input.IpaDate" class="text-danger"></span>
+        </div>
+        <div class="pm-form-field">
+            <label asp-for="Input.IpaRemarks" class="form-label">Notes</label>
+            <input asp-for="Input.IpaRemarks" class="form-control" />
+        </div>
     </div>
-</div>
+</fieldset>
 
-<hr />
-<h6 class="mb-2">GSL</h6>
-<div class="form-check">
-    <input class="form-check-input" asp-for="Input.GslYes" />
-    <label class="form-check-label" asp-for="Input.GslYes">Yes</label>
-</div>
-<div class="row g-3">
-    <div class="col-md-6">
-        <label asp-for="Input.GslDate" class="form-label">Date (optional)</label>
-        <input asp-for="Input.GslDate" type="date" class="form-control" />
-        <span asp-validation-for="Input.GslDate" class="text-danger"></span>
+<fieldset class="pm-form-section">
+    <legend>GSL</legend>
+    <div class="form-check form-switch pm-form-switch">
+        <input class="form-check-input" asp-for="Input.GslYes" />
+        <label class="form-check-label" asp-for="Input.GslYes">Mark as complete</label>
     </div>
-    <div class="col-md-6">
-        <label asp-for="Input.GslRemarks" class="form-label">Remarks</label>
-        <input asp-for="Input.GslRemarks" class="form-control" />
+    <div class="pm-form-grid">
+        <div class="pm-form-field">
+            <label asp-for="Input.GslDate" class="form-label">Completion date</label>
+            <input asp-for="Input.GslDate" type="date" class="form-control" />
+            <span asp-validation-for="Input.GslDate" class="text-danger"></span>
+        </div>
+        <div class="pm-form-field">
+            <label asp-for="Input.GslRemarks" class="form-label">Notes</label>
+            <input asp-for="Input.GslRemarks" class="form-control" />
+        </div>
     </div>
-</div>
+</fieldset>
 
-<hr />
-<h6 class="mb-2">Delivery</h6>
-<div class="form-check">
-    <input class="form-check-input" asp-for="Input.DeliveryYes" />
-    <label class="form-check-label" asp-for="Input.DeliveryYes">Yes</label>
-</div>
-<div class="row g-3">
-    <div class="col-md-6">
-        <label asp-for="Input.DeliveryDate" class="form-label">Date (optional)</label>
-        <input asp-for="Input.DeliveryDate" type="date" class="form-control" />
-        <span asp-validation-for="Input.DeliveryDate" class="text-danger"></span>
+<fieldset class="pm-form-section">
+    <legend>Delivery</legend>
+    <div class="form-check form-switch pm-form-switch">
+        <input class="form-check-input" asp-for="Input.DeliveryYes" />
+        <label class="form-check-label" asp-for="Input.DeliveryYes">Mark as complete</label>
     </div>
-    <div class="col-md-6">
-        <label asp-for="Input.DeliveryRemarks" class="form-label">Remarks</label>
-        <input asp-for="Input.DeliveryRemarks" class="form-control" />
+    <div class="pm-form-grid">
+        <div class="pm-form-field">
+            <label asp-for="Input.DeliveryDate" class="form-label">Completion date</label>
+            <input asp-for="Input.DeliveryDate" type="date" class="form-control" />
+            <span asp-validation-for="Input.DeliveryDate" class="text-danger"></span>
+        </div>
+        <div class="pm-form-field">
+            <label asp-for="Input.DeliveryRemarks" class="form-label">Notes</label>
+            <input asp-for="Input.DeliveryRemarks" class="form-control" />
+        </div>
     </div>
-</div>
+</fieldset>
 
-<hr />
-<h6 class="mb-2">Installation</h6>
-<div class="form-check">
-    <input class="form-check-input" asp-for="Input.InstallationYes" />
-    <label class="form-check-label" asp-for="Input.InstallationYes">Yes</label>
-</div>
-<div class="row g-3">
-    <div class="col-md-6">
-        <label asp-for="Input.InstallationDate" class="form-label">Date (optional)</label>
-        <input asp-for="Input.InstallationDate" type="date" class="form-control" />
-        <span asp-validation-for="Input.InstallationDate" class="text-danger"></span>
+<fieldset class="pm-form-section">
+    <legend>Installation</legend>
+    <div class="form-check form-switch pm-form-switch">
+        <input class="form-check-input" asp-for="Input.InstallationYes" />
+        <label class="form-check-label" asp-for="Input.InstallationYes">Mark as complete</label>
     </div>
-    <div class="col-md-6">
-        <label asp-for="Input.InstallationRemarks" class="form-label">Remarks</label>
-        <input asp-for="Input.InstallationRemarks" class="form-control" />
+    <div class="pm-form-grid">
+        <div class="pm-form-field">
+            <label asp-for="Input.InstallationDate" class="form-label">Completion date</label>
+            <input asp-for="Input.InstallationDate" type="date" class="form-control" />
+            <span asp-validation-for="Input.InstallationDate" class="text-danger"></span>
+        </div>
+        <div class="pm-form-field">
+            <label asp-for="Input.InstallationRemarks" class="form-label">Notes</label>
+            <input asp-for="Input.InstallationRemarks" class="form-control" />
+        </div>
     </div>
-</div>
+</fieldset>
 
-<hr />
-<div>
-    <label asp-for="Input.OverallRemarks" class="form-label">Overall Remarks</label>
-    <textarea asp-for="Input.OverallRemarks" rows="3" class="form-control"></textarea>
+<div class="pm-form-field">
+    <label asp-for="Input.OverallRemarks" class="form-label">Overall remarks</label>
+    <textarea asp-for="Input.OverallRemarks" rows="3" class="form-control" placeholder="Context, blockers, next actions"></textarea>
 </div>
 
 @if (Model.IsEdit)
 {
-    <div class="form-check mt-2">
+    <div class="form-check form-switch pm-form-switch">
         <input class="form-check-input" asp-for="Input.IsDeleted" />
         <label class="form-check-label" asp-for="Input.IsDeleted">Soft deleted</label>
     </div>
 
-    <div class="mt-3">
-        <a asp-page="./Projects/Manage" asp-route-recordId="@Model.Input.Id" class="btn btn-outline-secondary btn-sm">Manage Projects</a>
-        <a asp-page="./Attachments/Upload" asp-route-recordId="@Model.Input.Id" class="btn btn-outline-secondary btn-sm">Manage Attachments</a>
+    <div class="d-flex flex-wrap gap-2">
+        <a asp-page="./Projects/Manage" asp-route-recordId="@Model.Input.Id" class="pm-button pm-button-secondary pm-button-sm">Manage projects</a>
+        <a asp-page="./Attachments/Upload" asp-route-recordId="@Model.Input.Id" class="pm-button pm-button-ghost pm-button-sm">Manage attachments</a>
     </div>
 }
