@@ -35,12 +35,12 @@
             </div>
         </div>
         <div class="ffc-record-card__summary" aria-label="Record summary">
-            <div class="ffc-record-card__summary-item">
-                <span class="ffc-record-card__summary-value">@projectCount</span>
+            <div class="ffc-record-card__summary-item ffc-record-card__summary-item--projects">
+                <span class="ffc-record-card__summary-value ffc-record-card__summary-value--projects">@projectCount</span>
                 <span class="ffc-record-card__summary-label">Project@(projectCount == 1 ? string.Empty : "s")</span>
             </div>
-            <div class="ffc-record-card__summary-item">
-                <span class="ffc-record-card__summary-value">@attachmentCount</span>
+            <div class="ffc-record-card__summary-item ffc-record-card__summary-item--attachments">
+                <span class="ffc-record-card__summary-value ffc-record-card__summary-value--attachments">@attachmentCount</span>
                 <span class="ffc-record-card__summary-label">Attachment@(attachmentCount == 1 ? string.Empty : "s")</span>
             </div>
         </div>
@@ -52,7 +52,9 @@
                 @foreach (var status in milestoneStatuses)
                 {
                     var dateText = FormatDate(status.Date);
-                    <article class="ffc-record-card__status">
+                    var milestoneKey = status.Title.ToLowerInvariant().Replace(" ", "-");
+                    var statusClass = status.IsComplete ? "ffc-record-card__status--complete" : "ffc-record-card__status--pending";
+                    <article class="ffc-record-card__status @statusClass ffc-record-card__status--@milestoneKey">
                         <header class="ffc-record-card__status-header">
                             <span class="ffc-record-card__status-title">@status.Title</span>
                             <span class="badge rounded-pill @(status.IsComplete ? "text-bg-success" : "text-bg-secondary")" aria-label="@status.Title status">@(status.IsComplete ? "Yes" : "No")</span>
