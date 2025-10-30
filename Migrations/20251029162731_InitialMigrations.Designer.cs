@@ -12,7 +12,7 @@ using ProjectManagement.Data;
 namespace ProjectManagement.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20251029161611_InitialMigrations")]
+    [Migration("20251029162731_InitialMigrations")]
     partial class InitialMigrations
     {
         /// <inheritdoc />
