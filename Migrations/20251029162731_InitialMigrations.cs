@@ -14,6 +14,24 @@ namespace ProjectManagement.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql(
+                """
+                DO $$
+                DECLARE
+                    rec RECORD;
+                BEGIN
+                    FOR rec IN (
+                        SELECT tablename
+                        FROM pg_tables
+                        WHERE schemaname = 'public'
+                          AND tablename <> '__EFMigrationsHistory'
+                    ) LOOP
+                        EXECUTE format('DROP TABLE IF EXISTS "%I" CASCADE;', rec.tablename);
+                    END LOOP;
+                END $$;
+                """
+            );
+
             migrationBuilder.CreateTable(
                 name: "AspNetRoles",
                 columns: table => new
