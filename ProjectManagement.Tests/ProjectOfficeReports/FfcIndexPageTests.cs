@@ -66,6 +66,28 @@ public sealed class FfcIndexPageTests
     }
 
     [Fact]
+    public async Task OnGetAsync_WithHoDUser_AllowsManagement()
+    {
+        await using var db = CreateDbContext();
+        var country = await SeedCountryAsync(db, "Gamma", "GAM");
+
+        db.FfcRecords.Add(new FfcRecord
+        {
+            CountryId = country.Id,
+            Year = 2025
+        });
+
+        await db.SaveChangesAsync();
+
+        var page = new IndexModel(db);
+        ConfigurePageContext(page, CreatePrincipal(isHod: true));
+
+        await page.OnGetAsync();
+
+        Assert.True(page.CanManageRecords);
+    }
+
+    [Fact]
     public async Task OnGetAsync_ExcludesSoftDeletedRecords()
     {
         await using var db = CreateDbContext();

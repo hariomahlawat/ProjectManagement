@@ -216,72 +216,301 @@ body {
 }
 
 /* ---------- FFC record cards ---------- */
-.ffc-record-card {
-    width: 100%;
+.ffc-index {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
 }
 
-.ffc-record-card-statuses {
+.ffc-index__header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+}
+
+.ffc-index__intro {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+    max-width: 42rem;
+}
+
+.ffc-index__eyebrow {
+    font-size: .75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--pm-muted);
+}
+
+.ffc-index__title {
+    margin: 0;
+    font-size: clamp(1.5rem, 1.5vw + 1.2rem, 2.25rem);
+    font-weight: 600;
+    color: var(--pm-text);
+}
+
+.ffc-index__description {
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--pm-text-secondary);
+}
+
+.ffc-index__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    align-items: center;
+}
+
+.ffc-index__filters {
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.ffc-index__filters-form {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.ffc-index__filters-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.ffc-index__filter-label {
+    display: block;
+    font-size: .75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--pm-muted);
+    margin-bottom: .35rem;
+}
+
+.ffc-index__filter--actions {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+
+.ffc-index__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .35rem .75rem;
+}
+
+.ffc-index__meta-separator {
+    color: var(--pm-muted);
+}
+
+.ffc-record-grid {
+    display: grid;
+    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.ffc-record-grid__item {
+    display: flex;
+}
+
+.ffc-index__pagination {
+    margin-top: .75rem;
+}
+
+.ffc-record-card {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.ffc-record-card__header {
+    align-items: stretch;
+    gap: 1.25rem;
+    border-bottom: none;
+    box-shadow: none;
+    padding-bottom: .5rem;
+}
+
+.ffc-record-card__identity {
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.ffc-record-card__year {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 3.25rem;
+    height: 3.25rem;
+    border-radius: 1rem;
+    background-color: rgba(45, 108, 223, .12);
+    color: var(--pm-primary);
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.ffc-record-card__identity-text {
+    display: flex;
+    flex-direction: column;
+    gap: .35rem;
+    min-width: 0;
+}
+
+.ffc-record-card__country {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--pm-text);
+}
+
+.ffc-record-card__subtitle {
+    font-size: .875rem;
+    color: var(--pm-text-secondary);
+}
+
+.ffc-record-card__summary {
+    display: grid;
+    gap: .5rem;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, auto);
+    align-items: center;
+}
+
+.ffc-record-card__summary-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.ffc-record-card__summary-value {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--pm-text);
+}
+
+.ffc-record-card__summary-label {
+    font-size: .75rem;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--pm-muted);
+}
+
+.ffc-record-card__body {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.ffc-record-card__section-title {
+    font-size: .75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--pm-muted);
+    margin-bottom: .5rem;
+}
+
+.ffc-record-card__statuses {
     display: grid;
     gap: 1rem;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 }
 
-.ffc-record-card-status {
+.ffc-record-card__status {
     display: flex;
     flex-direction: column;
     gap: .5rem;
-    padding: .75rem;
+    padding: .85rem;
     border: 1px solid rgba(15, 23, 42, .08);
-    border-radius: .75rem;
+    border-radius: .85rem;
     background-color: var(--pm-card);
 }
 
-.ffc-record-card-status-title {
-    font-size: .75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    color: var(--pm-muted);
-}
-
-.ffc-record-card-status-value {
+.ffc-record-card__status-header {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
+    justify-content: space-between;
     gap: .5rem;
 }
 
-.ffc-record-card-status-date {
+.ffc-record-card__status-title {
+    font-size: .8125rem;
+    font-weight: 600;
+    color: var(--pm-text);
+}
+
+.ffc-record-card__status-date {
     font-size: .75rem;
     color: var(--pm-muted);
 }
 
-.ffc-record-card-status-remarks {
+.ffc-record-card__status-remarks {
     font-size: .8125rem;
-    color: var(--pm-muted);
+    color: var(--pm-text-secondary);
 }
 
-.ffc-record-card-section-title {
-    font-size: .8125rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    color: var(--pm-muted);
-    margin-bottom: .5rem;
-}
-
-.ffc-record-card-projects {
+.ffc-record-card__projects {
     display: flex;
     flex-direction: column;
     gap: .75rem;
 }
 
-.ffc-record-card-project {
+.ffc-record-card__project {
+    font-size: .875rem;
+    display: flex;
+    flex-direction: column;
+    gap: .25rem;
+}
+
+.ffc-record-card__project-name {
+    font-weight: 600;
+    color: var(--pm-text);
+}
+
+.ffc-record-card__project-linked {
+    font-size: .8125rem;
+}
+
+.ffc-record-card__project-remarks {
+    font-size: .8125rem;
+}
+
+.ffc-record-card__attachments {
     font-size: .875rem;
 }
 
-.ffc-record-card-project-remarks {
-    margin-top: .25rem;
+.ffc-record-card__footer {
+    margin-top: auto;
+    padding-top: .5rem;
+    border-top: 1px solid rgba(15, 23, 42, .08);
+}
+
+.ffc-record-card__read-only {
+    font-size: .8125rem;
+}
+
+@media (max-width: 575.98px) {
+    .ffc-record-card__summary {
+        grid-auto-flow: row;
+        align-items: flex-start;
+    }
+
+    .ffc-record-card__summary-item {
+        align-items: flex-start;
+    }
 }
 
 /* ---------- IPR tracker tweaks ---------- */
