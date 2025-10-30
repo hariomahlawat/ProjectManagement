@@ -2,8 +2,8 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.Attachments.UploadModel
 @using System
 @using ProjectManagement.Helpers
-@{ 
-    ViewData["Title"] = "FFC Attachments";
+@{
+    ViewData["Title"] = "Friendly Foreign Countries attachments";
 
     var maxFileSizeText = FileSizeFormatter.FormatFileSize(Model.MaxFileSizeBytes);
     string FormatFileSize(long bytes) => FileSizeFormatter.FormatFileSize(bytes);
