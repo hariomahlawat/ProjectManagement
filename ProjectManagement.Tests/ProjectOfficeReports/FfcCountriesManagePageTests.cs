@@ -1,17 +1,28 @@
 using System;
 using System.Collections.Generic;
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.RazorPages.Infrastructure;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Countries;
 using ProjectManagement.Data;
 using ProjectManagement.Services;
@@ -137,6 +148,34 @@ public sealed class FfcCountriesManagePageTests
         Assert.NotEqual(originalRowVersion, page.Input.RowVersion);
     }
 
+    [Fact]
+    public async Task UnauthorizedUser_IsRedirectedToAccessDenied()
+    {
+        using var factory = new FfcCountriesManagePageFactory();
+        var client = CreateClientForUser(factory, "general-user");
+
+        var response = await client.GetAsync("/ProjectOfficeReports/FFC/Countries/Manage");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var location = Assert.NotNull(response.Headers.Location);
+        Assert.Equal("/Identity/Account/AccessDenied?ReturnUrl=%2FProjectOfficeReports%2FFFC%2FCountries%2FManage", location.PathAndQuery);
+    }
+
+    [Fact]
+    public async Task UnauthorizedUser_SeesFriendlyMessageOnAccessDenied()
+    {
+        using var factory = new FfcCountriesManagePageFactory();
+        var client = CreateClientForUser(factory, "general-user");
+
+        var response = await client.GetAsync("/ProjectOfficeReports/FFC/Countries/Manage");
+        var location = Assert.NotNull(response.Headers.Location);
+        var accessDenied = await client.GetAsync(new Uri(client.BaseAddress!, location));
+
+        Assert.Equal(HttpStatusCode.Forbidden, accessDenied.StatusCode);
+        var content = await accessDenied.Content.ReadAsStringAsync();
+        Assert.Contains("Only administrators or heads of department can manage FFC records or countries", content, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static ManageModel CreatePage(ApplicationDbContext db)
     {
         return new ManageModel(db, new StubAuditService(), NullLogger<ManageModel>.Instance);
@@ -174,6 +213,84 @@ public sealed class FfcCountriesManagePageTests
         };
 
         page.TempData = new TempDataDictionary(httpContext, new DictionaryTempDataProvider());
+    }
+
+    private static HttpClient CreateClientForUser(FfcCountriesManagePageFactory factory, string userId, params string[] roles)
+    {
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Test");
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+        if (roles.Length > 0)
+        {
+            client.DefaultRequestHeaders.Add("X-Test-Roles", string.Join(',', roles));
+        }
+
+        return client;
+    }
+
+    private sealed class FfcCountriesManagePageFactory : WebApplicationFactory<Program>
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll(typeof(DbContextOptions<ApplicationDbContext>));
+                services.AddDbContext<ApplicationDbContext>(options =>
+                    options.UseInMemoryDatabase($"ffc-countries-manage-{Guid.NewGuid()}"));
+            });
+
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddAuthentication(options =>
+                    {
+                        options.DefaultAuthenticateScheme = "Test";
+                        options.DefaultChallengeScheme = "Test";
+                        options.DefaultScheme = "Test";
+                    })
+                    .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", _ => { });
+            });
+        }
+    }
+
+    private sealed class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
+    {
+        public TestAuthHandler(
+            IOptionsMonitor<AuthenticationSchemeOptions> options,
+            ILoggerFactory logger,
+            System.Text.Encodings.Web.UrlEncoder encoder)
+            : base(options, logger, encoder)
+        {
+        }
+
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+        {
+            var userId = Request.Headers["X-Test-User"].ToString();
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return Task.FromResult(AuthenticateResult.Fail("Missing user header."));
+            }
+
+            var rolesHeader = Request.Headers["X-Test-Roles"].ToString();
+            var roles = string.IsNullOrWhiteSpace(rolesHeader)
+                ? Array.Empty<string>()
+                : rolesHeader.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.NameIdentifier, userId),
+                new(ClaimTypes.Name, userId)
+            };
+
+            foreach (var role in roles)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            }
+
+            var identity = new ClaimsIdentity(claims, Scheme.Name);
+            var principal = new ClaimsPrincipal(identity);
+            var ticket = new AuthenticationTicket(principal, Scheme.Name);
+            return Task.FromResult(AuthenticateResult.Success(ticket));
+        }
     }
 
     private sealed class StubAuditService : IAuditService
