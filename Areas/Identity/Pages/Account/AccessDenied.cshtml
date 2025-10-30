@@ -5,7 +5,7 @@
 }
 
 @{
-    var returnUrl = Context.Request.Query["ReturnUrl"].ToString();
+    var returnUrl = Request.Query["ReturnUrl"].ToString();
     var isFfcRecordsManagePage = !string.IsNullOrWhiteSpace(returnUrl) &&
         returnUrl.Contains("/ProjectOfficeReports/FFC/Records/Manage", System.StringComparison.OrdinalIgnoreCase);
     var isFfcCountriesManagePage = !string.IsNullOrWhiteSpace(returnUrl) &&
