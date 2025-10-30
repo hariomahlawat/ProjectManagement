@@ -71,6 +71,7 @@
                     </div>
                     <div class="pm-card-body">
                         <form method="post" class="vstack gap-3">
+                            @Html.AntiForgeryToken()
                             @if (Model.IsEditMode)
                             {
                                 <input type="hidden" asp-for="Input.Id" />
