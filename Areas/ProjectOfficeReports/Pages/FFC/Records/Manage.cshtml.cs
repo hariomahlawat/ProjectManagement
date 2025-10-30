@@ -22,6 +22,8 @@ public class ManageModel : FfcRecordListPageModel
 {
     private readonly IAuditService _audit;
     private readonly ILogger<ManageModel> _logger;
+    private const string ConcurrencyReloadMessage =
+        "The record was modified by another user. The latest values have been loaded; please review and try again.";
 
     public bool CanManageRecords => User.IsInRole("Admin") || User.IsInRole("HoD");
     public SelectList CountrySelect { get; private set; } = default!;
@@ -63,6 +65,7 @@ public class ManageModel : FfcRecordListPageModel
 
         public string? OverallRemarks { get; set; }
         public bool IsDeleted { get; set; }
+        public string? RowVersion { get; set; }
     }
 
     public async Task<IActionResult> OnGetAsync()
@@ -112,10 +115,37 @@ public class ManageModel : FfcRecordListPageModel
         var entity = await Db.FfcRecords.FirstOrDefaultAsync(x => x.Id == Input.Id);
         if (entity is null) return NotFound();
 
+        if (!TryDecodeRowVersion(Input.RowVersion, out var originalRowVersion))
+        {
+            ModelState.AddModelError(string.Empty, ConcurrencyReloadMessage);
+            var exists = await ReloadFormStateAsync(Input.Id);
+            if (!exists)
+            {
+                ModelState.AddModelError(string.Empty, "The record no longer exists.");
+            }
+            return Page();
+        }
+
         var before = BuildRecordData(entity, "Before");
 
+        Db.Entry(entity).Property(x => x.RowVersion).OriginalValue = originalRowVersion;
+
         MapToEntity(Input, entity);
-        await Db.SaveChangesAsync();
+
+        try
+        {
+            await Db.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ModelState.AddModelError(string.Empty, ConcurrencyReloadMessage);
+            var exists = await ReloadFormStateAsync(Input.Id, entity);
+            if (!exists)
+            {
+                ModelState.AddModelError(string.Empty, "The record no longer exists.");
+            }
+            return Page();
+        }
 
         var data = new Dictionary<string, string?>(before)
         {
@@ -182,7 +212,8 @@ public class ManageModel : FfcRecordListPageModel
         InstallationDate = r.InstallationDate,
         InstallationRemarks = r.InstallationRemarks,
         OverallRemarks = r.OverallRemarks,
-        IsDeleted = r.IsDeleted
+        IsDeleted = r.IsDeleted,
+        RowVersion = r.RowVersion.Length > 0 ? Convert.ToBase64String(r.RowVersion) : null
     };
 
     private static FfcRecord MapToEntity(InputModel i, FfcRecord e)
@@ -204,6 +235,67 @@ public class ManageModel : FfcRecordListPageModel
         e.OverallRemarks = i.OverallRemarks;
         e.IsDeleted = i.IsDeleted;
         return e;
+    }
+
+    private static bool TryDecodeRowVersion(string? value, out byte[] rowVersion)
+    {
+        rowVersion = Array.Empty<byte>();
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        try
+        {
+            rowVersion = Convert.FromBase64String(value);
+            return rowVersion.Length > 0;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
+    }
+
+    private async Task<bool> ReloadFormStateAsync(long? recordId, FfcRecord? trackedEntity = null)
+    {
+        if (recordId is not long id)
+        {
+            Input = new InputModel();
+            await LoadPageAsync();
+            return false;
+        }
+
+        FfcRecord? latest = trackedEntity;
+
+        if (latest is not null)
+        {
+            var entry = Db.Entry(latest);
+            if (entry.State != EntityState.Detached)
+            {
+                try
+                {
+                    await entry.ReloadAsync();
+                }
+                catch (InvalidOperationException)
+                {
+                    latest = null;
+                }
+            }
+        }
+
+        latest ??= await Db.FfcRecords.AsNoTracking().FirstOrDefaultAsync(x => x.Id == id);
+
+        if (latest is null)
+        {
+            Input = new InputModel();
+            await LoadPageAsync();
+            return false;
+        }
+
+        Input = MapToInput(latest);
+        await LoadPageAsync(id);
+        return true;
     }
 
     private async Task ValidateAsync(InputModel i)

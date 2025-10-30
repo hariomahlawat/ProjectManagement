@@ -116,6 +116,9 @@ public sealed class FfcRecordsManagePageTests
         db.FfcRecords.Add(record);
         await db.SaveChangesAsync();
 
+        await db.Entry(record).ReloadAsync();
+        var originalRowVersion = Convert.ToBase64String(record.RowVersion);
+
         country.IsActive = false;
         await db.SaveChangesAsync();
 
@@ -125,7 +128,8 @@ public sealed class FfcRecordsManagePageTests
             CountryId = country.Id,
             Year = 2026,
             IpaYes = true,
-            IpaDate = new DateOnly(2026, 1, 1)
+            IpaDate = new DateOnly(2026, 1, 1),
+            RowVersion = originalRowVersion
         };
 
         var result = await page.OnPostUpdateAsync();
@@ -140,6 +144,55 @@ public sealed class FfcRecordsManagePageTests
         Assert.True(updated.IpaYes);
         Assert.Equal(new DateOnly(2026, 1, 1), updated.IpaDate);
         Assert.Equal("Record updated.", page.TempData["StatusMessage"]);
+    }
+
+    [Fact]
+    public async Task OnPostUpdateAsync_WhenConcurrencyConflict_ReloadsInputWithError()
+    {
+        await using var db = CreateDbContext();
+        var country = await SeedCountryAsync(db);
+        var page = CreatePage(db);
+        ConfigurePageContext(page, CreateAdminPrincipal());
+
+        var record = new FfcRecord
+        {
+            CountryId = country.Id,
+            Year = 2024,
+            IpaYes = true,
+            IpaDate = new DateOnly(2024, 1, 15)
+        };
+
+        db.FfcRecords.Add(record);
+        await db.SaveChangesAsync();
+
+        await db.Entry(record).ReloadAsync();
+        var staleRowVersion = Convert.ToBase64String(record.RowVersion);
+
+        record.OverallRemarks = "Updated externally";
+        await db.SaveChangesAsync();
+        await db.Entry(record).ReloadAsync();
+
+        page.Input = new ManageModel.InputModel
+        {
+            Id = record.Id,
+            CountryId = country.Id,
+            Year = 2026,
+            IpaYes = true,
+            IpaDate = new DateOnly(2026, 1, 1),
+            RowVersion = staleRowVersion
+        };
+
+        var result = await page.OnPostUpdateAsync();
+
+        Assert.IsType<PageResult>(result);
+        var state = Assert.NotNull(page.ModelState[string.Empty]);
+        Assert.NotEmpty(state.Errors);
+        Assert.Contains("modified by another user", state.Errors[0].ErrorMessage, StringComparison.OrdinalIgnoreCase);
+
+        Assert.NotNull(page.Input.RowVersion);
+        Assert.Equal(Convert.ToBase64String(record.RowVersion), page.Input.RowVersion);
+        Assert.Equal(record.Year, page.Input.Year);
+        Assert.Equal(record.OverallRemarks, page.Input.OverallRemarks);
     }
 
     [Fact]
