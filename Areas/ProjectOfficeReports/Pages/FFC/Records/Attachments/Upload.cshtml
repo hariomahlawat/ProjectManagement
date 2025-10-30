@@ -8,13 +8,29 @@
     var maxFileSizeText = FileSizeFormatter.FormatFileSize(Model.MaxFileSizeBytes);
     string FormatFileSize(long bytes) => FileSizeFormatter.FormatFileSize(bytes);
 }
-<h1 class="h5 mb-2">Attachments for @Model.Record.Country.Name (@Model.Record.Year)</h1>
-<partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
+<div class="container-fluid py-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+        <div>
+            <p class="text-uppercase text-muted small mb-1">Project office reports</p>
+            <h1 class="h4 mb-1">Attachments for @Model.Record.Country.Name (@Model.Record.Year)</h1>
+            <nav aria-label="Breadcrumb">
+                <ol class="breadcrumb mb-2 small">
+                    <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/FFC/Index">FFC simulators</a></li>
+                    <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/FFC/Records/Manage">Manage records</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Attachments</li>
+                </ol>
+            </nav>
+            <p class="text-muted mb-0">Upload supporting files and manage existing documents linked to this delivery record.</p>
+        </div>
+    </div>
 
-<div class="row g-4">
-    <div class="col-lg-6">
-        <table class="table table-sm">
-            <thead><tr><th>Kind</th><th>Caption</th><th>Type</th><th>Size</th><th class="text-end">Actions</th></tr></thead>
+    <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
+
+    <div class="row g-4">
+        <div class="col-lg-6">
+            <table class="table table-sm">
+                <thead><tr><th>Kind</th><th>Caption</th><th>Type</th><th>Size</th><th class="text-end">Actions</th></tr></thead>
             <tbody>
             @foreach (var a in Model.Items)
             {
@@ -65,5 +81,6 @@
                 </div>
             </div>
         </authorize>
+    </div>
     </div>
 </div>
