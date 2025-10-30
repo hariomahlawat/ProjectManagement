@@ -17,13 +17,13 @@ using ProjectManagement.Services;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records;
 
-[Authorize]
+[Authorize(Roles = "Admin,HoD")]
 public class ManageModel : FfcRecordListPageModel
 {
     private readonly IAuditService _audit;
     private readonly ILogger<ManageModel> _logger;
 
-    private bool CanManageRecords => User.IsInRole("Admin") || User.IsInRole("HoD");
+    public bool CanManageRecords => User.IsInRole("Admin") || User.IsInRole("HoD");
     public SelectList CountrySelect { get; private set; } = default!;
     public bool IsEditMode => EditId.HasValue;
 
@@ -80,8 +80,6 @@ public class ManageModel : FfcRecordListPageModel
 
     public async Task<IActionResult> OnPostCreateAsync()
     {
-        if (!CanManageRecords) return Forbid();
-
         await ValidateAsync(Input);
         if (!ModelState.IsValid)
         {
@@ -103,8 +101,6 @@ public class ManageModel : FfcRecordListPageModel
 
     public async Task<IActionResult> OnPostUpdateAsync()
     {
-        if (!CanManageRecords) return Forbid();
-
         if (Input.Id is null) return BadRequest();
         await ValidateAsync(Input);
         if (!ModelState.IsValid)
