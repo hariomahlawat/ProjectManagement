@@ -1,6 +1,17 @@
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.ManageModel
 
-<table class="table table-sm align-middle">
+@{
+    string GetMilestoneBadgeClass(bool completed) => completed
+        ? "bg-success-subtle text-success-emphasis"
+        : "bg-secondary-subtle text-secondary-emphasis";
+
+    string GetMilestoneBadgeText(bool completed) => completed ? "Completed" : "Pending";
+
+    string? FormatMilestoneDate(System.DateTime? date) => date?.ToString("d");
+}
+
+<div class="table-responsive">
+<table class="table table-sm align-middle mb-0">
     <thead>
         <tr>
             <th>
@@ -37,11 +48,41 @@
             <tr>
                 <td>@record.Year</td>
                 <td>@record.Country?.Name</td>
-                <td>@(record.IpaYes ? (record.IpaDate?.ToString() ?? "Yes") : "No")</td>
-                <td>@(record.GslYes ? (record.GslDate?.ToString() ?? "Yes") : "No")</td>
-                <td>@(record.DeliveryYes ? (record.DeliveryDate?.ToString() ?? "Yes") : "No")</td>
-                <td>@(record.InstallationYes ? (record.InstallationDate?.ToString() ?? "Yes") : "No")</td>
-                <td class="text-truncate" style="max-width:220px;" title="@record.OverallRemarks">@record.OverallRemarks</td>
+                <td class="text-center">
+                    @{ var ipaDate = FormatMilestoneDate(record.IpaDate); }
+                    <span class="badge @GetMilestoneBadgeClass(record.IpaYes)">@GetMilestoneBadgeText(record.IpaYes)</span>
+                    @if (!string.IsNullOrWhiteSpace(ipaDate))
+                    {
+                        <small class="text-muted d-block">@ipaDate</small>
+                    }
+                </td>
+                <td class="text-center">
+                    @{ var gslDate = FormatMilestoneDate(record.GslDate); }
+                    <span class="badge @GetMilestoneBadgeClass(record.GslYes)">@GetMilestoneBadgeText(record.GslYes)</span>
+                    @if (!string.IsNullOrWhiteSpace(gslDate))
+                    {
+                        <small class="text-muted d-block">@gslDate</small>
+                    }
+                </td>
+                <td class="text-center">
+                    @{ var deliveryDate = FormatMilestoneDate(record.DeliveryDate); }
+                    <span class="badge @GetMilestoneBadgeClass(record.DeliveryYes)">@GetMilestoneBadgeText(record.DeliveryYes)</span>
+                    @if (!string.IsNullOrWhiteSpace(deliveryDate))
+                    {
+                        <small class="text-muted d-block">@deliveryDate</small>
+                    }
+                </td>
+                <td class="text-center">
+                    @{ var installationDate = FormatMilestoneDate(record.InstallationDate); }
+                    <span class="badge @GetMilestoneBadgeClass(record.InstallationYes)">@GetMilestoneBadgeText(record.InstallationYes)</span>
+                    @if (!string.IsNullOrWhiteSpace(installationDate))
+                    {
+                        <small class="text-muted d-block">@installationDate</small>
+                    }
+                </td>
+                <td class="text-break" style="max-width:220px;">
+                    <span class="d-inline-block text-truncate w-100" style="max-width:220px;" data-bs-toggle="tooltip" data-bs-placement="top" title="@record.OverallRemarks">@record.OverallRemarks</span>
+                </td>
                 <td class="text-end">
                     <authorize roles="Admin,HoD">
                         <a asp-page="./Manage" asp-all-route-data="Model.BuildRouteForEdit(record.Id)" class="btn btn-link btn-sm">Edit</a>
@@ -58,6 +99,7 @@
     }
     </tbody>
 </table>
+</div>
 
 <nav aria-label="Records pagination" class="mt-2">
     <ul class="pagination pagination-sm mb-0">
