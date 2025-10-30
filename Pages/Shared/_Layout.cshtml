@@ -15,48 +15,83 @@
     <link rel="icon" href="~/favicon.ico" />
     @await RenderSectionAsync("Styles", required: false)
 </head>
-<body>
-    @{ 
+<body class="pm-app">
+    @{
         var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
         var useFullWidth = (ViewData["UseFullWidth"] as bool?) == true;
         var mainContainerClass = useFullWidth
             ? "container-fluid analytics-shell px-3 px-lg-4 px-xxl-5"
             : "container";
     }
-    <header class="pm-header border-bottom">
-        <nav class="navbar navbar-expand-lg navbar-light bg-light shadow-sm">
-            <div class="container-fluid px-3 px-md-4 px-lg-5 d-flex align-items-center gap-3">
-                @await Component.InvokeAsync("NavigationDrawer")
-                <a class="navbar-brand fw-semibold" asp-area="" asp-page="/Index">ProjectManagement</a>
-                <ul class="navbar-nav flex-row align-items-center gap-2 ms-4">
-                    <li class="nav-item">
-                        <a class="nav-link@(string.Equals(currentPage, "/Dashboard/Index", StringComparison.OrdinalIgnoreCase) ? " active" : string.Empty)" asp-page="/Dashboard/Index">Dashboard</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link@(string.Equals(currentPage, "/Analytics/Index", StringComparison.OrdinalIgnoreCase) ? " active" : string.Empty)" asp-page="/Analytics/Index">Analytics</a>
-                    </li>
-                </ul>
-                <div class="ms-auto d-flex align-items-center gap-3">
-                    @await Component.InvokeAsync("NotificationBell")
-                    <partial name="_LoginPartial" />
+    <div class="pm-app-shell">
+        <header class="pm-app-header">
+            <div class="pm-app-topbar">
+                <div class="pm-app-topbar-inner container-fluid">
+                    <div class="d-flex align-items-center gap-3">
+                        @await Component.InvokeAsync("NavigationDrawer")
+                        <a class="pm-app-brand" asp-area="" asp-page="/Index">
+                            <span class="pm-app-logo" aria-hidden="true">PM</span>
+                            <span class="pm-app-brand-text">
+                                ProjectManagement
+                                <span class="pm-app-brand-sub">Operations Control Room</span>
+                            </span>
+                        </a>
+                    </div>
+                    <nav class="pm-app-nav" aria-label="Primary">
+                        <a class="pm-app-nav-link@(string.Equals(currentPage, "/Dashboard/Index", StringComparison.OrdinalIgnoreCase) ? " is-active" : string.Empty)" asp-page="/Dashboard/Index">Dashboard</a>
+                        <a class="pm-app-nav-link@(string.Equals(currentPage, "/Analytics/Index", StringComparison.OrdinalIgnoreCase) ? " is-active" : string.Empty)" asp-page="/Analytics/Index">Analytics</a>
+                        <a class="pm-app-nav-link" asp-area="ProjectOfficeReports" asp-page="/FFC/Index">FFC Simulators</a>
+                    </nav>
+                    <div class="pm-app-actions">
+                        @await Component.InvokeAsync("NotificationBell")
+                        <partial name="_LoginPartial" />
+                    </div>
                 </div>
             </div>
-        </nav>
-    </header>
+            <div class="pm-app-subnav">
+                <div class="pm-app-subnav-inner container-fluid">
+                    <div class="pm-app-subnav-copy">
+                        <span class="pm-app-eyebrow">Mission readiness</span>
+                        <span>Track simulator deployment progress and unblock delivery teams faster.</span>
+                    </div>
+                    <div class="pm-app-subnav-actions" role="group" aria-label="Quick links">
+                        <a class="pm-chip-link" asp-area="ProjectOfficeReports" asp-page="/FFC/Records/Manage">
+                            <i class="bi bi-kanban" aria-hidden="true"></i>
+                            <span>Records workspace</span>
+                        </a>
+                        <a class="pm-chip-link" asp-area="ProjectOfficeReports" asp-page="/FFC/Countries/Manage">
+                            <i class="bi bi-geo-alt" aria-hidden="true"></i>
+                            <span>Country catalogue</span>
+                        </a>
+                        <a class="pm-chip-link" asp-page="/Dashboard/Index">
+                            <i class="bi bi-graph-up" aria-hidden="true"></i>
+                            <span>Portfolio insight</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </header>
 
-    <main role="main" class="pb-5@(useFullWidth ? " analytics-main" : string.Empty)">
-        <div class="@mainContainerClass">
-            @await Html.PartialAsync("_Toasts")
-            @RenderBody()
-        </div>
-    </main>
+        <main role="main" class="pm-app-main@(useFullWidth ? " analytics-main" : string.Empty)">
+            <div class="@mainContainerClass">
+                @await Html.PartialAsync("_Toasts")
+                @RenderBody()
+            </div>
+        </main>
 
-    <footer class="pm-footer border-top py-3">
-        <div class="container small text-muted d-flex justify-content-between">
-            <span>© @DateTime.UtcNow.Year — ProjectManagement</span>
-            <a class="text-muted" asp-page="/Privacy">Privacy</a>
-        </div>
-    </footer>
+        <footer class="pm-app-footer">
+            <div class="pm-app-footer-inner container">
+                <div class="pm-app-footer-brand">
+                    <span class="pm-app-logo" aria-hidden="true">PM</span>
+                    <span>© @DateTime.UtcNow.Year ProjectManagement</span>
+                </div>
+                <div class="pm-app-footer-links">
+                    <a asp-page="/Privacy">Privacy</a>
+                    <a href="mailto:support@projectmanagement.local">Support</a>
+                </div>
+            </div>
+        </footer>
+    </div>
 
     <!-- Shared small confirm modal (reused for complete/delete/etc.) -->
     <div class="modal fade" id="appConfirmModal" tabindex="-1" aria-hidden="true">
