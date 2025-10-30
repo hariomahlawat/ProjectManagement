@@ -1,18 +1,30 @@
 using System;
 using System.Collections.Generic;
+using System.Net;
+using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Reflection;
 using System.Security.Claims;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.RazorPages.Infrastructure;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records;
 using ProjectManagement.Data;
@@ -130,6 +142,34 @@ public sealed class FfcRecordsManagePageTests
         Assert.Equal("Record updated.", page.TempData["StatusMessage"]);
     }
 
+    [Fact]
+    public async Task UnauthorizedUser_IsRedirectedToAccessDenied()
+    {
+        using var factory = new FfcRecordsManagePageFactory();
+        var client = CreateClientForUser(factory, "general-user");
+
+        var response = await client.GetAsync("/ProjectOfficeReports/FFC/Records/Manage");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        var location = Assert.NotNull(response.Headers.Location);
+        Assert.Equal("/Identity/Account/AccessDenied?ReturnUrl=%2FProjectOfficeReports%2FFFC%2FRecords%2FManage", location.PathAndQuery);
+    }
+
+    [Fact]
+    public async Task UnauthorizedUser_SeesFriendlyMessageOnAccessDenied()
+    {
+        using var factory = new FfcRecordsManagePageFactory();
+        var client = CreateClientForUser(factory, "general-user");
+
+        var response = await client.GetAsync("/ProjectOfficeReports/FFC/Records/Manage");
+        var location = Assert.NotNull(response.Headers.Location);
+        var accessDenied = await client.GetAsync(new Uri(client.BaseAddress!, location));
+
+        Assert.Equal(HttpStatusCode.Forbidden, accessDenied.StatusCode);
+        var content = await accessDenied.Content.ReadAsStringAsync();
+        Assert.Contains("Only administrators or heads of department can manage FFC records", content, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static void SetIpaMismatch(ManageModel.InputModel input)
     {
         input.IpaYes = false;
@@ -220,6 +260,84 @@ public sealed class FfcRecordsManagePageTests
 
         public void SaveTempData(HttpContext context, IDictionary<string, object?> values)
         {
+        }
+    }
+
+    private static HttpClient CreateClientForUser(FfcRecordsManagePageFactory factory, string userId, params string[] roles)
+    {
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Test");
+        client.DefaultRequestHeaders.Add("X-Test-User", userId);
+        if (roles.Length > 0)
+        {
+            client.DefaultRequestHeaders.Add("X-Test-Roles", string.Join(',', roles));
+        }
+
+        return client;
+    }
+
+    private sealed class FfcRecordsManagePageFactory : WebApplicationFactory<Program>
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll(typeof(DbContextOptions<ApplicationDbContext>));
+                services.AddDbContext<ApplicationDbContext>(options =>
+                    options.UseInMemoryDatabase($"ffc-records-manage-{Guid.NewGuid()}"));
+            });
+
+            builder.ConfigureTestServices(services =>
+            {
+                services.AddAuthentication(options =>
+                    {
+                        options.DefaultAuthenticateScheme = "Test";
+                        options.DefaultChallengeScheme = "Test";
+                        options.DefaultScheme = "Test";
+                    })
+                    .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>("Test", _ => { });
+            });
+        }
+    }
+
+    private sealed class TestAuthHandler : AuthenticationHandler<AuthenticationSchemeOptions>
+    {
+        public TestAuthHandler(
+            IOptionsMonitor<AuthenticationSchemeOptions> options,
+            ILoggerFactory logger,
+            System.Text.Encodings.Web.UrlEncoder encoder)
+            : base(options, logger, encoder)
+        {
+        }
+
+        protected override Task<AuthenticateResult> HandleAuthenticateAsync()
+        {
+            var userId = Request.Headers["X-Test-User"].ToString();
+            if (string.IsNullOrWhiteSpace(userId))
+            {
+                return Task.FromResult(AuthenticateResult.Fail("Missing user header."));
+            }
+
+            var rolesHeader = Request.Headers["X-Test-Roles"].ToString();
+            var roles = string.IsNullOrWhiteSpace(rolesHeader)
+                ? Array.Empty<string>()
+                : rolesHeader.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.NameIdentifier, userId),
+                new(ClaimTypes.Name, userId)
+            };
+
+            foreach (var role in roles)
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            }
+
+            var identity = new ClaimsIdentity(claims, Scheme.Name);
+            var principal = new ClaimsPrincipal(identity);
+            var ticket = new AuthenticationTicket(principal, Scheme.Name);
+            return Task.FromResult(AuthenticateResult.Success(ticket));
         }
     }
 }
