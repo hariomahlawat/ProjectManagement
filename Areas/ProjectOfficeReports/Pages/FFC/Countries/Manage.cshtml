@@ -4,23 +4,37 @@
     ViewData["Title"] = "FFC Countries";
 }
 
-<h1 class="h3 mb-3">FFC Countries</h1>
+<div class="container-fluid py-3">
+    <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-4">
+        <div>
+            <p class="text-uppercase text-muted small mb-1">Project office reports</p>
+            <h1 class="h3 mb-1">Manage FFC countries</h1>
+            <nav aria-label="Breadcrumb">
+                <ol class="breadcrumb mb-2 small">
+                    <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/FFC/Index">FFC simulators</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Manage countries</li>
+                </ol>
+            </nav>
+            <p class="text-muted mb-0">Maintain the list of participating countries and update their delivery settings.</p>
+        </div>
 
-<div class="mb-3 d-flex flex-wrap gap-2">
-    <a asp-area="ProjectOfficeReports" asp-page="/FFC/Index" class="btn btn-outline-secondary btn-sm">
-        View overview
-    </a>
-    <a asp-area="ProjectOfficeReports" asp-page="/FFC/Records/Manage" class="btn btn-outline-secondary btn-sm">
-        Go to records
-    </a>
-</div>
+        <div class="d-flex flex-wrap gap-2">
+            <a asp-area="ProjectOfficeReports" asp-page="/FFC/Index" class="btn btn-outline-secondary btn-sm">
+                View overview
+            </a>
+            <a asp-area="ProjectOfficeReports" asp-page="/FFC/Records/Manage" class="btn btn-outline-secondary btn-sm">
+                Manage records
+            </a>
+        </div>
+    </div>
 
-<partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
+    <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
 
-<div class="row g-4">
-    <div class="col-lg-7">
-        <form method="get" class="row gy-2 gx-2 align-items-end mb-3">
-            <div class="col-md-6">
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <form method="get" class="row gy-2 gx-2 align-items-end mb-3">
+                <div class="col-md-6">
                 <label class="form-label" for="country-search">Search</label>
                 <input type="search" class="form-control" id="country-search" name="q" value="@Model.Query" />
             </div>
@@ -68,5 +82,6 @@
                 </div>
             </div>
         </authorize>
+    </div>
     </div>
 </div>

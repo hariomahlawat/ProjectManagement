@@ -6,15 +6,21 @@
 }
 
 <section class="ffc-index">
-    <header class="ffc-index__header">
+    <header class="ffc-index__header d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-4 mb-4">
         <div class="ffc-index__intro">
             <span class="ffc-index__eyebrow">Project office report</span>
             <h1 class="ffc-index__title">FFC simulators</h1>
+            <nav aria-label="Breadcrumb">
+                <ol class="breadcrumb mb-2 small">
+                    <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">FFC simulators</li>
+                </ol>
+            </nav>
             <p class="ffc-index__description">Review the status of FFC simulator deliveries by country and year. Use the filters below to locate specific entries.</p>
         </div>
         @if (Model.CanManageRecords)
         {
-            <div class="ffc-index__actions">
+            <div class="ffc-index__actions d-flex flex-wrap align-items-center gap-2">
                 <a asp-area="ProjectOfficeReports" asp-page="/FFC/Records/Manage" class="btn btn-outline-secondary btn-sm">Manage records</a>
                 <a asp-area="ProjectOfficeReports" asp-page="/FFC/Countries/Manage" class="btn btn-outline-secondary btn-sm">Manage countries</a>
             </div>
