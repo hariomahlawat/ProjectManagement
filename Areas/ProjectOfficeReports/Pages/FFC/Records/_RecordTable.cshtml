@@ -7,7 +7,7 @@
 
     string GetMilestoneBadgeText(bool completed) => completed ? "Completed" : "Pending";
 
-    string? FormatMilestoneDate(System.DateTime? date) => date?.ToString("d");
+    string? FormatMilestoneDate(System.DateOnly? date) => date?.ToString("d");
 }
 
 <div class="table-responsive">
