@@ -75,6 +75,11 @@ body {
     margin: 0;
 }
 
+/* --- Breadcrumbs --- */
+.breadcrumb {
+    --bs-breadcrumb-padding-y: .25rem;
+}
+
 /* ---------- Utility classes ---------- */
 .min-w-0 {
     min-width: 0;
