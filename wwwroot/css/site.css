@@ -242,9 +242,24 @@ body {
 }
 
 .ffc-index__filters-grid {
-    display: grid;
-    gap: 1rem;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: .75rem 1rem;
+}
+
+.ffc-index__filter {
+    flex: 0 0 auto;
+}
+
+.ffc-index__filter--search {
+    flex: 1 1 320px;
+    min-width: 220px;
+}
+
+.ffc-index__filter--sort,
+.ffc-index__filter--actions {
+    flex: 0 0 auto;
 }
 
 .ffc-index__filter-label {
