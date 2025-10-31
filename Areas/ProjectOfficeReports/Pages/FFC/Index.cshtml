@@ -15,8 +15,18 @@
             @if (Model.CanManageRecords)
             {
                 <div class="d-flex flex-wrap align-items-center gap-2">
-                    <a asp-area="ProjectOfficeReports" asp-page="/FFC/Records/Manage" class="btn btn-outline-secondary btn-sm">Manage records</a>
-                    <a asp-area="ProjectOfficeReports" asp-page="/FFC/Countries/Manage" class="btn btn-outline-secondary btn-sm">Manage countries</a>
+                    <a asp-area="ProjectOfficeReports"
+                       asp-page="/FFC/Records/Manage"
+                       class="btn btn-primary d-inline-flex align-items-center gap-2">
+                        <i class="bi bi-collection" aria-hidden="true"></i>
+                        <span>Manage records</span>
+                    </a>
+                    <a asp-area="ProjectOfficeReports"
+                       asp-page="/FFC/Countries/Manage"
+                       class="btn btn-outline-primary d-inline-flex align-items-center gap-2">
+                        <i class="bi bi-globe" aria-hidden="true"></i>
+                        <span>Manage countries</span>
+                    </a>
                 </div>
             }
         </div>
