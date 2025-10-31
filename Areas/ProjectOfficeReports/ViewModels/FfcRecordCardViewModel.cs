@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.ViewModels;
@@ -10,4 +12,5 @@ public sealed class FfcRecordCardViewModel
     public string CurrentSort { get; init; } = "year";
     public string CurrentSortDirection { get; init; } = "desc";
     public string? Query { get; init; }
+    public IDictionary<string, string?> RouteValues { get; init; } = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 }
