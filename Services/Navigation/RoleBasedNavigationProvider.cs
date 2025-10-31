@@ -224,6 +224,13 @@ public class RoleBasedNavigationProvider : INavigationProvider
                     },
                     new NavigationItem
                     {
+                        Text = "Projects – Legacy import",
+                        Area = "ProjectOfficeReports",
+                        Page = "/Projects/LegacyImport",
+                        RequiredRoles = new[] { "Admin" }
+                    },
+                    new NavigationItem
+                    {
                         Text = "Archived projects",
                         Page = "/Projects/Index",
                         RequiredRoles = new[] { "Admin" },

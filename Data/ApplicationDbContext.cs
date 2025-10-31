@@ -31,6 +31,7 @@ namespace ProjectManagement.Data
         public DbSet<ProjectCategory> ProjectCategories => Set<ProjectCategory>();
         public DbSet<ProjectIpaFact> ProjectIpaFacts => Set<ProjectIpaFact>();
         public DbSet<TechnicalCategory> TechnicalCategories => Set<TechnicalCategory>();
+        public DbSet<ProjectLegacyImport> ProjectLegacyImports => Set<ProjectLegacyImport>();
         public DbSet<ProjectSowFact> ProjectSowFacts => Set<ProjectSowFact>();
         public DbSet<ProjectAonFact> ProjectAonFacts => Set<ProjectAonFact>();
         public DbSet<ProjectBenchmarkFact> ProjectBenchmarkFacts => Set<ProjectBenchmarkFact>();
@@ -159,6 +160,9 @@ namespace ProjectManagement.Data
                     .HasFilter("\"CaseFileNumber\" IS NOT NULL");
                 ConfigureRowVersion(e);
                 e.Property(x => x.CreatedByUserId).HasMaxLength(64).IsRequired();
+                e.Property(x => x.ArmService).HasMaxLength(200);
+                e.Property(x => x.YearOfDevelopment);
+                e.Property(x => x.CostLakhs).HasColumnType("numeric(18,2)");
                 e.Property(x => x.CoverPhotoVersion).HasDefaultValue(1).IsConcurrencyToken();
                 e.Property(x => x.FeaturedVideoVersion).HasDefaultValue(1).IsConcurrencyToken();
                 e.Property(x => x.LifecycleStatus)
@@ -243,6 +247,25 @@ namespace ProjectManagement.Data
                     e.HasIndex(x => x.IsDeleted)
                         .HasDatabaseName("IX_Projects_IsDeleted");
                 }
+            });
+
+            builder.Entity<ProjectLegacyImport>(e =>
+            {
+                e.ToTable("ProjectLegacyImports");
+                e.Property(x => x.ImportedAtUtc).HasColumnType("timestamp without time zone");
+                e.Property(x => x.ImportedByUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.SourceFileHashSha256).HasMaxLength(128);
+                e.HasIndex(x => new { x.ProjectCategoryId, x.TechnicalCategoryId })
+                    .IsUnique()
+                    .HasDatabaseName("UX_ProjectLegacyImport_Category_Tech");
+                e.HasOne(x => x.ProjectCategory)
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectCategoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                e.HasOne(x => x.TechnicalCategory)
+                    .WithMany()
+                    .HasForeignKey(x => x.TechnicalCategoryId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             builder.Entity<ProjectAudit>(e =>

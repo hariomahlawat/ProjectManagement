@@ -18,6 +18,14 @@ namespace ProjectManagement.Models
         [MaxLength(1000)]
         public string? Description { get; set; }
 
+        [MaxLength(200)]
+        public string? ArmService { get; set; }
+
+        public short? YearOfDevelopment { get; set; }
+
+        [Column(TypeName = "numeric(18,2)")]
+        public decimal? CostLakhs { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         public ProjectLifecycleStatus LifecycleStatus { get; set; } = ProjectLifecycleStatus.Active;
