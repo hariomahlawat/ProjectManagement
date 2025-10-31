@@ -274,7 +274,13 @@
                                         </a>
                                     </h2>
                                     <div class="projects-card__badges">
-                                        <span class="badge rounded-pill text-bg-primary">@FormatLifecycleStatus(project.LifecycleStatus)</span>
+                                        <span class="badge rounded-pill @GetLifecycleBadgeClass(project.LifecycleStatus)">
+                                            @FormatLifecycleStatus(project.LifecycleStatus)
+                                            @if (project.LifecycleStatus == ProjectLifecycleStatus.Completed && project.CompletedYear.HasValue)
+                                            {
+                                                <text> @project.CompletedYear</text>
+                                            }
+                                        </span>
                                         @if (project.IsArchived)
                                         {
                                             <span class="badge text-bg-secondary">Archived</span>
@@ -483,6 +489,14 @@
             _ => status.ToString()
         };
     }
+
+    private static string GetLifecycleBadgeClass(ProjectLifecycleStatus status) => status switch
+    {
+        ProjectLifecycleStatus.Active => "text-bg-primary",
+        ProjectLifecycleStatus.Completed => "text-bg-success",
+        ProjectLifecycleStatus.Cancelled => "text-bg-secondary",
+        _ => "text-bg-secondary"
+    };
 
     private static string FormatTotStatus(ProjectTotStatus status)
     {
