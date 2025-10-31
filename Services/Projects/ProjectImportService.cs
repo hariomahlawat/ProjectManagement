@@ -137,6 +137,8 @@ public class ProjectImportService : IProjectImportService
                 TechnicalCategoryId = technicalCategoryId,
                 CreatedByUserId = projectCreatedBy,
                 IsLegacy = true,
+                LifecycleStatus = ProjectLifecycleStatus.Completed,
+                CompletedYear = yearOfDevelopment,   // map YearOfDevp -> CompletedYear
                 CreatedAt = DateTime.UtcNow
             };
 
