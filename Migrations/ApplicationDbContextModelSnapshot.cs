@@ -2915,6 +2915,10 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<string>("ArmService")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<int?>("CategoryId")
                         .HasColumnType("integer");
 
@@ -2923,6 +2927,9 @@ namespace ProjectManagement.Migrations
 
                     b.Property<int?>("CompletedYear")
                         .HasColumnType("integer");
+
+                    b.Property<short?>("YearOfDevelopment")
+                        .HasColumnType("smallint");
 
                     b.Property<int?>("CoverPhotoId")
                         .HasColumnType("integer");
@@ -2963,6 +2970,9 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("Description")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
+
+                    b.Property<decimal?>("CostLakhs")
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<int?>("FeaturedVideoId")
                         .HasColumnType("integer");
@@ -3627,6 +3637,47 @@ namespace ProjectManagement.Migrations
                     b.HasIndex("ProjectId", "TotId");
 
                     b.ToTable("ProjectDocumentRequests");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectLegacyImport", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("ImportedAtUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("ImportedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<int>("ProjectCategoryId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RowsImported")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RowsReceived")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SourceFileHashSha256")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int>("TechnicalCategoryId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectCategoryId", "TechnicalCategoryId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProjectLegacyImport_Category_Tech");
+
+                    b.ToTable("ProjectLegacyImports");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectIpaFact", b =>
@@ -5825,6 +5876,25 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Stage");
 
                     b.Navigation("Tot");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectLegacyImport", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ProjectCategory", "ProjectCategory")
+                        .WithMany()
+                        .HasForeignKey("ProjectCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ProjectManagement.Models.TechnicalCategory", "TechnicalCategory")
+                        .WithMany()
+                        .HasForeignKey("TechnicalCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ProjectCategory");
+
+                    b.Navigation("TechnicalCategory");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectIpaFact", b =>

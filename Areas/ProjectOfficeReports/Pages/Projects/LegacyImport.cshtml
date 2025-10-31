@@ -1,0 +1,44 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Projects.LegacyImportModel
+@attribute [Authorize(Roles="Admin")]
+
+<h1 class="h3 mb-4">Legacy project import</h1>
+
+@if (!string.IsNullOrEmpty(Model.StatusMessage))
+{
+    <div class="alert alert-success" role="status">
+        @Model.StatusMessage
+    </div>
+}
+
+<form method="post" enctype="multipart/form-data" class="vstack gap-3">
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+    <div class="row g-3">
+        <div class="col-md-4">
+            <label asp-for="ProjectCategoryId" class="form-label">Project category</label>
+            <select asp-for="ProjectCategoryId" asp-items="Model.ProjectCategories" class="form-select">
+                <option value="">-- Select --</option>
+            </select>
+            <span asp-validation-for="ProjectCategoryId" class="text-danger"></span>
+        </div>
+        <div class="col-md-4">
+            <label asp-for="TechnicalCategoryId" class="form-label">Technical category</label>
+            <select asp-for="TechnicalCategoryId" asp-items="Model.TechnicalCategories" class="form-select">
+                <option value="">-- Select --</option>
+            </select>
+            <span asp-validation-for="TechnicalCategoryId" class="text-danger"></span>
+        </div>
+        <div class="col-md-4">
+            <label asp-for="Upload" class="form-label">Excel file (.xlsx)</label>
+            <input asp-for="Upload" type="file" class="form-control" accept=".xlsx" />
+            <span asp-validation-for="Upload" class="text-danger"></span>
+            <div class="form-text">Use the sample template for correct headers.</div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button formaction="?handler=Import" class="btn btn-primary">Import</button>
+        <a asp-page-handler="Template" class="btn btn-outline-secondary">Download sample template</a>
+    </div>
+</form>

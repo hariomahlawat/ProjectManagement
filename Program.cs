@@ -301,6 +301,7 @@ builder.Services.AddScoped<ForecastBackfillService>();
 builder.Services.AddScoped<ProjectMetaChangeRequestService>();
 builder.Services.AddScoped<ProjectMetaChangeDecisionService>();
 builder.Services.AddScoped<ProjectCategoryHierarchyService>();
+builder.Services.AddScoped<IProjectImportService, ProjectImportService>();
 builder.Services.AddScoped<IProjectAnalyticsService, ProjectAnalyticsService>();
 builder.Services.AddSingleton<IProjectTotExcelWorkbookBuilder, ProjectTotExcelWorkbookBuilder>();
 builder.Services.AddSingleton<IVisitExcelWorkbookBuilder, VisitExcelWorkbookBuilder>();
