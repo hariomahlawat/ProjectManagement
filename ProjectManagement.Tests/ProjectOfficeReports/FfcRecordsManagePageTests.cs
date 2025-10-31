@@ -185,7 +185,7 @@ public sealed class FfcRecordsManagePageTests
         var result = await page.OnPostUpdateAsync();
 
         Assert.IsType<PageResult>(result);
-        var state = Assert.NotNull(page.ModelState[string.Empty]);
+        var state = Assert.IsType<Microsoft.AspNetCore.Mvc.ModelBinding.ModelStateEntry>(page.ModelState[string.Empty]);
         Assert.NotEmpty(state.Errors);
         Assert.Contains("modified by another user", state.Errors[0].ErrorMessage, StringComparison.OrdinalIgnoreCase);
 
@@ -204,7 +204,7 @@ public sealed class FfcRecordsManagePageTests
         var response = await client.GetAsync("/ProjectOfficeReports/FFC/Records/Manage");
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        var location = Assert.NotNull(response.Headers.Location);
+        var location = Assert.IsType<Uri>(response.Headers.Location);
         Assert.Equal("/Identity/Account/AccessDenied?ReturnUrl=%2FProjectOfficeReports%2FFFC%2FRecords%2FManage", location.PathAndQuery);
     }
 
@@ -215,7 +215,7 @@ public sealed class FfcRecordsManagePageTests
         var client = CreateClientForUser(factory, "general-user");
 
         var response = await client.GetAsync("/ProjectOfficeReports/FFC/Records/Manage");
-        var location = Assert.NotNull(response.Headers.Location);
+        var location = Assert.IsType<Uri>(response.Headers.Location);
         var accessDenied = await client.GetAsync(new Uri(client.BaseAddress!, location));
 
         Assert.Equal(HttpStatusCode.Forbidden, accessDenied.StatusCode);

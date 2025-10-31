@@ -161,7 +161,7 @@ public sealed class FfcCountriesManagePageTests
         var response = await client.GetAsync("/ProjectOfficeReports/FFC/Countries/Manage");
 
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
-        var location = Assert.NotNull(response.Headers.Location);
+        var location = Assert.IsType<Uri>(response.Headers.Location);
         Assert.Equal("/Identity/Account/AccessDenied?ReturnUrl=%2FProjectOfficeReports%2FFFC%2FCountries%2FManage", location.PathAndQuery);
     }
 
@@ -172,7 +172,7 @@ public sealed class FfcCountriesManagePageTests
         var client = CreateClientForUser(factory, "general-user");
 
         var response = await client.GetAsync("/ProjectOfficeReports/FFC/Countries/Manage");
-        var location = Assert.NotNull(response.Headers.Location);
+        var location = Assert.IsType<Uri>(response.Headers.Location);
         var accessDenied = await client.GetAsync(new Uri(client.BaseAddress!, location));
 
         Assert.Equal(HttpStatusCode.Forbidden, accessDenied.StatusCode);
