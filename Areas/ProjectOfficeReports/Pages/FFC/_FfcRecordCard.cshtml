@@ -145,10 +145,7 @@
                     <a asp-area="ProjectOfficeReports"
                        asp-page="/FFC/Records/Manage"
                        asp-route-editId="@record.Id"
-                       asp-route-page="@Model.PageNumber"
-                       asp-route-sort="@Model.CurrentSort"
-                       asp-route-dir="@Model.CurrentSortDirection"
-                       asp-route-q="@Model.Query"
+                       asp-all-route-data="Model.RouteValues"
                        class="btn btn-outline-primary btn-sm">Manage record</a>
                     <a asp-area="ProjectOfficeReports"
                        asp-page="/FFC/Records/Projects/Manage"

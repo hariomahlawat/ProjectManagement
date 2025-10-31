@@ -1,8 +1,43 @@
 @page
+@using System
+@using System.Collections.Generic
 @using System.Globalization
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.IndexModel
 @{
     ViewData["Title"] = "FFC simulators";
+
+    var filterChips = new List<(string Label, string Value)>();
+
+    if (!string.IsNullOrWhiteSpace(Model.Query))
+    {
+        filterChips.Add(("Search", Model.Query!));
+    }
+
+    if (Model.Year.HasValue)
+    {
+        filterChips.Add(("Year", Model.Year.Value.ToString(CultureInfo.InvariantCulture)));
+    }
+
+    if (Model.CountryId.HasValue)
+    {
+        var countryValue = Model.CountryId.Value.ToString(CultureInfo.InvariantCulture);
+        var countryOption = Model.CountryOptions.FirstOrDefault(option => string.Equals(option.Value, countryValue, StringComparison.Ordinal));
+        var countryLabel = countryOption?.Text ?? $"Country #{Model.CountryId.Value}";
+        filterChips.Add(("Country", countryLabel));
+    }
+
+    void AddMilestoneChip(string label, MilestoneFilterState state)
+    {
+        if (state != MilestoneFilterState.Any)
+        {
+            filterChips.Add((label, Model.GetMilestoneLabel(state)));
+        }
+    }
+
+    AddMilestoneChip("IPA", Model.IpaStatus);
+    AddMilestoneChip("GSL", Model.GslStatus);
+    AddMilestoneChip("Delivery", Model.DeliveryStatus);
+    AddMilestoneChip("Installation", Model.InstallationStatus);
 }
 
 <div class="container-fluid py-4">
@@ -31,86 +66,95 @@
             }
         </div>
 
-
         <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
 
-        <div class="pm-card pm-shadow ffc-index__filters">
-            <form method="get" class="ffc-index__filters-form">
-                <input type="hidden" name="page" value="1" />
-                <input type="hidden" name="sort" value="@Model.CurrentSort" />
-                <input type="hidden" name="dir" value="@Model.CurrentSortDirection" />
-
-                <div class="ffc-index__filters-grid d-flex flex-wrap align-items-end">
-                    <div class="ffc-index__filter ffc-index__filter--search">
-                        <label class="form-label" for="record-search">Search records</label>
-                        <input type="search" class="form-control" id="record-search" name="q" value="@Model.Query" />
-                    </div>
-                    <div class="ffc-index__filter ffc-index__filter--sort">
-                        <span class="ffc-index__filter-label">Sort by</span>
-                        <div class="btn-group btn-group-sm" role="group" aria-label="Sort records">
-                            <a class="btn btn-outline-secondary @(Model.CurrentSort == "year" ? "active" : string.Empty)"
-                               asp-page="./Index"
-                               asp-all-route-data='Model.BuildRoute(page: 1, sort: "year", dir: Model.GetSortDirectionFor("year"))'>
-                                <span class="d-inline-flex align-items-center gap-1">
-                                    <span>Year</span>
-                                    <i class='@Model.GetSortIconClass("year")'></i>
-                                </span>
-                            </a>
-                            <a class="btn btn-outline-secondary @(Model.CurrentSort == "country" ? "active" : string.Empty)"
-                               asp-page="./Index"
-                               asp-all-route-data='Model.BuildRoute(page: 1, sort: "country", dir: Model.GetSortDirectionFor("country"))'>
-                                <span class="d-inline-flex align-items-center gap-1">
-                                    <span>Country</span>
-                                    <i class='@Model.GetSortIconClass("country")'></i>
-                                </span>
-                            </a>
-                        </div>
-                    </div>
-                    <div class="ffc-index__filter ffc-index__filter--actions">
-                        <button type="submit" class="btn btn-primary btn-sm">Search</button>
-                        @if (Model.HasQuery)
+        <div class="pm-card pm-shadow ffc-filter-summary">
+            <div class="pm-card-body ffc-filter-summary__body">
+                <div class="ffc-filter-summary__details">
+                    <div class="ffc-filter-summary__meta text-muted small">
+                        <span>Sorted by <span class="fw-semibold">@(Model.CurrentSort == "country" ? "Country" : "Year")</span> (@(Model.CurrentSortDirection == "desc" ? "descending" : "ascending")).</span>
+                        @if (Model.TotalCount > 0)
                         {
-                            <a asp-page="./Index" asp-all-route-data="Model.BuildRoute(page: 1, query: string.Empty)" class="btn btn-link btn-sm">Clear</a>
+                            <span class="ffc-filter-summary__separator" aria-hidden="true">&middot;</span>
+                            <span>Showing @Model.Records.Count of @Model.TotalCount record@(Model.TotalCount == 1 ? string.Empty : "s").</span>
                         }
                     </div>
-                </div>
 
-                <div class="ffc-index__meta text-muted small">
-                    <span>Sorted by <span class="fw-semibold">@(Model.CurrentSort == "country" ? "Country" : "Year")</span> (@(Model.CurrentSortDirection == "desc" ? "descending" : "ascending")).</span>
-                    @if (Model.TotalCount > 0)
+                    @if (filterChips.Count > 0)
                     {
-                        <span class="ffc-index__meta-separator" aria-hidden="true">&middot;</span>
-                        <span>Showing @Model.Records.Count of @Model.TotalCount record@(Model.TotalCount == 1 ? string.Empty : "s").</span>
+                        <div class="ffc-filter-chips" aria-label="Active filters">
+                            @foreach (var (label, value) in filterChips)
+                            {
+                                <span class="ffc-filter-chip">
+                                    <span class="ffc-filter-chip__label">@label</span>
+                                    <span class="ffc-filter-chip__value">@value</span>
+                                </span>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted small mb-0">No filters applied.</p>
                     }
                 </div>
-            </form>
+
+                <div class="ffc-filter-summary__actions">
+                    <div class="btn-group btn-group-sm" role="group" aria-label="Sort records">
+                        <a class="btn btn-outline-secondary @(Model.CurrentSort == "year" ? "active" : string.Empty)"
+                           asp-page="./Index"
+                           asp-all-route-data='Model.BuildRoute(page: 1, sort: "year", dir: Model.GetSortDirectionFor("year"))'>
+                            <span class="d-inline-flex align-items-center gap-1">
+                                <span>Year</span>
+                                <i class='@Model.GetSortIconClass("year")'></i>
+                            </span>
+                        </a>
+                        <a class="btn btn-outline-secondary @(Model.CurrentSort == "country" ? "active" : string.Empty)"
+                           asp-page="./Index"
+                           asp-all-route-data='Model.BuildRoute(page: 1, sort: "country", dir: Model.GetSortDirectionFor("country"))'>
+                            <span class="d-inline-flex align-items-center gap-1">
+                                <span>Country</span>
+                                <i class='@Model.GetSortIconClass("country")'></i>
+                            </span>
+                        </a>
+                    </div>
+
+                    <button type="button"
+                            class="btn btn-outline-primary btn-sm ffc-filter-trigger"
+                            data-bs-toggle="modal"
+                            data-bs-target="#ffcFiltersModal">
+                        <i class="bi bi-sliders" aria-hidden="true"></i>
+                        <span>Filters</span>
+                    </button>
+                </div>
+            </div>
         </div>
 
-    @if (!Model.Records.Any())
-    {
-        <div class="alert alert-secondary" role="status">
-            No records match your filters. Try adjusting the search term or resetting the filters.
-        </div>
-    }
-    else
-    {
-        <section class="ffc-record-grid" aria-label="FFC simulator records">
-            @foreach (var record in Model.Records)
-            {
-                <div class="ffc-record-grid__item">
-                    @await Html.PartialAsync("_FfcRecordCard", new ProjectManagement.Areas.ProjectOfficeReports.ViewModels.FfcRecordCardViewModel
-                    {
-                        Record = record,
-                        CanManageRecords = Model.CanManageRecords,
-                        PageNumber = Model.PageNumber,
-                        CurrentSort = Model.CurrentSort,
-                        CurrentSortDirection = Model.CurrentSortDirection,
-                        Query = Model.Query
-                    })
-                </div>
-            }
-        </section>
-    }
+        @if (!Model.Records.Any())
+        {
+            <div class="alert alert-secondary" role="status">
+                No records match your filters. Try adjusting the search term or resetting the filters.
+            </div>
+        }
+        else
+        {
+            <section class="ffc-record-grid" aria-label="FFC simulator records">
+                @foreach (var record in Model.Records)
+                {
+                    <div class="ffc-record-grid__item">
+                        @await Html.PartialAsync("_FfcRecordCard", new ProjectManagement.Areas.ProjectOfficeReports.ViewModels.FfcRecordCardViewModel
+                        {
+                            Record = record,
+                            CanManageRecords = Model.CanManageRecords,
+                            PageNumber = Model.PageNumber,
+                            CurrentSort = Model.CurrentSort,
+                            CurrentSortDirection = Model.CurrentSortDirection,
+                            Query = Model.Query,
+                            RouteValues = Model.BuildRoute()
+                        })
+                    </div>
+                }
+            </section>
+        }
 
         <nav aria-label="Records pagination" class="ffc-index__pagination">
             <ul class="pagination pagination-sm mb-0">
@@ -133,4 +177,94 @@
             </ul>
         </nav>
     </section>
+</div>
+
+<div class="modal fade" id="ffcFiltersModal" tabindex="-1" aria-labelledby="ffcFiltersModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <form method="get" class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title h5" id="ffcFiltersModalLabel">Filter records</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" name="page" value="1" />
+                <input type="hidden" name="sort" value="@Model.CurrentSort" />
+                <input type="hidden" name="dir" value="@Model.CurrentSortDirection" />
+
+                <div class="mb-4">
+                    <label class="form-label" for="ffc-filter-search">Search records</label>
+                    <input type="search" class="form-control" id="ffc-filter-search" name="q" value="@Model.Query" />
+                </div>
+
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <label class="form-label" for="ffc-filter-year">Year</label>
+                        <select class="form-select" id="ffc-filter-year" name="year">
+                            <option value="">All years</option>
+                            @foreach (var option in Model.YearOptions)
+                            {
+                                <option value="@option.Value" selected="@(option.Selected ? "selected" : null)">@option.Text</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="ffc-filter-country">Country</label>
+                        <select class="form-select" id="ffc-filter-country" name="countryId">
+                            <option value="">All countries</option>
+                            @foreach (var option in Model.CountryOptions)
+                            {
+                                <option value="@option.Value" selected="@(option.Selected ? "selected" : null)">@option.Text</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row g-4 mt-1">
+                    @foreach (var milestone in new[] { "ipa", "gsl", "delivery", "installation" })
+                    {
+                        var title = milestone switch
+                        {
+                            "ipa" => "IPA",
+                            "gsl" => "GSL",
+                            "delivery" => "Delivery",
+                            _ => "Installation"
+                        };
+
+                        var selectedState = milestone switch
+                        {
+                            "ipa" => Model.IpaStatus,
+                            "gsl" => Model.GslStatus,
+                            "delivery" => Model.DeliveryStatus,
+                            _ => Model.InstallationStatus
+                        };
+
+                        <div class="col-md-6">
+                            <fieldset class="ffc-filter-fieldset">
+                                <legend class="ffc-filter-fieldset__legend">@title status</legend>
+                                <div class="d-flex flex-wrap gap-2">
+                                    @foreach (var option in Model.MilestoneOptions)
+                                    {
+                                        var inputId = $"ffc-filter-{milestone}-{option.QueryValue}";
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input"
+                                                   type="radio"
+                                                   name="@milestone"
+                                                   id="@inputId"
+                                                   value="@option.QueryValue"
+                                                   @(option.Value == selectedState ? "checked" : null) />
+                                            <label class="form-check-label" for="@inputId">@option.Label</label>
+                                        </div>
+                                    }
+                                </div>
+                            </fieldset>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a asp-page="./Index" class="btn btn-link">Reset</a>
+                <button type="submit" class="btn btn-primary">Apply filters</button>
+            </div>
+        </form>
+    </div>
 </div>

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -144,6 +145,181 @@ public sealed class FfcIndexPageTests
         Assert.All(page.Records, record => Assert.Equal(beta.Id, record.CountryId));
         var years = page.Records.Select(r => r.Year).OrderByDescending(y => y).ToArray();
         Assert.Equal(new[] { (short)2017, (short)2016 }, years);
+    }
+
+    [Fact]
+    public async Task OnGetAsync_WithYearFilter_FiltersRecordsAndRetainsRoute()
+    {
+        await using var db = CreateDbContext();
+        var country = await SeedCountryAsync(db, "Alpha", "ALP");
+
+        db.FfcRecords.AddRange(
+            new FfcRecord { CountryId = country.Id, Year = 2024 },
+            new FfcRecord { CountryId = country.Id, Year = 2023 });
+
+        await db.SaveChangesAsync();
+
+        var page = new IndexModel(db)
+        {
+            Year = 2024
+        };
+
+        ConfigurePageContext(page, CreatePrincipal());
+
+        await page.OnGetAsync();
+
+        var record = Assert.Single(page.Records);
+        Assert.Equal((short)2024, record.Year);
+
+        var route = page.BuildRoute();
+        Assert.True(route.TryGetValue("year", out var year));
+        Assert.Equal("2024", year);
+    }
+
+    [Fact]
+    public async Task OnGetAsync_WithCountryFilter_FiltersRecordsAndRetainsRoute()
+    {
+        await using var db = CreateDbContext();
+        var alpha = await SeedCountryAsync(db, "Alpha", "ALP");
+        var beta = await SeedCountryAsync(db, "Beta", "BET");
+
+        db.FfcRecords.AddRange(
+            new FfcRecord { CountryId = alpha.Id, Year = 2024 },
+            new FfcRecord { CountryId = beta.Id, Year = 2024 });
+
+        await db.SaveChangesAsync();
+
+        var page = new IndexModel(db)
+        {
+            CountryId = beta.Id
+        };
+
+        ConfigurePageContext(page, CreatePrincipal());
+
+        await page.OnGetAsync();
+
+        var record = Assert.Single(page.Records);
+        Assert.Equal(beta.Id, record.CountryId);
+
+        var route = page.BuildRoute();
+        Assert.True(route.TryGetValue("countryId", out var value));
+        Assert.Equal(beta.Id.ToString(CultureInfo.InvariantCulture), value);
+    }
+
+    [Fact]
+    public async Task OnGetAsync_WithIpaCompletedFilter_ReturnsCompletedRecords()
+    {
+        await using var db = CreateDbContext();
+        var country = await SeedCountryAsync(db, "Alpha", "ALP");
+
+        db.FfcRecords.AddRange(
+            new FfcRecord { CountryId = country.Id, Year = 2024, IpaYes = true },
+            new FfcRecord { CountryId = country.Id, Year = 2023, IpaYes = false });
+
+        await db.SaveChangesAsync();
+
+        var page = new IndexModel(db)
+        {
+            IpaStatus = MilestoneFilterState.Completed
+        };
+
+        ConfigurePageContext(page, CreatePrincipal());
+
+        await page.OnGetAsync();
+
+        var record = Assert.Single(page.Records);
+        Assert.True(record.IpaYes);
+
+        var route = page.BuildRoute();
+        Assert.True(route.TryGetValue("ipa", out var value));
+        Assert.Equal("completed", value);
+    }
+
+    [Fact]
+    public async Task OnGetAsync_WithGslPendingFilter_ReturnsPendingRecords()
+    {
+        await using var db = CreateDbContext();
+        var country = await SeedCountryAsync(db, "Alpha", "ALP");
+
+        db.FfcRecords.AddRange(
+            new FfcRecord { CountryId = country.Id, Year = 2024, GslYes = true },
+            new FfcRecord { CountryId = country.Id, Year = 2023, GslYes = false });
+
+        await db.SaveChangesAsync();
+
+        var page = new IndexModel(db)
+        {
+            GslStatus = MilestoneFilterState.Pending
+        };
+
+        ConfigurePageContext(page, CreatePrincipal());
+
+        await page.OnGetAsync();
+
+        var record = Assert.Single(page.Records);
+        Assert.False(record.GslYes);
+
+        var route = page.BuildRoute();
+        Assert.True(route.TryGetValue("gsl", out var value));
+        Assert.Equal("pending", value);
+    }
+
+    [Fact]
+    public async Task OnGetAsync_WithDeliveryCompletedFilter_ReturnsCompletedRecords()
+    {
+        await using var db = CreateDbContext();
+        var country = await SeedCountryAsync(db, "Alpha", "ALP");
+
+        db.FfcRecords.AddRange(
+            new FfcRecord { CountryId = country.Id, Year = 2024, DeliveryYes = true },
+            new FfcRecord { CountryId = country.Id, Year = 2023, DeliveryYes = false });
+
+        await db.SaveChangesAsync();
+
+        var page = new IndexModel(db)
+        {
+            DeliveryStatus = MilestoneFilterState.Completed
+        };
+
+        ConfigurePageContext(page, CreatePrincipal());
+
+        await page.OnGetAsync();
+
+        var record = Assert.Single(page.Records);
+        Assert.True(record.DeliveryYes);
+
+        var route = page.BuildRoute();
+        Assert.True(route.TryGetValue("delivery", out var value));
+        Assert.Equal("completed", value);
+    }
+
+    [Fact]
+    public async Task OnGetAsync_WithInstallationPendingFilter_ReturnsPendingRecords()
+    {
+        await using var db = CreateDbContext();
+        var country = await SeedCountryAsync(db, "Alpha", "ALP");
+
+        db.FfcRecords.AddRange(
+            new FfcRecord { CountryId = country.Id, Year = 2024, InstallationYes = true },
+            new FfcRecord { CountryId = country.Id, Year = 2023, InstallationYes = false });
+
+        await db.SaveChangesAsync();
+
+        var page = new IndexModel(db)
+        {
+            InstallationStatus = MilestoneFilterState.Pending
+        };
+
+        ConfigurePageContext(page, CreatePrincipal());
+
+        await page.OnGetAsync();
+
+        var record = Assert.Single(page.Records);
+        Assert.False(record.InstallationYes);
+
+        var route = page.BuildRoute();
+        Assert.True(route.TryGetValue("installation", out var value));
+        Assert.Equal("pending", value);
     }
 
     private static ApplicationDbContext CreateDbContext()
