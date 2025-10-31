@@ -39,8 +39,6 @@ public class IndexModel : FfcRecordListPageModel
 
     protected override IQueryable<FfcRecord> ApplyOrdering(IQueryable<FfcRecord> queryable)
     {
-        CurrentSort = "year";
-        CurrentSortDirection = "desc";
 
         return queryable
             .OrderByDescending(record => record.Year)
