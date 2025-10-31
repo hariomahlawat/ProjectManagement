@@ -94,26 +94,7 @@ public abstract class FfcRecordListPageModel : PageModel
                 (hasYear && x.Year == year));
         }
 
-        var sort = (Sort ?? string.Empty).Trim().ToLowerInvariant();
-        var descending = !string.Equals(SortDirection, "asc", StringComparison.OrdinalIgnoreCase);
-
-        queryable = sort switch
-        {
-            "country" => descending
-                ? queryable.OrderByDescending(x => x.Country.Name).ThenByDescending(x => x.Year)
-                : queryable.OrderBy(x => x.Country.Name).ThenByDescending(x => x.Year),
-            _ => descending
-                ? queryable.OrderByDescending(x => x.Year).ThenBy(x => x.Country.Name)
-                : queryable.OrderBy(x => x.Year).ThenBy(x => x.Country.Name)
-        };
-
-        CurrentSort = sort switch
-        {
-            "country" => "country",
-            _ => "year"
-        };
-
-        CurrentSortDirection = descending ? "desc" : "asc";
+        queryable = ApplyOrdering(queryable);
 
         TotalCount = await queryable.CountAsync();
         TotalPages = Math.Max(1, (int)Math.Ceiling(TotalCount / (double)PageSize));
@@ -186,6 +167,30 @@ public abstract class FfcRecordListPageModel : PageModel
         AddMilestoneRouteValue(values, "installation", effectiveInstallation);
 
         return values;
+    }
+
+    protected virtual IQueryable<FfcRecord> ApplyOrdering(IQueryable<FfcRecord> queryable)
+    {
+        var sort = (Sort ?? string.Empty).Trim().ToLowerInvariant();
+        var descending = !string.Equals(SortDirection, "asc", StringComparison.OrdinalIgnoreCase);
+
+        CurrentSort = sort switch
+        {
+            "country" => "country",
+            _ => "year"
+        };
+
+        CurrentSortDirection = descending ? "desc" : "asc";
+
+        return sort switch
+        {
+            "country" => descending
+                ? queryable.OrderByDescending(x => x.Country.Name).ThenByDescending(x => x.Year)
+                : queryable.OrderBy(x => x.Country.Name).ThenByDescending(x => x.Year),
+            _ => descending
+                ? queryable.OrderByDescending(x => x.Year).ThenBy(x => x.Country.Name)
+                : queryable.OrderBy(x => x.Year).ThenBy(x => x.Country.Name)
+        };
     }
 
     public string GetSortDirectionFor(string column)
