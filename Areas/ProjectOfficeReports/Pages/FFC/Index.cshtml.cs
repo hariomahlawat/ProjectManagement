@@ -37,6 +37,44 @@ public class IndexModel : FfcRecordListPageModel
     protected override IQueryable<FfcRecord> ApplyRecordFilters(IQueryable<FfcRecord> queryable)
         => queryable.Where(record => !record.IsDeleted);
 
+    protected override IQueryable<FfcRecord> ApplyOrdering(IQueryable<FfcRecord> queryable)
+    {
+        CurrentSort = "year";
+        CurrentSortDirection = "desc";
+
+        return queryable
+            .OrderByDescending(record => record.Year)
+            .ThenBy(record => record.Country!.Name);
+    }
+
+    public Dictionary<string, string?> BuildRouteWithoutSort(
+        int? page = null,
+        string? query = null,
+        short? year = null,
+        long? countryId = null,
+        MilestoneFilterState? ipa = null,
+        MilestoneFilterState? gsl = null,
+        MilestoneFilterState? delivery = null,
+        MilestoneFilterState? installation = null)
+    {
+        var values = BuildRoute(
+            page: page,
+            sort: null,
+            dir: null,
+            query: query,
+            year: year,
+            countryId: countryId,
+            ipa: ipa,
+            gsl: gsl,
+            delivery: delivery,
+            installation: installation);
+
+        values.Remove("sort");
+        values.Remove("dir");
+
+        return values;
+    }
+
     public string GetMilestoneLabel(MilestoneFilterState state)
     {
         var option = MilestoneOptions.FirstOrDefault(item => item.Value == state);

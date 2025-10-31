@@ -1,44 +1,11 @@
 @page
 @using System
-@using System.Collections.Generic
 @using System.Globalization
 @using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.IndexModel
 @{
     ViewData["Title"] = "FFC simulators";
 
-    var filterChips = new List<(string Label, string Value)>();
-
-    if (!string.IsNullOrWhiteSpace(Model.Query))
-    {
-        filterChips.Add(("Search", Model.Query!));
-    }
-
-    if (Model.Year.HasValue)
-    {
-        filterChips.Add(("Year", Model.Year.Value.ToString(CultureInfo.InvariantCulture)));
-    }
-
-    if (Model.CountryId.HasValue)
-    {
-        var countryValue = Model.CountryId.Value.ToString(CultureInfo.InvariantCulture);
-        var countryOption = Model.CountryOptions.FirstOrDefault(option => string.Equals(option.Value, countryValue, StringComparison.Ordinal));
-        var countryLabel = countryOption?.Text ?? $"Country #{Model.CountryId.Value}";
-        filterChips.Add(("Country", countryLabel));
-    }
-
-    void AddMilestoneChip(string label, MilestoneFilterState state)
-    {
-        if (state != MilestoneFilterState.Any)
-        {
-            filterChips.Add((label, Model.GetMilestoneLabel(state)));
-        }
-    }
-
-    AddMilestoneChip("IPA", Model.IpaStatus);
-    AddMilestoneChip("GSL", Model.GslStatus);
-    AddMilestoneChip("Delivery", Model.DeliveryStatus);
-    AddMilestoneChip("Installation", Model.InstallationStatus);
 }
 
 <div class="container-fluid py-4">
@@ -48,9 +15,9 @@
                 <h1 class="h4 mb-1">FFC simulators</h1>
                 <p class="pm-page-subtitle">Review the status of FFC simulator deliveries by country and year.</p>
             </div>
-            @if (Model.CanManageRecords)
-            {
-                <div class="d-flex flex-wrap align-items-center gap-2">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                @if (Model.CanManageRecords)
+                {
                     <a asp-area="ProjectOfficeReports"
                        asp-page="/FFC/Records/Manage"
                        class="btn btn-primary d-inline-flex align-items-center gap-2">
@@ -63,72 +30,17 @@
                         <i class="bi bi-globe" aria-hidden="true"></i>
                         <span>Manage countries</span>
                     </a>
-                </div>
-            }
+                }
+                <button type="button"
+                        class="btn btn-outline-secondary"
+                        data-bs-toggle="modal"
+                        data-bs-target="#ffcFiltersModal">
+                    Filters
+                </button>
+            </div>
         </div>
 
         <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
-
-        <div class="pm-card pm-shadow ffc-filter-summary">
-            <div class="pm-card-body ffc-filter-summary__body">
-                <div class="ffc-filter-summary__details">
-                    <div class="ffc-filter-summary__meta text-muted small">
-                        <span>Sorted by <span class="fw-semibold">@(Model.CurrentSort == "country" ? "Country" : "Year")</span> (@(Model.CurrentSortDirection == "desc" ? "descending" : "ascending")).</span>
-                        @if (Model.TotalCount > 0)
-                        {
-                            <span class="ffc-filter-summary__separator" aria-hidden="true">&middot;</span>
-                            <span>Showing @Model.Records.Count of @Model.TotalCount record@(Model.TotalCount == 1 ? string.Empty : "s").</span>
-                        }
-                    </div>
-
-                    @if (filterChips.Count > 0)
-                    {
-                        <div class="ffc-filter-chips" aria-label="Active filters">
-                            @foreach (var (label, value) in filterChips)
-                            {
-                                <span class="ffc-filter-chip">
-                                    <span class="ffc-filter-chip__label">@label</span>
-                                    <span class="ffc-filter-chip__value">@value</span>
-                                </span>
-                            }
-                        </div>
-                    }
-                    else
-                    {
-                        <p class="text-muted small mb-0">No filters applied.</p>
-                    }
-                </div>
-
-                <div class="ffc-filter-summary__actions">
-                    <div class="btn-group btn-group-sm" role="group" aria-label="Sort records">
-                        <a class="btn btn-outline-secondary @(Model.CurrentSort == "year" ? "active" : string.Empty)"
-                           asp-page="./Index"
-                           asp-all-route-data='Model.BuildRoute(page: 1, sort: "year", dir: Model.GetSortDirectionFor("year"))'>
-                            <span class="d-inline-flex align-items-center gap-1">
-                                <span>Year</span>
-                                <i class='@Model.GetSortIconClass("year")'></i>
-                            </span>
-                        </a>
-                        <a class="btn btn-outline-secondary @(Model.CurrentSort == "country" ? "active" : string.Empty)"
-                           asp-page="./Index"
-                           asp-all-route-data='Model.BuildRoute(page: 1, sort: "country", dir: Model.GetSortDirectionFor("country"))'>
-                            <span class="d-inline-flex align-items-center gap-1">
-                                <span>Country</span>
-                                <i class='@Model.GetSortIconClass("country")'></i>
-                            </span>
-                        </a>
-                    </div>
-
-                    <button type="button"
-                            class="btn btn-outline-primary btn-sm ffc-filter-trigger"
-                            data-bs-toggle="modal"
-                            data-bs-target="#ffcFiltersModal">
-                        <i class="bi bi-sliders" aria-hidden="true"></i>
-                        <span>Filters</span>
-                    </button>
-                </div>
-            </div>
-        </div>
 
         @if (!Model.Records.Any())
         {
@@ -147,10 +59,8 @@
                             Record = record,
                             CanManageRecords = Model.CanManageRecords,
                             PageNumber = Model.PageNumber,
-                            CurrentSort = Model.CurrentSort,
-                            CurrentSortDirection = Model.CurrentSortDirection,
                             Query = Model.Query,
-                            RouteValues = Model.BuildRoute()
+                            RouteValues = Model.BuildRouteWithoutSort()
                         })
                     </div>
                 }
@@ -160,18 +70,18 @@
         <nav aria-label="Records pagination" class="ffc-index__pagination">
             <ul class="pagination pagination-sm mb-0">
                 <li class="page-item @(Model.PageNumber <= 1 ? "disabled" : string.Empty)">
-                    <a class="page-link" asp-page="./Index" asp-all-route-data='Model.BuildRoute(page: Math.Max(1, Model.PageNumber - 1))' aria-label="Previous" tabindex="@(Model.PageNumber <= 1 ? -1 : 0)">
+                    <a class="page-link" asp-page="./Index" asp-all-route-data='Model.BuildRouteWithoutSort(page: Math.Max(1, Model.PageNumber - 1))' aria-label="Previous" tabindex="@(Model.PageNumber <= 1 ? -1 : 0)">
                         <span aria-hidden="true">&laquo;</span>
                     </a>
                 </li>
                 @for (var pageNumber = 1; pageNumber <= Model.TotalPages; pageNumber++)
                 {
                     <li class="page-item @(pageNumber == Model.PageNumber ? "active" : string.Empty)">
-                        <a class="page-link" asp-page="./Index" asp-all-route-data='Model.BuildRoute(page: pageNumber)'>@pageNumber</a>
+                        <a class="page-link" asp-page="./Index" asp-all-route-data='Model.BuildRouteWithoutSort(page: pageNumber)'>@pageNumber</a>
                     </li>
                 }
                 <li class="page-item @(Model.PageNumber >= Model.TotalPages ? "disabled" : string.Empty)">
-                    <a class="page-link" asp-page="./Index" asp-all-route-data='Model.BuildRoute(page: Math.Min(Model.TotalPages, Model.PageNumber + 1))' aria-label="Next" tabindex="@(Model.PageNumber >= Model.TotalPages ? -1 : 0)">
+                    <a class="page-link" asp-page="./Index" asp-all-route-data='Model.BuildRouteWithoutSort(page: Math.Min(Model.TotalPages, Model.PageNumber + 1))' aria-label="Next" tabindex="@(Model.PageNumber >= Model.TotalPages ? -1 : 0)">
                         <span aria-hidden="true">&raquo;</span>
                     </a>
                 </li>
@@ -189,8 +99,6 @@
             </div>
             <div class="modal-body">
                 <input type="hidden" name="page" value="1" />
-                <input type="hidden" name="sort" value="@Model.CurrentSort" />
-                <input type="hidden" name="dir" value="@Model.CurrentSortDirection" />
 
                 <div class="mb-4">
                     <label class="form-label" for="ffc-filter-search">Search records</label>
