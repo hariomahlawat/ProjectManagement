@@ -185,7 +185,7 @@ public sealed class FfcRecordsManagePageTests
         var result = await page.OnPostUpdateAsync();
 
         Assert.IsType<PageResult>(result);
-        var state = Assert.IsType<Microsoft.AspNetCore.Mvc.ModelBinding.ModelStateEntry>(page.ModelState[string.Empty]);
+        var state = Assert.IsAssignableFrom<Microsoft.AspNetCore.Mvc.ModelBinding.ModelStateEntry>(page.ModelState[string.Empty]);
         Assert.NotEmpty(state.Errors);
         Assert.Contains("modified by another user", state.Errors[0].ErrorMessage, StringComparison.OrdinalIgnoreCase);
 

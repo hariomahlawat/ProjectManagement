@@ -96,7 +96,7 @@ public sealed class FfcAttachmentsUploadPageTests
             IFormFile file,
             FfcAttachmentKind kind,
             string? caption)
-            => Task.FromResult((false, "Should not be called.", (FfcAttachment?)null));
+            => Task.FromResult<(bool Success, string? ErrorMessage, FfcAttachment? Attachment)>((false, "Should not be called.", (FfcAttachment?)null));
 
         public Task DeleteAsync(FfcAttachment attachment)
             => throw new InvalidOperationException("Should not be called.");
