@@ -60,7 +60,7 @@ namespace ProjectManagement.Pages.Projects
         [BindProperty(SupportsGet = true)]
         public ProjectTotStatus? TotStatus { get; set; }
 
-        [BindProperty(SupportsGet = true, Name = "page")]
+        [BindProperty(SupportsGet = true, Name = "p")]
         public int CurrentPage { get; set; } = 1;
 
         [BindProperty(SupportsGet = true)]

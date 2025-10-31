@@ -355,7 +355,7 @@
                             <li class="page-item @(Model.CurrentPage <= 1 ? "disabled" : null)">
                                 <a class="page-link"
                                    asp-page="./Index"
-                                   asp-route-page="@(Model.CurrentPage - 1)"
+                                   asp-route-p="@(Model.CurrentPage - 1)"
                                    asp-route-PageSize="@Model.PageSize"
                                    asp-route-Query="@Model.Query"
                                    asp-route-CategoryId="@Model.CategoryId"
@@ -376,7 +376,7 @@
                                 <li class="page-item @(i == Model.CurrentPage ? "active" : null)">
                                     <a class="page-link"
                                        asp-page="./Index"
-                                       asp-route-page="@i"
+                                       asp-route-p="@i"
                                        asp-route-PageSize="@Model.PageSize"
                                        asp-route-Query="@Model.Query"
                                        asp-route-CategoryId="@Model.CategoryId"
@@ -392,7 +392,7 @@
                             <li class="page-item @(Model.CurrentPage >= Model.TotalPages ? "disabled" : null)">
                                 <a class="page-link"
                                    asp-page="./Index"
-                                   asp-route-page="@(Model.CurrentPage + 1)"
+                                   asp-route-p="@(Model.CurrentPage + 1)"
                                    asp-route-PageSize="@Model.PageSize"
                                    asp-route-Query="@Model.Query"
                                    asp-route-CategoryId="@Model.CategoryId"
