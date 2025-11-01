@@ -95,69 +95,71 @@
         </div>
     }
 
-    <section class="mb-4">
-        <div class="row g-3">
-            <div class="col-12 col-sm-6 col-lg">
-                <div class="pm-kpi h-100">
-                    <div class="pm-kpi__label">TOTAL</div>
-                    <div class="pm-kpi__value mt-1">@Model.Kpis.Total</div>
-                    <div class="pm-kpi__spark mt-2" aria-hidden="true"><span style="width:@Model.Kpis.TotalPercent%"></span></div>
+    <div class="ipr-grid-xl mb-4">
+        <section>
+            <div class="row g-3">
+                <div class="col-12 col-sm-6 col-lg">
+                    <div class="pm-kpi pm-kpi--total h-100">
+                        <div class="pm-kpi__label">Total</div>
+                        <div class="pm-kpi__value mt-1">@Model.Kpis.Total</div>
+                        <div class="pm-kpi__spark mt-2" aria-hidden="true"><span style="width:@Model.Kpis.TotalPercent%"></span></div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-lg">
+                    <div class="pm-kpi pm-kpi--filing h-100">
+                        <div class="pm-kpi__label">Filing under process</div>
+                        <div class="pm-kpi__value mt-1">@Model.Kpis.FilingUnderProcess</div>
+                        <div class="pm-kpi__spark mt-2"><span style="width:@Model.Kpis.FilingUnderProcessPercent%"></span></div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-lg">
+                    <div class="pm-kpi pm-kpi--filed h-100">
+                        <div class="pm-kpi__label">Filed</div>
+                        <div class="pm-kpi__value mt-1">@Model.Kpis.Filed</div>
+                        <div class="pm-kpi__spark mt-2"><span style="width:@Model.Kpis.FiledPercent%"></span></div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-lg">
+                    <div class="pm-kpi pm-kpi--granted h-100">
+                        <div class="pm-kpi__label">Granted</div>
+                        <div class="pm-kpi__value mt-1">@Model.Kpis.Granted</div>
+                        <div class="pm-kpi__spark mt-2"><span style="width:@Model.Kpis.GrantedPercent%"></span></div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-lg">
+                    <div class="pm-kpi pm-kpi--rejected h-100">
+                        <div class="pm-kpi__label">Rejected</div>
+                        <div class="pm-kpi__value mt-1">@Model.Kpis.Rejected</div>
+                        <div class="pm-kpi__spark mt-2"><span style="width:@Model.Kpis.RejectedPercent%"></span></div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-lg">
+                    <div class="pm-kpi pm-kpi--withdrawn h-100">
+                        <div class="pm-kpi__label">Withdrawn</div>
+                        <div class="pm-kpi__value mt-1">@Model.Kpis.Withdrawn</div>
+                        <div class="pm-kpi__spark mt-2"><span style="width:@Model.Kpis.WithdrawnPercent%"></span></div>
+                    </div>
                 </div>
             </div>
+        </section>
 
-            <div class="col-12 col-sm-6 col-lg">
-                <div class="pm-kpi h-100">
-                    <div class="pm-kpi__label">FILING UNDER PROCESS</div>
-                    <div class="pm-kpi__value mt-1">@Model.Kpis.FilingUnderProcess</div>
-                    <div class="pm-kpi__spark mt-2"><span style="width:@Model.Kpis.FilingUnderProcessPercent%"></span></div>
+        <section>
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h2 class="h6 mb-0">Status distribution</h2>
+                        <div class="d-inline-flex gap-2">
+                            <button class="btn btn-sm btn-outline-secondary" id="iprToggleLabelsBtn" type="button">Toggle labels</button>
+                            <button class="btn btn-sm btn-outline-primary" id="iprDownloadBtn" type="button" title="Download chart">Download PNG</button>
+                        </div>
+                    </div>
+                    <div class="ipr-chart-wrap mt-3">
+                        <canvas id="iprStatusChart" height="220"></canvas>
+                    </div>
+                    <div class="text-muted small mt-2">snapshot</div>
                 </div>
             </div>
-
-            <div class="col-12 col-sm-6 col-lg">
-                <div class="pm-kpi h-100">
-                    <div class="pm-kpi__label">FILED</div>
-                    <div class="pm-kpi__value mt-1">@Model.Kpis.Filed</div>
-                    <div class="pm-kpi__spark mt-2"><span style="width:@Model.Kpis.FiledPercent%"></span></div>
-                </div>
-            </div>
-
-            <div class="col-12 col-sm-6 col-lg">
-                <div class="pm-kpi h-100">
-                    <div class="pm-kpi__label">GRANTED</div>
-                    <div class="pm-kpi__value mt-1">@Model.Kpis.Granted</div>
-                    <div class="pm-kpi__spark mt-2"><span style="width:@Model.Kpis.GrantedPercent%"></span></div>
-                </div>
-            </div>
-
-            <div class="col-12 col-sm-6 col-lg">
-                <div class="pm-kpi h-100">
-                    <div class="pm-kpi__label">REJECTED</div>
-                    <div class="pm-kpi__value mt-1">@Model.Kpis.Rejected</div>
-                    <div class="pm-kpi__spark mt-2"><span style="width:@Model.Kpis.RejectedPercent%"></span></div>
-                </div>
-            </div>
-
-            <div class="col-12 col-sm-6 col-lg">
-                <div class="pm-kpi h-100">
-                    <div class="pm-kpi__label">WITHDRAWN</div>
-                    <div class="pm-kpi__value mt-1">@Model.Kpis.Withdrawn</div>
-                    <div class="pm-kpi__spark mt-2"><span style="width:@Model.Kpis.WithdrawnPercent%"></span></div>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <div class="card mb-4">
-        <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center">
-                <h2 class="h6 mb-0">Status distribution</h2>
-                <div class="text-muted small">snapshot</div>
-            </div>
-
-            <div class="ipr-chart-wrap mt-3">
-                <canvas id="iprStatusChart" height="220"></canvas>
-            </div>
-        </div>
+        </section>
     </div>
 
     @if (Model.HasAnyFilter && Model.ActiveFilterChips.Count > 0)
