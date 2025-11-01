@@ -1,7 +1,9 @@
 @page
 @using System
 @using System.Globalization
+@using Microsoft.AspNetCore.Mvc.ViewFeatures
 @using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC
+@using ProjectManagement.Models
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.IndexModel
 @{
     ViewData["Title"] = "FFC simulators";
@@ -54,6 +56,13 @@
                 @foreach (var record in Model.Records)
                 {
                     <div class="ffc-record-grid__item">
+                        @{
+                            var cardViewData = new ViewDataDictionary(ViewData)
+                            {
+                                ["RollupProjectStatus"] = Model.RollupProjectStatus,
+                                ["RollupProjectExternalRemark"] = Model.RollupProjectExternalRemark
+                            };
+                        }
                         @await Html.PartialAsync("_FfcRecordCard", new ProjectManagement.Areas.ProjectOfficeReports.ViewModels.FfcRecordCardViewModel
                         {
                             Record = record,
@@ -61,7 +70,7 @@
                             PageNumber = Model.PageNumber,
                             Query = Model.Query,
                             RouteValues = Model.BuildRouteWithoutSort()
-                        })
+                        }, cardViewData)
                     </div>
                 }
             </section>
