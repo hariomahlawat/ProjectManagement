@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
+using ProjectManagement.Models;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 
@@ -13,6 +14,16 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 public class MapModel : PageModel
 {
     private readonly ApplicationDbContext _db;
+
+    private sealed class CountryProjectAgg
+    {
+        public long CountryId { get; init; }
+        public string Iso3 { get; init; } = string.Empty;
+        public int Installed { get; init; }
+        public int Delivered { get; init; }
+        public int Planned { get; init; }
+        public int Total => Installed + Delivered + Planned;
+    }
 
     public MapModel(ApplicationDbContext db)
     {
@@ -25,59 +36,38 @@ public class MapModel : PageModel
 
     public async Task<IActionResult> OnGetDataAsync(CancellationToken cancellationToken)
     {
-        var deliveryAggregates = await _db.FfcRecords
+        var linked = await _db.FfcProjects
             .AsNoTracking()
-            .Where(record => !record.IsDeleted && record.DeliveryYes)
-            .GroupBy(record => new { record.CountryId, record.Year })
-            .Select(group => new
+            .Where(project => project.LinkedProjectId != null)
+            .Where(project =>
+                !project.Record.IsDeleted &&
+                project.Record.Country.IsActive &&
+                project.LinkedProject != null &&
+                !project.LinkedProject.IsDeleted &&
+                project.LinkedProject.LifecycleStatus == ProjectLifecycleStatus.Completed)
+            .Select(project => new
             {
-                group.Key.CountryId,
-                group.Key.Year,
-                Count = group.Count()
+                ProjectId = project.LinkedProjectId!.Value,
+                project.Record.CountryId,
+                CountryIso3 = project.Record.Country.IsoCode,
+                Installed = project.Record.InstallationYes,
+                Delivered = project.Record.DeliveryYes
             })
+            .Distinct()
             .ToListAsync(cancellationToken);
 
-        var countries = await _db.FfcCountries
-            .AsNoTracking()
-            .Where(country => country.IsActive)
-            .Select(country => new
+        var aggregates = linked
+            .GroupBy(item => new { item.CountryId, item.CountryIso3 })
+            .Select(group => new CountryProjectAgg
             {
-                country.Id,
-                country.IsoCode,
-                country.Name
+                CountryId = group.Key.CountryId,
+                Iso3 = group.Key.CountryIso3 ?? string.Empty,
+                Installed = group.Count(record => record.Installed),
+                Delivered = group.Count(record => !record.Installed && record.Delivered),
+                Planned = group.Count(record => !record.Installed && !record.Delivered)
             })
-            .ToListAsync(cancellationToken);
-
-        var results = countries
-            .Select(country =>
-            {
-                var aggregates = deliveryAggregates
-                    .Where(aggregate => aggregate.CountryId == country.Id)
-                    .ToList();
-
-                var totalDelivered = aggregates.Sum(aggregate => aggregate.Count);
-
-                return new
-                {
-                    countryId = country.Id,
-                    iso3 = country.IsoCode,
-                    name = country.Name,
-                    delivered = totalDelivered,
-                    perYear = aggregates
-                        .GroupBy(aggregate => aggregate.Year)
-                        .Select(group => new
-                        {
-                            year = group.Key,
-                            count = group.Sum(item => item.Count)
-                        })
-                        .OrderBy(item => item.year)
-                        .ToList()
-                };
-            })
-            .Where(country => country.delivered > 0)
-            .OrderByDescending(country => country.delivered)
             .ToList();
 
-        return new JsonResult(results);
+        return new JsonResult(aggregates);
     }
 }
