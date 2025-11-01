@@ -99,7 +99,7 @@ public class IndexModel : FfcRecordListPageModel
         var linkedProjectIds = Records
             .SelectMany(record => record.Projects)
             .Where(project => project.LinkedProjectId.HasValue)
-            .Select(project => project.LinkedProjectId.Value)
+            .Select(project => project.LinkedProjectId!.Value)
             .Distinct()
             .ToArray();
 
@@ -172,7 +172,7 @@ public class IndexModel : FfcRecordListPageModel
                         ? body
                         : string.Concat(body.AsSpan(0, limit), "…");
 
-                    return summary;
+                    return (string?)summary;
                 });
     }
 
