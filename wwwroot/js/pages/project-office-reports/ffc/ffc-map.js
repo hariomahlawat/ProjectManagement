@@ -133,6 +133,17 @@
     });
   }
 
+  function fetchJson(url) {
+    return fetch(url, { cache: 'no-store' }).then(function (response) {
+      if (!response || !response.ok) {
+        var status = response ? response.status + ' ' + response.statusText : 'Network error';
+        throw new Error('Failed to load ' + url + ': ' + status);
+      }
+
+      return response.json();
+    });
+  }
+
   function init(cfg) {
     if (!cfg || typeof L === 'undefined') {
       return;
@@ -144,8 +155,8 @@
     }
 
     Promise.all([
-      fetch(cfg.worldGeoJsonUrl, { cache: 'no-store' }).then(function (response) { return response.json(); }),
-      fetch(cfg.dataUrl, { cache: 'no-store' }).then(function (response) { return response.json(); })
+      fetchJson(cfg.worldGeoJsonUrl),
+      fetchJson(cfg.dataUrl)
     ])
       .then(function (results) {
         if (L.Icon && L.Icon.Default && typeof L.Icon.Default.mergeOptions === 'function') {
