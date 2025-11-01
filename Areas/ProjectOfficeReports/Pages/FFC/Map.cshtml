@@ -28,7 +28,13 @@
     </div>
 
     <div class="ffc-map-layout">
-        <div id="ffcMap" class="ffc-map" role="img" aria-label="World map showing FFC delivery counts"></div>
+        <div id="ffcMap"
+             class="ffc-map"
+             role="img"
+             aria-label="World map showing FFC delivery counts"
+             data-data-url="@Url.Page("./Map", handler: "Data")"
+             data-world-geojson-url="@Url.Content("~/data/world_india_view.geojson")"
+             data-ffc-index-url-base="@Url.Page("./Index")"></div>
 
         <aside class="ffc-map-sidebar" aria-label="Map controls">
             <div class="card shadow-sm">

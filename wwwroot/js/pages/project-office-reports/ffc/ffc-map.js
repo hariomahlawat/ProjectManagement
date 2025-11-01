@@ -88,23 +88,23 @@
   }
 
   function renderLegend(scale) {
-    var ramp = document.getElementById('legendRamp');
-    var labels = document.getElementById('legendLabels');
+    var rampElements = document.querySelectorAll('.legend-ramp');
+    var labelLists = document.querySelectorAll('.legend-labels');
 
-    if (ramp) {
-      ramp.innerHTML = scale.colors
+    rampElements.forEach(function (element) {
+      element.innerHTML = scale.colors
         .map(function (color) { return '<span style="background:' + color + '"></span>'; })
         .join('');
-    }
+    });
 
-    if (labels) {
+    labelLists.forEach(function (list) {
       var steps = scale.stops;
-      labels.innerHTML = '' +
+      list.innerHTML = '' +
         '<li>0</li>' +
         '<li>' + formatNumber(steps[2]) + '</li>' +
         '<li>' + formatNumber(steps[3]) + '</li>' +
         '<li>' + formatNumber(steps[steps.length - 1]) + '+</li>';
-    }
+    });
   }
 
   function attachZoomControls(map, layer) {
@@ -172,6 +172,36 @@
         var scale = buildColorScale(maxDelivered);
         var map = L.map(cfg.mapId, { zoomControl: true, attributionControl: false }).setView([20, 20], 2);
 
+        var legendControlElement = document.createElement('div');
+        legendControlElement.className = 'ffc-map-legend card shadow-sm';
+
+        var legendControlBody = document.createElement('div');
+        legendControlBody.className = 'card-body';
+
+        var legendTitle = document.createElement('h2');
+        legendTitle.className = 'h6 mb-3';
+        legendTitle.textContent = 'Legend';
+
+        var legendRamp = document.createElement('div');
+        legendRamp.className = 'legend-ramp';
+
+        var legendLabels = document.createElement('ul');
+        legendLabels.className = 'legend-labels list-unstyled small mb-0';
+
+        legendControlBody.appendChild(legendTitle);
+        legendControlBody.appendChild(legendRamp);
+        legendControlBody.appendChild(legendLabels);
+        legendControlElement.appendChild(legendControlBody);
+
+        var LegendControl = L.Control.extend({
+          options: { position: 'bottomright' },
+          onAdd: function () {
+            return legendControlElement;
+          }
+        });
+
+        map.addControl(new LegendControl());
+
         L.rectangle([[-85, -179.9], [85, 179.9]], {
           color: '#f1f5f9',
           weight: 1,
@@ -215,8 +245,11 @@
           onEachFeature: onEachFeature
         }).addTo(map);
 
-        if (geoLayer.getLayers().length > 0) {
-          map.fitBounds(geoLayer.getBounds(), { padding: [20, 20] });
+        var geoBounds = geoLayer.getBounds();
+        if (geoBounds && geoBounds.isValid()) {
+          map.fitBounds(geoBounds, { padding: [20, 20] });
+        } else {
+          map.setView([10, 40], 3);
         }
 
         attachZoomControls(map, geoLayer);

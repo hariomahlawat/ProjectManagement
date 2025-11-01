@@ -1,14 +1,16 @@
-(function (window) {
+(function (window, document) {
   'use strict';
 
-  if (!window.FfcMap || typeof window.FfcMap.init !== 'function') {
+  var mapElement = document.getElementById('ffcMap');
+
+  if (!mapElement || !window.FfcMap || typeof window.FfcMap.init !== 'function') {
     return;
   }
 
   window.FfcMap.init({
     mapId: 'ffcMap',
-    dataUrl: '/ProjectOfficeReports/FFC/Map?handler=Data',
-    worldGeoJsonUrl: '/data/world_india_view.geojson',
-    ffcIndexUrlBase: '/ProjectOfficeReports/FFC/Index'
+    dataUrl: mapElement.dataset.dataUrl,
+    worldGeoJsonUrl: mapElement.dataset.worldGeojsonUrl,
+    ffcIndexUrlBase: mapElement.dataset.ffcIndexUrlBase
   });
-})(window);
+})(window, document);
