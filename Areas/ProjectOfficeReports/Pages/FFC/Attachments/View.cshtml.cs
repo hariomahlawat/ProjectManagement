@@ -61,11 +61,14 @@ public class ViewModel(ApplicationDbContext db) : PageModel
             FileName = downloadName
         };
 
-        Response.Headers["Content-Disposition"] = contentDisposition.ToString();
+        // Let the browser preview (inline) and support HTTP range requests
+        Response.Headers["Content-Disposition"] =
+            $"inline; filename=\"{downloadName}\"; filename*=UTF-8''{Uri.EscapeDataString(downloadName)}";
 
-        return File(stream, contentType)
+        return new FileStreamResult(stream, contentType)
         {
             EnableRangeProcessing = true
         };
+
     }
 }
