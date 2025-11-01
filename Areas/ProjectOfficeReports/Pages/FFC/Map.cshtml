@@ -1,0 +1,60 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.MapModel
+@{
+    ViewData["Title"] = "FFC – Map view";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/lib/leaflet/1.9.4/leaflet.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/project-office-reports/ffc-map.css" asp-append-version="true" />
+}
+
+<div class="container-xxl py-4">
+    <div class="pm-page-header">
+        <div>
+            <h1 class="h4 mb-1">FFC – World map</h1>
+            <p class="pm-page-subtitle">
+                Countries shaded by number of simulators delivered. Select a country to drill into the list view.
+            </p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a asp-area="ProjectOfficeReports"
+               asp-page="/FFC/Index"
+               class="btn btn-outline-secondary d-inline-flex align-items-center gap-2">
+                <i class="bi bi-list" aria-hidden="true"></i>
+                <span>Back to list</span>
+            </a>
+        </div>
+    </div>
+
+    <div class="ffc-map-layout">
+        <div id="ffcMap" class="ffc-map" role="img" aria-label="World map showing FFC delivery counts"></div>
+
+        <aside class="ffc-map-sidebar" aria-label="Map controls">
+            <div class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h6 mb-3">Legend</h2>
+                    <div id="legendRamp" class="legend-ramp" aria-hidden="true"></div>
+                    <ul id="legendLabels" class="legend-labels list-unstyled small mb-0"></ul>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mt-3">
+                <div class="card-body">
+                    <h2 class="h6 mb-3">Focus</h2>
+                    <div class="d-grid gap-2">
+                        <button type="button" class="btn btn-outline-primary" data-zoom="southasia">South Asia</button>
+                        <button type="button" class="btn btn-outline-primary" data-zoom="africa">Africa</button>
+                        <button type="button" class="btn btn-outline-secondary" data-zoom="world">Reset</button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/lib/leaflet/1.9.4/leaflet.js" asp-append-version="true"></script>
+    <script src="~/js/pages/project-office-reports/ffc/ffc-map.js" asp-append-version="true"></script>
+    <script src="~/js/pages/project-office-reports/ffc/ffc-map-init.js" asp-append-version="true" defer></script>
+}
