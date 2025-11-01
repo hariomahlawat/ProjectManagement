@@ -120,6 +120,7 @@
             {
                 var statusMap = rollupStatus;
                 var remarkMap = rollupExternalRemarks;
+                var stageMap = rollupStageSummaries;
 
                 @foreach (var project in projects.Take(3))
                 {
@@ -131,6 +132,9 @@
                             : ProjectLifecycleStatus.Active;
                         var externalRemark = (remarkMap != null && remarkMap.TryGetValue(projId, out var remark))
                             ? remark
+                            : null;
+                        var stageSummary = (stageMap != null && stageMap.TryGetValue(projId, out var stage))
+                            ? stage
                             : null;
 
                         <div class="d-flex align-items-start mb-2 position-relative">
@@ -150,15 +154,14 @@
                                 {
                                     <div class="text-muted small">@project.Name</div>
                                 }
+                                @if (status == ProjectLifecycleStatus.Active && !string.IsNullOrWhiteSpace(stageSummary))
+                                {
+                                    <div class="text-muted small">@stageSummary</div>
+                                }
                                 <div class="text-muted small">
                                     @if (!string.IsNullOrWhiteSpace(externalRemark))
                                     {
                                         @externalRemark
-                                    }
-                                    else if (rollupStageSummaries.TryGetValue(projId, out var stageSummary)
-                                             && !string.IsNullOrWhiteSpace(stageSummary))
-                                    {
-                                        @stageSummary
                                     }
                                     else if (!string.IsNullOrWhiteSpace(project.Remarks))
                                     {
