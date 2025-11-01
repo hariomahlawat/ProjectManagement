@@ -11,6 +11,8 @@
     withdrawn: css.getPropertyValue('--bs-gray-600')?.trim() || '#6c757d'
   };
 
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   const centerTextPlugin = {
     id: 'centerText',
     afterDraw(chart) {
@@ -59,7 +61,7 @@
         const angle = (arc.startAngle + arc.endAngle) / 2;
         const x = arc.x + Math.cos(angle) * r;
         const y = arc.y + Math.sin(angle) * r;
-        ctx.fillText(`${labels[i]} ${value} (${p}%)`, x, y);
+        ctx.fillText(`${labels[i]}: ${value} (${p}%)`, x, y);
       });
 
       ctx.restore();
@@ -94,7 +96,7 @@
           aspectRatio: 2.0,
           cutout: '66%',
           plugins: {
-            legend: { position: 'right', labels: { boxWidth: 10 } },
+            legend: { display: false },
             tooltip: {
               callbacks: {
                 label: ctx => {
@@ -106,7 +108,8 @@
               }
             }
           },
-          layout: { padding: 8 }
+          layout: { padding: 8 },
+          animation: prefersReducedMotion ? false : { duration: 400 }
         }
       });
 
