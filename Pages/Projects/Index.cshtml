@@ -2,6 +2,7 @@
 @model ProjectManagement.Pages.Projects.IndexModel
 @using System
 @using System.Linq
+@using System.Globalization
 @using ProjectManagement.Models
 @using ProjectManagement.Models.Execution
 @using ProjectManagement.Models.Stages
@@ -428,39 +429,91 @@
 {
     private static string? FormatStageSummary(Project project)
     {
-        if (project.LifecycleStatus == ProjectLifecycleStatus.Active)
+        static string FmtDate(DateOnly? d) => d.HasValue ? d.Value.ToString("d MMM yyyy", CultureInfo.InvariantCulture) : "";
+
+        if (project.ProjectStages is not { Count: > 0 })
+            return "No stages defined";
+
+        var stages = project.ProjectStages
+            .Where(s => !IsTotStage(s.StageCode))
+            .OrderBy(s => s.SortOrder)
+            .ToList();
+
+        if (stages.Count == 0)
+            return "No stages defined";
+
+        var paymentStage = stages.FirstOrDefault(s => IsPaymentStage(s.StageCode));
+        if (paymentStage is not null)
         {
-            if (project.ProjectStages is not { Count: > 0 })
-            {
-                return "No stages completed yet";
-            }
-
-            var latestCompletedStage = project.ProjectStages
-                .Where(stage => stage.Status == StageStatus.Completed)
-                .OrderByDescending(stage => stage.SortOrder)
-                .ThenByDescending(stage => stage.CompletedOn ?? DateOnly.MinValue)
-                .FirstOrDefault();
-
-            if (latestCompletedStage is null)
-            {
-                return "No stages completed yet";
-            }
-
-            var stageName = StageCodes.DisplayNameOf(latestCompletedStage.StageCode);
-            return $"Last stage completed: {stageName}";
+            var cutoff = paymentStage.SortOrder;
+            stages = stages.Where(s => s.SortOrder <= cutoff).ToList();
         }
 
-        var pendingCount = project.ProjectStages is not { Count: > 0 }
-            ? 0
-            : project.ProjectStages.Count(stage => stage.Status is StageStatus.InProgress or StageStatus.Blocked or StageStatus.NotStarted);
+        var topCompleted = stages
+            .Where(s => s.Status == StageStatus.Completed)
+            .OrderByDescending(s => s.SortOrder)
+            .ThenByDescending(s => s.CompletedOn ?? DateOnly.MinValue)
+            .FirstOrDefault();
 
-        if (project.LifecycleStatus == ProjectLifecycleStatus.Completed && pendingCount == 0)
+        var started = stages.FirstOrDefault(s => s.Status is StageStatus.InProgress or StageStatus.Blocked);
+
+        var missed = topCompleted is null
+            ? Array.Empty<string>()
+            : stages
+                .Where(s => s.SortOrder < topCompleted.SortOrder && s.Status != StageStatus.Completed)
+                .Select(s => StageCodes.DisplayNameOf(s.StageCode))
+                .ToArray();
+
+        if (started is not null)
         {
-            return null;
+            var prevCompleted = stages
+                .LastOrDefault(s => s.SortOrder < started.SortOrder && s.Status == StageStatus.Completed);
+
+            var prevLabel = prevCompleted is null ? null : StageCodes.DisplayNameOf(prevCompleted.StageCode);
+            var prevDate = prevCompleted is null ? "" : FmtDate(prevCompleted.CompletedOn);
+            var nowLabel = StageCodes.DisplayNameOf(started.StageCode);
+            var nowState = started.Status == StageStatus.Blocked ? "Blocked" : "In progress";
+            var missedPart = missed.Length > 0 ? $" — missed: {string.Join(", ", missed)}" : string.Empty;
+
+            if (prevLabel is null)
+                return $"Now: {nowLabel} ({nowState}){missedPart}";
+
+            var prevPart = string.IsNullOrEmpty(prevDate) ? prevLabel : $"{prevLabel} ({prevDate})";
+            return $"Last completed: {prevPart} · Now: {nowLabel} ({nowState}){missedPart}";
         }
 
-        return $"Pending stages: {pendingCount}";
+        if (topCompleted is not null)
+        {
+            var topLabel = StageCodes.DisplayNameOf(topCompleted.StageCode);
+            var topDate = FmtDate(topCompleted.CompletedOn);
+            var topPart = string.IsNullOrEmpty(topDate) ? topLabel : $"{topLabel} ({topDate})";
+
+            var next = stages.FirstOrDefault(s => s.SortOrder > topCompleted.SortOrder);
+            string nextPart = string.Empty;
+            if (next is not null)
+            {
+                var nextLabel = StageCodes.DisplayNameOf(next.StageCode);
+                var suffix = next.Status switch
+                {
+                    StageStatus.InProgress => " (Started)",
+                    StageStatus.Blocked => " (Blocked)",
+                    _ => " (Not started)"
+                };
+                nextPart = $" · Next: {nextLabel}{suffix}";
+            }
+
+            var missedPart = missed.Length > 0 ? $" — missed: {string.Join(", ", missed)}" : string.Empty;
+            return $"Last completed: {topPart}{nextPart}{missedPart}";
+        }
+
+        var firstDefined = stages.FirstOrDefault();
+        return firstDefined is null
+            ? null
+            : $"Not started · First stage: {StageCodes.DisplayNameOf(firstDefined.StageCode)}";
     }
+
+    private static bool IsTotStage(string code) => StageCodes.IsTot(code);
+    private static bool IsPaymentStage(string code) => StageCodes.IsPayment(code);
 
     private static string? FormatTotStatusShort(Project project)
     {

@@ -10,6 +10,8 @@ using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Remarks;
+using ProjectManagement.Models.Execution;
+using ProjectManagement.Models.Stages;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC;
 
@@ -33,6 +35,9 @@ public class IndexModel : FfcRecordListPageModel
         = new Dictionary<int, ProjectLifecycleStatus>();
 
     public IReadOnlyDictionary<int, string?> RollupProjectExternalRemark { get; private set; }
+        = new Dictionary<int, string?>();
+
+    public IReadOnlyDictionary<int, string?> RollupProjectStageSummary { get; private set; }
         = new Dictionary<int, string?>();
 
     public async Task OnGetAsync()
@@ -102,14 +107,42 @@ public class IndexModel : FfcRecordListPageModel
         {
             RollupProjectStatus = new Dictionary<int, ProjectLifecycleStatus>();
             RollupProjectExternalRemark = new Dictionary<int, string?>();
+            RollupProjectStageSummary = new Dictionary<int, string?>();
             return;
         }
 
-        RollupProjectStatus = await Db.Projects
+        var projectSnapshots = await Db.Projects
             .AsNoTracking()
             .Where(project => linkedProjectIds.Contains(project.Id))
-            .Select(project => new { project.Id, project.LifecycleStatus })
-            .ToDictionaryAsync(x => x.Id, x => x.LifecycleStatus);
+            .Select(project => new
+            {
+                project.Id,
+                project.LifecycleStatus,
+                Stages = project.ProjectStages
+                    .Select(stage => new
+                    {
+                        stage.StageCode,
+                        stage.SortOrder,
+                        stage.Status,
+                        stage.CompletedOn
+                    })
+                    .ToList()
+            })
+            .ToListAsync();
+
+        RollupProjectStatus = projectSnapshots
+            .ToDictionary(x => x.Id, x => x.LifecycleStatus);
+
+        RollupProjectStageSummary = projectSnapshots
+            .ToDictionary(
+                x => x.Id,
+                x => BuildStageSummary(x.Stages.Select(stage => new ProjectStage
+                {
+                    StageCode = stage.StageCode,
+                    SortOrder = stage.SortOrder,
+                    Status = stage.Status,
+                    CompletedOn = stage.CompletedOn
+                })));
 
         var externalRemarks = await Db.Remarks
             .AsNoTracking()
@@ -137,6 +170,84 @@ public class IndexModel : FfcRecordListPageModel
                     const int limit = 120;
                     return body.Length <= limit ? body : string.Concat(body.AsSpan(0, limit), "…");
                 });
+    }
+
+    private static string? BuildStageSummary(IEnumerable<ProjectStage> projectStages)
+    {
+        static string FmtDate(DateOnly? d) => d.HasValue ? d.Value.ToString("d MMM yyyy", CultureInfo.InvariantCulture) : "";
+
+        var stages = projectStages?
+            .Where(s => !StageCodes.IsTot(s.StageCode))
+            .OrderBy(s => s.SortOrder)
+            .ToList() ?? new List<ProjectStage>();
+
+        if (stages.Count == 0)
+            return null;
+
+        var paymentStage = stages.FirstOrDefault(s => StageCodes.IsPayment(s.StageCode));
+        if (paymentStage is not null)
+        {
+            var cutoff = paymentStage.SortOrder;
+            stages = stages.Where(s => s.SortOrder <= cutoff).ToList();
+        }
+
+        var topCompleted = stages
+            .Where(s => s.Status == StageStatus.Completed)
+            .OrderByDescending(s => s.SortOrder)
+            .ThenByDescending(s => s.CompletedOn ?? DateOnly.MinValue)
+            .FirstOrDefault();
+
+        var started = stages.FirstOrDefault(s => s.Status is StageStatus.InProgress or StageStatus.Blocked);
+
+        var missed = topCompleted is null
+            ? Array.Empty<string>()
+            : stages
+                .Where(s => s.SortOrder < topCompleted.SortOrder && s.Status != StageStatus.Completed)
+                .Select(s => StageCodes.DisplayNameOf(s.StageCode))
+                .ToArray();
+
+        if (started is not null)
+        {
+            var prev = stages.LastOrDefault(s => s.SortOrder < started.SortOrder && s.Status == StageStatus.Completed);
+            var prevLabel = prev is null ? null : StageCodes.DisplayNameOf(prev.StageCode);
+            var prevDate = prev is null ? "" : FmtDate(prev.CompletedOn);
+            var nowLabel = StageCodes.DisplayNameOf(started.StageCode);
+            var nowState = started.Status == StageStatus.Blocked ? "Blocked" : "In progress";
+            var missedPart = missed.Length > 0 ? $" — missed: {string.Join(", ", missed)}" : string.Empty;
+
+            if (prevLabel is null)
+                return $"Now: {nowLabel} ({nowState}){missedPart}";
+
+            var prevPart = string.IsNullOrEmpty(prevDate) ? prevLabel : $"{prevLabel} ({prevDate})";
+            return $"Last completed: {prevPart} · Now: {nowLabel} ({nowState}){missedPart}";
+        }
+
+        if (topCompleted is not null)
+        {
+            var topLabel = StageCodes.DisplayNameOf(topCompleted.StageCode);
+            var topDate = FmtDate(topCompleted.CompletedOn);
+            var topPart = string.IsNullOrEmpty(topDate) ? topLabel : $"{topLabel} ({topDate})";
+
+            var next = stages.FirstOrDefault(s => s.SortOrder > topCompleted.SortOrder);
+            string nextPart = string.Empty;
+            if (next is not null)
+            {
+                var nextLabel = StageCodes.DisplayNameOf(next.StageCode);
+                var suffix = next.Status switch
+                {
+                    StageStatus.InProgress => " (Started)",
+                    StageStatus.Blocked => " (Blocked)",
+                    _ => " (Not started)"
+                };
+                nextPart = $" · Next: {nextLabel}{suffix}";
+            }
+
+            var missedPart = missed.Length > 0 ? $" — missed: {string.Join(", ", missed)}" : string.Empty;
+            return $"Last completed: {topPart}{nextPart}{missedPart}";
+        }
+
+        var firstDefined = stages.FirstOrDefault();
+        return firstDefined is null ? null : $"Not started · First stage: {StageCodes.DisplayNameOf(firstDefined.StageCode)}";
     }
 
     private async Task LoadFilterOptionsAsync()

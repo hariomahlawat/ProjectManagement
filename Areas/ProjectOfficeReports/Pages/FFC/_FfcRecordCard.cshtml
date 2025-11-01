@@ -32,6 +32,8 @@
         ?? new Dictionary<int, ProjectLifecycleStatus>();
     var rollupExternalRemarks = ViewData["RollupProjectExternalRemark"] as IReadOnlyDictionary<int, string?>
         ?? new Dictionary<int, string?>();
+    var rollupStageSummaries = ViewData["RollupProjectStageSummary"] as IReadOnlyDictionary<int, string?>
+        ?? new Dictionary<int, string?>();
 
     static string FormatLifecycleStatus(ProjectLifecycleStatus status) => status switch
     {
@@ -152,6 +154,11 @@
                                     @if (!string.IsNullOrWhiteSpace(externalRemark))
                                     {
                                         @externalRemark
+                                    }
+                                    else if (rollupStageSummaries.TryGetValue(projId, out var stageSummary)
+                                             && !string.IsNullOrWhiteSpace(stageSummary))
+                                    {
+                                        @stageSummary
                                     }
                                     else if (!string.IsNullOrWhiteSpace(project.Remarks))
                                     {
