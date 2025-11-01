@@ -67,6 +67,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
+using Microsoft.AspNetCore.StaticFiles;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
@@ -534,6 +535,10 @@ app.Use(async (ctx, next) =>
 
 var uploadRoot = app.Services.GetRequiredService<IUploadRootProvider>();
 
+var contentTypeProvider = new FileExtensionContentTypeProvider();
+contentTypeProvider.Mappings[".geojson"] = "application/geo+json";
+contentTypeProvider.Mappings[".topojson"] = "application/json";
+
 app.UseStaticFiles(new StaticFileOptions
 {
     FileProvider = new PhysicalFileProvider(uploadRoot.RootPath),
@@ -541,7 +546,10 @@ app.UseStaticFiles(new StaticFileOptions
     ServeUnknownFileTypes = true,
 });
 
-app.UseStaticFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    ContentTypeProvider = contentTypeProvider
+});
 app.UseRouting();
 
 app.UseRateLimiter();
