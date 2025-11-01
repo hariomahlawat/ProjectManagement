@@ -173,7 +173,7 @@ public class MapTableDetailedModel : PageModel
                 .ToDictionary(x => x.Id, x => x.Name ?? string.Empty);
 
             stageSummaryMap = projectSnapshots
-                .ToDictionary<int, string?>(
+                .ToDictionary(
                     x => x.Id,
                     x => BuildStageSummary(x.Stages.Select(stage => new ProjectStage
                     {
