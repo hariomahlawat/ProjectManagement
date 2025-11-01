@@ -3,19 +3,18 @@
     border-radius: 16px;
     padding: 14px;
     background: linear-gradient(180deg, #fff, #f8fafc);
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
 }
 
 .pm-kpi__label {
-    font-size: 0.8rem;
+    font-size: .78rem;
+    letter-spacing: .04em;
     color: var(--bs-secondary-color);
-    letter-spacing: 0.01em;
     text-transform: uppercase;
 }
 
 .pm-kpi__value {
     font-weight: 700;
-    font-size: 1.5rem;
+    font-size: 1.45rem;
     line-height: 1;
 }
 
@@ -30,7 +29,6 @@
     display: block;
     height: 100%;
     background: var(--bs-primary);
-    border-radius: inherit;
 }
 
 .pm-chip {
@@ -48,6 +46,17 @@
     color: var(--bs-secondary-color);
     border-color: transparent;
     background: var(--bs-gray-100);
+}
+
+.ipr-chart-wrap {
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+@media (min-width: 1400px) {
+    .ipr-chart-wrap {
+        max-width: 800px;
+    }
 }
 
 .pm-record-row {

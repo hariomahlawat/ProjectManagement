@@ -99,62 +99,47 @@
         <div class="row g-3">
             <div class="col-12 col-sm-6 col-lg">
                 <div class="pm-kpi h-100">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span class="pm-kpi__label">Total</span>
-                        <span class="pm-chip">All</span>
-                    </div>
+                    <div class="pm-kpi__label">TOTAL</div>
                     <div class="pm-kpi__value mt-1">@Model.Kpis.Total</div>
-                    <div class="pm-kpi__spark mt-2" aria-hidden="true">
-                        <span style="width:@Model.Kpis.TotalPercent%"></span>
-                    </div>
+                    <div class="pm-kpi__spark mt-2" aria-hidden="true"><span style="width:@Model.Kpis.TotalPercent%"></span></div>
                 </div>
             </div>
+
             <div class="col-12 col-sm-6 col-lg">
                 <div class="pm-kpi h-100">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span class="pm-kpi__label">Filing under process</span>
-                        <span class="pm-chip">In progress</span>
-                    </div>
+                    <div class="pm-kpi__label">FILING UNDER PROCESS</div>
                     <div class="pm-kpi__value mt-1">@Model.Kpis.FilingUnderProcess</div>
                     <div class="pm-kpi__spark mt-2"><span style="width:@Model.Kpis.FilingUnderProcessPercent%"></span></div>
                 </div>
             </div>
+
             <div class="col-12 col-sm-6 col-lg">
                 <div class="pm-kpi h-100">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span class="pm-kpi__label">Filed</span>
-                        <span class="pm-chip">Submitted</span>
-                    </div>
+                    <div class="pm-kpi__label">FILED</div>
                     <div class="pm-kpi__value mt-1">@Model.Kpis.Filed</div>
                     <div class="pm-kpi__spark mt-2"><span style="width:@Model.Kpis.FiledPercent%"></span></div>
                 </div>
             </div>
+
             <div class="col-12 col-sm-6 col-lg">
                 <div class="pm-kpi h-100">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span class="pm-kpi__label">Granted</span>
-                        <span class="pm-chip text-success border-success">Granted</span>
-                    </div>
+                    <div class="pm-kpi__label">GRANTED</div>
                     <div class="pm-kpi__value mt-1">@Model.Kpis.Granted</div>
                     <div class="pm-kpi__spark mt-2"><span style="width:@Model.Kpis.GrantedPercent%"></span></div>
                 </div>
             </div>
+
             <div class="col-12 col-sm-6 col-lg">
                 <div class="pm-kpi h-100">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span class="pm-kpi__label">Rejected</span>
-                        <span class="pm-chip text-danger border-danger">Rejected</span>
-                    </div>
+                    <div class="pm-kpi__label">REJECTED</div>
                     <div class="pm-kpi__value mt-1">@Model.Kpis.Rejected</div>
                     <div class="pm-kpi__spark mt-2"><span style="width:@Model.Kpis.RejectedPercent%"></span></div>
                 </div>
             </div>
+
             <div class="col-12 col-sm-6 col-lg">
                 <div class="pm-kpi h-100">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span class="pm-kpi__label">Withdrawn</span>
-                        <span class="pm-chip">Closed</span>
-                    </div>
+                    <div class="pm-kpi__label">WITHDRAWN</div>
                     <div class="pm-kpi__value mt-1">@Model.Kpis.Withdrawn</div>
                     <div class="pm-kpi__spark mt-2"><span style="width:@Model.Kpis.WithdrawnPercent%"></span></div>
                 </div>
@@ -168,8 +153,9 @@
                 <h2 class="h6 mb-0">Status distribution</h2>
                 <div class="text-muted small">snapshot</div>
             </div>
-            <div class="mt-3" style="min-height: 220px;">
-                <canvas id="iprStatusChart" height="110"></canvas>
+
+            <div class="ipr-chart-wrap mt-3">
+                <canvas id="iprStatusChart" height="220"></canvas>
             </div>
         </div>
     </div>
