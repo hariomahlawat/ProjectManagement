@@ -154,8 +154,17 @@
       return;
     }
 
+    if (!cfg.geoJsonUrl) {
+      console.error('Missing geoJsonUrl configuration.');
+      mapElement.innerHTML = '' +
+        '<div class="alert alert-warning m-3" role="status">' +
+        'Unable to load map data. Please check that the map configuration is complete.' +
+        '</div>';
+      return;
+    }
+
     Promise.all([
-      fetchJson(cfg.worldGeoJsonUrl),
+      fetchJson(cfg.geoJsonUrl),
       fetchJson(cfg.dataUrl)
     ])
       .then(function (results) {
@@ -268,6 +277,12 @@
       })
       .catch(function (error) {
         console.error('Failed to initialise FFC map', error);
+
+        mapElement.innerHTML = '' +
+          '<div class="alert alert-warning m-3" role="status">' +
+          'Unable to load map data. Please check that ' +
+          '<code>' + cfg.geoJsonUrl + '</code> exists and is reachable.' +
+          '</div>';
       });
   }
 
