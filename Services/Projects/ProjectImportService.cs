@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -275,6 +276,7 @@ public class ProjectImportService : IProjectImportService
         return false;
     }
 
+    [return: NotNullIfNotNull(nameof(input))]
     private static string? Truncate(string? input, int maxLength)
     {
         if (string.IsNullOrEmpty(input))

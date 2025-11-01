@@ -168,7 +168,11 @@ public class IndexModel : FfcRecordListPageModel
                         .Replace("\n", " ", StringComparison.Ordinal);
 
                     const int limit = 120;
-                    return body.Length <= limit ? body : string.Concat(body.AsSpan(0, limit), "…");
+                    string? summary = body.Length <= limit
+                        ? body
+                        : string.Concat(body.AsSpan(0, limit), "…");
+
+                    return summary;
                 });
     }
 
@@ -267,7 +271,7 @@ public class IndexModel : FfcRecordListPageModel
             {
                 Value = year.ToString(CultureInfo.InvariantCulture),
                 Text = year.ToString(CultureInfo.InvariantCulture),
-                Selected = Year.HasValue && Year.Value == year
+                Selected = Year.HasValue && Year.GetValueOrDefault() == year
             })
             .ToList();
 
