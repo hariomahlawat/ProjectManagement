@@ -21,10 +21,15 @@
     var projectCount = projects.Count;
     var countryName = record.Country?.Name ?? "Unassigned";
 
-    var attachments = record.Attachments;
+    var attachments = record.Attachments
+        .OrderByDescending(a => a.UploadedAt)
+        .ToList();
     var attachmentCount = attachments.Count;
     var pdfCount = attachments.Count(a => a.Kind == FfcAttachmentKind.Pdf);
     var photoCount = attachments.Count(a => a.Kind == FfcAttachmentKind.Photo);
+    var photoAttachments = attachments.Where(a => a.Kind == FfcAttachmentKind.Photo).ToList();
+    var documentAttachments = attachments.Where(a => a.Kind != FfcAttachmentKind.Photo).ToList();
+    var attachmentModalId = $"ffc-attachments-{record.Id}";
 
     static string FormatDate(DateOnly? value) => value?.ToString("d MMM yyyy", CultureInfo.InvariantCulture) ?? string.Empty;
 
@@ -207,13 +212,21 @@
                 var parts = new[] { pdfSummary, photoSummary }
                     .Where(part => !string.IsNullOrWhiteSpace(part))
                     .ToArray();
-                <p class="ffc-record-card__attachments mb-0">
-                    <span class="fw-semibold">@attachmentCount</span> attachment@(attachmentCount == 1 ? string.Empty : "s")
-                    @if (parts.Length > 0)
-                    {
-                        <span class="text-muted">(@string.Join(" • ", parts))</span>
-                    }
-                </p>
+                <div class="d-flex flex-column flex-sm-row gap-2 align-items-sm-center">
+                    <p class="ffc-record-card__attachments mb-0 flex-grow-1">
+                        <span class="fw-semibold">@attachmentCount</span> attachment@(attachmentCount == 1 ? string.Empty : "s")
+                        @if (parts.Length > 0)
+                        {
+                            <span class="text-muted">(@string.Join(" • ", parts))</span>
+                        }
+                    </p>
+                    <button type="button"
+                            class="btn btn-outline-secondary btn-sm"
+                            data-bs-toggle="modal"
+                            data-bs-target="#@attachmentModalId">
+                        Attachments
+                    </button>
+                </div>
             }
         </section>
 
@@ -230,16 +243,117 @@
                        asp-page="/FFC/Records/Projects/Manage"
                        asp-route-recordId="@record.Id"
                        class="btn btn-outline-secondary btn-sm">Projects</a>
+                    <button type="button"
+                            class="btn btn-outline-secondary btn-sm"
+                            data-bs-toggle="modal"
+                            data-bs-target="#@attachmentModalId">
+                        Attachments
+                    </button>
                     <a asp-area="ProjectOfficeReports"
                        asp-page="/FFC/Records/Attachments/Upload"
                        asp-route-recordId="@record.Id"
-                       class="btn btn-outline-secondary btn-sm">Attachments</a>
+                       class="btn btn-outline-secondary btn-sm">Manage attachments</a>
                 </div>
             }
             else
             {
-                <p class="ffc-record-card__read-only text-muted small mb-0">You have read-only access to this record.</p>
+                <div class="d-flex flex-wrap gap-2">
+                    <button type="button"
+                            class="btn btn-outline-secondary btn-sm"
+                            data-bs-toggle="modal"
+                            data-bs-target="#@attachmentModalId">
+                        Attachments
+                    </button>
+                </div>
             }
         </footer>
     </div>
 </div>
+
+@if (attachmentCount > 0)
+{
+    var modalTitle = $"Attachments — {countryName} {record.Year}";
+    string AttachmentDisplayName(FfcAttachment attachment)
+    {
+        if (!string.IsNullOrWhiteSpace(attachment.Caption))
+        {
+            return attachment.Caption!;
+        }
+
+        return attachment.Kind == FfcAttachmentKind.Photo ? "Photo attachment" : "Document attachment";
+    }
+
+    string AttachmentContentType(FfcAttachment attachment)
+        => string.IsNullOrWhiteSpace(attachment.ContentType) ? "unknown" : attachment.ContentType;
+
+    <div class="modal fade" id="@attachmentModalId" tabindex="-1" aria-labelledby="@attachmentModalId-label" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title h5" id="@attachmentModalId-label">@modalTitle</h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!attachments.Any())
+                    {
+                        <div class="alert alert-secondary mb-0">No attachments uploaded.</div>
+                    }
+                    else
+                    {
+                        if (photoAttachments.Any())
+                        {
+                            <h3 class="h6 mb-3">Photos</h3>
+                            <div class="row g-3 mb-4">
+                                @foreach (var attachment in photoAttachments)
+                                {
+                                    var attachmentUrl = Url.Page("/ProjectOfficeReports/FFC/Attachments/View", new { area = "ProjectOfficeReports", id = attachment.Id });
+                                    <div class="col-6 col-md-4 col-lg-3">
+                                        <div class="card h-100 shadow-sm">
+                                            <a class="ratio ratio-4x3" target="_blank" href="@attachmentUrl" title="Open @AttachmentDisplayName(attachment)">
+                                                <img class="card-img-top object-fit-cover" src="@attachmentUrl" alt="@AttachmentDisplayName(attachment)" />
+                                            </a>
+                                            <div class="card-body py-2">
+                                                <div class="small text-truncate" title="@AttachmentDisplayName(attachment)">@AttachmentDisplayName(attachment)</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+
+                        if (documentAttachments.Any())
+                        {
+                            <h3 class="h6 mb-3">Documents</h3>
+                            <ul class="list-group list-group-flush">
+                                @foreach (var attachment in documentAttachments)
+                                {
+                                    var attachmentUrl = Url.Page("/ProjectOfficeReports/FFC/Attachments/View", new { area = "ProjectOfficeReports", id = attachment.Id });
+                                    <li class="list-group-item d-flex align-items-center justify-content-between">
+                                        <div class="me-3 text-truncate" title="@AttachmentDisplayName(attachment)">
+                                            <i class="bi bi-file-earmark-text me-2" aria-hidden="true"></i>
+                                            @AttachmentDisplayName(attachment)
+                                            <span class="text-muted small">(@AttachmentContentType(attachment))</span>
+                                        </div>
+                                        <div class="d-flex gap-2">
+                                            <a class="btn btn-sm btn-outline-primary" target="_blank" href="@attachmentUrl">Open</a>
+                                        </div>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    }
+                </div>
+                <div class="modal-footer">
+                    @if (Model.CanManageRecords)
+                    {
+                        <a asp-area="ProjectOfficeReports"
+                           asp-page="/FFC/Records/Attachments/Upload"
+                           asp-route-recordId="@record.Id"
+                           class="btn btn-link">Manage attachments</a>
+                    }
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
