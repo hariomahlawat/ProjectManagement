@@ -33,6 +33,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="wwwroot\ffc\maps\" />
     <Folder Include="wwwroot\uploads\" />
   </ItemGroup>
 
