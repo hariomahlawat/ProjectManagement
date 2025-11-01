@@ -60,7 +60,8 @@
                             var cardViewData = new ViewDataDictionary(ViewData)
                             {
                                 ["RollupProjectStatus"] = Model.RollupProjectStatus,
-                                ["RollupProjectExternalRemark"] = Model.RollupProjectExternalRemark
+                                ["RollupProjectExternalRemark"] = Model.RollupProjectExternalRemark,
+                                ["RollupProjectStageSummary"] = Model.RollupProjectStageSummary
                             };
                         }
                         @await Html.PartialAsync("_FfcRecordCard", new ProjectManagement.Areas.ProjectOfficeReports.ViewModels.FfcRecordCardViewModel

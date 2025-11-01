@@ -60,4 +60,8 @@ public static class StageCodes
 
     public static string DisplayNameOf(string code) =>
         code is null ? "—" : (DisplayNames.TryGetValue(code, out var name) ? name : code);
+
+    public static bool IsTot(string? code) => string.Equals(code, TOT, StringComparison.OrdinalIgnoreCase);
+
+    public static bool IsPayment(string? code) => string.Equals(code, PAYMENT, StringComparison.OrdinalIgnoreCase);
 }
