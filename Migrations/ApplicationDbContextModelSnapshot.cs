@@ -2904,6 +2904,10 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("character varying(450)");
 
+                    b.Property<string>("ArmService")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<string>("CancelReason")
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");
@@ -2915,10 +2919,6 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
-                    b.Property<string>("ArmService")
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
                     b.Property<int?>("CategoryId")
                         .HasColumnType("integer");
 
@@ -2928,8 +2928,8 @@ namespace ProjectManagement.Migrations
                     b.Property<int?>("CompletedYear")
                         .HasColumnType("integer");
 
-                    b.Property<short?>("YearOfDevelopment")
-                        .HasColumnType("smallint");
+                    b.Property<decimal?>("CostLakhs")
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<int?>("CoverPhotoId")
                         .HasColumnType("integer");
@@ -2970,9 +2970,6 @@ namespace ProjectManagement.Migrations
                     b.Property<string>("Description")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
-
-                    b.Property<decimal?>("CostLakhs")
-                        .HasColumnType("numeric(18,2)");
 
                     b.Property<int?>("FeaturedVideoId")
                         .HasColumnType("integer");
@@ -3036,6 +3033,9 @@ namespace ProjectManagement.Migrations
 
                     b.Property<int?>("TechnicalCategoryId")
                         .HasColumnType("integer");
+
+                    b.Property<short?>("YearOfDevelopment")
+                        .HasColumnType("smallint");
 
                     b.HasKey("Id");
 
@@ -3639,47 +3639,6 @@ namespace ProjectManagement.Migrations
                     b.ToTable("ProjectDocumentRequests");
                 });
 
-            modelBuilder.Entity("ProjectManagement.Models.ProjectLegacyImport", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<DateTime>("ImportedAtUtc")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("ImportedByUserId")
-                        .IsRequired()
-                        .HasMaxLength(450)
-                        .HasColumnType("character varying(450)");
-
-                    b.Property<int>("ProjectCategoryId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("RowsImported")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("RowsReceived")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("SourceFileHashSha256")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<int>("TechnicalCategoryId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProjectCategoryId", "TechnicalCategoryId")
-                        .IsUnique()
-                        .HasDatabaseName("UX_ProjectLegacyImport_Category_Tech");
-
-                    b.ToTable("ProjectLegacyImports");
-                });
-
             modelBuilder.Entity("ProjectManagement.Models.ProjectIpaFact", b =>
                 {
                     b.Property<int>("Id")
@@ -3715,6 +3674,49 @@ namespace ProjectManagement.Migrations
                         {
                             t.HasCheckConstraint("ck_ipafact_amount", "\"IpaCost\" >= 0");
                         });
+                });
+
+            modelBuilder.Entity("ProjectManagement.Models.ProjectLegacyImport", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("ImportedAtUtc")
+                        .HasColumnType("timestamp without time zone");
+
+                    b.Property<string>("ImportedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<int>("ProjectCategoryId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RowsImported")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RowsReceived")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("SourceFileHashSha256")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<int>("TechnicalCategoryId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TechnicalCategoryId");
+
+                    b.HasIndex("ProjectCategoryId", "TechnicalCategoryId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ProjectLegacyImport_Category_Tech");
+
+                    b.ToTable("ProjectLegacyImports", (string)null);
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectMetaChangeRequest", b =>
@@ -5878,6 +5880,15 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Tot");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Models.ProjectIpaFact", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.Project", null)
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ProjectManagement.Models.ProjectLegacyImport", b =>
                 {
                     b.HasOne("ProjectManagement.Models.ProjectCategory", "ProjectCategory")
@@ -5895,15 +5906,6 @@ namespace ProjectManagement.Migrations
                     b.Navigation("ProjectCategory");
 
                     b.Navigation("TechnicalCategory");
-                });
-
-            modelBuilder.Entity("ProjectManagement.Models.ProjectIpaFact", b =>
-                {
-                    b.HasOne("ProjectManagement.Models.Project", null)
-                        .WithMany()
-                        .HasForeignKey("ProjectId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectMetaChangeRequest", b =>

@@ -874,6 +874,37 @@ namespace ProjectManagement.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "ProjectLegacyImports",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    ProjectCategoryId = table.Column<int>(type: "integer", nullable: false),
+                    TechnicalCategoryId = table.Column<int>(type: "integer", nullable: false),
+                    ImportedAtUtc = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
+                    ImportedByUserId = table.Column<string>(type: "character varying(450)", maxLength: 450, nullable: false),
+                    RowsReceived = table.Column<int>(type: "integer", nullable: false),
+                    RowsImported = table.Column<int>(type: "integer", nullable: false),
+                    SourceFileHashSha256 = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ProjectLegacyImports", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ProjectLegacyImports_ProjectCategories_ProjectCategoryId",
+                        column: x => x.ProjectCategoryId,
+                        principalTable: "ProjectCategories",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_ProjectLegacyImports_TechnicalCategories_TechnicalCategoryId",
+                        column: x => x.TechnicalCategoryId,
+                        principalTable: "TechnicalCategories",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Trainings",
                 columns: table => new
                 {
@@ -1819,6 +1850,9 @@ namespace ProjectManagement.Migrations
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     Name = table.Column<string>(type: "character varying(100)", maxLength: 100, nullable: false),
                     Description = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
+                    ArmService = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
+                    YearOfDevelopment = table.Column<short>(type: "smallint", nullable: true),
+                    CostLakhs = table.Column<decimal>(type: "numeric(18,2)", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "timestamp without time zone", nullable: false),
                     LifecycleStatus = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false, defaultValue: "Active"),
                     IsLegacy = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
@@ -2985,6 +3019,17 @@ namespace ProjectManagement.Migrations
                 column: "ProjectId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_ProjectLegacyImports_TechnicalCategoryId",
+                table: "ProjectLegacyImports",
+                column: "TechnicalCategoryId");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_ProjectLegacyImport_Category_Tech",
+                table: "ProjectLegacyImports",
+                columns: new[] { "ProjectCategoryId", "TechnicalCategoryId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_ProjectMetaChangeRequests_TechnicalCategoryId",
                 table: "ProjectMetaChangeRequests",
                 column: "TechnicalCategoryId");
@@ -3841,6 +3886,9 @@ namespace ProjectManagement.Migrations
 
             migrationBuilder.DropTable(
                 name: "ProjectIpaFacts");
+
+            migrationBuilder.DropTable(
+                name: "ProjectLegacyImports");
 
             migrationBuilder.DropTable(
                 name: "ProjectMetaChangeRequests");
