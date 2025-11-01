@@ -536,8 +536,8 @@ namespace ProjectManagement.Data
             {
                 ConfigureRowVersion(entity);
                 entity.ToTable("FfcCountries");
-                entity.Property(x => x.Name).HasMaxLength(128).IsRequired();
-                entity.Property(x => x.IsoCode).HasMaxLength(3);
+                entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
+                entity.Property(x => x.IsoCode).HasMaxLength(3).IsRequired();
                 entity.Property(x => x.IsActive).HasDefaultValue(true);
                 entity.Property(x => x.CreatedAt).HasDefaultValueSql("now() at time zone 'utc'");
                 entity.Property(x => x.UpdatedAt).HasDefaultValueSql("now() at time zone 'utc'");
@@ -551,6 +551,10 @@ namespace ProjectManagement.Data
                 entity.HasIndex(x => x.Name)
                     .IsUnique()
                     .HasDatabaseName("UX_FfcCountries_Name");
+
+                entity.HasIndex(x => x.IsoCode)
+                    .IsUnique()
+                    .HasDatabaseName("UX_FfcCountries_IsoCode");
             });
 
             builder.Entity<FfcRecord>(entity =>
