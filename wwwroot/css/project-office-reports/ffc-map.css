@@ -1,0 +1,70 @@
+.ffc-map-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 1.5rem;
+}
+
+.ffc-map {
+  height: 70vh;
+  min-height: 520px;
+  border-radius: 1rem;
+  box-shadow: 0 1px 4px rgba(2, 6, 23, 0.08);
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+.ffc-map-sidebar .card {
+  border-radius: 1rem;
+}
+
+.legend-ramp {
+  display: flex;
+  gap: 2px;
+  height: 12px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #e2e8f0;
+  margin-bottom: 0.5rem;
+}
+
+.legend-ramp > span {
+  flex: 1;
+}
+
+.legend-labels {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.25rem;
+}
+
+.legend-labels > li {
+  text-align: center;
+  color: #475569;
+}
+
+.ffc-tip__title {
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.ffc-tip__metric {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px dashed #e5e7eb;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+}
+
+.ffc-tip__years {
+  margin-top: 0.5rem;
+}
+
+@media (max-width: 1200px) {
+  .ffc-map-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ffc-map-sidebar {
+    display: contents;
+  }
+}
