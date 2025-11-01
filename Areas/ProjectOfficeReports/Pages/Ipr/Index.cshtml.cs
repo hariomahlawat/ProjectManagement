@@ -167,8 +167,7 @@ public sealed class IndexModel : PageModel
 
     public async Task<IActionResult> OnGetSummaryAsync(CancellationToken cancellationToken)
     {
-        var query = _db.IprRecords.AsNoTracking()
-            .Where(record => !record.IsDeleted);
+        var query = _db.IprRecords.AsNoTracking();
 
         var dto = new IprSummaryDto(
             Filing: await query.CountAsync(r => r.Status == IprStatus.FilingUnderProcess, cancellationToken),

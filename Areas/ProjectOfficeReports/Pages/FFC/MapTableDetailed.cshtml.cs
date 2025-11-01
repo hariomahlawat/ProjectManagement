@@ -173,7 +173,7 @@ public class MapTableDetailedModel : PageModel
                 .ToDictionary(x => x.Id, x => x.Name ?? string.Empty);
 
             stageSummaryMap = projectSnapshots
-                .ToDictionary(
+                .ToDictionary<int, string?>(
                     x => x.Id,
                     x => BuildStageSummary(x.Stages.Select(stage => new ProjectStage
                     {
@@ -181,7 +181,7 @@ public class MapTableDetailedModel : PageModel
                         SortOrder = stage.SortOrder,
                         Status = stage.Status,
                         CompletedOn = stage.CompletedOn
-                    })) ?? string.Empty);
+                    })));
         }
 
         var remarkMap = linkedProjectIds.Length == 0
