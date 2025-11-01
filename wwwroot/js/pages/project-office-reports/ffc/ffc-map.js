@@ -62,32 +62,67 @@
     return value.toString().toUpperCase();
   }
 
-  function buildPopupHtml(record, fallbackName, cfg) {
-    var delivered = record ? Number(record.delivered || 0) : 0;
-    var name = record && record.name ? record.name : fallbackName || 'Unknown';
-    var perYear = record ? ensureArray(record.perYear) : [];
+  function buildDrillUrl(cfg, datum) {
+    if (!cfg || !cfg.ffcIndexUrlBase || !datum || datum.countryId == null) {
+      return '';
+    }
 
-    var yearsHtml = perYear
-      .slice()
-      .sort(function (a, b) { return Number(b.year) - Number(a.year); })
-      .slice(0, 5)
-      .map(function (item) {
-        return '<div><span class="text-muted">' + item.year + '</span> — <strong>' + formatNumber(item.count) + '</strong></div>';
-      })
-      .join('');
+    var installed = Number(datum.installed || 0);
+    var delivered = Number(datum.delivered || 0);
 
-    var linkHtml = record
-      ? '<a class="btn btn-sm btn-primary mt-2" href="' + cfg.ffcIndexUrlBase + '?countryId=' + encodeURIComponent(record.countryId) + '&delivery=completed">View in list</a>'
+    var deliveryFilter = 'delivery=pending';
+    if (installed > 0) {
+      deliveryFilter = 'installation=completed';
+    } else if (delivered > 0) {
+      deliveryFilter = 'delivery=completed';
+    }
+
+    if (typeof URLSearchParams === 'undefined') {
+      var legacyParams = 'countryId=' + encodeURIComponent(String(datum.countryId));
+      if (deliveryFilter.indexOf('=') > 0) {
+        legacyParams += '&' + deliveryFilter;
+      }
+
+      return cfg.ffcIndexUrlBase + '?' + legacyParams;
+    }
+
+    var params = new URLSearchParams();
+    params.set('countryId', String(datum.countryId));
+
+    var filterParts = deliveryFilter.split('=');
+    if (filterParts.length === 2) {
+      params.set(filterParts[0], filterParts[1]);
+    }
+
+    return cfg.ffcIndexUrlBase + '?' + params.toString();
+  }
+
+  function buildPopupHtml(countryName, datum, cfg) {
+    var name = countryName || 'Unknown';
+    var installed = datum ? Number(datum.installed || 0) : 0;
+    var delivered = datum ? Number(datum.delivered || 0) : 0;
+    var planned = datum ? Number(datum.planned || 0) : 0;
+    var total = installed + delivered + planned;
+
+    var rowsHtml = '' +
+      '<div class="ffc-tip__rows">' +
+      '<div class="ffc-tip__row"><span>Installed</span><strong>' + formatNumber(installed) + '</strong></div>' +
+      '<div class="ffc-tip__row"><span>Delivered (not installed)</span><strong>' + formatNumber(delivered) + '</strong></div>' +
+      '<div class="ffc-tip__row"><span>Planned</span><strong>' + formatNumber(planned) + '</strong></div>' +
+      '<div class="ffc-tip__row ffc-tip__row--muted"><span>Total</span><strong>' + formatNumber(total) + '</strong></div>' +
+      '</div>';
+
+    var drillHref = total > 0 ? buildDrillUrl(cfg, datum) : '';
+    var linkHtml = drillHref
+      ? '<a class="btn btn-sm btn-outline-primary mt-2" href="' + drillHref + '">View in list</a>'
       : '';
 
-    return (
+    return '' +
       '<div class="ffc-tip">' +
       '<div class="ffc-tip__title">' + name + '</div>' +
-      '<div class="ffc-tip__metric"><span>Delivered:&nbsp;</span><strong>' + formatNumber(delivered) + '</strong></div>' +
-      (yearsHtml ? '<div class="ffc-tip__years">' + yearsHtml + '</div>' : '') +
+      rowsHtml +
       linkHtml +
-      '</div>'
-    );
+      '</div>';
   }
 
   function renderLegend(scale) {
@@ -147,6 +182,41 @@
     });
   }
 
+  function loadFfcData(url) {
+    if (!url) {
+      return Promise.resolve(new Map());
+    }
+
+    return fetch(url, { credentials: 'same-origin', cache: 'no-store' })
+      .then(function (response) {
+        if (!response || !response.ok) {
+          var status = response ? response.status + ' ' + response.statusText : 'Network error';
+          throw new Error('Failed to load ' + url + ': ' + status);
+        }
+
+        return response.json();
+      })
+      .then(function (rows) {
+        var map = new Map();
+        ensureArray(rows).forEach(function (row) {
+          var iso = (row && row.iso3 ? row.iso3 : '').toString().toUpperCase();
+          if (!iso) {
+            return;
+          }
+
+          map.set(iso, {
+            countryId: row.countryId,
+            installed: Number(row.installed || 0),
+            delivered: Number(row.delivered || 0),
+            planned: Number(row.planned || 0),
+            total: Number(row.total || 0)
+          });
+        });
+
+        return map;
+      });
+  }
+
   function init(cfg) {
     if (!cfg || typeof L === 'undefined') {
       return;
@@ -168,7 +238,7 @@
 
     Promise.all([
       fetchJson(cfg.geoJsonUrl),
-      fetchJson(cfg.dataUrl)
+      loadFfcData(cfg.dataUrl)
     ])
       .then(function (results) {
         if (L.Icon && L.Icon.Default && typeof L.Icon.Default.mergeOptions === 'function') {
@@ -180,19 +250,16 @@
         }
 
         var world = results[0];
-        var data = ensureArray(results[1]);
+        var countryMap = results[1];
 
-        var byIso = new Map();
-        var maxDelivered = 0;
-        data.forEach(function (item) {
-          var iso = (item.iso3 || '').toString().toUpperCase();
-          byIso.set(iso, item);
-          if (item.delivered > maxDelivered) {
-            maxDelivered = item.delivered;
+        var maxTotal = 0;
+        countryMap.forEach(function (value) {
+          if (value && Number(value.total || 0) > maxTotal) {
+            maxTotal = Number(value.total || 0);
           }
         });
 
-        var scale = buildColorScale(maxDelivered);
+        var scale = buildColorScale(maxTotal);
         var map = L.map(cfg.mapId, { zoomControl: true, attributionControl: false }).setView([20, 20], 2);
 
         var legendControlElement = document.createElement('div');
@@ -203,7 +270,7 @@
 
         var legendTitle = document.createElement('h2');
         legendTitle.className = 'h6 mb-3';
-        legendTitle.textContent = 'Legend';
+        legendTitle.textContent = 'Total completed linked projects';
 
         var legendRamp = document.createElement('div');
         legendRamp.className = 'legend-ramp ffc-legend-ramp';
@@ -234,23 +301,23 @@
         function styleFeature(feature) {
           var props = feature && feature.properties ? feature.properties : {};
           var iso = getIsoCodeFromProperties(props);
-          var record = byIso.get(iso);
-          var delivered = record ? Number(record.delivered || 0) : 0;
+          var datum = countryMap.get(iso);
+          var total = datum ? Number(datum.total || 0) : 0;
 
           return {
             weight: 0.6,
             color: '#94a3b8',
-            fillColor: scale.colorFor(delivered),
-            fillOpacity: delivered > 0 ? 0.9 : 0.35
+            fillColor: scale.colorFor(total),
+            fillOpacity: total > 0 ? 0.9 : 0.35
           };
         }
 
         function onEachFeature(feature, layer) {
           var props = feature && feature.properties ? feature.properties : {};
           var iso = getIsoCodeFromProperties(props);
-          var record = byIso.get(iso);
+          var record = countryMap.get(iso);
           var fallbackName = props.name || props.ADMIN || '';
-          var popupHtml = buildPopupHtml(record, fallbackName, cfg);
+          var popupHtml = buildPopupHtml(fallbackName || 'Unknown', record, cfg);
 
           layer.bindPopup(popupHtml, { maxWidth: 260, closeButton: true });
           layer.on({

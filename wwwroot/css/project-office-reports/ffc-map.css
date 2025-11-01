@@ -75,16 +75,25 @@
   margin-bottom: 0.25rem;
 }
 
-.ffc-tip__metric {
-  display: flex;
-  justify-content: space-between;
-  border-top: 1px dashed #e5e7eb;
+.ffc-tip__rows {
+  display: grid;
+  gap: 0.25rem;
   margin-top: 0.5rem;
-  padding-top: 0.5rem;
 }
 
-.ffc-tip__years {
-  margin-top: 0.5rem;
+.ffc-tip__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.95rem;
+}
+
+.ffc-tip__row strong {
+  font-weight: 600;
+}
+
+.ffc-tip__row--muted {
+  color: #64748b;
 }
 
 @media (max-width: 1200px) {
