@@ -38,9 +38,9 @@ namespace ProjectManagement.Migrations
 
                     var escapedName = name.Replace("'", "''", StringComparison.Ordinal);
                     migrationBuilder.Sql($@"
-UPDATE \"FfcCountries\"
-SET \"IsoCode\" = '{iso}', \"Name\" = '{escapedName}'
-WHERE LOWER(\"Name\") = LOWER('{escapedName}');
+UPDATE ""FfcCountries""
+SET ""IsoCode"" = '{iso}', ""Name"" = '{escapedName}'
+WHERE LOWER(""Name"") = LOWER('{escapedName}');
 ");
                 }
             }
@@ -51,14 +51,14 @@ WHERE LOWER(\"Name\") = LOWER('{escapedName}');
 
             migrationBuilder.Sql(@"
 WITH missing AS (
-    SELECT \"Id\", ROW_NUMBER() OVER (ORDER BY \"Id\") AS seq
-    FROM \"FfcCountries\"
-    WHERE \"IsoCode\" IS NULL OR LENGTH(TRIM(\"IsoCode\")) = 0
+    SELECT ""Id"", ROW_NUMBER() OVER (ORDER BY ""Id"") AS seq
+    FROM ""FfcCountries""
+    WHERE ""IsoCode"" IS NULL OR LENGTH(TRIM(""IsoCode"")) = 0
 )
-UPDATE \"FfcCountries\"
-SET \"IsoCode\" = CONCAT('X', RIGHT(CONCAT('00', UPPER(TO_HEX(seq - 1))), 2))
+UPDATE ""FfcCountries""
+SET ""IsoCode"" = CONCAT('X', RIGHT(CONCAT('00', UPPER(TO_HEX(seq - 1))), 2))
 FROM missing
-WHERE \"FfcCountries\".\"Id\" = missing.\"Id\";
+WHERE ""FfcCountries"".""Id"" = missing.""Id"";
 ");
 
             migrationBuilder.Sql("UPDATE \"FfcCountries\" SET \"IsoCode\" = UPPER(TRIM(\"IsoCode\"));");
