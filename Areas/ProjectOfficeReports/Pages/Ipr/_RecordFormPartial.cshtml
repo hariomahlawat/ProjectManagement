@@ -166,7 +166,7 @@ else if (isEditMode)
                                 </div>
                                 <div class="text-muted small">
                                     @Model.FormatFileSize(attachment.FileSize)
-                                    &middot; Uploaded by @attachment.UploadedBy on @FormatAttachmentTimestamp(attachment.UploadedAtUtc)
+                                    &middot; Uploaded by @attachment.UploadedBy on @Model.FormatAttachmentTimestamp(attachment.UploadedAtUtc)
                                 </div>
                             </div>
                             <div class="d-flex gap-2">
@@ -214,11 +214,3 @@ else
     </div>
 }
 
-@functions {
-    private static string FormatAttachmentTimestamp(DateTimeOffset value)
-    {
-        var istZone = ProjectManagement.Utilities.TimeZoneHelper.GetIst();
-        var converted = TimeZoneInfo.ConvertTimeFromUtc(value.UtcDateTime, istZone);
-        return converted.ToString("dd MMM yyyy 'at' HH:mm 'IST'", CultureInfo.InvariantCulture);
-    }
-}

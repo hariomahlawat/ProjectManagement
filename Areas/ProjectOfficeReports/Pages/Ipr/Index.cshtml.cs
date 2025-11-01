@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Application.Ipr;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
+using ProjectManagement.Areas.ProjectOfficeReports.ViewModels;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Data;
@@ -128,7 +129,9 @@ public sealed class IndexModel : PageModel
 
     public IReadOnlyList<SelectListItem> PageSizeOptions { get; private set; } = Array.Empty<SelectListItem>();
 
-    public IReadOnlyList<IprListRowDto> Records { get; private set; } = Array.Empty<IprListRowDto>();
+    private static readonly TimeZoneInfo IstTimeZone = TimeZoneHelper.GetIst();
+
+    public IReadOnlyList<IprRecordRowViewModel> Records { get; private set; } = Array.Empty<IprRecordRowViewModel>();
 
     public IprKpis Kpis { get; private set; } = new(0, 0, 0, 0, 0, 0);
 
@@ -142,6 +145,17 @@ public sealed class IndexModel : PageModel
 
     public bool CanEdit { get; private set; }
 
+    public bool HasAnyFilter
+        => !string.IsNullOrWhiteSpace(Query)
+            || Types.Count > 0
+            || Statuses.Count > 0
+            || ProjectId.HasValue
+            || Year.HasValue;
+
+    public IReadOnlyList<string> ActiveFilterChips { get; private set; } = Array.Empty<string>();
+
+    public sealed record IprSummaryDto(int Filing, int Filed, int Granted, int Rejected, int Withdrawn);
+
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         NormalizeFilters();
@@ -149,6 +163,21 @@ public sealed class IndexModel : PageModel
         NormalizeMode();
         await LoadPageAsync(cancellationToken, loadRecordInput: true);
         return Page();
+    }
+
+    public async Task<IActionResult> OnGetSummaryAsync(CancellationToken cancellationToken)
+    {
+        var query = _db.IprRecords.AsNoTracking()
+            .Where(record => !record.IsDeleted);
+
+        var dto = new IprSummaryDto(
+            Filing: await query.CountAsync(r => r.Status == IprStatus.FilingUnderProcess, cancellationToken),
+            Filed: await query.CountAsync(r => r.Status == IprStatus.Filed, cancellationToken),
+            Granted: await query.CountAsync(r => r.Status == IprStatus.Granted, cancellationToken),
+            Rejected: await query.CountAsync(r => r.Status == IprStatus.Rejected, cancellationToken),
+            Withdrawn: await query.CountAsync(r => r.Status == IprStatus.Withdrawn, cancellationToken));
+
+        return new JsonResult(dto);
     }
 
     public async Task<IActionResult> OnGetExportAsync(CancellationToken cancellationToken)
@@ -553,13 +582,122 @@ public sealed class IndexModel : PageModel
         return string.Format(CultureInfo.InvariantCulture, "{0:0.##} {1}", size, units[unitIndex]);
     }
 
+    private IprRecordRowViewModel CreateRowViewModel(IprListRowDto dto)
+    {
+        if (dto is null)
+        {
+            throw new ArgumentNullException(nameof(dto));
+        }
+
+        var title = string.IsNullOrWhiteSpace(dto.Title) ? "Untitled record" : dto.Title!;
+        var project = string.IsNullOrWhiteSpace(dto.ProjectName) ? "Unassigned project" : dto.ProjectName!;
+        var applicationNumber = string.IsNullOrWhiteSpace(dto.FilingNumber) ? "—" : dto.FilingNumber;
+        var attachments = dto.Attachments
+            .Select(CreateAttachmentViewModel)
+            .ToList();
+
+        return new IprRecordRowViewModel(
+            dto.Id,
+            title,
+            project,
+            GetTypeLabel(dto.Type),
+            applicationNumber,
+            GetStatusLabel(dto.Status),
+            GetStatusChipClass(dto.Status),
+            string.IsNullOrWhiteSpace(dto.Notes) ? null : dto.Notes,
+            ConvertToIstDate(dto.FiledAtUtc),
+            ConvertToIstDate(dto.GrantedAtUtc),
+            attachments,
+            dto.AttachmentCount);
+    }
+
+    private IprRecordAttachmentViewModel CreateAttachmentViewModel(IprListAttachmentDto attachment)
+    {
+        var uploadedAt = FormatAttachmentTimestamp(attachment.UploadedAtUtc);
+        return new IprRecordAttachmentViewModel(
+            attachment.Id,
+            attachment.FileName,
+            FormatFileSize(attachment.FileSize),
+            attachment.UploadedBy,
+            uploadedAt);
+    }
+
+    private static DateTime? ConvertToIstDate(DateTimeOffset? value)
+    {
+        if (!value.HasValue)
+        {
+            return null;
+        }
+
+        var converted = TimeZoneInfo.ConvertTimeFromUtc(value.Value.UtcDateTime, IstTimeZone);
+        return converted;
+    }
+
+    public string FormatAttachmentTimestamp(DateTimeOffset value)
+    {
+        var converted = TimeZoneInfo.ConvertTimeFromUtc(value.UtcDateTime, IstTimeZone);
+        return converted.ToString("dd MMM yyyy 'at' hh:mm tt", CultureInfo.InvariantCulture);
+    }
+
+    private static string GetStatusChipClass(IprStatus status)
+        => status switch
+        {
+            IprStatus.Granted => "text-success border-success",
+            IprStatus.Rejected => "text-danger border-danger",
+            IprStatus.FilingUnderProcess => "border-warning text-warning",
+            IprStatus.Withdrawn => "border-secondary text-secondary",
+            _ => string.Empty
+        };
+
+    private IReadOnlyList<string> BuildActiveFilterChips()
+    {
+        if (!HasAnyFilter)
+        {
+            return Array.Empty<string>();
+        }
+
+        var chips = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(Query))
+        {
+            chips.Add($"Search: \"{Query}\"");
+        }
+
+        foreach (var type in Types)
+        {
+            chips.Add($"Type: {GetTypeLabel(type)}");
+        }
+
+        foreach (var status in Statuses)
+        {
+            chips.Add($"Status: {GetStatusLabel(status)}");
+        }
+
+        if (ProjectId.HasValue)
+        {
+            var projectValue = ProjectId.Value.ToString(CultureInfo.InvariantCulture);
+            var projectLabel = ProjectOptions.FirstOrDefault(option => option.Value == projectValue)?.Text;
+            if (!string.IsNullOrWhiteSpace(projectLabel) && !string.Equals(projectLabel, "All projects", StringComparison.Ordinal))
+            {
+                chips.Add($"Project: {projectLabel}");
+            }
+        }
+
+        if (Year.HasValue)
+        {
+            chips.Add($"Filed year: {Year.Value.ToString(CultureInfo.InvariantCulture)}");
+        }
+
+        return chips;
+    }
+
     private async Task LoadPageAsync(CancellationToken cancellationToken, bool loadRecordInput)
     {
         NormalizePaging();
 
         var filter = BuildFilter();
         var result = await _readService.SearchAsync(filter, cancellationToken);
-        Records = result.Items;
+        Records = result.Items.Select(CreateRowViewModel).ToList();
         TotalCount = result.Total;
         PageNumber = result.Page;
         PageSize = result.PageSize;
@@ -592,6 +730,8 @@ public sealed class IndexModel : PageModel
         }
 
         await PopulateSelectListsAsync(cancellationToken);
+
+        ActiveFilterChips = BuildActiveFilterChips();
     }
 
     private async Task PopulateSelectListsAsync(CancellationToken cancellationToken)

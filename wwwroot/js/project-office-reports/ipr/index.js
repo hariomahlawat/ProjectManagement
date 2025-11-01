@@ -118,7 +118,7 @@
 })();
 
 (() => {
-  const filterModalElement = document.getElementById('iprFilterModal');
+  const filterModalElement = document.getElementById('iprFiltersModal');
   const filterTrigger = document.querySelector('[data-ipr-filter-trigger]');
   if (!filterModalElement || !filterTrigger || typeof bootstrap === 'undefined' || !bootstrap.Modal) {
     return;

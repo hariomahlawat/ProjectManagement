@@ -1,66 +1,10 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel
-@using System.Globalization
-@using ProjectManagement.Infrastructure.Data
-@using ProjectManagement.Utilities
 @{
     ViewData["Title"] = "Intellectual property tracker";
 
     var toastMessage = TempData["ToastMessage"] as string;
     var toastError = TempData["ToastError"] as string;
-
-    var istZone = TimeZoneHelper.GetIst();
-
-    string TypeLabel(IprType type) => type switch
-    {
-        IprType.Patent => "Patent",
-        IprType.Copyright => "Copyright",
-        _ => type.ToString()
-    };
-
-    string TypeBadgeClass(IprType type) => type switch
-    {
-        IprType.Patent => "text-bg-dark-subtle text-dark-emphasis",
-        IprType.Copyright => "text-bg-secondary-subtle text-secondary-emphasis",
-        _ => "text-bg-light text-body"
-    };
-
-    string StatusLabel(IprStatus status) => status switch
-    {
-        IprStatus.FilingUnderProcess => "Filing under process",
-        IprStatus.Filed => "Filed",
-        IprStatus.Granted => "Granted",
-        IprStatus.Rejected => "Rejected",
-        IprStatus.Withdrawn => "Withdrawn",
-        _ => status.ToString()
-    };
-
-    string StatusBadgeClass(IprStatus status) => status switch
-    {
-        IprStatus.FilingUnderProcess => "badge-filing",
-        IprStatus.Filed => "badge-soft",
-        IprStatus.Granted => "badge-granted",
-        IprStatus.Rejected => "badge-rejected",
-        IprStatus.Withdrawn => "badge-soft",
-        _ => "badge-soft"
-    };
-
-    string FormatDate(DateTimeOffset? value)
-    {
-        if (!value.HasValue)
-        {
-            return "—";
-        }
-
-        var converted = TimeZoneInfo.ConvertTimeFromUtc(value.Value.UtcDateTime, istZone);
-        return converted.ToString("dd MMM yyyy", CultureInfo.InvariantCulture);
-    }
-
-    string FormatAttachmentTimestamp(DateTimeOffset value)
-    {
-        var converted = TimeZoneInfo.ConvertTimeFromUtc(value.UtcDateTime, istZone);
-        return converted.ToString("dd MMM yyyy 'at' hh:mm tt", CultureInfo.InvariantCulture);
-    }
 
     var isCreateMode = string.Equals(Model.Mode, "create", StringComparison.OrdinalIgnoreCase);
     var isEditMode = string.Equals(Model.Mode, "edit", StringComparison.OrdinalIgnoreCase);
@@ -75,38 +19,44 @@
     var lastItem = hasRecords ? Math.Min(Model.TotalCount, Model.PageNumber * Model.PageSize) : 0;
 }
 
+@section Styles {
+    <link rel="stylesheet" href="~/css/site-ipr.css" asp-append-version="true" />
+}
+
 <div class="container-fluid py-4">
     <div class="pm-page-header">
         <div>
             <h1 class="h4 mb-1">Intellectual property tracker</h1>
-            <p class="pm-page-subtitle">Monitor patents and copyrights across projects with quick actions for updates.</p>
+            <p class="pm-page-subtitle">
+                Monitor patents and copyrights across projects. Use quick actions to add filings and export summaries.
+            </p>
         </div>
-        <div class="d-flex align-items-center gap-2">
+
+        <div class="d-flex flex-wrap align-items-center gap-2">
             <button type="button"
-                    class="btn btn-outline-secondary d-inline-flex align-items-center gap-2"
+                    class="btn btn-outline-secondary"
                     data-bs-toggle="modal"
-                    data-bs-target="#iprFilterModal"
+                    data-bs-target="#iprFiltersModal"
                     data-ipr-filter-trigger
-                    aria-controls="iprFilterModal"
+                    aria-controls="iprFiltersModal"
                     aria-haspopup="dialog"
                     aria-expanded="false">
-                <i class="bi bi-funnel" aria-hidden="true"></i>
-                <span>Filters</span>
+                <i class="bi bi-funnel"></i> Filters
             </button>
-            <a class="btn btn-outline-secondary d-inline-flex align-items-center gap-2"
-               asp-page="./Index"
+
+            <a asp-page="./Index"
                asp-page-handler="Export"
-               asp-all-route-data="exportRouteValues">
-                <i class="bi bi-file-earmark-spreadsheet" aria-hidden="true"></i>
-                <span>Export records</span>
+               asp-all-route-data="exportRouteValues"
+               class="btn btn-outline-secondary">
+                <i class="bi bi-file-earmark-spreadsheet"></i> Export records
             </a>
+
             @if (Model.CanEdit)
             {
-                <a class="btn btn-primary d-inline-flex align-items-center gap-2"
-                   asp-page="./Manage"
-                   asp-route-Query="@Model.Query">
-                    <i class="bi bi-gear" aria-hidden="true"></i>
-                    <span>Manage IPR records</span>
+                <a asp-page="./Manage"
+                   asp-route-Query="@Model.Query"
+                   class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> Manage IPR records
                 </a>
             }
         </div>
@@ -145,49 +95,99 @@
         </div>
     }
 
-    <div class="pm-stats">
-        <div class="card pm-stat-card">
-            <div class="card-body">
-                <div class="label">Total</div>
-                <div class="value">@Model.Kpis.Total</div>
+    <section class="mb-4">
+        <div class="row g-3">
+            <div class="col-12 col-sm-6 col-lg">
+                <div class="pm-kpi h-100">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="pm-kpi__label">Total</span>
+                        <span class="pm-chip">All</span>
+                    </div>
+                    <div class="pm-kpi__value mt-1">@Model.Kpis.Total</div>
+                    <div class="pm-kpi__spark mt-2" aria-hidden="true">
+                        <span style="width:@Model.Kpis.TotalPercent%"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-lg">
+                <div class="pm-kpi h-100">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="pm-kpi__label">Filing under process</span>
+                        <span class="pm-chip">In progress</span>
+                    </div>
+                    <div class="pm-kpi__value mt-1">@Model.Kpis.FilingUnderProcess</div>
+                    <div class="pm-kpi__spark mt-2"><span style="width:@Model.Kpis.FilingUnderProcessPercent%"></span></div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-lg">
+                <div class="pm-kpi h-100">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="pm-kpi__label">Filed</span>
+                        <span class="pm-chip">Submitted</span>
+                    </div>
+                    <div class="pm-kpi__value mt-1">@Model.Kpis.Filed</div>
+                    <div class="pm-kpi__spark mt-2"><span style="width:@Model.Kpis.FiledPercent%"></span></div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-lg">
+                <div class="pm-kpi h-100">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="pm-kpi__label">Granted</span>
+                        <span class="pm-chip text-success border-success">Granted</span>
+                    </div>
+                    <div class="pm-kpi__value mt-1">@Model.Kpis.Granted</div>
+                    <div class="pm-kpi__spark mt-2"><span style="width:@Model.Kpis.GrantedPercent%"></span></div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-lg">
+                <div class="pm-kpi h-100">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="pm-kpi__label">Rejected</span>
+                        <span class="pm-chip text-danger border-danger">Rejected</span>
+                    </div>
+                    <div class="pm-kpi__value mt-1">@Model.Kpis.Rejected</div>
+                    <div class="pm-kpi__spark mt-2"><span style="width:@Model.Kpis.RejectedPercent%"></span></div>
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-lg">
+                <div class="pm-kpi h-100">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="pm-kpi__label">Withdrawn</span>
+                        <span class="pm-chip">Closed</span>
+                    </div>
+                    <div class="pm-kpi__value mt-1">@Model.Kpis.Withdrawn</div>
+                    <div class="pm-kpi__spark mt-2"><span style="width:@Model.Kpis.WithdrawnPercent%"></span></div>
+                </div>
             </div>
         </div>
-        <div class="card pm-stat-card">
-            <div class="card-body">
-                <div class="label">Filing under process</div>
-                <div class="value">@Model.Kpis.FilingUnderProcess</div>
+    </section>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="h6 mb-0">Status distribution</h2>
+                <div class="text-muted small">snapshot</div>
             </div>
-        </div>
-        <div class="card pm-stat-card">
-            <div class="card-body">
-                <div class="label">Filed</div>
-                <div class="value">@Model.Kpis.Filed</div>
-            </div>
-        </div>
-        <div class="card pm-stat-card">
-            <div class="card-body">
-                <div class="label">Granted</div>
-                <div class="value">@Model.Kpis.Granted</div>
-            </div>
-        </div>
-        <div class="card pm-stat-card">
-            <div class="card-body">
-                <div class="label">Rejected</div>
-                <div class="value">@Model.Kpis.Rejected</div>
-            </div>
-        </div>
-        <div class="card pm-stat-card">
-            <div class="card-body">
-                <div class="label">Withdrawn</div>
-                <div class="value">@Model.Kpis.Withdrawn</div>
+            <div class="mt-3" style="min-height: 220px;">
+                <canvas id="iprStatusChart" height="110"></canvas>
             </div>
         </div>
     </div>
 
+    @if (Model.HasAnyFilter && Model.ActiveFilterChips.Count > 0)
+    {
+        <div class="mb-3 d-flex flex-wrap gap-2">
+            @foreach (var chip in Model.ActiveFilterChips)
+            {
+                <span class="pm-chip">@chip</span>
+            }
+        </div>
+    }
+
     <div class="modal fade"
-         id="iprFilterModal"
+         id="iprFiltersModal"
          tabindex="-1"
-         aria-labelledby="iprFilterModalLabel"
+         aria-labelledby="iprFiltersModalLabel"
          aria-hidden="true"
          data-bs-focus="true">
         <div class="modal-dialog modal-dialog-scrollable modal-lg modal-fullscreen-sm-down">
@@ -195,7 +195,7 @@
                 <form method="get" class="w-100" novalidate data-ipr-loading-form>
                     <div class="modal-header">
                         <div>
-                            <h2 class="modal-title h5 mb-1" id="iprFilterModalLabel">Filters</h2>
+                            <h2 class="modal-title h5 mb-1" id="iprFiltersModalLabel">Filters</h2>
                             <p class="text-muted small mb-0">Refine the records shown in the tracker.</p>
                         </div>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close filters"></button>
@@ -292,129 +292,60 @@
         </div>
     }
 
-    <div class="card pm-card">
-        <div class="card-header pm-card-header">
-            <span class="fw-semibold">IPR records</span>
-            <span class="pm-muted small ms-2">@(hasRecords ? $"Showing {firstItem} – {lastItem} of {Model.TotalCount}" : "No records to display")</span>
+    <section class="card">
+        <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <div class="fw-semibold">IPR records</div>
+                <div class="text-muted small">
+                    @(hasRecords ? $"Showing {firstItem} – {lastItem} of {Model.TotalCount}" : "No records to display")
+                </div>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <a asp-page="./Index" class="btn btn-sm btn-outline-secondary" data-ipr-loading-link>Reset</a>
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        data-bs-toggle="modal"
+                        data-bs-target="#iprFiltersModal"
+                        data-ipr-filter-trigger
+                        aria-controls="iprFiltersModal"
+                        aria-haspopup="dialog"
+                        aria-expanded="false">
+                    Filters
+                </button>
+            </div>
         </div>
-        <div class="card-body p-0">
+        <div class="card-body">
             <div class="d-none" data-ipr-loading-skeleton>
-                <div class="p-4">
+                <div class="placeholder-glow">
                     @for (var index = 0; index < 3; index++)
                     {
-                        <article class="ipr-record-card placeholder-glow mb-3">
-                            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                                <span class="placeholder col-3" style="min-height: 1.4rem;"></span>
-                                <span class="placeholder col-2" style="min-height: 1.4rem;"></span>
-                            </div>
-                            <div class="placeholder col-6 mb-3" style="min-height: 1.6rem;"></div>
-                            <div class="placeholder col-8 mb-2" style="min-height: 1rem;"></div>
-                            <div class="placeholder col-5 mb-2" style="min-height: 1rem;"></div>
-                            <div class="placeholder col-4" style="min-height: 1rem;"></div>
-                        </article>
+                        <div class="border rounded-3 p-4 mb-3">
+                            <div class="placeholder col-4 mb-2" style="min-height: 1.4rem;"></div>
+                            <div class="placeholder col-6 mb-2" style="min-height: 1rem;"></div>
+                            <div class="placeholder col-8 mb-2" style="min-height: 0.8rem;"></div>
+                            <div class="placeholder col-5" style="min-height: 0.8rem;"></div>
+                        </div>
                     }
                 </div>
             </div>
             <div data-ipr-table-content>
                 @if (!hasRecords)
                 {
-                    <div class="p-4">
-                        <div class="card pm-card">
-                            <div class="card-body text-center py-5">
-                                <div class="mb-2"><i class="bi bi-inboxes" style="font-size: 2rem; opacity: .5;"></i></div>
-                                <h2 class="h6 mb-1">No IPR records yet</h2>
-                                <p class="pm-muted mb-3">Add your first filing or adjust the filters.</p>
-                                @if (Model.CanEdit)
-                                {
-                                    <a class="btn btn-primary" asp-page="./Manage" asp-route-Query="@Model.Query">Add IPR record</a>
-                                }
-                            </div>
-                        </div>
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-inboxes fs-2"></i>
+                        <p class="mt-2 mb-3">No IPR records yet</p>
+                        @if (Model.CanEdit)
+                        {
+                            <a asp-page="./Manage" asp-route-Query="@Model.Query" class="btn btn-primary">Add IPR record</a>
+                        }
                     </div>
                 }
                 else
                 {
-                    <div class="p-4">
-                        <div class="ipr-record-list">
-                            @foreach (var record in Model.Records)
-                            {
-                                var hasAttachments = record.AttachmentCount > 0;
-                                var projectName = string.IsNullOrWhiteSpace(record.ProjectName) ? "—" : record.ProjectName;
-                                var notes = string.IsNullOrWhiteSpace(record.Notes) ? "—" : record.Notes;
-                                var titleText = string.IsNullOrWhiteSpace(record.Title) ? "—" : record.Title;
-                                var filedBy = string.IsNullOrWhiteSpace(record.FiledBy) ? "—" : record.FiledBy;
-                                <article class="ipr-record-card">
-                                    <header class="ipr-record-card__header">
-                                        <div class="ipr-record-card__identity">
-                                            <span class="badge @TypeBadgeClass(record.Type)">@TypeLabel(record.Type)</span>
-                                            <span class="text-monospace fw-semibold text-nowrap">@record.FilingNumber</span>
-                                        </div>
-                                        <h3 class="ipr-record-card__title h5 mb-0" title="@(string.IsNullOrWhiteSpace(record.Title) ? null : record.Title)">@titleText</h3>
-                                        <span class="badge @StatusBadgeClass(record.Status) ipr-record-card__status">@StatusLabel(record.Status)</span>
-                                    </header>
-                                    <div class="ipr-record-card__body">
-                                        <dl class="ipr-record-card__meta">
-                                            <div class="ipr-record-card__meta-item">
-                                                <dt>Filed on</dt>
-                                                <dd>@FormatDate(record.FiledAtUtc)</dd>
-                                            </div>
-                                            <div class="ipr-record-card__meta-item">
-                                                <dt>Filed by</dt>
-                                                <dd title="@filedBy">@filedBy</dd>
-                                            </div>
-                                            <div class="ipr-record-card__meta-item">
-                                                <dt>Granted on</dt>
-                                                <dd>@FormatDate(record.GrantedAtUtc)</dd>
-                                            </div>
-                                            <div class="ipr-record-card__meta-item ipr-record-card__meta-item--project">
-                                                <dt>Project</dt>
-                                                <dd title="@projectName">@projectName</dd>
-                                            </div>
-                                            <div class="ipr-record-card__meta-item ipr-record-card__meta-item--notes">
-                                                <dt>Remarks / notes</dt>
-                                                <dd title="@notes"><span class="ipr-record-card__notes">@notes</span></dd>
-                                            </div>
-                                        </dl>
-                                    </div>
-                                    <section class="ipr-record-card__attachments" aria-label="Attachments">
-                                        <div class="ipr-record-card__attachments-header">
-                                            <div class="d-flex align-items-center gap-2">
-                                                <i class="bi bi-paperclip" aria-hidden="true"></i>
-                                                <span class="fw-semibold">Attachments</span>
-                                            </div>
-                                            <span class="badge badge-soft">@record.AttachmentCount @((record.AttachmentCount == 1) ? "file" : "files")</span>
-                                        </div>
-                                        @if (!hasAttachments)
-                                        {
-                                            <p class="text-secondary small mb-0">No files attached.</p>
-                                        }
-                                        else
-                                        {
-                                            <ul class="ipr-record-card__attachment-list">
-                                                @for (var attachmentIndex = 0; attachmentIndex < record.Attachments.Count; attachmentIndex++)
-                                                {
-                                                    var attachment = record.Attachments[attachmentIndex];
-                                                    <li class="ipr-record-card__attachment-item">
-                                                        <div class="fw-semibold">
-                                                            <a asp-page="Download" asp-route-iprRecordId="@record.Id" asp-route-attachmentId="@attachment.Id" class="text-decoration-none" target="_blank" rel="noopener noreferrer">
-                                                                @attachment.FileName
-                                                            </a>
-                                                        </div>
-                                                        <div class="text-secondary small">
-                                                            @Model.FormatFileSize(attachment.FileSize)
-                                                            <span aria-hidden="true">&middot;</span>
-                                                            <span class="visually-hidden"> - </span>
-                                                            Uploaded by @attachment.UploadedBy on @FormatAttachmentTimestamp(attachment.UploadedAtUtc)
-                                                        </div>
-                                                    </li>
-                                                }
-                                            </ul>
-                                        }
-                                    </section>
-                                </article>
-                            }
-                        </div>
-                    </div>
+                    @foreach (var row in Model.Records)
+                    {
+                        @await Html.PartialAsync("/Areas/ProjectOfficeReports/Pages/Ipr/Shared/_IprRecordRow.cshtml", row)
+                    }
                 }
             </div>
         </div>
@@ -451,10 +382,12 @@
                 }
             </div>
         }
-    </div>
+    </section>
 </div>
 
 @section Scripts {
     <partial name="~/Pages/Shared/_ValidationScriptsPartial.cshtml" />
-    <script src="~/js/project-office-reports/ipr/index.js" asp-append-version="true"></script>
+    <script src="~/lib/chartjs/chart.umd.js" defer asp-append-version="true"></script>
+    <script src="~/js/projectofficereports/ipr-index.js" defer asp-append-version="true"></script>
+    <script src="~/js/project-office-reports/ipr/index.js" defer asp-append-version="true"></script>
 }
