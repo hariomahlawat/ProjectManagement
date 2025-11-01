@@ -1,7 +1,14 @@
+
+/* 2-col layout: map + sidebar */
 .ffc-map-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 1.5rem;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 1.25rem;
+  position: relative;
+}
+
+.ffc-map-canvas {
+  position: relative;
 }
 
 .ffc-map {
@@ -17,11 +24,18 @@
   border-radius: 1rem;
 }
 
-.legend-ramp {
+.ffc-map-sidebar .card .card-body {
+  padding: 0.75rem 0.75rem;
+}
+
+
+.legend-ramp,
+.ffc-legend-ramp {
   display: flex;
   gap: 2px;
-  height: 12px;
-  border-radius: 8px;
+  width: 100%;
+  height: 10px;
+  border-radius: 6px;
   overflow: hidden;
   background: #e2e8f0;
   margin-bottom: 0.5rem;
@@ -31,7 +45,8 @@
   flex: 1;
 }
 
-.legend-labels {
+.legend-labels,
+.ffc-legend-labels {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.25rem;
@@ -78,6 +93,58 @@
   }
 
   .ffc-map-sidebar {
-    display: contents;
+    display: none;
   }
+
+  .ffc-map-sidebar.is-open {
+    display: block;
+    position: absolute;
+    right: 1rem;
+    top: 5rem;
+    width: min(88vw, 320px);
+    z-index: 40;
+  }
+}
+
+/* Full-width mode: sidebar hidden, map fills */
+#ffc-map-shell.is-fullwidth {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+#ffc-map-shell.is-fullwidth .ffc-map-sidebar {
+  display: none !important;
+}
+
+#ffc-map-shell.is-fullwidth .ffc-map {
+  height: calc(100vh - 160px);
+  border-radius: 0.5rem;
+}
+
+/* Floating legend hidden by default (normal mode) */
+.ffc-legend-floating {
+  display: none;
+  position: absolute;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 20;
+}
+
+#ffc-map-shell.is-fullwidth .ffc-legend-floating {
+  display: block;
+}
+
+.ffc-focus-floating {
+  display: none;
+  position: absolute;
+  right: 1rem;
+  top: 1rem;
+  z-index: 20;
+}
+
+#ffc-map-shell.is-fullwidth .ffc-focus-floating {
+  display: block;
+}
+
+.leaflet-interactive {
+  cursor: pointer;
 }
