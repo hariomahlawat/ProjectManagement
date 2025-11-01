@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="~/css/project-office-reports/ffc-map.css" asp-append-version="true" />
 }
 
-<div class="container-xxl py-4">
+<div class="container-xxl py-4" id="ffc-board-page">
     <section class="pm-page-header">
         <div>
             <h1 class="h4 mb-1">FFC – Country board</h1>
@@ -16,10 +16,15 @@
                 Completed, linked projects per country (Installed / Delivered / Planned). Optimised for screenshots.
             </p>
         </div>
-        <div class="d-flex gap-2">
-            <a asp-area="ProjectOfficeReports" asp-page="/FFC/Map" class="btn btn-outline-secondary">Back to map</a>
-            <button id="ffc-board-fullscreen" class="btn btn-outline-secondary" type="button">Full width</button>
-            <button id="ffc-board-export" class="btn btn-primary" type="button">Export PNG</button>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <div class="d-flex flex-wrap gap-2 align-items-center btn-group-board">
+                <a asp-area="ProjectOfficeReports" asp-page="/FFC/Map" class="btn btn-outline-secondary">Back to map</a>
+                <a asp-area="ProjectOfficeReports" asp-page="/FFC/MapTable" class="btn btn-outline-secondary">Country summary</a>
+                <a asp-area="ProjectOfficeReports" asp-page="/FFC/MapTableDetailed" class="btn btn-outline-secondary">Detailed table</a>
+                <button id="ffc-board-fullscreen" class="btn btn-outline-secondary" type="button">Full width</button>
+                <button id="ffc-board-export" class="btn btn-primary" type="button">Export PNG</button>
+            </div>
+            <button id="ffc-board-screenshot" class="btn btn-outline-secondary" type="button" aria-pressed="false">Screenshot mode</button>
         </div>
     </section>
 
@@ -27,7 +32,7 @@
         <!-- tiles injected by JS -->
     </div>
 
-    <footer class="text-muted small mt-3">Tip: Use the “Full width” button, then take a single screenshot for slides.</footer>
+    <footer class="text-muted small mt-3">Tip: Try “Screenshot mode” for a clean layout, or use “Full width” then capture a single grab for slides.</footer>
 </div>
 
 @section Scripts {

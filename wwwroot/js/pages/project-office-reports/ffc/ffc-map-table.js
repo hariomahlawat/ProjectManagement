@@ -5,24 +5,37 @@
     }
 
     const tbody = table.querySelector('tbody');
-    const exportBtn = document.getElementById('ffc-table-export');
-
     async function load() {
-        const response = await fetch('/ProjectOfficeReports/FFC/Map?handler=Data', { credentials: 'same-origin' });
+        const response = await fetch('/ProjectOfficeReports/FFC/MapTable?handler=Data', { credentials: 'same-origin' });
         if (!response.ok) {
             throw new Error('Failed to load data');
         }
 
-        /** @type {{iso3:string, installed:number, delivered:number, planned:number, total:number}[]} */
+        /** @type {{name:string, iso3:string, installed:number, delivered:number, planned:number, total:number}[]} */
         const rows = await response.json();
-        rows.sort((a, b) => (b.total || 0) - (a.total || 0) || (a.iso3 || '').localeCompare(b.iso3 || ''));
+        rows.sort((a, b) => (b.total || 0) - (a.total || 0)
+            || (a.name || '').localeCompare(b.name || '')
+            || (a.iso3 || '').localeCompare(b.iso3 || ''));
         return rows;
+    }
+
+    function esc(value) {
+        return String(value ?? '').replace(/[&<>"']/g, (match) => ({
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        })[match]);
     }
 
     function render(rows) {
         tbody.innerHTML = rows.map((r) => `
             <tr>
-                <td><code>${(r.iso3 || '').toUpperCase()}</code></td>
+                <td>
+                    ${esc(r.name || '')}
+                    <small class="text-muted ms-1"><code>${esc((r.iso3 || '').toUpperCase())}</code></small>
+                </td>
                 <td class="text-end">${r.installed || 0}</td>
                 <td class="text-end">${r.delivered || 0}</td>
                 <td class="text-end">${r.planned || 0}</td>
@@ -30,28 +43,8 @@
             </tr>`).join('');
     }
 
-    function exportCsv(rows) {
-        const header = ['ISO3', 'Installed', 'Delivered (not installed)', 'Planned', 'Total'];
-        const lines = [header.join(',')].concat(rows.map((r) => [
-            (r.iso3 || '').toUpperCase(),
-            r.installed || 0,
-            r.delivered || 0,
-            r.planned || 0,
-            r.total || 0,
-        ].join(',')));
-
-        const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'ffc-country-table.csv';
-        link.click();
-        URL.revokeObjectURL(url);
-    }
-
     const data = await load();
     render(data);
-    exportBtn?.addEventListener('click', () => exportCsv(data));
 
     table.querySelectorAll('th[data-k]').forEach((th) => {
         th.style.cursor = 'pointer';
