@@ -206,6 +206,7 @@
 
           map.set(iso, {
             countryId: row.countryId,
+            name: row.name || '',
             installed: Number(row.installed || 0),
             delivered: Number(row.delivered || 0),
             planned: Number(row.planned || 0),
@@ -317,7 +318,8 @@
           var iso = getIsoCodeFromProperties(props);
           var record = countryMap.get(iso);
           var fallbackName = props.name || props.ADMIN || '';
-          var popupHtml = buildPopupHtml(fallbackName || 'Unknown', record, cfg);
+          var popupName = record && record.name ? record.name : (fallbackName || 'Unknown');
+          var popupHtml = buildPopupHtml(popupName, record, cfg);
 
           layer.bindPopup(popupHtml, { maxWidth: 260, closeButton: true });
           layer.on({
