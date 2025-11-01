@@ -30,7 +30,7 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
     [FromQuery(Name = "q")]
     public string? Query { get; set; }
 
-    [FromQuery(Name = "page")]
+    [FromQuery(Name = "p")]
     public int PageNumber { get; set; } = 1;
 
     [FromQuery(Name = "sort")]
@@ -144,12 +144,12 @@ public class ManageModel(ApplicationDbContext db, IAuditService audit, ILogger<M
         return RedirectToPage("./Manage", new RouteValueDictionary(values));
     }
 
-    public Dictionary<string, string?> BuildRoute(int? page = null, string? sort = null, string? dir = null, string? query = null)
+    public Dictionary<string, string?> BuildRoute(int? p = null, string? sort = null, string? dir = null, string? query = null)
     {
         var effectiveQuery = query ?? Query;
         var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
         {
-            ["page"] = (page ?? PageNumber).ToString(CultureInfo.InvariantCulture),
+            ["p"] = (p ?? PageNumber).ToString(CultureInfo.InvariantCulture),
             ["sort"] = sort ?? CurrentSort,
             ["dir"] = dir ?? CurrentSortDirection,
             ["q"] = effectiveQuery
