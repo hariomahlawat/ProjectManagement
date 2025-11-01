@@ -43,10 +43,10 @@
 
     static string GetProjectBadgeClass(ProjectLifecycleStatus status) => status switch
     {
-        ProjectLifecycleStatus.Active => "badge bg-primary-subtle text-primary",
-        ProjectLifecycleStatus.Completed => "badge bg-success-subtle text-success",
-        ProjectLifecycleStatus.Cancelled => "badge bg-secondary-subtle text-secondary",
-        _ => "badge bg-secondary-subtle text-secondary"
+        ProjectLifecycleStatus.Active => "bg-primary-subtle text-primary",
+        ProjectLifecycleStatus.Completed => "bg-success-subtle text-success",
+        ProjectLifecycleStatus.Cancelled => "bg-secondary-subtle text-secondary",
+        _ => "bg-secondary-subtle text-secondary"
     };
 }
 
@@ -116,63 +116,67 @@
             }
             else
             {
-                <ul class="ffc-record-card__projects list-unstyled mb-0">
-                    @foreach (var project in projects.Take(3))
+                var statusMap = rollupStatus;
+                var remarkMap = rollupExternalRemarks;
+
+                @foreach (var project in projects.Take(3))
+                {
+                    if (project.LinkedProjectId is int projId)
                     {
-                        var linkedProjectId = project.LinkedProjectId;
-                        var hasLinkedProject = linkedProjectId.HasValue;
-                        var linkedProjectIdValue = linkedProjectId ?? 0;
-                        var projectDisplayName = hasLinkedProject
-                            ? project.LinkedProject?.Name ?? project.Name
-                            : project.Name;
-                        var status = hasLinkedProject && rollupStatus.TryGetValue(linkedProjectIdValue, out var st)
+                        var displayName = project.LinkedProject?.Name ?? project.Name;
+                        var status = (statusMap != null && statusMap.TryGetValue(projId, out var st))
                             ? st
                             : ProjectLifecycleStatus.Active;
-                        var externalRemark = hasLinkedProject && rollupExternalRemarks.TryGetValue(linkedProjectIdValue, out var remark)
+                        var externalRemark = (remarkMap != null && remarkMap.TryGetValue(projId, out var remark))
                             ? remark
                             : null;
 
-                        <li class="ffc-record-card__project">
-                            @if (hasLinkedProject)
-                            {
-                                <div class="d-flex align-items-start">
-                                    <div class="me-2">
-                                        <span class="@GetProjectBadgeClass(status)">@FormatLifecycleStatus(status)</span>
-                                    </div>
-                                    <div class="flex-grow-1">
-                                        <div class="fw-semibold">@projectDisplayName</div>
-                                        @if (!string.Equals(projectDisplayName, project.Name, StringComparison.Ordinal))
-                                        {
-                                            <div class="text-muted small">@project.Name</div>
-                                        }
-                                        <div class="text-muted small mt-1">
-                                            @if (!string.IsNullOrWhiteSpace(externalRemark))
-                                            {
-                                                @externalRemark
-                                            }
-                                            else if (!string.IsNullOrWhiteSpace(project.Remarks))
-                                            {
-                                                @project.Remarks
-                                            }
-                                            else
-                                            {
-                                                <span class="text-body-secondary">not started yet</span>
-                                            }
-                                        </div>
-                                    </div>
+                        <div class="d-flex align-items-start mb-2 position-relative">
+                            <div class="me-2">
+                                <span class="badge @GetProjectBadgeClass(status)">@FormatLifecycleStatus(status)</span>
+                            </div>
+                            <div class="flex-grow-1">
+                                <div class="fw-semibold">
+                                    <a asp-page="/Projects/Overview"
+                                       asp-route-id="@projId"
+                                       class="link-body-emphasis text-decoration-none stretched-link"
+                                       title="Open @displayName">
+                                        @displayName
+                                    </a>
                                 </div>
-                            }
-                            else
-                            {
-                                <div class="fw-semibold">@project.Name</div>
-                                @if (!string.IsNullOrWhiteSpace(project.Remarks))
+                                @if (!string.Equals(displayName, project.Name, StringComparison.Ordinal))
                                 {
-                                    <div class="text-muted small">@project.Remarks</div>
+                                    <div class="text-muted small">@project.Name</div>
                                 }
-                            }
-                        </li>
+                                <div class="text-muted small">
+                                    @if (!string.IsNullOrWhiteSpace(externalRemark))
+                                    {
+                                        @externalRemark
+                                    }
+                                    else if (!string.IsNullOrWhiteSpace(project.Remarks))
+                                    {
+                                        @project.Remarks
+                                    }
+                                    else
+                                    {
+                                        <span class="text-body-secondary">not started yet</span>
+                                    }
+                                </div>
+                            </div>
+                        </div>
                     }
-                </ul>
+                    else
+                    {
+                        <div class="mb-2">
+                            <div class="fw-semibold">@project.Name</div>
+                            @if (!string.IsNullOrWhiteSpace(project.Remarks))
+                            {
+                                <div class="text-muted small">@project.Remarks</div>
+                            }
+                        </div>
+                    }
+                }
+
                 @if (projectCount > 3)
                 {
                     <p class="text-muted small mb-0">+@(projectCount - 3) more project(s)</p>
