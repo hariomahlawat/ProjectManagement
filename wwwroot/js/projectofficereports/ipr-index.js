@@ -1,3 +1,32 @@
+if (typeof Chart !== 'undefined' && typeof Chart.register === 'function') {
+  Chart.register({
+    id: 'iprCenterText',
+    afterDraw(chart) {
+      const datasets = chart.config && chart.config.data && chart.config.data.datasets;
+      const dataset = datasets && datasets[0];
+      const meta = chart.getDatasetMeta(0);
+      if (!dataset || !Array.isArray(dataset.data) || !meta || !meta.data || !meta.data.length) {
+        return;
+      }
+
+      const total = dataset.data.reduce((sum, value) => sum + (Number(value) || 0), 0);
+      const ctx = chart.ctx;
+      const center = meta.data[0];
+      if (!center) {
+        return;
+      }
+
+      ctx.save();
+      ctx.font = '600 16px system-ui,-apple-system,Segoe UI,Roboto';
+      ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--bs-body-color') || '#111';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(total.toString(), center.x, center.y);
+      ctx.restore();
+    }
+  });
+}
+
 (async function () {
   const canvas = document.getElementById('iprStatusChart');
   if (!canvas || typeof Chart === 'undefined') {
@@ -44,17 +73,24 @@
       },
       options: {
         responsive: true,
-        maintainAspectRatio: false,
+        maintainAspectRatio: true,
+        aspectRatio: 2.0,
+        cutout: '68%',
+        layout: {
+          padding: 8
+        },
         plugins: {
           legend: {
             position: 'right',
             labels: {
-              boxWidth: 12,
-              usePointStyle: true
+              boxWidth: 10
             }
+          },
+          tooltip: {
+            intersect: false,
+            mode: 'nearest'
           }
-        },
-        cutout: '65%'
+        }
       }
     });
   } catch (error) {
