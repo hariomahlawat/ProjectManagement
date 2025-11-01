@@ -53,10 +53,29 @@ public class MapModel : PageModel
                 Installed = project.Record.InstallationYes,
                 Delivered = project.Record.DeliveryYes
             })
-            .Distinct()
             .ToListAsync(cancellationToken);
 
-        var aggregates = linked
+        var projects = linked
+            .GroupBy(item => item.ProjectId)
+            .Select(group =>
+            {
+                var installed = group.Any(record => record.Installed);
+                var delivered = !installed && group.Any(record => record.Delivered);
+
+                var first = group.First();
+
+                return new
+                {
+                    first.ProjectId,
+                    first.CountryId,
+                    first.CountryIso3,
+                    Installed = installed,
+                    Delivered = delivered
+                };
+            })
+            .ToList();
+
+        var aggregates = projects
             .GroupBy(item => new { item.CountryId, item.CountryIso3 })
             .Select(group => new CountryProjectAgg
             {
