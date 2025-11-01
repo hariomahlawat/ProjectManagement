@@ -59,9 +59,23 @@
     return value.toString().toUpperCase();
   }
 
+  function escapeHtml(value) {
+    return (value == null ? '' : value.toString()).replace(/[&<>"']/g, function (char) {
+      switch (char) {
+        case '&': return '&amp;';
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case '"': return '&quot;';
+        case "'": return '&#39;';
+        default: return char;
+      }
+    });
+  }
+
   function buildPopupHtml(record, fallbackName, cfg) {
     var delivered = record ? Number(record.delivered || 0) : 0;
-    var name = record && record.name ? record.name : fallbackName || 'Unknown';
+    var rawName = record && record.name ? record.name : fallbackName || 'Unknown';
+    var name = escapeHtml(rawName);
     var perYear = record ? ensureArray(record.perYear) : [];
 
     var yearsHtml = perYear
@@ -69,7 +83,8 @@
       .sort(function (a, b) { return Number(b.year) - Number(a.year); })
       .slice(0, 5)
       .map(function (item) {
-        return '<div><span class="text-muted">' + item.year + '</span> — <strong>' + formatNumber(item.count) + '</strong></div>';
+        var year = escapeHtml(item.year);
+        return '<div><span class="text-muted">' + year + '</span> — <strong>' + formatNumber(item.count) + '</strong></div>';
       })
       .join('');
 
