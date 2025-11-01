@@ -273,7 +273,7 @@ public class IndexModel : FfcRecordListPageModel
 
         var countries = await Db.FfcCountries
             .AsNoTracking()
-            .Where(country => country.Records.Any(record => !record.IsDeleted))
+            .Where(country => country.IsActive)
             .OrderBy(country => country.Name)
             .Select(country => new { country.Id, country.Name })
             .ToListAsync();

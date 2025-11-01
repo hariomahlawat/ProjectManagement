@@ -1,13 +1,11 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using System.Linq;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -18,13 +16,13 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.RazorPages.Infrastructure;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
-using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Countries;
@@ -37,119 +35,67 @@ namespace ProjectManagement.Tests.ProjectOfficeReports;
 public sealed class FfcCountriesManagePageTests
 {
     [Fact]
-    public async Task OnPostCreateAsync_WithValidInput_CreatesCountry()
-    {
-        await using var db = CreateDbContext();
-        var page = CreatePage(db);
-        page.Input = new ManageModel.InputModel
-        {
-            Name = "  India  ",
-            IsoCode = " ind "
-        };
-
-        ConfigurePageContext(page, CreateAdminPrincipal());
-
-        var result = await page.OnPostCreateAsync();
-
-        var redirect = Assert.IsType<RedirectToPageResult>(result);
-        Assert.Null(redirect.PageName);
-        var routeValues = Assert.IsType<RouteValueDictionary>(redirect.RouteValues);
-        Assert.Equal("1", routeValues["page"] as string);
-
-        var created = await db.FfcCountries.AsNoTracking().SingleAsync();
-        Assert.Equal("India", created.Name);
-        Assert.Equal("IND", created.IsoCode);
-        Assert.NotNull(created.RowVersion);
-        Assert.True(created.RowVersion.Length > 0);
-        Assert.Equal("Country created.", page.TempData["StatusMessage"]);
-    }
-
-    [Fact]
-    public async Task OnPostUpdateAsync_WithDuplicateName_AddsModelError()
+    public async Task OnGetAsync_WithQueryAndSorting_LoadsExpectedCountries()
     {
         await using var db = CreateDbContext();
         db.FfcCountries.AddRange(
-            new Areas.ProjectOfficeReports.Domain.FfcCountry { Name = "India" },
-            new Areas.ProjectOfficeReports.Domain.FfcCountry { Name = "Japan" });
+            new FfcCountry { Name = "India", IsoCode = "IND", IsActive = true },
+            new FfcCountry { Name = "Japan", IsoCode = "JPN", IsActive = true },
+            new FfcCountry { Name = "Indonesia", IsoCode = "IDN", IsActive = false });
         await db.SaveChangesAsync();
 
-        var target = await db.FfcCountries.AsNoTracking().SingleAsync(x => x.Name == "Japan");
-
         var page = CreatePage(db);
+        page.Query = "ind";
+        page.Sort = "iso";
+        page.SortDirection = "desc";
         ConfigurePageContext(page, CreateAdminPrincipal());
-        page.Input = new ManageModel.InputModel
-        {
-            Id = target.Id,
-            Name = "India",
-            IsoCode = "JPN",
-            IsActive = true,
-            RowVersion = Convert.ToBase64String(target.RowVersion)
-        };
 
-        var result = await page.OnPostUpdateAsync();
+        var result = await page.OnGetAsync();
 
-        var pageResult = Assert.IsType<PageResult>(result);
-        Assert.True(page.ModelState.ContainsKey("Input.Name"));
-        Assert.Null(page.TempData["StatusMessage"]);
-        Assert.True(page.Countries.Count >= 2);
+        Assert.IsType<PageResult>(result);
+        Assert.Equal(2, page.Countries.Count);
+        Assert.Equal(new[] { "India", "Indonesia" }, page.Countries.Select(c => c.Name));
+        Assert.Equal("iso", page.CurrentSort);
+        Assert.Equal("desc", page.CurrentSortDirection);
     }
 
     [Fact]
-    public async Task OnPostCreateAsync_WithInvalidIso_AddsModelError()
+    public async Task OnPostToggleActiveAsync_TogglesStatus()
     {
         await using var db = CreateDbContext();
-        var page = CreatePage(db);
-        page.Input = new ManageModel.InputModel
-        {
-            Name = "Nepal",
-            IsoCode = "N3P"
-        };
-
-        ConfigurePageContext(page, CreateAdminPrincipal());
-
-        var result = await page.OnPostCreateAsync();
-
-        var pageResult = Assert.IsType<PageResult>(result);
-        Assert.True(page.ModelState.ContainsKey("Input.IsoCode"));
-        Assert.Equal(0, await db.FfcCountries.CountAsync());
-    }
-
-    [Fact]
-    public async Task OnPostUpdateAsync_WithStaleRowVersion_ReturnsConcurrencyMessage()
-    {
-        await using var db = CreateDbContext();
-        var country = new Areas.ProjectOfficeReports.Domain.FfcCountry
-        {
-            Name = "Germany",
-            IsoCode = "DEU"
-        };
+        var country = new FfcCountry { Name = "Canada", IsoCode = "CAN", IsActive = true };
         db.FfcCountries.Add(country);
         await db.SaveChangesAsync();
 
-        var originalRowVersion = Convert.ToBase64String(country.RowVersion);
+        var page = CreatePage(db);
+        ConfigurePageContext(page, CreateAdminPrincipal());
 
-        country.Name = "Deutschland";
+        var result = await page.OnPostToggleActiveAsync(country.Id);
+
+        var redirect = Assert.IsType<RedirectToPageResult>(result);
+        Assert.Null(redirect.PageName);
+
+        var updated = await db.FfcCountries.AsNoTracking().SingleAsync();
+        Assert.False(updated.IsActive);
+        Assert.Equal("Country deactivated.", page.TempData["StatusMessage"]);
+    }
+
+    [Fact]
+    public async Task OnPostToggleActiveAsync_WithoutPermission_ReturnsForbid()
+    {
+        await using var db = CreateDbContext();
+        var country = new FfcCountry { Name = "Chile", IsoCode = "CHL", IsActive = true };
+        db.FfcCountries.Add(country);
         await db.SaveChangesAsync();
 
         var page = CreatePage(db);
-        ConfigurePageContext(page, CreateAdminPrincipal());
-        page.Input = new ManageModel.InputModel
-        {
-            Id = country.Id,
-            Name = "Germany",
-            IsoCode = "DEU",
-            IsActive = true,
-            RowVersion = originalRowVersion
-        };
+        ConfigurePageContext(page, CreateGeneralPrincipal());
 
-        var result = await page.OnPostUpdateAsync();
+        var result = await page.OnPostToggleActiveAsync(country.Id);
 
-        Assert.IsType<PageResult>(result);
-        Assert.True(page.ModelState.TryGetValue(string.Empty, out var entry));
-        var message = Assert.Single(entry.Errors).ErrorMessage;
-        Assert.Contains("updated by someone else", message, StringComparison.OrdinalIgnoreCase);
-        Assert.NotNull(page.Input.RowVersion);
-        Assert.NotEqual(originalRowVersion, page.Input.RowVersion);
+        Assert.IsType<ForbidResult>(result);
+        var unchanged = await db.FfcCountries.AsNoTracking().SingleAsync();
+        Assert.True(unchanged.IsActive);
     }
 
     [Fact]
@@ -180,86 +126,8 @@ public sealed class FfcCountriesManagePageTests
         Assert.Contains("Only administrators or heads of department can manage FFC records or countries", content, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
-    public async Task ManagePage_EditMode_RendersInputPrefixedFields()
-    {
-        using var factory = new FfcCountriesManagePageFactory();
-        long countryId;
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var country = new FfcCountry { Name = "Canada", IsoCode = "CAN" };
-            db.FfcCountries.Add(country);
-            await db.SaveChangesAsync();
-            countryId = country.Id;
-        }
-
-        var client = CreateClientForUser(factory, "admin-user", "Admin");
-        var response = await client.GetAsync($"/ProjectOfficeReports/FFC/Countries/Manage?editId={countryId}");
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var html = await response.Content.ReadAsStringAsync();
-
-        Assert.Contains("name=\"Input.Name\"", html, StringComparison.Ordinal);
-        Assert.Contains("name=\"Input.IsoCode\"", html, StringComparison.Ordinal);
-        Assert.Contains("name=\"Input.IsActive\"", html, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task PostUpdate_WithInputPrefixedForm_PersistsChanges()
-    {
-        using var factory = new FfcCountriesManagePageFactory();
-        long countryId;
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var country = new FfcCountry { Name = "Chile", IsoCode = "CHL", IsActive = true };
-            db.FfcCountries.Add(country);
-            await db.SaveChangesAsync();
-            countryId = country.Id;
-        }
-
-        var client = CreateClientForUser(factory, "admin-user", "Admin");
-        var editResponse = await client.GetAsync($"/ProjectOfficeReports/FFC/Countries/Manage?editId={countryId}");
-        editResponse.EnsureSuccessStatusCode();
-
-        var editHtml = await editResponse.Content.ReadAsStringAsync();
-        var antiforgeryToken = ExtractInputValue(editHtml, "__RequestVerificationToken");
-        var rowVersion = ExtractInputValue(editHtml, "Input.RowVersion");
-
-        var formData = new List<KeyValuePair<string, string>>
-        {
-            new("__RequestVerificationToken", antiforgeryToken),
-            new("Input.Id", countryId.ToString(CultureInfo.InvariantCulture)),
-            new("Input.RowVersion", rowVersion),
-            new("Input.Name", "Chile Updated"),
-            new("Input.IsoCode", "CHL"),
-            new("Input.IsActive", "false")
-        };
-
-        var request = new HttpRequestMessage(HttpMethod.Post, "/ProjectOfficeReports/FFC/Countries/Manage?handler=Update")
-        {
-            Content = new FormUrlEncodedContent(formData)
-        };
-
-        var postResponse = await client.SendAsync(request);
-
-        Assert.Equal(HttpStatusCode.Redirect, postResponse.StatusCode);
-
-        await using (var verificationScope = factory.Services.CreateAsyncScope())
-        {
-            var db = verificationScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var updated = await db.FfcCountries.AsNoTracking().SingleAsync(x => x.Id == countryId);
-            Assert.Equal("Chile Updated", updated.Name);
-            Assert.Equal("CHL", updated.IsoCode);
-            Assert.False(updated.IsActive);
-        }
-    }
-
     private static ManageModel CreatePage(ApplicationDbContext db)
-    {
-        return new ManageModel(db, new StubAuditService(), NullLogger<ManageModel>.Instance);
-    }
+        => new(db, new StubAuditService(), NullLogger<ManageModel>.Instance);
 
     private static ApplicationDbContext CreateDbContext()
     {
@@ -277,6 +145,17 @@ public sealed class FfcCountriesManagePageTests
             new(ClaimTypes.NameIdentifier, "admin"),
             new(ClaimTypes.Name, "admin"),
             new(ClaimTypes.Role, "Admin")
+        };
+
+        return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
+    }
+
+    private static ClaimsPrincipal CreateGeneralPrincipal()
+    {
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, "user"),
+            new(ClaimTypes.Name, "user")
         };
 
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
@@ -393,13 +272,5 @@ public sealed class FfcCountriesManagePageTests
         public void SaveTempData(HttpContext context, IDictionary<string, object?> values)
         {
         }
-    }
-
-    private static string ExtractInputValue(string html, string inputName)
-    {
-        var pattern = $"name=\"{Regex.Escape(inputName)}\"[^>]*value=\"([^\"]*)\"";
-        var match = Regex.Match(html, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
-        Assert.True(match.Success, $"Failed to find input '{inputName}' in the rendered HTML.");
-        return match.Groups[1].Value;
     }
 }

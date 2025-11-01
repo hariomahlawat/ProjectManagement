@@ -16,7 +16,7 @@
                     <li class="breadcrumb-item active" aria-current="page">Manage countries</li>
                 </ol>
             </nav>
-            <p class="text-muted mb-0 mt-2">Maintain the list of participating countries and update their delivery settings.</p>
+            <p class="text-muted mb-0 mt-2">Review the full ISO-3166 country list and toggle availability for FFC reporting.</p>
         </div>
 
         <div class="d-flex flex-wrap gap-2">
@@ -30,8 +30,6 @@
     </div>
 
     <partial name="~/Areas/ProjectOfficeReports/Pages/Shared/_StatusMessage.cshtml" />
-    <div asp-validation-summary="ModelOnly" class="alert alert-danger mb-3" role="alert"></div>
-
     <div class="row g-4">
         <div class="col-lg-7">
             <div class="card pm-card pm-shadow h-100">
@@ -60,39 +58,19 @@
         </div>
 
         <div class="col-lg-5">
-            <authorize roles="Admin,HoD">
-                <div class="pm-card pm-shadow h-100">
-                    <div class="pm-card-header">
-                        <div class="pm-card-heading">
-                            <div>
-                                <h2 class="pm-card-title h5 mb-0">@(Model.IsEditMode ? "Edit country" : "New country")</h2>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="pm-card-body">
-                        <form method="post" class="vstack gap-3">
-                            @Html.AntiForgeryToken()
-                            @if (Model.IsEditMode)
-                            {
-                                <input type="hidden" asp-for="Input.Id" />
-                                <input type="hidden" asp-for="Input.RowVersion" />
-                            }
-                            <partial name="_CountryForm" for="Input" />
-                            <div class="d-flex gap-2">
-                                @if (Model.IsEditMode)
-                                {
-                                    <button type="submit" asp-page-handler="Update" class="btn btn-primary">Save changes</button>
-                                    <a asp-page="Manage" asp-all-route-data="Model.BuildRoute(query: Model.Query)" class="btn btn-secondary">Cancel</a>
-                                }
-                                else
-                                {
-                                    <button type="submit" asp-page-handler="Create" class="btn btn-primary">Create</button>
-                                }
-                            </div>
-                        </form>
-                    </div>
+            <div class="pm-card pm-shadow h-100">
+                <div class="pm-card-body">
+                    <h2 class="h5">About this list</h2>
+                    <p class="text-muted">
+                        Countries are synchronised with the ISO-3166 dataset and kept up to date automatically.
+                        Administrators and heads of department can deactivate a country when it should be hidden from
+                        FFC records and filters.
+                    </p>
+                    <p class="text-muted mb-0">
+                        To request a correction, edit the canonical dataset instead of adding custom entries.
+                    </p>
                 </div>
-            </authorize>
+            </div>
         </div>
     </div>
 </div>

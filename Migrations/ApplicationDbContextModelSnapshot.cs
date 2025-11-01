@@ -233,13 +233,14 @@ namespace ProjectManagement.Migrations
                         .HasDefaultValue(true);
 
                     b.Property<string>("IsoCode")
+                        .IsRequired()
                         .HasMaxLength(3)
                         .HasColumnType("character varying(3)");
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -252,6 +253,10 @@ namespace ProjectManagement.Migrations
                         .HasDefaultValueSql("now() at time zone 'utc'");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IsoCode")
+                        .IsUnique()
+                        .HasDatabaseName("UX_FfcCountries_IsoCode");
 
                     b.HasIndex("Name")
                         .IsUnique()
@@ -6311,6 +6316,11 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Statuses");
                 });
 #pragma warning restore 612, 618
+        }
+
+        internal static void BuildSnapshot(ModelBuilder modelBuilder)
+        {
+            new ApplicationDbContextModelSnapshot().BuildModel(modelBuilder);
         }
     }
 }

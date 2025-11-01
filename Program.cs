@@ -62,6 +62,7 @@ using ProjectManagement.Features.Users;
 using ProjectManagement.Hubs;
 using ProjectManagement.Contracts.Notifications;
 using ProjectManagement.Services.Navigation;
+using ProjectManagement.Services.Startup;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
@@ -94,6 +95,8 @@ builder.Services.AddDataProtection()
 builder.Services.AddMetrics();
 
 builder.Services.AddSignalR();
+
+builder.Services.AddScoped<IsoCountrySeeder>();
 
 // ---------- Database (PostgreSQL) ----------
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -443,6 +446,9 @@ using (var scope = app.Services.CreateScope())
             throw new InvalidOperationException(message);
         }
     }
+
+    var isoSeeder = scope.ServiceProvider.GetRequiredService<IsoCountrySeeder>();
+    await isoSeeder.RunAsync();
 }
 
 if (runForecastBackfill)
