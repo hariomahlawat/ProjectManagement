@@ -39,14 +39,14 @@
                             <label class="form-label" for="country-search">Search</label>
                             <input type="search" class="form-control" id="country-search" name="q" value="@Model.Query" />
                         </div>
-                        <input type="hidden" name="page" value="1" />
+                        <input type="hidden" name="p" value="1" />
                         <input type="hidden" name="sort" value="@Model.CurrentSort" />
                         <input type="hidden" name="dir" value="@Model.CurrentSortDirection" />
                         <div class="col-md-auto">
                             <button type="submit" class="btn btn-outline-primary">Search</button>
                             @if (Model.HasQuery)
                             {
-                                <a asp-page="./Manage" asp-all-route-data="Model.BuildRoute(page: 1, query: string.Empty)" class="btn btn-link">Clear</a>
+                                <a asp-page="./Manage" asp-all-route-data="Model.BuildRoute(p: 1, query: string.Empty)" class="btn btn-link">Clear</a>
                             }
                         </div>
                     </form>
