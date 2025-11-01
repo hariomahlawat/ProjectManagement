@@ -1,0 +1,37 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.MapTableModel
+@{
+    ViewData["Title"] = "FFC – Table";
+}
+
+<div class="container-xxl py-4">
+    <section class="pm-page-header">
+        <div>
+            <h1 class="h4 mb-1">FFC – Country table</h1>
+            <p class="pm-page-subtitle">Sortable table of Installed / Delivered / Planned (completed, linked projects).</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-area="ProjectOfficeReports" asp-page="/FFC/Map" class="btn btn-outline-secondary">Back to map</a>
+            <button id="ffc-table-export" class="btn btn-primary" type="button">Export CSV</button>
+        </div>
+    </section>
+
+    <div class="table-responsive">
+        <table id="ffc-table" class="table table-sm align-middle">
+            <thead>
+                <tr>
+                    <th scope="col" data-k="iso3">Country (ISO3)</th>
+                    <th scope="col" data-k="installed">Installed</th>
+                    <th scope="col" data-k="delivered">Delivered (not installed)</th>
+                    <th scope="col" data-k="planned">Planned</th>
+                    <th scope="col" data-k="total">Total</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+    <script defer src="~/js/pages/project-office-reports/ffc/ffc-map-table.js" asp-append-version="true"></script>
+}
