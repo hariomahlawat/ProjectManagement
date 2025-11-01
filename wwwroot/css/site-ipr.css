@@ -1,0 +1,73 @@
+.pm-kpi {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 16px;
+    padding: 14px;
+    background: linear-gradient(180deg, #fff, #f8fafc);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.pm-kpi__label {
+    font-size: 0.8rem;
+    color: var(--bs-secondary-color);
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+}
+
+.pm-kpi__value {
+    font-weight: 700;
+    font-size: 1.5rem;
+    line-height: 1;
+}
+
+.pm-kpi__spark {
+    height: 6px;
+    background: #e9ecef;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.pm-kpi__spark > span {
+    display: block;
+    height: 100%;
+    background: var(--bs-primary);
+    border-radius: inherit;
+}
+
+.pm-chip {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 999px;
+    border: 1px solid var(--bs-border-color);
+    background: #fff;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.pm-chip--muted {
+    color: var(--bs-secondary-color);
+    border-color: transparent;
+    background: var(--bs-gray-100);
+}
+
+.pm-record-row {
+    transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    background-color: var(--bs-body-bg);
+}
+
+.pm-record-row:hover {
+    border-color: rgba(13, 110, 253, 0.3);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+}
+
+.pm-record-row__attachments .pm-record-row__attachment-item + .pm-record-row__attachment-item {
+    margin-top: 0.5rem;
+}
+
+.pm-record-row__attachment-item a {
+    color: var(--bs-link-color);
+}
+
+.pm-record-row__attachment-item a:hover {
+    text-decoration: underline;
+}
