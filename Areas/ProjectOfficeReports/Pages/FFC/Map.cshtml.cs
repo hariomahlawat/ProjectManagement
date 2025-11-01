@@ -25,27 +25,58 @@ public class MapModel : PageModel
 
     public async Task<IActionResult> OnGetDataAsync(CancellationToken cancellationToken)
     {
-        var results = await _db.FfcCountries
+        var deliveryAggregates = await _db.FfcRecords
             .AsNoTracking()
-            .Select(country => new
+            .Where(record => !record.IsDeleted && record.DeliveryYes)
+            .GroupBy(record => new { record.CountryId, record.Year })
+            .Select(group => new
             {
-                countryId = country.Id,
-                iso3 = country.IsoCode,
-                name = country.Name,
-                delivered = country.Records
-                    .Where(record => !record.IsDeleted && record.DeliveryYes)
-                    .Count(),
-                perYear = country.Records
-                    .Where(record => !record.IsDeleted && record.DeliveryYes)
-                    .GroupBy(record => record.Year)
-                    .Select(group => new
-                    {
-                        year = group.Key,
-                        count = group.Count()
-                    })
-                    .ToList()
+                group.Key.CountryId,
+                group.Key.Year,
+                Count = group.Count()
             })
             .ToListAsync(cancellationToken);
+
+        var countries = await _db.FfcCountries
+            .AsNoTracking()
+            .Where(country => country.IsActive)
+            .Select(country => new
+            {
+                country.Id,
+                country.IsoCode,
+                country.Name
+            })
+            .ToListAsync(cancellationToken);
+
+        var results = countries
+            .Select(country =>
+            {
+                var aggregates = deliveryAggregates
+                    .Where(aggregate => aggregate.CountryId == country.Id)
+                    .ToList();
+
+                var totalDelivered = aggregates.Sum(aggregate => aggregate.Count);
+
+                return new
+                {
+                    countryId = country.Id,
+                    iso3 = country.IsoCode,
+                    name = country.Name,
+                    delivered = totalDelivered,
+                    perYear = aggregates
+                        .GroupBy(aggregate => aggregate.Year)
+                        .Select(group => new
+                        {
+                            year = group.Key,
+                            count = group.Sum(item => item.Count)
+                        })
+                        .OrderBy(item => item.year)
+                        .ToList()
+                };
+            })
+            .Where(country => country.delivered > 0)
+            .OrderByDescending(country => country.delivered)
+            .ToList();
 
         return new JsonResult(results);
     }

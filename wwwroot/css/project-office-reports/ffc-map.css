@@ -42,6 +42,19 @@
   color: #475569;
 }
 
+.ffc-map-panel__list a {
+  text-decoration: none;
+}
+
+.ffc-map-panel__item.is-active {
+  outline: 2px solid rgba(0, 0, 0, 0.1);
+  border-radius: 0.5rem;
+}
+
+.leaflet-tooltip {
+  font-size: 0.9rem;
+}
+
 .ffc-tip__title {
   font-weight: 600;
   margin-bottom: 0.25rem;
