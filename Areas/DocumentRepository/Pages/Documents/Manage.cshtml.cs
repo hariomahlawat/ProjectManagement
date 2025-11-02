@@ -40,6 +40,7 @@ public class ManageModel : PageModel
         return Page();
     }
 
+    [Authorize(Policy = "DocRepo.SoftDelete")]
     public async Task<IActionResult> OnPostDeactivateAsync(Guid id, CancellationToken cancellationToken)
     {
         var document = await _db.Documents.FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
@@ -59,6 +60,7 @@ public class ManageModel : PageModel
         return RedirectToPage("./Index");
     }
 
+    [Authorize(Policy = "DocRepo.SoftDelete")]
     public async Task<IActionResult> OnPostActivateAsync(Guid id, CancellationToken cancellationToken)
     {
         var document = await _db.Documents.FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
@@ -78,6 +80,7 @@ public class ManageModel : PageModel
         return RedirectToPage("./Index");
     }
 
+    [Authorize(Policy = "DocRepo.SoftDelete")]
     public async Task<IActionResult> OnPostRequestDeleteAsync(Guid id, CancellationToken cancellationToken)
     {
         var document = await _db.Documents.FirstOrDefaultAsync(d => d.Id == id, cancellationToken);

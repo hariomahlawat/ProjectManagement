@@ -175,11 +175,15 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(Policies.Ipr.Edit, policy =>
         policy.RequireRole(Policies.Ipr.EditAllowedRoles));
     options.AddPolicy("DocRepo.View", policy =>
-        policy.RequireRole("Admin", "HoD", "Project Office", "ProjectOffice"));
+        policy.RequireRole(RoleNames.Admin, RoleNames.HoD, RoleNames.ProjectOffice, RoleNames.ProjectOfficeAlternate));
     options.AddPolicy("DocRepo.Upload", policy =>
-        policy.RequireRole("Admin", "HoD", "Project Office", "ProjectOffice"));
+        policy.RequireRole(RoleNames.ProjectOffice, RoleNames.MainOfficeClerk, RoleNames.McCellClerk, RoleNames.ItCellClerk));
+    options.AddPolicy("DocRepo.SoftDelete", policy =>
+        policy.RequireRole(RoleNames.ProjectOffice, RoleNames.MainOfficeClerk, RoleNames.McCellClerk, RoleNames.ItCellClerk));
     options.AddPolicy("DocRepo.ManageCategories", policy =>
-        policy.RequireRole("Admin"));
+        policy.RequireRole(RoleNames.Admin));
+    options.AddPolicy("DocRepo.DeleteApprove", policy =>
+        policy.RequireRole(RoleNames.Admin));
 });
 
 builder.Services.ConfigureApplicationCookie(opt =>

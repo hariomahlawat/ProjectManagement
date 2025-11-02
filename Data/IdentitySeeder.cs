@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Hosting;
+using ProjectManagement.Configuration;
 using ProjectManagement.Models;
 
 namespace ProjectManagement.Data
@@ -14,16 +15,16 @@ namespace ProjectManagement.Data
         {
             var roles = new[]
             {
-                "Project Officer",
-                "HoD",
-                "Comdt",
-                "Admin",
-                "TA",
-                "MCO",
-                "Project Office",
-                "Main_Office_Clerk",
-                "MC_Cell_Clerk",
-                "IT_Cell_Clerk"
+                RoleNames.ProjectOfficer,
+                RoleNames.HoD,
+                RoleNames.Comdt,
+                RoleNames.Admin,
+                RoleNames.Ta,
+                RoleNames.Mco,
+                RoleNames.ProjectOffice,
+                RoleNames.MainOfficeClerk,
+                RoleNames.McCellClerk,
+                RoleNames.ItCellClerk
             };
             var roleMgr = services.GetRequiredService<RoleManager<IdentityRole>>();
             foreach (var r in roles)
@@ -43,7 +44,7 @@ namespace ProjectManagement.Data
                     Rank = "Admin"
                 };
                 await userMgr.CreateAsync(admin, "ChangeMe!123");
-                await userMgr.AddToRoleAsync(admin, "Admin");
+                await userMgr.AddToRoleAsync(admin, RoleNames.Admin);
             }
 
             var env = services.GetRequiredService<IWebHostEnvironment>();

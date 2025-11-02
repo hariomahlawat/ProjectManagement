@@ -50,40 +50,42 @@
             </div>
         </div>
 
-        <div class="row g-4">
-            <div class="col-lg-6">
-                <div class="card h-100 shadow-sm">
-                    <div class="card-body">
-                        <h2 class="h6">Activation</h2>
-                        <p class="small text-muted">Toggle whether this document is available to viewers.</p>
-                        <div class="d-flex gap-2">
-                            <form method="post" asp-page-handler="Deactivate" asp-route-id="@Model.Document.Id" class="d-inline">
-                                <button type="submit" class="btn btn-warning" @(Model.Document.IsActive ? null : "disabled")>Deactivate</button>
-                            </form>
-                            <form method="post" asp-page-handler="Activate" asp-route-id="@Model.Document.Id" class="d-inline">
-                                <button type="submit" class="btn btn-success" @(Model.Document.IsActive ? "disabled" : null)>Activate</button>
+        <authorize policy="DocRepo.SoftDelete">
+            <div class="row g-4">
+                <div class="col-lg-6">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body">
+                            <h2 class="h6">Activation</h2>
+                            <p class="small text-muted">Toggle whether this document is available to viewers.</p>
+                            <div class="d-flex gap-2">
+                                <form method="post" asp-page-handler="Deactivate" asp-route-id="@Model.Document.Id" class="d-inline">
+                                    <button type="submit" class="btn btn-warning" @(Model.Document.IsActive ? null : "disabled")>Deactivate</button>
+                                </form>
+                                <form method="post" asp-page-handler="Activate" asp-route-id="@Model.Document.Id" class="d-inline">
+                                    <button type="submit" class="btn btn-success" @(Model.Document.IsActive ? "disabled" : null)>Activate</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-lg-6">
+                    <div class="card h-100 shadow-sm">
+                        <div class="card-body">
+                            <h2 class="h6">Request deletion</h2>
+                            <p class="small text-muted">Submit a deletion request for approval. Provide context for the approver.</p>
+                            <form method="post" asp-page-handler="RequestDelete" asp-route-id="@Model.Document.Id">
+                                <div class="mb-3">
+                                    <label asp-for="Reason" class="form-label">Reason (optional, 512 characters max)</label>
+                                    <textarea asp-for="Reason" class="form-control" rows="3"></textarea>
+                                    <span asp-validation-for="Reason" class="text-danger"></span>
+                                </div>
+                                <button type="submit" class="btn btn-danger">Submit delete request</button>
                             </form>
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="col-lg-6">
-                <div class="card h-100 shadow-sm">
-                    <div class="card-body">
-                        <h2 class="h6">Request deletion</h2>
-                        <p class="small text-muted">Submit a deletion request for approval. Provide context for the approver.</p>
-                        <form method="post" asp-page-handler="RequestDelete" asp-route-id="@Model.Document.Id">
-                            <div class="mb-3">
-                                <label asp-for="Reason" class="form-label">Reason (optional, 512 characters max)</label>
-                                <textarea asp-for="Reason" class="form-control" rows="3"></textarea>
-                                <span asp-validation-for="Reason" class="text-danger"></span>
-                            </div>
-                            <button type="submit" class="btn btn-danger">Submit delete request</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
-        </div>
+        </authorize>
 
         <div class="card mt-4 shadow-sm">
             <div class="card-body">
