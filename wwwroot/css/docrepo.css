@@ -37,3 +37,18 @@
     min-width: 160px;
     flex: 1 1 160px;
 }
+
+.docrepo-preview-frame {
+    height: calc(100vh - 14rem);
+    min-height: 420px;
+}
+
+@media (min-width: 1200px) {
+    .top-3rem {
+        top: 3rem;
+    }
+}
+
+.card .card-footer {
+    background-color: transparent;
+}

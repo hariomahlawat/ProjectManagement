@@ -2,9 +2,11 @@ using System.Buffers;
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
@@ -34,6 +36,10 @@ public class UploadModel : PageModel
 
     public IReadOnlyList<OfficeCategory> OfficeOptions { get; private set; } = Array.Empty<OfficeCategory>();
     public IReadOnlyList<DocumentCategory> DocumentCategoryOptions { get; private set; } = Array.Empty<DocumentCategory>();
+    public SelectList OfficeSelectList { get; private set; } = default!;
+    public SelectList DocumentTypeSelectList { get; private set; } = default!;
+    public string? PdfPreviewUrl { get; private set; }
+    public bool HasPreview => !string.IsNullOrEmpty(PdfPreviewUrl);
 
     public class InputModel
     {
@@ -47,16 +53,16 @@ public class UploadModel : PageModel
         public DateOnly? DocumentDate { get; set; }
 
         [Display(Name = "Office category"), Required]
-        public int OfficeCategoryId { get; set; }
+        public int? OfficeCategoryId { get; set; }
 
         [Display(Name = "Document category"), Required]
-        public int DocumentCategoryId { get; set; }
+        public int? DocumentCategoryId { get; set; }
 
-        [Display(Name = "Tags (max 5)")]
-        public List<string> Tags { get; set; } = new();
+        [Display(Name = "Tags (max 5, comma separated)"), MaxLength(128)]
+        public string? Tags { get; set; }
 
         [Required]
-        public IFormFile? Pdf { get; set; }
+        public IFormFile? File { get; set; }
     }
 
     [BindProperty]
@@ -76,29 +82,27 @@ public class UploadModel : PageModel
             return Page();
         }
 
-        if (Input.Pdf is null || Input.Pdf.Length == 0)
+        if (Input.File is null || Input.File.Length == 0)
         {
-            ModelState.AddModelError(nameof(Input.Pdf), "PDF is required.");
+            ModelState.AddModelError(nameof(Input.File), "PDF is required.");
             return Page();
         }
 
-        if (Input.Pdf.Length > 52_428_800)
+        if (Input.File.Length > 52_428_800)
         {
-            ModelState.AddModelError(nameof(Input.Pdf), "File exceeds 50 MB limit.");
+            ModelState.AddModelError(nameof(Input.File), "File exceeds 50 MB limit.");
             return Page();
         }
 
-        var isPdfContentType = string.Equals(Input.Pdf.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase);
-        var hasPdfExtension = Path.GetExtension(Input.Pdf.FileName).Equals(".pdf", StringComparison.OrdinalIgnoreCase);
+        var isPdfContentType = string.Equals(Input.File.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase);
+        var hasPdfExtension = Path.GetExtension(Input.File.FileName).Equals(".pdf", StringComparison.OrdinalIgnoreCase);
         if (!isPdfContentType || !hasPdfExtension)
         {
-            ModelState.AddModelError(nameof(Input.Pdf), "Only PDF uploads are allowed.");
+            ModelState.AddModelError(nameof(Input.File), "Only PDF uploads are allowed.");
             return Page();
         }
 
-        var normalizedTags = Input.Tags
-            .Where(t => !string.IsNullOrWhiteSpace(t))
-            .Select(t => t.Trim().ToLowerInvariant())
+        var normalizedTags = ParseTags(Input.Tags)
             .Distinct()
             .ToList();
 
@@ -108,7 +112,9 @@ public class UploadModel : PageModel
             return Page();
         }
 
-        Input.Tags = normalizedTags;
+        Input.Tags = normalizedTags.Count == 0
+            ? null
+            : string.Join(", ", normalizedTags);
 
         var invalidTag = normalizedTags.FirstOrDefault(tag => tag.Length is < 1 or > 32 || !IsValidTag(tag));
         if (invalidTag is not null)
@@ -119,15 +125,15 @@ public class UploadModel : PageModel
         }
 
         string sha256Hex;
-        await using var uploadStream = Input.Pdf.OpenReadStream();
-        await using var bufferedStream = new MemoryStream((int)Math.Min(Input.Pdf.Length, int.MaxValue));
+        await using var uploadStream = Input.File.OpenReadStream();
+        await using var bufferedStream = new MemoryStream((int)Math.Min(Input.File.Length, int.MaxValue));
         using var sha = SHA256.Create();
 
         var headerBuffer = new byte[5];
         var headerBytesRead = await uploadStream.ReadAsync(headerBuffer.AsMemory(0, headerBuffer.Length), cancellationToken);
         if (headerBytesRead < headerBuffer.Length || !HasPdfHeader(headerBuffer.AsSpan(0, headerBytesRead)))
         {
-            ModelState.AddModelError(nameof(Input.Pdf), "Uploaded file is not a valid PDF.");
+            ModelState.AddModelError(nameof(Input.File), "Uploaded file is not a valid PDF.");
             return Page();
         }
 
@@ -152,9 +158,9 @@ public class UploadModel : PageModel
         }
 
         sha256Hex = Convert.ToHexString(sha.Hash!);
-        if (bufferedStream.Length != Input.Pdf.Length)
+        if (bufferedStream.Length != Input.File.Length)
         {
-            ModelState.AddModelError(nameof(Input.Pdf), "Uploaded file could not be fully read. Please try again.");
+            ModelState.AddModelError(nameof(Input.File), "Uploaded file could not be fully read. Please try again.");
             return Page();
         }
 
@@ -165,7 +171,7 @@ public class UploadModel : PageModel
         }
         catch (Exception ex)
         {
-            ModelState.AddModelError(nameof(Input.Pdf), string.IsNullOrWhiteSpace(ex.Message)
+            ModelState.AddModelError(nameof(Input.File), string.IsNullOrWhiteSpace(ex.Message)
                 ? "Upload blocked by security scan."
                 : ex.Message);
             return Page();
@@ -179,14 +185,14 @@ public class UploadModel : PageModel
             .FirstOrDefaultAsync(d => d.Sha256 == sha256Hex, cancellationToken);
         if (duplicate is not null)
         {
-            ModelState.AddModelError(nameof(Input.Pdf),
+            ModelState.AddModelError(nameof(Input.File),
                 $"Duplicate document detected (matches {duplicate.Subject}). Upload blocked.");
             return Page();
         }
 
         bufferedStream.Position = 0;
         var utcNow = DateTime.UtcNow;
-        var storagePath = await _storage.SaveAsync(bufferedStream, Path.GetFileName(Input.Pdf.FileName), utcNow, cancellationToken);
+        var storagePath = await _storage.SaveAsync(bufferedStream, Path.GetFileName(Input.File.FileName), utcNow, cancellationToken);
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";
 
@@ -196,9 +202,9 @@ public class UploadModel : PageModel
             Subject = Input.Subject.Trim(),
             ReceivedFrom = string.IsNullOrWhiteSpace(Input.ReceivedFrom) ? null : Input.ReceivedFrom.Trim(),
             DocumentDate = Input.DocumentDate,
-            OfficeCategoryId = Input.OfficeCategoryId,
-            DocumentCategoryId = Input.DocumentCategoryId,
-            OriginalFileName = Path.GetFileName(Input.Pdf.FileName),
+            OfficeCategoryId = Input.OfficeCategoryId!.Value,
+            DocumentCategoryId = Input.DocumentCategoryId!.Value,
+            OriginalFileName = Path.GetFileName(Input.File.FileName),
             FileSizeBytes = bufferedStream.Length,
             Sha256 = sha256Hex,
             StoragePath = storagePath,
@@ -259,6 +265,9 @@ public class UploadModel : PageModel
             .OrderBy(c => c.SortOrder)
             .ThenBy(c => c.Name)
             .ToListAsync(cancellationToken);
+
+        OfficeSelectList = new SelectList(OfficeOptions, nameof(OfficeCategory.Id), nameof(OfficeCategory.Name), Input.OfficeCategoryId);
+        DocumentTypeSelectList = new SelectList(DocumentCategoryOptions, nameof(DocumentCategory.Id), nameof(DocumentCategory.Name), Input.DocumentCategoryId);
     }
 
     private static bool IsValidTag(string tag)
@@ -272,6 +281,20 @@ public class UploadModel : PageModel
         }
 
         return true;
+    }
+
+    private static IEnumerable<string> ParseTags(string? tags)
+    {
+        if (string.IsNullOrWhiteSpace(tags))
+        {
+            return Array.Empty<string>();
+        }
+
+        return tags
+            .Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(t => t.Trim())
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Select(t => t.ToLowerInvariant());
     }
 
     private static bool HasPdfHeader(ReadOnlySpan<byte> header)

@@ -1,0 +1,20 @@
+@model ProjectManagement.Models.BreadcrumbModel
+@{
+    Layout = null;
+}
+<nav aria-label="breadcrumb" class="mb-2">
+    <ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a asp-area="" asp-controller="Home" asp-action="Index">Dashboard</a></li>
+        @foreach (var (text, url) in Model.Items)
+        {
+            if (string.IsNullOrEmpty(url))
+            {
+                <li class="breadcrumb-item active" aria-current="page">@text</li>
+            }
+            else
+            {
+                <li class="breadcrumb-item"><a href="@url">@text</a></li>
+            }
+        }
+    </ol>
+</nav>
