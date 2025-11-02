@@ -37,6 +37,11 @@ public class ViewModel : PageModel
         };
 
         Response.Headers["Content-Disposition"] = contentDisposition.ToString();
-        return File(stream, "application/pdf", fileDownloadName: document.OriginalFileName, enableRangeProcessing: true);
+
+        return new FileStreamResult(stream, "application/pdf")
+        {
+            FileDownloadName = document.OriginalFileName,
+            EnableRangeProcessing = true
+        };
     }
 }
