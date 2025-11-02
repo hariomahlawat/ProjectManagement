@@ -53,6 +53,25 @@
 .pm-kpi--withdrawn  { background:linear-gradient(180deg,#f6f7fa 0,#ffffff 85%); border-color:#e7eaf0; }
 
 /* Chart container sizing */
+/* Patent tracker – compact twin charts */
+.ipr-chart-card-sm {
+    width: 100%;
+}
+
+.ipr-chart-wrap-sm {
+    max-width: 560px;
+    height: 300px;
+    margin: 0 auto;
+    position: relative;
+}
+
+@media (min-width: 1400px) {
+    .ipr-chart-wrap-sm {
+        max-width: 520px;
+        height: 280px;
+    }
+}
+
 .ipr-chart-wrap{ max-width: 720px; margin: 0 auto; }
 @media (min-width: 1400px){ .ipr-chart-wrap{ max-width: 820px; } }
 
