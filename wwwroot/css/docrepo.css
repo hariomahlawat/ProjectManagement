@@ -1,0 +1,39 @@
+.pm-tags {
+    display: block;
+}
+
+.pm-tags__container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    background-color: var(--bs-body-bg);
+}
+
+.pm-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 999px;
+    background-color: var(--bs-secondary-bg);
+    font-size: 0.875rem;
+}
+
+.pm-tag__remove {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+}
+
+.pm-tags__input {
+    border: 0;
+    outline: none;
+    min-width: 160px;
+    flex: 1 1 160px;
+}

@@ -1,0 +1,83 @@
+@page
+@model ProjectManagement.Areas.DocumentRepository.Pages.Documents.UploadModel
+@{
+    ViewData["Title"] = "Upload document";
+}
+
+<link rel="stylesheet" href="~/css/docrepo.css" asp-append-version="true" />
+
+<div class="container-fluid py-4">
+    <h1 class="h4 mb-3">Upload document (PDF)</h1>
+    <form method="post" enctype="multipart/form-data" novalidate>
+        <div class="row g-3">
+            <div class="col-12 col-xl-7">
+                <div class="card h-100">
+                    <div class="card-header">Preview</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <input id="pdfInput" asp-for="Input.Pdf" type="file" accept="application/pdf" class="form-control" />
+                            <span class="text-danger" asp-validation-for="Input.Pdf"></span>
+                        </div>
+                        <div class="ratio ratio-4x3 border rounded overflow-hidden">
+                            <iframe id="pdfPreview" title="PDF preview" src="" style="width:100%;height:100%;border:0;"></iframe>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-xl-5">
+                <div class="card h-100">
+                    <div class="card-header">Details</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label asp-for="Input.Subject" class="form-label"></label>
+                            <input asp-for="Input.Subject" class="form-control" />
+                            <span class="text-danger" asp-validation-for="Input.Subject"></span>
+                        </div>
+                        <div class="mb-3">
+                            <label asp-for="Input.ReceivedFrom" class="form-label"></label>
+                            <input asp-for="Input.ReceivedFrom" class="form-control" />
+                        </div>
+                        <div class="mb-3">
+                            <label asp-for="Input.DocumentDate" class="form-label">Document date</label>
+                            <input asp-for="Input.DocumentDate" class="form-control" type="date" />
+                        </div>
+                        <div class="mb-3">
+                            <label asp-for="Input.OfficeCategoryId" class="form-label">Office</label>
+                            <select asp-for="Input.OfficeCategoryId" class="form-select" asp-items="@(new SelectList(Model.OfficeOptions, "Id", "Name"))"></select>
+                            <span class="text-danger" asp-validation-for="Input.OfficeCategoryId"></span>
+                        </div>
+                        <div class="mb-3">
+                            <label asp-for="Input.DocumentCategoryId" class="form-label">Document type</label>
+                            <select asp-for="Input.DocumentCategoryId" class="form-select" asp-items="@(new SelectList(Model.DocumentCategoryOptions, "Id", "Name"))"></select>
+                            <span class="text-danger" asp-validation-for="Input.DocumentCategoryId"></span>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Tags (max 5)</label>
+                            <div id="tagsInput" class="pm-tags" data-field-name="Input.Tags">
+                                @if (Model.Input.Tags?.Any() == true)
+                                {
+                                    for (var i = 0; i < Model.Input.Tags.Count; i++)
+                                    {
+                                        <input type="hidden" name="Input.Tags[@i]" value="@Model.Input.Tags[i]" />
+                                    }
+                                }
+                            </div>
+                            <div class="form-text">Press Enter or comma to add a tag. Tags are stored in lower case.</div>
+                            <span class="text-danger">@Html.ValidationMessage("Input.Tags")</span>
+                        </div>
+                    </div>
+                    <div class="card-footer d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">Save</button>
+                        <a asp-page="./Index" class="btn btn-outline-secondary">Cancel</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="~/Pages/Shared/_ValidationScriptsPartial.cshtml" />
+    <script src="~/js/docrepo/tags.js" asp-append-version="true" defer></script>
+    <script src="~/js/docrepo/upload.js" asp-append-version="true" defer></script>
+}
