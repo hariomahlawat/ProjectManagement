@@ -20,6 +20,7 @@ using ProjectManagement.Models.Stages;
 using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Notifications;
 using ProjectManagement.Helpers;
+using ProjectManagement.Data.DocRepo;
 
 namespace ProjectManagement.Data
 {
@@ -111,6 +112,11 @@ namespace ProjectManagement.Data
         public DbSet<Activity> Activities => Set<Activity>();
         public DbSet<ActivityAttachment> ActivityAttachments => Set<ActivityAttachment>();
         public DbSet<ActivityDeleteRequest> ActivityDeleteRequests => Set<ActivityDeleteRequest>();
+        public DbSet<Document> Documents => Set<Document>();
+        public DbSet<Tag> Tags => Set<Tag>();
+        public DbSet<DocumentTag> DocumentTags => Set<DocumentTag>();
+        public DbSet<OfficeCategory> OfficeCategories => Set<OfficeCategory>();
+        public DbSet<DocumentCategory> DocumentCategories => Set<DocumentCategory>();
 
         protected override void OnModelCreating(ModelBuilder builder)
         {
@@ -148,6 +154,57 @@ namespace ProjectManagement.Data
                     AccessFailedCount = 0,
                     PhoneNumberConfirmed = false
                 });
+
+            builder.Entity<OfficeCategory>(e =>
+            {
+                e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+                e.Property(x => x.SortOrder).HasDefaultValue(100);
+                e.Property(x => x.IsActive).HasDefaultValue(true);
+                e.HasIndex(x => x.Name).IsUnique();
+            });
+
+            builder.Entity<DocumentCategory>(e =>
+            {
+                e.Property(x => x.Name).HasMaxLength(120).IsRequired();
+                e.Property(x => x.SortOrder).HasDefaultValue(100);
+                e.Property(x => x.IsActive).HasDefaultValue(true);
+                e.HasIndex(x => x.Name).IsUnique();
+            });
+
+            builder.Entity<Tag>(e =>
+            {
+                e.Property(x => x.Name).HasMaxLength(64).IsRequired();
+                e.HasIndex(x => x.Name).IsUnique();
+            });
+
+            builder.Entity<DocumentTag>(e =>
+            {
+                e.HasKey(x => new { x.DocumentId, x.TagId });
+                e.HasOne(x => x.Document)
+                    .WithMany(x => x.DocumentTags)
+                    .HasForeignKey(x => x.DocumentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.Tag)
+                    .WithMany(x => x.DocumentTags)
+                    .HasForeignKey(x => x.TagId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<Document>(e =>
+            {
+                e.Property(x => x.Subject).HasMaxLength(256).IsRequired();
+                e.Property(x => x.ReceivedFrom).HasMaxLength(256);
+                e.Property(x => x.OriginalFileName).HasMaxLength(260).IsRequired();
+                e.Property(x => x.StoragePath).HasMaxLength(260).IsRequired();
+                e.Property(x => x.Sha256).HasMaxLength(64).IsRequired();
+                e.Property(x => x.MimeType).HasMaxLength(64).HasDefaultValue("application/pdf").IsRequired();
+                e.Property(x => x.CreatedByUserId).HasMaxLength(64).IsRequired();
+                e.Property(x => x.UpdatedByUserId).HasMaxLength(64);
+                e.Property(x => x.DocumentDate).HasColumnType("date");
+                e.Property(x => x.IsActive).HasDefaultValue(true);
+                e.HasIndex(x => new { x.OfficeCategoryId, x.DocumentCategoryId });
+                e.HasIndex(x => x.Sha256).IsUnique();
+            });
 
             builder.Entity<Project>(e =>
             {

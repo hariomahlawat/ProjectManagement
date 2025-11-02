@@ -34,6 +34,7 @@ using ProjectManagement.Services.ProjectOfficeReports.Training;
 using ProjectManagement.Services.Documents;
 using ProjectManagement.Services.Activities;
 using ProjectManagement.Services.Storage;
+using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Infrastructure;
 using ProjectManagement.Infrastructure.Activities;
 using Markdig;
@@ -172,6 +173,12 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole(Policies.Ipr.ViewAllowedRoles));
     options.AddPolicy(Policies.Ipr.Edit, policy =>
         policy.RequireRole(Policies.Ipr.EditAllowedRoles));
+    options.AddPolicy("DocRepo.View", policy =>
+        policy.RequireRole("Admin", "HoD", "Project Office", "ProjectOffice"));
+    options.AddPolicy("DocRepo.Upload", policy =>
+        policy.RequireRole("Admin", "HoD", "Project Office", "ProjectOffice"));
+    options.AddPolicy("DocRepo.ManageCategories", policy =>
+        policy.RequireRole("Admin"));
 });
 
 builder.Services.ConfigureApplicationCookie(opt =>
@@ -218,6 +225,8 @@ builder.Services.AddMemoryCache();
 builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IUserContext, HttpUserContext>();
 builder.Services.AddScoped<IActivityRepository, ActivityRepository>();
+builder.Services.Configure<DocRepoOptions>(builder.Configuration.GetSection("DocRepo"));
+builder.Services.AddSingleton<IDocStorage, LocalDocStorageService>();
 builder.Services.AddScoped<IActivityTypeRepository, ActivityTypeRepository>();
 builder.Services.AddScoped<IActivityInputValidator, ActivityInputValidator>();
 builder.Services.AddScoped<IActivityTypeValidator, ActivityTypeValidator>();
