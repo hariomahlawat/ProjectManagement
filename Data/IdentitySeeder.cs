@@ -21,7 +21,6 @@ namespace ProjectManagement.Data
                 "TA",
                 "MCO",
                 "Project Office",
-                "Main Office",
                 "Main_Office_Clerk",
                 "MC_Cell_Clerk",
                 "IT_Cell_Clerk"
