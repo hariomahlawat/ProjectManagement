@@ -72,6 +72,24 @@
     }
 }
 
+.btn.btn-icon {
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ipr-mini-table th,
+.ipr-mini-table td {
+    white-space: nowrap;
+    vertical-align: middle;
+    font-size: 0.9rem;
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+}
+
 .ipr-chart-wrap{ max-width: 720px; margin: 0 auto; }
 @media (min-width: 1400px){ .ipr-chart-wrap{ max-width: 820px; } }
 
