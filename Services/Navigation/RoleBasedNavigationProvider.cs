@@ -79,6 +79,44 @@ public class RoleBasedNavigationProvider : INavigationProvider
             }
         };
 
+        var documentRepositoryChildren = new List<NavigationItem>
+        {
+            new()
+            {
+                Text = "Document repository",
+                Area = "DocumentRepository",
+                Page = "/Documents/Index",
+                AuthorizationPolicy = "DocRepo.View"
+            },
+            new()
+            {
+                Text = "Delete requests",
+                Area = "DocumentRepository",
+                Page = "/Admin/DeleteRequests/Index",
+                RequiredRoles = new[] { "Admin" }
+            },
+            new()
+            {
+                Text = "Office categories",
+                Area = "DocumentRepository",
+                Page = "/Admin/OfficeCategories/Index",
+                RequiredRoles = new[] { "Admin" }
+            },
+            new()
+            {
+                Text = "Document categories",
+                Area = "DocumentRepository",
+                Page = "/Admin/DocumentCategories/Index",
+                RequiredRoles = new[] { "Admin" }
+            }
+        };
+
+        items.Add(new NavigationItem
+        {
+            Text = "Documents",
+            Children = documentRepositoryChildren
+        });
+
         var projectOfficeReportsChildren = new List<NavigationItem>
         {
             new()
