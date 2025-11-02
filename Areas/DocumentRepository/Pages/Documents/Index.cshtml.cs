@@ -24,6 +24,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         [FromQuery(Name = "officeCategoryId")] public long? OfficeCategoryId { get; set; }
         [FromQuery(Name = "documentCategoryId")] public long? DocumentCategoryId { get; set; }
         [FromQuery(Name = "year")] public int? Year { get; set; }
+        [FromQuery(Name = "includeInactive")] public bool IncludeInactive { get; set; }
 
         // Paging (rename avoids CS0108 because PageModel already has Page())
         private const int DefaultPageSize = 30;
@@ -54,8 +55,12 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 .AsNoTracking()
                 .Include(d => d.DocumentTags).ThenInclude(dt => dt.Tag)
                 .Include(d => d.OfficeCategory)
-                .Include(d => d.DocumentCategory)
-                .Where(d => d.IsActive);
+                .Include(d => d.DocumentCategory);
+
+            if (!IncludeInactive)
+            {
+                q = q.Where(d => d.IsActive);
+            }
 
             // Text search: subject / received from / tag names
             if (!string.IsNullOrWhiteSpace(Q))
