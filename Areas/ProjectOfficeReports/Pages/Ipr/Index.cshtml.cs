@@ -767,10 +767,25 @@ public sealed class IndexModel : PageModel
             .ToListAsync(cancellationToken);
 
         var stats = items
-            .Select(r => new
+            .Select(r =>
             {
-                Year = (r.FiledOn ?? r.GrantedOn ?? DateTimeOffset.UtcNow).Year,
-                r.Status
+                DateTimeOffset GetStatusDate()
+                {
+                    var statusDate = r.Status switch
+                    {
+                        IprStatus.FilingUnderProcess or IprStatus.Filed => r.FiledOn,
+                        IprStatus.Granted or IprStatus.Rejected or IprStatus.Withdrawn => r.GrantedOn,
+                        _ => null
+                    };
+
+                    return statusDate ?? r.FiledOn ?? r.GrantedOn ?? DateTimeOffset.UtcNow;
+                }
+
+                return new
+                {
+                    Year = GetStatusDate().Year,
+                    r.Status
+                };
             })
             .GroupBy(x => x.Year)
             .OrderBy(g => g.Key)
