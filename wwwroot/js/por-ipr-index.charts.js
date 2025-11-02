@@ -5,7 +5,6 @@
 
   const css = getComputedStyle(document.documentElement);
   const palette = {
-    filing: css.getPropertyValue('--bs-indigo')?.trim() || '#7C4DFF',
     filed: css.getPropertyValue('--bs-blue')?.trim() || '#2E6BFF',
     granted: css.getPropertyValue('--bs-teal')?.trim() || '#2DB380',
     rejected: css.getPropertyValue('--bs-red')?.trim() || '#EF5350',
@@ -68,7 +67,6 @@
   function normalizeCounts(summary) {
     if (!summary) {
       return {
-        filing: 0,
         filed: 0,
         granted: 0,
         rejected: 0,
@@ -77,7 +75,6 @@
     }
 
     return {
-      filing: coerceNumber(summary.filing ?? summary.Filing),
       filed: coerceNumber(summary.filed ?? summary.Filed),
       granted: coerceNumber(summary.granted ?? summary.Granted),
       rejected: coerceNumber(summary.rejected ?? summary.Rejected),
@@ -353,12 +350,16 @@
     });
 
     const totals = {
-      filed: getValue(overall, 'filed'),
-      granted: getValue(overall, 'granted'),
-      rejected: getValue(overall, 'rejected'),
-      withdrawn: getValue(overall, 'withdrawn'),
-      total: getValue(overall, 'total')
-    };
+        filed: getValue(overall, 'filed'),
+        granted: getValue(overall, 'granted'),
+        rejected: getValue(overall, 'rejected'),
+        withdrawn: getValue(overall, 'withdrawn')
+        };
+    const totalsWithoutFiling =
+        (totals.filed || 0) +
+        (totals.granted || 0) +
+        (totals.rejected || 0) +
+        (totals.withdrawn || 0);
 
     const totalRow = document.createElement('tr');
     totalRow.classList.add('fw-semibold');
@@ -368,7 +369,7 @@
       <td>${totals.granted}</td>
       <td>${totals.rejected}</td>
       <td>${totals.withdrawn}</td>
-      <td>${totals.total}</td>`;
+      <td>${totalsWithoutFiling}</td>`;
     tfoot.appendChild(totalRow);
   }
 
@@ -387,7 +388,8 @@
       overall = {};
     }
 
-    const entries = Array.isArray(yearly) ? yearly : [];
+      const entries = Array.isArray(yearly) ? yearly.slice().sort((a, b) => getYearValue(a) - getYearValue(b)) : [];
+
     const chartRows = selectYearRows(entries);
     const hasValues = chartRows.some(item => {
       const total =
