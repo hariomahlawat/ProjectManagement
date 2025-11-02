@@ -9,5 +9,8 @@ public class Tag
     [Required, MaxLength(64)]
     public string Name { get; set; } = null!;
 
+    [Required, MaxLength(64)]
+    public string NormalizedName { get; set; } = null!;
+
     public ICollection<DocumentTag> DocumentTags { get; set; } = new List<DocumentTag>();
 }

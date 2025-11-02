@@ -6359,10 +6359,16 @@ namespace ProjectManagement.Migrations
 
                     b.HasIndex("DocumentCategoryId");
 
+                    b.HasIndex("DocumentDate");
+
                     b.HasIndex("OfficeCategoryId", "DocumentCategoryId");
+
+                    b.HasIndex("ReceivedFrom");
 
                     b.HasIndex("Sha256")
                         .IsUnique();
+
+                    b.HasIndex("Subject");
 
                     b.ToTable("Documents");
 
@@ -6425,6 +6431,8 @@ namespace ProjectManagement.Migrations
                     b.HasKey("DocumentId", "TagId");
 
                     b.HasIndex("TagId");
+
+                    b.HasIndex("TagId", "DocumentId");
 
                     b.ToTable("DocumentTags");
 
@@ -6489,9 +6497,17 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.HasIndex("NormalizedName")
                         .IsUnique();
 
                     b.ToTable("Tags");
