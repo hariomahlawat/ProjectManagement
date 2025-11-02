@@ -174,7 +174,9 @@ namespace ProjectManagement.Data
             builder.Entity<Tag>(e =>
             {
                 e.Property(x => x.Name).HasMaxLength(64).IsRequired();
+                e.Property(x => x.NormalizedName).HasMaxLength(64).IsRequired();
                 e.HasIndex(x => x.Name).IsUnique();
+                e.HasIndex(x => x.NormalizedName).IsUnique();
             });
 
             builder.Entity<DocumentTag>(e =>
@@ -188,6 +190,8 @@ namespace ProjectManagement.Data
                     .WithMany(x => x.DocumentTags)
                     .HasForeignKey(x => x.TagId)
                     .OnDelete(DeleteBehavior.Cascade);
+
+                e.HasIndex(x => new { x.TagId, x.DocumentId });
             });
 
             builder.Entity<Document>(e =>
@@ -204,6 +208,9 @@ namespace ProjectManagement.Data
                 e.Property(x => x.IsActive).HasDefaultValue(true);
                 e.HasIndex(x => new { x.OfficeCategoryId, x.DocumentCategoryId });
                 e.HasIndex(x => x.Sha256).IsUnique();
+                e.HasIndex(x => x.Subject);
+                e.HasIndex(x => x.ReceivedFrom);
+                e.HasIndex(x => x.DocumentDate);
             });
 
             builder.Entity<Project>(e =>
