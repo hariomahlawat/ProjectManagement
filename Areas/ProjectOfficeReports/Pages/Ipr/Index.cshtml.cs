@@ -135,7 +135,22 @@ public sealed class IndexModel : PageModel
 
     public IprKpis Kpis { get; private set; } = new(0, 0, 0, 0, 0, 0);
 
-    public sealed class PatentYearStat
+    public sealed class PatentTotals
+    {
+        public int Filing { get; set; }
+
+        public int Filed { get; set; }
+
+        public int Granted { get; set; }
+
+        public int Rejected { get; set; }
+
+        public int Withdrawn { get; set; }
+
+        public int Total => Filing + Filed + Granted + Rejected + Withdrawn;
+    }
+
+    public sealed class YearlyRow
     {
         public int Year { get; set; }
 
@@ -152,22 +167,7 @@ public sealed class IndexModel : PageModel
         public int Total => Filing + Filed + Granted + Rejected + Withdrawn;
     }
 
-    public sealed class PatentTotals
-    {
-        public int Filing { get; set; }
-
-        public int Filed { get; set; }
-
-        public int Granted { get; set; }
-
-        public int Rejected { get; set; }
-
-        public int Withdrawn { get; set; }
-
-        public int Total => Filing + Filed + Granted + Rejected + Withdrawn;
-    }
-
-    public List<PatentYearStat> YearlyStats { get; set; } = new();
+    public List<YearlyRow> YearlyStats { get; set; } = new();
 
     public PatentTotals OverallTotals { get; set; } = new();
 
@@ -773,45 +773,48 @@ public sealed class IndexModel : PageModel
 
     private async Task LoadYearlyStatsAsync(CancellationToken cancellationToken)
     {
-        var items = await _db.IprRecords
+        var snapshot = await _db.IprRecords
             .AsNoTracking()
             .Select(r => new
             {
-                r.Status,
-                FiledOn = r.FiledAtUtc,
-                GrantedOn = r.GrantedAtUtc
+                CohortYear = r.FiledAtUtc.HasValue
+                    ? r.FiledAtUtc.Value.Year
+                    : (r.GrantedAtUtc.HasValue ? r.GrantedAtUtc.Value.Year : (int?)null),
+                r.Status
             })
             .ToListAsync(cancellationToken);
 
-        var stats = items
-            .Select(r => new
+        var currentYear = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, IstTimeZone).Year;
+
+        var yearlyRows = snapshot
+            .Select(item => new
             {
-                Year = (r.FiledOn ?? r.GrantedOn ?? DateTimeOffset.UtcNow).Year,
-                r.Status
+                Year = item.CohortYear ?? currentYear,
+                item.Status
             })
             .GroupBy(x => x.Year)
-            .OrderBy(g => g.Key)
-            .Select(g => new PatentYearStat
+            .OrderBy(group => group.Key)
+            .Select(group => new YearlyRow
             {
-                Year = g.Key,
-                Filing = g.Count(x => x.Status == IprStatus.FilingUnderProcess),
-                Filed = g.Count(x => x.Status == IprStatus.Filed),
-                Granted = g.Count(x => x.Status == IprStatus.Granted),
-                Rejected = g.Count(x => x.Status == IprStatus.Rejected),
-                Withdrawn = g.Count(x => x.Status == IprStatus.Withdrawn)
+                Year = group.Key,
+                Filing = group.Count(x => x.Status == IprStatus.FilingUnderProcess),
+                Filed = group.Count(x => x.Status == IprStatus.Filed),
+                Granted = group.Count(x => x.Status == IprStatus.Granted),
+                Rejected = group.Count(x => x.Status == IprStatus.Rejected),
+                Withdrawn = group.Count(x => x.Status == IprStatus.Withdrawn)
             })
-            .Where(stat => stat.Total > 0)
+            .Where(row => row.Total > 0)
             .ToList();
 
-        YearlyStats = stats;
+        YearlyStats = yearlyRows;
 
         OverallTotals = new PatentTotals
         {
-            Filing = stats.Sum(static y => y.Filing),
-            Filed = stats.Sum(static y => y.Filed),
-            Granted = stats.Sum(static y => y.Granted),
-            Rejected = stats.Sum(static y => y.Rejected),
-            Withdrawn = stats.Sum(static y => y.Withdrawn)
+            Filing = snapshot.Count(static item => item.Status == IprStatus.FilingUnderProcess),
+            Filed = snapshot.Count(static item => item.Status == IprStatus.Filed),
+            Granted = snapshot.Count(static item => item.Status == IprStatus.Granted),
+            Rejected = snapshot.Count(static item => item.Status == IprStatus.Rejected),
+            Withdrawn = snapshot.Count(static item => item.Status == IprStatus.Withdrawn)
         };
     }
 

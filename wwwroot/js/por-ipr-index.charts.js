@@ -41,6 +41,7 @@
 
   const statusCanvas = document.getElementById('iprStatusChart');
   const toggleLegendBtn = document.getElementById('iprToggleLabelsBtn');
+  const statusSummaryEl = document.getElementById('iprStatusSummary');
   let statusChart = null;
   let legendHidden = false;
 
@@ -64,14 +65,45 @@
     return Number.isFinite(parsed) ? parsed : 0;
   }
 
-  function buildStatusChart(summary) {
-    const counts = {
+  function normalizeCounts(summary) {
+    if (!summary) {
+      return {
+        filing: 0,
+        filed: 0,
+        granted: 0,
+        rejected: 0,
+        withdrawn: 0
+      };
+    }
+
+    return {
       filing: coerceNumber(summary.filing ?? summary.Filing),
       filed: coerceNumber(summary.filed ?? summary.Filed),
       granted: coerceNumber(summary.granted ?? summary.Granted),
       rejected: coerceNumber(summary.rejected ?? summary.Rejected),
       withdrawn: coerceNumber(summary.withdrawn ?? summary.Withdrawn)
     };
+  }
+
+  function updateStatusSummary(counts) {
+    if (!statusSummaryEl) {
+      return;
+    }
+
+    const total = counts.filing + counts.filed + counts.granted + counts.rejected + counts.withdrawn;
+    const pct = value => (total > 0 ? `${Math.round((value * 100) / total)}%` : '0%');
+    statusSummaryEl.textContent =
+      `${total} patents — Filed ${counts.filed} (${pct(counts.filed)}), ` +
+      `Granted ${counts.granted} (${pct(counts.granted)}), ` +
+      `Filing ${counts.filing} (${pct(counts.filing)}), ` +
+      `Rejected ${counts.rejected} (${pct(counts.rejected)}), ` +
+      `Withdrawn ${counts.withdrawn} (${pct(counts.withdrawn)})`;
+  }
+
+  function buildStatusChart(counts) {
+    if (!statusCanvas) {
+      return;
+    }
 
     const labels = ['Filing', 'Filed', 'Granted', 'Rejected', 'Withdrawn'];
     const data = [counts.filing, counts.filed, counts.granted, counts.rejected, counts.withdrawn];
@@ -131,21 +163,30 @@
     setLegendButtonState(legendHidden);
   }
 
-  if (statusCanvas) {
+  if (statusCanvas || statusSummaryEl) {
     const handleSummary = summary => {
       if (!summary) {
         return;
       }
-      buildStatusChart(summary);
+
+      const counts = normalizeCounts(summary);
+      window.iprStatusCounts = counts;
+      updateStatusSummary(counts);
+
+      if (statusCanvas) {
+        buildStatusChart(counts);
+      }
     };
+
+    if (window.iprStatusCounts) {
+      handleSummary(window.iprStatusCounts);
+    }
 
     fetch('/ProjectOfficeReports/Ipr?handler=Summary', { credentials: 'same-origin' })
       .then(response => (response.ok ? response.json() : null))
       .then(summary => {
         if (summary) {
           handleSummary(summary);
-        } else if (window.iprStatusCounts) {
-          handleSummary(window.iprStatusCounts);
         }
       })
       .catch(() => {
@@ -154,7 +195,7 @@
         }
       });
 
-    if (toggleLegendBtn) {
+    if (statusCanvas && toggleLegendBtn) {
       toggleLegendBtn.addEventListener('click', () => {
         if (!statusChart) {
           return;
@@ -261,7 +302,25 @@
     };
   }
 
-  function hydrateMiniTable(tableEl, yearly, overall) {
+  function selectYearRows(yearly) {
+    if (!Array.isArray(yearly)) {
+      return [];
+    }
+
+    const sanitized = yearly.filter(entry => {
+      const total =
+        getValue(entry, 'filing') +
+        getValue(entry, 'filed') +
+        getValue(entry, 'granted') +
+        getValue(entry, 'rejected') +
+        getValue(entry, 'withdrawn');
+      return total > 0;
+    });
+
+    return sanitized.length > 0 ? sanitized : yearly;
+  }
+
+  function hydrateMiniTable(tableEl, yearly, overall, limitLastN = 0) {
     if (!tableEl) {
       return;
     }
@@ -275,7 +334,10 @@
     tbody.innerHTML = '';
     tfoot.innerHTML = '';
 
-    yearly.forEach(entry => {
+    const sourceRows = selectYearRows(yearly);
+    const rows = limitLastN && sourceRows.length > limitLastN ? sourceRows.slice(-limitLastN) : sourceRows;
+
+    rows.forEach(entry => {
       const year = getYearValue(entry);
       const filing = getValue(entry, 'filing');
       const filed = getValue(entry, 'filed');
@@ -334,12 +396,18 @@
     }
 
     const entries = Array.isArray(yearly) ? yearly : [];
-    const filtered = entries.filter(item => {
-      const total = getValue(item, 'filing') + getValue(item, 'filed') + getValue(item, 'granted') + getValue(item, 'rejected') + getValue(item, 'withdrawn');
+    const chartRows = selectYearRows(entries);
+    const hasValues = chartRows.some(item => {
+      const total =
+        getValue(item, 'filing') +
+        getValue(item, 'filed') +
+        getValue(item, 'granted') +
+        getValue(item, 'rejected') +
+        getValue(item, 'withdrawn');
       return total > 0;
     });
 
-    const chartSource = filtered.length > 0 ? filtered : [];
+    const chartSource = hasValues ? chartRows : [];
     const labels = chartSource.map(item => getYearValue(item));
     const datasetSeries = {
       filing: chartSource.map(item => getValue(item, 'filing')),
@@ -349,9 +417,6 @@
       withdrawn: chartSource.map(item => getValue(item, 'withdrawn'))
     };
     const totalsSeries = chartSource.map((item, index) => datasetSeries.filing[index] + datasetSeries.filed[index] + datasetSeries.granted[index] + datasetSeries.rejected[index] + datasetSeries.withdrawn[index]);
-
-    const tableEl = document.querySelector('.ipr-mini-table');
-    hydrateMiniTable(tableEl, chartSource.length > 0 ? chartSource : entries, overall);
 
     if (chartSource.length > 0) {
       barChart = new Chart(barCanvas, buildStackedConfig(labels, datasetSeries));
@@ -388,4 +453,48 @@
       modeBtn.setAttribute('aria-disabled', 'true');
     }
   }
+
+  (function attachExpand() {
+    const wrap = document.getElementById('iprMiniTableWrap');
+    const btn = document.getElementById('iprYearsExpandBtn');
+    const table = document.querySelector('.ipr-mini-table');
+    if (!wrap || !btn || !table) {
+      return;
+    }
+
+    let yearly = [];
+    try {
+      yearly = JSON.parse(table.dataset.yearly || '[]');
+    } catch (error) {
+      yearly = [];
+    }
+
+    let overall = {};
+    try {
+      overall = JSON.parse(table.dataset.totals || '{}');
+    } catch (error) {
+      overall = {};
+    }
+
+    const yearlyArray = Array.isArray(yearly) ? yearly : [];
+    const allRows = selectYearRows(yearlyArray);
+
+    hydrateMiniTable(table, yearlyArray, overall, 5);
+
+    if (allRows.length <= 5) {
+      btn.disabled = true;
+      btn.classList.add('disabled');
+      btn.setAttribute('aria-disabled', 'true');
+      return;
+    }
+
+    btn.addEventListener('click', () => {
+      const collapsed = wrap.classList.toggle('collapsed');
+      hydrateMiniTable(table, yearlyArray, overall, collapsed ? 5 : 0);
+      btn.innerHTML = collapsed
+        ? '<i class="bi bi-arrows-expand"></i>'
+        : '<i class="bi bi-arrows-collapse"></i>';
+      btn.setAttribute('aria-label', collapsed ? 'Show all years' : 'Show last 5 years');
+    });
+  })();
 })();

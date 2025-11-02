@@ -171,6 +171,7 @@
                         <div class="ipr-chart-wrap-sm">
                             <canvas id="iprStatusChart"></canvas>
                         </div>
+                        <div id="iprStatusSummary" class="text-muted small mt-2"></div>
                         <small class="text-muted d-block mt-2">snapshot</small>
                     </div>
                 </div>
@@ -202,8 +203,17 @@
                                     data-yearly='@Html.Raw(yearlyJson)'
                                     data-totals='@Html.Raw(totalsJson)'></canvas>
                         </div>
+                        <div class="d-flex align-items-center justify-content-between mt-3">
+                            <small class="text-muted">stacked totals by year</small>
+                            <button id="iprYearsExpandBtn"
+                                    type="button"
+                                    class="btn btn-sm btn-icon btn-outline-secondary"
+                                    aria-label="Show all years">
+                                <i class="bi bi-arrows-expand"></i>
+                            </button>
+                        </div>
 
-                        <div class="table-responsive mt-3">
+                        <div class="ipr-mini-table-wrap mt-2 collapsed" id="iprMiniTableWrap">
                             <table class="table table-sm table-striped mb-0 ipr-mini-table"
                                    data-yearly='@Html.Raw(yearlyJson)'
                                    data-totals='@Html.Raw(totalsJson)'>
@@ -218,12 +228,10 @@
                                     <th>Total</th>
                                 </tr>
                                 </thead>
-                                <tbody><!-- populated by JS --></tbody>
-                                <tfoot><!-- populated by JS with overall totals --></tfoot>
+                                <tbody><!-- JS fills last 5 years by default --></tbody>
+                                <tfoot><!-- JS fills grand total --></tfoot>
                             </table>
                         </div>
-
-                        <small class="text-muted d-block mt-2">stacked totals by year</small>
                     </div>
                 </div>
             </div>
@@ -443,6 +451,15 @@
 
 @section Scripts {
     <partial name="~/Pages/Shared/_ValidationScriptsPartial.cshtml" />
+    <script>
+        window.iprStatusCounts = {
+            filing: @Model.Kpis.FilingUnderProcess,
+            filed: @Model.Kpis.Filed,
+            granted: @Model.Kpis.Granted,
+            rejected: @Model.Kpis.Rejected,
+            withdrawn: @Model.Kpis.Withdrawn
+        };
+    </script>
     <script src="~/lib/chartjs/chart.umd.js" defer asp-append-version="true"></script>
     <script src="~/js/por-ipr-index.charts.js" defer asp-append-version="true"></script>
     <script src="~/js/project-office-reports/ipr/index.js" defer asp-append-version="true"></script>
