@@ -10,11 +10,14 @@
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1 class="h4 mb-0">Document repository</h1>
         <div class="d-flex gap-2">
-            <authorize policy="DocRepo.ManageCategories">
-                <a class="btn btn-sm btn-outline-danger" asp-area="DocumentRepository" asp-page="/Admin/DeleteRequests/Index">
-                    Delete Requests
+            @if (User.IsInRole("Admin"))
+            {
+                <a asp-area="DocumentRepository"
+                   asp-page="/Admin/DeleteRequests/Index"
+                   class="btn btn-outline-danger">
+                    Delete requests
                 </a>
-            </authorize>
+            }
             <a asp-page="./Upload" class="btn btn-primary"><i class="bi bi-upload"></i> Upload</a>
         </div>
     </div>

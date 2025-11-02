@@ -7,7 +7,11 @@
 <div class="container py-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1 class="h4 mb-0">Pending delete requests</h1>
-        <a asp-page="/DocumentRepository/Documents/Index" asp-area="DocumentRepository" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back to documents</a>
+        <a asp-area="DocumentRepository"
+           asp-page="/Documents/Index"
+           class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Back to documents
+        </a>
     </div>
 
     @if (!Model.Pending.Any())
