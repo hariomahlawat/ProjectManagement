@@ -21,7 +21,10 @@ namespace ProjectManagement.Data
                 "TA",
                 "MCO",
                 "Project Office",
-                "Main Office"
+                "Main Office",
+                "Main_Office_Clerk",
+                "MC_Cell_Clerk",
+                "IT_Cell_Clerk"
             };
             var roleMgr = services.GetRequiredService<RoleManager<IdentityRole>>();
             foreach (var r in roles)
