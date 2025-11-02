@@ -9,7 +9,7 @@ using ProjectManagement.Services.DocRepo;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin.DeleteRequests;
 
-[Authorize(Policy = "DocRepo.ManageCategories")]
+[Authorize(Policy = "DocRepo.DeleteApprove")]
 public class IndexModel : PageModel
 {
     private readonly ApplicationDbContext _db;
