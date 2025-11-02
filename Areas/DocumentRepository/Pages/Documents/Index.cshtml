@@ -6,8 +6,12 @@
     ViewData["Title"] = "Document repository";
 }
 
-<div class="container-fluid py-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+<partial name="~/Views/Shared/_Breadcrumbs.cshtml" model='new BreadcrumbModel(
+    ("Documents", null)
+)' />
+
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center mb-2">
         <h1 class="h4 mb-0">Document repository</h1>
         <div class="d-flex gap-2">
             <authorize policy="DocRepo.DeleteApprove">
@@ -17,8 +21,11 @@
                     Delete requests
                 </a>
             </authorize>
+
             <authorize policy="DocRepo.Upload">
-                <a asp-page="./Upload" class="btn btn-primary"><i class="bi bi-upload"></i> Upload</a>
+                <a asp-page="./Upload" class="btn btn-primary">
+                    <i class="bi bi-upload me-1"></i> Upload
+                </a>
             </authorize>
         </div>
     </div>
@@ -63,7 +70,20 @@
 
     @if (!Model.Items.Any())
     {
-        <div class="alert alert-light border">No documents found.</div>
+        <div class="card border-0 bg-light-subtle">
+            <div class="card-body py-5 text-center text-muted">
+                <i class="bi bi-inbox display-5 d-block mb-2"></i>
+                <div class="fw-semibold">No documents found</div>
+                <div>Try adjusting filters or upload a new document.</div>
+                <authorize policy="DocRepo.Upload">
+                    <div class="mt-3">
+                        <a asp-page="./Upload" class="btn btn-primary btn-sm">
+                            <i class="bi bi-upload me-1"></i> Upload
+                        </a>
+                    </div>
+                </authorize>
+            </div>
+        </div>
     }
     else
     {
@@ -141,4 +161,8 @@
 
 @section Scripts {
     <script src="~/js/docrepo/index.js" asp-append-version="true" defer></script>
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/docrepo.css" asp-append-version="true" />
 }
