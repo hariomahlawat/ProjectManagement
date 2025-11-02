@@ -5,6 +5,8 @@ namespace ProjectManagement.Services.DocRepo;
 public class DocRepoOptions
 {
     public string RootPath { get; set; } = Path.Combine(AppContext.BaseDirectory, "App_Data", "DocRepo");
+    public bool EnableOcrWorker { get; set; } = true;
+    public long MaxFileSizeBytes { get; set; } = 52_428_800;
 }
 
 public class LocalDocStorageService : IDocStorage

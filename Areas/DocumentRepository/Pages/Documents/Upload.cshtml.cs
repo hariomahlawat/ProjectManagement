@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Data.DocRepo;
@@ -13,17 +14,22 @@ using ProjectManagement.Services.DocRepo;
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents;
 
 [Authorize(Policy = "DocRepo.Upload")]
+[EnableRateLimiting("docUpload")]
 [RequestFormLimits(MultipartBodyLengthLimit = 52_428_800)]
 [RequestSizeLimit(52_428_800)]
 public class UploadModel : PageModel
 {
     private readonly ApplicationDbContext _db;
     private readonly IDocStorage _storage;
+    private readonly IFileScanner _scanner;
+    private readonly IDocRepoAuditService _audit;
 
-    public UploadModel(ApplicationDbContext db, IDocStorage storage)
+    public UploadModel(ApplicationDbContext db, IDocStorage storage, IFileScanner scanner, IDocRepoAuditService audit)
     {
         _db = db;
         _storage = storage;
+        _scanner = scanner;
+        _audit = audit;
     }
 
     public IReadOnlyList<OfficeCategory> OfficeOptions { get; private set; } = Array.Empty<OfficeCategory>();
@@ -152,6 +158,23 @@ public class UploadModel : PageModel
             return Page();
         }
 
+        bufferedStream.Position = 0;
+        try
+        {
+            await _scanner.ScanOrThrowAsync(bufferedStream, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            ModelState.AddModelError(nameof(Input.Pdf), string.IsNullOrWhiteSpace(ex.Message)
+                ? "Upload blocked by security scan."
+                : ex.Message);
+            return Page();
+        }
+        finally
+        {
+            bufferedStream.Position = 0;
+        }
+
         var duplicate = await _db.Documents.AsNoTracking()
             .FirstOrDefaultAsync(d => d.Sha256 == sha256Hex, cancellationToken);
         if (duplicate is not null)
@@ -164,6 +187,8 @@ public class UploadModel : PageModel
         bufferedStream.Position = 0;
         var utcNow = DateTime.UtcNow;
         var storagePath = await _storage.SaveAsync(bufferedStream, Path.GetFileName(Input.Pdf.FileName), utcNow, cancellationToken);
+
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";
 
         var document = new Document
         {
@@ -178,8 +203,9 @@ public class UploadModel : PageModel
             Sha256 = sha256Hex,
             StoragePath = storagePath,
             MimeType = "application/pdf",
-            CreatedByUserId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system",
-            CreatedAtUtc = utcNow
+            CreatedByUserId = userId,
+            CreatedAtUtc = utcNow,
+            OcrStatus = OcrStatus.Queued
         };
 
         if (normalizedTags.Count > 0)
@@ -212,6 +238,9 @@ public class UploadModel : PageModel
 
         await _db.Documents.AddAsync(document, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
+
+        await _audit.WriteAsync(document.Id, userId, "Uploaded", new { document.Id, document.Subject, sizeBytes = document.FileSizeBytes }, cancellationToken);
+        await _audit.WriteAsync(document.Id, userId, "OcrQueued", new { document.Id }, cancellationToken);
 
         TempData["ToastMessage"] = "Document uploaded.";
         return RedirectToPage("./Index");

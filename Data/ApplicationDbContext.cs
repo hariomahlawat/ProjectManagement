@@ -115,6 +115,8 @@ namespace ProjectManagement.Data
         public DbSet<Document> Documents => Set<Document>();
         public DbSet<Tag> Tags => Set<Tag>();
         public DbSet<DocumentTag> DocumentTags => Set<DocumentTag>();
+        public DbSet<DocumentDeleteRequest> DocumentDeleteRequests => Set<DocumentDeleteRequest>();
+        public DbSet<DocRepoAudit> DocRepoAudits => Set<DocRepoAudit>();
         public DbSet<OfficeCategory> OfficeCategories => Set<OfficeCategory>();
         public DbSet<DocumentCategory> DocumentCategories => Set<DocumentCategory>();
 
@@ -206,11 +208,33 @@ namespace ProjectManagement.Data
                 e.Property(x => x.UpdatedByUserId).HasMaxLength(64);
                 e.Property(x => x.DocumentDate).HasColumnType("date");
                 e.Property(x => x.IsActive).HasDefaultValue(true);
+                e.Property(x => x.OcrStatus).HasDefaultValue(OcrStatus.None);
+                e.Property(x => x.OcrFailureReason).HasMaxLength(512);
+                e.Property(x => x.ExtractedText).HasColumnType("text");
                 e.HasIndex(x => new { x.OfficeCategoryId, x.DocumentCategoryId });
                 e.HasIndex(x => x.Sha256).IsUnique();
                 e.HasIndex(x => x.Subject);
                 e.HasIndex(x => x.ReceivedFrom);
                 e.HasIndex(x => x.DocumentDate);
+            });
+
+            builder.Entity<DocumentDeleteRequest>(e =>
+            {
+                e.Property(x => x.Reason).HasMaxLength(512);
+                e.HasIndex(x => new { x.DocumentId, x.ApprovedAtUtc })
+                    .HasDatabaseName("IX_DeleteReq_Doc_PendingFirst");
+                e.HasOne(x => x.Document)
+                    .WithMany()
+                    .HasForeignKey(x => x.DocumentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<DocRepoAudit>(e =>
+            {
+                e.Property(x => x.EventType).HasMaxLength(64);
+                e.Property(x => x.ActorUserId).HasMaxLength(450).IsRequired();
+                e.Property(x => x.DetailsJson).HasColumnType("jsonb");
+                e.HasIndex(x => new { x.DocumentId, x.OccurredAtUtc });
             });
 
             builder.Entity<Project>(e =>
