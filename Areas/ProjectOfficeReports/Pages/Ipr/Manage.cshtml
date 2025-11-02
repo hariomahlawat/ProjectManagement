@@ -1,7 +1,7 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.ManageModel
 @{
-    ViewData["Title"] = "Manage IPR";
+    ViewData["Title"] = "Manage patent records";
     var toastMessage = TempData["ToastMessage"] as string;
     var toastError = TempData["ToastError"] as string;
 }
@@ -10,12 +10,12 @@
     <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
         <div>
             <p class="text-uppercase text-muted small mb-1">Project office reports</p>
-            <h1 class="h4 mb-2">Manage IPR</h1>
+            <h1 class="h4 mb-2">Manage patent records</h1>
             <nav aria-label="Breadcrumb">
                 <ol class="breadcrumb mb-0 small">
                     <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
-                    <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/Ipr/Index">Intellectual property tracker</a></li>
-                    <li class="breadcrumb-item active" aria-current="page">Manage IPR</li>
+                    <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/Ipr/Index">Patent tracker</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Manage patent records</li>
                 </ol>
             </nav>
         </div>
@@ -41,7 +41,7 @@
         <div class="col-12 col-lg-7">
             <div class="card h-100">
                 <div class="card-header d-flex flex-column flex-md-row gap-2 justify-content-between align-items-md-center">
-                    <span class="fw-semibold">IPR records</span>
+                    <span class="fw-semibold">Patent records</span>
                     <form method="get" class="d-flex flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-center">
                         <input asp-for="Query"
                                class="form-control form-control-sm"
@@ -113,7 +113,7 @@
         <div class="col-12 col-lg-5">
             <div class="card h-100">
                 <div class="card-header">
-                    <span class="fw-semibold">@(Model.EditId.HasValue ? "Edit IPR" : "Add IPR")</span>
+                    <span class="fw-semibold">@(Model.EditId.HasValue ? "Edit patent record" : "Add patent record")</span>
                 </div>
                 <div class="card-body">
                     <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
@@ -148,7 +148,7 @@
                         {
                             <hr class="my-4" />
 
-                            <section aria-label="IPR attachments">
+                            <section aria-label="Patent attachments">
                                 <header class="mb-3">
                                     <h2 class="h6 mb-1">Attachments</h2>
                                     <p class="text-muted mb-0">Upload supporting documents or remove outdated files.</p>

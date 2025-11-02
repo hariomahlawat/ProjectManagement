@@ -41,7 +41,7 @@ public sealed class IprExportService : IIprExportService
         var rows = await _readService.GetExportAsync(filter, cancellationToken);
         var content = _workbookBuilder.Build(new IprExcelWorkbookContext(rows));
         var timestamp = _clock.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
-        var fileName = $"ipr-records-{timestamp}.xlsx";
+        var fileName = $"patent-records-{timestamp}.xlsx";
 
         return new IprExportFile(fileName, IprExportFile.ExcelContentType, content);
     }

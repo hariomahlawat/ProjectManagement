@@ -119,7 +119,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
             },
             new()
             {
-                Text = "IPR tracker",
+                Text = "Patent tracker",
                 Area = "ProjectOfficeReports",
                 Page = "/Ipr/Index",
                 AuthorizationPolicy = Policies.Ipr.View

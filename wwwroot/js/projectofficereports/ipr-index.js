@@ -1,4 +1,5 @@
 (function () {
+  const FILE_BASENAME = 'patent-status';
   const el = document.getElementById('iprStatusChart');
   if (!el || typeof Chart === 'undefined') return;
 
@@ -127,7 +128,7 @@
           const a = document.createElement('a');
           const now = new Date();
           const stamp = now.toISOString().replace(/[:.]/g, '-');
-          a.download = `ipr-status-${stamp}.png`;
+          a.download = `${FILE_BASENAME}-${stamp}.png`;
           a.href = chart.toBase64Image('image/png', 1);
           a.click();
         });

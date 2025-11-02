@@ -405,6 +405,12 @@ builder.Services.AddRazorPages(options =>
         "ProjectOfficeReports",
         "/SocialMedia/Delete",
         ProjectOfficeReportsPolicies.ManageSocialMediaEvents);
+    options.Conventions.AddPageRoute(
+        "/ProjectOfficeReports/Ipr/Index",
+        "/ProjectOfficeReports/Patent");
+    options.Conventions.AddPageRoute(
+        "/ProjectOfficeReports/Ipr/Manage",
+        "/ProjectOfficeReports/Patent/Manage");
     options.Conventions.AllowAnonymousToPage("/Index");
     options.Conventions.AllowAnonymousToPage("/Privacy");
     options.Conventions.AllowAnonymousToAreaPage("Identity", "/Account/Login");

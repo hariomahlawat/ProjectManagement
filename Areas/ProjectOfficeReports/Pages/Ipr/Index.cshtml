@@ -1,7 +1,7 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel
 @{
-    ViewData["Title"] = "Intellectual property tracker";
+    ViewData["Title"] = "Patent tracker";
 
     var toastMessage = TempData["ToastMessage"] as string;
     var toastError = TempData["ToastError"] as string;
@@ -26,9 +26,9 @@
 <div class="container-fluid py-4">
     <div class="pm-page-header">
         <div>
-            <h1 class="h4 mb-1">Intellectual property tracker</h1>
+            <h1 class="h4 mb-1">Patent tracker</h1>
             <p class="pm-page-subtitle">
-                Monitor patents and copyrights across projects. Use quick actions to add filings and export summaries.
+                Monitor patents across projects. Use quick actions to add filings and export summaries.
             </p>
         </div>
 
@@ -56,7 +56,7 @@
                 <a asp-page="./Manage"
                    asp-route-Query="@Model.Query"
                    class="btn btn-primary">
-                    <i class="bi bi-plus-circle"></i> Manage IPR records
+                    <i class="bi bi-plus-circle"></i> Manage patent records
                 </a>
             }
         </div>
@@ -269,7 +269,7 @@
             <div class="offcanvas-header">
                 <div>
                     <h2 class="offcanvas-title h5 mb-1" id="iprRecordOffcanvasLabel">
-                        @(isCreateMode ? "Create IPR record" : isEditMode ? "Edit IPR record" : "IPR record")
+                        @(isCreateMode ? "Create patent record" : isEditMode ? "Edit patent record" : "Patent record")
                     </h2>
                     <p class="text-muted small mb-0">
                         @(isCreateMode || isEditMode
@@ -292,7 +292,7 @@
     <section class="card">
         <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
             <div>
-                <div class="fw-semibold">IPR records</div>
+                <div class="fw-semibold">Patent records</div>
                 <div class="text-muted small">
                     @(hasRecords ? $"Showing {firstItem} – {lastItem} of {Model.TotalCount}" : "No records to display")
                 </div>
@@ -330,10 +330,10 @@
                 {
                     <div class="text-center text-muted py-5">
                         <i class="bi bi-inboxes fs-2"></i>
-                        <p class="mt-2 mb-3">No IPR records yet</p>
+                        <p class="mt-2 mb-3">No patent records yet</p>
                         @if (Model.CanEdit)
                         {
-                            <a asp-page="./Manage" asp-route-Query="@Model.Query" class="btn btn-primary">Add IPR record</a>
+                            <a asp-page="./Manage" asp-route-Query="@Model.Query" class="btn btn-primary">Add patent record</a>
                         }
                     </div>
                 }
@@ -360,7 +360,7 @@
                     startPage = Math.Max(1, endPage - maxPages + 1);
                     var baseRoutes = Model.GetRouteValuesForLinks(new { pageSize = Model.PageSize }, includePage: false, includeModeAndId: false);
 
-                    <nav aria-label="IPR pagination">
+                    <nav aria-label="Patent pagination">
                         <ul class="pagination pagination-sm mb-0">
                             <li class="page-item @(Model.PageNumber == 1 ? "disabled" : string.Empty)">
                                 <a class="page-link" asp-page="./Index" asp-all-route-data="@baseRoutes" asp-route-page="@(Model.PageNumber - 1)" data-ipr-loading-link>Previous</a>

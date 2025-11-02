@@ -36,7 +36,7 @@ public sealed class IndexModel : PageModel
             ["Grant date is required once the record is granted."] = new[] { nameof(RecordInput.GrantedOn) },
             ["Grant date cannot be provided without a filing date."] = new[] { nameof(RecordInput.FiledOn), nameof(RecordInput.GrantedOn) },
             ["Grant date cannot be earlier than the filing date."] = new[] { nameof(RecordInput.FiledOn), nameof(RecordInput.GrantedOn) },
-            ["An IPR with the same filing number and type already exists."] = new[] { nameof(RecordInput.FilingNumber) },
+            ["A patent record with the same filing number and type already exists."] = new[] { nameof(RecordInput.FilingNumber) },
             ["Filing number is required."] = new[] { nameof(RecordInput.FilingNumber) }
         };
 
@@ -225,7 +225,7 @@ public sealed class IndexModel : PageModel
         {
             var entity = ToEntity(Input);
             var created = await _writeService.CreateAsync(entity, cancellationToken);
-            TempData["ToastMessage"] = "IPR record created.";
+            TempData["ToastMessage"] = "Patent record created.";
             return RedirectToPage(null, GetRouteValues(new { mode = "edit", id = created.Id }, includePage: true, includeModeAndId: false));
         }
         catch (InvalidOperationException ex)
@@ -290,7 +290,7 @@ public sealed class IndexModel : PageModel
                 return Page();
             }
 
-            TempData["ToastMessage"] = "IPR record updated.";
+            TempData["ToastMessage"] = "Patent record updated.";
             return RedirectToPage(null, GetRouteValues(new { mode = "edit", id = updated.Id }, includePage: true, includeModeAndId: false));
         }
         catch (InvalidOperationException ex)
@@ -328,7 +328,7 @@ public sealed class IndexModel : PageModel
             var deleted = await _writeService.DeleteAsync(DeleteRequest.Id, rowVersion, cancellationToken);
             if (deleted)
             {
-                TempData["ToastMessage"] = "IPR record deleted.";
+                TempData["ToastMessage"] = "Patent record deleted.";
             }
             else
             {
@@ -709,7 +709,7 @@ public sealed class IndexModel : PageModel
             var record = await LoadRecordAsync(Id.Value, cancellationToken, loadRecordInput);
             if (record is null)
             {
-                TempData["ToastError"] = "The selected IPR record could not be found.";
+                TempData["ToastError"] = "The selected patent record could not be found.";
                 Mode = null;
                 Id = null;
                 Attachments = Array.Empty<AttachmentViewModel>();
