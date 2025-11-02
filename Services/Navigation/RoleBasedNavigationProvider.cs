@@ -93,21 +93,21 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Text = "Delete requests",
                 Area = "DocumentRepository",
                 Page = "/Admin/DeleteRequests/Index",
-                RequiredRoles = new[] { "Admin" }
+                AuthorizationPolicy = "DocRepo.DeleteApprove"
             },
             new()
             {
                 Text = "Office categories",
                 Area = "DocumentRepository",
                 Page = "/Admin/OfficeCategories/Index",
-                RequiredRoles = new[] { "Admin" }
+                RequiredRoles = new[] { RoleNames.Admin }
             },
             new()
             {
                 Text = "Document categories",
                 Area = "DocumentRepository",
                 Page = "/Admin/DocumentCategories/Index",
-                RequiredRoles = new[] { "Admin" }
+                RequiredRoles = new[] { RoleNames.Admin }
             }
         };
 

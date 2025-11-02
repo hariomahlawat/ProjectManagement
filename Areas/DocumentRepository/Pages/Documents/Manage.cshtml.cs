@@ -10,7 +10,7 @@ using ProjectManagement.Services.DocRepo;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents;
 
-[Authorize(Policy = "DocRepo.Upload")]
+[Authorize(Policy = "DocRepo.SoftDelete")]
 public class ManageModel : PageModel
 {
     private readonly ApplicationDbContext _db;
