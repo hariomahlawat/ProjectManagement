@@ -53,25 +53,24 @@
                             }
                             else
                             {
-                                foreach (var category in Model.Categories)
+                                @foreach (var category in Model.Categories)
                                 {
-                                    @{ var formId = $"doc-edit-{category.Id}"; }
-                                    <form method="post" asp-page-handler="Update" id="@formId">
+                                    <form method="post" asp-page-handler="Update" id="doc-edit-@category.Id">
                                         <input type="hidden" name="id" value="@category.Id" />
                                     </form>
                                     <tr>
                                         <td>
-                                            <input class="form-control form-control-sm" type="text" name="name" value="@category.Name" maxlength="120" required form="@formId" />
+                                            <input class="form-control form-control-sm" type="text" name="name" value="@category.Name" maxlength="120" required form="doc-edit-@category.Id" />
                                         </td>
                                         <td>
-                                            <input class="form-control form-control-sm" type="number" name="sortOrder" value="@category.SortOrder" form="@formId" />
+                                            <input class="form-control form-control-sm" type="number" name="sortOrder" value="@category.SortOrder" form="doc-edit-@category.Id" />
                                         </td>
                                         <td>
                                             <span class="badge @(category.IsActive ? "bg-success" : "bg-secondary")">@(category.IsActive ? "Active" : "Inactive")</span>
                                         </td>
                                         <td class="text-end">
                                             <div class="btn-group">
-                                                <button type="submit" class="btn btn-sm btn-outline-primary" form="@formId">Save</button>
+                                                <button type="submit" class="btn btn-sm btn-outline-primary" form="doc-edit-@category.Id">Save</button>
                                                 <form method="post" asp-page-handler="Toggle" class="d-inline">
                                                     <input type="hidden" name="id" value="@category.Id" />
                                                     <button type="submit" class="btn btn-sm @(category.IsActive ? "btn-outline-secondary" : "btn-outline-success")">
