@@ -20,6 +20,7 @@
     var lastItem = hasRecords ? Math.Min(Model.TotalCount, Model.PageNumber * Model.PageSize) : 0;
 
     var yearlyJson = JsonSerializer.Serialize(Model.YearlyStats);
+    var totalsJson = JsonSerializer.Serialize(Model.OverallTotals);
 }
 
 @section Styles {
@@ -147,13 +148,23 @@
         </section>
 
         <div class="row g-3 mt-1">
+            <!-- Doughnut (left) -->
             <div class="col-lg-6">
                 <div class="card ipr-chart-card-sm">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <span class="fw-semibold">Status distribution</span>
-                        <div class="d-flex gap-2">
-                            <button id="iprToggleLabelsBtn" type="button" class="btn btn-sm btn-outline-secondary">Toggle labels</button>
-                            <button data-chart="iprStatusChart" data-fn="patent-status" type="button" class="btn btn-sm btn-outline-primary pm-download-chart">Download PNG</button>
+                        <div class="d-flex align-items-center gap-1">
+                            <button id="iprToggleLabelsBtn" type="button"
+                                    class="btn btn-sm btn-icon btn-outline-secondary"
+                                    aria-label="Toggle legend">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            <button class="btn btn-sm btn-icon btn-outline-primary pm-download-chart"
+                                    data-chart="iprStatusChart" data-fn="patent-status"
+                                    type="button"
+                                    aria-label="Download PNG">
+                                <i class="bi bi-download"></i>
+                            </button>
                         </div>
                     </div>
                     <div class="card-body">
@@ -165,17 +176,53 @@
                 </div>
             </div>
 
+            <!-- Year-wise bar (right) -->
             <div class="col-lg-6">
                 <div class="card ipr-chart-card-sm">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <span class="fw-semibold">Year-wise trends</span>
-                        <button data-chart="iprYearBar" data-fn="patent-yearly" type="button" class="btn btn-sm btn-outline-primary pm-download-chart">Download PNG</button>
+                        <div class="d-flex align-items-center gap-1">
+                            <button id="iprBarModeBtn" type="button"
+                                    class="btn btn-sm btn-icon btn-outline-secondary"
+                                    data-mode="stacked"
+                                    aria-label="Toggle stacked/total">
+                                <i class="bi bi-layers-half"></i>
+                            </button>
+                            <button class="btn btn-sm btn-icon btn-outline-primary pm-download-chart"
+                                    data-chart="iprYearBar" data-fn="patent-yearly"
+                                    type="button"
+                                    aria-label="Download PNG">
+                                <i class="bi bi-download"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="card-body">
                         <div class="ipr-chart-wrap-sm">
                             <canvas id="iprYearBar"
-                                    data-yearly='@Html.Raw(yearlyJson)'></canvas>
+                                    data-yearly='@Html.Raw(yearlyJson)'
+                                    data-totals='@Html.Raw(totalsJson)'></canvas>
                         </div>
+
+                        <div class="table-responsive mt-3">
+                            <table class="table table-sm table-striped mb-0 ipr-mini-table"
+                                   data-yearly='@Html.Raw(yearlyJson)'
+                                   data-totals='@Html.Raw(totalsJson)'>
+                                <thead>
+                                <tr>
+                                    <th style="width:70px">Year</th>
+                                    <th>Filing</th>
+                                    <th>Filed</th>
+                                    <th>Granted</th>
+                                    <th>Rejected</th>
+                                    <th>Withdrawn</th>
+                                    <th>Total</th>
+                                </tr>
+                                </thead>
+                                <tbody><!-- populated by JS --></tbody>
+                                <tfoot><!-- populated by JS with overall totals --></tfoot>
+                            </table>
+                        </div>
+
                         <small class="text-muted d-block mt-2">stacked totals by year</small>
                     </div>
                 </div>

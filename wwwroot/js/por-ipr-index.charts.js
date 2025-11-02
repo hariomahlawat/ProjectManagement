@@ -12,6 +12,8 @@
     withdrawn: css.getPropertyValue('--bs-gray-600')?.trim() || '#9E9E9E'
   };
 
+  const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
   function downloadChartPng(canvasId, filenameBase) {
     const canvas = document.getElementById(canvasId);
     if (!canvas || typeof canvas.toDataURL !== 'function') {
@@ -38,18 +40,37 @@
   });
 
   const statusCanvas = document.getElementById('iprStatusChart');
-  const toggleBtn = document.getElementById('iprToggleLabelsBtn');
+  const toggleLegendBtn = document.getElementById('iprToggleLabelsBtn');
   let statusChart = null;
+  let legendHidden = false;
 
-  const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (toggleLegendBtn) {
+    toggleLegendBtn.disabled = true;
+    toggleLegendBtn.setAttribute('aria-pressed', 'false');
+  }
+
+  function setLegendButtonState(hidden) {
+    if (!toggleLegendBtn) {
+      return;
+    }
+
+    toggleLegendBtn.disabled = false;
+    toggleLegendBtn.setAttribute('aria-pressed', hidden ? 'true' : 'false');
+    toggleLegendBtn.innerHTML = hidden ? '<i class="bi bi-eye-slash"></i>' : '<i class="bi bi-eye"></i>';
+  }
+
+  function coerceNumber(value) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
 
   function buildStatusChart(summary) {
     const counts = {
-      filing: Number(summary.filing ?? summary.Filing ?? 0),
-      filed: Number(summary.filed ?? summary.Filed ?? 0),
-      granted: Number(summary.granted ?? summary.Granted ?? 0),
-      rejected: Number(summary.rejected ?? summary.Rejected ?? 0),
-      withdrawn: Number(summary.withdrawn ?? summary.Withdrawn ?? 0)
+      filing: coerceNumber(summary.filing ?? summary.Filing),
+      filed: coerceNumber(summary.filed ?? summary.Filed),
+      granted: coerceNumber(summary.granted ?? summary.Granted),
+      rejected: coerceNumber(summary.rejected ?? summary.Rejected),
+      withdrawn: coerceNumber(summary.withdrawn ?? summary.Withdrawn)
     };
 
     const labels = ['Filing', 'Filed', 'Granted', 'Rejected', 'Withdrawn'];
@@ -85,7 +106,7 @@
         animation: prefersReducedMotion ? false : { duration: 400 },
         plugins: {
           legend: {
-            display: true,
+            display: !legendHidden,
             position: 'right',
             labels: {
               boxWidth: 14,
@@ -97,7 +118,7 @@
             callbacks: {
               label(ctx) {
                 const total = ctx.dataset.data.reduce((acc, val) => acc + val, 0) || 1;
-                const value = ctx.parsed ?? 0;
+                const value = coerceNumber(ctx.parsed);
                 const pct = Math.round((value * 100) / total);
                 return `${ctx.label}: ${value} (${pct}%)`;
               }
@@ -106,34 +127,197 @@
         }
       }
     });
+
+    setLegendButtonState(legendHidden);
   }
 
   if (statusCanvas) {
+    const handleSummary = summary => {
+      if (!summary) {
+        return;
+      }
+      buildStatusChart(summary);
+    };
+
     fetch('/ProjectOfficeReports/Ipr?handler=Summary', { credentials: 'same-origin' })
       .then(response => (response.ok ? response.json() : null))
       .then(summary => {
-        if (!summary) {
-          return;
+        if (summary) {
+          handleSummary(summary);
+        } else if (window.iprStatusCounts) {
+          handleSummary(window.iprStatusCounts);
         }
-        buildStatusChart(summary);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (window.iprStatusCounts) {
+          handleSummary(window.iprStatusCounts);
+        }
+      });
 
-    if (toggleBtn) {
-      toggleBtn.addEventListener('click', () => {
+    if (toggleLegendBtn) {
+      toggleLegendBtn.addEventListener('click', () => {
         if (!statusChart) {
           return;
         }
 
-        const legend = statusChart.options.plugins && statusChart.options.plugins.legend;
-        const shouldShow = !(legend && legend.display === false);
-        statusChart.options.plugins.legend.display = !shouldShow;
+        legendHidden = !legendHidden;
+        statusChart.options.plugins.legend.display = !legendHidden;
         statusChart.update();
+        setLegendButtonState(legendHidden);
       });
     }
   }
 
   const barCanvas = document.getElementById('iprYearBar');
+  const modeBtn = document.getElementById('iprBarModeBtn');
+  let barChart = null;
+
+  function getValue(source, key) {
+    if (!source) {
+      return 0;
+    }
+    if (Object.prototype.hasOwnProperty.call(source, key)) {
+      return coerceNumber(source[key]);
+    }
+    const pascalKey = key.charAt(0).toUpperCase() + key.slice(1);
+    if (Object.prototype.hasOwnProperty.call(source, pascalKey)) {
+      return coerceNumber(source[pascalKey]);
+    }
+    return 0;
+  }
+
+  function getYearValue(source) {
+    if (!source) {
+      return '';
+    }
+    if (Object.prototype.hasOwnProperty.call(source, 'year')) {
+      return source.year;
+    }
+    if (Object.prototype.hasOwnProperty.call(source, 'Year')) {
+      return source.Year;
+    }
+    return '';
+  }
+
+  function buildStackedConfig(labels, ds) {
+    return {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Filing', data: ds.filing, backgroundColor: palette.filing, stack: 's' },
+          { label: 'Filed', data: ds.filed, backgroundColor: palette.filed, stack: 's' },
+          { label: 'Granted', data: ds.granted, backgroundColor: palette.granted, stack: 's' },
+          { label: 'Rejected', data: ds.rejected, backgroundColor: palette.rejected, stack: 's' },
+          { label: 'Withdrawn', data: ds.withdrawn, backgroundColor: palette.withdrawn, stack: 's' }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { stacked: true, grid: { display: false } },
+          y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } }
+        },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: {
+              boxWidth: 12,
+              boxHeight: 12,
+              font: { size: 11 }
+            }
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false
+          }
+        }
+      }
+    };
+  }
+
+  function buildTotalsConfig(labels, totals) {
+    return {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Total', data: totals, backgroundColor: css.getPropertyValue('--bs-gray-600')?.trim() || '#75829C' }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { grid: { display: false } },
+          y: { beginAtZero: true, ticks: { precision: 0 } }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: { mode: 'index', intersect: false }
+        }
+      }
+    };
+  }
+
+  function hydrateMiniTable(tableEl, yearly, overall) {
+    if (!tableEl) {
+      return;
+    }
+
+    const tbody = tableEl.querySelector('tbody');
+    const tfoot = tableEl.querySelector('tfoot');
+    if (!tbody || !tfoot) {
+      return;
+    }
+
+    tbody.innerHTML = '';
+    tfoot.innerHTML = '';
+
+    yearly.forEach(entry => {
+      const year = getYearValue(entry);
+      const filing = getValue(entry, 'filing');
+      const filed = getValue(entry, 'filed');
+      const granted = getValue(entry, 'granted');
+      const rejected = getValue(entry, 'rejected');
+      const withdrawn = getValue(entry, 'withdrawn');
+      const total = filing + filed + granted + rejected + withdrawn;
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${year}</td>
+        <td>${filing}</td>
+        <td>${filed}</td>
+        <td>${granted}</td>
+        <td>${rejected}</td>
+        <td>${withdrawn}</td>
+        <td>${total}</td>`;
+      tbody.appendChild(tr);
+    });
+
+    const totals = {
+      filing: getValue(overall, 'filing'),
+      filed: getValue(overall, 'filed'),
+      granted: getValue(overall, 'granted'),
+      rejected: getValue(overall, 'rejected'),
+      withdrawn: getValue(overall, 'withdrawn'),
+      total: getValue(overall, 'total')
+    };
+
+    const totalRow = document.createElement('tr');
+    totalRow.classList.add('fw-semibold');
+    totalRow.innerHTML = `
+      <td>Total</td>
+      <td>${totals.filing}</td>
+      <td>${totals.filed}</td>
+      <td>${totals.granted}</td>
+      <td>${totals.rejected}</td>
+      <td>${totals.withdrawn}</td>
+      <td>${totals.total}</td>`;
+    tfoot.appendChild(totalRow);
+  }
+
   if (barCanvas) {
     let yearly = [];
     try {
@@ -142,51 +326,66 @@
       yearly = [];
     }
 
+    let overall = {};
+    try {
+      overall = JSON.parse(barCanvas.dataset.totals || '{}');
+    } catch (error) {
+      overall = {};
+    }
+
     const entries = Array.isArray(yearly) ? yearly : [];
     const filtered = entries.filter(item => {
-      const total = Number(item.total ?? item.Total ?? 0);
+      const total = getValue(item, 'filing') + getValue(item, 'filed') + getValue(item, 'granted') + getValue(item, 'rejected') + getValue(item, 'withdrawn');
       return total > 0;
     });
 
-    if (filtered.length > 0) {
-      const labels = filtered.map(item => Number(item.year ?? item.Year ?? 0));
-      const datasetValues = key => filtered.map(item => Number(item[key] ?? item[key.charAt(0).toUpperCase() + key.slice(1)] ?? 0));
+    const chartSource = filtered.length > 0 ? filtered : [];
+    const labels = chartSource.map(item => getYearValue(item));
+    const datasetSeries = {
+      filing: chartSource.map(item => getValue(item, 'filing')),
+      filed: chartSource.map(item => getValue(item, 'filed')),
+      granted: chartSource.map(item => getValue(item, 'granted')),
+      rejected: chartSource.map(item => getValue(item, 'rejected')),
+      withdrawn: chartSource.map(item => getValue(item, 'withdrawn'))
+    };
+    const totalsSeries = chartSource.map((item, index) => datasetSeries.filing[index] + datasetSeries.filed[index] + datasetSeries.granted[index] + datasetSeries.rejected[index] + datasetSeries.withdrawn[index]);
 
-      new Chart(barCanvas, {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [
-            { label: 'Filing', data: datasetValues('filing'), backgroundColor: palette.filing, stack: 's' },
-            { label: 'Filed', data: datasetValues('filed'), backgroundColor: palette.filed, stack: 's' },
-            { label: 'Granted', data: datasetValues('granted'), backgroundColor: palette.granted, stack: 's' },
-            { label: 'Rejected', data: datasetValues('rejected'), backgroundColor: palette.rejected, stack: 's' },
-            { label: 'Withdrawn', data: datasetValues('withdrawn'), backgroundColor: palette.withdrawn, stack: 's' }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          scales: {
-            x: { stacked: true, grid: { display: false } },
-            y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } }
-          },
-          plugins: {
-            legend: {
-              position: 'bottom',
-              labels: {
-                boxWidth: 12,
-                boxHeight: 12,
-                font: { size: 11 }
-              }
-            },
-            tooltip: {
-              mode: 'index',
-              intersect: false
-            }
+    const tableEl = document.querySelector('.ipr-mini-table');
+    hydrateMiniTable(tableEl, chartSource.length > 0 ? chartSource : entries, overall);
+
+    if (chartSource.length > 0) {
+      barChart = new Chart(barCanvas, buildStackedConfig(labels, datasetSeries));
+
+      if (modeBtn) {
+        modeBtn.disabled = false;
+        modeBtn.removeAttribute('aria-disabled');
+        modeBtn.dataset.mode = 'stacked';
+        modeBtn.setAttribute('aria-label', 'Switch to totals');
+
+        modeBtn.addEventListener('click', () => {
+          if (!barChart) {
+            return;
           }
-        }
-      });
+
+          const mode = modeBtn.getAttribute('data-mode');
+          barChart.destroy();
+
+          if (mode === 'stacked') {
+            barChart = new Chart(barCanvas, buildTotalsConfig(labels, totalsSeries));
+            modeBtn.setAttribute('data-mode', 'total');
+            modeBtn.setAttribute('aria-label', 'Switch to stacked');
+            modeBtn.innerHTML = '<i class="bi bi-bar-chart"></i>';
+          } else {
+            barChart = new Chart(barCanvas, buildStackedConfig(labels, datasetSeries));
+            modeBtn.setAttribute('data-mode', 'stacked');
+            modeBtn.setAttribute('aria-label', 'Switch to totals');
+            modeBtn.innerHTML = '<i class="bi bi-layers-half"></i>';
+          }
+        });
+      }
+    } else if (modeBtn) {
+      modeBtn.disabled = true;
+      modeBtn.setAttribute('aria-disabled', 'true');
     }
   }
 })();

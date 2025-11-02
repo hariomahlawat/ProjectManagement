@@ -152,7 +152,24 @@ public sealed class IndexModel : PageModel
         public int Total => Filing + Filed + Granted + Rejected + Withdrawn;
     }
 
+    public sealed class PatentTotals
+    {
+        public int Filing { get; set; }
+
+        public int Filed { get; set; }
+
+        public int Granted { get; set; }
+
+        public int Rejected { get; set; }
+
+        public int Withdrawn { get; set; }
+
+        public int Total => Filing + Filed + Granted + Rejected + Withdrawn;
+    }
+
     public List<PatentYearStat> YearlyStats { get; set; } = new();
+
+    public PatentTotals OverallTotals { get; set; } = new();
 
     public IReadOnlyList<AttachmentViewModel> Attachments { get; private set; } = Array.Empty<AttachmentViewModel>();
 
@@ -787,6 +804,15 @@ public sealed class IndexModel : PageModel
             .ToList();
 
         YearlyStats = stats;
+
+        OverallTotals = new PatentTotals
+        {
+            Filing = stats.Sum(static y => y.Filing),
+            Filed = stats.Sum(static y => y.Filed),
+            Granted = stats.Sum(static y => y.Granted),
+            Rejected = stats.Sum(static y => y.Rejected),
+            Withdrawn = stats.Sum(static y => y.Withdrawn)
+        };
     }
 
     private async Task PopulateSelectListsAsync(CancellationToken cancellationToken)
