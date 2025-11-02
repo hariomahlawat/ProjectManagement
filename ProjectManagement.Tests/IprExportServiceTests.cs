@@ -48,7 +48,7 @@ public sealed class IprExportServiceTests
 
         var file = await service.ExportAsync(filter, CancellationToken.None);
 
-        Assert.Equal("ipr-records-20240512-103000.xlsx", file.FileName);
+        Assert.Equal("patent-records-20240512-103000.xlsx", file.FileName);
         Assert.Equal(IprExportFile.ExcelContentType, file.ContentType);
         Assert.NotNull(file.Content);
         Assert.NotEmpty(file.Content);
