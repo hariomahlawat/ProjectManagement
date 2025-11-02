@@ -135,6 +135,25 @@ public sealed class IndexModel : PageModel
 
     public IprKpis Kpis { get; private set; } = new(0, 0, 0, 0, 0, 0);
 
+    public sealed class PatentYearStat
+    {
+        public int Year { get; set; }
+
+        public int Filing { get; set; }
+
+        public int Filed { get; set; }
+
+        public int Granted { get; set; }
+
+        public int Rejected { get; set; }
+
+        public int Withdrawn { get; set; }
+
+        public int Total => Filing + Filed + Granted + Rejected + Withdrawn;
+    }
+
+    public List<PatentYearStat> YearlyStats { get; set; } = new();
+
     public IReadOnlyList<AttachmentViewModel> Attachments { get; private set; } = Array.Empty<AttachmentViewModel>();
 
     public string? EditingProjectName { get; private set; }
@@ -730,7 +749,44 @@ public sealed class IndexModel : PageModel
 
         await PopulateSelectListsAsync(cancellationToken);
 
+        await LoadYearlyStatsAsync(cancellationToken);
+
         ActiveFilterChips = BuildActiveFilterChips();
+    }
+
+    private async Task LoadYearlyStatsAsync(CancellationToken cancellationToken)
+    {
+        var items = await _db.IprRecords
+            .AsNoTracking()
+            .Select(r => new
+            {
+                r.Status,
+                FiledOn = r.FiledAtUtc,
+                GrantedOn = r.GrantedAtUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        var stats = items
+            .Select(r => new
+            {
+                Year = (r.FiledOn ?? r.GrantedOn ?? DateTimeOffset.UtcNow).Year,
+                r.Status
+            })
+            .GroupBy(x => x.Year)
+            .OrderBy(g => g.Key)
+            .Select(g => new PatentYearStat
+            {
+                Year = g.Key,
+                Filing = g.Count(x => x.Status == IprStatus.FilingUnderProcess),
+                Filed = g.Count(x => x.Status == IprStatus.Filed),
+                Granted = g.Count(x => x.Status == IprStatus.Granted),
+                Rejected = g.Count(x => x.Status == IprStatus.Rejected),
+                Withdrawn = g.Count(x => x.Status == IprStatus.Withdrawn)
+            })
+            .Where(stat => stat.Total > 0)
+            .ToList();
+
+        YearlyStats = stats;
     }
 
     private async Task PopulateSelectListsAsync(CancellationToken cancellationToken)

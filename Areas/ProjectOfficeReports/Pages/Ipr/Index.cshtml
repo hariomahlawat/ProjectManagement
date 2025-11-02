@@ -1,5 +1,6 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Ipr.IndexModel
+@using System.Text.Json
 @{
     ViewData["Title"] = "Patent tracker";
 
@@ -17,6 +18,8 @@
         firstItem = Model.TotalCount;
     }
     var lastItem = hasRecords ? Math.Min(Model.TotalCount, Model.PageNumber * Model.PageSize) : 0;
+
+    var yearlyJson = JsonSerializer.Serialize(Model.YearlyStats);
 }
 
 @section Styles {
@@ -96,78 +99,87 @@
     }
 
     <div class="border-bottom pb-3 mb-3">
-        <div class="ipr-grid-xl">
-            <section>
-                <div class="row g-3">
-                    <div class="col-12 col-sm-6 col-lg">
-                        <div class="pm-kpi pm-kpi--total h-100">
-                            <div class="pm-kpi__label">Total</div>
-                            <div class="pm-kpi__value mt-1">@Model.Kpis.Total</div>
-                            <div class="pm-kpi__spark mt-2" aria-hidden="true"><span style="width:@Math.Clamp(Model.Kpis.TotalPercent, 0, 100)%"></span></div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-sm-6 col-lg">
-                        <div class="pm-kpi pm-kpi--filing h-100">
-                            <div class="pm-kpi__label">Filing under process</div>
-                            <div class="pm-kpi__value mt-1">@Model.Kpis.FilingUnderProcess</div>
-                            <div class="pm-kpi__spark mt-2"><span style="width:@Math.Clamp(Model.Kpis.FilingUnderProcessPercent, 0, 100)%"></span></div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-sm-6 col-lg">
-                        <div class="pm-kpi pm-kpi--filed h-100">
-                            <div class="pm-kpi__label">Filed</div>
-                            <div class="pm-kpi__value mt-1">@Model.Kpis.Filed</div>
-                            <div class="pm-kpi__spark mt-2"><span style="width:@Math.Clamp(Model.Kpis.FiledPercent, 0, 100)%"></span></div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-sm-6 col-lg">
-                        <div class="pm-kpi pm-kpi--granted h-100">
-                            <div class="pm-kpi__label">Granted</div>
-                            <div class="pm-kpi__value mt-1">@Model.Kpis.Granted</div>
-                            <div class="pm-kpi__spark mt-2"><span style="width:@Math.Clamp(Model.Kpis.GrantedPercent, 0, 100)%"></span></div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-sm-6 col-lg">
-                        <div class="pm-kpi pm-kpi--rejected h-100">
-                            <div class="pm-kpi__label">Rejected</div>
-                            <div class="pm-kpi__value mt-1">@Model.Kpis.Rejected</div>
-                            <div class="pm-kpi__spark mt-2"><span style="width:@Math.Clamp(Model.Kpis.RejectedPercent, 0, 100)%"></span></div>
-                        </div>
-                    </div>
-                    <div class="col-12 col-sm-6 col-lg">
-                        <div class="pm-kpi pm-kpi--withdrawn h-100">
-                            <div class="pm-kpi__label">Withdrawn</div>
-                            <div class="pm-kpi__value mt-1">@Model.Kpis.Withdrawn</div>
-                            <div class="pm-kpi__spark mt-2"><span style="width:@Math.Clamp(Model.Kpis.WithdrawnPercent, 0, 100)%"></span></div>
-                        </div>
+        <section>
+            <div class="row g-3">
+                <div class="col-12 col-sm-6 col-lg">
+                    <div class="pm-kpi pm-kpi--total h-100">
+                        <div class="pm-kpi__label">Total</div>
+                        <div class="pm-kpi__value mt-1">@Model.Kpis.Total</div>
+                        <div class="pm-kpi__spark mt-2" aria-hidden="true"><span style="width:@Math.Clamp(Model.Kpis.TotalPercent, 0, 100)%"></span></div>
                     </div>
                 </div>
-            </section>
+                <div class="col-12 col-sm-6 col-lg">
+                    <div class="pm-kpi pm-kpi--filing h-100">
+                        <div class="pm-kpi__label">Filing under process</div>
+                        <div class="pm-kpi__value mt-1">@Model.Kpis.FilingUnderProcess</div>
+                        <div class="pm-kpi__spark mt-2"><span style="width:@Math.Clamp(Model.Kpis.FilingUnderProcessPercent, 0, 100)%"></span></div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-lg">
+                    <div class="pm-kpi pm-kpi--filed h-100">
+                        <div class="pm-kpi__label">Filed</div>
+                        <div class="pm-kpi__value mt-1">@Model.Kpis.Filed</div>
+                        <div class="pm-kpi__spark mt-2"><span style="width:@Math.Clamp(Model.Kpis.FiledPercent, 0, 100)%"></span></div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-lg">
+                    <div class="pm-kpi pm-kpi--granted h-100">
+                        <div class="pm-kpi__label">Granted</div>
+                        <div class="pm-kpi__value mt-1">@Model.Kpis.Granted</div>
+                        <div class="pm-kpi__spark mt-2"><span style="width:@Math.Clamp(Model.Kpis.GrantedPercent, 0, 100)%"></span></div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-lg">
+                    <div class="pm-kpi pm-kpi--rejected h-100">
+                        <div class="pm-kpi__label">Rejected</div>
+                        <div class="pm-kpi__value mt-1">@Model.Kpis.Rejected</div>
+                        <div class="pm-kpi__spark mt-2"><span style="width:@Math.Clamp(Model.Kpis.RejectedPercent, 0, 100)%"></span></div>
+                    </div>
+                </div>
+                <div class="col-12 col-sm-6 col-lg">
+                    <div class="pm-kpi pm-kpi--withdrawn h-100">
+                        <div class="pm-kpi__label">Withdrawn</div>
+                        <div class="pm-kpi__value mt-1">@Model.Kpis.Withdrawn</div>
+                        <div class="pm-kpi__spark mt-2"><span style="width:@Math.Clamp(Model.Kpis.WithdrawnPercent, 0, 100)%"></span></div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-            <section>
-                <div class="card h-100">
+        <div class="row g-3 mt-1">
+            <div class="col-lg-6">
+                <div class="card ipr-chart-card-sm">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span class="fw-semibold">Status distribution</span>
+                        <div class="d-flex gap-2">
+                            <button id="iprToggleLabelsBtn" type="button" class="btn btn-sm btn-outline-secondary">Toggle labels</button>
+                            <button data-chart="iprStatusChart" data-fn="patent-status" type="button" class="btn btn-sm btn-outline-primary pm-download-chart">Download PNG</button>
+                        </div>
+                    </div>
                     <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h2 class="h6 mb-0">Status distribution</h2>
-                            <div class="d-inline-flex gap-2">
-                                <button class="btn btn-sm btn-outline-primary" id="iprDownloadBtn" type="button" title="Download chart">Download PNG</button>
-                                <button class="btn btn-sm btn-outline-secondary" id="iprToggleLabelsBtn" type="button">Toggle labels</button>
-                            </div>
+                        <div class="ipr-chart-wrap-sm">
+                            <canvas id="iprStatusChart"></canvas>
                         </div>
-                        <div class="d-flex flex-wrap gap-2 align-items-center small text-muted mt-2">
-                            <span class="d-inline-flex align-items-center gap-1"><i class="rounded-circle d-inline-block" style="width:10px;height:10px;background:var(--bs-indigo);"></i> Filing</span>
-                            <span class="d-inline-flex align-items-center gap-1"><i class="rounded-circle d-inline-block" style="width:10px;height:10px;background:var(--bs-blue);"></i> Filed</span>
-                            <span class="d-inline-flex align-items-center gap-1"><i class="rounded-circle d-inline-block" style="width:10px;height:10px;background:var(--bs-teal);"></i> Granted</span>
-                            <span class="d-inline-flex align-items-center gap-1"><i class="rounded-circle d-inline-block" style="width:10px;height:10px;background:var(--bs-red);"></i> Rejected</span>
-                            <span class="d-inline-flex align-items-center gap-1"><i class="rounded-circle d-inline-block" style="width:10px;height:10px;background:var(--bs-gray-600);"></i> Withdrawn</span>
-                        </div>
-                        <div class="ipr-chart-wrap mt-3">
-                            <canvas id="iprStatusChart" height="220"></canvas>
-                        </div>
-                        <div class="text-muted small mt-2">snapshot</div>
+                        <small class="text-muted d-block mt-2">snapshot</small>
                     </div>
                 </div>
-            </section>
+            </div>
+
+            <div class="col-lg-6">
+                <div class="card ipr-chart-card-sm">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span class="fw-semibold">Year-wise trends</span>
+                        <button data-chart="iprYearBar" data-fn="patent-yearly" type="button" class="btn btn-sm btn-outline-primary pm-download-chart">Download PNG</button>
+                    </div>
+                    <div class="card-body">
+                        <div class="ipr-chart-wrap-sm">
+                            <canvas id="iprYearBar"
+                                    data-yearly='@Html.Raw(yearlyJson)'></canvas>
+                        </div>
+                        <small class="text-muted d-block mt-2">stacked totals by year</small>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -385,6 +397,6 @@
 @section Scripts {
     <partial name="~/Pages/Shared/_ValidationScriptsPartial.cshtml" />
     <script src="~/lib/chartjs/chart.umd.js" defer asp-append-version="true"></script>
-    <script src="~/js/projectofficereports/ipr-index.js" defer asp-append-version="true"></script>
+    <script src="~/js/por-ipr-index.charts.js" defer asp-append-version="true"></script>
     <script src="~/js/project-office-reports/ipr/index.js" defer asp-append-version="true"></script>
 }
