@@ -6306,6 +6306,9 @@ namespace ProjectManagement.Migrations
                     b.Property<int>("DocumentCategoryId")
                         .HasColumnType("integer");
 
+                    b.Property<string>("ExtractedText")
+                        .HasColumnType("text");
+
                     b.Property<long>("FileSizeBytes")
                         .HasColumnType("bigint");
 
@@ -6320,6 +6323,18 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)")
                         .HasDefaultValue("application/pdf");
+
+                    b.Property<string>("OcrFailureReason")
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<DateTimeOffset?>("OcrLastTriedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("OcrStatus")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
 
                     b.Property<int>("OfficeCategoryId")
                         .HasColumnType("integer");
@@ -6387,6 +6402,89 @@ namespace ProjectManagement.Migrations
                     b.Navigation("DocumentCategory");
 
                     b.Navigation("OfficeCategory");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Data.DocRepo.DocumentDeleteRequest", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ApprovedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<DateTimeOffset?>("ApprovedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("character varying(512)");
+
+                    b.Property<DateTimeOffset>("RequestedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RequestedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId", "ApprovedAtUtc")
+                        .HasDatabaseName("IX_DeleteReq_Doc_PendingFirst");
+
+                    b.ToTable("DocumentDeleteRequests");
+
+                    b.HasOne("ProjectManagement.Data.DocRepo.Document", "Document")
+                        .WithMany()
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Document");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Data.DocRepo.DocRepoAudit", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ActorUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<string>("DetailsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<Guid?>("DocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTimeOffset>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId", "OccurredAtUtc")
+                        .HasDatabaseName("IX_DocRepoAudits_Doc_Occurred");
+
+                    b.ToTable("DocRepoAudits");
                 });
 
             modelBuilder.Entity("ProjectManagement.Data.DocRepo.DocumentCategory", b =>

@@ -31,6 +31,7 @@ using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Remarks;
 using ProjectManagement.Services.Notifications;
 using ProjectManagement.Services.ProjectOfficeReports.Training;
+using ProjectManagement.Hosted;
 using ProjectManagement.Services.Documents;
 using ProjectManagement.Services.Activities;
 using ProjectManagement.Services.Storage;
@@ -203,6 +204,14 @@ builder.Services.AddRateLimiter(options =>
         o.QueueLimit = 0;
         o.AutoReplenishment = true;
     });
+
+    options.AddFixedWindowLimiter("docUpload", o =>
+    {
+        o.PermitLimit = 10;
+        o.Window = TimeSpan.FromMinutes(1);
+        o.QueueLimit = 0;
+        o.AutoReplenishment = true;
+    });
 });
 
 builder.Services.AddHsts(o =>
@@ -227,6 +236,15 @@ builder.Services.AddScoped<IUserContext, HttpUserContext>();
 builder.Services.AddScoped<IActivityRepository, ActivityRepository>();
 builder.Services.Configure<DocRepoOptions>(builder.Configuration.GetSection("DocRepo"));
 builder.Services.AddSingleton<IDocStorage, LocalDocStorageService>();
+builder.Services.AddScoped<IDocRepoAuditService, DocRepoAuditService>();
+builder.Services.AddScoped<IFileScanner, NoopFileScanner>();
+builder.Services.AddScoped<IOcrEngine, NoopOcrEngine>();
+
+if (builder.Configuration.GetValue("DocRepo:EnableOcrWorker", true))
+{
+    builder.Services.AddHostedService<OcrWorker>();
+}
+
 builder.Services.AddScoped<IActivityTypeRepository, ActivityTypeRepository>();
 builder.Services.AddScoped<IActivityInputValidator, ActivityInputValidator>();
 builder.Services.AddScoped<IActivityTypeValidator, ActivityTypeValidator>();
@@ -523,7 +541,7 @@ app.Use(async (ctx, next) =>
         h["Cross-Origin-Opener-Policy"] = "unsafe-none";
         // Relax CORP so the browser's extension-based PDF viewers can access the stream.
         h["Cross-Origin-Resource-Policy"] = "cross-origin";
-        h["Content-Security-Policy"] = "frame-ancestors 'self'";
+        h["Content-Security-Policy"] = "frame-ancestors 'self'; object-src 'none'";
     }
     else
     {
@@ -538,11 +556,12 @@ app.Use(async (ctx, next) =>
             "default-src 'self'; " +
             "base-uri 'self'; " +
             "frame-ancestors 'none'; " +
-            "frame-src 'self'; " +
+            $"frame-src 'self' data: blob:{devSourcesSuffix}; " +
             $"img-src 'self' data: blob:{devSourcesSuffix}; " +
             $"script-src 'self'{devSourcesSuffix}; " +
             $"style-src 'self'{styleUnsafeInline}{devSourcesSuffix}; " +
             $"font-src 'self' data:{devSourcesSuffix}; " +
+            "object-src 'none'; " +
             $"connect-src {connectSrcDirective};";
     }
     await next();

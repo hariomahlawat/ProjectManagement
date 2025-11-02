@@ -2,6 +2,14 @@ using System.ComponentModel.DataAnnotations;
 
 namespace ProjectManagement.Data.DocRepo;
 
+public enum OcrStatus
+{
+    None = 0,
+    Queued = 1,
+    Succeeded = 2,
+    Failed = 3
+}
+
 public class Document
 {
     public Guid Id { get; set; }
@@ -35,6 +43,15 @@ public class Document
     public string MimeType { get; set; } = "application/pdf";
 
     public bool IsActive { get; set; } = true;
+
+    public OcrStatus OcrStatus { get; set; } = OcrStatus.None;
+
+    [MaxLength(512)]
+    public string? OcrFailureReason { get; set; }
+
+    public DateTimeOffset? OcrLastTriedUtc { get; set; }
+
+    public string? ExtractedText { get; set; }
 
     [Required, MaxLength(64)]
     public string CreatedByUserId { get; set; } = null!;

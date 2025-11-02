@@ -1,0 +1,56 @@
+@page
+@model ProjectManagement.Areas.DocumentRepository.Pages.Admin.DeleteRequests.IndexModel
+@{
+    ViewData["Title"] = "Delete requests";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1 class="h4 mb-0">Pending delete requests</h1>
+        <a asp-page="/DocumentRepository/Documents/Index" asp-area="DocumentRepository" class="btn btn-outline-secondary"><i class="bi bi-arrow-left"></i> Back to documents</a>
+    </div>
+
+    @if (!Model.Pending.Any())
+    {
+        <div class="alert alert-light border">No pending delete requests.</div>
+    }
+    else
+    {
+        <div class="table-responsive shadow-sm">
+            <table class="table table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th scope="col">Document</th>
+                        <th scope="col">Requested by</th>
+                        <th scope="col">Requested at</th>
+                        <th scope="col">Reason</th>
+                        <th scope="col" class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var request in Model.Pending)
+                    {
+                        <tr>
+                            <td>
+                                <div class="fw-semibold">@request.Document.Subject</div>
+                                <div class="small text-muted">@request.Document.OriginalFileName</div>
+                            </td>
+                            <td>@request.RequestedByUserId</td>
+                            <td>@request.RequestedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
+                            <td>@(string.IsNullOrWhiteSpace(request.Reason) ? "—" : request.Reason)</td>
+                            <td class="text-end">
+                                <form method="post" asp-page-handler="Approve" asp-route-id="@request.Id" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-danger">Approve &amp; delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
