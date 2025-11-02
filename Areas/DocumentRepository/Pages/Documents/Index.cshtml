@@ -57,7 +57,8 @@
         <input type="hidden" name="pageSize" value="@Model.PageSize" />
     </form>
 
-    <partial name="_Pager" model="new PagerModel(Model.Page, Model.PageSize, Model.TotalCount, Request)" />
+    <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, Request)" />
+
 
     @if (!Model.Items.Any())
     {
@@ -133,7 +134,8 @@
         </div>
     }
 
-    <partial name="_Pager" model="new PagerModel(Model.Page, Model.PageSize, Model.TotalCount, Request)" />
+    <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, Request)" />
+
 </div>
 
 @section Scripts {
