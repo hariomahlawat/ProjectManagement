@@ -90,12 +90,11 @@
       return;
     }
 
-    const total = counts.filing + counts.filed + counts.granted + counts.rejected + counts.withdrawn;
+    const total = counts.filed + counts.granted + counts.rejected + counts.withdrawn;
     const pct = value => (total > 0 ? `${Math.round((value * 100) / total)}%` : '0%');
     statusSummaryEl.textContent =
       `${total} patents — Filed ${counts.filed} (${pct(counts.filed)}), ` +
       `Granted ${counts.granted} (${pct(counts.granted)}), ` +
-      `Filing ${counts.filing} (${pct(counts.filing)}), ` +
       `Rejected ${counts.rejected} (${pct(counts.rejected)}), ` +
       `Withdrawn ${counts.withdrawn} (${pct(counts.withdrawn)})`;
   }
@@ -105,8 +104,8 @@
       return;
     }
 
-    const labels = ['Filing', 'Filed', 'Granted', 'Rejected', 'Withdrawn'];
-    const data = [counts.filing, counts.filed, counts.granted, counts.rejected, counts.withdrawn];
+    const labels = ['Filed', 'Granted', 'Rejected', 'Withdrawn'];
+    const data = [counts.filed, counts.granted, counts.rejected, counts.withdrawn];
 
     if (statusChart) {
       statusChart.destroy();
@@ -120,7 +119,6 @@
           {
             data,
             backgroundColor: [
-              palette.filing,
               palette.filed,
               palette.granted,
               palette.rejected,
@@ -246,7 +244,6 @@
       data: {
         labels,
         datasets: [
-          { label: 'Filing', data: ds.filing, backgroundColor: palette.filing, stack: 's' },
           { label: 'Filed', data: ds.filed, backgroundColor: palette.filed, stack: 's' },
           { label: 'Granted', data: ds.granted, backgroundColor: palette.granted, stack: 's' },
           { label: 'Rejected', data: ds.rejected, backgroundColor: palette.rejected, stack: 's' },
@@ -309,7 +306,6 @@
 
     const sanitized = yearly.filter(entry => {
       const total =
-        getValue(entry, 'filing') +
         getValue(entry, 'filed') +
         getValue(entry, 'granted') +
         getValue(entry, 'rejected') +
@@ -339,17 +335,15 @@
 
     rows.forEach(entry => {
       const year = getYearValue(entry);
-      const filing = getValue(entry, 'filing');
       const filed = getValue(entry, 'filed');
       const granted = getValue(entry, 'granted');
       const rejected = getValue(entry, 'rejected');
       const withdrawn = getValue(entry, 'withdrawn');
-      const total = filing + filed + granted + rejected + withdrawn;
+      const total = filed + granted + rejected + withdrawn;
 
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${year}</td>
-        <td>${filing}</td>
         <td>${filed}</td>
         <td>${granted}</td>
         <td>${rejected}</td>
@@ -359,7 +353,6 @@
     });
 
     const totals = {
-      filing: getValue(overall, 'filing'),
       filed: getValue(overall, 'filed'),
       granted: getValue(overall, 'granted'),
       rejected: getValue(overall, 'rejected'),
@@ -371,7 +364,6 @@
     totalRow.classList.add('fw-semibold');
     totalRow.innerHTML = `
       <td>Total</td>
-      <td>${totals.filing}</td>
       <td>${totals.filed}</td>
       <td>${totals.granted}</td>
       <td>${totals.rejected}</td>
@@ -399,7 +391,6 @@
     const chartRows = selectYearRows(entries);
     const hasValues = chartRows.some(item => {
       const total =
-        getValue(item, 'filing') +
         getValue(item, 'filed') +
         getValue(item, 'granted') +
         getValue(item, 'rejected') +
@@ -410,7 +401,6 @@
     const chartSource = hasValues ? chartRows : [];
     const labels = chartSource.map(item => getYearValue(item));
     const datasetSeries = {
-      filing: chartSource.map(item => getValue(item, 'filing')),
       filed: chartSource.map(item => getValue(item, 'filed')),
       granted: chartSource.map(item => getValue(item, 'granted')),
       rejected: chartSource.map(item => getValue(item, 'rejected')),
@@ -418,7 +408,6 @@
     };
     //const totalsSeries = chartSource.map((item, index) => datasetSeries.filing[index] + datasetSeries.filed[index] + datasetSeries.granted[index] + datasetSeries.rejected[index] + datasetSeries.withdrawn[index]);
       const totalsSeries = chartSource.map((_, index) =>
-          (datasetSeries.filing?.[index] || 0) +
           (datasetSeries.filed?.[index] || 0) +
           (datasetSeries.granted?.[index] || 0) +
           (datasetSeries.rejected?.[index] || 0) +
