@@ -139,7 +139,7 @@ else if (isEditMode)
 
     <hr class="my-4" />
 
-    <section aria-label="IPR attachments">
+    <section aria-label="Patent attachments">
         <header class="d-flex justify-content-between align-items-center mb-3">
             <div>
                 <h3 class="h6 mb-1">Attachments</h3>
@@ -198,7 +198,7 @@ else if (isEditMode)
             </div>
         </form>
 
-        <form method="post" asp-page-handler="Delete" asp-all-route-data="@Model.GetRouteValuesForLinks(includeModeAndId: false)" class="mt-4" id="iprDeleteForm" data-ipr-confirm="This will permanently delete the IPR record and its attachments. Continue?">
+        <form method="post" asp-page-handler="Delete" asp-all-route-data="@Model.GetRouteValuesForLinks(includeModeAndId: false)" class="mt-4" id="iprDeleteForm" data-ipr-confirm="This will permanently delete the patent record and its attachments. Continue?">
             <input type="hidden" asp-for="DeleteRequest.Id" />
             <input type="hidden" asp-for="DeleteRequest.RowVersion" />
             <button type="submit" class="btn btn-outline-danger">
@@ -210,7 +210,7 @@ else if (isEditMode)
 else
 {
     <div class="text-muted small">
-        Select "Add IPR record" or "Manage" to begin.
+        Select "Add patent record" or "Manage" to begin.
     </div>
 }
 

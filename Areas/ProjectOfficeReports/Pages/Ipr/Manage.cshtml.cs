@@ -31,7 +31,7 @@ public sealed class ManageModel : PageModel
             ["Grant date is required once the record is granted."] = new[] { nameof(IndexModel.RecordInput.GrantedOn) },
             ["Grant date cannot be provided without a filing date."] = new[] { nameof(IndexModel.RecordInput.FiledOn), nameof(IndexModel.RecordInput.GrantedOn) },
             ["Grant date cannot be earlier than the filing date."] = new[] { nameof(IndexModel.RecordInput.FiledOn), nameof(IndexModel.RecordInput.GrantedOn) },
-            ["An IPR with the same filing number and type already exists."] = new[] { nameof(IndexModel.RecordInput.FilingNumber) },
+            ["A patent record with the same filing number and type already exists."] = new[] { nameof(IndexModel.RecordInput.FilingNumber) },
             ["Filing number is required."] = new[] { nameof(IndexModel.RecordInput.FilingNumber) }
         };
 
@@ -92,7 +92,7 @@ public sealed class ManageModel : PageModel
             var record = await LoadRecordAsync(EditId.Value, cancellationToken, overwriteInput: true);
             if (record is null)
             {
-                TempData["ToastError"] = "The selected IPR record could not be found.";
+                TempData["ToastError"] = "The selected patent record could not be found.";
                 EditId = null;
             }
         }
@@ -151,7 +151,7 @@ public sealed class ManageModel : PageModel
         {
             var entity = ToEntity(Input);
             await _writeService.CreateAsync(entity, cancellationToken);
-            TempData["ToastMessage"] = "IPR record created.";
+            TempData["ToastMessage"] = "Patent record created.";
             return RedirectToPage("./Manage", new { Query });
         }
         catch (InvalidOperationException ex)
@@ -230,11 +230,11 @@ public sealed class ManageModel : PageModel
             var updated = await _writeService.UpdateAsync(entity, cancellationToken);
             if (updated is null)
             {
-                TempData["ToastError"] = "The selected IPR record could not be found.";
+                TempData["ToastError"] = "The selected patent record could not be found.";
                 return RedirectToPage("./Manage", new { Query });
             }
 
-            TempData["ToastMessage"] = "IPR record updated.";
+            TempData["ToastMessage"] = "Patent record updated.";
             return RedirectToPage("./Manage", new { Query });
         }
         catch (InvalidOperationException ex)
@@ -268,11 +268,11 @@ public sealed class ManageModel : PageModel
             var deleted = await _writeService.DeleteAsync(id, decoded, cancellationToken);
             if (!deleted)
             {
-                TempData["ToastError"] = "The selected IPR record could not be found.";
+                TempData["ToastError"] = "The selected patent record could not be found.";
             }
             else
             {
-                TempData["ToastMessage"] = "IPR record deleted.";
+                TempData["ToastMessage"] = "Patent record deleted.";
             }
         }
         catch (InvalidOperationException ex)
