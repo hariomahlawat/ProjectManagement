@@ -416,7 +416,14 @@
       rejected: chartSource.map(item => getValue(item, 'rejected')),
       withdrawn: chartSource.map(item => getValue(item, 'withdrawn'))
     };
-    const totalsSeries = chartSource.map((item, index) => datasetSeries.filing[index] + datasetSeries.filed[index] + datasetSeries.granted[index] + datasetSeries.rejected[index] + datasetSeries.withdrawn[index]);
+    //const totalsSeries = chartSource.map((item, index) => datasetSeries.filing[index] + datasetSeries.filed[index] + datasetSeries.granted[index] + datasetSeries.rejected[index] + datasetSeries.withdrawn[index]);
+      const totalsSeries = chartSource.map((_, index) =>
+          (datasetSeries.filing?.[index] || 0) +
+          (datasetSeries.filed?.[index] || 0) +
+          (datasetSeries.granted?.[index] || 0) +
+          (datasetSeries.rejected?.[index] || 0) +
+          (datasetSeries.withdrawn?.[index] || 0)
+          );
 
     if (chartSource.length > 0) {
       barChart = new Chart(barCanvas, buildStackedConfig(labels, datasetSeries));

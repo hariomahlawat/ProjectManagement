@@ -451,16 +451,9 @@
 
 @section Scripts {
     <partial name="~/Pages/Shared/_ValidationScriptsPartial.cshtml" />
-    <script>
-        window.iprStatusCounts = {
-            filing: @Model.Kpis.FilingUnderProcess,
-            filed: @Model.Kpis.Filed,
-            granted: @Model.Kpis.Granted,
-            rejected: @Model.Kpis.Rejected,
-            withdrawn: @Model.Kpis.Withdrawn
-        };
-    </script>
     <script src="~/lib/chartjs/chart.umd.js" defer asp-append-version="true"></script>
     <script src="~/js/por-ipr-index.charts.js" defer asp-append-version="true"></script>
     <script src="~/js/project-office-reports/ipr/index.js" defer asp-append-version="true"></script>
 }
+
+@* Inline scripts removed to satisfy CSP. The doughnut chart will hydrate from the Summary handler fetch. *@
