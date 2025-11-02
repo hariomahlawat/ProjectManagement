@@ -1,4 +1,9 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
@@ -11,94 +16,86 @@ public class IndexModel : PageModel
 {
     private readonly ApplicationDbContext _db;
 
-    public IndexModel(ApplicationDbContext db)
+    public IndexModel(ApplicationDbContext db) => _db = db;
+
+    [FromQuery(Name = "q")] public string? Q { get; set; }
+    [FromQuery(Name = "tag")] public string? Tag { get; set; }
+    [FromQuery(Name = "officeCategoryId")] public long? OfficeCategoryId { get; set; }
+    [FromQuery(Name = "documentCategoryId")] public long? DocumentCategoryId { get; set; }
+    [FromQuery(Name = "year")] public int? Year { get; set; }
+
+    private const int DefaultPageSize = 30;
+    [FromQuery] public int Page { get; set; } = 1;
+    [FromQuery] public int PageSize { get; set; } = DefaultPageSize;
+
+    public int TotalCount { get; private set; }
+    public int PageCount => (int)Math.Ceiling((double)TotalCount / PageSize);
+
+    public List<Document> Items { get; private set; } = new();
+
+    public List<OfficeCategory> OfficeCategories { get; private set; } = new();
+    public List<DocumentCategory> DocumentCategories { get; private set; } = new();
+
+    public async Task OnGetAsync()
     {
-        _db = db;
-    }
+        if (Page < 1) Page = 1;
+        if (PageSize < 10 || PageSize > 200) PageSize = DefaultPageSize;
 
-    public IReadOnlyList<DocumentRow> Documents { get; private set; } = Array.Empty<DocumentRow>();
-    public IReadOnlyList<OfficeCategory> OfficeOptions { get; private set; } = Array.Empty<OfficeCategory>();
-    public IReadOnlyList<DocumentCategory> DocumentCategoryOptions { get; private set; } = Array.Empty<DocumentCategory>();
-
-    public string? Query { get; private set; }
-    public string? Tag { get; private set; }
-    public int? OfficeCategoryId { get; private set; }
-    public int? DocumentCategoryId { get; private set; }
-    public int? Year { get; private set; }
-
-    public sealed record DocumentRow(Guid Id, string Subject, string? ReceivedFrom, DateOnly? DocumentDate, string Office, string Type);
-
-    public async Task OnGetAsync(string? q, string? tag, int? officeCategoryId, int? documentCategoryId, int? year, CancellationToken cancellationToken)
-    {
-        Query = string.IsNullOrWhiteSpace(q) ? null : q.Trim();
-        Tag = string.IsNullOrWhiteSpace(tag) ? null : tag.Trim().ToLowerInvariant();
-        OfficeCategoryId = officeCategoryId;
-        DocumentCategoryId = documentCategoryId;
-        Year = year is > 0 ? year : null;
-
-        await LoadLookupsAsync(cancellationToken);
-
-        var queryable = _db.Documents.AsNoTracking()
+        var q = _db.Documents
+            .AsNoTracking()
+            .Include(d => d.DocumentTags).ThenInclude(dt => dt.Tag)
             .Include(d => d.OfficeCategory)
             .Include(d => d.DocumentCategory)
-            .Include(d => d.DocumentTags)
-                .ThenInclude(dt => dt.Tag)
             .Where(d => d.IsActive);
 
-        if (!string.IsNullOrWhiteSpace(Query))
+        if (!string.IsNullOrWhiteSpace(Q))
         {
-            var search = $"%{Query.Trim()}%";
-            queryable = queryable.Where(d =>
-                EF.Functions.ILike(d.Subject, search) ||
-                (d.ReceivedFrom != null && EF.Functions.ILike(d.ReceivedFrom, search)));
+            var pattern = $"%{Q.Trim()}%";
+            q = q.Where(d =>
+                EF.Functions.ILike(d.Subject, pattern) ||
+                (d.ReceivedFrom != null && EF.Functions.ILike(d.ReceivedFrom, pattern)) ||
+                d.DocumentTags.Any(dt => EF.Functions.ILike(dt.Tag.Name, pattern)));
         }
 
         if (!string.IsNullOrWhiteSpace(Tag))
         {
-            queryable = queryable.Where(d => d.DocumentTags.Any(t => t.Tag.Name == Tag));
+            var tnorm = Tag.Trim();
+            q = q.Where(d => d.DocumentTags.Any(dt => dt.Tag.Name == tnorm || dt.Tag.NormalizedName == tnorm.ToLower()));
         }
 
-        if (OfficeCategoryId is { } officeId)
+        if (OfficeCategoryId.HasValue)
         {
-            queryable = queryable.Where(d => d.OfficeCategoryId == officeId);
+            q = q.Where(d => d.OfficeCategoryId == OfficeCategoryId.Value);
         }
 
-        if (DocumentCategoryId is { } docCatId)
+        if (DocumentCategoryId.HasValue)
         {
-            queryable = queryable.Where(d => d.DocumentCategoryId == docCatId);
+            q = q.Where(d => d.DocumentCategoryId == DocumentCategoryId.Value);
         }
 
-        if (Year is { } y)
+        if (Year.HasValue)
         {
-            queryable = queryable.Where(d => d.DocumentDate.HasValue && d.DocumentDate.Value.Year == y);
+            q = q.Where(d => d.DocumentDate.HasValue && d.DocumentDate.Value.Year == Year.Value);
         }
 
-        Documents = await queryable
-            .OrderByDescending(d => d.DocumentDate)
-            .ThenByDescending(d => d.CreatedAtUtc)
-            .Select(d => new DocumentRow(
-                d.Id,
-                d.Subject,
-                d.ReceivedFrom,
-                d.DocumentDate,
-                d.OfficeCategory.Name,
-                d.DocumentCategory.Name))
-            .Take(200)
-            .ToListAsync(cancellationToken);
-    }
+        TotalCount = await q.CountAsync();
 
-    private async Task LoadLookupsAsync(CancellationToken cancellationToken)
-    {
-        OfficeOptions = await _db.OfficeCategories
+        q = q.OrderByDescending(d => d.DocumentDate ?? d.CreatedAtUtc);
+
+        Items = await q.Skip((Page - 1) * PageSize)
+            .Take(PageSize)
+            .ToListAsync();
+
+        OfficeCategories = await _db.OfficeCategories
+            .AsNoTracking()
             .Where(o => o.IsActive)
             .OrderBy(o => o.SortOrder)
-            .ThenBy(o => o.Name)
-            .ToListAsync(cancellationToken);
+            .ToListAsync();
 
-        DocumentCategoryOptions = await _db.DocumentCategories
+        DocumentCategories = await _db.DocumentCategories
+            .AsNoTracking()
             .Where(c => c.IsActive)
             .OrderBy(c => c.SortOrder)
-            .ThenBy(c => c.Name)
-            .ToListAsync(cancellationToken);
+            .ToListAsync();
     }
 }
