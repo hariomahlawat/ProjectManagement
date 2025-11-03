@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
-using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Services.DocRepo;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
@@ -20,17 +19,15 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             _storage = storage;
         }
 
-        public async Task<IActionResult> OnGetAsync(Guid id)
+        public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
         {
             var doc = await _db.Documents
                 .AsNoTracking()
-                .FirstOrDefaultAsync(d => d.Id == id);
+                .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
 
             if (doc is null) return NotFound();
 
-            var stream = await _storage.OpenReadAsync(doc.StorageKey);
-
-            // Return as attachment so browser downloads it
+            var stream = await _storage.OpenReadAsync(doc.StoragePath, HttpContext.RequestAborted);
             var downloadName = string.IsNullOrWhiteSpace(doc.OriginalFileName)
                 ? $"Document-{doc.Id}.pdf"
                 : doc.OriginalFileName;

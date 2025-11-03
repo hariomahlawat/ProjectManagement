@@ -10,7 +10,8 @@ using ProjectManagement.Services.DocRepo;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents;
 
-[Authorize(Policy = "DocRepo.Upload")]
+[ValidateAntiForgeryToken]
+[Authorize(Policy = "DocRepo.SoftDelete")] // <-- single policy; this page is for deactivate/activate/request-delete
 public class ManageModel : PageModel
 {
     private readonly ApplicationDbContext _db;
@@ -33,26 +34,22 @@ public class ManageModel : PageModel
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
         if (!await LoadAsync(id, cancellationToken))
-        {
             return NotFound();
-        }
 
         return Page();
     }
 
-    [Authorize(Policy = "DocRepo.SoftDelete")]
+    
     public async Task<IActionResult> OnPostDeactivateAsync(Guid id, CancellationToken cancellationToken)
     {
         var document = await _db.Documents.FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
-        if (document is null)
-        {
-            return NotFound();
-        }
+        if (document is null) return NotFound();
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";
         document.IsActive = false;
         document.UpdatedAtUtc = DateTime.UtcNow;
         document.UpdatedByUserId = userId;
+
         await _db.SaveChangesAsync(cancellationToken);
 
         await _audit.WriteAsync(document.Id, userId, "Deactivated", new { document.Id }, cancellationToken);
@@ -60,19 +57,17 @@ public class ManageModel : PageModel
         return RedirectToPage("./Index");
     }
 
-    [Authorize(Policy = "DocRepo.SoftDelete")]
+   
     public async Task<IActionResult> OnPostActivateAsync(Guid id, CancellationToken cancellationToken)
     {
         var document = await _db.Documents.FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
-        if (document is null)
-        {
-            return NotFound();
-        }
+        if (document is null) return NotFound();
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";
         document.IsActive = true;
         document.UpdatedAtUtc = DateTime.UtcNow;
         document.UpdatedByUserId = userId;
+
         await _db.SaveChangesAsync(cancellationToken);
 
         await _audit.WriteAsync(document.Id, userId, "Activated", new { document.Id }, cancellationToken);
@@ -80,35 +75,25 @@ public class ManageModel : PageModel
         return RedirectToPage("./Index");
     }
 
-    [Authorize(Policy = "DocRepo.SoftDelete")]
+   
     public async Task<IActionResult> OnPostRequestDeleteAsync(Guid id, CancellationToken cancellationToken)
     {
         var document = await _db.Documents.FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
-        if (document is null)
-        {
-            return NotFound();
-        }
+        if (document is null) return NotFound();
 
         if (!ModelState.IsValid)
         {
-            if (!await LoadAsync(id, cancellationToken))
-            {
-                return NotFound();
-            }
-
+            if (!await LoadAsync(id, cancellationToken)) return NotFound();
             return Page();
         }
 
         var trimmedReason = string.IsNullOrWhiteSpace(Reason) ? string.Empty : Reason.Trim();
         Reason = trimmedReason;
+
         if (trimmedReason.Length > 512)
         {
             ModelState.AddModelError(nameof(Reason), "Reason must be 512 characters or fewer.");
-            if (!await LoadAsync(id, cancellationToken))
-            {
-                return NotFound();
-            }
-
+            if (!await LoadAsync(id, cancellationToken)) return NotFound();
             return Page();
         }
 
@@ -122,6 +107,7 @@ public class ManageModel : PageModel
         }
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";
+
         var request = new DocumentDeleteRequest
         {
             DocumentId = id,
@@ -146,10 +132,7 @@ public class ManageModel : PageModel
             .AsNoTracking()
             .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
 
-        if (Document is null)
-        {
-            return false;
-        }
+        if (Document is null) return false;
 
         PendingRequests = await _db.DocumentDeleteRequests
             .Where(r => r.DocumentId == id && r.ApprovedAtUtc == null)
