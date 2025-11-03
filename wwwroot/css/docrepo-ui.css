@@ -19,3 +19,50 @@
 .doc-tags .badge {
     background: #f8f9fa;
 }
+/* Card polish */
+.doc-card {
+    border: 1px solid rgba(0,0,0,.06);
+    transition: box-shadow .15s ease, transform .15s ease;
+    border-radius: .75rem;
+}
+
+    .doc-card:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0,0,0,.08);
+    }
+
+/* Title clamping so cards keep same height */
+.text-truncate-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* Meta row spacing */
+.doc-meta {
+    line-height: 1.25rem;
+}
+
+/* Tag chips */
+.doc-tags {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.doc-chip {
+    background: #f3f4f6;
+    color: #111827;
+    border: 1px solid #e5e7eb;
+    border-radius: 9999px;
+    font-weight: 500;
+}
+
+/* Footer alignment consistency */
+.card-footer .btn-group form {
+    display: inline;
+}
+
+.card-footer .btn {
+    min-width: 6.5rem;
+}
+/* keeps group widths steady */
