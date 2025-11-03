@@ -1,24 +1,90 @@
-﻿/* sticky toolbar height */
-.reader-toolbar {
-    height: 3.25rem;
+﻿/* compact line at the very top of the reader page */
+.docreader-topbar {
+    height: 44px;
+    padding: 0 1rem;
+    border-bottom: 1px solid rgba(0,0,0,.05);
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
 }
 
-/* fill the viewport minus toolbar */
-.reader-host {
-    height: calc(100vh - 3.25rem - 3.5rem); /* minus breadcrumb area */
-    display: block;
+/* left side: breadcrumb-ish line */
+.docreader-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: .35rem;
+    min-width: 0; /* allows text truncation */
 }
 
-.reader-frame {
+.docreader-link {
+    font-size: .78rem;
+    color: #4b5563;
+    text-decoration: none;
+}
+
+    .docreader-link:hover {
+        text-decoration: underline;
+    }
+
+.docreader-title {
+    font-weight: 500;
+    font-size: .78rem;
+    color: #111827;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 360px;
+}
+
+/* right side buttons */
+.docreader-actions {
+    display: flex;
+    gap: .4rem;
+}
+
+.docreader-btn {
+    padding: .25rem .6rem;
+    font-size: .7rem;
+    line-height: 1.2;
+}
+
+/*
+    viewer area fills the rest of the screen
+
+    44px  -> our compact header
+    56px  -> typical footer in your layout (the © 2025 line)
+    adjust 56px if your footer is different
+*/
+.docreader-stage {
+    width: 100%;
+    height: calc(100vh - 44px - 56px);
+    background: #111827;
+}
+
+.docreader-frame {
     width: 100%;
     height: 100%;
     border: 0;
-    background: #f8f9fa;
+    background: #111827;
 }
 
-/* on very small screens, reclaim a bit more height */
-@media (max-width: 576px) {
-    .reader-host {
-        height: calc(100vh - 3.25rem - 2.25rem);
+/* smaller screens */
+@media (max-width: 640px) {
+    .docreader-topbar {
+        gap: .5rem;
+    }
+
+    .docreader-title {
+        max-width: 180px;
+    }
+
+    .docreader-actions {
+        gap: .25rem;
+    }
+
+    .docreader-btn {
+        padding: .25rem .5rem;
     }
 }

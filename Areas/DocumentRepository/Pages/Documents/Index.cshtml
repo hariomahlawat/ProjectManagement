@@ -4,31 +4,47 @@
     ViewData["Title"] = "Document repository";
 }
 
+@section Styles {
+    <link rel="stylesheet" href="~/css/docrepo-ui.css" asp-append-version="true" />
+}
+
 <div class="container-fluid py-4">
 
     <nav aria-label="breadcrumb" class="mb-2">
         <ol class="breadcrumb mb-0">
-            <li class="breadcrumb-item"><a asp-area="" asp-page="/Index">Dashboard</a></li>
+            <li class="breadcrumb-item">
+                <a asp-area="" asp-page="/Index">Dashboard</a>
+            </li>
             <li class="breadcrumb-item active" aria-current="page">Documents</li>
         </ol>
     </nav>
 
-    <!-- search bar row -->
-    <form method="get" class="d-flex gap-2 mb-4 align-items-center" data-docrepo-filter>
-        <div class="input-group flex-grow-1 shadow-sm rounded-3 overflow-hidden" style="max-width: 60rem;">
-            <span class="input-group-text bg-white border-0">
+    <!-- search bar -->
+    <div class="docrepo-search-shell">
+        <form method="get" class="docrepo-searchbar" data-docrepo-filter>
+            <div class="docrepo-search-input">
                 <i class="bi bi-search"></i>
-            </span>
-            <input class="form-control border-0" type="search" name="q" value="@Model.Q"
-                   placeholder="Search documents (subject, sender, tags)..." />
-            <button type="submit" class="btn btn-primary px-4">Search</button>
-            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#docrepoFilterModal">
-                <i class="bi bi-funnel"></i> Filters
-            </button>
-        </div>
-        <input type="hidden" name="page" value="@Model.PageNumber" />
-        <input type="hidden" name="pageSize" value="@Model.PageSize" />
-    </form>
+                <input type="search"
+                       name="q"
+                       value="@Model.Q"
+                       placeholder="Search documents (subject, sender, tags)…"
+                       aria-label="Search documents" />
+            </div>
+            <div class="docrepo-search-actions">
+                <button type="submit" class="btn btn-primary px-4">Search</button>
+                <button type="button"
+                        class="btn btn-outline-secondary"
+                        data-bs-toggle="modal"
+                        data-bs-target="#docrepoFilterModal">
+                    <i class="bi bi-funnel"></i>
+                    <span class="d-none d-sm-inline">Filters</span>
+                </button>
+            </div>
+
+            <input type="hidden" name="page" value="@Model.PageNumber" />
+            <input type="hidden" name="pageSize" value="@Model.PageSize" />
+        </form>
+    </div>
 
     <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, Request)" />
 
@@ -106,14 +122,25 @@
 
                     <div class="mb-3">
                         <label class="form-label" for="yearInput">Year</label>
-                        <input class="form-control" id="yearInput" type="number" name="year"
-                               value="@(Model.Year?.ToString() ?? string.Empty)" min="1900" max="2100" />
+                        <input class="form-control"
+                               id="yearInput"
+                               type="number"
+                               name="year"
+                               value="@(Model.Year?.ToString() ?? string.Empty)"
+                               min="1900"
+                               max="2100" />
                     </div>
 
                     <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="includeInactiveChk" name="includeInactive"
-                               value="true" @(Model.IncludeInactive ? "checked" : null) />
-                        <label class="form-check-label" for="includeInactiveChk">Include inactive</label>
+                        <input class="form-check-input"
+                               type="checkbox"
+                               id="includeInactiveChk"
+                               name="includeInactive"
+                               value="true"
+                               @(Model.IncludeInactive ? "checked" : null) />
+                        <label class="form-check-label" for="includeInactiveChk">
+                            Include inactive
+                        </label>
                     </div>
                 </div>
                 <div class="modal-footer">

@@ -89,6 +89,13 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 AuthorizationPolicy = "DocRepo.View"
             },
             new()
+    {
+        Text = "Upload document",
+        Area = "DocumentRepository",
+        Page = "/Documents/Upload",
+        AuthorizationPolicy = "DocRepo.Upload"
+    },
+            new()
             {
                 Text = "Delete requests",
                 Area = "DocumentRepository",

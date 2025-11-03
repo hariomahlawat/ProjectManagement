@@ -1,42 +1,42 @@
 ﻿@page "{id:guid}"
 @model ProjectManagement.Areas.DocumentRepository.Pages.Documents.ReaderModel
-@using ProjectManagement.Models
 @{
     ViewData["Title"] = "Document reader";
 }
 
-<partial name="~/Views/Shared/_Breadcrumbs.cshtml" model='new BreadcrumbModel(
-                                                       ("Documents", Url.Page("/Documents/Index", new { area = "DocumentRepository" })),
-                                                       ("Reader", null)
-                                                   )' />
-
-<div class="container-fluid px-0">
-    <div class="reader-toolbar border-bottom bg-white d-flex align-items-center gap-2 px-3 sticky-top">
-        <div class="btn-group btn-group-sm" role="group" aria-label="Zoom">
-            <a class="btn btn-outline-secondary" asp-page="./Reader" asp-route-id="@Model.Id" asp-route-zoom="page-fit">Fit</a>
-            <a class="btn btn-outline-secondary" asp-page="./Reader" asp-route-id="@Model.Id" asp-route-zoom="page-width">Width</a>
-            <a class="btn btn-outline-secondary" asp-page="./Reader" asp-route-id="@Model.Id" asp-route-zoom="125">125%</a>
-            <a class="btn btn-outline-secondary" asp-page="./Reader" asp-route-id="@Model.Id" asp-route-zoom="150">150%</a>
-        </div>
-
-        <form method="get" class="d-flex align-items-center ms-2">
-            <input type="hidden" name="id" value="@Model.Id" />
-            <label for="pageNo" class="form-label me-1 mb-0 small text-muted">Page</label>
-            <input id="pageNo" name="pageNo" type="number" min="1" class="form-control form-control-sm w-auto me-2" value="@(Model.PageNo ?? 1)" />
-            <button class="btn btn-sm btn-primary" type="submit">Go</button>
-        </form>
-
-        <div class="ms-auto d-flex align-items-center gap-2">
-            <a class="btn btn-sm btn-outline-primary" href="@Model.ViewUrl" target="_blank" rel="noopener">Open in new tab</a>
-            <a class="btn btn-sm btn-primary" href="@Model.DownloadUrl">Download</a>
-        </div>
-    </div>
-
-    <div class="reader-host bg-light">
-        <iframe class="reader-frame" src="@Model.IframeSrc" title="PDF viewer" referrerpolicy="no-referrer" loading="lazy"></iframe>
-    </div>
-</div>
-
 @section Styles {
     <link rel="stylesheet" href="~/css/docrepo-reader.css" asp-append-version="true" />
 }
+
+<!-- ultra-compact top bar -->
+<div class="docreader-topbar">
+    <div class="docreader-breadcrumb">
+        <a asp-area="" asp-page="/Index" class="docreader-link">Dashboard</a>
+        <span class="text-muted">/</span>
+        <a asp-area="DocumentRepository" asp-page="/Documents/Index" class="docreader-link">Documents</a>
+        <span class="text-muted">/</span>
+        <span class="docreader-title" title="@Model.DocumentTitle">
+            @Model.DocumentTitle
+        </span>
+    </div>
+    <div class="docreader-actions">
+        <a class="btn btn-sm btn-outline-secondary docreader-btn"
+           href="@Model.ViewUrl"
+           target="_blank"
+           rel="noopener">
+            Open
+        </a>
+        <a class="btn btn-sm btn-primary docreader-btn"
+           href="@Model.DownloadUrl">
+            Download
+        </a>
+    </div>
+</div>
+
+<!-- full-height viewer -->
+<div class="docreader-stage">
+    <iframe src="@Model.ViewUrl"
+            class="docreader-frame"
+            title="Document viewer"
+            loading="lazy"></iframe>
+</div>

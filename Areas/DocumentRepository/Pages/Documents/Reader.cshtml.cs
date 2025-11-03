@@ -1,31 +1,55 @@
+using System;
+using System.Security.Claims;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Data;
+using ProjectManagement.Data.DocRepo;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 {
     [Authorize(Policy = "DocRepo.View")]
-    public sealed class ReaderModel : PageModel
+    public class ReaderModel : PageModel
     {
-        [FromRoute] public Guid Id { get; set; }
+        private readonly ApplicationDbContext _db;
 
-        // avoid shadowing PageModel members
-        [FromQuery] public int? PageNo { get; set; }
-        [FromQuery] public string? Zoom { get; set; } // "page-width" | "page-fit" | "125" | "150"
+        public ReaderModel(ApplicationDbContext db)
+        {
+            _db = db;
+        }
 
-        public string IframeSrc { get; private set; } = string.Empty;
-        public string DownloadUrl { get; private set; } = string.Empty;
+        // what we show in the heading
+        public string DocumentTitle { get; private set; } = "Document";
+
+        // iframe url – this is the same endpoint that the browser can render nicely
         public string ViewUrl { get; private set; } = string.Empty;
 
-        public void OnGet(Guid id, int? pageNo, string? zoom)
-        {
-            Id = id;
-            var pg = pageNo is > 0 ? pageNo.Value : 1;
-            var zm = string.IsNullOrWhiteSpace(zoom) ? "page-width" : zoom;
+        // direct download url
+        public string DownloadUrl { get; private set; } = string.Empty;
 
-            ViewUrl = Url.Page("./View", new { id }) ?? "#";
-            DownloadUrl = Url.Page("./Download", new { id }) ?? "#";
-            IframeSrc = $"{ViewUrl}#page={pg}&zoom={zm}&pagemode=thumbs";
+        public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
+        {
+            var doc = await _db.Documents
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+
+            if (doc == null)
+            {
+                return NotFound();
+            }
+
+            DocumentTitle = string.IsNullOrWhiteSpace(doc.Subject)
+                ? "Document"
+                : doc.Subject;
+
+            // these two pages already exist in your module
+            ViewUrl = Url.Page("./View", new { id }) ?? string.Empty;
+            DownloadUrl = Url.Page("./Download", new { id }) ?? string.Empty;
+
+            return Page();
         }
     }
 }

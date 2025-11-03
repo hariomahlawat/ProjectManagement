@@ -1,36 +1,21 @@
-﻿/* Subtle elevation + tidy spacing */
+﻿/* ───────────────────────────────
+   Document cards
+   ─────────────────────────────── */
 .doc-card {
     border: 1px solid rgba(0,0,0,.06);
-}
-
-    .doc-card .card-body {
-        padding-bottom: .5rem;
-    }
-
-/* Clamp titles to 2 lines with ellipsis */
-.text-truncate-2 {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
-}
-
-/* Chip-like tags */
-.doc-tags .badge {
-    background: #f8f9fa;
-}
-/* Card polish */
-.doc-card {
-    border: 1px solid rgba(0,0,0,.06);
-    transition: box-shadow .15s ease, transform .15s ease;
     border-radius: .75rem;
+    transition: box-shadow .15s ease, transform .15s ease;
 }
 
     .doc-card:hover {
         box-shadow: 0 0.5rem 1rem rgba(0,0,0,.08);
     }
 
-/* Title clamping so cards keep same height */
+    .doc-card .card-body {
+        padding-bottom: .5rem;
+    }
+
+/* clamp titles to 2 lines */
 .text-truncate-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -38,56 +23,111 @@
     overflow: hidden;
 }
 
-/* Meta row spacing */
+/* meta line */
 .doc-meta {
     line-height: 1.25rem;
 }
 
-/* Tag chips */
+/* tags on the card */
 .doc-tags {
     display: flex;
     flex-wrap: wrap;
+    gap: .25rem;
 }
 
+    .doc-tags .badge {
+        background: #f8f9fa;
+    }
+
+/* chip look (used on some cards) */
 .doc-chip {
     background: #f3f4f6;
     color: #111827;
     border: 1px solid #e5e7eb;
     border-radius: 9999px;
     font-weight: 500;
+    padding: .15rem .6rem;
+    font-size: .7rem;
 }
 
-/* Footer alignment consistency */
-.card-footer .btn-group form {
-    display: inline;
-}
-
-.card-footer .btn {
-    min-width: 6.5rem;
-}
-/* keeps group widths steady */
-/* Keep your existing rules; then add/adjust these: */
-
-/* Do NOT force a min-width that breaks wrapping */
-.card-footer .btn { /* remove min-width if you had one */
-    /* min-width: 6.5rem;  <-- delete this if present */
-}
-
-/* Make sure the footer itself doesn't show overflow */
+/* footer should not stretch because of forms/buttons */
 .doc-card .card-footer {
     overflow: hidden;
 }
 
-    /* Ensure forms inside footer don't expand unexpectedly */
     .doc-card .card-footer form {
         display: inline-block;
     }
 
-/* Optional: tighter chips */
-.doc-chip {
-    background: #f3f4f6;
-    color: #111827;
-    border: 1px solid #e5e7eb;
+/* don’t force a big width on buttons here; let them wrap on small cards */
+/* .doc-card .card-footer .btn { }  ← intentionally empty */
+
+
+/* ───────────────────────────────
+   Document repository – search bar
+   ─────────────────────────────── */
+.docrepo-search-shell {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+}
+
+.docrepo-searchbar {
+    width: min(1080px, 100%);
+    background: #ffffff;
     border-radius: 9999px;
-    font-weight: 500;
+    box-shadow: 0 12px 30px rgba(15, 23, 42, 0.04);
+    padding: 0.35rem 0.6rem 0.35rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.docrepo-search-input {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex: 1 1 auto;
+}
+
+    .docrepo-search-input i {
+        color: #6b7280;
+        font-size: 1rem;
+    }
+
+    .docrepo-search-input input {
+        border: none;
+        outline: none;
+        flex: 1 1 auto;
+        font-size: 0.96rem;
+        background: transparent;
+    }
+
+        .docrepo-search-input input::placeholder {
+            color: #9ca3af;
+        }
+
+.docrepo-search-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.docrepo-searchbar:focus-within {
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.08);
+}
+
+/* ───────────────────────────────
+   Responsive
+   ─────────────────────────────── */
+@media (max-width: 768px) {
+    .docrepo-searchbar {
+        flex-wrap: wrap;
+        border-radius: 1.25rem;
+    }
+
+    .docrepo-search-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
 }
