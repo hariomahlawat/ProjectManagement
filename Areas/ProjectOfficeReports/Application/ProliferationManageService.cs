@@ -112,7 +112,8 @@ public sealed class ProliferationManageService
                               Quantity = y.TotalQuantity,
                               ApprovalStatus = y.ApprovalStatus,
                               CreatedOnUtc = y.CreatedOnUtc,
-                              LastUpdatedOnUtc = y.LastUpdatedOnUtc
+                              LastUpdatedOnUtc = y.LastUpdatedOnUtc,
+                              ApprovedOnUtc = y.ApprovedOnUtc
                           };
 
         var granularQuery = from g in _db.ProliferationGranularEntries.AsNoTracking()
@@ -131,7 +132,8 @@ public sealed class ProliferationManageService
                                 Quantity = g.Quantity,
                                 ApprovalStatus = g.ApprovalStatus,
                                 CreatedOnUtc = g.CreatedOnUtc,
-                                LastUpdatedOnUtc = g.LastUpdatedOnUtc
+                                LastUpdatedOnUtc = g.LastUpdatedOnUtc,
+                                ApprovedOnUtc = g.ApprovedOnUtc
                             };
 
         if (request.ProjectId.HasValue)
@@ -203,7 +205,8 @@ public sealed class ProliferationManageService
                 x.Quantity,
                 x.ApprovalStatus,
                 x.CreatedOnUtc,
-                x.LastUpdatedOnUtc))
+                x.LastUpdatedOnUtc,
+                x.ApprovedOnUtc))
             .ToList();
 
         return new PagedResult<ProliferationManageListItem>(items, total, page, pageSize);
@@ -227,6 +230,12 @@ public sealed class ProliferationManageService
             entity.Year,
             entity.TotalQuantity,
             entity.Remarks,
+            entity.ApprovalStatus,
+            entity.SubmittedByUserId,
+            entity.ApprovedByUserId,
+            entity.ApprovedOnUtc,
+            entity.CreatedOnUtc,
+            entity.LastUpdatedOnUtc,
             entity.RowVersion);
     }
 
@@ -249,6 +258,12 @@ public sealed class ProliferationManageService
             entity.UnitName,
             entity.Quantity,
             entity.Remarks,
+            entity.ApprovalStatus,
+            entity.SubmittedByUserId,
+            entity.ApprovedByUserId,
+            entity.ApprovedOnUtc,
+            entity.CreatedOnUtc,
+            entity.LastUpdatedOnUtc,
             entity.RowVersion);
     }
 
@@ -304,5 +319,6 @@ public sealed class ProliferationManageService
         public ApprovalStatus ApprovalStatus { get; init; }
         public DateTime CreatedOnUtc { get; init; }
         public DateTime LastUpdatedOnUtc { get; init; }
+        public DateTime? ApprovedOnUtc { get; init; }
     }
 }

@@ -344,10 +344,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             return ServiceResult.Ok();
         }
 
-        public async Task<ServiceResult> UpdateGranularAsync(Guid id, ProliferationGranularUpdateDto dto, ClaimsPrincipal user, CancellationToken ct)
-        {
-            if (dto is null) throw new ArgumentNullException(nameof(dto));
-            if (user is null) throw new ArgumentNullException(nameof(user));
+    public async Task<ServiceResult> UpdateGranularAsync(Guid id, ProliferationGranularUpdateDto dto, ClaimsPrincipal user, CancellationToken ct)
+    {
+        if (dto is null) throw new ArgumentNullException(nameof(dto));
+        if (user is null) throw new ArgumentNullException(nameof(user));
 
             var actor = await _users.GetUserAsync(user);
             if (actor is null)
@@ -424,6 +424,133 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
 
             await Audit.Events
                 .ProliferationGranularRecorded(entity.ProjectId, project.Name, entity.Source, entity.UnitName, entity.ProliferationDate, entity.Quantity, entity.ApprovalStatus, actor.Id, "Update")
+                .WriteAsync(_audit, userName: actor.UserName);
+
+            return ServiceResult.Ok();
+        }
+
+        public async Task<ServiceResult> DecideYearlyAsync(Guid id, bool approve, string? rowVersionBase64, ClaimsPrincipal user, CancellationToken ct)
+        {
+            if (user is null) throw new ArgumentNullException(nameof(user));
+
+            var actor = await _users.GetUserAsync(user);
+            if (actor is null)
+            {
+                return ServiceResult.Fail("User not found.");
+            }
+
+            var entity = await _db.ProliferationYearlies.FirstOrDefaultAsync(x => x.Id == id, ct);
+            if (entity is null)
+            {
+                return ServiceResult.Fail("Record not found.");
+            }
+
+            if (!TryDecodeRowVersion(rowVersionBase64, out var rowVersion))
+            {
+                return ServiceResult.Fail("The record is out of date. Refresh and try again.");
+            }
+
+            _db.Entry(entity).Property(e => e.RowVersion).OriginalValue = rowVersion;
+
+            var now = _clock.UtcNow.UtcDateTime;
+
+            if (approve)
+            {
+                var duplicate = await _db.ProliferationYearlies
+                    .AsNoTracking()
+                    .AnyAsync(y =>
+                        y.Id != entity.Id &&
+                        y.ProjectId == entity.ProjectId &&
+                        y.Source == entity.Source &&
+                        y.Year == entity.Year &&
+                        y.ApprovalStatus == ApprovalStatus.Approved,
+                        ct);
+
+                if (duplicate)
+                {
+                    return ServiceResult.Fail("Another approved yearly entry already exists for this project, source, and year.");
+                }
+
+                entity.ApprovalStatus = ApprovalStatus.Approved;
+                entity.ApprovedByUserId = actor.Id;
+                entity.ApprovedOnUtc = now;
+            }
+            else
+            {
+                entity.ApprovalStatus = ApprovalStatus.Rejected;
+                entity.ApprovedByUserId = null;
+                entity.ApprovedOnUtc = null;
+            }
+
+            entity.LastUpdatedOnUtc = now;
+
+            try
+            {
+                await _db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return ServiceResult.Fail("The record was modified by another user. Refresh and try again.");
+            }
+
+            await Audit.Events
+                .ProliferationYearlyDecided(entity.ProjectId, entity.Source, entity.Year, approve, actor.Id)
+                .WriteAsync(_audit, userName: actor.UserName);
+
+            return ServiceResult.Ok();
+        }
+
+        public async Task<ServiceResult> DecideGranularAsync(Guid id, bool approve, string? rowVersionBase64, ClaimsPrincipal user, CancellationToken ct)
+        {
+            if (user is null) throw new ArgumentNullException(nameof(user));
+
+            var actor = await _users.GetUserAsync(user);
+            if (actor is null)
+            {
+                return ServiceResult.Fail("User not found.");
+            }
+
+            var entity = await _db.ProliferationGranularEntries.FirstOrDefaultAsync(x => x.Id == id, ct);
+            if (entity is null)
+            {
+                return ServiceResult.Fail("Record not found.");
+            }
+
+            if (!TryDecodeRowVersion(rowVersionBase64, out var rowVersion))
+            {
+                return ServiceResult.Fail("The record is out of date. Refresh and try again.");
+            }
+
+            _db.Entry(entity).Property(e => e.RowVersion).OriginalValue = rowVersion;
+
+            var now = _clock.UtcNow.UtcDateTime;
+
+            if (approve)
+            {
+                entity.ApprovalStatus = ApprovalStatus.Approved;
+                entity.ApprovedByUserId = actor.Id;
+                entity.ApprovedOnUtc = now;
+            }
+            else
+            {
+                entity.ApprovalStatus = ApprovalStatus.Rejected;
+                entity.ApprovedByUserId = null;
+                entity.ApprovedOnUtc = null;
+            }
+
+            entity.LastUpdatedOnUtc = now;
+
+            try
+            {
+                await _db.SaveChangesAsync(ct);
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                return ServiceResult.Fail("The record was modified by another user. Refresh and try again.");
+            }
+
+            await Audit.Events
+                .ProliferationGranularDecided(entity.ProjectId, entity.Source, entity.ProliferationDate, approve, actor.Id)
                 .WriteAsync(_audit, userName: actor.UserName);
 
             return ServiceResult.Ok();

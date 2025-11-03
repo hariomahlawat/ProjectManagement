@@ -74,7 +74,10 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                     Month = item.ProliferationDate?.Month,
                     ProliferationDateUtc = item.ProliferationDate?.ToDateTime(TimeOnly.MinValue),
                     Quantity = item.Quantity,
-                    ApprovalStatus = item.ApprovalStatus.ToString()
+                    ApprovalStatus = item.ApprovalStatus.ToString(),
+                    CreatedOnUtc = item.CreatedOnUtc,
+                    LastUpdatedOnUtc = item.LastUpdatedOnUtc,
+                    ApprovedOnUtc = item.ApprovedOnUtc
                 })
                 .ToList();
 
@@ -195,7 +198,13 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 Year = detail.Year,
                 TotalQuantity = detail.TotalQuantity,
                 Remarks = detail.Remarks,
-                RowVersion = EncodeRowVersion(detail.RowVersion)
+                RowVersion = EncodeRowVersion(detail.RowVersion),
+                ApprovalStatus = detail.ApprovalStatus.ToString(),
+                SubmittedByUserId = detail.SubmittedByUserId,
+                ApprovedByUserId = detail.ApprovedByUserId,
+                CreatedOnUtc = detail.CreatedOnUtc,
+                LastUpdatedOnUtc = detail.LastUpdatedOnUtc,
+                ApprovedOnUtc = detail.ApprovedOnUtc
             };
         }
 
@@ -218,7 +227,13 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
                 UnitName = detail.UnitName,
                 Quantity = detail.Quantity,
                 Remarks = detail.Remarks,
-                RowVersion = EncodeRowVersion(detail.RowVersion)
+                RowVersion = EncodeRowVersion(detail.RowVersion),
+                ApprovalStatus = detail.ApprovalStatus.ToString(),
+                SubmittedByUserId = detail.SubmittedByUserId,
+                ApprovedByUserId = detail.ApprovedByUserId,
+                CreatedOnUtc = detail.CreatedOnUtc,
+                LastUpdatedOnUtc = detail.LastUpdatedOnUtc,
+                ApprovedOnUtc = detail.ApprovedOnUtc
             };
         }
 
@@ -772,6 +787,32 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public async Task<IActionResult> UpdateGranular(Guid id, [FromBody] ProliferationGranularUpdateDto dto, CancellationToken ct)
         {
             var result = await _submitSvc.UpdateGranularAsync(id, dto, User, ct);
+            return ToActionResult(result);
+        }
+
+        [HttpPost("yearly/{id:guid}/decision")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ApproveProliferationTracker)]
+        public async Task<IActionResult> DecideYearly(Guid id, [FromBody] ProliferationApprovalDecisionDto dto, CancellationToken ct)
+        {
+            if (dto is null)
+            {
+                return BadRequest("Decision payload is required.");
+            }
+
+            var result = await _submitSvc.DecideYearlyAsync(id, dto.Approve, dto.RowVersion, User, ct);
+            return ToActionResult(result);
+        }
+
+        [HttpPost("granular/{id:guid}/decision")]
+        [Authorize(Policy = ProjectOfficeReportsPolicies.ApproveProliferationTracker)]
+        public async Task<IActionResult> DecideGranular(Guid id, [FromBody] ProliferationApprovalDecisionDto dto, CancellationToken ct)
+        {
+            if (dto is null)
+            {
+                return BadRequest("Decision payload is required.");
+            }
+
+            var result = await _submitSvc.DecideGranularAsync(id, dto.Approve, dto.RowVersion, User, ct);
             return ToActionResult(result);
         }
 

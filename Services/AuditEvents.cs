@@ -523,6 +523,24 @@ public static class Audit
             return new AuditEvent("ProjectOfficeReports.ProliferationYearlyDecided", decidedByUserId, data);
         }
 
+        public static AuditEvent ProliferationGranularDecided(
+            int projectId,
+            ProliferationSource source,
+            DateOnly proliferationDate,
+            bool approved,
+            string decidedByUserId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(CultureInfo.InvariantCulture),
+                ["Source"] = source.ToDisplayName(),
+                ["ProliferationDate"] = proliferationDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                ["Approved"] = approved ? "true" : "false"
+            };
+
+            return new AuditEvent("ProjectOfficeReports.ProliferationGranularDecided", decidedByUserId, data);
+        }
+
         public static AuditEvent ProliferationYearlyRecorded(
             int projectId,
             ProliferationSource source,

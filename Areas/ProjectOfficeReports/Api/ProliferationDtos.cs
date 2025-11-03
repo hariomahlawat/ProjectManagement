@@ -147,6 +147,9 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public DateTime? ProliferationDateUtc { get; set; }
         public int Quantity { get; set; }
         public string ApprovalStatus { get; set; } = default!;
+        public DateTime CreatedOnUtc { get; set; }
+        public DateTime LastUpdatedOnUtc { get; set; }
+        public DateTime? ApprovedOnUtc { get; set; }
     }
 
     public sealed class ProliferationManageListResponseDto
@@ -198,6 +201,12 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public int TotalQuantity { get; set; }
         public string? Remarks { get; set; }
         public string RowVersion { get; set; } = default!;
+        public string ApprovalStatus { get; set; } = default!;
+        public string SubmittedByUserId { get; set; } = default!;
+        public string? ApprovedByUserId { get; set; }
+        public DateTime CreatedOnUtc { get; set; }
+        public DateTime LastUpdatedOnUtc { get; set; }
+        public DateTime? ApprovedOnUtc { get; set; }
     }
 
     public sealed class ProliferationGranularDetailDto
@@ -210,6 +219,21 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Api
         public int Quantity { get; set; }
         public string? Remarks { get; set; }
         public string RowVersion { get; set; } = default!;
+        public string ApprovalStatus { get; set; } = default!;
+        public string SubmittedByUserId { get; set; } = default!;
+        public string? ApprovedByUserId { get; set; }
+        public DateTime CreatedOnUtc { get; set; }
+        public DateTime LastUpdatedOnUtc { get; set; }
+        public DateTime? ApprovedOnUtc { get; set; }
+    }
+
+    public sealed class ProliferationApprovalDecisionDto
+    {
+        [Required]
+        public bool Approve { get; set; }
+
+        [Required]
+        public string RowVersion { get; set; } = string.Empty;
     }
 
     public sealed class ProliferationYearlyUpdateDto : ProliferationYearlyCreateDto

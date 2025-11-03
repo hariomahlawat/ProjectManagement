@@ -69,7 +69,8 @@ public sealed record ProliferationManageListItem(
     int Quantity,
     ApprovalStatus ApprovalStatus,
     DateTime CreatedOnUtc,
-    DateTime LastUpdatedOnUtc);
+    DateTime LastUpdatedOnUtc,
+    DateTime? ApprovedOnUtc);
 
 public sealed record ProliferationPreferenceOverrideItem(
     Guid Id,
@@ -96,6 +97,12 @@ public sealed record ProliferationYearlyDetail(
     int Year,
     int TotalQuantity,
     string? Remarks,
+    ApprovalStatus ApprovalStatus,
+    string SubmittedByUserId,
+    string? ApprovedByUserId,
+    DateTime? ApprovedOnUtc,
+    DateTime CreatedOnUtc,
+    DateTime LastUpdatedOnUtc,
     byte[] RowVersion);
 
 public sealed record ProliferationGranularDetail(
@@ -106,6 +113,12 @@ public sealed record ProliferationGranularDetail(
     string UnitName,
     int Quantity,
     string? Remarks,
+    ApprovalStatus ApprovalStatus,
+    string SubmittedByUserId,
+    string? ApprovedByUserId,
+    DateTime? ApprovedOnUtc,
+    DateTime CreatedOnUtc,
+    DateTime LastUpdatedOnUtc,
     byte[] RowVersion);
 
 public static class ProliferationCompletedProjectOptionExtensions

@@ -3,6 +3,8 @@
   const Modal = window.bootstrap?.Modal ?? null;
   const Collapse = window.bootstrap?.Collapse ?? null;
 
+  const pageRoot = document.querySelector('[data-page="proliferation-manage"]');
+  const canApproveRecords = pageRoot?.dataset?.canApprove === 'true';
   const listCard = document.querySelector('#pf-list-card');
   const overridesCard = document.querySelector('#pf-overrides-card');
   const editorCard = document.querySelector('#pf-editor');
@@ -11,11 +13,32 @@
     scope: document.querySelector('[data-command-scope]'),
     updated: document.querySelector('[data-command-updated-value]')
   };
+  const decisionButtons = {
+    approve: document.querySelector('#pf-approve'),
+    reject: document.querySelector('#pf-reject'),
+    busy: false
+  };
+  const approvalElements = {
+    container: document.querySelector('[data-approval-container]'),
+    badge: document.querySelector('[data-approval-badge]'),
+    status: document.querySelector('[data-approval-status]'),
+    submitted: document.querySelector('[data-approval-submitted]'),
+    updated: document.querySelector('[data-approval-updated]'),
+    decided: document.querySelector('[data-approval-decided]')
+  };
+  const currentRecord = {
+    id: '',
+    kind: '',
+    status: '',
+    rowVersion: ''
+  };
   if (!listCard || !editorCard) {
     return;
   }
 
   const storageKey = 'proliferation-manage-filters';
+  resetApprovalUi();
+  updateDecisionButtons();
   const overridesStorageKey = 'proliferation-manage-preference-overrides';
   const api = {
     list: '/api/proliferation/list',
@@ -26,7 +49,9 @@
     saveGranular: (id) => (id ? `/api/proliferation/granular/${id}` : '/api/proliferation/granular'),
     deleteYearly: (id, rowVersion) => `/api/proliferation/yearly/${id}?rowVersion=${encodeURIComponent(rowVersion)}`,
     deleteGranular: (id, rowVersion) => `/api/proliferation/granular/${id}?rowVersion=${encodeURIComponent(rowVersion)}`,
-    setPreference: '/api/proliferation/year-preference'
+    setPreference: '/api/proliferation/year-preference',
+    decideYearly: (id) => `/api/proliferation/yearly/${id}/decision`,
+    decideGranular: (id) => `/api/proliferation/granular/${id}/decision`
   };
 
   const listEl = document.querySelector('#pf-list');
@@ -718,6 +743,123 @@
     } else {
       commandElements.updated.removeAttribute('data-timestamp');
     }
+  }
+
+  function getStatusBadgeConfig(status) {
+    switch (status) {
+      case 'approved':
+        return { text: 'Approved', className: 'text-bg-success' };
+      case 'rejected':
+        return { text: 'Rejected', className: 'text-bg-danger' };
+      case 'pending':
+        return { text: 'Pending', className: 'text-bg-warning text-dark' };
+      default:
+        return { text: 'Awaiting selection', className: 'text-bg-secondary' };
+    }
+  }
+
+  function resetApprovalUi() {
+    if (approvalElements.badge) {
+      const { text, className } = getStatusBadgeConfig('');
+      approvalElements.badge.textContent = text;
+      approvalElements.badge.className = `badge ${className}`;
+    }
+    if (approvalElements.status) {
+      approvalElements.status.textContent = 'Select a record to review approval status.';
+    }
+    if (approvalElements.submitted) {
+      approvalElements.submitted.textContent = 'Submitted: —';
+    }
+    if (approvalElements.updated) {
+      approvalElements.updated.textContent = 'Last updated: —';
+    }
+    if (approvalElements.decided) {
+      approvalElements.decided.textContent = 'Decision: —';
+      approvalElements.decided.hidden = true;
+    }
+  }
+
+  function updateApprovalUi(detail) {
+    if (!approvalElements.container) return;
+    if (!detail) {
+      resetApprovalUi();
+      return;
+    }
+
+    const statusRaw = (detail.approvalStatus ?? detail.ApprovalStatus ?? '').toString().toLowerCase();
+    const { text, className } = getStatusBadgeConfig(statusRaw || 'pending');
+    if (approvalElements.badge) {
+      approvalElements.badge.textContent = text;
+      approvalElements.badge.className = `badge ${className}`;
+    }
+
+    if (approvalElements.status) {
+      if (statusRaw === 'approved') {
+        approvalElements.status.textContent = 'Approved';
+      } else if (statusRaw === 'rejected') {
+        approvalElements.status.textContent = 'Rejected';
+      } else {
+        approvalElements.status.textContent = 'Pending approval';
+      }
+    }
+
+    const createdOn = detail.createdOnUtc ?? detail.CreatedOnUtc;
+    if (approvalElements.submitted) {
+      approvalElements.submitted.textContent = createdOn
+        ? `Submitted: ${formatDateTime(createdOn)}`
+        : 'Submitted: —';
+    }
+
+    const lastUpdated = detail.lastUpdatedOnUtc ?? detail.LastUpdatedOnUtc;
+    if (approvalElements.updated) {
+      approvalElements.updated.textContent = lastUpdated
+        ? `Last updated: ${formatDateTime(lastUpdated)}`
+        : 'Last updated: —';
+    }
+
+    if (approvalElements.decided) {
+      const decidedOn = detail.approvedOnUtc ?? detail.ApprovedOnUtc;
+      if (decidedOn) {
+        const label = statusRaw === 'approved' ? 'Approved on' : 'Decided on';
+        approvalElements.decided.textContent = `${label}: ${formatDateTime(decidedOn)}`;
+        approvalElements.decided.hidden = false;
+      } else if (statusRaw === 'rejected') {
+        approvalElements.decided.textContent = 'Decision: Rejected';
+        approvalElements.decided.hidden = false;
+      } else {
+        approvalElements.decided.textContent = 'Decision: —';
+        approvalElements.decided.hidden = true;
+      }
+    }
+  }
+
+  function updateDecisionButtons() {
+    const hasApproveButton = Boolean(decisionButtons.approve);
+    const hasRejectButton = Boolean(decisionButtons.reject);
+    if (!hasApproveButton && !hasRejectButton) {
+      return;
+    }
+
+    const hasRecord = Boolean(currentRecord.id);
+    const status = (currentRecord.status || '').toLowerCase();
+    const disableAll = !canApproveRecords || decisionButtons.busy || !hasRecord;
+
+    if (hasApproveButton) {
+      const disabled = disableAll || status === 'approved';
+      decisionButtons.approve.disabled = disabled;
+      decisionButtons.approve.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+    }
+
+    if (hasRejectButton) {
+      const disabled = disableAll || status === 'rejected';
+      decisionButtons.reject.disabled = disabled;
+      decisionButtons.reject.setAttribute('aria-disabled', disabled ? 'true' : 'false');
+    }
+  }
+
+  function setDecisionBusy(busy) {
+    decisionButtons.busy = Boolean(busy);
+    updateDecisionButtons();
   }
 
   function applyFiltersToInputs() {
@@ -1493,10 +1635,13 @@
       const subtitleParts = [sourceLabel, dateText].filter(Boolean);
       const approval = item.approvalStatus ? `Status: ${item.approvalStatus}` : '';
       const subtitle = [subtitleParts.join(' · '), approval].filter(Boolean).join(' • ');
-      const updatedValue = item.lastUpdatedOnUtc ?? '';
+      const updatedValue = item.lastUpdatedOnUtc ?? item.LastUpdatedOnUtc ?? '';
       const updatedAttr = updatedValue ? ` data-updated="${updatedValue}"` : '';
+      const isActive = currentRecord.id && currentRecord.id === String(item.id ?? '') && currentRecord.kind === kind;
+      const activeClass = isActive ? ' active' : '';
+      const currentAttr = isActive ? ' aria-current="true"' : '';
       return `
-        <button class="list-group-item list-group-item-action" data-id="${item.id}" data-kind="${kind}"${updatedAttr} type="button">
+        <button class="list-group-item list-group-item-action${activeClass}" data-id="${item.id}" data-kind="${kind}"${updatedAttr}${currentAttr} type="button">
           <div class="d-flex justify-content-between align-items-start gap-3">
             <div>
               <div class="fw-semibold">${project}</div>
@@ -1597,6 +1742,14 @@
     const id = button.getAttribute('data-id');
     const kind = button.getAttribute('data-kind');
     if (!id || !kind) return;
+    if (listEl) {
+      listEl.querySelectorAll('.list-group-item.active').forEach((item) => {
+        item.classList.remove('active');
+        item.removeAttribute('aria-current');
+      });
+    }
+    button.classList.add('active');
+    button.setAttribute('aria-current', 'true');
     const metadata = {
       updated: button.dataset.updated || ''
     };
@@ -1685,8 +1838,15 @@
     }
     editor.remarks.value = detail.remarks ?? '';
     editor.btnDelete.disabled = false;
-    const updatedValue = typeof metadata === 'object' && metadata ? metadata.updated || '' : '';
+    const statusValue = (detail.approvalStatus ?? detail.ApprovalStatus ?? '').toString().toLowerCase();
+    currentRecord.id = String(detail.id ?? '');
+    currentRecord.kind = kind;
+    currentRecord.status = statusValue;
+    currentRecord.rowVersion = detail.rowVersion ?? '';
+    const updatedValue = detail.lastUpdatedOnUtc ?? detail.LastUpdatedOnUtc ?? (typeof metadata === 'object' && metadata ? metadata.updated || '' : '');
     setCommandUpdated(updatedValue);
+    updateApprovalUi(detail);
+    updateDecisionButtons();
     clearValidationState();
     setSaveButtonState('idle');
     updateSaveButtonState();
@@ -1727,6 +1887,43 @@
       toast(error.message || 'Unable to save entry', 'danger');
     }
   });
+
+  async function decideRecord(approve) {
+    if (!canApproveRecords || !currentRecord.id) {
+      return;
+    }
+
+    const kind = currentRecord.kind === 'yearly' ? 'yearly' : 'granular';
+    const id = currentRecord.id;
+    const rowVersion = editor.rowVersion.value || currentRecord.rowVersion;
+    if (!rowVersion) {
+      toast('Refresh the record before taking action.', 'warning');
+      return;
+    }
+
+    const endpoint = kind === 'yearly' ? api.decideYearly(id) : api.decideGranular(id);
+    const payload = { approve: Boolean(approve), rowVersion };
+
+    setDecisionBusy(true);
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || 'Unable to update approval status');
+      }
+      toast(approve ? 'Entry approved.' : 'Entry rejected.', approve ? 'success' : 'warning');
+      await fetchList();
+      await loadIntoEditor(kind, id);
+    } catch (error) {
+      toast(error.message || 'Unable to update approval status', 'danger');
+    } finally {
+      setDecisionBusy(false);
+    }
+  }
 
   function buildPayload(kind) {
     const projectId = Number(editor.project?.value ?? '');
@@ -1780,6 +1977,18 @@
     resetEditor(currentKind);
   });
 
+  decisionButtons.approve?.addEventListener('click', () => {
+    decideRecord(true).catch((error) => {
+      toast(error.message || 'Unable to update approval status', 'danger');
+    });
+  });
+
+  decisionButtons.reject?.addEventListener('click', () => {
+    decideRecord(false).catch((error) => {
+      toast(error.message || 'Unable to update approval status', 'danger');
+    });
+  });
+
   editor.btnDelete?.addEventListener('click', async () => {
     if (editor.btnDelete.disabled) return;
     const id = editor.id.value;
@@ -1831,6 +2040,18 @@
     clearValidationState();
     setTab(preferredKind, { updateHash: false });
     setCommandUpdated('');
+    currentRecord.id = '';
+    currentRecord.kind = preferredKind === 'yearly' ? 'yearly' : 'granular';
+    currentRecord.status = '';
+    currentRecord.rowVersion = '';
+    resetApprovalUi();
+    updateDecisionButtons();
+    if (listEl) {
+      listEl.querySelectorAll('.list-group-item.active').forEach((item) => {
+        item.classList.remove('active');
+        item.removeAttribute('aria-current');
+      });
+    }
     setSaveButtonState('idle');
   }
 
