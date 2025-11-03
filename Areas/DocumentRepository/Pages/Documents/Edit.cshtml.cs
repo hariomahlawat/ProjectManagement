@@ -65,12 +65,8 @@ public class EditModel : PageModel
             DocumentDate = doc.DocumentDate,
             OfficeCategoryId = doc.OfficeCategoryId,
             DocumentCategoryId = doc.DocumentCategoryId,
-            // show existing tags as comma separated
-            Tags = doc.DocumentTags
-                .Select(dt => dt.Tag.Name)
-                .OrderBy(n => n)
-                .ToArray() is { Length: > 0 } arr
-                ? string.Join(", ", arr)
+            Tags = doc.DocumentTags.Any()
+                ? string.Join(", ", doc.DocumentTags.Select(dt => dt.Tag.Name).OrderBy(x => x))
                 : string.Empty
         };
 
@@ -86,7 +82,7 @@ public class EditModel : PageModel
             return Page();
         }
 
-        // load with tags because we will rewrite them
+        // load with tag collection – we will overwrite it
         var doc = await _db.Documents
             .Include(d => d.DocumentTags)
             .FirstOrDefaultAsync(d => d.Id == Input.Id, cancellationToken);
@@ -107,10 +103,8 @@ public class EditModel : PageModel
         if (Input.DocumentCategoryId.HasValue)
             doc.DocumentCategoryId = Input.DocumentCategoryId.Value;
 
-        // TAGS
-        var normalizedTags = ParseTags(Input.Tags)
-            .Distinct()
-            .ToList();
+        // parse and validate tags
+        var normalizedTags = ParseTags(Input.Tags).Distinct().ToList();
 
         if (normalizedTags.Count > 5)
         {
@@ -119,41 +113,59 @@ public class EditModel : PageModel
             return Page();
         }
 
-        var invalidTag = normalizedTags.FirstOrDefault(tag => tag.Length is < 1 or > 32 || !IsValidTag(tag));
-        if (invalidTag is not null)
+        var badTag = normalizedTags.FirstOrDefault(t => t.Length is < 1 or > 32 || !IsValidTag(t));
+        if (badTag is not null)
         {
             ModelState.AddModelError(nameof(Input.Tags),
-                $"Invalid tag '{invalidTag}'. Tags must be 1–32 chars and can contain letters, numbers, spaces, hyphens, or underscores.");
+                $"Invalid tag '{badTag}'. Tags must be 1–32 chars and can contain letters, numbers, spaces, hyphens, or underscores.");
             await LoadLookupsAsync(cancellationToken);
             return Page();
         }
 
+        // we will need tags from DB (existing + newly created)
+        List<Tag> allTagsForDocument = new();
+
         if (normalizedTags.Count > 0)
         {
-            // existing tags in DB
+            // 1) fetch existing tags from DB
             var existingTags = await _db.Tags
                 .Where(t => normalizedTags.Contains(t.NormalizedName))
                 .ToListAsync(cancellationToken);
 
-            // new tags to insert
-            var newTags = normalizedTags
+            // 2) find which ones are new
+            var newTagNames = normalizedTags
                 .Except(existingTags.Select(t => t.NormalizedName))
-                .Select(name => new Tag
-                {
-                    Name = name,
-                    NormalizedName = name
-                })
                 .ToList();
 
-            if (newTags.Count > 0)
+            if (newTagNames.Count > 0)
             {
+                var newTags = newTagNames
+                    .Select(n => new Tag
+                    {
+                        Name = n,
+                        NormalizedName = n
+                    })
+                    .ToList();
+
                 await _db.Tags.AddRangeAsync(newTags, cancellationToken);
+                // save once to get Tag.Id values
+                await _db.SaveChangesAsync(cancellationToken);
+
                 existingTags.AddRange(newTags);
             }
 
-            // rebuild document tags
-            doc.DocumentTags.Clear();
-            foreach (var tag in existingTags.Where(t => normalizedTags.Contains(t.NormalizedName)))
+            // now we have all tag entities with real IDs
+            allTagsForDocument = existingTags
+                .Where(t => normalizedTags.Contains(t.NormalizedName))
+                .ToList();
+        }
+
+        // rebuild document-tag links
+        doc.DocumentTags.Clear();
+
+        if (normalizedTags.Count > 0)
+        {
+            foreach (var tag in allTagsForDocument)
             {
                 doc.DocumentTags.Add(new DocumentTag
                 {
@@ -162,16 +174,12 @@ public class EditModel : PageModel
                 });
             }
         }
-        else
-        {
-            // user cleared tags
-            doc.DocumentTags.Clear();
-        }
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";
         doc.UpdatedAtUtc = DateTime.UtcNow;
         doc.UpdatedByUserId = userId;
 
+        // final save (metadata + doc tags)
         await _db.SaveChangesAsync(cancellationToken);
 
         TempData["ToastMessage"] = "Document metadata updated.";
