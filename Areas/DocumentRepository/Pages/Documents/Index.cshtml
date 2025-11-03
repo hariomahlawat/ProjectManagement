@@ -1,74 +1,69 @@
 @page
 @model ProjectManagement.Areas.DocumentRepository.Pages.Documents.IndexModel
-@using ProjectManagement.Data.DocRepo
-@using ProjectManagement.Models
+@using Microsoft.AspNetCore.Authorization
+@inject IAuthorizationService AuthorizationService
 @{
     ViewData["Title"] = "Document repository";
+
+    var canUpload = (await AuthorizationService.AuthorizeAsync(User, "DocRepo.Upload")).Succeeded;
+    var canSeeDeleteRequests = (await AuthorizationService.AuthorizeAsync(User, "DocRepo.DeleteApprove")).Succeeded;
 }
 
-<partial name="~/Views/Shared/_Breadcrumbs.cshtml" model='new BreadcrumbModel(
-                                                       ("Documents", null)
-                                                   )' />
+<div class="container-fluid pt-3 pb-4">
 
-<div class="container-fluid py-3">
+    <!-- top bar: breadcrumb + title + actions in one line -->
     <div class="d-flex justify-content-between align-items-center mb-2">
-        <h1 class="h4 mb-0">Document repository</h1>
+        <div>
+            <nav aria-label="breadcrumb" class="mb-0">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a asp-area="" asp-page="/Index">Dashboard</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Documents</li>
+                </ol>
+            </nav>
+        </div>
         <div class="d-flex gap-2">
-            <authorize policy="DocRepo.DeleteApprove">
+            @if (canSeeDeleteRequests)
+            {
                 <a asp-area="DocumentRepository"
                    asp-page="/Admin/DeleteRequests/Index"
                    class="btn btn-outline-danger">
                     Delete requests
                 </a>
-            </authorize>
-
-            <authorize policy="DocRepo.Upload">
+            }
+            @if (canUpload)
+            {
                 <a asp-page="./Upload" class="btn btn-primary">
-                    <i class="bi bi-upload me-1"></i> Upload
+                    <i class="bi bi-upload me-1"></i>Upload
                 </a>
-            </authorize>
+            }
         </div>
     </div>
 
-    <form method="get" class="row g-2 mb-4" data-docrepo-filter>
-        <div class="col-sm-4 col-lg-3">
-            <input class="form-control" type="search" name="q" value="@Model.Q" placeholder="Search subject / sender / tag" />
-        </div>
-        <div class="col-sm-3 col-lg-2">
-            <input class="form-control" name="tag" value="@Model.Tag" placeholder="Tag" />
-        </div>
-        <div class="col-sm-3 col-lg-2">
-            <select class="form-select" name="officeCategoryId">
-                <option value="">All offices</option>
-                @foreach (var office in Model.OfficeCategories)
-                {
-                    <option value="@office.Id" selected="@(Model.OfficeCategoryId == office.Id ? "selected" : null)">@office.Name</option>
-                }
-            </select>
-        </div>
-        <div class="col-sm-3 col-lg-2">
-            <select class="form-select" name="documentCategoryId">
-                <option value="">All document type</option>
-                @foreach (var docCat in Model.DocumentCategories)
-                {
-                    <option value="@docCat.Id" selected="@(Model.DocumentCategoryId == docCat.Id ? "selected" : null)">@docCat.Name</option>
-                }
-            </select>
-        </div>
-        <div class="col-sm-2 col-lg-1">
-            <input class="form-control" type="number" name="year" value="@(Model.Year?.ToString() ?? string.Empty)" placeholder="Year" min="1900" max="2100" />
-        </div>
-        <div class="col-sm-3 col-lg-2 d-flex align-items-center">
-            <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="includeInactive"
-                       name="includeInactive" value="true" @(Model.IncludeInactive ? "checked" : null) />
-                <label class="form-check-label" for="includeInactive">Include inactive</label>
+    <!-- search row -->
+    <form method="get" class="d-flex gap-2 align-items-center mb-3">
+        <div class="flex-grow-1">
+            <div class="input-group input-group-lg shadow-sm rounded-3 bg-white">
+                <span class="input-group-text bg-white border-0">
+                    <i class="bi bi-search"></i>
+                </span>
+                <input name="q"
+                       value="@Model.Q"
+                       type="search"
+                       class="form-control border-0"
+                       placeholder="Search documents (subject, sender, tags)…" />
+                <button class="btn btn-primary px-4 rounded-end-3" type="submit">Search</button>
             </div>
         </div>
-        <div class="col-sm-2 col-lg-1">
-            <button type="submit" class="btn btn-outline-secondary w-100">Filter</button>
-        </div>
-        <input type="hidden" name="page" value="1" />
+
+        <button type="button"
+                class="btn btn-outline-secondary d-flex align-items-center gap-1"
+                data-bs-toggle="modal"
+                data-bs-target="#docFilterModal">
+            <i class="bi bi-funnel"></i>
+            Filters
+        </button>
+
+        <input type="hidden" name="page" value="@Model.PageNumber" />
         <input type="hidden" name="pageSize" value="@Model.PageSize" />
     </form>
 
@@ -76,20 +71,7 @@
 
     @if (!Model.Items.Any())
     {
-        <div class="card border-0 bg-light-subtle">
-            <div class="card-body py-5 text-center text-muted">
-                <i class="bi bi-inbox display-5 d-block mb-2"></i>
-                <div class="fw-semibold">No documents found</div>
-                <div>Try adjusting filters or upload a new document.</div>
-                <authorize policy="DocRepo.Upload">
-                    <div class="mt-3">
-                        <a asp-page="./Upload" class="btn btn-primary btn-sm">
-                            <i class="bi bi-upload me-1"></i> Upload
-                        </a>
-                    </div>
-                </authorize>
-            </div>
-        </div>
+        <div class="alert alert-light border">No documents found.</div>
     }
     else
     {
@@ -97,7 +79,7 @@
             @foreach (var d in Model.Items)
             {
                 <div class="col">
-                    <partial name="_DocumentCard" model="d" />
+                    @await Html.PartialAsync("_DocumentCard", d)
                 </div>
             }
         </div>
@@ -106,6 +88,80 @@
     <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, Request)" />
 </div>
 
-@section Styles {
-    <link rel="stylesheet" href="~/css/docrepo-ui.css" asp-append-version="true" />
-}
+<!-- FILTER MODAL (same as last time, just pasted again so you have single file) -->
+<div class="modal fade" id="docFilterModal" tabindex="-1" aria-labelledby="docFilterModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="get">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="docFilterModalLabel">Filter documents</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body">
+                    <input type="hidden" name="q" value="@Model.Q" />
+                    <input type="hidden" name="page" value="1" />
+                    <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                    <div class="mb-3">
+                        <label class="form-label" for="tagInput">Tag</label>
+                        <input class="form-control" id="tagInput" name="tag" value="@Model.Tag" placeholder="e.g. sow, contract" />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="officeSelect">Office</label>
+                        <select class="form-select" id="officeSelect" name="officeCategoryId">
+                            <option value="">All offices</option>
+                            @foreach (var office in Model.OfficeCategories)
+                            {
+                                if (Model.OfficeCategoryId == office.Id)
+                                {
+                                    <option value="@office.Id" selected="selected">@office.Name</option>
+                                }
+                                else
+                                {
+                                    <option value="@office.Id">@office.Name</option>
+                                }
+                            }
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="docTypeSelect">Document type</label>
+                        <select class="form-select" id="docTypeSelect" name="documentCategoryId">
+                            <option value="">All document types</option>
+                            @foreach (var docCat in Model.DocumentCategories)
+                            {
+                                if (Model.DocumentCategoryId == docCat.Id)
+                                {
+                                    <option value="@docCat.Id" selected="selected">@docCat.Name</option>
+                                }
+                                else
+                                {
+                                    <option value="@docCat.Id">@docCat.Name</option>
+                                }
+                            }
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label" for="yearInput">Year</label>
+                        <input class="form-control" id="yearInput" name="year" type="number" min="1900" max="2100" value="@(Model.Year?.ToString() ?? string.Empty)" />
+                    </div>
+
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="includeInactiveCheck" name="includeInactive" value="true" @(Model.IncludeInactive ? "checked" : null) />
+                        <label class="form-check-label" for="includeInactiveCheck">
+                            Include inactive documents
+                        </label>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary">Apply filters</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

@@ -1,67 +1,85 @@
-using System.Security.Claims;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Data.DocRepo;
-using ProjectManagement.Services.DocRepo;
 
-namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin.DeleteRequests;
-
-[Authorize(Policy = "DocRepo.DeleteApprove")]
-public class IndexModel : PageModel
+namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin.DeleteRequests
 {
-    private readonly ApplicationDbContext _db;
-    private readonly IDocStorage _storage;
-    private readonly IDocRepoAuditService _audit;
-
-    public IndexModel(ApplicationDbContext db, IDocStorage storage, IDocRepoAuditService audit)
+    [Authorize(Policy = "DocRepo.DeleteApprove")]
+    public class IndexModel : PageModel
     {
-        _db = db;
-        _storage = storage;
-        _audit = audit;
-    }
+        private readonly ApplicationDbContext _db;
 
-    public IList<DocumentDeleteRequest> Pending { get; private set; } = new List<DocumentDeleteRequest>();
-
-    public async Task OnGetAsync(CancellationToken cancellationToken)
-    {
-        Pending = await _db.DocumentDeleteRequests
-            .Include(r => r.Document)
-            .Where(r => r.ApprovedAtUtc == null)
-            .OrderBy(r => r.RequestedAtUtc)
-            .AsNoTracking()
-            .ToListAsync(cancellationToken);
-    }
-
-    public async Task<IActionResult> OnPostApproveAsync(long id, CancellationToken cancellationToken)
-    {
-        var request = await _db.DocumentDeleteRequests
-            .Include(r => r.Document)
-            .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
-
-        if (request is null || request.ApprovedAtUtc.HasValue)
+        public IndexModel(ApplicationDbContext db)
         {
+            _db = db;
+        }
+
+        // list shown on the page
+        public List<DocumentDeleteRequest> DeleteRequests { get; private set; } = new();
+
+        public async Task OnGetAsync(CancellationToken cancellationToken)
+        {
+            DeleteRequests = await _db.DocumentDeleteRequests
+                .AsNoTracking()
+                .Include(r => r.Document)
+                .Where(r => r.ApprovedAtUtc == null)   // only pending
+                .OrderBy(r => r.RequestedAtUtc)
+                .ToListAsync(cancellationToken);
+        }
+
+        // approve = mark request approved (and optionally act on the document)
+        public async Task<IActionResult> OnPostApproveAsync(long id, CancellationToken cancellationToken)
+        {
+            var request = await _db.DocumentDeleteRequests
+                .Include(r => r.Document)
+                .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+
+            if (request == null)
+            {
+                return NotFound();
+            }
+
+            request.ApprovedAtUtc = DateTimeOffset.UtcNow;
+            request.ApprovedByUserId = User?.Identity?.Name ?? "system";
+
+            // If you want to deactivate the document when a delete is approved, uncomment:
+            // if (request.Document != null)
+            // {
+            //     request.Document.IsActive = false;
+            //     request.Document.UpdatedAtUtc = DateTime.UtcNow;
+            //     request.Document.UpdatedByUserId = User?.Identity?.Name ?? "system";
+            // }
+
+            await _db.SaveChangesAsync(cancellationToken);
+
+            TempData["ToastMessage"] = "Delete request approved.";
             return RedirectToPage();
         }
 
-        var document = request.Document;
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";
-
-        if (!string.IsNullOrWhiteSpace(document.StoragePath))
+        // reject = just remove the pending request
+        public async Task<IActionResult> OnPostRejectAsync(long id, CancellationToken cancellationToken)
         {
-            await _storage.DeleteAsync(document.StoragePath, cancellationToken);
+            var request = await _db.DocumentDeleteRequests
+                .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+
+            if (request == null)
+            {
+                return NotFound();
+            }
+
+            _db.DocumentDeleteRequests.Remove(request);
+            await _db.SaveChangesAsync(cancellationToken);
+
+            TempData["ToastMessage"] = "Delete request rejected.";
+            return RedirectToPage();
         }
-
-        _db.Documents.Remove(document);
-        request.ApprovedAtUtc = DateTimeOffset.UtcNow;
-        request.ApprovedByUserId = userId;
-
-        await _db.SaveChangesAsync(cancellationToken);
-        await _audit.WriteAsync(request.DocumentId, userId, "DeleteApproved", new { request.Id }, cancellationToken);
-
-        TempData["ToastMessage"] = "Delete request approved and document removed.";
-        return RedirectToPage();
     }
 }

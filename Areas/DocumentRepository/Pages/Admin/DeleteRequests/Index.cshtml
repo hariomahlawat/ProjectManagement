@@ -1,50 +1,74 @@
 @page
 @model ProjectManagement.Areas.DocumentRepository.Pages.Admin.DeleteRequests.IndexModel
 @{
-    ViewData["Title"] = "Delete requests";
+    ViewData["Title"] = "Pending delete requests";
 }
 
-<div class="container py-4">
+<div class="container-fluid pt-3 pb-4">
+
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1 class="h4 mb-0">Pending delete requests</h1>
-        <a asp-area="DocumentRepository"
-           asp-page="/Documents/Index"
-           class="btn btn-outline-secondary">
-            <i class="bi bi-arrow-left"></i> Back to documents
-        </a>
+        <div>
+            <nav aria-label="breadcrumb" class="mb-1">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item">
+                        <a asp-area="" asp-page="/Index">Dashboard</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a asp-area="DocumentRepository" asp-page="/Documents/Index">Documents</a>
+                    </li>
+                    <li class="breadcrumb-item active" aria-current="page">Delete requests</li>
+                </ol>
+            </nav>
+            <h1 class="h5 mb-0">Pending delete requests</h1>
+        </div>
     </div>
 
-    @if (!Model.Pending.Any())
+    @if (Model.DeleteRequests == null || !Model.DeleteRequests.Any())
     {
-        <div class="alert alert-light border">No pending delete requests.</div>
+        <div class="alert alert-light border">
+            No pending delete requests.
+        </div>
     }
     else
     {
-        <div class="table-responsive shadow-sm">
-            <table class="table table-striped align-middle">
-                <thead>
+        <div class="table-responsive bg-white rounded-3 shadow-sm">
+            <table class="table mb-0 align-middle">
+                <thead class="table-light">
                     <tr>
-                        <th scope="col">Document</th>
-                        <th scope="col">Requested by</th>
-                        <th scope="col">Requested at</th>
-                        <th scope="col">Reason</th>
-                        <th scope="col" class="text-end">Actions</th>
+                        <th>Document</th>
+                        <th>Requested by</th>
+                        <th>Reason</th>
+                        <th>Requested at (UTC)</th>
+                        <th style="width: 180px;"></th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var request in Model.Pending)
+                    @foreach (var item in Model.DeleteRequests)
                     {
                         <tr>
                             <td>
-                                <div class="fw-semibold">@request.Document.Subject</div>
-                                <div class="small text-muted">@request.Document.OriginalFileName</div>
+                                <div class="fw-semibold">@item.Document?.Subject</div>
+                                <div class="text-muted small">@item.Document?.ReceivedFrom</div>
                             </td>
-                            <td>@request.RequestedByUserId</td>
-                            <td>@request.RequestedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm")</td>
-                            <td>@(string.IsNullOrWhiteSpace(request.Reason) ? "—" : request.Reason)</td>
+                            <td>@item.RequestedByUserId</td>
+                            <td>@item.Reason</td>
+                            <td>@item.RequestedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
                             <td class="text-end">
-                                <form method="post" asp-page-handler="Approve" asp-route-id="@request.Id" class="d-inline">
-                                    <button type="submit" class="btn btn-sm btn-danger">Approve &amp; delete</button>
+                                <form method="post"
+                                      asp-page-handler="Approve"
+                                      asp-route-id="@item.Id"
+                                      class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-danger">
+                                        Delete
+                                    </button>
+                                </form>
+                                <form method="post"
+                                      asp-page-handler="Reject"
+                                      asp-route-id="@item.Id"
+                                      class="d-inline ms-1">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">
+                                        Reject
+                                    </button>
                                 </form>
                             </td>
                         </tr>
@@ -54,7 +78,3 @@
         </div>
     }
 </div>
-
-@section Scripts {
-    <partial name="_ValidationScriptsPartial" />
-}
