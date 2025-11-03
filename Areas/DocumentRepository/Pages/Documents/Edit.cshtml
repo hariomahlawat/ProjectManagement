@@ -1,0 +1,54 @@
+﻿@page "{id:guid}"
+@model ProjectManagement.Areas.DocumentRepository.Pages.Documents.EditModel
+@{
+    ViewData["Title"] = "Edit document metadata";
+}
+
+<div class="container-fluid py-3">
+    <h2 class="h5 mb-3">Edit document metadata</h2>
+
+    <form method="post" class="row g-3">
+        <input type="hidden" asp-for="Input.Id" />
+
+        <div class="col-md-6">
+            <label asp-for="Input.Subject" class="form-label"></label>
+            <input asp-for="Input.Subject" class="form-control" />
+            <span asp-validation-for="Input.Subject" class="text-danger"></span>
+        </div>
+
+        <div class="col-md-6">
+            <label asp-for="Input.ReceivedFrom" class="form-label"></label>
+            <input asp-for="Input.ReceivedFrom" class="form-control" />
+            <span asp-validation-for="Input.ReceivedFrom" class="text-danger"></span>
+        </div>
+
+        <div class="col-md-3">
+            <label asp-for="Input.DocumentDate" class="form-label"></label>
+            <input asp-for="Input.DocumentDate" class="form-control" type="date" />
+            <span asp-validation-for="Input.DocumentDate" class="text-danger"></span>
+        </div>
+
+        <div class="col-md-4">
+            <label asp-for="Input.OfficeCategoryId" class="form-label">Office</label>
+            <select asp-for="Input.OfficeCategoryId" class="form-select"
+                    asp-items="@(new SelectList(Model.OfficeCategories, "Id", "Name"))">
+                <option value="">-- select office --</option>
+            </select>
+            <span asp-validation-for="Input.OfficeCategoryId" class="text-danger"></span>
+        </div>
+
+        <div class="col-md-4">
+            <label asp-for="Input.DocumentCategoryId" class="form-label">Document type</label>
+            <select asp-for="Input.DocumentCategoryId" class="form-select"
+                    asp-items="@(new SelectList(Model.DocumentCategories, "Id", "Name"))">
+                <option value="">-- select type --</option>
+            </select>
+            <span asp-validation-for="Input.DocumentCategoryId" class="text-danger"></span>
+        </div>
+
+        <div class="col-12">
+            <button type="submit" class="btn btn-primary">Save</button>
+            <a asp-page="./Index" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>

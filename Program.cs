@@ -185,6 +185,10 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole(RoleNames.Admin));
     options.AddPolicy("DocRepo.DeleteApprove", policy =>
         policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
+    options.AddPolicy("DocRepo.EditMetadata", policy =>
+        policy.RequireRole("Admin", "TA", "ITO", "MCO","HoD"));
+
+
 });
 
 builder.Services.ConfigureApplicationCookie(opt =>

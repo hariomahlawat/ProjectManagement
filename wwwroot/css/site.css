@@ -1285,9 +1285,19 @@ body {
     list-style: none;
 }
 
-.prol-yr__summary::-webkit-details-marker {
-    display: none;
+/* Hide default marker on <summary> in all modern browsers */
+summary {
+    list-style: none;
 }
+
+    summary::marker {
+        content: "";
+    }
+
+
+summary::marker {
+    display: none;
+} 
 
 .prol-yr__summary:focus-visible {
     outline: 2px solid var(--pm-primary);
@@ -5656,4 +5666,17 @@ body.has-project-photo-preview-dialog {
 /* --- Utility --- */
 .pm-muted {
     color: var(--bs-secondary-color);
+}
+
+/* Doc card compact tweaks */
+.card .badge {
+    font-weight: 500;
+}
+
+.card-footer .btn {
+    white-space: nowrap;
+}
+
+.card-title {
+    max-width: 28rem;
 }

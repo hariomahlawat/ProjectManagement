@@ -10,6 +10,7 @@ public static class RoleNames
     public const string Comdt = "Comdt";
     public const string Mco = "MCO";
     public const string Ta = "TA";
+    public const string Ito = "ITO";
     public const string MainOfficeClerk = "Main_Office_Clerk";
     public const string McCellClerk = "MC_Cell_Clerk";
     public const string ItCellClerk = "IT_Cell_Clerk";
