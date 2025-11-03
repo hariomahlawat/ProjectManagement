@@ -175,15 +175,16 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(Policies.Ipr.Edit, policy =>
         policy.RequireRole(Policies.Ipr.EditAllowedRoles));
     options.AddPolicy("DocRepo.View", policy =>
-        policy.RequireRole(RoleNames.Admin, RoleNames.HoD, RoleNames.ProjectOffice, RoleNames.ProjectOfficeAlternate));
+    policy.RequireAuthenticatedUser());
+
     options.AddPolicy("DocRepo.Upload", policy =>
-        policy.RequireRole(RoleNames.ProjectOffice, RoleNames.MainOfficeClerk, RoleNames.McCellClerk, RoleNames.ItCellClerk));
+        policy.RequireRole(RoleNames.ProjectOffice, RoleNames.MainOfficeClerk, RoleNames.McCellClerk, RoleNames.ItCellClerk, RoleNames.Admin, RoleNames.HoD));
     options.AddPolicy("DocRepo.SoftDelete", policy =>
-        policy.RequireRole(RoleNames.ProjectOffice, RoleNames.MainOfficeClerk, RoleNames.McCellClerk, RoleNames.ItCellClerk));
+        policy.RequireRole(RoleNames.ProjectOffice, RoleNames.MainOfficeClerk, RoleNames.McCellClerk, RoleNames.ItCellClerk, RoleNames.Admin, RoleNames.HoD));
     options.AddPolicy("DocRepo.ManageCategories", policy =>
         policy.RequireRole(RoleNames.Admin));
     options.AddPolicy("DocRepo.DeleteApprove", policy =>
-        policy.RequireRole(RoleNames.Admin));
+        policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
 });
 
 builder.Services.ConfigureApplicationCookie(opt =>
