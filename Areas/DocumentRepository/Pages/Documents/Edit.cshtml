@@ -46,6 +46,13 @@
             <span asp-validation-for="Input.DocumentCategoryId" class="text-danger"></span>
         </div>
 
+        <div class="col-md-6">
+            <label asp-for="Input.Tags" class="form-label"></label>
+            <input asp-for="Input.Tags" class="form-control" placeholder="example: sow, contract, hq" />
+            <span asp-validation-for="Input.Tags" class="text-danger"></span>
+            <div class="form-text">Max 5 tags, comma separated.</div>
+        </div>
+
         <div class="col-12">
             <button type="submit" class="btn btn-primary">Save</button>
             <a asp-page="./Index" class="btn btn-secondary">Cancel</a>
