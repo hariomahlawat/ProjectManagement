@@ -40,6 +40,15 @@
             </div>
         </div>
         <div class="card-body">
+            <div class="bg-light border rounded-3 p-3 mb-4" id="pf-approval-panel" data-approval-container>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <span class="badge text-bg-secondary" data-approval-badge>Awaiting selection</span>
+                    <span class="fw-semibold" data-approval-status>Select a record to review approval status.</span>
+                </div>
+                <div class="small text-muted mt-2" data-approval-submitted>Submitted: —</div>
+                <div class="small text-muted" data-approval-updated>Last updated: —</div>
+                <div class="small text-muted" data-approval-decided hidden>Decision: —</div>
+            </div>
             <form id="pf-form" novalidate>
                 <input type="hidden" id="pf-id" />
                 <input type="hidden" id="pf-kind" value="granular" />

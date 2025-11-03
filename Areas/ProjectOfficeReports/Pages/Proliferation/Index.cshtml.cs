@@ -23,10 +23,16 @@ public sealed class IndexModel : PageModel
 
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
-        var managePreferencesResult = await _authorizationService.AuthorizeAsync(User, ProjectOfficeReportsPolicies.ApproveProliferationTracker);
+        var managePreferencesResult = await _authorizationService.AuthorizeAsync(
+            User,
+            resource: null,
+            ProjectOfficeReportsPolicies.ApproveProliferationTracker);
         CanManagePreferences = managePreferencesResult.Succeeded;
 
-        var submitResult = await _authorizationService.AuthorizeAsync(User, ProjectOfficeReportsPolicies.SubmitProliferationTracker);
+        var submitResult = await _authorizationService.AuthorizeAsync(
+            User,
+            resource: null,
+            ProjectOfficeReportsPolicies.SubmitProliferationTracker);
         CanManageRecords = submitResult.Succeeded || CanManagePreferences;
     }
 }

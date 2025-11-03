@@ -4,7 +4,7 @@
     ViewData["Title"] = "Proliferation Manager";
 }
 
-<div class="container-xxl my-4" data-page="proliferation-manage">
+<div class="container-xxl my-4" data-page="proliferation-manage" data-can-approve="@(Model.CanApproveRecords ? "true" : "false")">
     <nav aria-label="Breadcrumb" class="visit-breadcrumb">
         <ol class="breadcrumb mb-0">
             <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
@@ -25,6 +25,19 @@
             </div>
         </div>
         <div class="pf-command-bar__actions">
+            @if (Model.CanApproveRecords)
+            {
+                <div class="btn-group" role="group" aria-label="Approval actions">
+                    <button class="btn btn-success" id="pf-approve" type="button" disabled>
+                        <span class="me-1" aria-hidden="true">✓</span>
+                        <span>Approve</span>
+                    </button>
+                    <button class="btn btn-outline-danger" id="pf-reject" type="button" disabled>
+                        <span class="me-1" aria-hidden="true">✕</span>
+                        <span>Reject</span>
+                    </button>
+                </div>
+            }
             <button class="btn btn-primary" id="pf-save" type="submit" form="pf-form" disabled>Save</button>
             <button class="btn btn-outline-danger" id="pf-delete" type="button" disabled>Delete</button>
             <button class="btn btn-outline-secondary" id="pf-overrides-export" type="button" aria-disabled="true" disabled>Export CSV</button>
