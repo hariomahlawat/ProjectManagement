@@ -1,14 +1,13 @@
 @page
 @model ProjectManagement.Areas.DocumentRepository.Pages.Documents.IndexModel
-@using System.Linq
 @using ProjectManagement.Data.DocRepo
 @{
     ViewData["Title"] = "Document repository";
 }
 
 <partial name="~/Views/Shared/_Breadcrumbs.cshtml" model='new BreadcrumbModel(
-    ("Documents", null)
-)' />
+                                                       ("Documents", null)
+                                                   )' />
 
 <div class="container-fluid py-3">
     <div class="d-flex justify-content-between align-items-center mb-2">
@@ -48,7 +47,7 @@
         </div>
         <div class="col-sm-3 col-lg-2">
             <select class="form-select" name="documentCategoryId">
-                <option value="">All document types</option>
+                <option value="">All document type</option>
                 @foreach (var docCat in Model.DocumentCategories)
                 {
                     <option value="@docCat.Id" selected="@(Model.DocumentCategoryId == docCat.Id ? "selected" : null)">@docCat.Name</option>
@@ -74,7 +73,6 @@
 
     <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, Request)" />
 
-
     @if (!Model.Items.Any())
     {
         <div class="card border-0 bg-light-subtle">
@@ -94,88 +92,19 @@
     }
     else
     {
-        <div class="row row-cols-1 row-cols-md-2 g-3">
+        <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 g-3">
             @foreach (var d in Model.Items)
             {
                 <div class="col">
-                    <div class="card h-100">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div>
-                                    <h5 class="card-title mb-1">
-                                        @d.Subject
-                                        @if (!d.IsActive)
-                                        {
-                                            <span class="badge bg-warning text-dark ms-2">Inactive</span>
-                                        }
-                                    </h5>
-                                    <div class="text-muted small">
-                                        @(d.DocumentDate?.ToString("dd MMM yyyy") ?? "—")
-                                        @if (!string.IsNullOrWhiteSpace(d.ReceivedFrom))
-                                        {
-                                            <text> · @d.ReceivedFrom</text>
-                                        }
-                                    </div>
-                                </div>
-                                <span class="badge @(d.OcrStatus switch
-                                    {
-                                        OcrStatus.Queued => "bg-secondary",
-                                        OcrStatus.Succeeded => "bg-success",
-                                        OcrStatus.Failed => "bg-danger",
-                                        _ => "bg-light text-dark"
-                                    })"
-                                      title="@(d.OcrStatus == OcrStatus.Failed ? d.OcrFailureReason : null)">
-                                    OCR: @d.OcrStatus
-                                </span>
-                            </div>
-
-                            @if (d.DocumentTags?.Any() == true)
-                            {
-                                <div class="mt-2">
-                                    @foreach (var t in d.DocumentTags.Select(x => x.Tag))
-                                    {
-                                        <span class="badge bg-outline-secondary border me-1">@t.Name</span>
-                                    }
-                                </div>
-                            }
-                        </div>
-                        <div class="card-footer d-flex gap-2 align-items-center">
-                            <a class="btn btn-sm btn-outline-primary" asp-page="./View" asp-route-id="@d.Id" target="_blank" rel="noopener">
-                                <i class="bi bi-box-arrow-up-right"></i> View
-                            </a>
-                            <a class="btn btn-sm btn-outline-secondary" asp-page="./Download" asp-route-id="@d.Id">
-                                <i class="bi bi-download"></i> Download
-                            </a>
-
-                            <authorize policy="DocRepo.SoftDelete">
-                                <div class="d-flex gap-2 ms-auto">
-                                    <form method="post" asp-page="./Manage" asp-page-handler="Deactivate" asp-route-id="@d.Id">
-                                        <button class="btn btn-sm btn-outline-warning" type="submit" @(d.IsActive ? null : "disabled")>Deactivate</button>
-                                    </form>
-                                    <form method="post" asp-page="./Manage" asp-page-handler="Activate" asp-route-id="@d.Id">
-                                        <button class="btn btn-sm btn-outline-success" type="submit" @(!d.IsActive ? null : "disabled")>Activate</button>
-                                    </form>
-                                    <form method="post" asp-page="./Manage" asp-page-handler="RequestDelete" asp-route-id="@d.Id">
-                                        <input type="hidden" name="reason" value="Obsolete" />
-                                        <button class="btn btn-sm btn-outline-danger" type="submit">Request Delete</button>
-                                    </form>
-                                </div>
-                            </authorize>
-                        </div>
-                    </div>
+                    <partial name="_DocumentCard" model="d" />
                 </div>
             }
         </div>
     }
 
     <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, Request)" />
-
 </div>
 
-@section Scripts {
-    <script src="~/js/docrepo/index.js" asp-append-version="true" defer></script>
-}
-
 @section Styles {
-    <link rel="stylesheet" href="~/css/docrepo.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/docrepo-ui.css" asp-append-version="true" />
 }

@@ -1,0 +1,72 @@
+﻿@model ProjectManagement.Data.DocRepo.Document
+@using ProjectManagement.Data.DocRepo
+
+<div class="doc-card card h-100 shadow-sm">
+  <div class="card-body">
+    <div class="d-flex justify-content-between">
+      <div>
+        <h3 class="h6 mb-1 text-truncate-2">@Model.Subject</h3>
+        <div class="text-muted small">
+          @if (!string.IsNullOrWhiteSpace(Model.ReceivedFrom))
+          { <span>@Model.ReceivedFrom</span> }
+          @if (Model.DocumentDate.HasValue)
+          { <span class="ms-2">· @Model.DocumentDate.Value.ToString("dd MMM yyyy")</span> }
+          @if (Model.OfficeCategory is not null)
+          { <span class="ms-2">· @Model.OfficeCategory.Name</span> }
+        </div>
+      </div>
+
+      <div class="text-end">
+        <span class="badge @(Model.OcrStatus switch
+           { OcrStatus.Queued => "bg-secondary",
+             OcrStatus.Succeeded => "bg-success",
+             OcrStatus.Failed => "bg-danger",
+             _ => "bg-light text-dark" })">
+          OCR: @Model.OcrStatus
+        </span>
+        @if (!Model.IsActive)
+        { <div class="badge bg-warning text-dark mt-1">Inactive</div> }
+      </div>
+    </div>
+
+    @if (Model.DocumentTags?.Any() == true)
+    {
+      <div class="mt-2 doc-tags">
+        @foreach (var t in Model.DocumentTags.Select(x => x.Tag))
+        {
+          <span class="badge rounded-pill text-bg-light border me-1">@t.Name</span>
+        }
+      </div>
+    }
+  </div>
+
+  <div class="card-footer d-flex gap-2 align-items-center">
+    <a class="btn btn-sm btn-outline-primary"
+       asp-page="./Reader" asp-route-id="@Model.Id" target="_blank" rel="noopener">
+       <i class="bi bi-box-arrow-up-right"></i> View
+    </a>
+    <a class="btn btn-sm btn-outline-secondary"
+       asp-page="./Download" asp-route-id="@Model.Id">
+       <i class="bi bi-download"></i> Download
+    </a>
+
+    <authorize policy="DocRepo.EditMetadata">
+      <a class="btn btn-sm btn-outline-dark" asp-page="./Edit" asp-route-id="@Model.Id">Edit</a>
+    </authorize>
+
+    <authorize policy="DocRepo.SoftDelete">
+      <div class="d-flex gap-2 ms-auto">
+        <form method="post" asp-page="./Manage" asp-page-handler="Deactivate" asp-route-id="@Model.Id">
+          <button class="btn btn-sm btn-outline-warning" type="submit" @(Model.IsActive ? null : "disabled")>Deactivate</button>
+        </form>
+        <form method="post" asp-page="./Manage" asp-page-handler="Activate" asp-route-id="@Model.Id">
+          <button class="btn btn-sm btn-outline-success" type="submit" @(!Model.IsActive ? null : "disabled")>Activate</button>
+        </form>
+        <form method="post" asp-page="./Manage" asp-page-handler="RequestDelete" asp-route-id="@Model.Id">
+          <input type="hidden" name="reason" value="Obsolete" />
+          <button class="btn btn-sm btn-outline-danger" type="submit">Request Delete</button>
+        </form>
+      </div>
+    </authorize>
+  </div>
+</div>

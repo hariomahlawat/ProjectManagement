@@ -50,8 +50,8 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             if (PageNumber < 1) PageNumber = 1;
             if (PageSize < 10 || PageSize > 200) PageSize = DefaultPageSize;
 
-            // Base query
-            var q = _db.Documents
+            // Base query (EXPLICIT TYPE to avoid CS0266 on later reassignments)
+            IQueryable<Document> q = _db.Documents
                 .AsNoTracking()
                 .Include(d => d.DocumentTags).ThenInclude(dt => dt.Tag)
                 .Include(d => d.OfficeCategory)
@@ -93,7 +93,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             // Count before paging
             TotalCount = await q.CountAsync();
 
-            // Ordering without mixing DateOnly? and DateTime/DateTimeOffset (fixes CS0019)
+            // Ordering without mixing DateOnly? and DateTime/DateTimeOffset
             q = q
                 .OrderByDescending(d => d.DocumentDate.HasValue) // items with DocumentDate first
                 .ThenByDescending(d => d.DocumentDate)           // newest DocumentDate first
