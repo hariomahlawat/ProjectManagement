@@ -532,9 +532,16 @@ app.Use(async (ctx, next) =>
     h["Referrer-Policy"] = "no-referrer";
     h["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), browsing-topics=()";
 
-    var isDocumentViewer = ctx.Request.Path.StartsWithSegments("/Projects/Documents/View", StringComparison.OrdinalIgnoreCase);
-    var isDocumentPreview = ctx.Request.Path.StartsWithSegments("/Projects/Documents/Preview", StringComparison.OrdinalIgnoreCase);
-    var isAttachmentResponse = ctx.Request.Path.StartsWithSegments("/files", StringComparison.OrdinalIgnoreCase);
+    var isDocumentViewer =
+    ctx.Request.Path.StartsWithSegments("/Projects/Documents/View", StringComparison.OrdinalIgnoreCase) ||
+    ctx.Request.Path.StartsWithSegments("/DocumentRepository/Documents/View", StringComparison.OrdinalIgnoreCase) ||
+    ctx.Request.Path.StartsWithSegments("/DocumentRepository/Documents/Reader", StringComparison.OrdinalIgnoreCase);
+
+    var isDocumentPreview =
+        ctx.Request.Path.StartsWithSegments("/Projects/Documents/Preview", StringComparison.OrdinalIgnoreCase);
+
+    var isAttachmentResponse =
+        ctx.Request.Path.StartsWithSegments("/files", StringComparison.OrdinalIgnoreCase);
 
     var isDocumentPreviewContext = isDocumentViewer || isDocumentPreview || isAttachmentResponse;
 
@@ -545,6 +552,7 @@ app.Use(async (ctx, next) =>
         h["Cross-Origin-Opener-Policy"] = "unsafe-none";
         // Relax CORP so the browser's extension-based PDF viewers can access the stream.
         h["Cross-Origin-Resource-Policy"] = "cross-origin";
+        // Allow self-framing ONLY for these endpoints so the Reader iframe works.
         h["Content-Security-Policy"] = "frame-ancestors 'self'; object-src 'none'";
     }
     else
