@@ -9,9 +9,9 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
     {
         [FromRoute] public Guid Id { get; set; }
 
-        // Renamed to avoid shadowing PageModel
+        // avoid shadowing PageModel members
         [FromQuery] public int? PageNo { get; set; }
-        [FromQuery] public string? Zoom { get; set; } // "page-width", "page-fit" or numeric ("125")
+        [FromQuery] public string? Zoom { get; set; } // "page-width" | "page-fit" | "125" | "150"
 
         public string IframeSrc { get; private set; } = string.Empty;
         public string DownloadUrl { get; private set; } = string.Empty;

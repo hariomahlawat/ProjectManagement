@@ -66,3 +66,28 @@
     min-width: 6.5rem;
 }
 /* keeps group widths steady */
+/* Keep your existing rules; then add/adjust these: */
+
+/* Do NOT force a min-width that breaks wrapping */
+.card-footer .btn { /* remove min-width if you had one */
+    /* min-width: 6.5rem;  <-- delete this if present */
+}
+
+/* Make sure the footer itself doesn't show overflow */
+.doc-card .card-footer {
+    overflow: hidden;
+}
+
+    /* Ensure forms inside footer don't expand unexpectedly */
+    .doc-card .card-footer form {
+        display: inline-block;
+    }
+
+/* Optional: tighter chips */
+.doc-chip {
+    background: #f3f4f6;
+    color: #111827;
+    border: 1px solid #e5e7eb;
+    border-radius: 9999px;
+    font-weight: 500;
+}

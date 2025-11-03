@@ -44,39 +44,37 @@
     }
   </div>
 
-  <div class="card-footer d-flex align-items-center">
-    <!-- Primary actions (left) -->
-    <div class="btn-group btn-group-sm me-2" role="group" aria-label="Primary actions">
-      <a class="btn btn-outline-primary"
+  <div class="card-footer">
+    <div class="doc-actions d-flex align-items-center flex-wrap gap-2">
+      <!-- Primary actions (left) -->
+      <a class="btn btn-sm btn-outline-primary"
          asp-page="./Reader" asp-route-id="@Model.Id" target="_blank" rel="noopener">
         <i class="bi bi-box-arrow-up-right"></i> View
       </a>
-      <a class="btn btn-outline-secondary"
+      <a class="btn btn-sm btn-outline-secondary"
          asp-page="./Download" asp-route-id="@Model.Id">
         <i class="bi bi-download"></i> Download
       </a>
+
+      <authorize policy="DocRepo.EditMetadata">
+        <a class="btn btn-sm btn-outline-dark" asp-page="./Edit" asp-route-id="@Model.Id">Edit</a>
+      </authorize>
+
+      <!-- Lifecycle actions (right, wraps nicely) -->
+      <authorize policy="DocRepo.SoftDelete">
+        <div class="ms-auto d-flex align-items-center flex-wrap gap-2">
+          <form method="post" asp-page="./Manage" asp-page-handler="Deactivate" asp-route-id="@Model.Id" class="m-0 d-inline-block">
+            <button class="btn btn-sm btn-outline-warning" type="submit" @(Model.IsActive ? null : "disabled")>Deactivate</button>
+          </form>
+          <form method="post" asp-page="./Manage" asp-page-handler="Activate" asp-route-id="@Model.Id" class="m-0 d-inline-block">
+            <button class="btn btn-sm btn-outline-success" type="submit" @(!Model.IsActive ? null : "disabled")>Activate</button>
+          </form>
+          <form method="post" asp-page="./Manage" asp-page-handler="RequestDelete" asp-route-id="@Model.Id" class="m-0 d-inline-block">
+            <input type="hidden" name="reason" value="Obsolete" />
+            <button class="btn btn-sm btn-outline-danger" type="submit">Request Delete</button>
+          </form>
+        </div>
+      </authorize>
     </div>
-
-    <authorize policy="DocRepo.EditMetadata">
-      <a class="btn btn-sm btn-outline-dark me-auto" asp-page="./Edit" asp-route-id="@Model.Id">
-        Edit
-      </a>
-    </authorize>
-
-    <!-- Lifecycle actions (right, grouped; each button still posts its own form) -->
-    <authorize policy="DocRepo.SoftDelete">
-      <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="Lifecycle actions">
-        <form method="post" asp-page="./Manage" asp-page-handler="Deactivate" asp-route-id="@Model.Id" class="d-inline">
-          <button class="btn btn-outline-warning" type="submit" @(Model.IsActive ? null : "disabled")>Deactivate</button>
-        </form>
-        <form method="post" asp-page="./Manage" asp-page-handler="Activate" asp-route-id="@Model.Id" class="d-inline">
-          <button class="btn btn-outline-success" type="submit" @(!Model.IsActive ? null : "disabled")>Activate</button>
-        </form>
-        <form method="post" asp-page="./Manage" asp-page-handler="RequestDelete" asp-route-id="@Model.Id" class="d-inline">
-          <input type="hidden" name="reason" value="Obsolete" />
-          <button class="btn btn-outline-danger" type="submit">Request Delete</button>
-        </form>
-      </div>
-    </authorize>
   </div>
 </div>
