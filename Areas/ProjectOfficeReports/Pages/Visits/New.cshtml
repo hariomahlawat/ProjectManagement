@@ -48,13 +48,7 @@ else
 
         <section class="visit-hero visit-hero--form">
             <div class="visit-hero__content">
-                <span class="visit-hero__eyebrow">Record oversight</span>
                 <h1 class="visit-hero__title">Log a site visit</h1>
-                <p class="visit-hero__subtitle">Capture the essentials, attach compelling visuals, and keep your visit history ready for executive reviews.</p>
-                <div class="visit-hero__meta">
-                    <span class="visit-hero__meta-item"><i class="bi bi-journal-text" aria-hidden="true"></i> Structured form with smart validation.</span>
-                    <span class="visit-hero__meta-item"><i class="bi bi-images" aria-hidden="true"></i> Upload multiple photos in one go.</span>
-                </div>
                 <div class="visit-hero__actions">
                     <a asp-page="Index" class="btn btn-outline-light d-inline-flex align-items-center gap-2">
                         <i class="bi bi-arrow-left" aria-hidden="true"></i>
@@ -99,8 +93,8 @@ else
 
                     <div class="visit-form-card">
                         <div class="visit-form-card__header">
-                            <h2 class="visit-form-card__title">Field insights</h2>
-                            <p class="visit-form-card__subtitle">Summarise observations, agreements, or follow-up actions that emerged during the visit.</p>
+                            <h2 class="visit-form-card__title">Visit insights</h2>
+                            <p class="visit-form-card__subtitle">Summarise discussions, directions, or follow-up actions that emerged during the visit.</p>
                         </div>
                         <div class="visit-form-grid visit-form-grid--single">
                             <div class="visit-form-grid__field">
@@ -114,14 +108,20 @@ else
                     <div class="visit-form-card">
                         <div class="visit-form-card__header">
                             <h2 class="visit-form-card__title">Photo evidence</h2>
-                            <p class="visit-form-card__subtitle">Share crisp visuals from the field. You can add more photos later from the edit screen.</p>
+                            <p class="visit-form-card__subtitle">Share crisp visuals from the visit. You can add more photos later from the edit screen.</p>
                         </div>
                         <div class="visit-form-grid visit-form-grid--single">
                             <div class="visit-form-grid__field">
                                 <label class="form-label" for="visit-photo">Photos</label>
-                                <input id="visit-photo" class="form-control" type="file" asp-for="Uploads" accept="image/*" multiple />
+                                <input id="visit-photo"
+                                       class="form-control"
+                                       type="file"
+                                       asp-for="Uploads"
+                                       accept="image/*"
+                                       multiple
+                                       aria-describedby="visit-photo-help" />
                                 <span asp-validation-for="Uploads" class="text-danger"></span>
-                                <div class="form-text">JPEG, PNG or WebP up to 5 MB each. Select multiple files to upload them together.</div>
+                                <div class="form-text" id="visit-photo-help">JPEG, PNG or WebP up to 5 MB each. Select multiple files to upload them together.</div>
                             </div>
                             <div class="visit-form-grid__field">
                                 <label asp-for="UploadCaption" class="form-label">Caption for uploaded photos</label>
@@ -138,7 +138,7 @@ else
                     </div>
                 </form>
             </div>
-            <aside class="visit-form-layout__sidebar">
+            <aside class="visit-form-layout__sidebar visit-form-layout__sidebar--sticky" aria-label="Submission helpers">
                 <div class="visit-intel-card">
                     <h2 class="visit-intel-card__title">Submission checklist</h2>
                     <ul class="visit-intel-card__list">
@@ -158,6 +158,29 @@ else
             </aside>
         </div>
     </div>
+}
+
+@section Styles {
+    <style>
+        /* keep sidebar sticky on wide screens */
+        .visit-form-layout__sidebar--sticky {
+            position: sticky;
+            top: 1.25rem;
+        }
+
+        /* Razor-safe media query (note the @@) */
+        @@media (max-width: 991.98px) {
+            .visit-form-layout__sidebar--sticky {
+                position: static;
+            }
+        }
+
+        /* tiny WCAG helper for focus in sidebar cards */
+        .visit-intel-card :is(a, button, input, select, textarea):focus-visible {
+            outline: 3px solid rgba(13, 110, 253, 0.35);
+            outline-offset: 2px;
+        }
+    </style>
 }
 
 @section Scripts {
