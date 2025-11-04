@@ -134,6 +134,14 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewVisits
             },
             new()
+{
+    Text = "Visit types",
+    Area = "ProjectOfficeReports",
+    Page = "/VisitTypes/Index",
+    RequiredRoles = new[] { RoleNames.Admin }
+},
+
+            new()
             {
                 Text = "Social media tracker",
                 Area = "ProjectOfficeReports",
