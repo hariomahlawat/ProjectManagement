@@ -7,7 +7,7 @@
 <div class="container-fluid px-4 py-4" data-page="proliferation" data-can-manage-records="@(Model.CanManageRecords ? "true" : "false")">
     <div class="row align-items-start gy-3 mb-4">
         <div class="col">
-            <h1 class="h2 mb-1 fw-semibold">Proliferation dashboard</h1>
+            <h1 class="h2 mb-1 fw-semibold">Proliferation </h1>
             <p class="text-muted mb-2">KPIs, filters, and recent proliferation.</p>
             <p class="text-muted small mb-0" id="pf-filter-summary" aria-live="polite"></p>
         </div>
@@ -19,7 +19,7 @@
                        asp-area="ProjectOfficeReports"
                        asp-page="/Proliferation/Summary">
                         <i class="bi bi-card-list" aria-hidden="true"></i>
-                        <span>Summary view</span>
+                        <span>Proliferation dashboard</span>
                     </a>
                 </div>
                 @if (Model.CanManageRecords)
@@ -41,8 +41,7 @@
                     <div class="card-body p-4">
                         <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-start gap-3 mb-3">
                             <div>
-                                <h2 id="portfolio-overview-heading" class="h5 mb-1">Portfolio overview</h2>
-                                <p class="text-muted mb-0">Understand how effective totals are derived across sources.</p>
+                                <h2 id="portfolio-overview-heading" class="h5 mb-1">Proliferation overview</h2>
                             </div>
                             <span class="text-muted small" id="kpiLastUpdated" aria-live="polite"></span>
                         </div>

@@ -4,8 +4,9 @@
 @using System.Collections.Generic
 @using System.Linq
 @using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels
+@using System.Text.Json
 @{ 
-    ViewData["Title"] = "Proliferation Summary";
+    ViewData["Title"] = "Proliferation Dashboard";
 }
 
 <div class="container-xxl my-4" data-page="proliferation-summary">
@@ -13,7 +14,7 @@
         <ol class="breadcrumb mb-0">
             <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
             <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/Proliferation/Index">Proliferation tracker</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Proliferation summary</li>
+            <li class="breadcrumb-item active" aria-current="page">Proliferation dashboard</li>
         </ol>
     </nav>
 
@@ -44,6 +45,25 @@
                 <dd class="prol-total">@Model.GrandSdd.ToString("N0")</dd>
             </div>
         </dl>
+    </section>
+
+    <section class="mt-6">
+        <h2 class="text-lg font-semibold mb-3">Yearly proliferation trend</h2>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
+            <p class="text-sm text-slate-500 mb-4">
+                Bars show SDD vs 515 ABW for every year. Line shows total proliferations for that year.
+            </p>
+
+            <!-- we don’t put any script here: only data for JS -->
+            <div id="proliferation-yearly-chart"
+                 data-yearly='@JsonSerializer.Serialize(Model.Summary.ByYear, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })'
+                 class="w-full overflow-x-auto">
+
+
+                <canvas id="proliferation-yearly-chart-canvas" class="min-w-[520px] h-72"></canvas>
+            </div>
+        </div>
     </section>
 
     <div class="prol-grid">
@@ -131,7 +151,7 @@
                     var isOpen = Model.OpenYears.Contains(year);
 
                     <li>
-                        <details class="prol-yr" @if (isOpen) { <text>open</text>; }>
+                        <details class="prol-yr" @(isOpen ? "open" : "")>
                             <summary class="prol-yr__summary">
                                 <span class="prol-yr__title">@year</span>
                                 <span class="prol-yr__totals">
@@ -175,3 +195,10 @@
         </section>
     </div>
 </div>
+
+@section Scripts {
+    <!-- Chart.js already in layout? If not, add this line. If it's already there, remove this line. -->
+    <script src="~/lib/chart.js/chart.umd.js"></script>
+
+    <script src="~/js/proliferation-summary-charts.js"></script>
+}
