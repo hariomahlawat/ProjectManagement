@@ -75,6 +75,7 @@ function showToast(message, variant) {
 
 function initToasts() {
     const containers = document.querySelectorAll('[data-visits-toast-container]');
+
     containers.forEach(container => {
         const items = container.querySelectorAll('[data-visits-toast]');
         items.forEach(item => {
@@ -109,20 +110,15 @@ function updateButtonToBusyState(button) {
 }
 
 /**
- * FIXED VERSION:
- * we wait a tick, then check if validation prevented submit.
- * if so, we don't disable or show "Saving..."
+ * prevent locking the form when client-side validation fails
  */
 function disableFormOnSubmit(form) {
     form.addEventListener('submit', event => {
-        // run after MVC/jQuery validation
         setTimeout(() => {
-            // if some other handler prevented submit, don't lock the button
             if (event.defaultPrevented) {
                 return;
             }
 
-            // if client-side validation added errors, don't lock the button
             const hasClientErrors = form.querySelector('.input-validation-error');
             if (hasClientErrors) {
                 return;
@@ -290,19 +286,9 @@ function initConfirmations() {
     forms.forEach(attachConfirmDialog);
 }
 
-function init() {
-    initToasts();
-    initConfirmations();
-    initDisableOnSubmit();
-}
-
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init, { once: true });
-} else {
-    init();
-}
-
-// visits.js
+// ----------------------------------------------------
+// CHARTS
+// ----------------------------------------------------
 
 function initVisitsCharts() {
     const monthlyHost = document.getElementById('visits-monthly-chart');
@@ -310,21 +296,25 @@ function initVisitsCharts() {
 
     if (!monthlyHost || !typeHost) return;
 
-    // make sure Chart.js is loaded
     if (typeof Chart === 'undefined') {
         console.warn('Chart.js not found for visits page.');
         return;
     }
 
+    // we’ll hold the two chart instances here
+    let monthlyChart = null;
+    let typeChart = null;
+
     // ----- MONTHLY CHART -----
     const monthlyData = JSON.parse(monthlyHost.dataset.monthly || '[]');
-    const ctxMonthly = document.getElementById('visits-monthly-canvas').getContext('2d');
+    const monthlyCanvas = document.getElementById('visits-monthly-canvas');
+    const ctxMonthly = monthlyCanvas.getContext('2d');
 
     const monthLabels = monthlyData.map(x => x.label);
     const monthVisits = monthlyData.map(x => x.visits);
     const monthStrength = monthlyData.map(x => x.strength);
 
-    const monthlyChart = new Chart(ctxMonthly, {
+    monthlyChart = new Chart(ctxMonthly, {
         type: 'bar',
         data: {
             labels: monthLabels,
@@ -382,7 +372,8 @@ function initVisitsCharts() {
 
     // ----- TYPE PIE -----
     const typeData = JSON.parse(typeHost.dataset.types || '[]');
-    const ctxType = document.getElementById('visits-type-canvas').getContext('2d');
+    const typeCanvas = document.getElementById('visits-type-canvas');
+    const ctxType = typeCanvas.getContext('2d');
     const rangeSelect = document.getElementById('visits-type-range');
 
     function buildTypeDataset(range) {
@@ -402,7 +393,7 @@ function initVisitsCharts() {
 
     const initial = buildTypeDataset('lastYear');
 
-    const typeChart = new Chart(ctxType, {
+    typeChart = new Chart(ctxType, {
         type: 'pie',
         data: {
             labels: initial.labels,
@@ -415,7 +406,7 @@ function initVisitsCharts() {
                     '#f97316',
                     '#a855f7',
                     '#f43f5e'
-                ],
+                ]
             }]
         },
         options: {
@@ -430,16 +421,62 @@ function initVisitsCharts() {
         }
     });
 
-    rangeSelect.addEventListener('change', () => {
-        const next = buildTypeDataset(rangeSelect.value);
-        typeChart.data.labels = next.labels;
-        typeChart.data.datasets[0].data = next.values;
-        typeChart.update();
+    if (rangeSelect) {
+        rangeSelect.addEventListener('change', () => {
+            const next = buildTypeDataset(rangeSelect.value);
+            typeChart.data.labels = next.labels;
+            typeChart.data.datasets[0].data = next.values;
+            typeChart.update();
+        });
+    }
+
+    // ----- DOWNLOAD BUTTONS -----
+    // expects buttons in Razor like:
+    // <button data-chart-download="visits-monthly">...</button>
+    // <button data-chart-download="visits-type">...</button>
+    document.querySelectorAll('[data-chart-download]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const target = btn.getAttribute('data-chart-download');
+            let chart = null;
+
+            if (target === 'visits-monthly') {
+                chart = monthlyChart;
+            } else if (target === 'visits-type') {
+                chart = typeChart;
+            }
+
+            if (!chart) {
+                return;
+            }
+
+            const link = document.createElement('a');
+            // high-quality PNG
+            link.href = chart.toBase64Image('image/png', 1.0);
+
+            const now = new Date();
+            const y = now.getFullYear();
+            const m = String(now.getMonth() + 1).padStart(2, '0');
+            const d = String(now.getDate()).padStart(2, '0');
+            link.download = `${target}-${y}${m}${d}.png`;
+
+            link.click();
+        });
     });
 }
 
-// run after DOM ready
-document.addEventListener('DOMContentLoaded', () => {
-    initVisitsCharts();
-});
+// ----------------------------------------------------
+// INITIALISE EVERYTHING
+// ----------------------------------------------------
 
+function init() {
+    initToasts();
+    initConfirmations();
+    initDisableOnSubmit();
+    initVisitsCharts();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+} else {
+    init();
+}
