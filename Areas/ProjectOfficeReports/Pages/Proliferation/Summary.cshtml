@@ -51,20 +51,31 @@
         <h2 class="text-lg font-semibold mb-3">Yearly proliferation trend</h2>
 
         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
-            <p class="text-sm text-slate-500 mb-4">
-                Bars show SDD vs 515 ABW for every year. Line shows total proliferations for that year.
-            </p>
+            <div class="chart-head d-flex justify-content-between align-items-start mb-4">
+                <p class="text-sm text-slate-500 mb-0">
+                    Bars show SDD vs 515 ABW for every year. Line shows total proliferations for that year.
+                </p>
+                <div class="chart-actions d-flex gap-2">
+                    <button type="button"
+                            class="btn btn-icon btn-light"
+                            data-action="download-png"
+                            data-target="proliferation-yearly-chart-canvas"
+                            title="Download chart"
+                            aria-label="Download chart">
+                        <i class="bi bi-download"></i>
+                    </button>
+                </div>
+            </div>
 
-            <!-- we don’t put any script here: only data for JS -->
             <div id="proliferation-yearly-chart"
                  data-yearly='@JsonSerializer.Serialize(Model.Summary.ByYear, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })'
-                 class="w-full overflow-x-auto">
-
-
-                <canvas id="proliferation-yearly-chart-canvas" class="min-w-[520px] h-72"></canvas>
+                 class="w-full">
+                <!-- no fixed width/height classes here to avoid scaling blur -->
+                <canvas id="proliferation-yearly-chart-canvas"></canvas>
             </div>
         </div>
     </section>
+
 
     <div class="prol-grid">
         <section class="prol-card">

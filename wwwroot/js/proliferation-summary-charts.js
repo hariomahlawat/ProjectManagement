@@ -14,19 +14,15 @@ document.addEventListener("DOMContentLoaded", function () {
         return;
     }
 
-    // expected shape from C#:
-    // [{ year: 2025, totals: { total: 13, sdd: 3, abw515: 10 } }, ...]
     const labels = rows.map(r => r.year);
     const totals = rows.map(r => r.totals?.total ?? 0);
     const sdd = rows.map(r => r.totals?.sdd ?? 0);
     const abw515 = rows.map(r => r.totals?.abw515 ?? 0);
 
-    const ctx = document.getElementById("proliferation-yearly-chart-canvas");
-    if (!ctx) return;
+    const canvas = document.getElementById("proliferation-yearly-chart-canvas");
+    if (!canvas) return;
 
-    // “wow” bit: twin bars (SDD, 515) + line on top for total
-    // fits nicely with your current light UI
-    new Chart(ctx, {
+    const chart = new Chart(canvas, {
         type: "bar",
         data: {
             labels: labels,
@@ -66,6 +62,8 @@ document.addEventListener("DOMContentLoaded", function () {
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            // force high-res render so it doesn’t look pixelated
+            devicePixelRatio: window.devicePixelRatio || 1,
             interaction: {
                 mode: "index",
                 intersect: false
@@ -79,34 +77,35 @@ document.addEventListener("DOMContentLoaded", function () {
                 },
                 tooltip: {
                     callbacks: {
-                        // nicer labels: “10 (SDD)” etc
                         label: function (ctx) {
                             const label = ctx.dataset.label || "";
                             const value = ctx.parsed.y ?? ctx.raw ?? 0;
                             return `${label}: ${value}`;
                         }
                     }
-                },
-                title: {
-                    display: false
                 }
             },
             scales: {
                 x: {
-                    grid: {
-                        display: false
-                    }
+                    grid: { display: false }
                 },
                 y: {
                     beginAtZero: true,
-                    grid: {
-                        color: "rgba(148, 163, 184, 0.25)"
-                    },
-                    ticks: {
-                        precision: 0
-                    }
+                    grid: { color: "rgba(148, 163, 184, 0.25)" },
+                    ticks: { precision: 0 }
                 }
             }
         }
     });
+
+    // download PNG
+    const dlBtn = document.querySelector('.chart-actions [data-action="download-png"]');
+    if (dlBtn) {
+        dlBtn.addEventListener("click", function () {
+            const link = document.createElement("a");
+            link.href = canvas.toDataURL("image/png");
+            link.download = "proliferation-yearly.png";
+            link.click();
+        });
+    }
 });
