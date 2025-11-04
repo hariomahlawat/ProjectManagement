@@ -67,7 +67,14 @@ public sealed class VisitPhotoService : IVisitPhotoService
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<VisitPhotoUploadResult> UploadAsync(Guid visitId, Stream content, string originalFileName, string? contentType, string? caption, string userId, CancellationToken cancellationToken)
+    public async Task<VisitPhotoUploadResult> UploadAsync(
+        Guid visitId,
+        Stream content,
+        string originalFileName,
+        string? contentType,
+        string? caption,
+        string userId,
+        CancellationToken cancellationToken)
     {
         if (content == null)
         {
@@ -76,12 +83,16 @@ public sealed class VisitPhotoService : IVisitPhotoService
 
         _ = originalFileName;
 
-        var visit = await _db.Visits.Include(x => x.Photos).FirstOrDefaultAsync(x => x.Id == visitId, cancellationToken);
+        var visit = await _db.Visits
+            .Include(x => x.Photos)
+            .FirstOrDefaultAsync(x => x.Id == visitId, cancellationToken);
+
         if (visit == null)
         {
             return VisitPhotoUploadResult.NotFound();
         }
 
+        // track concurrency
         _db.Entry(visit).Property(x => x.RowVersion).OriginalValue = visit.RowVersion;
 
         await using var buffer = new MemoryStream();
@@ -97,6 +108,7 @@ public sealed class VisitPhotoService : IVisitPhotoService
             return VisitPhotoUploadResult.TooLarge(_options.MaxFileSizeBytes);
         }
 
+        // detect type
         buffer.Position = 0;
         IImageFormat? detectedFormat = await Image.DetectFormatAsync(buffer, cancellationToken);
         if (detectedFormat == null)
@@ -110,13 +122,22 @@ public sealed class VisitPhotoService : IVisitPhotoService
             return VisitPhotoUploadResult.Invalid("Only JPEG, PNG, or WebP images are supported.");
         }
 
+        // load the image
         buffer.Position = 0;
         using var sourceImage = await Image.LoadAsync<Rgba32>(buffer, cancellationToken);
         sourceImage.Mutate(x => x.AutoOrient());
 
+        // NOTE: we no longer reject small images.
+        // If you still want to know it was small, we log it.
         if (sourceImage.Width < _options.MinWidth || sourceImage.Height < _options.MinHeight)
         {
-            return VisitPhotoUploadResult.ImageTooSmall(_options.MinWidth, _options.MinHeight);
+            _logger.LogInformation(
+                "Visit photo for {VisitId} is smaller ({Width}x{Height}) than recommended ({MinW}x{MinH}) but was accepted.",
+                visitId,
+                sourceImage.Width,
+                sourceImage.Height,
+                _options.MinWidth,
+                _options.MinHeight);
         }
 
         var now = _clock.UtcNow;
@@ -125,6 +146,7 @@ public sealed class VisitPhotoService : IVisitPhotoService
         var physicalFolder = GetPhysicalFolder(storageKey);
         Directory.CreateDirectory(physicalFolder);
 
+        // save original
         buffer.Position = 0;
         var originalExtension = GetExtension(detectedFormat);
         var originalPath = Path.Combine(physicalFolder, $"original{originalExtension}");
@@ -134,6 +156,7 @@ public sealed class VisitPhotoService : IVisitPhotoService
             await buffer.CopyToAsync(fileStream, cancellationToken);
         }
 
+        // save derivatives
         foreach (var derivative in _options.Derivatives)
         {
             var derivativePath = Path.Combine(physicalFolder, $"{derivative.Key}.jpg");
@@ -147,7 +170,10 @@ public sealed class VisitPhotoService : IVisitPhotoService
             });
 
             await using var derivativeStream = File.Create(derivativePath);
-            await clone.SaveAsJpegAsync(derivativeStream, new JpegEncoder { Quality = derivative.Value.Quality }, cancellationToken);
+            await clone.SaveAsJpegAsync(
+                derivativeStream,
+                new JpegEncoder { Quality = derivative.Value.Quality },
+                cancellationToken);
         }
 
         var photo = new VisitPhoto
@@ -168,17 +194,16 @@ public sealed class VisitPhotoService : IVisitPhotoService
         visit.LastModifiedAtUtc = now;
         visit.LastModifiedByUserId = userId;
 
+        // set first photo as cover
         if (!visit.CoverPhotoId.HasValue)
         {
             visit.CoverPhotoId = photoId;
         }
 
         await using var transaction = await RelationalTransactionScope.CreateAsync(_db.Database, cancellationToken);
-
         try
         {
             await _db.SaveChangesAsync(cancellationToken);
-
             await transaction.CommitAsync(cancellationToken);
         }
         catch (DbUpdateConcurrencyException ex)

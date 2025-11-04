@@ -301,3 +301,145 @@ if (document.readyState === 'loading') {
 } else {
     init();
 }
+
+// visits.js
+
+function initVisitsCharts() {
+    const monthlyHost = document.getElementById('visits-monthly-chart');
+    const typeHost = document.getElementById('visits-type-chart');
+
+    if (!monthlyHost || !typeHost) return;
+
+    // make sure Chart.js is loaded
+    if (typeof Chart === 'undefined') {
+        console.warn('Chart.js not found for visits page.');
+        return;
+    }
+
+    // ----- MONTHLY CHART -----
+    const monthlyData = JSON.parse(monthlyHost.dataset.monthly || '[]');
+    const ctxMonthly = document.getElementById('visits-monthly-canvas').getContext('2d');
+
+    const monthLabels = monthlyData.map(x => x.label);
+    const monthVisits = monthlyData.map(x => x.visits);
+    const monthStrength = monthlyData.map(x => x.strength);
+
+    const monthlyChart = new Chart(ctxMonthly, {
+        type: 'bar',
+        data: {
+            labels: monthLabels,
+            datasets: [
+                {
+                    label: 'Visits',
+                    data: monthVisits,
+                    backgroundColor: 'rgba(59,130,246,0.4)',
+                    borderRadius: 6,
+                    maxBarThickness: 28
+                },
+                {
+                    label: 'People (strength)',
+                    data: monthStrength,
+                    type: 'line',
+                    borderColor: 'rgba(15,23,42,0.9)',
+                    borderWidth: 2,
+                    tension: 0.35,
+                    pointRadius: 3,
+                    yAxisID: 'y1'
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            devicePixelRatio: 2,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: { precision: 0 }
+                },
+                y1: {
+                    beginAtZero: true,
+                    position: 'right',
+                    grid: { drawOnChartArea: false },
+                    ticks: { precision: 0 }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        boxWidth: 6
+                    }
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false
+                }
+            }
+        }
+    });
+
+    // ----- TYPE PIE -----
+    const typeData = JSON.parse(typeHost.dataset.types || '[]');
+    const ctxType = document.getElementById('visits-type-canvas').getContext('2d');
+    const rangeSelect = document.getElementById('visits-type-range');
+
+    function buildTypeDataset(range) {
+        const labels = [];
+        const values = [];
+
+        typeData.forEach(t => {
+            const val = range === 'lastYear' ? t.countLastYear : t.count;
+            if (val > 0) {
+                labels.push(t.name);
+                values.push(val);
+            }
+        });
+
+        return { labels, values };
+    }
+
+    const initial = buildTypeDataset('lastYear');
+
+    const typeChart = new Chart(ctxType, {
+        type: 'pie',
+        data: {
+            labels: initial.labels,
+            datasets: [{
+                data: initial.values,
+                backgroundColor: [
+                    '#3b82f6',
+                    '#0ea5e9',
+                    '#22c55e',
+                    '#f97316',
+                    '#a855f7',
+                    '#f43f5e'
+                ],
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            devicePixelRatio: 2,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+
+    rangeSelect.addEventListener('change', () => {
+        const next = buildTypeDataset(rangeSelect.value);
+        typeChart.data.labels = next.labels;
+        typeChart.data.datasets[0].data = next.values;
+        typeChart.update();
+    });
+}
+
+// run after DOM ready
+document.addEventListener('DOMContentLoaded', () => {
+    initVisitsCharts();
+});
+

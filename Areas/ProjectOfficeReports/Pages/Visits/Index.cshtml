@@ -63,6 +63,41 @@
     {
         toastMessages.Add(new VisitToastMessage(toastError, "danger"));
     }
+
+    // ===== chart data =====
+    // monthly: last 12 months including current month
+    var firstOfThisMonth = new DateOnly(today.Year, today.Month, 1);
+    var startMonth = firstOfThisMonth.AddMonths(-11); // 12 months window
+
+    var monthlyPoints = Enumerable.Range(0, 12)
+        .Select(i => startMonth.AddMonths(i))
+        .Select(month =>
+        {
+            var visitsInMonth = Model.Items
+                .Where(v => v.DateOfVisit.Year == month.Year && v.DateOfVisit.Month == month.Month)
+                .ToList();
+
+            return new
+            {
+                label = month.ToString("MMM yy"),   // e.g. "Nov 25"
+                visits = visitsInMonth.Count,
+                strength = visitsInMonth.Sum(v => v.Strength)
+            };
+        })
+        .ToList();
+
+    // pie: visit types (we'll filter on client for lastYear/all)
+    var allVisitTypes = Model.Items
+        .GroupBy(v => v.VisitTypeName ?? "Unspecified")
+        .OrderByDescending(g => g.Count())
+        .Select(g => new
+        {
+            name = g.Key,
+            count = g.Count(),
+            countLastYear = g.Count(v => v.DateOfVisit >= lastYearFrom)
+        })
+        .ToList();
+
 }
 
 <partial name="_ToastMessages" model="toastMessages" />
@@ -176,6 +211,49 @@
             <div class="kpi-card__value">@peopleLast30</div>
         </div>
     </section>
+
+    <!-- charts -->
+    <section class="row g-3 mb-3 align-items-stretch">
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <h3 class="h6 mb-0">Visits &amp; strength – last 12 months</h3>
+                            <p class="text-muted small mb-0">Bars show visits, line shows people (strength).</p>
+                        </div>
+                    </div>
+                    <div id="visits-monthly-chart"
+                         data-monthly='@System.Text.Json.JsonSerializer.Serialize(monthlyPoints, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase })'
+                         class="position-relative" style="min-height: 260px;">
+                        <canvas id="visits-monthly-canvas" class="w-100 h-100"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex flex-column">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <div>
+                            <h3 class="h6 mb-0">Visits by type</h3>
+                            <p class="text-muted small mb-0">Distribution of visit categories.</p>
+                        </div>
+                        <select id="visits-type-range" class="form-select form-select-sm w-auto">
+                            <option value="lastYear" selected>Last 12 months</option>
+                            <option value="all">All time</option>
+                        </select>
+                    </div>
+                    <div id="visits-type-chart"
+                         data-types='@System.Text.Json.JsonSerializer.Serialize(allVisitTypes, new System.Text.Json.JsonSerializerOptions { PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase })'
+                         class="flex-grow-1" style="min-height: 240px;">
+                        <canvas id="visits-type-canvas" class="w-100 h-100"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
 
     <!-- active filter chips (tiny, inline) -->
     @if (hasFilters)
@@ -389,5 +467,7 @@
 }
 
 @section Scripts {
+    <!-- Chart.js already in layout? If not, add this line. If it's already there, remove this line. -->
+    <script src="~/lib/chart.js/chart.umd.js"></script>
     <script type="module" src="~/js/pages/project-office-reports/visits.js" asp-append-version="true"></script>
 }
