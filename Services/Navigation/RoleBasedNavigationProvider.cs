@@ -141,13 +141,31 @@ public class RoleBasedNavigationProvider : INavigationProvider
     RequiredRoles = new[] { RoleNames.Admin }
 },
 
-            new()
-            {
-                Text = "Social media tracker",
-                Area = "ProjectOfficeReports",
-                Page = "/SocialMedia/Index",
-                AuthorizationPolicy = ProjectOfficeReportsPolicies.ManageSocialMediaEvents
-            },
+            // >>> THIS is the part we changed <<<
+                new()
+                {
+                    Text = "Social media tracker",
+                    Area = "ProjectOfficeReports",
+                    Page = "/SocialMedia/Index",
+                    AuthorizationPolicy = ProjectOfficeReportsPolicies.ManageSocialMediaEvents,
+                    Children = new[]
+                    {
+                        new NavigationItem
+                        {
+                            Text = "Social media event types",
+                            Area = "ProjectOfficeReports",
+                            Page = "/Admin/SocialMediaTypes/Index",
+                            RequiredRoles = new[] { RoleNames.Admin }
+                        },
+                        new NavigationItem
+                        {
+                            Text = "Social media platforms",
+                            Area = "ProjectOfficeReports",
+                            Page = "/Admin/SocialMediaTypes/Platforms/Index",
+                            RequiredRoles = new[] { RoleNames.Admin }
+                        }
+                    }
+                },
             new()
             {
                 Text = "Training tracker",
