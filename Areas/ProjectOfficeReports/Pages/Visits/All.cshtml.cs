@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -11,21 +10,19 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Models;
+using System.Linq;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits;
 
 [Authorize]
-public class IndexModel : PageModel
+public class AllModel : PageModel
 {
     private readonly VisitService _visitService;
     private readonly VisitTypeService _visitTypeService;
     private readonly IVisitExportService _visitExportService;
     private readonly UserManager<ApplicationUser> _userManager;
 
-    // how many rows we want to show on the dashboard
-    public const int DashboardRowLimit = 10;
-
-    public IndexModel(
+    public AllModel(
         VisitService visitService,
         VisitTypeService visitTypeService,
         IVisitExportService visitExportService,
@@ -49,11 +46,7 @@ public class IndexModel : PageModel
     [BindProperty(SupportsGet = true)]
     public string? Q { get; set; }
 
-    // rows actually shown on this page
     public IReadOnlyList<VisitListItem> Items { get; private set; } = Array.Empty<VisitListItem>();
-
-    // total rows that matched the filter in DB/service
-    public int TotalItems { get; private set; }
 
     public IReadOnlyList<SelectListItem> VisitTypeOptions { get; private set; } = Array.Empty<SelectListItem>();
 
@@ -63,52 +56,15 @@ public class IndexModel : PageModel
     {
         CanManage = IsManager();
         await PopulateVisitTypesAsync(cancellationToken);
-
-        // get full filtered list once
         var all = await _visitService.SearchAsync(BuildQuery(), cancellationToken);
 
-        TotalItems = all.Count;
-
-        // order the way the UI expects, then take only 20
+        // for the "all" view we show everything, sorted
         Items = all
             .OrderByDescending(v => v.DateOfVisit)
             .ThenByDescending(v => v.PhotoCount)
-            .Take(DashboardRowLimit)
             .ToList();
     }
 
-    public async Task<IActionResult> OnPostDeleteAsync(Guid id, string rowVersion, CancellationToken cancellationToken)
-    {
-        if (!IsManager())
-        {
-            return Forbid();
-        }
-
-        var bytes = DecodeRowVersion(rowVersion);
-        if (bytes == null)
-        {
-            TempData["ToastError"] = "We could not verify your request. Please try again.";
-            return RedirectToPage(new { VisitTypeId, From, To, Q });
-        }
-
-        var result = await _visitService.DeleteAsync(id, bytes, _userManager.GetUserId(User) ?? string.Empty, cancellationToken);
-        switch (result.Outcome)
-        {
-            case VisitDeletionOutcome.Success:
-                TempData["ToastMessage"] = "Visit deleted.";
-                break;
-            case VisitDeletionOutcome.ConcurrencyConflict:
-                TempData["ToastError"] = "The visit was modified by someone else. Please reload the page.";
-                break;
-            default:
-                TempData["ToastError"] = "Visit not found.";
-                break;
-        }
-
-        return RedirectToPage(new { VisitTypeId, From, To, Q });
-    }
-
-    // EXPORTS: still export the full filtered set – not just the 20
     public async Task<IActionResult> OnPostExportAsync(CancellationToken cancellationToken)
     {
         CanManage = IsManager();
@@ -131,49 +87,6 @@ public class IndexModel : PageModel
         var result = await _visitExportService.ExportAsync(request, cancellationToken);
         if (!result.Success || result.File is null)
         {
-            foreach (var error in result.Errors)
-            {
-                ModelState.AddModelError(string.Empty, error);
-            }
-
-            if (result.Errors.Count > 0)
-            {
-                TempData["ToastError"] = result.Errors[0];
-            }
-
-            return Page();
-        }
-
-        return File(result.File.Content, result.File.ContentType, result.File.FileName);
-    }
-
-    public async Task<IActionResult> OnPostExportPdfAsync(CancellationToken cancellationToken)
-    {
-        CanManage = IsManager();
-        await PopulateVisitTypesAsync(cancellationToken);
-
-        var userId = _userManager.GetUserId(User);
-        if (string.IsNullOrWhiteSpace(userId))
-        {
-            return Challenge();
-        }
-
-        var options = BuildQuery();
-        var request = new VisitExportRequest(
-            options.VisitTypeId,
-            options.StartDate,
-            options.EndDate,
-            options.RemarksQuery,
-            userId);
-
-        var result = await _visitExportService.ExportPdfAsync(request, cancellationToken);
-        if (!result.Success || result.File is null)
-        {
-            foreach (var error in result.Errors)
-            {
-                ModelState.AddModelError(string.Empty, error);
-            }
-
             if (result.Errors.Count > 0)
             {
                 TempData["ToastError"] = result.Errors[0];
@@ -211,12 +124,7 @@ public class IndexModel : PageModel
 
     private bool IsManager()
     {
-        return User.IsInRole("Admin") || User.IsInRole("HoD") || IsProjectOfficeMember();
-    }
-
-    private bool IsProjectOfficeMember()
-    {
-        return User.IsInRole("Project Office") || User.IsInRole("ProjectOffice");
+        return User.IsInRole("Admin") || User.IsInRole("HoD") || User.IsInRole("Project Office") || User.IsInRole("ProjectOffice");
     }
 
     private static DateOnly? ParseDate(string? value)
@@ -237,22 +145,5 @@ public class IndexModel : PageModel
         }
 
         return null;
-    }
-
-    private static byte[]? DecodeRowVersion(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return null;
-        }
-
-        try
-        {
-            return Convert.FromBase64String(value);
-        }
-        catch (FormatException)
-        {
-            return null;
-        }
     }
 }

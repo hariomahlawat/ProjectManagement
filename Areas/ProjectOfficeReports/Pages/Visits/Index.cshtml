@@ -158,10 +158,6 @@
                 Latest: @latestVisitItem.DateOfVisit.ToString("dd MMM yyyy") (@latestVisitItem.VisitorName)
             </span>
         }
-        <span class="text-muted small d-inline-flex align-items-center gap-1">
-            <i class="bi bi-people" aria-hidden="true"></i>
-            @totalPeopleInView people recorded
-        </span>
 
         @if (hasFilters)
         {
@@ -283,12 +279,23 @@
         <div class="d-flex justify-content-between align-items-center mb-2">
             <div>
                 <h2 class="h6 mb-0">Visit log</h2>
-                <p class="text-muted small mb-0">Chronological list of all recorded visits.</p>
+                <p class="text-muted small mb-0">Chronological list of recent visits.</p>
             </div>
-            @if (Model.Items.Count > 0)
-            {
-                <span class="text-muted small">@Model.Items.Count item@(Model.Items.Count == 1 ? "" : "s")</span>
-            }
+            <div class="d-flex align-items-center gap-2">
+                @if (!hasFilters && Model.TotalItems > ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.IndexModel.DashboardRowLimit)
+                {
+                    <span class="text-muted small">
+                        Showing latest @Model.Items.Count of @Model.TotalItems
+                    </span>
+                    <a asp-page="All" class="btn btn-link btn-sm text-decoration-none">
+                        View all
+                    </a>
+                }
+                else if (hasFilters)
+                {
+                    <span class="text-muted small">@Model.Items.Count item@(Model.Items.Count == 1 ? "" : "s")</span>
+                }
+            </div>
         </div>
 
         @if (Model.Items.Count == 0)

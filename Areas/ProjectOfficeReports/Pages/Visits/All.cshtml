@@ -1,0 +1,120 @@
+﻿@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.Visits.AllModel
+@{
+    ViewData["Title"] = "All visits";
+
+    string? fromValue = Model.From;
+    if (!string.IsNullOrWhiteSpace(fromValue) && DateOnly.TryParse(fromValue, out var parsedFrom))
+    {
+        fromValue = parsedFrom.ToString("yyyy-MM-dd");
+    }
+
+    string? toValue = Model.To;
+    if (!string.IsNullOrWhiteSpace(toValue) && DateOnly.TryParse(toValue, out var parsedTo))
+    {
+        toValue = parsedTo.ToString("yyyy-MM-dd");
+    }
+}
+
+<div class="visit-shell visit-tracker visit-shell--tight">
+    <div class="d-flex justify-content-between align-items-center mb-3 mt-1">
+        <div>
+            <nav aria-label="Breadcrumb" class="visit-breadcrumb mb-1">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a asp-page="Index">Visit tracker</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">All visits</li>
+                </ol>
+            </nav>
+            <h2 class="h3 mb-0">All visits</h2>
+            <p class="text-muted small mb-0 mt-1">Full historical view with filtering and export.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <form method="post" asp-page-handler="Export">
+                <button type="submit" class="btn btn-outline-secondary d-inline-flex align-items-center gap-1">
+                    <i class="bi bi-file-earmark-spreadsheet"></i>
+                    <span>Export</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <form method="get" class="row g-3 mb-3">
+        <div class="col-md-3">
+            <label asp-for="VisitTypeId" class="form-label">Visit type</label>
+            <select asp-for="VisitTypeId" asp-items="Model.VisitTypeOptions" class="form-select"></select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="from-date">From</label>
+            <input id="from-date" name="From" type="date" value="@(fromValue ?? string.Empty)" class="form-control" />
+        </div>
+        <div class="col-md-2">
+            <label class="form-label" for="to-date">To</label>
+            <input id="to-date" name="To" type="date" value="@(toValue ?? string.Empty)" class="form-control" />
+        </div>
+        <div class="col-md-3">
+            <label class="form-label" for="search-filter">Visitor or remarks</label>
+            <input id="search-filter" name="Q" value="@Model.Q" class="form-control" placeholder="Search visitor or remarks" />
+        </div>
+        <div class="col-md-2 d-flex align-items-end gap-2">
+            <button type="submit" class="btn btn-primary">Apply</button>
+            <a asp-page="All" class="btn btn-outline-secondary">Reset</a>
+        </div>
+    </form>
+
+    @if (Model.Items.Count == 0)
+    {
+        <div class="visit-empty visit-empty--subtle text-center py-5">
+            <div class="visit-empty__icon" aria-hidden="true"><i class="bi bi-clipboard2-minus"></i></div>
+            <h2 class="visit-empty__title">No visits found</h2>
+            <p class="visit-empty__subtitle">Try adjusting your filters.</p>
+        </div>
+    }
+    else
+    {
+        <div class="card border-0 shadow-sm">
+            <div class="table-responsive">
+                <table class="table align-middle mb-0 visit-table">
+                    <thead class="table-light">
+                        <tr>
+                            <th scope="col">Date</th>
+                            <th scope="col">Visit type</th>
+                            <th scope="col">Visitor</th>
+                            <th scope="col">Strength</th>
+                            <th scope="col">Photos</th>
+                            <th scope="col" class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in Model.Items)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="fw-semibold">@item.DateOfVisit.ToString("dd MMM yyyy")</div>
+                                    <div class="text-muted small">@item.DateOfVisit.ToString("dddd")</div>
+                                </td>
+                                <td>
+                                    <div>@item.VisitTypeName</div>
+                                    @if (!item.VisitTypeIsActive)
+                                    {
+                                        <span class="badge bg-warning-subtle text-warning-emphasis mt-1">Type inactive</span>
+                                    }
+                                </td>
+                                <td>@item.VisitorName</td>
+                                <td>@item.Strength</td>
+                                <td>@item.PhotoCount</td>
+                                <td class="text-end">
+                                    <a asp-page="Details" asp-route-id="@item.Id" class="btn btn-outline-secondary btn-sm">View</a>
+                                    @if (Model.CanManage)
+                                    {
+                                        <a asp-page="Edit" asp-route-id="@item.Id" class="btn btn-outline-primary btn-sm">Edit</a>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+</div>
