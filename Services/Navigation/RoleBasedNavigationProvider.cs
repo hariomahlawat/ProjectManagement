@@ -189,7 +189,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
             {
                 Text = "Proliferation tracker",
                 Area = "ProjectOfficeReports",
-                Page = "/Proliferation/Index",
+                Page = "/Proliferation/Summary",
                 AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewProliferationTracker
             },
             new()

@@ -1,78 +1,90 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.IndexModel
 @{
-    ViewData["Title"] = "Proliferation Tracker";
+    ViewData["Title"] = "Proliferation records";
 }
 
-<div class="container-fluid px-4 py-4" data-page="proliferation" data-can-manage-records="@(Model.CanManageRecords ? "true" : "false")">
-    <div class="row align-items-start gy-3 mb-4">
-        <div class="col">
-            <h1 class="h2 mb-1 fw-semibold">Proliferation </h1>
-            <p class="text-muted mb-2">KPIs, filters, and recent proliferation.</p>
+<div class="container-fluid px-3 py-3"
+     data-page="proliferation"
+     data-can-manage-records="@(Model.CanManageRecords ? "true" : "false")">
+
+    <!-- breadcrumb -->
+    <nav aria-label="Breadcrumb" class="mb-2">
+        <ol class="breadcrumb mb-0 small">
+            <li class="breadcrumb-item">
+                <a asp-area="" asp-page="/Dashboard/Index">Dashboard</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a asp-area="ProjectOfficeReports" asp-page="/Proliferation/Summary">Proliferation tracker</a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">
+                Records
+            </li>
+        </ol>
+    </nav>
+
+    <!-- header + actions -->
+    <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+        <div>
+            <h1 class="h4 mb-1">Proliferation records</h1>
             <p class="text-muted small mb-0" id="pf-filter-summary" aria-live="polite"></p>
         </div>
-        <div class="col-auto">
-            <div class="btn-toolbar gap-2" role="toolbar" aria-label="Proliferation actions">
-                <div class="btn-group" role="group" aria-label="Data utilities">
-                    <button type="button" class="btn btn-outline-success" id="btnExport">Export data</button>
-                    <a class="btn btn-outline-primary d-flex align-items-center gap-2"
+        <div class="btn-toolbar gap-2" role="toolbar" aria-label="Proliferation actions">
+            <div class="btn-group" role="group" aria-label="Data utilities">
+                <button type="button"
+                        class="btn btn-outline-success d-flex align-items-center gap-1"
+                        id="btnExport">
+                    <i class="bi bi-download" aria-hidden="true"></i>
+                    <span>Export data</span>
+                </button>
+            </div>
+            @if (Model.CanManageRecords)
+            {
+                <div class="btn-group" role="group" aria-label="Management actions">
+                    <a class="btn btn-outline-primary d-flex align-items-center gap-1"
                        asp-area="ProjectOfficeReports"
-                       asp-page="/Proliferation/Summary">
-                        <i class="bi bi-card-list" aria-hidden="true"></i>
-                        <span>Proliferation dashboard</span>
+                       asp-page="/Proliferation/Manage">
+                        <i class="bi bi-gear" aria-hidden="true"></i>
+                        <span>Manage proliferation</span>
                     </a>
                 </div>
-                @if (Model.CanManageRecords)
-                {
-                    <div class="btn-group" role="group" aria-label="Management actions">
-                        <a class="btn btn-primary" asp-area="ProjectOfficeReports" asp-page="/Proliferation/Manage">
-                            Manage Proliferation
-                        </a>
-                    </div>
-                }
-            </div>
+            }
         </div>
     </div>
 
     <div class="row g-4 align-items-start">
+        <!-- main column -->
         <div class="col-12 col-xxl-9">
-            <section class="mb-4" aria-labelledby="portfolio-overview-heading">
-                <div class="card border-0 shadow-sm rounded-4">
-                    <div class="card-body p-4">
-                        <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-start gap-3 mb-3">
-                            <div>
-                                <h2 id="portfolio-overview-heading" class="h5 mb-1">Proliferation overview</h2>
-                            </div>
-                            <span class="text-muted small" id="kpiLastUpdated" aria-live="polite"></span>
-                        </div>
-                        <partial name="Partials/_Kpis" />
-                    </div>
-                </div>
-            </section>
 
-            <section class="mb-4" aria-labelledby="filters-heading">
+            <!-- filters -->
+            <section class="mb-3" aria-labelledby="filters-heading">
                 <div class="card border-0 shadow-sm rounded-4">
-                    <div class="card-body p-4">
-                        <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3 mb-3">
-                            <div>
-                                <h2 id="filters-heading" class="h5 mb-1">Filters</h2>
-                                <p class="text-muted mb-0">Toggle years or date ranges, and refine by category or source.</p>
-                            </div>
-                        </div>
+                    <div class="card-body py-3 px-4">
                         <partial name="Partials/_FilterBar" />
                     </div>
                 </div>
             </section>
 
-            <partial name="Partials/_EntryWorkspace" />
+            <!-- records list -->
+            <section aria-labelledby="records-heading">
+                <div class="card border-0 shadow-sm rounded-4 mb-4">
+                    <div class="card-body p-0">
+                        <div class="d-flex justify-content-between align-items-center px-4 py-3 border-bottom">
+                        <!-- the table / workspace -->
+                        <partial name="Partials/_EntryWorkspace" />
+                    </div>
+                </div>
+            </section>
         </div>
+
+        <!-- right rail -->
         <aside class="col-12 col-xxl-3">
             <section class="card border-0 shadow-sm rounded-4" aria-labelledby="year-preferences-heading">
-                <div class="card-body p-4">
-                    <div class="d-flex justify-content-between align-items-start mb-3">
+                <div class="card-body p-3">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
                         <div>
-                            <h2 id="year-preferences-heading" class="h5 mb-1">Year preferences</h2>
-                            <p class="text-muted mb-0 small">Control how totals are derived per project-year.</p>
+                            <h2 id="year-preferences-heading" class="h6 mb-0">Year preferences</h2>
+                            <p class="text-muted small mb-0">Advanced controls</p>
                         </div>
                         <span class="badge text-bg-success" id="prefStatusLabel">Active</span>
                     </div>
@@ -83,8 +95,13 @@
     </div>
 </div>
 
-<div class="toast-container position-fixed top-0 end-0 p-3" id="toastHost" aria-live="polite" aria-atomic="true"></div>
+<!-- toast host -->
+<div class="toast-container position-fixed top-0 end-0 p-3"
+     id="toastHost"
+     aria-live="polite"
+     aria-atomic="true"></div>
 
+<!-- export modal -->
 <partial name="Partials/_ExportModal" />
 
 <link rel="stylesheet" href="~/css/proliferation.css" asp-append-version="true" />

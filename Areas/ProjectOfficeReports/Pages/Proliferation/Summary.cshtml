@@ -1,28 +1,47 @@
 @page
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation.SummaryModel
-@using System
-@using System.Collections.Generic
-@using System.Linq
-@using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels
 @using System.Text.Json
-@{ 
-    ViewData["Title"] = "Proliferation Dashboard";
+@{
+    ViewData["Title"] = "Proliferation dashboard";
 }
 
-<div class="container-xxl my-4" data-page="proliferation-summary">
-    <nav aria-label="Breadcrumb" class="visit-breadcrumb">
+<div class="container-xxl py-3" data-page="proliferation-summary">
+    <!-- breadcrumb -->
+    <nav aria-label="Breadcrumb" class="mb-2">
         <ol class="breadcrumb mb-0">
-            <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
-            <li class="breadcrumb-item"><a asp-area="ProjectOfficeReports" asp-page="/Proliferation/Index">Proliferation tracker</a></li>
-            <li class="breadcrumb-item active" aria-current="page">Proliferation dashboard</li>
+            <li class="breadcrumb-item">
+                <a asp-area="" asp-page="/Dashboard/Index">Dashboard</a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">
+                Proliferation tracker
+            </li>
         </ol>
     </nav>
 
-    <h1 class="h3 mb-3">Proliferation summary</h1>
-    <p class="text-muted">@Model.Lede</p>
+    <!-- header -->
+    <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+        <div>
+            <h1 class="h3 mb-1">Proliferation summary</h1>
+            <p class="text-muted mb-0">@Model.Lede</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a asp-area="ProjectOfficeReports"
+               asp-page="/Proliferation/Index"
+               class="btn btn-outline-secondary d-inline-flex align-items-center gap-1">
+                <i class="bi bi-table" aria-hidden="true"></i>
+                <span>View records</span>
+            </a>
+            <a asp-area="ProjectOfficeReports"
+               asp-page="/Proliferation/Manage"
+               class="btn btn-primary d-inline-flex align-items-center gap-1">
+                <i class="bi bi-gear" aria-hidden="true"></i>
+                <span>Manage records</span>
+            </a>
+        </div>
+    </div>
 
-    <section class="prol-card">
-        <h2 class="h5 prol-heading">Totals</h2>
+    <!-- totals -->
+    <section class="prol-card mb-4">
         <dl class="totals-dl">
             <div class="totals-dl__item">
                 <dt>Projects</dt>
@@ -47,169 +66,179 @@
         </dl>
     </section>
 
-    <section class="mt-6">
-        <h2 class="text-lg font-semibold mb-3">Yearly proliferation trend</h2>
-
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-4">
-            <div class="chart-head d-flex justify-content-between align-items-start mb-4">
-                <p class="text-sm text-slate-500 mb-0">
-                    Bars show SDD vs 515 ABW for every year. Line shows total proliferations for that year.
-                </p>
-                <div class="chart-actions d-flex gap-2">
+    <!-- chart -->
+    <section class="mb-4">
+        <div class="bg-white rounded-3 shadow-sm border p-4">
+            <div class="d-flex justify-content-between align-items-start mb-3 gap-3">
+                <div>
+                    <h2 class="h6 mb-1">Yearly proliferation trend</h2>
+                    <p class="text-muted small mb-0">
+                        Bars show SDD vs 515 ABW for every year. Line shows total proliferations for that year.
+                    </p>
+                </div>
+                <div class="d-flex gap-2">
                     <button type="button"
-                            class="btn btn-icon btn-light"
+                            class="btn btn-light btn-sm"
                             data-action="download-png"
                             data-target="proliferation-yearly-chart-canvas"
                             title="Download chart"
-                            aria-label="Download chart">
-                        <i class="bi bi-download"></i>
+                            aria-label="Download chart as PNG">
+                        <i class="bi bi-download" aria-hidden="true"></i>
                     </button>
                 </div>
             </div>
 
             <div id="proliferation-yearly-chart"
-                 data-yearly='@JsonSerializer.Serialize(Model.Summary.ByYear, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })'
-                 class="w-full">
-                <!-- no fixed width/height classes here to avoid scaling blur -->
+                 data-yearly='@JsonSerializer.Serialize(Model.Summary.ByYear, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })'>
                 <canvas id="proliferation-yearly-chart-canvas"></canvas>
             </div>
         </div>
     </section>
 
+    @{
+        // pre-process for the two lower panels
+        var projectsByTotals = Model.Summary.ByProject
+        .OrderByDescending(row => row.Totals.Total)
+        .ThenBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase)
+        .ToList();
 
-    <div class="prol-grid">
-        <section class="prol-card">
-            <h2 class="h5 prol-heading">Projects ranked by proliferations</h2>
-            @{
-                var projectsByTotals = Model.Summary.ByProject
-                    .OrderByDescending(row => row.Totals.Total)
-                    .ThenBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase)
-                    .ToList();
-            }
-            <ol class="prol-ol">
-                @foreach (var project in projectsByTotals)
-                {
-                    <li class="prol-row">
-                        <div class="prol-name">
-                            <span class="prol-heading">
-                                <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId">
-                                    @project.ProjectName
-                                </a>
-                                @if (!string.IsNullOrWhiteSpace(project.ProjectCode))
-                                {
-                                    <span class="prol-code">(@project.ProjectCode)</span>
-                                }
-                            </span>
-                            <span class="prol-meta">515 ABW: @project.Totals.Abw515.ToString("N0") · SDD: @project.Totals.Sdd.ToString("N0")</span>
-                        </div>
-                        <span class="prol-badge">@project.Totals.Total.ToString("N0")</span>
-                    </li>
-                }
-                @if (projectsByTotals.Count == 0)
-                {
-                    <li class="prol-meta">None</li>
-                }
-            </ol>
-        </section>
+        var yearSummaries = Model.Summary.ByYear
+        .ToDictionary(row => row.Year, row => row);
 
-        @{
-            var yearSummaries = Model.Summary.ByYear
-                .ToDictionary(row => row.Year, row => row);
-            var projectGroups = Model.Summary.ByProjectYear
-                .GroupBy(row => row.Year)
-                .ToDictionary(
-                    group => group.Key,
-                    group => group
-                        .OrderByDescending(row => row.Totals.Total)
-                        .ThenBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase)
-                        .ToList());
-            var allYears = yearSummaries.Keys
-                .Concat(projectGroups.Keys)
-                .Distinct()
-                .OrderByDescending(year => year)
-                .ToList();
-        }
+        var projectGroups = Model.Summary.ByProjectYear
+        .GroupBy(row => row.Year)
+        .ToDictionary(
+        group => group.Key,
+        group => group
+        .OrderByDescending(row => row.Totals.Total)
+        .ThenBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase)
+        .ToList()
+        );
 
-        <section class="prol-card">
-            <div class="prol-yr__header">
-                <h2 class="h5 prol-heading">Project breakdown by year</h2>
-                @if (allYears.Count > 0)
-                {
-                    <div class="prol-yr__actions">
-                        <a asp-route-expand="true">Expand all</a>
-                        <span aria-hidden="true" class="prol-yr__divider">/</span>
-                        <a asp-route-expand="false" asp-route-open="">Collapse all</a>
-                    </div>
-                }
-            </div>
+        var allYears = yearSummaries.Keys
+        .Concat(projectGroups.Keys)
+        .Distinct()
+        .OrderByDescending(year => year)
+        .ToList();
+    }
 
-            <ul class="prol-yr__list list-unstyled mb-0">
-                @foreach (var year in allYears)
-                {
-                    var hasSummary = yearSummaries.TryGetValue(year, out var yearRow);
-                    var projects = projectGroups.TryGetValue(year, out var breakdown)
-                        ? breakdown
-                        : new List<ProliferationSummaryProjectYearRow>();
-                    var yearTotal = hasSummary
-                        ? yearRow!.Totals.Total
-                        : projects.Sum(row => row.Totals.Total);
-                    var yearAbw = hasSummary
-                        ? yearRow!.Totals.Abw515
-                        : projects.Sum(row => row.Totals.Abw515);
-                    var yearSdd = hasSummary
-                        ? yearRow!.Totals.Sdd
-                        : projects.Sum(row => row.Totals.Sdd);
-                    var isOpen = Model.OpenYears.Contains(year);
-
-                    <li>
-                        <details class="prol-yr" @(isOpen ? "open" : "")>
-                            <summary class="prol-yr__summary">
-                                <span class="prol-yr__title">@year</span>
-                                <span class="prol-yr__totals">
-                                    <span class="prol-yr__total">@yearTotal.ToString("N0") total</span>
-                                    <span class="prol-yr__meta">515 ABW: @yearAbw.ToString("N0") · SDD: @yearSdd.ToString("N0")</span>
+    <!-- two-column layout -->
+    <div class="row g-4 mb-4">
+        <!-- left: projects ranked -->
+        <div class="col-lg-5">
+            <section class="prol-card h-100">
+                <h2 class="h5 prol-heading mb-3">Projects ranked by proliferations</h2>
+                <ol class="prol-ol mb-0">
+                    @foreach (var project in projectsByTotals)
+                    {
+                        <li class="prol-row">
+                            <div class="prol-name">
+                                <span class="prol-heading">
+                                    <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId">
+                                        @project.ProjectName
+                                    </a>
+                                    @if (!string.IsNullOrWhiteSpace(project.ProjectCode))
+                                    {
+                                        <span class="prol-code">(@project.ProjectCode)</span>
+                                    }
                                 </span>
-                            </summary>
+                                <span class="prol-meta">
+                                    515 ABW: @project.Totals.Abw515.ToString("N0") ·
+                                    SDD: @project.Totals.Sdd.ToString("N0")
+                                </span>
+                            </div>
+                            <span class="prol-badge">@project.Totals.Total.ToString("N0")</span>
+                        </li>
+                    }
+                    @if (projectsByTotals.Count == 0)
+                    {
+                        <li class="prol-meta">No projects in the current view.</li>
+                    }
+                </ol>
+            </section>
+        </div>
 
-                            <ol class="prol-ol prol-yr__list">
-                                @foreach (var project in projects)
-                                {
-                                    <li class="prol-row">
-                                        <div class="prol-name">
-                                            <span class="prol-heading">
-                                                <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId">
-                                                    @project.ProjectName
-                                                </a>
-                                                @if (!string.IsNullOrWhiteSpace(project.ProjectCode))
-                                                {
-                                                    <span class="prol-code">(@project.ProjectCode)</span>
-                                                }
-                                            </span>
-                                            <span class="prol-meta">515 ABW: @project.Totals.Abw515.ToString("N0") · SDD: @project.Totals.Sdd.ToString("N0")</span>
-                                        </div>
-                                        <span class="prol-badge">@project.Totals.Total.ToString("N0")</span>
-                                    </li>
-                                }
-                                @if (projects.Count == 0)
-                                {
-                                    <li class="prol-meta">None</li>
-                                }
-                            </ol>
-                        </details>
-                    </li>
-                }
-                @if (allYears.Count == 0)
-                {
-                    <li class="prol-meta">None</li>
-                }
-            </ul>
-        </section>
+        <!-- right: breakdown by year -->
+        <div class="col-lg-7">
+            <section class="prol-card h-100">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h5 prol-heading mb-0">Project breakdown by year</h2>
+                    @if (allYears.Count > 0)
+                    {
+                        <div class="prol-yr__actions small">
+                            <a asp-route-expand="true" class="me-1">Expand all</a>
+                            <span aria-hidden="true" class="text-muted me-1">/</span>
+                            <a asp-route-expand="false" asp-route-open="">Collapse all</a>
+                        </div>
+                    }
+                </div>
+
+                <ul class="list-unstyled mb-0">
+                    @foreach (var year in allYears)
+                    {
+                        var hasSummary = yearSummaries.TryGetValue(year, out var yearRow);
+                        var projects = projectGroups.TryGetValue(year, out var breakdown)
+                        ? breakdown
+                        : new List<ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels.ProliferationSummaryProjectYearRow>();
+
+                        var yearTotal = hasSummary ? yearRow!.Totals.Total : projects.Sum(row => row.Totals.Total);
+                        var yearAbw = hasSummary ? yearRow!.Totals.Abw515 : projects.Sum(row => row.Totals.Abw515);
+                        var yearSdd = hasSummary ? yearRow!.Totals.Sdd : projects.Sum(row => row.Totals.Sdd);
+                        var isOpen = Model.OpenYears.Contains(year);
+
+                        <li class="mb-2">
+                            <details class="prol-yr" @(isOpen ? "open" : "")>
+                                <summary class="prol-yr__summary">
+                                    <span class="prol-yr__title">@year</span>
+                                    <span class="prol-yr__totals">
+                                        <span class="prol-yr__total">@yearTotal.ToString("N0") total</span>
+                                        <span class="prol-yr__meta">
+                                            515 ABW: @yearAbw.ToString("N0") · SDD: @yearSdd.ToString("N0")
+                                        </span>
+                                    </span>
+                                </summary>
+
+                                <ol class="prol-ol prol-yr__list mb-2">
+                                    @foreach (var project in projects)
+                                    {
+                                        <li class="prol-row">
+                                            <div class="prol-name">
+                                                <span class="prol-heading">
+                                                    <a asp-page="/Projects/Overview" asp-route-id="@project.ProjectId">
+                                                        @project.ProjectName
+                                                    </a>
+                                                    @if (!string.IsNullOrWhiteSpace(project.ProjectCode))
+                                                    {
+                                                        <span class="prol-code">(@project.ProjectCode)</span>
+                                                    }
+                                                </span>
+                                                <span class="prol-meta">
+                                                    515 ABW: @project.Totals.Abw515.ToString("N0") ·
+                                                    SDD: @project.Totals.Sdd.ToString("N0")
+                                                </span>
+                                            </div>
+                                            <span class="prol-badge">@project.Totals.Total.ToString("N0")</span>
+                                        </li>
+                                    }
+                                    @if (projects.Count == 0)
+                                    {
+                                        <li class="prol-meta">No projects for this year.</li>
+                                    }
+                                </ol>
+                            </details>
+                        </li>
+                    }
+                    @if (allYears.Count == 0)
+                    {
+                        <li class="prol-meta">No yearly data available.</li>
+                    }
+                </ul>
+            </section>
+        </div>
     </div>
 </div>
 
 @section Scripts {
-    <!-- Chart.js already in layout? If not, add this line. If it's already there, remove this line. -->
     <script src="~/lib/chart.js/chart.umd.js"></script>
-
     <script src="~/js/proliferation-summary-charts.js"></script>
 }
