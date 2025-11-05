@@ -301,3 +301,24 @@
         max-width: 20rem;
     }
 }
+
+/* responsive totals grid */
+.totals-dl {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 1rem;
+    margin-bottom: 0;
+}
+
+@media (max-width: 1199.98px) {
+    .totals-dl {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 767.98px) {
+    .totals-dl {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+

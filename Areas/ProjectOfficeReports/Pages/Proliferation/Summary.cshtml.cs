@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,10 +17,14 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation;
 public sealed class SummaryModel : PageModel
 {
     private readonly IProliferationSummaryReadService _summaryService;
+    private readonly IProliferationCardExportService _cardExportService;
 
-    public SummaryModel(IProliferationSummaryReadService summaryService)
+    public SummaryModel(
+        IProliferationSummaryReadService summaryService,
+        IProliferationCardExportService cardExportService)
     {
         _summaryService = summaryService ?? throw new ArgumentNullException(nameof(summaryService));
+        _cardExportService = cardExportService ?? throw new ArgumentNullException(nameof(cardExportService));
     }
 
     public ProliferationSummaryViewModel Summary { get; private set; } = ProliferationSummaryViewModel.Empty;
@@ -44,6 +49,9 @@ public sealed class SummaryModel : PageModel
 
     public HashSet<int> OpenYears { get; private set; } = new();
 
+    // ------------------------------------------------------------------
+    // normal GET
+    // ------------------------------------------------------------------
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         Summary = await _summaryService.GetSummaryAsync(cancellationToken);
@@ -59,6 +67,38 @@ public sealed class SummaryModel : PageModel
 
         InitOpenYears();
     }
+
+    // ------------------------------------------------------------------
+    // GET /Proliferation/Summary?handler=ExportProjects
+    // exports: projects ranked by proliferations
+    // ------------------------------------------------------------------
+    public async Task<FileResult> OnGetExportProjectsAsync(CancellationToken cancellationToken)
+    {
+        var summary = await _summaryService.GetSummaryAsync(cancellationToken);
+        var bytes = _cardExportService.BuildProjectsRanking(summary);
+
+        return File(
+            bytes,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "ProliferationProjects.xlsx");
+    }
+
+    // ------------------------------------------------------------------
+    // GET /Proliferation/Summary?handler=ExportYearBreakdown
+    // exports: separate sheet per year
+    // ------------------------------------------------------------------
+    public async Task<FileResult> OnGetExportYearBreakdownAsync(CancellationToken cancellationToken)
+    {
+        var summary = await _summaryService.GetSummaryAsync(cancellationToken);
+        var bytes = _cardExportService.BuildYearBreakdown(summary);
+
+        return File(
+            bytes,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "ProliferationYearBreakdown.xlsx");
+    }
+
+    // ---------------- existing helper logic below ---------------------
 
     private static SummaryTotals CalculateTotals(ProliferationSummaryViewModel summary)
     {
@@ -128,7 +168,7 @@ public sealed class SummaryModel : PageModel
             ? FormatCount(totals.ProjectsTotal, "project", "projects")
             : null;
         var yearsPart = totals.YearsTotal > 0
-            ? $"{FormatCount(totals.YearsTotal, "year", "years")}" 
+            ? $"{FormatCount(totals.YearsTotal, "year", "years")}"
             : null;
 
         string message;

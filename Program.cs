@@ -385,6 +385,7 @@ builder.Services.AddScoped<IProjectPhotoService, ProjectPhotoService>();
 builder.Services.AddScoped<IProjectVideoService, ProjectVideoService>();
 builder.Services.AddOptions<ProjectRetentionOptions>()
     .Bind(builder.Configuration.GetSection("Projects:Retention"));
+builder.Services.AddScoped<IProliferationCardExportService, ProliferationCardExportService>();
 
 var enumConverter = new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: true);
 

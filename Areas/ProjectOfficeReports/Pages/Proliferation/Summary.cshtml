@@ -96,14 +96,15 @@
     </section>
 
     @{
-        // pre-process for the two lower panels
+        // pre-compute for lower cards
         var projectsByTotals = Model.Summary.ByProject
         .OrderByDescending(row => row.Totals.Total)
         .ThenBy(row => row.ProjectName, StringComparer.OrdinalIgnoreCase)
         .ToList();
+        var topProjects = projectsByTotals.Take(10).ToList();
+        var hasMoreProjects = projectsByTotals.Count > topProjects.Count;
 
-        var yearSummaries = Model.Summary.ByYear
-        .ToDictionary(row => row.Year, row => row);
+        var yearSummaries = Model.Summary.ByYear.ToDictionary(row => row.Year, row => row);
 
         var projectGroups = Model.Summary.ByProjectYear
         .GroupBy(row => row.Year)
@@ -127,9 +128,28 @@
         <!-- left: projects ranked -->
         <div class="col-lg-5">
             <section class="prol-card h-100">
-                <h2 class="h5 prol-heading mb-3">Projects ranked by proliferations</h2>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h2 class="h5 prol-heading mb-0">Projects ranked by proliferations</h2>
+                    <div class="d-flex gap-2">
+                        <!-- export as Excel -->
+                        <a asp-area="ProjectOfficeReports"
+                           asp-page="/Proliferation/Summary"
+                           asp-page-handler="ExportProjects"
+                           class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center"
+                           title="Export ranked projects to Excel"
+                           aria-label="Export ranked projects to Excel">
+                            <i class="bi bi-download"></i>
+                        </a>
+                        @if (hasMoreProjects)
+                        {
+                            <a asp-area="ProjectOfficeReports"
+                               asp-page="/Proliferation/Index"
+                               class="small text-decoration-none align-self-center">View all</a>
+                        }
+                    </div>
+                </div>
                 <ol class="prol-ol mb-0">
-                    @foreach (var project in projectsByTotals)
+                    @foreach (var project in topProjects)
                     {
                         <li class="prol-row">
                             <div class="prol-name">
@@ -150,7 +170,7 @@
                             <span class="prol-badge">@project.Totals.Total.ToString("N0")</span>
                         </li>
                     }
-                    @if (projectsByTotals.Count == 0)
+                    @if (topProjects.Count == 0)
                     {
                         <li class="prol-meta">No projects in the current view.</li>
                     }
@@ -163,17 +183,33 @@
             <section class="prol-card h-100">
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <h2 class="h5 prol-heading mb-0">Project breakdown by year</h2>
-                    @if (allYears.Count > 0)
-                    {
-                        <div class="prol-yr__actions small">
-                            <a asp-route-expand="true" class="me-1">Expand all</a>
-                            <span aria-hidden="true" class="text-muted me-1">/</span>
-                            <a asp-route-expand="false" asp-route-open="">Collapse all</a>
-                        </div>
-                    }
+                    <div class="d-flex gap-2 align-items-center">
+                        <!-- export as Excel -->
+                        <a asp-area="ProjectOfficeReports"
+                           asp-page="/Proliferation/Summary"
+                           asp-page-handler="ExportYearBreakdown"
+                           class="btn btn-outline-secondary btn-sm d-inline-flex align-items-center justify-content-center"
+                           title="Export yearly breakdown to Excel"
+                           aria-label="Export yearly breakdown to Excel">
+                            <i class="bi bi-download"></i>
+                        </a>
+
+                        @if (allYears.Count > 0)
+                        {
+                            <div class="prol-yr__actions small d-flex gap-2">
+                                <button type="button" class="btn btn-link btn-sm p-0" data-prol-action="expand-all">
+                                    Expand all
+                                </button>
+                                <span aria-hidden="true" class="text-muted">/</span>
+                                <button type="button" class="btn btn-link btn-sm p-0" data-prol-action="collapse-all">
+                                    Collapse all
+                                </button>
+                            </div>
+                        }
+                    </div>
                 </div>
 
-                <ul class="list-unstyled mb-0">
+                <ul class="list-unstyled mb-0" data-prol-year-list>
                     @foreach (var year in allYears)
                     {
                         var hasSummary = yearSummaries.TryGetValue(year, out var yearRow);
