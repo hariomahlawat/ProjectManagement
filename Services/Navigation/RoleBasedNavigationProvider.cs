@@ -126,20 +126,24 @@ public class RoleBasedNavigationProvider : INavigationProvider
 
         var projectOfficeReportsChildren = new List<NavigationItem>
         {
-            new()
-            {
-                Text = "Visits tracker",
-                Area = "ProjectOfficeReports",
-                Page = "/Visits/Index",
-                AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewVisits
-            },
-            new()
-{
-    Text = "Visit types",
-    Area = "ProjectOfficeReports",
-    Page = "/VisitTypes/Index",
-    RequiredRoles = new[] { RoleNames.Admin }
-},
+            // Visits
+                new()
+                {
+                    Text = "Visits tracker",
+                    Area = "ProjectOfficeReports",
+                    Page = "/Visits/Index",
+                    AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewVisits,
+                    Children = new[]
+                    {
+                        new NavigationItem
+                        {
+                            Text = "Visit types",
+                            Area = "ProjectOfficeReports",
+                            Page = "/VisitTypes/Index",
+                            RequiredRoles = new[] { RoleNames.Admin }
+                        }
+                    }
+                },
 
             // >>> THIS is the part we changed <<<
                 new()
