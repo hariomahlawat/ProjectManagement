@@ -1,3 +1,6 @@
+/* =========================================================
+   ToT TABLE STYLES (existing, preserved)
+   ========================================================= */
 .tot-table__decision-header,
 .tot-table__decision-cell {
     width: 16rem;
@@ -11,10 +14,10 @@
     min-width: 10rem;
 }
 
-.tot-table__decision .chip {
-    font-size: 0.8rem;
-    line-height: 1.1;
-}
+    .tot-table__decision .chip {
+        font-size: 0.8rem;
+        line-height: 1.1;
+    }
 
 .tot-table__decision-meta {
     font-size: 0.75rem;
@@ -34,24 +37,26 @@
     }
 }
 
+/* =========================================================
+   ToT SUMMARY / DASHBOARD
+   ========================================================= */
+
+.tot-page {
+    width: 100%;
+}
+
+/* Outer container */
 .tot-summary {
     display: flex;
     flex-direction: column;
-    gap: clamp(1.5rem, 3vw, 1.75rem);
-    padding: clamp(1.5rem, 4vw, 2rem);
-    border-radius: var(--tot-radius);
-    border: 1px solid var(--tot-border);
-    border-color: color-mix(in srgb, var(--tot-border) 70%, transparent);
+    gap: 1.5rem;
 }
 
+/* Header with breadcrumb and action */
 .tot-summary__header {
     display: flex;
     flex-direction: column;
-    gap: clamp(1rem, 2.5vw, 1.25rem);
-    padding: 0;
-    border: none;
-    background: transparent;
-    box-shadow: none;
+    gap: 1rem;
 }
 
 .tot-summary__breadcrumb {
@@ -59,165 +64,266 @@
     --bs-breadcrumb-divider-color: var(--tot-muted, #9ca3af);
     --bs-breadcrumb-item-active-color: #111827;
     font-size: 0.875rem;
-    margin-bottom: 0.5rem;
-}
-
-.tot-summary__breadcrumb .breadcrumb {
     margin-bottom: 0;
-}
-
-.tot-summary__title {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    max-width: 60rem;
 }
 
 .tot-summary__heading {
     margin: 0;
-    font-size: clamp(var(--pm-font-size-xl), 2.75vw, var(--pm-font-size-2xl));
+    font-size: clamp(1.4rem, 2.2vw, 1.6rem);
     font-weight: 700;
 }
 
 .tot-summary__lede {
     margin: 0;
-    font-size: 1.1rem;
-    line-height: 1.6;
-    color: var(--tot-muted);
-    max-width: 48rem;
+    color: var(--tot-muted, #6b7280);
+    max-width: 52rem;
+    line-height: 1.4;
 }
 
+.tot-summary__header-main {
+    width: 100%;
+}
+
+.tot-summary__actions {
+    margin-top: 0.25rem;
+}
+
+/* Metrics strip */
+.tot-summary__metrics .tot-summary__metric-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    height: 100%;
+}
+
+.tot-summary__metric-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: #6b7280;
+    margin-bottom: 0.25rem;
+}
+
+.tot-summary__metric-value {
+    font-size: 1.45rem;
+    font-weight: 600;
+    line-height: 1.1;
+}
+
+.tot-summary__metric-card--completed {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+}
+
+.tot-summary__metric-card--inprogress {
+    background: #eff6ff;
+    border-color: #bae6fd;
+}
+
+.tot-summary__metric-card--notstarted {
+    background: #fef2f2;
+    border-color: #fee2e2;
+}
+
+/* Grid of cards */
 .tot-summary__grid {
     display: grid;
-    gap: clamp(1.5rem, 2vw, 2rem);
-    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-    align-items: start;
-}
-
-.tot-summary__column {
-    --tot-summary-accent: var(--tot-primary);
-    display: flex;
-    flex-direction: column;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 1rem;
-    padding: clamp(1rem, 3vw, 1.25rem);
-    background: color-mix(in srgb, var(--tot-summary-accent) 8%, var(--tot-surface));
-    border: 1px solid var(--tot-border);
-    border-color: color-mix(in srgb, var(--tot-border) 75%, transparent);
-    border-top: 0.35rem solid color-mix(in srgb, var(--tot-summary-accent) 65%, transparent);
-    border-radius: var(--tot-radius);
-    box-shadow: none;
 }
 
-.tot-summary__column-heading {
-    margin: 0;
-    font-size: 1.2rem;
-    color: color-mix(in srgb, var(--tot-summary-accent) 70%, var(--tot-text));
-}
-
-.tot-summary__column--completed {
-    --tot-summary-accent: var(--tot-success);
-}
-
-.tot-summary__column--not-started {
-    --tot-summary-accent: var(--tot-danger);
-}
-
-.tot-summary__column--in-progress {
-    --tot-summary-accent: var(--tot-warning);
-}
-
-.tot-summary__column--not-required {
-    --tot-summary-accent: var(--tot-primary);
-}
-
-.tot-summary__subsection {
+.tot-summary__card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.75rem;
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    min-height: 240px;
 }
 
-.tot-summary__subheading {
-    margin: 0;
-    font-size: 1rem;
+.tot-summary__card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem 0.5rem 1rem;
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.tot-summary__card-title {
+    font-size: 0.9rem;
     font-weight: 600;
-    color: #111827;
+    margin: 0;
 }
 
+.tot-summary__card-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.25rem;
+    height: 2rem;
+    border-radius: 9999px;
+    background: #eef2ff;
+    color: #3730a3;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.tot-summary__card-body {
+    padding: 0.75rem 1rem 1rem 1rem;
+    overflow-y: auto;
+    max-height: 320px;
+}
+
+/* List inside card */
 .tot-summary__list {
     list-style: none;
-    margin: 0;
     padding: 0;
+    margin: 0;
     display: grid;
     gap: 0.5rem;
 }
 
 .tot-summary__list-item {
     border-radius: 0.5rem;
-    color: #1f2937;
-    font-weight: 500;
-    line-height: 1.4;
-    transition: background-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.tot-summary__list-item a {
+.tot-summary__list-link {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.5rem 0.75rem;
-    border-radius: inherit;
-    background-color: #f3f4f6;
+    flex-direction: column;
+    gap: 0.15rem;
     text-decoration: none;
-    color: inherit;
+    color: #111827;
+    padding: 0.35rem 0.5rem;
+    border-radius: 0.5rem;
+    border: 1px solid transparent;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+    .tot-summary__list-link:hover,
+    .tot-summary__list-link:focus-visible {
+        background: #f3f4f6;
+        border-color: #e5e7eb;
+        text-decoration: none;
+    }
+
+.tot-summary__list-title {
+    font-weight: 500;
+    font-size: 0.85rem;
+}
+
+.tot-summary__list-meta {
+    font-size: 0.7rem;
+    color: #6b7280;
+}
+
+.tot-summary__subsection {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.tot-summary__subheading {
+    font-size: 0.75rem;
     font-weight: 600;
-    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+    color: #4b5563;
+    margin-bottom: 0.25rem;
 }
 
-.tot-summary__list-item a::after {
-    content: "";
-    flex-shrink: 0;
-    width: 0.75rem;
-    height: 0.75rem;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='currentColor' stroke-width='1.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M9 5l7 7-7 7'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-size: 100% 100%;
-}
-
-.tot-summary__list-item:hover a,
-.tot-summary__list-item:focus-within a {
-    background-color: #e5e7eb;
-    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
-}
-
-.tot-summary__list-item a:focus-visible {
-    outline: 2px solid var(--tot-focus, #2563eb);
-    outline-offset: 2px;
-    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.2);
-}
-
+/* Empty state */
 .tot-summary__empty {
-    margin: 0;
-    color: var(--tot-muted, #6b7280);
-    font-style: italic;
+    font-size: 0.8rem;
+    color: #9ca3af;
 }
 
-@media (max-width: 992px) {
-    .tot-summary {
-        gap: 1.5rem;
-        padding: clamp(1.25rem, 5vw, 1.75rem);
+/* State accents */
+.tot-summary__card--completed .tot-summary__card-count {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.tot-summary__card--notstarted .tot-summary__card-count {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+/* give a bit more room to the busy column */
+.tot-summary__card--notstarted .tot-summary__card-body {
+    max-height: 360px;
+}
+
+.tot-summary__card--in-progress .tot-summary__card-count {
+    background: #e0f2fe;
+    color: #0369a1;
+}
+
+.tot-summary__card--not-required .tot-summary__card-count {
+    background: #fef9c3;
+    color: #854d0e;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .tot-summary__header-main {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
     }
 
-    .tot-summary__grid {
-        gap: clamp(1.25rem, 4vw, 1.5rem);
+    .tot-summary__actions {
+        align-self: flex-start;
+        margin-top: 0;
     }
 }
 
-@media (max-width: 576px) {
-    .tot-summary {
-        padding: 1.125rem;
+
+
+.tot-summary__chart-title {
+    font-size: .9rem;
+    font-weight: 600;
+    margin-bottom: .25rem;
+}
+
+.tot-summary__chart-caption {
+    font-size: .7rem;
+    color: #6b7280;
+    margin-bottom: .75rem;
+}
+
+/* Chart container should control the height */
+.tot-summary__chart {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: .75rem;
+}
+
+    .tot-summary__chart .card-body {
+        /* this is the visible height of the card */
+        height: 280px;
+        position: relative;
+        padding: 1rem 1.25rem 1.25rem 1.25rem;
     }
 
-    .tot-summary__column {
-        padding: 1rem;
-    }
+/* make the canvas fill the card-body */
+#tot-yearly-chart {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
 }
+
+
+.tot-summary__chart-btn {
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    border-radius: 9999px;
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+    .tot-summary__chart-btn .bi {
+        font-size: 1rem;
+    }

@@ -182,7 +182,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
             {
                 Text = "ToT tracker",
                 Area = "ProjectOfficeReports",
-                Page = "/Tot/Index",
+                Page = "/Tot/Summary",
                 AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewTotTracker
             },
             new()
