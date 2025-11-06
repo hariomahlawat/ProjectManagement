@@ -327,3 +327,13 @@
     .tot-summary__chart-btn .bi {
         font-size: 1rem;
     }
+
+/* make ToT cards a bit taller */
+.tot-summary__card-body {
+    max-height: 500px; /* was 320 */
+}
+
+/* the busiest column gets a bit more */
+.tot-summary__card--notstarted .tot-summary__card-body {
+    max-height: 500px; /* was 360 */
+}
