@@ -25,7 +25,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         {
             var doc = await _db.Documents
                 .AsNoTracking()
-                .FirstOrDefaultAsync(d => d.Id == id && d.IsActive, cancellationToken);
+                .FirstOrDefaultAsync(d => d.Id == id && d.IsActive && !d.IsDeleted, cancellationToken);
 
             if (doc is null) return NotFound();
 

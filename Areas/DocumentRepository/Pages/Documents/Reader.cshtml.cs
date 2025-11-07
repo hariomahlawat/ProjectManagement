@@ -24,7 +24,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         // what we show in the heading
         public string DocumentTitle { get; private set; } = "Document";
 
-        // iframe url – this is the same endpoint that the browser can render nicely
+            if (doc == null || doc.IsDeleted)
         public string ViewUrl { get; private set; } = string.Empty;
 
         // direct download url

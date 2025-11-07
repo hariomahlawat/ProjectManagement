@@ -208,6 +208,10 @@ namespace ProjectManagement.Data
                 e.Property(x => x.UpdatedByUserId).HasMaxLength(64);
                 e.Property(x => x.DocumentDate).HasColumnType("date");
                 e.Property(x => x.IsActive).HasDefaultValue(true);
+                // SECTION: Document soft delete configuration
+                e.Property(x => x.IsDeleted).HasDefaultValue(false);
+                e.Property(x => x.DeletedByUserId).HasMaxLength(64);
+                e.Property(x => x.DeleteReason).HasMaxLength(512);
                 e.Property(x => x.OcrStatus).HasDefaultValue(OcrStatus.None);
                 e.Property(x => x.OcrFailureReason).HasMaxLength(512);
                 e.Property(x => x.ExtractedText).HasColumnType("text");
@@ -216,6 +220,7 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => x.Subject);
                 e.HasIndex(x => x.ReceivedFrom);
                 e.HasIndex(x => x.DocumentDate);
+                e.HasIndex(x => x.IsDeleted);
             });
 
             builder.Entity<DocumentDeleteRequest>(e =>

@@ -45,7 +45,13 @@ public class ManageModel : PageModel
         var document = await _db.Documents.FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
         if (document is null) return NotFound();
 
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";
+        if (document.IsDeleted)
+        {
+            TempData["ToastMessage"] = "Document is already deleted and cannot be deactivated.";
+            return RedirectToPage("./Index");
+        }
+
+        var userId = GetUserId();
         document.IsActive = false;
         document.UpdatedAtUtc = DateTime.UtcNow;
         document.UpdatedByUserId = userId;
@@ -63,7 +69,13 @@ public class ManageModel : PageModel
         var document = await _db.Documents.FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
         if (document is null) return NotFound();
 
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";
+        if (document.IsDeleted)
+        {
+            TempData["ToastMessage"] = "Deleted documents cannot be activated. Restore from trash first.";
+            return RedirectToPage("./Index");
+        }
+
+        var userId = GetUserId();
         document.IsActive = true;
         document.UpdatedAtUtc = DateTime.UtcNow;
         document.UpdatedByUserId = userId;
@@ -80,6 +92,12 @@ public class ManageModel : PageModel
     {
         var document = await _db.Documents.FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
         if (document is null) return NotFound();
+
+        if (document.IsDeleted)
+        {
+            TempData["ToastMessage"] = "Document is already in the trash.";
+            return RedirectToPage("./Index");
+        }
 
         if (!ModelState.IsValid)
         {
@@ -106,7 +124,7 @@ public class ManageModel : PageModel
             return RedirectToPage("./Index");
         }
 
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";
+        var userId = GetUserId();
 
         var request = new DocumentDeleteRequest
         {
@@ -142,4 +160,8 @@ public class ManageModel : PageModel
 
         return true;
     }
+
+    // SECTION: Helpers
+    private string GetUserId() =>
+        User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";
 }

@@ -44,6 +44,17 @@ public class Document
 
     public bool IsActive { get; set; } = true;
 
+    // SECTION: Soft delete metadata
+    public bool IsDeleted { get; set; } = false;
+
+    public DateTime? DeletedAtUtc { get; set; }
+
+    [MaxLength(64)]
+    public string? DeletedByUserId { get; set; }
+
+    [MaxLength(512)]
+    public string? DeleteReason { get; set; }
+
     public OcrStatus OcrStatus { get; set; } = OcrStatus.None;
 
     [MaxLength(512)]

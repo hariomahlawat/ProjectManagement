@@ -55,7 +55,8 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 .AsNoTracking()
                 .Include(d => d.DocumentTags).ThenInclude(dt => dt.Tag)
                 .Include(d => d.OfficeCategory)
-                .Include(d => d.DocumentCategory);
+                .Include(d => d.DocumentCategory)
+                .Where(d => !d.IsDeleted);
 
             if (!IncludeInactive)
             {
