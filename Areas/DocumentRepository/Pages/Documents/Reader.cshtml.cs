@@ -1,5 +1,4 @@
 using System;
-using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -16,27 +15,27 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
     {
         private readonly ApplicationDbContext _db;
 
+        // SECTION: Constructor
         public ReaderModel(ApplicationDbContext db)
         {
             _db = db;
         }
 
-        // what we show in the heading
+        // SECTION: View data
         public string DocumentTitle { get; private set; } = "Document";
 
-            if (doc == null || doc.IsDeleted)
         public string ViewUrl { get; private set; } = string.Empty;
 
-        // direct download url
         public string DownloadUrl { get; private set; } = string.Empty;
 
+        // SECTION: Handlers
         public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
         {
             var doc = await _db.Documents
                 .AsNoTracking()
                 .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
 
-            if (doc == null)
+            if (doc == null || doc.IsDeleted)
             {
                 return NotFound();
             }
