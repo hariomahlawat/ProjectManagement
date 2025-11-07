@@ -70,6 +70,7 @@ public class IndexModel : PageModel
 
     public bool HasResults => Trainings.Count > 0;
 
+    // will now contain: ByType (sim, drone), ByTechnicalCategory (5–6 sim cats), ByTrainingYear (for chart)
     public TrainingKpiDto Kpis { get; private set; } = new();
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
@@ -143,11 +144,11 @@ public class IndexModel : PageModel
             ProjectOfficeReportsPolicies.ManageTrainingTracker);
         CanManageTrainingTracker = manageAuthorization.Succeeded;
 
-        var authorizationResult = await _authorizationService.AuthorizeAsync(
+        var approvalAuthorization = await _authorizationService.AuthorizeAsync(
             User,
             resource: null,
             ProjectOfficeReportsPolicies.ApproveTrainingTracker);
-        CanApproveTrainingTracker = authorizationResult.Succeeded;
+        CanApproveTrainingTracker = approvalAuthorization.Succeeded;
 
         await LoadOptionsAsync(cancellationToken);
 

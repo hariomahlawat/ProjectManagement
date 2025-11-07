@@ -16,6 +16,7 @@ public sealed class TrainingTrackerReadService
 {
     private readonly ApplicationDbContext _db;
     private static readonly Guid SimulatorTrainingTypeId = new("f4a9b1c7-0a3c-46da-92ff-39b861fd4c91");
+    private static readonly Guid DroneTrainingTypeId = new("39f0d83c-5322-4a6d-bd1c-1b4dfbb5887b");
 
     public TrainingTrackerReadService(ApplicationDbContext db)
     {
@@ -230,13 +231,11 @@ public sealed class TrainingTrackerReadService
 
         var byType = filtered
             .GroupBy(item => new { item.TrainingTypeId, item.TrainingTypeName })
-            .Select(group => new TrainingTypeKpi
-            {
-                TypeId = group.Key.TrainingTypeId,
-                TypeName = group.Key.TrainingTypeName,
-                Trainings = group.Count(),
-                Trainees = group.Sum(item => item.CounterTotal)
-            })
+            .Select(group => new TrainingKpiByTypeDto(
+                group.Key.TrainingTypeId,
+                group.Key.TrainingTypeName,
+                group.Count(),
+                group.Sum(item => item.CounterTotal)))
             .OrderByDescending(entry => entry.Trainees)
             .ThenBy(entry => entry.TypeName, StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -244,15 +243,18 @@ public sealed class TrainingTrackerReadService
         var trainingIds = filtered.Select(item => item.Id).ToArray();
 
         var byTechnicalCategory = trainingIds.Length == 0
-            ? Array.Empty<TechnicalCategoryKpi>()
+            ? Array.Empty<TrainingKpiByTechnicalCategoryDto>()
             : await BuildTechnicalCategoryKpisAsync(trainingIds, cancellationToken);
+
+        var byTrainingYear = BuildTrainingYearBuckets(filtered);
 
         return new TrainingKpiDto
         {
             TotalTrainings = totalTrainings,
             TotalTrainees = totalTrainees,
             ByType = byType,
-            ByTechnicalCategory = byTechnicalCategory
+            ByTechnicalCategory = byTechnicalCategory,
+            ByTrainingYear = byTrainingYear
         };
     }
 
@@ -417,7 +419,7 @@ public sealed class TrainingTrackerReadService
                 group => (IReadOnlyList<TrainingRosterRow>)group.Select(entry => entry.Row).ToList());
     }
 
-    private async Task<IReadOnlyList<TechnicalCategoryKpi>> BuildTechnicalCategoryKpisAsync(
+    private async Task<IReadOnlyList<TrainingKpiByTechnicalCategoryDto>> BuildTechnicalCategoryKpisAsync(
         Guid[] trainingIds,
         CancellationToken cancellationToken)
     {
@@ -441,7 +443,7 @@ public sealed class TrainingTrackerReadService
 
         if (perTrainingCategory.Count == 0)
         {
-            return Array.Empty<TechnicalCategoryKpi>();
+            return Array.Empty<TrainingKpiByTechnicalCategoryDto>();
         }
 
         var byTrainingAndCategory = perTrainingCategory
@@ -458,18 +460,91 @@ public sealed class TrainingTrackerReadService
 
         var aggregated = byTrainingAndCategory
             .GroupBy(entry => new { entry.CategoryId, entry.CategoryName })
-            .Select(group => new TechnicalCategoryKpi
-            {
-                TechnicalCategoryId = group.Key.CategoryId,
-                TechnicalCategoryName = group.Key.CategoryName,
-                Trainings = group.Count(),
-                Trainees = group.Sum(item => item.Total)
-            })
+            .Select(group => new TrainingKpiByTechnicalCategoryDto(
+                group.Key.CategoryId,
+                group.Key.CategoryName,
+                group.Count(),
+                group.Sum(item => item.Total)))
             .OrderByDescending(entry => entry.Trainees)
             .ThenBy(entry => entry.TechnicalCategoryName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         return aggregated;
+    }
+
+    private static IReadOnlyList<TrainingYearBucketDto> BuildTrainingYearBuckets(IEnumerable<TrainingListItem> trainings)
+    {
+        var candidates = new List<(TrainingListItem Item, int StartYear)>();
+
+        foreach (var training in trainings)
+        {
+            if (TryGetTrainingYearStart(training, out var startYear))
+            {
+                candidates.Add((training, startYear));
+            }
+        }
+
+        if (candidates.Count == 0)
+        {
+            return Array.Empty<TrainingYearBucketDto>();
+        }
+
+        var buckets = candidates
+            .GroupBy(entry => entry.StartYear)
+            .OrderBy(group => group.Key)
+            .Select(group =>
+            {
+                var simulatorTrainings = group.Count(entry => entry.Item.TrainingTypeId == SimulatorTrainingTypeId);
+                var droneTrainings = group.Count(entry => entry.Item.TrainingTypeId == DroneTrainingTypeId);
+                var totalTrainings = group.Count();
+                var totalTrainees = group.Sum(entry => entry.Item.CounterTotal);
+
+                return new TrainingYearBucketDto(
+                    FormatTrainingYearLabel(group.Key),
+                    simulatorTrainings,
+                    droneTrainings,
+                    totalTrainings,
+                    totalTrainees);
+            })
+            .ToList();
+
+        return buckets;
+    }
+
+    private static bool TryGetTrainingYearStart(TrainingListItem item, out int startYear)
+    {
+        if (item.StartDate.HasValue)
+        {
+            startYear = GetTrainingYearStartYear(item.StartDate.Value);
+            return true;
+        }
+
+        if (item.EndDate.HasValue)
+        {
+            startYear = GetTrainingYearStartYear(item.EndDate.Value);
+            return true;
+        }
+
+        if (item.TrainingYear.HasValue && item.TrainingMonth.HasValue
+            && item.TrainingMonth.Value is >= 1 and <= 12
+            && item.TrainingYear.Value is >= 1 and <= 9999)
+        {
+            var reference = new DateOnly(item.TrainingYear.Value, item.TrainingMonth.Value, 1);
+            startYear = GetTrainingYearStartYear(reference);
+            return true;
+        }
+
+        startYear = default;
+        return false;
+    }
+
+    private static int GetTrainingYearStartYear(DateOnly date)
+        => date.Month >= 4 ? date.Year : date.Year - 1;
+
+    private static string FormatTrainingYearLabel(int startYear)
+    {
+        var endYear = startYear + 1;
+        return $"{startYear}-{endYear % 100:00}";
     }
 
     private static TrainingListItem ToListItem(TrainingListProjection projection)
