@@ -16,6 +16,21 @@
 }
 
 <!-- ============================================================
+     BREADCRUMB
+     ============================================================ -->
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb mb-0 small">
+        <li class="breadcrumb-item"><a asp-area="" asp-page="/Dashboard/Index">Dashboard</a></li>
+        <li class="breadcrumb-item">
+            <a asp-area="ProjectOfficeReports" asp-page="/Training/Index">Training tracker</a>
+        </li>
+        <li class="breadcrumb-item active" aria-current="page">
+            Training records
+        </li>
+    </ol>
+</nav>
+
+<!-- ============================================================
      PAGE HEADER
      ============================================================ -->
 <div class="card shadow-sm border-0 mb-4">

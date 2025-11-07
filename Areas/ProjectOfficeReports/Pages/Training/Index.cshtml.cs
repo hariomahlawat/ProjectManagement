@@ -29,7 +29,7 @@ public class IndexModel : PageModel
     // -------------------------------------------------------------------------
     // constants
     // -------------------------------------------------------------------------
-    private const int DashboardTrainingRowLimit = 5;
+    private const int DashboardTrainingRowLimit = 20;
 
     // -------------------------------------------------------------------------
     // ctor & deps
