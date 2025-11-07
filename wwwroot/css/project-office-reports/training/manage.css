@@ -299,3 +299,11 @@
   background-color: rgba(13, 110, 253, 0.1);
   color: var(--bs-primary, #0d6efd) !important;
 }
+
+/* shared utility for training index table */
+.text-truncate-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
