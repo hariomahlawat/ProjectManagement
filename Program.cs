@@ -187,6 +187,8 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole(RoleNames.Admin, RoleNames.HoD));
     options.AddPolicy("DocRepo.EditMetadata", policy =>
         policy.RequireRole("Admin", "TA", "ITO", "MCO","HoD"));
+    options.AddPolicy("DocRepo.Purge", policy =>
+        policy.RequireRole(RoleNames.Admin));
 
 
 });

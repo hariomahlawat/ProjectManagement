@@ -16,7 +16,16 @@
     }
     else
     {
-        if (!Model.Document.IsActive)
+        @* SECTION: Status messaging *@
+        var isDeleted = Model.Document.IsDeleted;
+
+        if (isDeleted)
+        {
+            <div class="alert alert-danger mb-3">
+                This document has been deleted and is currently stored in the trash. Only an administrator with purge access can restore it.
+            </div>
+        }
+        else if (!Model.Document.IsActive)
         {
             <div class="alert alert-warning mb-3">
                 This document is inactive. You can activate it below.
@@ -37,7 +46,11 @@
                     <dd class="col-sm-9">@Model.Document.DocumentCategory?.Name</dd>
                     <dt class="col-sm-3">Status</dt>
                     <dd class="col-sm-9">
-                        @if (Model.Document.IsActive)
+                        @if (Model.Document.IsDeleted)
+                        {
+                            <span class="badge text-bg-danger">Deleted</span>
+                        }
+                        else if (Model.Document.IsActive)
                         {
                             <span class="badge text-bg-success">Active</span>
                         }
@@ -66,10 +79,10 @@
                             <p class="small text-muted">Toggle whether this document is available to viewers.</p>
                             <div class="d-flex gap-2">
                                 <form method="post" asp-page-handler="Deactivate" asp-route-id="@Model.Document.Id" class="d-inline">
-                                    <button type="submit" class="btn btn-warning" @(Model.Document.IsActive ? null : "disabled")>Deactivate</button>
+                                    <button type="submit" class="btn btn-warning" @((Model.Document.IsActive && !isDeleted) ? null : "disabled")>Deactivate</button>
                                 </form>
                                 <form method="post" asp-page-handler="Activate" asp-route-id="@Model.Document.Id" class="d-inline">
-                                    <button type="submit" class="btn btn-success" @(Model.Document.IsActive ? "disabled" : null)>Activate</button>
+                                    <button type="submit" class="btn btn-success" @((!Model.Document.IsActive && !isDeleted) ? null : "disabled")>Activate</button>
                                 </form>
                             </div>
                         </div>
@@ -86,13 +99,31 @@
                                     <textarea asp-for="Reason" class="form-control" rows="3"></textarea>
                                     <span asp-validation-for="Reason" class="text-danger"></span>
                                 </div>
-                                <button type="submit" class="btn btn-danger">Submit delete request</button>
+                                <button type="submit" class="btn btn-danger" @(isDeleted ? "disabled" : null)>Submit delete request</button>
                             </form>
                         </div>
                     </div>
                 </div>
             </div>
         </authorize>
+
+        @* SECTION: Deletion metadata *@
+        @if (Model.Document.IsDeleted)
+        {
+            <div class="card mt-4 shadow-sm">
+                <div class="card-body">
+                    <h2 class="h6">Deletion details</h2>
+                    <dl class="row mb-0 small">
+                        <dt class="col-sm-3">Deleted at</dt>
+                        <dd class="col-sm-9">@(Model.Document.DeletedAtUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "—")</dd>
+                        <dt class="col-sm-3">Deleted by</dt>
+                        <dd class="col-sm-9">@(!string.IsNullOrWhiteSpace(Model.Document.DeletedByUserId) ? Model.Document.DeletedByUserId : "—")</dd>
+                        <dt class="col-sm-3">Reason</dt>
+                        <dd class="col-sm-9">@(string.IsNullOrWhiteSpace(Model.Document.DeleteReason) ? "—" : Model.Document.DeleteReason)</dd>
+                    </dl>
+                </div>
+            </div>
+        }
 
         <div class="card mt-4 shadow-sm">
             <div class="card-body">

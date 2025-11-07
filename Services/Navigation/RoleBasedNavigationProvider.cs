@@ -104,6 +104,13 @@ public class RoleBasedNavigationProvider : INavigationProvider
             },
             new()
             {
+                Text = "Trash",
+                Area = "DocumentRepository",
+                Page = "/Admin/Trash/Index",
+                AuthorizationPolicy = "DocRepo.Purge"
+            },
+            new()
+            {
                 Text = "Office categories",
                 Area = "DocumentRepository",
                 Page = "/Admin/OfficeCategories/Index",

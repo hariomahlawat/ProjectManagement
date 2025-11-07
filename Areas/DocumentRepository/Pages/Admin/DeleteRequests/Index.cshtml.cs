@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -9,6 +10,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Data.DocRepo;
+using ProjectManagement.Services.DocRepo;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin.DeleteRequests
 {
@@ -16,10 +18,13 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin.DeleteRequests
     public class IndexModel : PageModel
     {
         private readonly ApplicationDbContext _db;
+        private readonly IDocRepoAuditService _audit;
 
-        public IndexModel(ApplicationDbContext db)
+        // SECTION: Constructor
+        public IndexModel(ApplicationDbContext db, IDocRepoAuditService audit)
         {
             _db = db;
+            _audit = audit;
         }
 
         // list shown on the page
@@ -30,7 +35,8 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin.DeleteRequests
             DeleteRequests = await _db.DocumentDeleteRequests
                 .AsNoTracking()
                 .Include(r => r.Document)
-                .Where(r => r.ApprovedAtUtc == null)   // only pending
+                .Where(r => r.ApprovedAtUtc == null)
+                .Where(r => r.Document != null && !r.Document.IsDeleted)
                 .OrderBy(r => r.RequestedAtUtc)
                 .ToListAsync(cancellationToken);
         }
@@ -53,20 +59,35 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin.DeleteRequests
                 return RedirectToPage();
             }
 
+            var actorId = GetActorUserId();
             request.ApprovedAtUtc = DateTimeOffset.UtcNow;
-            request.ApprovedByUserId = User?.Identity?.Name ?? "system";
+            request.ApprovedByUserId = actorId;
 
             if (request.Document != null)
             {
+                // SECTION: Soft delete update
+                request.Document.IsDeleted = true;
                 request.Document.IsActive = false;
-                // your Document uses DateTime, so:
+                request.Document.DeletedAtUtc = DateTime.UtcNow;
+                request.Document.DeletedByUserId = actorId;
+                request.Document.DeleteReason = string.IsNullOrWhiteSpace(request.Reason) ? null : request.Reason.Trim();
                 request.Document.UpdatedAtUtc = DateTime.UtcNow;
-                request.Document.UpdatedByUserId = User?.Identity?.Name ?? "system";
+                request.Document.UpdatedByUserId = actorId;
             }
 
             await _db.SaveChangesAsync(cancellationToken);
 
-            TempData["ToastMessage"] = "Delete request approved and document deactivated.";
+            if (request.Document != null)
+            {
+                await _audit.WriteAsync(
+                    request.Document.Id,
+                    actorId,
+                    "SoftDeleted",
+                    new { request.Id, request.Reason },
+                    cancellationToken);
+            }
+
+            TempData["ToastMessage"] = "Document moved to trash.";
             return RedirectToPage();
         }
 
@@ -87,5 +108,8 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin.DeleteRequests
             TempData["ToastMessage"] = "Delete request rejected.";
             return RedirectToPage();
         }
+
+        private string GetActorUserId() =>
+            User?.FindFirstValue(ClaimTypes.NameIdentifier) ?? User?.Identity?.Name ?? "system";
     }
 }

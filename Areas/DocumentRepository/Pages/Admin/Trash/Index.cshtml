@@ -1,0 +1,116 @@
+@page
+@model ProjectManagement.Areas.DocumentRepository.Pages.Admin.Trash.IndexModel
+@{
+    ViewData["Title"] = "Document trash";
+}
+
+<!-- SECTION: Notifications -->
+<div class="container-fluid pt-3 pb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+            <nav aria-label="breadcrumb" class="mb-1">
+                <ol class="breadcrumb mb-0">
+                    <li class="breadcrumb-item">
+                        <a asp-area="" asp-page="/Index">Dashboard</a>
+                    </li>
+                    <li class="breadcrumb-item">
+                        <a asp-area="DocumentRepository" asp-page="/Documents/Index">Documents</a>
+                    </li>
+                    <li class="breadcrumb-item active" aria-current="page">Trash</li>
+                </ol>
+            </nav>
+            <h1 class="h5 mb-0">Trash</h1>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+    {
+        <div class="alert alert-success">@Model.StatusMessage</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(Model.ErrorMessage))
+    {
+        <div class="alert alert-danger">@Model.ErrorMessage</div>
+    }
+
+    <!-- SECTION: Help text -->
+    <div class="alert alert-warning">
+        Purging permanently removes the document and its file from storage. Restore to bring a document back into circulation without purging.
+    </div>
+
+    <!-- SECTION: Table -->
+    @if (Model.Items == null || !Model.Items.Any())
+    {
+        <div class="alert alert-light border">Trash is empty.</div>
+    }
+    else
+    {
+        <div class="table-responsive bg-white rounded-3 shadow-sm">
+            <table class="table mb-0 align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Subject</th>
+                        <th>Office</th>
+                        <th>Category</th>
+                        <th>Deleted at</th>
+                        <th>Deleted by</th>
+                        <th>Reason</th>
+                        <th class="text-end">Size</th>
+                        <th class="text-end" style="width: 180px;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var item in Model.Items)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@item.Subject</td>
+                            <td>@item.Office</td>
+                            <td>@item.Category</td>
+                            <td>@(item.DeletedAtUtc?.ToLocalTime().ToString("dd MMM yyyy HH:mm") ?? "—")</td>
+                            <td>@(string.IsNullOrWhiteSpace(item.DeletedByUserId) ? "—" : item.DeletedByUserId)</td>
+                            <td class="small">@(string.IsNullOrWhiteSpace(item.DeleteReason) ? "—" : item.DeleteReason)</td>
+                            <td class="text-end">@FormatSize(item.FileSizeBytes)</td>
+                            <td class="text-end">
+                                <form method="post"
+                                      asp-page-handler="Restore"
+                                      asp-route-id="@item.Id"
+                                      class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">Restore</button>
+                                </form>
+                                <form method="post"
+                                      asp-page-handler="Purge"
+                                      asp-route-id="@item.Id"
+                                      class="d-inline ms-1">
+                                    <button type="submit" class="btn btn-sm btn-danger">Purge</button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+@functions {
+    // SECTION: Helper formatting
+    private static string FormatSize(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} B";
+        }
+
+        double size = bytes;
+        string[] units = { "KB", "MB", "GB", "TB" };
+        int index = 0;
+
+        while (size >= 1024 && index < units.Length - 1)
+        {
+            size /= 1024;
+            index++;
+        }
+
+        return $"{size:0.##} {units[index]}";
+    }
+}

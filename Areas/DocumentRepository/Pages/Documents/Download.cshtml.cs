@@ -25,7 +25,10 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 .AsNoTracking()
                 .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
 
-            if (doc is null) return NotFound();
+            if (doc is null || doc.IsDeleted)
+            {
+                return NotFound();
+            }
 
             var stream = await _storage.OpenReadAsync(doc.StoragePath, HttpContext.RequestAborted);
             var downloadName = string.IsNullOrWhiteSpace(doc.OriginalFileName)

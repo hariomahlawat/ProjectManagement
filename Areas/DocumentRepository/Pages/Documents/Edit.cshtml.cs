@@ -54,7 +54,7 @@ public class EditModel : PageModel
             .AsNoTracking()
             .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
 
-        if (doc is null)
+        if (doc is null || doc.IsDeleted)
             return NotFound();
 
         Input = new InputModel
@@ -82,7 +82,7 @@ public class EditModel : PageModel
             return Page();
         }
 
-        // load with tag collection – we will overwrite it
+        if (doc is null || doc.IsDeleted)
         var doc = await _db.Documents
             .Include(d => d.DocumentTags)
             .FirstOrDefaultAsync(d => d.Id == Input.Id, cancellationToken);
@@ -117,7 +117,7 @@ public class EditModel : PageModel
         if (badTag is not null)
         {
             ModelState.AddModelError(nameof(Input.Tags),
-                $"Invalid tag '{badTag}'. Tags must be 1–32 chars and can contain letters, numbers, spaces, hyphens, or underscores.");
+                $"Invalid tag '{badTag}'. Tags must be 1â€“32 chars and can contain letters, numbers, spaces, hyphens, or underscores.");
             await LoadLookupsAsync(cancellationToken);
             return Page();
         }
