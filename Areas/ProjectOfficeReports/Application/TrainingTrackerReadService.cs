@@ -207,6 +207,45 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
         }
 
         // ============================================================
+        // PAGED LIST SEARCH (for the dedicated records page)
+        // ============================================================
+        public async Task<PagedResult<TrainingListItem>> SearchPagedAsync(
+            TrainingTrackerQuery? query,
+            int pageNumber,
+            int pageSize,
+            CancellationToken cancellationToken)
+        {
+            if (pageNumber < 1)
+            {
+                pageNumber = 1;
+            }
+
+            if (pageSize < 1)
+            {
+                pageSize = 20;
+            }
+
+            // reuse existing logic so filters/date/category stay in ONE place
+            var all = await SearchAsync(query, cancellationToken);
+
+            // your SearchAsync already gives you filtered rows,
+            // but not ordered by recency consistently, so let’s do that here
+            var ordered = all
+                .OrderByDescending(r => r.StartDate ?? r.EndDate)  // recent first
+                .ThenByDescending(r => r.CounterTotal)
+                .ToList();
+
+            var total = ordered.Count;
+            var skip = (pageNumber - 1) * pageSize;
+            var items = ordered
+                .Skip(skip)
+                .Take(pageSize)
+                .ToList();
+
+            return new PagedResult<TrainingListItem>(items, total, pageNumber, pageSize);
+        }
+
+        // ============================================================
         // KPI BUILD
         // ============================================================
         public async Task<TrainingKpiDto> GetKpisAsync(TrainingTrackerQuery? query, CancellationToken cancellationToken)
@@ -825,6 +864,15 @@ namespace ProjectManagement.Areas.ProjectOfficeReports.Application
             string RequestedByUserId,
             DateTimeOffset RequestedAtUtc,
             string Reason);
+
+        // ============================================================
+        // SHARED PAGED RESULT
+        // ============================================================
+        public sealed record PagedResult<T>(
+            IReadOnlyList<T> Items,
+            int TotalCount,
+            int PageNumber,
+            int PageSize);
 
         private sealed record TrainingListProjection(
             Guid Id,

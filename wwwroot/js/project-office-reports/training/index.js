@@ -1,4 +1,4 @@
-// wwwroot/js/project-office-reports/training/index.js
+﻿// wwwroot/js/project-office-reports/training/index.js
 
 import { initAsyncMultiselect } from '../../widgets/async-multiselect.js';
 
@@ -121,9 +121,19 @@ function initTrainingYearChart() {
             ''
     );
 
-    // now we EXPECT trainee fields (because we just added them in C#)
-    const simulatorData = rows.map((row) => row.simulatorTrainees ?? 0);
-    const droneData = rows.map((row) => row.droneTrainees ?? 0);
+    // 👇 IMPORTANT: try the names C# actually sends now, then fall back
+    const simulatorData = rows.map(
+        (row) =>
+            row.simulatorTrainings ??   // current C# name
+            row.simulatorTrainees ??   // older name, if you revert
+            0
+    );
+    const droneData = rows.map(
+        (row) =>
+            row.droneTrainings ??       // current C# name
+            row.droneTrainees ??       // older name, if you revert
+            0
+    );
 
     new ChartCtor(canvas, {
         type: 'bar',
@@ -184,6 +194,7 @@ function initTrainingYearChart() {
         }
     });
 }
+
 
 // ================================================================
 // chart download buttons

@@ -409,8 +409,8 @@ else
     </div>
 
     <!-- ============================================================
-         TABLE / EMPTY
-         ============================================================ -->
+     TABLE / EMPTY
+     ============================================================ -->
     @if (!Model.HasResults)
     {
         <div class="card shadow-sm border-0 empty-state">
@@ -517,8 +517,31 @@ else
                     </table>
                 </div>
             </div>
+
+            @* ---------------------------------------------------------
+               table footer: tell user this is only latest 20
+               --------------------------------------------------------- *@
+            <div class="card-footer d-flex justify-content-between align-items-center">
+                <span class="text-muted small">
+                    Showing the 20 most recent trainings in this view.
+                </span>
+                @if (Model.HasMoreRecords)
+                {
+                    <a asp-page="./Records"
+                       asp-route-TypeId="@(Model.Filter.TypeId)"
+                       asp-route-ProjectTechnicalCategoryId="@(Model.Filter.ProjectTechnicalCategoryId)"
+                       asp-route-Category="@(Model.Filter.Category)"
+                       asp-route-From="@(Model.Filter.From?.ToString("yyyy-MM-dd"))"
+                       asp-route-To="@(Model.Filter.To?.ToString("yyyy-MM-dd"))"
+                       asp-route-Search="@(Model.Filter.Search)"
+                       class="btn btn-outline-primary btn-sm">
+                        View all records
+                    </a>
+                }
+            </div>
         </div>
     }
+
 }
 
 @section Styles
