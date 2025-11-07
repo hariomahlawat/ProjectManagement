@@ -1,6 +1,27 @@
-// wwwroot/js/proliferation-summary-charts.js
+"use strict";
+
+// wwwroot/js/pages/project-office-reports/proliferation-summary-charts.js
 document.addEventListener("DOMContentLoaded", function () {
-    // helper to wire download buttons
+    const DEVICE_PIXEL_RATIO = window.devicePixelRatio || 1;
+
+    function getParsedDataset(host, key, logLabel) {
+        if (!host) {
+            return null;
+        }
+
+        const raw = host.dataset[key];
+        if (!raw) {
+            return null;
+        }
+
+        try {
+            return JSON.parse(raw);
+        } catch (error) {
+            console.error(`${logLabel}: bad JSON`, error);
+            return null;
+        }
+    }
+
     function wireDownloadButtons() {
         const btns = document.querySelectorAll('[data-action="download-png"][data-target]');
         btns.forEach(btn => {
@@ -11,25 +32,16 @@ document.addEventListener("DOMContentLoaded", function () {
                 if (!canvas) return;
                 const link = document.createElement("a");
                 link.href = canvas.toDataURL("image/png");
-                link.download = targetId + ".png";
+                link.download = `${targetId}.png`;
                 link.click();
             });
         });
     }
 
-    // chart 1: yearly trend (already present earlier)
     (function initYearlyChart() {
         const host = document.getElementById("proliferation-yearly-chart");
-        if (!host) return;
-
-        const raw = host.dataset.yearly;
-        if (!raw) return;
-
-        let rows;
-        try {
-            rows = JSON.parse(raw);
-        } catch (e) {
-            console.error("Proliferation summary yearly: bad JSON", e);
+        const rows = getParsedDataset(host, "yearly", "Proliferation summary yearly");
+        if (!rows || rows.length === 0) {
             return;
         }
 
@@ -44,7 +56,7 @@ document.addEventListener("DOMContentLoaded", function () {
         new Chart(canvas, {
             type: "bar",
             data: {
-                labels: labels,
+                labels,
                 datasets: [
                     {
                         type: "bar",
@@ -81,6 +93,7 @@ document.addEventListener("DOMContentLoaded", function () {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                devicePixelRatio: DEVICE_PIXEL_RATIO,
                 interaction: {
                     mode: "index",
                     intersect: false
@@ -116,23 +129,10 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     })();
 
-    // chart 2: by technical category (new)
     (function initTechCategoryChart() {
         const host = document.getElementById("proliferation-techcat-chart");
-        if (!host) return;
-
-        const raw = host.dataset.categories;
-        if (!raw) return;
-
-        let rows;
-        try {
-            rows = JSON.parse(raw);
-        } catch (e) {
-            console.error("Proliferation technical categories: bad JSON", e);
-            return;
-        }
-
-        if (!Array.isArray(rows) || rows.length === 0) {
+        const rows = getParsedDataset(host, "categories", "Proliferation technical categories");
+        if (!rows || rows.length === 0) {
             return;
         }
 
@@ -141,10 +141,9 @@ document.addEventListener("DOMContentLoaded", function () {
         const canvas = document.getElementById("proliferation-techcat-chart-canvas");
         if (!canvas) return;
 
-        // simple plugin to draw value at bar end
         const valueLabelPlugin = {
             id: "valueLabelPlugin",
-            afterDatasetsDraw(chart, args, opts) {
+            afterDatasetsDraw(chart) {
                 const { ctx } = chart;
                 ctx.save();
                 const meta = chart.getDatasetMeta(0);
@@ -164,7 +163,7 @@ document.addEventListener("DOMContentLoaded", function () {
         new Chart(canvas, {
             type: "bar",
             data: {
-                labels: labels,
+                labels,
                 datasets: [
                     {
                         label: "Proliferations",
@@ -179,6 +178,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 indexAxis: "y",
                 responsive: true,
                 maintainAspectRatio: false,
+                devicePixelRatio: DEVICE_PIXEL_RATIO,
                 plugins: {
                     legend: { display: false },
                     tooltip: {
