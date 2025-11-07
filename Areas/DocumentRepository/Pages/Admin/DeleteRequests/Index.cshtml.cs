@@ -35,7 +35,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin.DeleteRequests
                 .ToListAsync(cancellationToken);
         }
 
-        // approve = mark request approved (and optionally act on the document)
+        // approve = mark request approved AND deactivate the document
         public async Task<IActionResult> OnPostApproveAsync(long id, CancellationToken cancellationToken)
         {
             var request = await _db.DocumentDeleteRequests
@@ -47,20 +47,26 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Admin.DeleteRequests
                 return NotFound();
             }
 
+            // in case it's already processed
+            if (request.ApprovedAtUtc != null)
+            {
+                return RedirectToPage();
+            }
+
             request.ApprovedAtUtc = DateTimeOffset.UtcNow;
             request.ApprovedByUserId = User?.Identity?.Name ?? "system";
 
-            // If you want to deactivate the document when a delete is approved, uncomment:
-            // if (request.Document != null)
-            // {
-            //     request.Document.IsActive = false;
-            //     request.Document.UpdatedAtUtc = DateTime.UtcNow;
-            //     request.Document.UpdatedByUserId = User?.Identity?.Name ?? "system";
-            // }
+            if (request.Document != null)
+            {
+                request.Document.IsActive = false;
+                // your Document uses DateTime, so:
+                request.Document.UpdatedAtUtc = DateTime.UtcNow;
+                request.Document.UpdatedByUserId = User?.Identity?.Name ?? "system";
+            }
 
             await _db.SaveChangesAsync(cancellationToken);
 
-            TempData["ToastMessage"] = "Delete request approved.";
+            TempData["ToastMessage"] = "Delete request approved and document deactivated.";
             return RedirectToPage();
         }
 
