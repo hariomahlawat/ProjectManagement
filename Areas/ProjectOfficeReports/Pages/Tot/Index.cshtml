@@ -83,12 +83,9 @@
         }
 
         @@media (max-width: 1100px) {
-            .tot-workspace-grid
-
-        {
-            grid-template-columns: 1fr;
-        }
-
+            .tot-workspace-grid {
+                grid-template-columns: 1fr;
+            }
         }
 
         /* list panel */
@@ -228,23 +225,36 @@
             gap: .5rem;
         }
 
-        /* small screens */
+        /* approval strip */
+        .tot-approval-card {
+            border: 1px solid #e5e7eb;
+            background: #f9fafb;
+            border-radius: .5rem;
+            padding: .5rem .6rem .6rem;
+        }
+
+            .tot-approval-card h3 {
+                font-size: .7rem;
+                text-transform: uppercase;
+                letter-spacing: .03em;
+                margin-bottom: .4rem;
+                color: #4b5563;
+            }
+
         @@media (max-width: 700px) {
-            .tot-list-head, .tot-row
+            .tot-list-head,
+            .tot-row {
+                grid-template-columns: 1fr;
+            }
 
-        {
-            grid-template-columns: 1fr;
-        }
+            .tot-toolbar {
+                flex-direction: column;
+                align-items: flex-start;
+            }
 
-        .tot-toolbar {
-            flex-direction: column;
-            align-items: flex-start;
-        }
-
-        .tot-toolbar-actions {
-            justify-content: flex-start;
-        }
-
+            .tot-toolbar-actions {
+                justify-content: flex-start;
+            }
         }
     </style>
 }
@@ -303,7 +313,6 @@
             ? "Showing 1 project"
             : $"Showing {totalCount} projects";
 
-    // just a short filter summary – dashboard already shows full portfolio view
     var filterBits = new List<string>();
     if (!string.IsNullOrWhiteSpace(Model.SearchTerm)) filterBits.Add($"Search: “{Model.SearchTerm}”");
     if (Model.TotStatusFilter is { } f) filterBits.Add($"Status: {StatusLabel(f)}");
@@ -410,7 +419,7 @@
             }
             else
             {
-                <!-- inline search (fast path) -->
+                <!-- inline search -->
                 <form method="get" class="tot-searchbar" role="search">
                     <input type="hidden" name="TotStatusFilter" value="@Model.TotStatusFilter" />
                     <input type="hidden" name="RequestStateFilter" value="@Model.RequestStateFilter" />
@@ -418,6 +427,7 @@
                     <input type="hidden" name="RequiresTotOnly" value="@Model.RequiresTotOnly" />
                     <input type="hidden" name="MetCompletedOnly" value="@Model.MetCompletedOnly" />
                     <input type="hidden" name="SelectedProjectId" value="@Model.SelectedProjectId" />
+
                     <div class="input-group input-group-sm" style="max-width: 320px;">
                         <span class="input-group-text bg-white border-end-0">
                             <i class="bi bi-search" aria-hidden="true"></i>
@@ -486,6 +496,11 @@
                                     <span class="chip-sm @RequestStateChipClass(rstate)">
                                         @RequestStateLabel(rstate)
                                     </span>
+                                    @* extra visibility for approvers *@
+                                    @if (Model.CanApprove && rstate == ProjectTotRequestDecisionState.Pending)
+                                    {
+                                        <span class="text-danger small d-block">Needs decision</span>
+                                    }
                                 }
                                 else
                                 {
@@ -569,7 +584,8 @@
                 </div>
 
                 <div class="tot-actions-inline">
-                    @if (Model.CanSubmit)
+                    @* IMPORTANT: HoD / approver should not see the submit modal, they should see the approval block below *@
+                    @if (!Model.CanApprove && Model.CanSubmit)
                     {
                         <button type="button"
                                 class="btn btn-primary"
@@ -578,11 +594,13 @@
                             Submit update
                         </button>
                     }
+
                     <a class="btn btn-outline-secondary"
                        asp-page="/Projects/Overview"
                        asp-route-id="@selected.ProjectId">
                         Open project
                     </a>
+
                     @if (selected.RequestState is not null)
                     {
                         <button type="button"
@@ -593,6 +611,39 @@
                         </button>
                     }
                 </div>
+
+                @* APPROVAL CARD – this is what we had lost *@
+                @if (Model.CanApprove && selected.RequestState == ProjectTotRequestDecisionState.Pending)
+                {
+                    <div class="tot-approval-card mt-2">
+                        <h3>HoD decision</h3>
+                        <form method="post" asp-page-handler="Decide">
+                            <input asp-for="DecideInput.ProjectId" type="hidden" />
+                            <input asp-for="DecideInput.RowVersion" type="hidden" />
+
+                            <div class="mb-2">
+                                <label asp-for="DecideContextBody" class="form-label small mb-1">Decision context (optional)</label>
+                                <textarea asp-for="DecideContextBody" rows="2" class="form-control form-control-sm"></textarea>
+                                <span asp-validation-for="DecideContextBody" class="text-danger small"></span>
+                            </div>
+
+                            <div class="btn-group btn-group-sm" role="group" aria-label="Approve or reject ToT update">
+                                <button type="submit"
+                                        name="DecideInput.Approve"
+                                        value="true"
+                                        class="btn btn-success">
+                                    Approve
+                                </button>
+                                <button type="submit"
+                                        name="DecideInput.Approve"
+                                        value="false"
+                                        class="btn btn-outline-danger">
+                                    Reject
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                }
             }
         </div>
     </div>
