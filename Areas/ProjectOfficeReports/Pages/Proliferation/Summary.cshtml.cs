@@ -1,15 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Areas.ProjectOfficeReports.Application;
 using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
+using ProjectManagement.Data;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.Proliferation;
 
@@ -18,28 +19,29 @@ public sealed class SummaryModel : PageModel
 {
     private readonly IProliferationSummaryReadService _summaryService;
     private readonly IProliferationCardExportService _cardExportService;
+    private readonly ApplicationDbContext _db;
 
     public SummaryModel(
         IProliferationSummaryReadService summaryService,
-        IProliferationCardExportService cardExportService)
+        IProliferationCardExportService cardExportService,
+        ApplicationDbContext db)
     {
         _summaryService = summaryService ?? throw new ArgumentNullException(nameof(summaryService));
         _cardExportService = cardExportService ?? throw new ArgumentNullException(nameof(cardExportService));
+        _db = db ?? throw new ArgumentNullException(nameof(db));
     }
 
     public ProliferationSummaryViewModel Summary { get; private set; } = ProliferationSummaryViewModel.Empty;
 
     public int ProjectsTotal { get; private set; }
-
     public int YearsTotal { get; private set; }
-
     public int GrandTotal { get; private set; }
-
     public int GrandAbw { get; private set; }
-
     public int GrandSdd { get; private set; }
-
     public string Lede { get; private set; } = string.Empty;
+
+    public IReadOnlyList<TechnicalCategoryBreakdownRow> TechnicalCategoryBreakdown { get; private set; } =
+        Array.Empty<TechnicalCategoryBreakdownRow>();
 
     [BindProperty(SupportsGet = true)]
     public bool Expand { get; set; }
@@ -49,15 +51,19 @@ public sealed class SummaryModel : PageModel
 
     public HashSet<int> OpenYears { get; private set; } = new();
 
-    // ------------------------------------------------------------------
-    // normal GET
-    // ------------------------------------------------------------------
+    private sealed class ProjectRow
+    {
+        public int Id { get; init; }
+        public string? Name { get; init; }
+        public int? TechnicalCategoryId { get; init; }
+        public string? TechnicalCategoryName { get; init; }
+    }
+
     public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         Summary = await _summaryService.GetSummaryAsync(cancellationToken);
 
         var totals = CalculateTotals(Summary);
-
         ProjectsTotal = totals.ProjectsTotal;
         YearsTotal = totals.YearsTotal;
         GrandTotal = totals.GrandTotal;
@@ -65,13 +71,144 @@ public sealed class SummaryModel : PageModel
         GrandSdd = totals.GrandSdd;
         Lede = BuildLede(totals);
 
+        TechnicalCategoryBreakdown = await BuildTechnicalCategoryBreakdownAsync(Summary, cancellationToken);
+
         InitOpenYears();
     }
 
-    // ------------------------------------------------------------------
-    // GET /Proliferation/Summary?handler=ExportProjects
-    // exports: projects ranked by proliferations
-    // ------------------------------------------------------------------
+    private async Task<IReadOnlyList<TechnicalCategoryBreakdownRow>> BuildTechnicalCategoryBreakdownAsync(
+        ProliferationSummaryViewModel summary,
+        CancellationToken cancellationToken)
+    {
+        if (summary is null || summary.ByProject.Count == 0)
+        {
+            return Array.Empty<TechnicalCategoryBreakdownRow>();
+        }
+
+        // totals by project id as present in the summary
+        var totalsById = summary.ByProject
+            .Where(p => p.ProjectId > 0)
+            .ToDictionary(p => p.ProjectId, p => p.Totals.Total);
+
+        // project names we may have to match in DB
+        var namesNeedingMatch = summary.ByProject
+            .Where(p => p.ProjectId <= 0 || !totalsById.ContainsKey(p.ProjectId))
+            .Select(p => p.ProjectName)
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var projectsFromDb = new List<ProjectRow>();
+
+        // 1. fetch by Id
+        if (totalsById.Count > 0)
+        {
+            var idList = totalsById.Keys.ToList();
+
+            var byId = await _db.Projects
+                .AsNoTracking()
+                .Where(p => idList.Contains(p.Id))
+                .Select(p => new
+                {
+                    p.Id,
+                    p.Name,
+                    p.TechnicalCategoryId,
+                    TechnicalCategoryName = p.TechnicalCategory != null ? p.TechnicalCategory.Name : null
+                })
+                .ToListAsync(cancellationToken);
+
+            projectsFromDb.AddRange(byId.Select(x => new ProjectRow
+            {
+                Id = x.Id,
+                Name = x.Name,
+                TechnicalCategoryId = x.TechnicalCategoryId,
+                TechnicalCategoryName = x.TechnicalCategoryName
+            }));
+        }
+
+        // 2. fetch by Name for those that we couldn’t match by Id
+        if (namesNeedingMatch.Count > 0)
+        {
+            var byName = await _db.Projects
+                .AsNoTracking()
+                .Where(p => namesNeedingMatch.Contains(p.Name))
+                .Select(p => new
+                {
+                    p.Id,
+                    p.Name,
+                    p.TechnicalCategoryId,
+                    TechnicalCategoryName = p.TechnicalCategory != null ? p.TechnicalCategory.Name : null
+                })
+                .ToListAsync(cancellationToken);
+
+            foreach (var x in byName)
+            {
+                if (projectsFromDb.Any(y => y.Id == x.Id))
+                {
+                    continue;
+                }
+
+                projectsFromDb.Add(new ProjectRow
+                {
+                    Id = x.Id,
+                    Name = x.Name,
+                    TechnicalCategoryId = x.TechnicalCategoryId,
+                    TechnicalCategoryName = x.TechnicalCategoryName
+                });
+            }
+        }
+
+        if (projectsFromDb.Count == 0)
+        {
+            return Array.Empty<TechnicalCategoryBreakdownRow>();
+        }
+
+        // join summary totals with db rows and group by technical category
+        var result = projectsFromDb
+            .Select(dbProj =>
+            {
+                // prefer total by Id
+                if (totalsById.TryGetValue(dbProj.Id, out var total))
+                {
+                    return new
+                    {
+                        dbProj.TechnicalCategoryId,
+                        Name = string.IsNullOrWhiteSpace(dbProj.TechnicalCategoryName)
+                            ? "Uncategorised"
+                            : dbProj.TechnicalCategoryName,
+                        Total = total
+                    };
+                }
+
+                // fallback: look up by name in summary
+                var match = summary.ByProject.FirstOrDefault(sp =>
+                    sp.ProjectId == dbProj.Id ||
+                    string.Equals(sp.ProjectName, dbProj.Name, StringComparison.OrdinalIgnoreCase));
+
+                var fallbackTotal = match?.Totals.Total ?? 0;
+
+                return new
+                {
+                    dbProj.TechnicalCategoryId,
+                    Name = string.IsNullOrWhiteSpace(dbProj.TechnicalCategoryName)
+                        ? "Uncategorised"
+                        : dbProj.TechnicalCategoryName,
+                    Total = fallbackTotal
+                };
+            })
+            .Where(x => x.Total > 0)
+            .GroupBy(x => new { x.TechnicalCategoryId, x.Name })
+            .Select(g => new TechnicalCategoryBreakdownRow(
+                g.Key.TechnicalCategoryId,
+                g.Key.Name,
+                g.Sum(x => x.Total)))
+            .OrderByDescending(r => r.Total)
+            .ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return result;
+    }
+
     public async Task<FileResult> OnGetExportProjectsAsync(CancellationToken cancellationToken)
     {
         var summary = await _summaryService.GetSummaryAsync(cancellationToken);
@@ -83,10 +220,6 @@ public sealed class SummaryModel : PageModel
             "ProliferationProjects.xlsx");
     }
 
-    // ------------------------------------------------------------------
-    // GET /Proliferation/Summary?handler=ExportYearBreakdown
-    // exports: separate sheet per year
-    // ------------------------------------------------------------------
     public async Task<FileResult> OnGetExportYearBreakdownAsync(CancellationToken cancellationToken)
     {
         var summary = await _summaryService.GetSummaryAsync(cancellationToken);
@@ -98,7 +231,7 @@ public sealed class SummaryModel : PageModel
             "ProliferationYearBreakdown.xlsx");
     }
 
-    // ---------------- existing helper logic below ---------------------
+    // ---------------- helpers below ----------------
 
     private static SummaryTotals CalculateTotals(ProliferationSummaryViewModel summary)
     {
@@ -310,4 +443,9 @@ public sealed class SummaryModel : PageModel
     {
         public static SummaryTotals Empty { get; } = new(0, 0, 0, 0, 0);
     }
+
+    public sealed record TechnicalCategoryBreakdownRow(
+        int? TechnicalCategoryId,
+        string Name,
+        int Total);
 }

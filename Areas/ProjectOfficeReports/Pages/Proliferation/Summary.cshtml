@@ -66,7 +66,7 @@
         </dl>
     </section>
 
-    <!-- chart -->
+    <!-- chart: yearly trend -->
     <section class="mb-4">
         <div class="bg-white rounded-3 shadow-sm border p-4">
             <div class="d-flex justify-content-between align-items-start mb-3 gap-3">
@@ -90,7 +90,40 @@
 
             <div id="proliferation-yearly-chart"
                  data-yearly='@JsonSerializer.Serialize(Model.Summary.ByYear, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })'>
-                <canvas id="proliferation-yearly-chart-canvas"></canvas>
+                <div class="ratio ratio-21x9">
+                    <canvas id="proliferation-yearly-chart-canvas"></canvas>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- chart: by technical category -->
+    <section class="mb-4">
+        <div class="bg-white rounded-3 shadow-sm border p-4">
+            <div class="d-flex justify-content-between align-items-start mb-3 gap-3">
+                <div>
+                    <h2 class="h6 mb-1">Proliferations by technical category</h2>
+                    <p class="text-muted small mb-0">
+                        Sorted by highest proliferation count. Only categories that have projects in this summary are shown.
+                    </p>
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button"
+                            class="btn btn-light btn-sm"
+                            data-action="download-png"
+                            data-target="proliferation-techcat-chart-canvas"
+                            title="Download chart"
+                            aria-label="Download chart as PNG">
+                        <i class="bi bi-download" aria-hidden="true"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div id="proliferation-techcat-chart"
+                 data-categories='@JsonSerializer.Serialize(Model.TechnicalCategoryBreakdown, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase })'>
+                <div class="ratio" style="--bs-aspect-ratio: 60%;">
+                    <canvas id="proliferation-techcat-chart-canvas"></canvas>
+                </div>
             </div>
         </div>
     </section>
