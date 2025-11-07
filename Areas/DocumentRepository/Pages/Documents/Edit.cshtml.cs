@@ -82,12 +82,11 @@ public class EditModel : PageModel
             return Page();
         }
 
-        if (doc is null || doc.IsDeleted)
         var doc = await _db.Documents
             .Include(d => d.DocumentTags)
             .FirstOrDefaultAsync(d => d.Id == Input.Id, cancellationToken);
 
-        if (doc is null)
+        if (doc is null || doc.IsDeleted)
             return NotFound();
 
         // basic fields

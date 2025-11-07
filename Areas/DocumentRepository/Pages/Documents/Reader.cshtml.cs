@@ -24,7 +24,6 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         // what we show in the heading
         public string DocumentTitle { get; private set; } = "Document";
 
-            if (doc == null || doc.IsDeleted)
         public string ViewUrl { get; private set; } = string.Empty;
 
         // direct download url
@@ -36,7 +35,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 .AsNoTracking()
                 .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
 
-            if (doc == null)
+            if (doc == null || doc.IsDeleted)
             {
                 return NotFound();
             }
