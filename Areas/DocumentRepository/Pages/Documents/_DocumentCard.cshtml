@@ -1,24 +1,23 @@
-﻿@model ProjectManagement.Data.DocRepo.Document
+@model ProjectManagement.Areas.DocumentRepository.Models.DocumentSearchResultVm
 @using Microsoft.AspNetCore.Authorization
 @inject IAuthorizationService AuthorizationService
 
 @{
     var canEdit = await AuthorizationService.AuthorizeAsync(User, "DocRepo.EditMetadata");
     var canSoftDelete = await AuthorizationService.AuthorizeAsync(User, "DocRepo.SoftDelete");
-    var showManageActions = canEdit.Succeeded || canSoftDelete.Succeeded;
 }
 
 <div class="doc-card doc-corner h-100">
-    <!-- header -->
-    <div class="doc-card__header">
+    <!-- SECTION: Header -->
+    <div class="doc-card__header d-flex justify-content-between align-items-start">
         <div class="doc-card__path">
-            @if (Model.OfficeCategory is not null)
+            @if (!string.IsNullOrEmpty(Model.OfficeCategoryName))
             {
-                <span class="doc-card__crumb">@Model.OfficeCategory.Name</span>
+                <span class="doc-card__crumb">@Model.OfficeCategoryName</span>
             }
-            @if (Model.DocumentCategory is not null)
+            @if (!string.IsNullOrEmpty(Model.DocumentCategoryName))
             {
-                <span class="doc-card__crumb">· @Model.DocumentCategory.Name</span>
+                <span class="doc-card__crumb">· @Model.DocumentCategoryName</span>
             }
             @if (Model.DocumentDate.HasValue)
             {
@@ -26,36 +25,71 @@
             }
         </div>
 
-        <span class="doc-card__stamp @(Model.OcrStatus switch
-              {
-                  ProjectManagement.Data.DocRepo.DocOcrStatus.Succeeded => "doc-card__stamp--ok",
-                  ProjectManagement.Data.DocRepo.DocOcrStatus.Failed => "doc-card__stamp--fail",
-                  ProjectManagement.Data.DocRepo.DocOcrStatus.Pending => "doc-card__stamp--pending",
-                  _ => ""
-              })"
-              title="@(Model.OcrStatus == ProjectManagement.Data.DocRepo.DocOcrStatus.Failed ? Model.OcrFailureReason : null)">
-            OCR: @Model.OcrStatus
-        </span>
+        <div class="text-end">
+            @if (Model.Rank.HasValue)
+            {
+                <div class="mb-1">
+                    <span class="badge bg-light text-muted">Relevance @Model.Rank.Value.ToString("0.00")</span>
+                </div>
+            }
+
+            <span class="doc-card__stamp @(Model.OcrStatus switch
+                  {
+                      ProjectManagement.Data.DocRepo.DocOcrStatus.Succeeded => "doc-card__stamp--ok",
+                      ProjectManagement.Data.DocRepo.DocOcrStatus.Failed => "doc-card__stamp--fail",
+                      ProjectManagement.Data.DocRepo.DocOcrStatus.Pending => "doc-card__stamp--pending",
+                      _ => string.Empty
+                  })"
+                  title="@(Model.OcrStatus == ProjectManagement.Data.DocRepo.DocOcrStatus.Failed ? Model.OcrFailureReason : null)">
+                OCR: @Model.OcrStatus
+            </span>
+        </div>
     </div>
 
-    <!-- body -->
+    <!-- SECTION: Body -->
     <div class="doc-card__body">
         <h6 class="doc-card__title text-truncate-2" title="@Model.Subject">
             @Model.Subject
         </h6>
 
-        @if (Model.DocumentTags?.Any() == true)
+        <!-- SECTION: Match hint -->
+        @if (Model.MatchedInSubject || Model.MatchedInTags || Model.MatchedInBody)
+        {
+            <div class="small text-muted mb-1">
+                @if (Model.MatchedInSubject)
+                {
+                    <span>Match in subject</span>
+                }
+                else if (Model.MatchedInTags)
+                {
+                    <span>Match in tag</span>
+                }
+                else if (Model.MatchedInBody)
+                {
+                    <span>Match in document text</span>
+                }
+            </div>
+        }
+
+        <!-- SECTION: Snippet -->
+        @if (!string.IsNullOrEmpty(Model.Snippet))
+        {
+            <p class="text-muted small mb-2">@Html.Raw(Model.Snippet)</p>
+        }
+
+        <!-- SECTION: Tags -->
+        @if (Model.Tags?.Any() == true)
         {
             <div class="doc-card__tags mt-1">
-                @foreach (var t in Model.DocumentTags.Select(x => x.Tag))
+                @foreach (var tag in Model.Tags)
                 {
-                    <span class="doc-tag">@t.Name</span>
+                    <span class="doc-tag">@tag</span>
                 }
             </div>
         }
     </div>
 
-    <!-- footer -->
+    <!-- SECTION: Footer -->
     <div class="doc-card__actions">
         <authorize policy="DocRepo.View">
             <a class="btn btn-sm btn-outline-primary"
@@ -75,7 +109,7 @@
             </a>
         </authorize>
 
-        <!-- always render the kebab so layout stays consistent -->
+        <!-- SECTION: Manage actions -->
         <div class="ms-auto dropdown doc-card__dropdown">
             <button class="btn btn-sm btn-light doc-card__more"
                     type="button"

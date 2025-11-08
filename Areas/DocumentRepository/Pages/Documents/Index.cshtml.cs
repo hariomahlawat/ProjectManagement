@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using ProjectManagement.Areas.DocumentRepository.Models;
 using ProjectManagement.Data;
 using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Services.DocRepo;
@@ -24,7 +25,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             _searchService = searchService;
         }
 
-        // filters
+        // SECTION: Filters
         [FromQuery(Name = "q")] public string? Q { get; set; }
         [FromQuery(Name = "tag")] public string? Tag { get; set; }
         [FromQuery(Name = "officeCategoryId")] public long? OfficeCategoryId { get; set; }
@@ -32,7 +33,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         [FromQuery(Name = "year")] public int? Year { get; set; }
         [FromQuery(Name = "includeInactive")] public bool IncludeInactive { get; set; }
 
-        // paging
+        // SECTION: Paging
         private const int DefaultPageSize = 30;
 
         [FromQuery(Name = "page")]
@@ -44,102 +45,142 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         public int TotalCount { get; private set; }
         public int PageCount => (int)Math.Ceiling((double)TotalCount / PageSize);
 
-        public List<Document> Items { get; private set; } = new();
+        // SECTION: Result sets
+        public List<DocumentSearchResultVm> Items { get; private set; } = new();
+        public bool IsSearchActive { get; private set; }
+        public bool HasTagMatch { get; private set; }
 
-        // for filter UI
+        // SECTION: Lookup collections for filters
         public List<OfficeCategory> OfficeCategories { get; private set; } = new();
         public List<DocumentCategory> DocumentCategories { get; private set; } = new();
 
         public async Task OnGetAsync()
         {
-            // guard paging
-            if (PageNumber < 1) PageNumber = 1;
-            if (PageSize < 10 || PageSize > 200) PageSize = DefaultPageSize;
+            // SECTION: Guard paging input
+            if (PageNumber < 1)
+            {
+                PageNumber = 1;
+            }
 
-            // base query
-            IQueryable<Document> q = _db.Documents
+            if (PageSize < 10 || PageSize > 200)
+            {
+                PageSize = DefaultPageSize;
+            }
+
+            // SECTION: Base query
+            IQueryable<Document> query = _db.Documents
                 .AsNoTracking()
-                .Include(d => d.DocumentTags).ThenInclude(dt => dt.Tag)
-                .Include(d => d.OfficeCategory)
-                .Include(d => d.DocumentCategory)
-                .Where(d => !d.IsDeleted);
+                .Where(document => !document.IsDeleted);
 
             if (!IncludeInactive)
             {
-                q = q.Where(d => d.IsActive);
+                query = query.Where(document => document.IsActive);
             }
 
-            var hasSearch = _searchService.TryPrepareQuery(Q, out var preparedQuery);
-            if (hasSearch)
-            {
-                Q = preparedQuery;
-                q = _searchService.ApplySearch(q, preparedQuery);
-            }
-
-            // exact tag
+            // SECTION: Tag filter
             if (!string.IsNullOrWhiteSpace(Tag))
             {
-                var t = Tag.Trim();
-                var tLower = t.ToLower();
-                q = q.Where(d => d.DocumentTags.Any(dt =>
-                    dt.Tag.Name == t || dt.Tag.NormalizedName == tLower));
+                var trimmedTag = Tag.Trim();
+                var loweredTag = trimmedTag.ToLowerInvariant();
+
+                query = query.Where(document => document.DocumentTags.Any(documentTag =>
+                    documentTag.Tag.Name == trimmedTag ||
+                    documentTag.Tag.NormalizedName == loweredTag));
             }
 
+            // SECTION: Office category filter
             if (OfficeCategoryId.HasValue)
             {
                 var officeId = OfficeCategoryId.Value;
-                q = q.Where(d => d.OfficeCategoryId == officeId);
+                query = query.Where(document => document.OfficeCategoryId == officeId);
             }
 
+            // SECTION: Document category filter
             if (DocumentCategoryId.HasValue)
             {
-                var docCatId = DocumentCategoryId.Value;
-                q = q.Where(d => d.DocumentCategoryId == docCatId);
+                var documentCategoryId = DocumentCategoryId.Value;
+                query = query.Where(document => document.DocumentCategoryId == documentCategoryId);
             }
 
-            // index-friendly year filter for DateOnly? column
+            // SECTION: Year filter
             if (Year.HasValue)
             {
                 var start = new DateOnly(Year.Value, 1, 1);
                 var end = start.AddYears(1);
 
-                q = q.Where(d =>
-                    d.DocumentDate.HasValue &&
-                    d.DocumentDate.Value >= start &&
-                    d.DocumentDate.Value < end);
+                query = query.Where(document =>
+                    document.DocumentDate.HasValue &&
+                    document.DocumentDate.Value >= start &&
+                    document.DocumentDate.Value < end);
             }
 
-            // count before paging
-            TotalCount = await q.CountAsync();
-
-            if (!hasSearch)
+            // SECTION: Search handling
+            var hasSearch = _searchService.TryPrepareQuery(Q, out var preparedQuery);
+            if (hasSearch)
             {
-                // ordering: first those with a date, then newest date, then created
-                q = q
-                    .OrderByDescending(d => d.DocumentDate.HasValue)
-                    .ThenByDescending(d => d.DocumentDate)
-                    .ThenByDescending(d => d.CreatedAtUtc);
+                Q = preparedQuery;
+                IsSearchActive = true;
+
+                var searchedQuery = _searchService.ApplySearchProjected(query, preparedQuery);
+
+                TotalCount = await searchedQuery.CountAsync();
+
+                Items = await searchedQuery
+                    .Skip((PageNumber - 1) * PageSize)
+                    .Take(PageSize)
+                    .ToListAsync();
+
+                HasTagMatch = Items.Any(item => item.MatchedInTags);
+            }
+            else
+            {
+                TotalCount = await query.CountAsync();
+
+                var orderedQuery = query
+                    .OrderByDescending(document => document.DocumentDate.HasValue)
+                    .ThenByDescending(document => document.DocumentDate)
+                    .ThenByDescending(document => document.CreatedAtUtc);
+
+                Items = await orderedQuery
+                    .Select(document => new DocumentSearchResultVm
+                    {
+                        Id = document.Id,
+                        Subject = document.Subject,
+                        DocumentDate = document.DocumentDate,
+                        OfficeCategoryName = document.OfficeCategory != null ? document.OfficeCategory.Name : null,
+                        DocumentCategoryName = document.DocumentCategory != null ? document.DocumentCategory.Name : null,
+                        Tags = document.DocumentTags
+                            .OrderBy(documentTag => documentTag.Tag.Name)
+                            .Select(documentTag => documentTag.Tag.Name)
+                            .ToList(),
+                        OcrStatus = document.OcrStatus,
+                        OcrFailureReason = document.OcrFailureReason,
+                        Rank = null,
+                        Snippet = null,
+                        MatchedInSubject = false,
+                        MatchedInTags = false,
+                        MatchedInBody = false
+                    })
+                    .Skip((PageNumber - 1) * PageSize)
+                    .Take(PageSize)
+                    .ToListAsync();
+
+                HasTagMatch = false;
             }
 
-            // page
-            Items = await q
-                .Skip((PageNumber - 1) * PageSize)
-                .Take(PageSize)
-                .ToListAsync();
-
-            // lookup data for filter modal
+            // SECTION: Lookup data for filter modal
             OfficeCategories = await _db.OfficeCategories
                 .AsNoTracking()
-                .Where(o => o.IsActive)
-                .OrderBy(o => o.SortOrder)
-                .ThenBy(o => o.Name)
+                .Where(office => office.IsActive)
+                .OrderBy(office => office.SortOrder)
+                .ThenBy(office => office.Name)
                 .ToListAsync();
 
             DocumentCategories = await _db.DocumentCategories
                 .AsNoTracking()
-                .Where(c => c.IsActive)
-                .OrderBy(c => c.SortOrder)
-                .ThenBy(c => c.Name)
+                .Where(category => category.IsActive)
+                .OrderBy(category => category.SortOrder)
+                .ThenBy(category => category.Name)
                 .ToListAsync();
         }
     }
