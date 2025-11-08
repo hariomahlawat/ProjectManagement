@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
@@ -5,50 +6,48 @@ using ProjectManagement.Areas.DocumentRepository.Models;
 using ProjectManagement.Data;
 using ProjectManagement.Data.DocRepo;
 
-namespace ProjectManagement.Services.DocRepo;
-
-// SECTION: Document search service contract
-public interface IDocumentSearchService
+namespace ProjectManagement.Services.DocRepo
 {
-    bool TryPrepareQuery(string? rawQuery, out string preparedQuery);
-
-    IQueryable<Document> ApplySearch(IQueryable<Document> source, string preparedQuery);
-
-    IQueryable<DocumentSearchResultVm> ApplySearchProjected(IQueryable<Document> source, string preparedQuery);
-}
-
-// SECTION: Document search service implementation
-public sealed class DocumentSearchService : IDocumentSearchService
-{
-    private const string SearchConfiguration = "english";
-
-    public bool TryPrepareQuery(string? rawQuery, out string preparedQuery)
+    public interface IDocumentSearchService
     {
-        preparedQuery = string.Empty;
+        bool TryPrepareQuery(string? rawQuery, out string preparedQuery);
 
-        if (string.IsNullOrWhiteSpace(rawQuery))
+        IQueryable<Document> ApplySearch(IQueryable<Document> source, string preparedQuery);
+
+        IQueryable<DocumentSearchResultVm> ApplySearchProjected(IQueryable<Document> source, string preparedQuery);
+    }
+
+    public sealed class DocumentSearchService : IDocumentSearchService
+    {
+        private const string SearchConfiguration = "english";
+
+        public bool TryPrepareQuery(string? rawQuery, out string preparedQuery)
         {
-            return false;
+            preparedQuery = string.Empty;
+
+            if (string.IsNullOrWhiteSpace(rawQuery))
+            {
+                return false;
+            }
+
+            preparedQuery = rawQuery.Trim();
+            return preparedQuery.Length > 0;
         }
 
-        preparedQuery = rawQuery.Trim();
-        return preparedQuery.Length > 0;
-    }
-
-    public IQueryable<Document> ApplySearch(IQueryable<Document> source, string preparedQuery)
-    {
-        return source
-            .Where(document =>
-                document.SearchVector != null &&
-                document.SearchVector.Matches(
-                    EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery)))
-            .OrderByDescending(document =>
-                document.SearchVector!.RankCoverDensity(
-                    EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery)))
-            .ThenByDescending(document => document.DocumentDate.HasValue)
-            .ThenByDescending(document => document.DocumentDate)
-            .ThenByDescending(document => document.CreatedAtUtc);
-    }
+        public IQueryable<Document> ApplySearch(IQueryable<Document> source, string preparedQuery)
+        {
+            return source
+                .Where(d =>
+                    d.SearchVector != null &&
+                    d.SearchVector.Matches(
+                        EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery)))
+                .OrderByDescending(d =>
+                    d.SearchVector!.RankCoverDensity(
+                        EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery)))
+                .ThenByDescending(d => d.DocumentDate.HasValue)
+                .ThenByDescending(d => d.DocumentDate)
+                .ThenByDescending(d => d.CreatedAtUtc);
+        }
 
     public IQueryable<DocumentSearchResultVm> ApplySearchProjected(IQueryable<Document> source, string preparedQuery)
     {
@@ -83,15 +82,8 @@ public sealed class DocumentSearchService : IDocumentSearchService
                 OcrStatus = result.Document.OcrStatus,
                 OcrFailureReason = result.Document.OcrFailureReason,
                 Rank = result.Rank,
-                Snippet = result.Document.DocumentText != null
-                    ? ApplicationDbContext
-                        .TsHeadline(
-                            SearchConfiguration,
-                            result.Document.DocumentText.OcrText ?? string.Empty,
-                            tsQuery,
-                            "StartSel=<mark>, StopSel=</mark>, MaxFragments=2, MaxWords=20")
-                        .Replace("\n", " ")
-                        .Replace("\r", " ")
+                Snippet = result.Document.DocumentText != null && result.Document.DocumentText.OcrText != null
+                    ? result.Document.DocumentText.OcrText.Substring(0, 200)
                     : null,
                 MatchedInSubject = result.Document.Subject != null && EF.Functions.ILike(result.Document.Subject, likePattern),
                 MatchedInTags = result.Document.DocumentTags.Any(documentTag =>
