@@ -5664,8 +5664,6 @@ namespace ProjectManagement.Migrations
 
                     b.Navigation("DocumentCategory");
 
-                    b.Navigation("DocumentText");
-
                     b.Navigation("OfficeCategory");
                 });
 
