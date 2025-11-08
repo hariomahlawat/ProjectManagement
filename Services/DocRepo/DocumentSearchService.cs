@@ -2,6 +2,7 @@ using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
 using ProjectManagement.Areas.DocumentRepository.Models;
+using ProjectManagement.Data;
 using ProjectManagement.Data.DocRepo;
 
 namespace ProjectManagement.Services.DocRepo;
@@ -82,8 +83,15 @@ public sealed class DocumentSearchService : IDocumentSearchService
                 OcrStatus = result.Document.OcrStatus,
                 OcrFailureReason = result.Document.OcrFailureReason,
                 Rank = result.Rank,
-                Snippet = result.Document.DocumentText != null && result.Document.DocumentText.OcrText != null
-                    ? result.Document.DocumentText.OcrText.Substring(0, 200)
+                Snippet = result.Document.DocumentText != null
+                    ? ApplicationDbContext
+                        .TsHeadline(
+                            SearchConfiguration,
+                            result.Document.DocumentText.OcrText ?? string.Empty,
+                            tsQuery,
+                            "StartSel=<mark>, StopSel=</mark>, MaxFragments=2, MaxWords=20")
+                        .Replace("\n", " ")
+                        .Replace("\r", " ")
                     : null,
                 MatchedInSubject = result.Document.Subject != null && EF.Functions.ILike(result.Document.Subject, likePattern),
                 MatchedInTags = result.Document.DocumentTags.Any(documentTag =>

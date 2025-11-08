@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
+using NpgsqlTypes;
 using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Models;
@@ -121,11 +122,19 @@ namespace ProjectManagement.Data
         public DbSet<OfficeCategory> OfficeCategories => Set<OfficeCategory>();
         public DbSet<DocumentCategory> DocumentCategories => Set<DocumentCategory>();
 
+        // SECTION: PostgreSQL text search helpers
+        public static string TsHeadline(string config, string text, NpgsqlTsQuery query, string options) => throw new NotSupportedException();
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
 
             var systemUserCreatedUtc = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            // SECTION: Database function mappings
+            builder
+                .HasDbFunction(typeof(ApplicationDbContext).GetMethod(nameof(TsHeadline))!)
+                .HasName("ts_headline");
 
             builder.Entity<ApplicationUser>().HasData(
                 new ApplicationUser
