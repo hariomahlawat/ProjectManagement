@@ -142,6 +142,29 @@ public class ManageModel : PageModel
         return RedirectToPage("./Index");
     }
 
+    // SECTION: OCR management handlers
+    public async Task<IActionResult> OnPostRetryOcrAsync(Guid id, CancellationToken cancellationToken)
+    {
+        var document = await _db.Documents.FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+        if (document is null || document.IsDeleted)
+        {
+            return NotFound();
+        }
+
+        var userId = GetUserId();
+        document.OcrStatus = DocOcrStatus.Pending;
+        document.OcrFailureReason = null;
+        document.ExtractedText = null;
+        document.OcrLastTriedUtc = null;
+        document.UpdatedAtUtc = DateTime.UtcNow;
+        document.UpdatedByUserId = userId;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        TempData["ToastMessage"] = "OCR re-queued.";
+        return RedirectToPage(new { id });
+    }
+
     private async Task<bool> LoadAsync(Guid id, CancellationToken cancellationToken)
     {
         Document = await _db.Documents
