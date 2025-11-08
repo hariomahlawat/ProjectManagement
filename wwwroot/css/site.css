@@ -3212,6 +3212,49 @@ summary::marker {
     gap: .1rem;
 }
 
+.pm-drawer__collapse-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border-radius: .65rem;
+    border: 1px solid rgba(15, 23, 42, .08);
+    background: rgba(15, 23, 42, .04);
+    color: var(--pm-muted);
+    transition: background-color .2s ease, color .2s ease;
+    flex-shrink: 0;
+}
+
+.pm-drawer__collapse-toggle:hover,
+.pm-drawer__collapse-toggle:focus {
+    background: rgba(45, 108, 223, .12);
+    color: var(--pm-primary);
+}
+
+.pm-drawer__collapse-toggle:focus-visible {
+    outline: 2px solid var(--pm-primary);
+    outline-offset: 2px;
+}
+
+.pm-drawer__collapse-toggle[aria-expanded="true"] i {
+    transform: rotate(180deg);
+}
+
+.pm-drawer__collapse-toggle i {
+    transition: transform .2s ease;
+}
+
+.pm-drawer__collapse-region {
+    margin-top: .2rem;
+}
+
+.pm-drawer__collapse-region[hidden] {
+    display: none;
+}
+
+
 .pm-drawer__accent--danger {
     color: #b42318;
 }
