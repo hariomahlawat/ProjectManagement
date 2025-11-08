@@ -10,6 +10,7 @@ using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Storage;
 using ProjectManagement.Tests.Fakes;
 using Microsoft.Extensions.Options;
 using Xunit;
@@ -21,6 +22,7 @@ public sealed class FfcAttachmentStorageTests : IDisposable
     private readonly ApplicationDbContext _db;
     private readonly TestFileSecurityValidator _validator = new();
     private readonly TestWebHostEnvironment _environment;
+    private readonly string _uploadsRoot;
 
     public FfcAttachmentStorageTests()
     {
@@ -35,6 +37,8 @@ public sealed class FfcAttachmentStorageTests : IDisposable
         };
 
         Directory.CreateDirectory(_environment.ContentRootPath);
+        _uploadsRoot = Path.Combine(_environment.ContentRootPath, "uploads");
+        Directory.CreateDirectory(_uploadsRoot);
     }
 
     [Fact]
@@ -105,7 +109,9 @@ public sealed class FfcAttachmentStorageTests : IDisposable
     [Fact]
     public async Task DeleteAsync_Throws_WhenUserNotAuthorised()
     {
-        var filePath = Path.Combine(_environment.ContentRootPath, "existing.pdf");
+        var options = new FfcAttachmentOptions();
+        var storage = CreateStorage(new StubUserContext(isAdmin: false, isHoD: false), options);
+        var filePath = Path.Combine(GetResolvedStorageRoot(options), "existing.pdf");
         Directory.CreateDirectory(Path.GetDirectoryName(filePath)!);
         await File.WriteAllBytesAsync(filePath, new byte[] { 1, 2, 3 });
 
@@ -122,8 +128,6 @@ public sealed class FfcAttachmentStorageTests : IDisposable
         _db.FfcAttachments.Add(attachment);
         await _db.SaveChangesAsync();
 
-        var storage = CreateStorage(new StubUserContext(isAdmin: false, isHoD: false));
-
         var exception = await Assert.ThrowsAsync<FfcAttachmentAuthorizationException>(() => storage.DeleteAsync(attachment));
 
         Assert.Equal("Only Admin or HoD roles can manage attachments.", exception.Message);
@@ -133,12 +137,16 @@ public sealed class FfcAttachmentStorageTests : IDisposable
 
     private FfcAttachmentStorage CreateStorage(IUserContext userContext, FfcAttachmentOptions? options = null)
     {
+        var effectiveOptions = options ?? new FfcAttachmentOptions();
+        var resolvedRoot = GetResolvedStorageRoot(effectiveOptions);
+        effectiveOptions.StorageRoot = resolvedRoot;
+
         return new FfcAttachmentStorage(
             _db,
             _validator,
-            _environment,
+            new TestUploadRootProvider(_uploadsRoot),
             userContext,
-            Options.Create(options ?? new FfcAttachmentOptions()));
+            Options.Create(effectiveOptions));
     }
 
     public void Dispose()
@@ -160,6 +168,39 @@ public sealed class FfcAttachmentStorageTests : IDisposable
             CallCount++;
             return Task.FromResult(true);
         }
+    }
+
+    private string GetResolvedStorageRoot(FfcAttachmentOptions options)
+    {
+        var folderName = string.IsNullOrWhiteSpace(options.StorageFolderName)
+            ? "ffc"
+            : options.StorageFolderName.Trim().Trim('/', '\\');
+
+        if (!string.IsNullOrWhiteSpace(options.StorageRoot))
+        {
+            return Path.IsPathRooted(options.StorageRoot)
+                ? options.StorageRoot
+                : Path.Combine(_uploadsRoot, options.StorageRoot);
+        }
+
+        return Path.Combine(_uploadsRoot, folderName);
+    }
+
+    private sealed class TestUploadRootProvider(string rootPath) : IUploadRootProvider
+    {
+        public string RootPath { get; } = rootPath;
+
+        public string GetProjectRoot(int projectId) => throw new NotSupportedException();
+
+        public string GetProjectPhotosRoot(int projectId) => throw new NotSupportedException();
+
+        public string GetProjectDocumentsRoot(int projectId) => throw new NotSupportedException();
+
+        public string GetProjectCommentsRoot(int projectId) => throw new NotSupportedException();
+
+        public string GetProjectVideosRoot(int projectId) => throw new NotSupportedException();
+
+        public string GetSocialMediaRoot(string storagePrefix, Guid eventId) => throw new NotSupportedException();
     }
 
     private sealed class StubUserContext : IUserContext
