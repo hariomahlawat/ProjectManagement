@@ -1,10 +1,10 @@
-using System;
-using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
 using ProjectManagement.Areas.DocumentRepository.Models;
 using ProjectManagement.Data;
 using ProjectManagement.Data.DocRepo;
+using System;
+using System.Linq;
 
 namespace ProjectManagement.Services.DocRepo
 {
@@ -49,47 +49,57 @@ namespace ProjectManagement.Services.DocRepo
                 .ThenByDescending(d => d.CreatedAtUtc);
         }
 
-    public IQueryable<DocumentSearchResultVm> ApplySearchProjected(IQueryable<Document> source, string preparedQuery)
-    {
-        var loweredQuery = preparedQuery.ToLowerInvariant();
-        var likePattern = $"%{preparedQuery}%";
-        var tsQuery = EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery);
+        public IQueryable<DocumentSearchResultVm> ApplySearchProjected(IQueryable<Document> source, string preparedQuery)
+        {
+            return source
+                // 1) full-text filter, fully inlined
+                .Where(d =>
+                    d.SearchVector != null &&
+                    d.SearchVector.Matches(
+                        EF.Functions.WebSearchToTsQuery(SearchConfiguration, preparedQuery)))
+                // 2) project directly to VM
+                .Select(d => new DocumentSearchResultVm
+                {
+                    Id = d.Id,
+                    Subject = d.Subject,
+                    DocumentDate = d.DocumentDate,
+                    OfficeCategoryName = d.OfficeCategory != null ? d.OfficeCategory.Name : null,
+                    DocumentCategoryName = d.DocumentCategory != null ? d.DocumentCategory.Name : null,
 
-        return source
-            .Where(document =>
-                document.SearchVector != null &&
-                document.SearchVector.Matches(tsQuery))
-            .Select(document => new
-            {
-                Document = document,
-                Rank = document.SearchVector!.RankCoverDensity(tsQuery)
-            })
-            .OrderByDescending(result => result.Rank)
-            .ThenByDescending(result => result.Document.DocumentDate.HasValue)
-            .ThenByDescending(result => result.Document.DocumentDate)
-            .ThenByDescending(result => result.Document.CreatedAtUtc)
-            .Select(result => new DocumentSearchResultVm
-            {
-                Id = result.Document.Id,
-                Subject = result.Document.Subject,
-                DocumentDate = result.Document.DocumentDate,
-                OfficeCategoryName = result.Document.OfficeCategory != null ? result.Document.OfficeCategory.Name : null,
-                DocumentCategoryName = result.Document.DocumentCategory != null ? result.Document.DocumentCategory.Name : null,
-                Tags = result.Document.DocumentTags
-                    .OrderBy(documentTag => documentTag.Tag.Name)
-                    .Select(documentTag => documentTag.Tag.Name)
-                    .ToList(),
-                OcrStatus = result.Document.OcrStatus,
-                OcrFailureReason = result.Document.OcrFailureReason,
-                Rank = result.Rank,
-                Snippet = result.Document.DocumentText != null && result.Document.DocumentText.OcrText != null
-                    ? result.Document.DocumentText.OcrText.Substring(0, 200)
-                    : null,
-                MatchedInSubject = result.Document.Subject != null && EF.Functions.ILike(result.Document.Subject, likePattern),
-                MatchedInTags = result.Document.DocumentTags.Any(documentTag =>
-                    documentTag.Tag.Name == preparedQuery ||
-                    documentTag.Tag.NormalizedName == loweredQuery),
-                MatchedInBody = result.Document.DocumentText != null
-            });
+                    // we can’t project per-row IReadOnlyCollection<string> cleanly, so return empty
+                    Tags = Array.Empty<string>(),
+
+                    OcrStatus = d.OcrStatus,
+                    OcrFailureReason = d.OcrFailureReason,
+
+                    // rank
+                    Rank = (double?)d.SearchVector!.RankCoverDensity(
+                        EF.Functions.WebSearchToTsQuery("english", preparedQuery)),
+
+                    // query-aware snippet from PG
+                    Snippet = d.DocumentText != null
+                        ? ApplicationDbContext.TsHeadline(
+                            "english",
+                            // you only have OCR text here
+                            (d.DocumentText.OcrText ?? ""),
+                            EF.Functions.WebSearchToTsQuery("english", preparedQuery),
+                            "StartSel=<mark>, StopSel=</mark>, MaxFragments=2, MaxWords=20")
+                        : null,
+
+                    // match hints
+                    MatchedInSubject = d.Subject != null &&
+                        EF.Functions.ILike(d.Subject, "%" + preparedQuery + "%"),
+
+                    MatchedInTags = d.DocumentTags.Any(dt =>
+                        dt.Tag.Name == preparedQuery ||
+                        dt.Tag.NormalizedName == preparedQuery.ToLower()),
+
+                    MatchedInBody = d.DocumentText != null
+                })
+                // 3) order by rank/date
+                .OrderByDescending(r => r.Rank)
+                .ThenByDescending(r => r.DocumentDate);
+        }
+
     }
 }
