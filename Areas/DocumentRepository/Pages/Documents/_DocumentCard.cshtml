@@ -34,12 +34,12 @@
 
             <span class="badge @(Model.OcrStatus switch
                   {
-                      ProjectManagement.Data.DocRepo.OcrStatus.Succeeded => "bg-success",
-                      ProjectManagement.Data.DocRepo.OcrStatus.Failed => "bg-danger",
-                      ProjectManagement.Data.DocRepo.OcrStatus.Queued => "bg-secondary",
+                      ProjectManagement.Data.DocRepo.DocOcrStatus.Succeeded => "bg-success",
+                      ProjectManagement.Data.DocRepo.DocOcrStatus.Failed => "bg-danger",
+                      ProjectManagement.Data.DocRepo.DocOcrStatus.Pending => "bg-secondary",
                       _ => "bg-light text-dark"
                   })"
-                  title="@(Model.OcrStatus == ProjectManagement.Data.DocRepo.OcrStatus.Failed ? Model.OcrFailureReason : null)">
+                  title="@(Model.OcrStatus == ProjectManagement.Data.DocRepo.DocOcrStatus.Failed ? Model.OcrFailureReason : null)">
                 OCR: @Model.OcrStatus
             </span>
         </div>
