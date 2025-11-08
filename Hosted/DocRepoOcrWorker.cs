@@ -32,6 +32,7 @@ public sealed class DocRepoOcrWorker : BackgroundService
                 var runner = scope.ServiceProvider.GetRequiredService<IDocumentOcrRunner>();
 
                 var documents = await db.Documents
+                    .Include(d => d.DocumentText)
                     .Where(d => !d.IsDeleted && d.OcrStatus == DocOcrStatus.Pending)
                     .OrderBy(d => d.CreatedAtUtc)
                     .Take(3)
@@ -53,16 +54,27 @@ public sealed class DocRepoOcrWorker : BackgroundService
 
                         if (result.Success)
                         {
-                            document.ExtractedText = CapExtractedText(result.Text);
+                            var documentText = document.DocumentText ??= new DocumentText
+                            {
+                                DocumentId = document.Id,
+                                UpdatedAtUtc = DateTime.UtcNow
+                            };
+
+                            documentText.OcrText = CapExtractedText(result.Text);
+                            documentText.UpdatedAtUtc = DateTime.UtcNow;
                             document.OcrStatus = DocOcrStatus.Succeeded;
                             document.OcrFailureReason = null;
                             _logger.LogInformation("OCR succeeded for document {DocumentId}", document.Id);
                         }
                         else
                         {
-                            document.ExtractedText = null;
                             document.OcrStatus = DocOcrStatus.Failed;
                             document.OcrFailureReason = TrimForFailure(result.Error);
+                            if (document.DocumentText is not null)
+                            {
+                                document.DocumentText.OcrText = null;
+                                document.DocumentText.UpdatedAtUtc = DateTime.UtcNow;
+                            }
                             _logger.LogWarning("OCR failed for document {DocumentId}: {Reason}", document.Id, document.OcrFailureReason);
                         }
                     }
@@ -72,9 +84,13 @@ public sealed class DocRepoOcrWorker : BackgroundService
                     }
                     catch (Exception ex)
                     {
-                        document.ExtractedText = null;
                         document.OcrStatus = DocOcrStatus.Failed;
                         document.OcrFailureReason = TrimForFailure(ex.Message);
+                        if (document.DocumentText is not null)
+                        {
+                            document.DocumentText.OcrText = null;
+                            document.DocumentText.UpdatedAtUtc = DateTime.UtcNow;
+                        }
                         _logger.LogError(ex, "Unexpected error running OCR for document {DocumentId}", document.Id);
                     }
 

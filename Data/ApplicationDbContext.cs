@@ -115,6 +115,7 @@ namespace ProjectManagement.Data
         public DbSet<Document> Documents => Set<Document>();
         public DbSet<Tag> Tags => Set<Tag>();
         public DbSet<DocumentTag> DocumentTags => Set<DocumentTag>();
+        public DbSet<DocumentText> DocumentTexts => Set<DocumentText>();
         public DbSet<DocumentDeleteRequest> DocumentDeleteRequests => Set<DocumentDeleteRequest>();
         public DbSet<DocRepoAudit> DocRepoAudits => Set<DocRepoAudit>();
         public DbSet<OfficeCategory> OfficeCategories => Set<OfficeCategory>();
@@ -214,13 +215,27 @@ namespace ProjectManagement.Data
                 e.Property(x => x.DeleteReason).HasMaxLength(512);
                 e.Property(x => x.OcrStatus).HasDefaultValue(DocOcrStatus.None);
                 e.Property(x => x.OcrFailureReason).HasMaxLength(1024);
-                e.Property(x => x.ExtractedText).HasColumnType("text");
+                e.Property(x => x.SearchVector).HasColumnType("tsvector");
                 e.HasIndex(x => new { x.OfficeCategoryId, x.DocumentCategoryId });
                 e.HasIndex(x => x.Sha256).IsUnique();
                 e.HasIndex(x => x.Subject);
                 e.HasIndex(x => x.ReceivedFrom);
                 e.HasIndex(x => x.DocumentDate);
                 e.HasIndex(x => x.IsDeleted);
+            });
+
+            builder.Entity<DocumentText>(e =>
+            {
+                e.ToTable("DocRepoDocumentTexts");
+                e.HasKey(x => x.DocumentId);
+                e.Property(x => x.OcrText).HasColumnType("text");
+                e.Property(x => x.UpdatedAtUtc)
+                    .HasColumnType("timestamp without time zone")
+                    .HasDefaultValueSql("now() at time zone 'utc'");
+                e.HasOne(x => x.Document)
+                    .WithOne(x => x.DocumentText)
+                    .HasForeignKey<DocumentText>(x => x.DocumentId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             builder.Entity<DocumentDeleteRequest>(e =>

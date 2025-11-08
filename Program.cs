@@ -251,6 +251,7 @@ builder.Services.AddScoped<DocumentOcrService>();
 builder.Services.AddScoped<IDocRepoAuditService, DocRepoAuditService>();
 builder.Services.AddScoped<IFileScanner, NoopFileScanner>();
 builder.Services.AddScoped<IDocumentOcrRunner, OcrmypdfDocumentOcrRunner>();
+builder.Services.AddScoped<IDocumentSearchService, DocumentSearchService>();
 
 if (builder.Configuration.GetValue("DocRepo:EnableOcrWorker", true))
 {

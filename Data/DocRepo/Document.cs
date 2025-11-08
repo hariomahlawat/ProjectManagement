@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using NpgsqlTypes;
 
 namespace ProjectManagement.Data.DocRepo;
 
@@ -64,7 +67,10 @@ public class Document
 
     public DateTimeOffset? OcrLastTriedUtc { get; set; }
 
-    public string? ExtractedText { get; set; }
+    // SECTION: Full-text search support
+    public NpgsqlTsVector? SearchVector { get; set; }
+
+    public DocumentText? DocumentText { get; set; }
 
     [Required, MaxLength(64)]
     public string CreatedByUserId { get; set; } = null!;

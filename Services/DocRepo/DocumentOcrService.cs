@@ -28,6 +28,7 @@ namespace ProjectManagement.Services.DocRepo
         public async Task<bool> ReprocessAsync(Guid documentId, CancellationToken ct = default)
         {
             var doc = await _db.Documents
+                .Include(d => d.DocumentText)
                 .FirstOrDefaultAsync(d => d.Id == documentId, ct);
 
             if (doc == null)
@@ -38,6 +39,7 @@ namespace ProjectManagement.Services.DocRepo
             // reset state
             doc.OcrStatus = DocOcrStatus.Pending;
             doc.OcrFailureReason = null;
+            doc.OcrLastTriedUtc = null;
             await _db.SaveChangesAsync(ct);
 
             // run now (sync way)
@@ -45,13 +47,26 @@ namespace ProjectManagement.Services.DocRepo
             if (result.Success)
             {
                 doc.OcrStatus = DocOcrStatus.Succeeded;
-                // you currently don't have a place to store result.Text
-                // add a column/table later if you want full-text search on OCR
+                var documentText = doc.DocumentText ??= new DocumentText
+                {
+                    DocumentId = doc.Id,
+                    UpdatedAtUtc = DateTime.UtcNow
+                };
+
+                documentText.OcrText = CapExtractedText(result.Text);
+                documentText.UpdatedAtUtc = DateTime.UtcNow;
+                doc.OcrFailureReason = null;
             }
             else
             {
                 doc.OcrStatus = DocOcrStatus.Failed;
-                doc.OcrFailureReason = result.Error;
+                doc.OcrFailureReason = TrimForFailure(result.Error);
+
+                if (doc.DocumentText is not null)
+                {
+                    doc.DocumentText.OcrText = null;
+                    doc.DocumentText.UpdatedAtUtc = DateTime.UtcNow;
+                }
             }
 
             await _db.SaveChangesAsync(ct);
@@ -64,6 +79,7 @@ namespace ProjectManagement.Services.DocRepo
         public async Task<int> ReprocessAllFailedAsync(CancellationToken ct = default)
         {
             var failedDocs = await _db.Documents
+                .Include(d => d.DocumentText)
                 .Where(d => d.OcrStatus == DocOcrStatus.Failed && !d.IsDeleted)
                 .ToListAsync(ct);
 
@@ -74,17 +90,33 @@ namespace ProjectManagement.Services.DocRepo
                 // reset
                 doc.OcrStatus = DocOcrStatus.Pending;
                 doc.OcrFailureReason = null;
+                doc.OcrLastTriedUtc = null;
                 await _db.SaveChangesAsync(ct);
 
                 var result = await _runner.RunAsync(doc, ct);
                 if (result.Success)
                 {
                     doc.OcrStatus = DocOcrStatus.Succeeded;
+                    var text = doc.DocumentText ??= new DocumentText
+                    {
+                        DocumentId = doc.Id,
+                        UpdatedAtUtc = DateTime.UtcNow
+                    };
+
+                    text.OcrText = CapExtractedText(result.Text);
+                    text.UpdatedAtUtc = DateTime.UtcNow;
+                    doc.OcrFailureReason = null;
                 }
                 else
                 {
                     doc.OcrStatus = DocOcrStatus.Failed;
-                    doc.OcrFailureReason = result.Error;
+                    doc.OcrFailureReason = TrimForFailure(result.Error);
+
+                    if (doc.DocumentText is not null)
+                    {
+                        doc.DocumentText.OcrText = null;
+                        doc.DocumentText.UpdatedAtUtc = DateTime.UtcNow;
+                    }
                 }
 
                 await _db.SaveChangesAsync(ct);
@@ -92,6 +124,27 @@ namespace ProjectManagement.Services.DocRepo
             }
 
             return processed;
+        }
+
+        // SECTION: Helper methods
+        private static string? CapExtractedText(string? text)
+        {
+            if (string.IsNullOrEmpty(text))
+            {
+                return text;
+            }
+
+            return text.Length > 200_000 ? text[..200_000] : text;
+        }
+
+        private static string? TrimForFailure(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+
+            return value.Length > 1000 ? value[..1000] : value;
         }
     }
 }
