@@ -89,12 +89,12 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 AuthorizationPolicy = "DocRepo.View"
             },
             new()
-    {
-        Text = "Upload document",
-        Area = "DocumentRepository",
-        Page = "/Documents/Upload",
-        AuthorizationPolicy = "DocRepo.Upload"
-    },
+            {
+                Text = "Upload document",
+                Area = "DocumentRepository",
+                Page = "/Documents/Upload",
+                AuthorizationPolicy = "DocRepo.Upload"
+            },
             new()
             {
                 Text = "Delete requests",
@@ -108,6 +108,13 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Area = "DocumentRepository",
                 Page = "/Admin/Trash/Index",
                 AuthorizationPolicy = "DocRepo.Purge"
+            },
+            new()
+            {
+                Text = "OCR failures",
+                Area = "DocumentRepository",
+                Page = "/Admin/OCRFailures/OcrFailures",
+                AuthorizationPolicy = "DocRepo.DeleteApprove"
             },
             new()
             {

@@ -1,0 +1,114 @@
+﻿@page
+@model ProjectManagement.Areas.DocumentRepository.Pages.Admin.OcrFailuresModel
+@{
+    ViewData["Title"] = "OCR failures";
+}
+
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+            <a asp-area="DocumentRepository" asp-page="/Documents/Index">Documents</a>
+        </li>
+        <li class="breadcrumb-item active" aria-current="page">OCR failures</li>
+    </ol>
+</nav>
+
+@if (!string.IsNullOrEmpty(Model.StatusMessage))
+{
+    <div class="alert alert-info">@Model.StatusMessage</div>
+}
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h1 class="h5 mb-0">Documents with OCR status “Failed”</h1>
+        <form method="post" asp-page-handler="RequeueAll" class="mb-0" id="requeueAllForm">
+            <button id="requeueAllBtn"
+                    type="submit"
+                    class="btn btn-sm btn-outline-primary"
+                    @(Model.FailedDocuments.Count == 0 ? "disabled" : null)>
+                Re-queue all
+            </button>
+            <span id="requeueAllStatus" class="text-muted ms-2" style="display:none;">Re-queuing…</span>
+        </form>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-sm table-hover mb-0">
+            <thead>
+                <tr>
+                    <th>Subject</th>
+                    <th>Office</th>
+                    <th>Category</th>
+                    <th>Uploaded</th>
+                    <th>Failure reason</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Model.FailedDocuments.Count == 0)
+                {
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">
+                            No documents with failed OCR.
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var doc in Model.FailedDocuments)
+                    {
+                        <tr>
+                            <td>@doc.Subject</td>
+                            <td>@doc.OfficeCategory?.Name</td>
+                            <td>@doc.DocumentCategory?.Name</td>
+                            <td>@(doc.CreatedAtUtc == default ? "" : doc.CreatedAtUtc.ToLocalTime().ToString("dd MMM yyyy HH:mm"))</td>
+                            <td class="text-danger">@doc.OcrFailureReason</td>
+                            <td class="text-end">
+                                <form method="post"
+                                      asp-page-handler="Requeue"
+                                      asp-route-id="@doc.Id"
+                                      class="d-inline requeue-item-form">
+                                    <button type="submit" class="btn btn-sm btn-outline-secondary">
+                                        Re-queue
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        (function () {
+            // --- Requeue ALL ---
+            const allBtn = document.getElementById('requeueAllBtn');
+            const allStatus = document.getElementById('requeueAllStatus');
+            const allForm = document.getElementById('requeueAllForm');
+
+            if (allForm && allBtn) {
+                allForm.addEventListener('submit', function () {
+                    allBtn.disabled = true;
+                    allBtn.textContent = 'Re-queuing…';
+                    if (allStatus) {
+                        allStatus.style.display = 'inline';
+                    }
+                });
+            }
+
+            // --- Individual rows ---
+            const itemForms = document.querySelectorAll('.requeue-item-form');
+            itemForms.forEach(f => {
+                f.addEventListener('submit', function () {
+                    const btn = f.querySelector('button[type="submit"]');
+                    if (btn) {
+                        btn.disabled = true;
+                        btn.textContent = 'Re-queuing…';
+                    }
+                });
+            });
+        })();
+    </script>
+}
