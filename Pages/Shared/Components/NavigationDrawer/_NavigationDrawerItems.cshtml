@@ -2,16 +2,27 @@
 @using ProjectManagement.ViewComponents
 
 @{
-    var listClasses = "pm-drawer__list";
+    var listClasses = Model.Depth == 0
+        ? "pm-drawer__list pm-drawer__list--root"
+        : "pm-drawer__list pm-drawer__list--nested";
 }
 
 <ul class="@listClasses">
 @foreach (var node in Model.Nodes)
 {
     var itemClasses = "pm-drawer__item";
-    var displayClasses = string.IsNullOrEmpty(node.Url)
+    if (Model.Depth == 0 && node.Children.Count > 0 && string.IsNullOrEmpty(node.Url))
+    {
+        itemClasses += " pm-drawer__item--section";
+    }
+
+    var baseClass = string.IsNullOrEmpty(node.Url)
         ? "pm-drawer__label"
         : "pm-drawer__link";
+    var accentClass = string.IsNullOrEmpty(node.Accent)
+        ? string.Empty
+        : $" pm-drawer__accent--{node.Accent}";
+    var displayClasses = baseClass + accentClass;
     var badgeName = node.BadgeViewComponentName;
     var badgeParameters = node.BadgeViewComponentParameters ?? new { };
 
@@ -24,20 +35,36 @@
         @if (!string.IsNullOrEmpty(node.Url))
         {
             <a class="@displayClasses" href="@node.Url" @(node.IsActive ? "aria-current=\"page\"" : null)>
-                <span class="pm-drawer__text flex-grow-1">@node.Text</span>
+                <span class="pm-drawer__content">
+                    @if (!string.IsNullOrEmpty(node.Icon))
+                    {
+                        <span class="pm-drawer__icon" aria-hidden="true">
+                            <i class="bi @node.Icon"></i>
+                        </span>
+                    }
+                    <span class="pm-drawer__text">@node.Text</span>
+                </span>
                 @if (!string.IsNullOrEmpty(badgeName))
                 {
-                    @await Component.InvokeAsync(badgeName!, badgeParameters)
+                    <span class="pm-drawer__meta">@await Component.InvokeAsync(badgeName!, badgeParameters)</span>
                 }
             </a>
         }
         else
         {
             <span class="@displayClasses" @(node.IsActive ? "aria-current=\"page\"" : null)>
-                <span class="pm-drawer__text flex-grow-1">@node.Text</span>
+                <span class="pm-drawer__content">
+                    @if (!string.IsNullOrEmpty(node.Icon))
+                    {
+                        <span class="pm-drawer__icon" aria-hidden="true">
+                            <i class="bi @node.Icon"></i>
+                        </span>
+                    }
+                    <span class="pm-drawer__text">@node.Text</span>
+                </span>
                 @if (!string.IsNullOrEmpty(badgeName))
                 {
-                    @await Component.InvokeAsync(badgeName!, badgeParameters)
+                    <span class="pm-drawer__meta">@await Component.InvokeAsync(badgeName!, badgeParameters)</span>
                 }
             </span>
         }

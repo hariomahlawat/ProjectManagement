@@ -50,17 +50,20 @@ public class RoleBasedNavigationProvider : INavigationProvider
             new()
             {
                 Text = "Calendar",
-                Page = "/Calendar/Index"
+                Page = "/Calendar/Index",
+                Icon = "bi-calendar3"
             },
             new()
             {
                 Text = "Dashboard",
-                Page = "/Dashboard/Index"
+                Page = "/Dashboard/Index",
+                Icon = "bi-speedometer2"
             },
             new()
             {
                 Text = "Miscellaneous activities",
-                Page = "/Activities/Index"
+                Page = "/Activities/Index",
+                Icon = "bi-stars"
             }
         };
         var projectModuleChildren = new List<NavigationItem>
@@ -68,17 +71,20 @@ public class RoleBasedNavigationProvider : INavigationProvider
             new()
             {
                 Text = "Projects repository",
-                Page = "/Projects/Index"
+                Page = "/Projects/Index",
+                Icon = "bi-collection"
             },
             new()
             {
                 Text = "Process",
-                Page = "/Process/Index"
+                Page = "/Process/Index",
+                Icon = "bi-diagram-3"
             },
             new()
             {
                 Text = "Analytics",
-                Page = "/Analytics/Index"
+                Page = "/Analytics/Index",
+                Icon = "bi-graph-up"
             },
 
         };
@@ -86,7 +92,8 @@ public class RoleBasedNavigationProvider : INavigationProvider
         items.Add(new NavigationItem
         {
             Text = "Projects",
-            Children = projectModuleChildren
+            Children = projectModuleChildren,
+            Icon = "bi-kanban"
         });
 
         var documentRepositoryChildren = new List<NavigationItem>
@@ -96,56 +103,64 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Text = "Document repository",
                 Area = "DocumentRepository",
                 Page = "/Documents/Index",
-                AuthorizationPolicy = "DocRepo.View"
+                AuthorizationPolicy = "DocRepo.View",
+                Icon = "bi-folder2-open"
             },
             new()
             {
                 Text = "Upload document",
                 Area = "DocumentRepository",
                 Page = "/Documents/Upload",
-                AuthorizationPolicy = "DocRepo.Upload"
+                AuthorizationPolicy = "DocRepo.Upload",
+                Icon = "bi-cloud-upload"
             },
             new()
             {
                 Text = "Delete requests",
                 Area = "DocumentRepository",
                 Page = "/Admin/DeleteRequests/Index",
-                AuthorizationPolicy = "DocRepo.DeleteApprove"
+                AuthorizationPolicy = "DocRepo.DeleteApprove",
+                Icon = "bi-shield-x"
             },
             new()
             {
                 Text = "Trash",
                 Area = "DocumentRepository",
                 Page = "/Admin/Trash/Index",
-                AuthorizationPolicy = "DocRepo.Purge"
+                AuthorizationPolicy = "DocRepo.Purge",
+                Icon = "bi-trash3"
             },
             new()
             {
                 Text = "OCR failures",
                 Area = "DocumentRepository",
                 Page = "/Admin/OCRFailures/OcrFailures",
-                AuthorizationPolicy = "DocRepo.DeleteApprove"
+                AuthorizationPolicy = "DocRepo.DeleteApprove",
+                Icon = "bi-bug"
             },
             new()
             {
                 Text = "Office categories",
                 Area = "DocumentRepository",
                 Page = "/Admin/OfficeCategories/Index",
-                RequiredRoles = new[] { RoleNames.Admin }
+                RequiredRoles = new[] { RoleNames.Admin },
+                Icon = "bi-buildings"
             },
             new()
             {
                 Text = "Document categories",
                 Area = "DocumentRepository",
                 Page = "/Admin/DocumentCategories/Index",
-                RequiredRoles = new[] { RoleNames.Admin }
+                RequiredRoles = new[] { RoleNames.Admin },
+                Icon = "bi-bookmarks"
             }
         };
 
         items.Add(new NavigationItem
         {
             Text = "Documents",
-            Children = documentRepositoryChildren
+            Children = documentRepositoryChildren,
+            Icon = "bi-folder-check"
         });
 
         var projectOfficeReportsChildren = new List<NavigationItem>
@@ -157,6 +172,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
                     Area = "ProjectOfficeReports",
                     Page = "/Visits/Index",
                     AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewVisits,
+                    Icon = "bi-pin-map",
                     Children = new[]
                     {
                         new NavigationItem
@@ -164,7 +180,8 @@ public class RoleBasedNavigationProvider : INavigationProvider
                             Text = "Visit types",
                             Area = "ProjectOfficeReports",
                             Page = "/VisitTypes/Index",
-                            RequiredRoles = new[] { RoleNames.Admin }
+                            RequiredRoles = new[] { RoleNames.Admin },
+                            Icon = "bi-geo"
                         }
                     }
                 },
@@ -176,6 +193,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
                     Area = "ProjectOfficeReports",
                     Page = "/SocialMedia/Index",
                     AuthorizationPolicy = ProjectOfficeReportsPolicies.ManageSocialMediaEvents,
+                    Icon = "bi-hash",
                     Children = new[]
                     {
                         new NavigationItem
@@ -183,14 +201,16 @@ public class RoleBasedNavigationProvider : INavigationProvider
                             Text = "Social media event types",
                             Area = "ProjectOfficeReports",
                             Page = "/Admin/SocialMediaTypes/Index",
-                            RequiredRoles = new[] { RoleNames.Admin }
+                            RequiredRoles = new[] { RoleNames.Admin },
+                            Icon = "bi-calendar-event"
                         },
                         new NavigationItem
                         {
                             Text = "Social media platforms",
                             Area = "ProjectOfficeReports",
                             Page = "/Admin/SocialMediaTypes/Platforms/Index",
-                            RequiredRoles = new[] { RoleNames.Admin }
+                            RequiredRoles = new[] { RoleNames.Admin },
+                            Icon = "bi-ui-radios-grid"
                         }
                     }
                 },
@@ -200,34 +220,39 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Area = "ProjectOfficeReports",
                 Page = "/Training/Index",
                 AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewTrainingTracker,
-                BadgeViewComponentName = "TrainingApprovalsBadge"
+                BadgeViewComponentName = "TrainingApprovalsBadge",
+                Icon = "bi-award"
             },
             new()
             {
                 Text = "ToT tracker",
                 Area = "ProjectOfficeReports",
                 Page = "/Tot/Summary",
-                AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewTotTracker
+                AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewTotTracker,
+                Icon = "bi-diagram-3"
             },
             new()
             {
                 Text = "Proliferation tracker",
                 Area = "ProjectOfficeReports",
                 Page = "/Proliferation/Summary",
-                AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewProliferationTracker
+                AuthorizationPolicy = ProjectOfficeReportsPolicies.ViewProliferationTracker,
+                Icon = "bi-radar"
             },
             new()
             {
                 Text = "Patent tracker",
                 Area = "ProjectOfficeReports",
                 Page = "/Ipr/Index",
-                AuthorizationPolicy = Policies.Ipr.View
+                AuthorizationPolicy = Policies.Ipr.View,
+                Icon = "bi-lightbulb"
             },
             new()
             {
                 Text = "FFC simulators",
                 Area = "ProjectOfficeReports",
-                Page = "/FFC/Index"
+                Page = "/FFC/Index",
+                Icon = "bi-cpu"
             }
         };
 
@@ -236,7 +261,8 @@ public class RoleBasedNavigationProvider : INavigationProvider
             Text = "Project office reports",
             Area = "ProjectOfficeReports",
             Page = "/Index",
-            Children = projectOfficeReportsChildren
+            Children = projectOfficeReportsChildren,
+            Icon = "bi-clipboard-data"
         });
 
         var activityTypesNavigationItem = new NavigationItem
@@ -244,7 +270,8 @@ public class RoleBasedNavigationProvider : INavigationProvider
             Text = "Activity types",
             Area = "Admin",
             Page = "/ActivityTypes/Index",
-            RequiredRoles = new[] { "Admin", "HoD" }
+            RequiredRoles = new[] { "Admin", "HoD" },
+            Icon = "bi-columns-gap"
         };
 
         if (roleSet.Contains("Admin"))
@@ -255,6 +282,8 @@ public class RoleBasedNavigationProvider : INavigationProvider
                 Area = "Admin",
                 Page = "/Index",
                 RequiredRoles = new[] { "Admin" },
+                Icon = "bi-shield-lock",
+                Accent = "danger",
                 Children = new[]
                 {
                     new NavigationItem
@@ -262,49 +291,56 @@ public class RoleBasedNavigationProvider : INavigationProvider
                         Text = "Manage users",
                         Area = "Admin",
                         Page = "/Users/Index",
-                        RequiredRoles = new[] { "Admin" }
+                        RequiredRoles = new[] { "Admin" },
+                        Icon = "bi-people"
                     },
                     new NavigationItem
                     {
                         Text = "Login scatter",
                         Area = "Admin",
                         Page = "/Analytics/Logins",
-                        RequiredRoles = new[] { "Admin" }
+                        RequiredRoles = new[] { "Admin" },
+                        Icon = "bi-graph-up-arrow"
                     },
                     new NavigationItem
                     {
                         Text = "Logs",
                         Area = "Admin",
                         Page = "/Logs/Index",
-                        RequiredRoles = new[] { "Admin" }
+                        RequiredRoles = new[] { "Admin" },
+                        Icon = "bi-list-check"
                     },
                     new NavigationItem
                     {
                         Text = "DB health",
                         Area = "Admin",
                         Page = "/Diagnostics/DbHealth",
-                        RequiredRoles = new[] { "Admin" }
+                        RequiredRoles = new[] { "Admin" },
+                        Icon = "bi-heart-pulse"
                     },
                     new NavigationItem
                     {
                         Text = "Sponsoring units",
                         Area = "Admin",
                         Page = "/Lookups/SponsoringUnits/Index",
-                        RequiredRoles = new[] { "Admin" }
+                        RequiredRoles = new[] { "Admin" },
+                        Icon = "bi-diagram-2"
                     },
                     new NavigationItem
                     {
                         Text = "Line directorates",
                         Area = "Admin",
                         Page = "/Lookups/LineDirectorates/Index",
-                        RequiredRoles = new[] { "Admin" }
+                        RequiredRoles = new[] { "Admin" },
+                        Icon = "bi-diagram-3"
                     },
                     new NavigationItem
                     {
                         Text = "Project categories",
                         Area = "Admin",
                         Page = "/Categories/Index",
-                        RequiredRoles = new[] { "Admin" }
+                        RequiredRoles = new[] { "Admin" },
+                        Icon = "bi-grid"
                     },
                     activityTypesNavigationItem,
                     new NavigationItem
@@ -312,27 +348,31 @@ public class RoleBasedNavigationProvider : INavigationProvider
                         Text = "Technical categories",
                         Area = "Admin",
                         Page = "/TechnicalCategories/Index",
-                        RequiredRoles = new[] { "Admin" }
+                        RequiredRoles = new[] { "Admin" },
+                        Icon = "bi-sliders2"
                     },
                     new NavigationItem
                     {
                         Text = "Project trash",
                         Area = "Admin",
                         Page = "/Projects/Trash",
-                        RequiredRoles = new[] { "Admin" }
+                        RequiredRoles = new[] { "Admin" },
+                        Icon = "bi-archive"
                     },
                     new NavigationItem
                     {
                         Text = "Projects – Legacy import",
                         Area = "ProjectOfficeReports",
                         Page = "/Projects/LegacyImport",
-                        RequiredRoles = new[] { "Admin" }
+                        RequiredRoles = new[] { "Admin" },
+                        Icon = "bi-box-arrow-in-down"
                     },
                     new NavigationItem
                     {
                         Text = "Archived projects",
                         Page = "/Projects/Index",
                         RequiredRoles = new[] { "Admin" },
+                        Icon = "bi-inboxes",
                         RouteValues = new Dictionary<string, object?>
                         {
                             ["IncludeArchived"] = true
@@ -343,26 +383,30 @@ public class RoleBasedNavigationProvider : INavigationProvider
                         Text = "Document recycle bin",
                         Area = "Admin",
                         Page = "/Documents/Recycle",
-                        RequiredRoles = new[] { "Admin" }
+                        RequiredRoles = new[] { "Admin" },
+                        Icon = "bi-recycle"
                     },
                     new NavigationItem
                     {
                         Text = "Calendar deleted events",
                         Area = "Admin",
                         Page = "/Calendar/Deleted",
-                        RequiredRoles = new[] { "Admin" }
+                        RequiredRoles = new[] { "Admin" },
+                        Icon = "bi-calendar-x"
                     },
                     new NavigationItem
                     {
                         Text = "Manage holidays",
                         Page = "/Settings/Holidays/Index",
-                        RequiredRoles = new[] { "Admin" }
+                        RequiredRoles = new[] { "Admin" },
+                        Icon = "bi-sun"
                     },
                     new NavigationItem
                     {
                         Text = "Manage celebrations",
                         Page = "/Celebrations/Index",
-                        RequiredRoles = new[] { "Admin" }
+                        RequiredRoles = new[] { "Admin" },
+                        Icon = "bi-balloon"
                     }
                 }
             });
@@ -379,7 +423,8 @@ public class RoleBasedNavigationProvider : INavigationProvider
             {
                 Text = "Approvals",
                 Page = "/Projects/Documents/Approvals/Index",
-                RequiredRoles = new[] { "HoD", "Admin" }
+                RequiredRoles = new[] { "HoD", "Admin" },
+                Icon = "bi-check2-square"
             });
         }
 
