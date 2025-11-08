@@ -37,7 +37,7 @@ public sealed class DocumentSearchService : IDocumentSearchService
 
         return source
             .Where(document => document.SearchVector != null && document.SearchVector.Matches(tsQuery))
-            .OrderByDescending(document => EF.Functions.TsRankCd(document.SearchVector!, tsQuery))
+            .OrderByDescending(document => document.SearchVector!.RankCoverDensity(tsQuery))
             .ThenByDescending(document => document.DocumentDate.HasValue)
             .ThenByDescending(document => document.DocumentDate)
             .ThenByDescending(document => document.CreatedAtUtc);
