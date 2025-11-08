@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Data.DocRepo;
+using ProjectManagement.Services.DocRepo;
 
 namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 {

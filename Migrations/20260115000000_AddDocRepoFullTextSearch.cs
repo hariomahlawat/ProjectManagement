@@ -17,12 +17,14 @@ namespace ProjectManagement.Migrations
                 throw new NotSupportedException("DocRepo full-text search requires PostgreSQL.");
             }
 
+            // 1. add tsvector column on Documents
             migrationBuilder.AddColumn<NpgsqlTsVector>(
                 name: "SearchVector",
                 table: "Documents",
                 type: "tsvector",
                 nullable: true);
 
+            // 2. side table for OCR text
             migrationBuilder.CreateTable(
                 name: "DocRepoDocumentTexts",
                 columns: table => new
@@ -42,17 +44,23 @@ namespace ProjectManagement.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            // 3. migrate inline ExtractedText -> side table
             migrationBuilder.Sql(@"
-INSERT INTO \"DocRepoDocumentTexts\" (\"DocumentId\", \"OcrText\", \"UpdatedAtUtc\")
-SELECT \"Id\", \"ExtractedText\", COALESCE(\"UpdatedAtUtc\", \"CreatedAtUtc\", now() AT TIME ZONE 'utc')
-FROM \"Documents\"
-WHERE \"ExtractedText\" IS NOT NULL;
+INSERT INTO ""DocRepoDocumentTexts"" (""DocumentId"", ""OcrText"", ""UpdatedAtUtc"")
+SELECT
+    ""Id""               AS ""DocumentId"",
+    ""ExtractedText""    AS ""OcrText"",
+    COALESCE(""UpdatedAtUtc"", ""CreatedAtUtc"", now() AT TIME ZONE 'utc') AS ""UpdatedAtUtc""
+FROM ""Documents""
+WHERE ""ExtractedText"" IS NOT NULL;
 ");
 
+            // 4. drop old inline column
             migrationBuilder.DropColumn(
                 name: "ExtractedText",
                 table: "Documents");
 
+            // 5. function to build the weighted search vector
             migrationBuilder.Sql(@"
 CREATE OR REPLACE FUNCTION docrepo_documents_build_search_vector(
     p_document_id uuid,
@@ -64,24 +72,24 @@ RETURNS tsvector
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    v_office_name text;
+    v_office_name   text;
     v_category_name text;
-    v_tag_names text;
-    v_ocr text;
+    v_tag_names     text;
+    v_ocr           text;
 BEGIN
-    SELECT \"Name\" INTO v_office_name FROM \"OfficeCategories\" WHERE \"Id\" = p_office_category_id;
-    SELECT \"Name\" INTO v_category_name FROM \"DocumentCategories\" WHERE \"Id\" = p_document_category_id;
+    SELECT ""Name"" INTO v_office_name FROM ""OfficeCategories"" WHERE ""Id"" = p_office_category_id;
+    SELECT ""Name"" INTO v_category_name FROM ""DocumentCategories"" WHERE ""Id"" = p_document_category_id;
 
-    SELECT string_agg(t.\"Name\", ' ')
+    SELECT string_agg(t.""Name"", ' ')
     INTO v_tag_names
-    FROM \"DocumentTags\" dt
-    JOIN \"Tags\" t ON t.\"Id\" = dt.\"TagId\"
-    WHERE dt.\"DocumentId\" = p_document_id;
+    FROM ""DocumentTags"" dt
+    JOIN ""Tags"" t ON t.""Id"" = dt.""TagId""
+    WHERE dt.""DocumentId"" = p_document_id;
 
-    SELECT \"OcrText\"
+    SELECT ""OcrText""
     INTO v_ocr
-    FROM \"DocRepoDocumentTexts\"
-    WHERE \"DocumentId\" = p_document_id;
+    FROM ""DocRepoDocumentTexts""
+    WHERE ""DocumentId"" = p_document_id;
 
     RETURN
         setweight(to_tsvector('english', coalesce(p_subject, '')), 'A') ||
@@ -93,18 +101,19 @@ END;
 $$;
 ");
 
+            // 6. trigger on Documents
             migrationBuilder.Sql(@"
 CREATE OR REPLACE FUNCTION docrepo_documents_search_vector_trigger()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    NEW.\"SearchVector\" = docrepo_documents_build_search_vector(
-        NEW.\"Id\",
-        NEW.\"Subject\",
-        NEW.\"ReceivedFrom\",
-        NEW.\"OfficeCategoryId\",
-        NEW.\"DocumentCategoryId\");
+    NEW.""SearchVector"" = docrepo_documents_build_search_vector(
+        NEW.""Id"",
+        NEW.""Subject"",
+        NEW.""ReceivedFrom"",
+        NEW.""OfficeCategoryId"",
+        NEW.""DocumentCategoryId"");
     RETURN NEW;
 END;
 $$;
@@ -112,10 +121,12 @@ $$;
 
             migrationBuilder.Sql(@"
 CREATE TRIGGER docrepo_documents_search_vector_before
-BEFORE INSERT OR UPDATE ON \"Documents\"
-FOR EACH ROW EXECUTE FUNCTION docrepo_documents_search_vector_trigger();
+BEFORE INSERT OR UPDATE ON ""Documents""
+FOR EACH ROW
+EXECUTE FUNCTION docrepo_documents_search_vector_trigger();
 ");
 
+            // 7. trigger on DocumentTags
             migrationBuilder.Sql(@"
 CREATE OR REPLACE FUNCTION docrepo_document_tags_search_vector_trigger()
 RETURNS trigger
@@ -125,19 +136,19 @@ DECLARE
     v_document_id uuid;
 BEGIN
     IF TG_OP = 'DELETE' THEN
-        v_document_id := OLD.\"DocumentId\";
+        v_document_id := OLD.""DocumentId"";
     ELSE
-        v_document_id := NEW.\"DocumentId\";
+        v_document_id := NEW.""DocumentId"";
     END IF;
 
-    UPDATE \"Documents\" d
-    SET \"SearchVector\" = docrepo_documents_build_search_vector(
-        d.\"Id\",
-        d.\"Subject\",
-        d.\"ReceivedFrom\",
-        d.\"OfficeCategoryId\",
-        d.\"DocumentCategoryId\")
-    WHERE d.\"Id\" = v_document_id;
+    UPDATE ""Documents"" d
+    SET ""SearchVector"" = docrepo_documents_build_search_vector(
+        d.""Id"",
+        d.""Subject"",
+        d.""ReceivedFrom"",
+        d.""OfficeCategoryId"",
+        d.""DocumentCategoryId"")
+    WHERE d.""Id"" = v_document_id;
 
     RETURN NULL;
 END;
@@ -146,10 +157,12 @@ $$;
 
             migrationBuilder.Sql(@"
 CREATE TRIGGER docrepo_document_tags_search_vector_after
-AFTER INSERT OR UPDATE OR DELETE ON \"DocumentTags\"
-FOR EACH ROW EXECUTE FUNCTION docrepo_document_tags_search_vector_trigger();
+AFTER INSERT OR UPDATE OR DELETE ON ""DocumentTags""
+FOR EACH ROW
+EXECUTE FUNCTION docrepo_document_tags_search_vector_trigger();
 ");
 
+            // 8. trigger on DocRepoDocumentTexts (OCR arrives later)
             migrationBuilder.Sql(@"
 CREATE OR REPLACE FUNCTION docrepo_document_texts_search_vector_trigger()
 RETURNS trigger
@@ -159,19 +172,19 @@ DECLARE
     v_document_id uuid;
 BEGIN
     IF TG_OP = 'DELETE' THEN
-        v_document_id := OLD.\"DocumentId\";
+        v_document_id := OLD.""DocumentId"";
     ELSE
-        v_document_id := NEW.\"DocumentId\";
+        v_document_id := NEW.""DocumentId"";
     END IF;
 
-    UPDATE \"Documents\" d
-    SET \"SearchVector\" = docrepo_documents_build_search_vector(
-        d.\"Id\",
-        d.\"Subject\",
-        d.\"ReceivedFrom\",
-        d.\"OfficeCategoryId\",
-        d.\"DocumentCategoryId\")
-    WHERE d.\"Id\" = v_document_id;
+    UPDATE ""Documents"" d
+    SET ""SearchVector"" = docrepo_documents_build_search_vector(
+        d.""Id"",
+        d.""Subject"",
+        d.""ReceivedFrom"",
+        d.""OfficeCategoryId"",
+        d.""DocumentCategoryId"")
+    WHERE d.""Id"" = v_document_id;
 
     RETURN NULL;
 END;
@@ -180,24 +193,27 @@ $$;
 
             migrationBuilder.Sql(@"
 CREATE TRIGGER docrepo_document_texts_search_vector_after
-AFTER INSERT OR UPDATE OR DELETE ON \"DocRepoDocumentTexts\"
-FOR EACH ROW EXECUTE FUNCTION docrepo_document_texts_search_vector_trigger();
+AFTER INSERT OR UPDATE OR DELETE ON ""DocRepoDocumentTexts""
+FOR EACH ROW
+EXECUTE FUNCTION docrepo_document_texts_search_vector_trigger();
 ");
 
+            // 9. backfill search vectors
             migrationBuilder.Sql(@"
-UPDATE \"Documents\" d
-SET \"SearchVector\" = docrepo_documents_build_search_vector(
-    d.\"Id\",
-    d.\"Subject\",
-    d.\"ReceivedFrom\",
-    d.\"OfficeCategoryId\",
-    d.\"DocumentCategoryId\");
+UPDATE ""Documents"" d
+SET ""SearchVector"" = docrepo_documents_build_search_vector(
+    d.""Id"",
+    d.""Subject"",
+    d.""ReceivedFrom"",
+    d.""OfficeCategoryId"",
+    d.""DocumentCategoryId"");
 ");
 
+            // 10. index
             migrationBuilder.Sql(@"
 CREATE INDEX idx_docrepo_documents_search
-    ON \"Documents\"
-    USING GIN (\"SearchVector\");
+    ON ""Documents""
+    USING GIN (""SearchVector"");
 ");
         }
 
@@ -209,16 +225,19 @@ CREATE INDEX idx_docrepo_documents_search
                 throw new NotSupportedException("DocRepo full-text search requires PostgreSQL.");
             }
 
+            // drop index
             migrationBuilder.Sql(@"
 DROP INDEX IF EXISTS idx_docrepo_documents_search;
 ");
 
+            // drop triggers
             migrationBuilder.Sql(@"
-DROP TRIGGER IF EXISTS docrepo_document_texts_search_vector_after ON \"DocRepoDocumentTexts\";
-DROP TRIGGER IF EXISTS docrepo_document_tags_search_vector_after ON \"DocumentTags\";
-DROP TRIGGER IF EXISTS docrepo_documents_search_vector_before ON \"Documents\";
+DROP TRIGGER IF EXISTS docrepo_document_texts_search_vector_after ON ""DocRepoDocumentTexts"";
+DROP TRIGGER IF EXISTS docrepo_document_tags_search_vector_after ON ""DocumentTags"";
+DROP TRIGGER IF EXISTS docrepo_documents_search_vector_before ON ""Documents"";
 ");
 
+            // drop functions
             migrationBuilder.Sql(@"
 DROP FUNCTION IF EXISTS docrepo_document_texts_search_vector_trigger();
 DROP FUNCTION IF EXISTS docrepo_document_tags_search_vector_trigger();
@@ -226,22 +245,26 @@ DROP FUNCTION IF EXISTS docrepo_documents_search_vector_trigger();
 DROP FUNCTION IF EXISTS docrepo_documents_build_search_vector(uuid, text, text, integer, integer);
 ");
 
+            // add old column back
             migrationBuilder.AddColumn<string>(
                 name: "ExtractedText",
                 table: "Documents",
                 type: "text",
                 nullable: true);
 
+            // restore data from side table
             migrationBuilder.Sql(@"
-UPDATE \"Documents\" d
-SET \"ExtractedText\" = t.\"OcrText\"
-FROM \"DocRepoDocumentTexts\" t
-WHERE d.\"Id\" = t.\"DocumentId\";
+UPDATE ""Documents"" d
+SET ""ExtractedText"" = t.""OcrText""
+FROM ""DocRepoDocumentTexts"" t
+WHERE d.""Id"" = t.""DocumentId"";
 ");
 
+            // drop side table
             migrationBuilder.DropTable(
                 name: "DocRepoDocumentTexts");
 
+            // drop column
             migrationBuilder.DropColumn(
                 name: "SearchVector",
                 table: "Documents");
