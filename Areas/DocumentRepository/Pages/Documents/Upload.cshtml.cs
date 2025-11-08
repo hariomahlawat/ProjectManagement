@@ -2,7 +2,6 @@ using System.Buffers;
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using System.Security.Cryptography;
-using System.Linq;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -124,6 +123,7 @@ public class UploadModel : PageModel
             return Page();
         }
 
+        // ===== read, hash, buffer, scan =====
         string sha256Hex;
         await using var uploadStream = Input.File.OpenReadStream();
         await using var bufferedStream = new MemoryStream((int)Math.Min(Input.File.Length, int.MaxValue));
@@ -181,21 +181,89 @@ public class UploadModel : PageModel
             bufferedStream.Position = 0;
         }
 
-        var duplicate = await _db.Documents.AsNoTracking()
+        // ===== check for existing document with same hash (deleted or not) =====
+        var existingWithSameHash = await _db.Documents
+            .Include(d => d.DocumentTags)
             .FirstOrDefaultAsync(d => d.Sha256 == sha256Hex, cancellationToken);
-        if (duplicate is not null)
-        {
-            ModelState.AddModelError(nameof(Input.File),
-                $"Duplicate document detected (matches {duplicate.Subject}). Upload blocked.");
-            return Page();
-        }
 
+        // save file to storage
         bufferedStream.Position = 0;
         var utcNow = DateTime.UtcNow;
         var storagePath = await _storage.SaveAsync(bufferedStream, Path.GetFileName(Input.File.FileName), utcNow, cancellationToken);
 
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.Identity?.Name ?? "system";
 
+        if (existingWithSameHash is not null && !existingWithSameHash.IsDeleted)
+        {
+            // real duplicate, show message
+            ModelState.AddModelError(nameof(Input.File),
+                $"Duplicate document detected (matches {existingWithSameHash.Subject}). Upload blocked.");
+            return Page();
+        }
+
+        if (existingWithSameHash is not null && existingWithSameHash.IsDeleted)
+        {
+            // RESTORE / REUSE the same row to avoid unique index violation
+            existingWithSameHash.Subject = Input.Subject.Trim();
+            existingWithSameHash.ReceivedFrom = string.IsNullOrWhiteSpace(Input.ReceivedFrom) ? null : Input.ReceivedFrom.Trim();
+            existingWithSameHash.DocumentDate = Input.DocumentDate;
+            existingWithSameHash.OfficeCategoryId = Input.OfficeCategoryId!.Value;
+            existingWithSameHash.DocumentCategoryId = Input.DocumentCategoryId!.Value;
+            existingWithSameHash.OriginalFileName = Path.GetFileName(Input.File.FileName);
+            existingWithSameHash.FileSizeBytes = bufferedStream.Length;
+            existingWithSameHash.StoragePath = storagePath;
+            existingWithSameHash.MimeType = "application/pdf";
+            existingWithSameHash.UpdatedAtUtc = utcNow;
+            existingWithSameHash.IsDeleted = false;
+            existingWithSameHash.IsActive = true;
+            existingWithSameHash.OcrStatus = DocOcrStatus.Pending;
+            existingWithSameHash.OcrFailureReason = null;
+
+            // replace tags
+            if (existingWithSameHash.DocumentTags is not null && existingWithSameHash.DocumentTags.Count > 0)
+            {
+                _db.DocumentTags.RemoveRange(existingWithSameHash.DocumentTags);
+            }
+
+            if (normalizedTags.Count > 0)
+            {
+                var existingTags = await _db.Tags
+                    .Where(t => normalizedTags.Contains(t.NormalizedName))
+                    .ToListAsync(cancellationToken);
+
+                var newTags = normalizedTags
+                    .Except(existingTags.Select(t => t.NormalizedName))
+                    .Select(name => new Tag { Name = name, NormalizedName = name })
+                    .ToList();
+
+                if (newTags.Count > 0)
+                {
+                    await _db.Tags.AddRangeAsync(newTags, cancellationToken);
+                    await _db.SaveChangesAsync(cancellationToken);
+                    existingTags.AddRange(newTags);
+                }
+
+                existingWithSameHash.DocumentTags = existingTags
+                    .Where(t => normalizedTags.Contains(t.NormalizedName))
+                    .Select(t => new DocumentTag
+                    {
+                        DocumentId = existingWithSameHash.Id,
+                        TagId = t.Id
+                    })
+                    .ToList();
+            }
+
+            await _db.SaveChangesAsync(cancellationToken);
+
+            await _audit.WriteAsync(existingWithSameHash.Id, userId, "Reuploaded",
+                new { existingWithSameHash.Id, existingWithSameHash.Subject, sizeBytes = existingWithSameHash.FileSizeBytes }, cancellationToken);
+            await _audit.WriteAsync(existingWithSameHash.Id, userId, "OcrQueued", new { existingWithSameHash.Id }, cancellationToken);
+
+            TempData["ToastMessage"] = "Document re-uploaded.";
+            return RedirectToPage("./Index");
+        }
+
+        // ===== no existing doc at all -> create new =====
         var document = new Document
         {
             Id = Guid.NewGuid(),
@@ -211,7 +279,6 @@ public class UploadModel : PageModel
             MimeType = "application/pdf",
             CreatedByUserId = userId,
             CreatedAtUtc = utcNow,
-            // SECTION: OCR initialization
             OcrStatus = DocOcrStatus.Pending,
             OcrFailureReason = null
         };

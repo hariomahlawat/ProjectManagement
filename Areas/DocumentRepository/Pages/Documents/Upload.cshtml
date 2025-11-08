@@ -4,10 +4,17 @@
     ViewData["Title"] = "Upload document (PDF)";
 }
 
-<partial name="~/Views/Shared/_Breadcrumbs.cshtml" model='new BreadcrumbModel(
-    ("Documents", Url.Page("/Documents/Index", new { area = "DocumentRepository" })),
-    ("Upload", null)
-)' />
+<!-- simple breadcrumb, no extra model needed -->
+<nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item">
+            <a asp-area="DocumentRepository" asp-page="/Documents/Index">Documents</a>
+        </li>
+        <li class="breadcrumb-item active" aria-current="page">
+            Upload
+        </li>
+    </ol>
+</nav>
 
 <div class="container-fluid py-3">
     <div class="row g-3">
