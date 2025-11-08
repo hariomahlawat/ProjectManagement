@@ -1,5 +1,6 @@
 const DESKTOP_MEDIA_QUERY = '(min-width: 992px)';
 
+// ---------- Utility selectors ----------
 const FOCUSABLE_SELECTORS = [
   'a[href]',
   'area[href]',
@@ -13,6 +14,19 @@ const FOCUSABLE_SELECTORS = [
   '[contenteditable]',
   '[tabindex]:not([tabindex="-1"])'
 ].join(', ');
+
+// ---------- Utility helpers ----------
+function cssEscape(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  if (typeof CSS !== 'undefined' && typeof CSS.escape === 'function') {
+    return CSS.escape(value);
+  }
+
+  return value.replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+}
 
 function normaliseId(id) {
   return typeof id === 'string' ? id.replace(/^#/, '') : '';
@@ -80,6 +94,9 @@ function setupDrawer(drawer) {
   const panel = drawer.querySelector('[data-drawer-panel]') || drawer;
   const overlay = drawer.querySelector('[data-drawer-overlay]');
   const closeButtons = Array.from(drawer.querySelectorAll('[data-drawer-close]'));
+  const collapseToggles = Array.from(
+    drawer.querySelectorAll('[data-drawer-collapse-toggle]')
+  );
   const toggles = findTogglesForDrawer(resolvedId);
   const isStaticDrawer = drawer.hasAttribute('data-drawer-static');
 
@@ -93,6 +110,51 @@ function setupDrawer(drawer) {
     }
 
     toggle.setAttribute('aria-expanded', drawer.classList.contains('is-open') ? 'true' : 'false');
+  });
+
+  // ---------- Drawer collapse controls ----------
+  const setCollapseExpanded = (toggle, region, expanded) => {
+    toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    region.classList.toggle('is-open', expanded);
+
+    if (expanded) {
+      region.removeAttribute('hidden');
+    } else {
+      region.setAttribute('hidden', '');
+    }
+  };
+
+  collapseToggles.forEach((toggle) => {
+    if (!(toggle instanceof HTMLElement) || toggle.dataset.drawerCollapseInitialized === 'true') {
+      return;
+    }
+
+    const controls = toggle.getAttribute('aria-controls');
+
+    if (!controls) {
+      return;
+    }
+
+    const regionSelector = `#${cssEscape(controls)}`;
+    const region = drawer.querySelector(regionSelector);
+
+    if (!(region instanceof HTMLElement)) {
+      return;
+    }
+
+    toggle.dataset.drawerCollapseInitialized = 'true';
+
+    const toggleExpanded = toggle.getAttribute('aria-expanded') === 'true';
+    const regionExpanded = !region.hasAttribute('hidden');
+    const initialExpanded = toggleExpanded || regionExpanded;
+
+    setCollapseExpanded(toggle, region, initialExpanded);
+
+    toggle.addEventListener('click', (event) => {
+      event.preventDefault();
+      const nextExpanded = toggle.getAttribute('aria-expanded') !== 'true';
+      setCollapseExpanded(toggle, region, nextExpanded);
+    });
   });
 
   let restoreFocusTo = null;
