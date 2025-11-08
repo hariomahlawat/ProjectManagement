@@ -27,7 +27,7 @@
                 <input type="search"
                        name="q"
                        value="@Model.Q"
-                       placeholder="Search documents (subject, sender, tags)…"
+                       placeholder="Search documents (subject, sender, tags)â€¦"
                        aria-label="Search documents" />
             </div>
             <div class="docrepo-search-actions">
@@ -48,9 +48,40 @@
 
     <partial name="_Pager" model="new PagerModel(Model.PageNumber, Model.PageSize, Model.TotalCount, Request)" />
 
+    @if (Model.IsSearchActive && Model.HasTagMatch)
+    {
+        <div class="alert alert-secondary alert-dismissible fade show d-flex align-items-center gap-2 small" role="alert">
+            <i class="bi bi-bookmark-fill text-muted"></i>
+            <span>
+                Also found a tag with this name. You can filter by this tag.
+                <a class="alert-link"
+                   asp-page="./Index"
+                   asp-route-q="@Model.Q"
+                   asp-route-tag="@Model.Q"
+                   asp-route-officeCategoryId="@Model.OfficeCategoryId"
+                   asp-route-documentCategoryId="@Model.DocumentCategoryId"
+                   asp-route-year="@Model.Year"
+                   asp-route-includeInactive="@Model.IncludeInactive">
+                    Apply tag filter
+                </a>
+            </span>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
     @if (!Model.Items.Any())
     {
-        <div class="alert alert-light border">No documents found.</div>
+        if (Model.IsSearchActive)
+        {
+            <div class="alert alert-info">
+                No documents matched "@Model.Q".
+                <a href="/DocumentRepository/Documents">Show all active documents</a>
+            </div>
+        }
+        else
+        {
+            <div class="alert alert-light border">No documents found.</div>
+        }
     }
     else
     {
@@ -71,7 +102,7 @@
 <div class="modal fade" id="docrepoFilterModal" tabindex="-1" aria-labelledby="docrepoFilterModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form method="get">
+            <form method="get" asp-route-q="@Model.Q">
                 <div class="modal-header">
                     <h5 class="modal-title" id="docrepoFilterModalLabel">Filters</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
