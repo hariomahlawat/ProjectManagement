@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Security.Claims;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Application.Security;
@@ -12,22 +11,25 @@ using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Helpers;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Storage;
 
 namespace ProjectManagement.Application.Ffc;
 
 public class FfcAttachmentStorage(
     ApplicationDbContext db,
     IFileSecurityValidator validator,
-    IWebHostEnvironment env,
+    IUploadRootProvider uploadRootProvider,
     IUserContext userContext,
     IOptions<FfcAttachmentOptions> options) : IFfcAttachmentStorage
 {
+    // SECTION: Dependencies
     private readonly ApplicationDbContext _db = db;
     private readonly IFileSecurityValidator _validator = validator;
-    private readonly IWebHostEnvironment _env = env;
     private readonly IUserContext _userContext = userContext;
     private readonly FfcAttachmentOptions _options = options.Value;
+    private readonly string _storageRoot = ResolveStorageRoot(options.Value, uploadRootProvider);
 
+    // SECTION: Constants
     private const string AuthorizationError = "Only Admin or HoD roles can manage attachments.";
 
     private static readonly HashSet<string> AllowedContent = new(StringComparer.OrdinalIgnoreCase)
@@ -35,6 +37,7 @@ public class FfcAttachmentStorage(
 
     public async Task<(bool Success, string? ErrorMessage, FfcAttachment? Attachment)> SaveAsync(long recordId, IFormFile file, FfcAttachmentKind kind, string? caption)
     {
+        // SECTION: Authorisation guard
         if (!IsAdminOrHod(_userContext.User))
         {
             return (false, AuthorizationError, null);
@@ -48,6 +51,7 @@ public class FfcAttachmentStorage(
             return (false, $"File exceeds maximum size of {FileSizeFormatter.FormatFileSize(_options.MaxFileSizeBytes)}.", null);
         }
 
+        // SECTION: Persist temp copy for scanning
         var tmpPath = Path.GetTempFileName();
         await using (var fs = File.Create(tmpPath))
         {
@@ -60,11 +64,10 @@ public class FfcAttachmentStorage(
             return (false, "File failed security checks.", null);
         }
 
-        var storeRoot = Path.Combine(_env.ContentRootPath, "App_Data", "ffc");
-        Directory.CreateDirectory(storeRoot);
-
+        // SECTION: Promote scanned file into storage
         var fileName = $"{Guid.NewGuid():N}{Path.GetExtension(file.FileName)}";
-        var finalPath = Path.Combine(storeRoot, fileName);
+        Directory.CreateDirectory(_storageRoot);
+        var finalPath = Path.Combine(_storageRoot, fileName);
         File.Move(tmpPath, finalPath, true);
 
         var attachment = new FfcAttachment
@@ -84,6 +87,7 @@ public class FfcAttachmentStorage(
         return (true, null, attachment);
     }
 
+    // SECTION: Deletion
     public async Task DeleteAsync(FfcAttachment attachment)
     {
         if (!IsAdminOrHod(_userContext.User))
@@ -103,6 +107,32 @@ public class FfcAttachmentStorage(
     private static bool IsAdminOrHod(ClaimsPrincipal principal)
     {
         return principal.IsInRole("Admin") || principal.IsInRole("HoD");
+    }
+
+    // SECTION: Helpers
+    private static string ResolveStorageRoot(FfcAttachmentOptions options, IUploadRootProvider uploadRootProvider)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(uploadRootProvider);
+
+        var folderName = string.IsNullOrWhiteSpace(options.StorageFolderName)
+            ? "ffc"
+            : options.StorageFolderName.Trim().Trim('/', '\\');
+
+        var configuredRoot = options.StorageRoot;
+
+        if (string.IsNullOrWhiteSpace(configuredRoot))
+        {
+            configuredRoot = string.IsNullOrEmpty(folderName)
+                ? uploadRootProvider.RootPath
+                : Path.Combine(uploadRootProvider.RootPath, folderName);
+        }
+        else if (!Path.IsPathRooted(configuredRoot))
+        {
+            configuredRoot = Path.Combine(uploadRootProvider.RootPath, configuredRoot);
+        }
+
+        return Path.GetFullPath(configuredRoot);
     }
 
 }

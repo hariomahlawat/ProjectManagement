@@ -3,8 +3,9 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore; // only if you need it elsewhere, remove if unused
+using Microsoft.Extensions.Options;
 using ProjectManagement.Data.DocRepo;
+using ProjectManagement.Services.Storage;
 
 namespace ProjectManagement.Services.DocRepo
 {
@@ -16,18 +17,22 @@ namespace ProjectManagement.Services.DocRepo
         private readonly string _outputDir;
         private readonly string _logsDir;
 
-        public OcrmypdfDocumentOcrRunner(IDocStorage storage)
+        public OcrmypdfDocumentOcrRunner(
+            IDocStorage storage,
+            IOptions<DocRepoOptions> options,
+            IUploadRootProvider uploadRootProvider)
         {
-            _storage = storage;
-            _rootDir = @"C:\ocr-work";
-            _inputDir = Path.Combine(_rootDir, "input");
-            _outputDir = Path.Combine(_rootDir, "output");
-            _logsDir = Path.Combine(_rootDir, "logs");
+            ArgumentNullException.ThrowIfNull(storage);
+            ArgumentNullException.ThrowIfNull(options);
+            ArgumentNullException.ThrowIfNull(uploadRootProvider);
 
-            Directory.CreateDirectory(_rootDir);
-            Directory.CreateDirectory(_inputDir);
-            Directory.CreateDirectory(_outputDir);
-            Directory.CreateDirectory(_logsDir);
+            _storage = storage;
+            var value = options.Value ?? throw new ArgumentException("DocRepo options cannot be null.", nameof(options));
+
+            _rootDir = EnsureDirectory(ResolveRoot(value, uploadRootProvider));
+            _inputDir = EnsureDirectory(Path.Combine(_rootDir, ResolveSubpath(value.OcrInput, "input")));
+            _outputDir = EnsureDirectory(Path.Combine(_rootDir, ResolveSubpath(value.OcrOutput, "output")));
+            _logsDir = EnsureDirectory(Path.Combine(_rootDir, ResolveSubpath(value.OcrLogs, "logs")));
         }
 
         public async Task<OcrRunResult> RunAsync(Document document, CancellationToken ct = default)
@@ -38,20 +43,20 @@ namespace ProjectManagement.Services.DocRepo
             var sidecar = Path.Combine(_outputDir, docId + ".txt");
             var logFile = Path.Combine(_logsDir, docId + ".log");
 
-            // write source pdf
+            // SECTION: Write source PDF to worker input
             await using (var src = await _storage.OpenReadAsync(document.StoragePath, ct))
             await using (var dst = File.Create(inputPdf))
             {
                 await src.CopyToAsync(dst, ct);
             }
 
-            // 1st run: normal
+            // SECTION: First OCR pass
             var first = await RunOcrmypdfAsync(
                 args: $"--sidecar \"{sidecar}\" \"{inputPdf}\" \"{outputPdf}\"",
                 workingDir: _rootDir,
                 ct: ct);
 
-            // log first run
+            // SECTION: Log first attempt
             await File.WriteAllTextAsync(
                 logFile,
                 $"FIRST RUN exit={first.ExitCode}{Environment.NewLine}{first.Stdout}{Environment.NewLine}{first.Stderr}",
@@ -63,13 +68,13 @@ namespace ProjectManagement.Services.DocRepo
 
             if (needForce)
             {
-                // 2nd run: force-ocr
+                // SECTION: Second OCR pass (force)
                 var second = await RunOcrmypdfAsync(
                     args: $"--force-ocr --sidecar \"{sidecar}\" \"{inputPdf}\" \"{outputPdf}\"",
                     workingDir: _rootDir,
                     ct: ct);
 
-                // append to log
+                // SECTION: Append log for forced run
                 await File.AppendAllTextAsync(
                     logFile,
                     $"{Environment.NewLine}SECOND RUN (force) exit={second.ExitCode}{Environment.NewLine}{second.Stdout}{Environment.NewLine}{second.Stderr}",
@@ -85,7 +90,7 @@ namespace ProjectManagement.Services.DocRepo
                 return OcrRunResult.Ok(text2);
             }
 
-            // no force needed, just check result of first run
+            // SECTION: No force needed, read first pass result
             if (!File.Exists(sidecar))
             {
                 return OcrRunResult.Fail($"ocrmypdf did not produce a sidecar file. Exit {first.ExitCode}. See {logFile}");
@@ -123,6 +128,34 @@ namespace ProjectManagement.Services.DocRepo
             var stderr = await stderrTask;
 
             return (process.ExitCode, stdout, stderr);
+        }
+
+        private static string EnsureDirectory(string path)
+        {
+            Directory.CreateDirectory(path);
+            return path;
+        }
+
+        private static string ResolveRoot(DocRepoOptions options, IUploadRootProvider uploadRootProvider)
+        {
+            var configured = options.OcrWorkRoot;
+
+            if (string.IsNullOrWhiteSpace(configured))
+            {
+                configured = Path.Combine(uploadRootProvider.RootPath, "ocr-work");
+            }
+            else if (!Path.IsPathRooted(configured))
+            {
+                configured = Path.Combine(uploadRootProvider.RootPath, configured);
+            }
+
+            return Path.GetFullPath(configured);
+        }
+
+        private static string ResolveSubpath(string? configured, string fallback)
+        {
+            var trimmed = configured?.Trim();
+            return string.IsNullOrWhiteSpace(trimmed) ? fallback : trimmed;
         }
     }
 }
