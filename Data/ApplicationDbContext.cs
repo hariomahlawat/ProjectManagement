@@ -212,8 +212,8 @@ namespace ProjectManagement.Data
                 e.Property(x => x.IsDeleted).HasDefaultValue(false);
                 e.Property(x => x.DeletedByUserId).HasMaxLength(64);
                 e.Property(x => x.DeleteReason).HasMaxLength(512);
-                e.Property(x => x.OcrStatus).HasDefaultValue(OcrStatus.None);
-                e.Property(x => x.OcrFailureReason).HasMaxLength(512);
+                e.Property(x => x.OcrStatus).HasDefaultValue(DocOcrStatus.None);
+                e.Property(x => x.OcrFailureReason).HasMaxLength(1024);
                 e.Property(x => x.ExtractedText).HasColumnType("text");
                 e.HasIndex(x => new { x.OfficeCategoryId, x.DocumentCategoryId });
                 e.HasIndex(x => x.Sha256).IsUnique();

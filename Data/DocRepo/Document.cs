@@ -2,10 +2,11 @@ using System.ComponentModel.DataAnnotations;
 
 namespace ProjectManagement.Data.DocRepo;
 
-public enum OcrStatus
+// SECTION: OCR status enumerations
+public enum DocOcrStatus
 {
     None = 0,
-    Queued = 1,
+    Pending = 1,
     Succeeded = 2,
     Failed = 3
 }
@@ -55,9 +56,10 @@ public class Document
     [MaxLength(512)]
     public string? DeleteReason { get; set; }
 
-    public OcrStatus OcrStatus { get; set; } = OcrStatus.None;
+    // SECTION: OCR metadata
+    public DocOcrStatus OcrStatus { get; set; } = DocOcrStatus.None;
 
-    [MaxLength(512)]
+    [MaxLength(1024)]
     public string? OcrFailureReason { get; set; }
 
     public DateTimeOffset? OcrLastTriedUtc { get; set; }

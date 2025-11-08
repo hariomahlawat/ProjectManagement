@@ -211,7 +211,9 @@ public class UploadModel : PageModel
             MimeType = "application/pdf",
             CreatedByUserId = userId,
             CreatedAtUtc = utcNow,
-            OcrStatus = OcrStatus.Queued
+            // SECTION: OCR initialization
+            OcrStatus = DocOcrStatus.Pending,
+            OcrFailureReason = null
         };
 
         if (normalizedTags.Count > 0)

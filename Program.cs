@@ -249,11 +249,11 @@ builder.Services.Configure<DocRepoOptions>(builder.Configuration.GetSection("Doc
 builder.Services.AddSingleton<IDocStorage, LocalDocStorageService>();
 builder.Services.AddScoped<IDocRepoAuditService, DocRepoAuditService>();
 builder.Services.AddScoped<IFileScanner, NoopFileScanner>();
-builder.Services.AddScoped<IOcrEngine, NoopOcrEngine>();
+builder.Services.AddScoped<IDocumentOcrRunner, OcrmypdfDocumentOcrRunner>();
 
 if (builder.Configuration.GetValue("DocRepo:EnableOcrWorker", true))
 {
-    builder.Services.AddHostedService<OcrWorker>();
+    builder.Services.AddHostedService<DocRepoOcrWorker>();
 }
 
 builder.Services.AddScoped<IActivityTypeRepository, ActivityTypeRepository>();

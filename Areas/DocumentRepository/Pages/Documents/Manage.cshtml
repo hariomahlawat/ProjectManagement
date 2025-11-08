@@ -1,5 +1,6 @@
 @page "{id:guid}"
 @model ProjectManagement.Areas.DocumentRepository.Pages.Documents.ManageModel
+@using ProjectManagement.Data.DocRepo
 @{
     ViewData["Title"] = "Manage document";
 }
@@ -61,12 +62,20 @@
                     </dd>
                     <dt class="col-sm-3">OCR status</dt>
                     <dd class="col-sm-9">@Model.Document.OcrStatus.ToString()</dd>
-                    @if (!string.IsNullOrEmpty(Model.Document.OcrFailureReason))
-                    {
-                        <dt class="col-sm-3">OCR failure</dt>
-                        <dd class="col-sm-9">@Model.Document.OcrFailureReason</dd>
-                    }
                 </dl>
+
+                @if (Model.Document.OcrStatus == DocOcrStatus.Failed)
+                {
+                    <div class="mt-3">
+                        <form method="post" asp-page-handler="RetryOcr" asp-route-id="@Model.Document.Id" class="d-inline">
+                            <button type="submit" class="btn btn-outline-secondary btn-sm">Retry OCR</button>
+                        </form>
+                        @if (!string.IsNullOrWhiteSpace(Model.Document.OcrFailureReason))
+                        {
+                            <div class="text-danger small mt-2">@Model.Document.OcrFailureReason</div>
+                        }
+                    </div>
+                }
             </div>
         </div>
 
