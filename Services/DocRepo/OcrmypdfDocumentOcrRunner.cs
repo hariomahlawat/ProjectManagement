@@ -40,7 +40,7 @@ public sealed class OcrmypdfDocumentOcrRunner : IDocumentOcrRunner
             FileName = "ocrmypdf",
             Arguments = $"--sidecar \"{sidecar}\" \"{inputPdf}\" \"{outputPdf}\"",
             RedirectStandardError = true,
-            RedirectStandardOutput = true,
+            RedirectStandardOutput = false,
             UseShellExecute = false,
             CreateNoWindow = true
         };
