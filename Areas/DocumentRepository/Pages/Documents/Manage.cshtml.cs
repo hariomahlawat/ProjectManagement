@@ -145,7 +145,9 @@ public class ManageModel : PageModel
     // SECTION: OCR management handlers
     public async Task<IActionResult> OnPostRetryOcrAsync(Guid id, CancellationToken cancellationToken)
     {
-        var document = await _db.Documents.FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+        var document = await _db.Documents
+            .Include(d => d.DocumentText)
+            .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
         if (document is null || document.IsDeleted)
         {
             return NotFound();
@@ -154,10 +156,15 @@ public class ManageModel : PageModel
         var userId = GetUserId();
         document.OcrStatus = DocOcrStatus.Pending;
         document.OcrFailureReason = null;
-        document.ExtractedText = null;
         document.OcrLastTriedUtc = null;
         document.UpdatedAtUtc = DateTime.UtcNow;
         document.UpdatedByUserId = userId;
+
+        if (document.DocumentText is not null)
+        {
+            document.DocumentText.OcrText = null;
+            document.DocumentText.UpdatedAtUtc = DateTime.UtcNow;
+        }
 
         await _db.SaveChangesAsync(cancellationToken);
 

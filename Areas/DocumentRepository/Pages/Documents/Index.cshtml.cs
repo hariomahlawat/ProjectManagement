@@ -15,8 +15,13 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
     public class IndexModel : PageModel
     {
         private readonly ApplicationDbContext _db;
+        private readonly IDocumentSearchService _searchService;
 
-        public IndexModel(ApplicationDbContext db) => _db = db;
+        public IndexModel(ApplicationDbContext db, IDocumentSearchService searchService)
+        {
+            _db = db;
+            _searchService = searchService;
+        }
 
         // filters
         [FromQuery(Name = "q")] public string? Q { get; set; }
@@ -63,16 +68,11 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 q = q.Where(d => d.IsActive);
             }
 
-            // text search
-            if (!string.IsNullOrWhiteSpace(Q))
+            var hasSearch = _searchService.TryPrepareQuery(Q, out var preparedQuery);
+            if (hasSearch)
             {
-                var text = Q.Trim();
-                var pattern = $"%{text}%";
-
-                q = q.Where(d =>
-                    EF.Functions.ILike(d.Subject, pattern) ||
-                    (d.ReceivedFrom != null && EF.Functions.ILike(d.ReceivedFrom, pattern)) ||
-                    d.DocumentTags.Any(dt => EF.Functions.ILike(dt.Tag.Name, pattern)));
+                Q = preparedQuery;
+                q = _searchService.ApplySearch(q, preparedQuery);
             }
 
             // exact tag
@@ -111,11 +111,14 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             // count before paging
             TotalCount = await q.CountAsync();
 
-            // ordering: first those with a date, then newest date, then created
-            q = q
-                .OrderByDescending(d => d.DocumentDate.HasValue)
-                .ThenByDescending(d => d.DocumentDate)
-                .ThenByDescending(d => d.CreatedAtUtc);
+            if (!hasSearch)
+            {
+                // ordering: first those with a date, then newest date, then created
+                q = q
+                    .OrderByDescending(d => d.DocumentDate.HasValue)
+                    .ThenByDescending(d => d.DocumentDate)
+                    .ThenByDescending(d => d.CreatedAtUtc);
+            }
 
             // page
             Items = await q

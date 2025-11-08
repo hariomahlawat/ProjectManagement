@@ -184,6 +184,7 @@ public class UploadModel : PageModel
         // ===== check for existing document with same hash (deleted or not) =====
         var existingWithSameHash = await _db.Documents
             .Include(d => d.DocumentTags)
+            .Include(d => d.DocumentText)
             .FirstOrDefaultAsync(d => d.Sha256 == sha256Hex, cancellationToken);
 
         // save file to storage
@@ -218,11 +219,18 @@ public class UploadModel : PageModel
             existingWithSameHash.IsActive = true;
             existingWithSameHash.OcrStatus = DocOcrStatus.Pending;
             existingWithSameHash.OcrFailureReason = null;
+            existingWithSameHash.OcrLastTriedUtc = null;
 
             // replace tags
             if (existingWithSameHash.DocumentTags is not null && existingWithSameHash.DocumentTags.Count > 0)
             {
                 _db.DocumentTags.RemoveRange(existingWithSameHash.DocumentTags);
+            }
+
+            if (existingWithSameHash.DocumentText is not null)
+            {
+                existingWithSameHash.DocumentText.OcrText = null;
+                existingWithSameHash.DocumentText.UpdatedAtUtc = utcNow;
             }
 
             if (normalizedTags.Count > 0)
