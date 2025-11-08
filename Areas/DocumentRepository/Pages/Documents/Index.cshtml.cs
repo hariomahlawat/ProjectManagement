@@ -18,7 +18,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
         public IndexModel(ApplicationDbContext db) => _db = db;
 
-        // Filters
+        // filters
         [FromQuery(Name = "q")] public string? Q { get; set; }
         [FromQuery(Name = "tag")] public string? Tag { get; set; }
         [FromQuery(Name = "officeCategoryId")] public long? OfficeCategoryId { get; set; }
@@ -26,7 +26,7 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
         [FromQuery(Name = "year")] public int? Year { get; set; }
         [FromQuery(Name = "includeInactive")] public bool IncludeInactive { get; set; }
 
-        // Paging (rename avoids CS0108 because PageModel already has Page())
+        // paging
         private const int DefaultPageSize = 30;
 
         [FromQuery(Name = "page")]
@@ -40,17 +40,17 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
 
         public List<Document> Items { get; private set; } = new();
 
-        // Reference lists for filters
+        // for filter UI
         public List<OfficeCategory> OfficeCategories { get; private set; } = new();
         public List<DocumentCategory> DocumentCategories { get; private set; } = new();
 
         public async Task OnGetAsync()
         {
-            // Guard page & page size
+            // guard paging
             if (PageNumber < 1) PageNumber = 1;
             if (PageSize < 10 || PageSize > 200) PageSize = DefaultPageSize;
 
-            // Base query (EXPLICIT TYPE to avoid CS0266 on later reassignments)
+            // base query
             IQueryable<Document> q = _db.Documents
                 .AsNoTracking()
                 .Include(d => d.DocumentTags).ThenInclude(dt => dt.Tag)
@@ -63,60 +63,79 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
                 q = q.Where(d => d.IsActive);
             }
 
-            // Text search: subject / received from / tag names
+            // text search
             if (!string.IsNullOrWhiteSpace(Q))
             {
-                var pattern = $"%{Q.Trim()}%";
+                var text = Q.Trim();
+                var pattern = $"%{text}%";
+
                 q = q.Where(d =>
                     EF.Functions.ILike(d.Subject, pattern) ||
                     (d.ReceivedFrom != null && EF.Functions.ILike(d.ReceivedFrom, pattern)) ||
                     d.DocumentTags.Any(dt => EF.Functions.ILike(dt.Tag.Name, pattern)));
             }
 
-            // Exact tag filter (by name/normalized)
+            // exact tag
             if (!string.IsNullOrWhiteSpace(Tag))
             {
-                var tnorm = Tag.Trim();
-                var tnormLower = tnorm.ToLower();
+                var t = Tag.Trim();
+                var tLower = t.ToLower();
                 q = q.Where(d => d.DocumentTags.Any(dt =>
-                    dt.Tag.Name == tnorm || dt.Tag.NormalizedName == tnormLower));
+                    dt.Tag.Name == t || dt.Tag.NormalizedName == tLower));
             }
 
             if (OfficeCategoryId.HasValue)
-                q = q.Where(d => d.OfficeCategoryId == OfficeCategoryId.Value);
+            {
+                var officeId = OfficeCategoryId.Value;
+                q = q.Where(d => d.OfficeCategoryId == officeId);
+            }
 
             if (DocumentCategoryId.HasValue)
-                q = q.Where(d => d.DocumentCategoryId == DocumentCategoryId.Value);
+            {
+                var docCatId = DocumentCategoryId.Value;
+                q = q.Where(d => d.DocumentCategoryId == docCatId);
+            }
 
+            // index-friendly year filter for DateOnly? column
             if (Year.HasValue)
-                q = q.Where(d => d.DocumentDate.HasValue && d.DocumentDate.Value.Year == Year.Value);
+            {
+                var start = new DateOnly(Year.Value, 1, 1);
+                var end = start.AddYears(1);
 
-            // Count before paging
+                q = q.Where(d =>
+                    d.DocumentDate.HasValue &&
+                    d.DocumentDate.Value >= start &&
+                    d.DocumentDate.Value < end);
+            }
+
+            // count before paging
             TotalCount = await q.CountAsync();
 
-            // Ordering without mixing DateOnly? and DateTime/DateTimeOffset
+            // ordering: first those with a date, then newest date, then created
             q = q
-                .OrderByDescending(d => d.DocumentDate.HasValue) // items with DocumentDate first
-                .ThenByDescending(d => d.DocumentDate)           // newest DocumentDate first
-                .ThenByDescending(d => d.CreatedAtUtc);          // fallback
+                .OrderByDescending(d => d.DocumentDate.HasValue)
+                .ThenByDescending(d => d.DocumentDate)
+                .ThenByDescending(d => d.CreatedAtUtc);
 
-            // Page
+            // page
             Items = await q
                 .Skip((PageNumber - 1) * PageSize)
                 .Take(PageSize)
                 .ToListAsync();
 
-            // For filters UI
+            // lookup data for filter modal
             OfficeCategories = await _db.OfficeCategories
                 .AsNoTracking()
                 .Where(o => o.IsActive)
                 .OrderBy(o => o.SortOrder)
+                .ThenBy(o => o.Name)
                 .ToListAsync();
 
             DocumentCategories = await _db.DocumentCategories
                 .AsNoTracking()
                 .Where(c => c.IsActive)
                 .OrderBy(c => c.SortOrder)
+                .ThenBy(c => c.Name)
                 .ToListAsync();
         }
     }

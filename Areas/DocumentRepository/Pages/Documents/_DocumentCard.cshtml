@@ -2,8 +2,14 @@
 @using Microsoft.AspNetCore.Authorization
 @inject IAuthorizationService AuthorizationService
 
+@{
+    var canEdit = await AuthorizationService.AuthorizeAsync(User, "DocRepo.EditMetadata");
+    var canSoftDelete = await AuthorizationService.AuthorizeAsync(User, "DocRepo.SoftDelete");
+    var showManageActions = canEdit.Succeeded || canSoftDelete.Succeeded;
+}
+
 <div class="doc-card doc-corner h-100">
-    <!-- header strip -->
+    <!-- header -->
     <div class="doc-card__header">
         <div class="doc-card__path">
             @if (Model.OfficeCategory is not null)
@@ -38,7 +44,6 @@
             @Model.Subject
         </h6>
 
-        @* tags *@
         @if (Model.DocumentTags?.Any() == true)
         {
             <div class="doc-card__tags mt-1">
@@ -50,11 +55,12 @@
         }
     </div>
 
-    <!-- footer / actions -->
+    <!-- footer -->
     <div class="doc-card__actions">
         <authorize policy="DocRepo.View">
             <a class="btn btn-sm btn-outline-primary"
-               asp-page="./Reader" asp-route-id="@Model.Id" title="Open viewer">
+               asp-page="./Reader" asp-route-id="@Model.Id"
+               title="Open viewer">
                 <i class="bi bi-eye"></i>
                 <span class="d-none d-sm-inline">View</span>
             </a>
@@ -62,62 +68,64 @@
 
         <authorize policy="DocRepo.View">
             <a class="btn btn-sm btn-outline-secondary"
-               asp-page="./Download" asp-route-id="@Model.Id" title="Download PDF">
+               asp-page="./Download" asp-route-id="@Model.Id"
+               title="Download PDF">
                 <i class="bi bi-download"></i>
                 <span class="d-none d-sm-inline">Download</span>
             </a>
         </authorize>
 
-        @{
-            var canEdit = await AuthorizationService.AuthorizeAsync(User, "DocRepo.EditMetadata");
-            var canSoftDelete = await AuthorizationService.AuthorizeAsync(User, "DocRepo.SoftDelete");
-        }
+        <!-- always render the kebab so layout stays consistent -->
+        <div class="ms-auto dropdown doc-card__dropdown">
+            <button class="btn btn-sm btn-light doc-card__more"
+                    type="button"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                    title="More actions">
+                <i class="bi bi-three-dots-vertical"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                @if (canEdit.Succeeded)
+                {
+                    <li>
+                        <a class="dropdown-item"
+                           asp-page="./Edit" asp-route-id="@Model.Id">
+                            <i class="bi bi-pencil-square me-2"></i>Edit metadata
+                        </a>
+                    </li>
+                }
+                else
+                {
+                    <li><span class="dropdown-item text-muted small">No editable fields</span></li>
+                }
 
-        @if (canEdit.Succeeded || canSoftDelete.Succeeded)
-        {
-            <div class="ms-auto dropdown">
-                <button class="btn btn-sm btn-light doc-card__more" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="More actions">
-                    <i class="bi bi-three-dots-vertical"></i>
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end">
-                    <authorize policy="DocRepo.EditMetadata">
-                        <li>
-                            <a class="dropdown-item" asp-page="./Edit" asp-route-id="@Model.Id">
-                                <i class="bi bi-pencil-square me-2"></i>Edit metadata
-                            </a>
-                        </li>
-                    </authorize>
-
-                    <authorize policy="DocRepo.SoftDelete">
-                        <li><hr class="dropdown-divider" /></li>
-
-                        <li>
-                            <form method="post" asp-page="./Manage" asp-page-handler="Deactivate" asp-route-id="@Model.Id" class="px-3 py-1">
-                                <button type="submit" class="btn btn-link p-0 text-warning">
-                                    <i class="bi bi-slash-circle me-2"></i>Deactivate
-                                </button>
-                            </form>
-                        </li>
-
-                        <li>
-                            <form method="post" asp-page="./Manage" asp-page-handler="Activate" asp-route-id="@Model.Id" class="px-3 py-1">
-                                <button type="submit" class="btn btn-link p-0 text-success">
-                                    <i class="bi bi-check2-circle me-2"></i>Activate
-                                </button>
-                            </form>
-                        </li>
-
-                        <li>
-                            <form method="post" asp-page="./Manage" asp-page-handler="RequestDelete" asp-route-id="@Model.Id" class="px-3 py-1">
-                                <input type="hidden" name="reason" value="Obsolete" />
-                                <button type="submit" class="btn btn-link p-0 text-danger">
-                                    <i class="bi bi-trash me-2"></i>Request delete
-                                </button>
-                            </form>
-                        </li>
-                    </authorize>
-                </ul>
-            </div>
-        }
+                @if (canSoftDelete.Succeeded)
+                {
+                    <li><hr class="dropdown-divider" /></li>
+                    <li>
+                        <form method="post" asp-page="./Manage" asp-page-handler="Deactivate" asp-route-id="@Model.Id" class="px-3 py-1">
+                            <button type="submit" class="btn btn-link p-0 text-warning">
+                                <i class="bi bi-slash-circle me-2"></i>Deactivate
+                            </button>
+                        </form>
+                    </li>
+                    <li>
+                        <form method="post" asp-page="./Manage" asp-page-handler="Activate" asp-route-id="@Model.Id" class="px-3 py-1">
+                            <button type="submit" class="btn btn-link p-0 text-success">
+                                <i class="bi bi-check2-circle me-2"></i>Activate
+                            </button>
+                        </form>
+                    </li>
+                    <li>
+                        <form method="post" asp-page="./Manage" asp-page-handler="RequestDelete" asp-route-id="@Model.Id" class="px-3 py-1">
+                            <input type="hidden" name="reason" value="Obsolete" />
+                            <button type="submit" class="btn btn-link p-0 text-danger">
+                                <i class="bi bi-trash me-2"></i>Request delete
+                            </button>
+                        </form>
+                    </li>
+                }
+            </ul>
+        </div>
     </div>
 </div>
