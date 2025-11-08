@@ -26,4 +26,8 @@ public record class NavigationItem
     public string? BadgeViewComponentName { get; init; }
 
     public object? BadgeViewComponentParameters { get; init; }
+
+    public string? Icon { get; init; }
+
+    public string? Accent { get; init; }
 }

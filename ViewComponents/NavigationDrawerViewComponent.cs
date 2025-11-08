@@ -74,7 +74,9 @@ public class NavigationDrawerViewComponent : ViewComponent
             HasActiveDescendant = hasActiveDescendant,
             Children = childNodes,
             BadgeViewComponentName = item.BadgeViewComponentName,
-            BadgeViewComponentParameters = item.BadgeViewComponentParameters
+            BadgeViewComponentParameters = item.BadgeViewComponentParameters,
+            Icon = item.Icon,
+            Accent = item.Accent
         };
     }
 
@@ -180,6 +182,10 @@ public sealed record class NavigationDrawerNode
     public string? BadgeViewComponentName { get; init; }
 
     public object? BadgeViewComponentParameters { get; init; }
+
+    public string? Icon { get; init; }
+
+    public string? Accent { get; init; }
 }
 
 public sealed record class NavigationDrawerItemsViewModel(
