@@ -1,5 +1,6 @@
 const DESKTOP_MEDIA_QUERY = '(min-width: 992px)';
 
+// ---------- Utility selectors ----------
 const FOCUSABLE_SELECTORS = [
   'a[href]',
   'area[href]',
@@ -14,6 +15,7 @@ const FOCUSABLE_SELECTORS = [
   '[tabindex]:not([tabindex="-1"])'
 ].join(', ');
 
+// ---------- Utility helpers ----------
 function normaliseId(id) {
   return typeof id === 'string' ? id.replace(/^#/, '') : '';
 }
@@ -80,6 +82,7 @@ function setupDrawer(drawer) {
   const panel = drawer.querySelector('[data-drawer-panel]') || drawer;
   const overlay = drawer.querySelector('[data-drawer-overlay]');
   const closeButtons = Array.from(drawer.querySelectorAll('[data-drawer-close]'));
+  const groups = Array.from(drawer.querySelectorAll('[data-drawer-group]'));
   const toggles = findTogglesForDrawer(resolvedId);
   const isStaticDrawer = drawer.hasAttribute('data-drawer-static');
 
@@ -93,6 +96,50 @@ function setupDrawer(drawer) {
     }
 
     toggle.setAttribute('aria-expanded', drawer.classList.contains('is-open') ? 'true' : 'false');
+  });
+
+  // ---------- Drawer group toggles ----------
+  groups.forEach((group) => {
+    if (!(group instanceof HTMLElement) || group.dataset.drawerGroupInitialized === 'true') {
+      return;
+    }
+
+    const summary = group.querySelector('[data-drawer-group-summary]');
+    const groupPanel = group.querySelector('[data-drawer-group-panel]');
+    const links = group.querySelectorAll('[data-drawer-group-link]');
+
+    links.forEach((link) => {
+      link.addEventListener('click', (event) => {
+        event.stopPropagation();
+      });
+    });
+
+    const sync = () => {
+      const expanded = group instanceof HTMLDetailsElement ? group.open : summary?.getAttribute('aria-expanded') === 'true';
+
+      if (summary instanceof HTMLElement) {
+        summary.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+      }
+
+      if (groupPanel instanceof HTMLElement) {
+        groupPanel.setAttribute('aria-hidden', expanded ? 'false' : 'true');
+      }
+    };
+
+    if (group instanceof HTMLDetailsElement) {
+      group.addEventListener('toggle', sync);
+      sync();
+    } else if (summary instanceof HTMLElement && groupPanel instanceof HTMLElement) {
+      summary.addEventListener('click', (event) => {
+        event.preventDefault();
+        const expanded = summary.getAttribute('aria-expanded') === 'true';
+        summary.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+        groupPanel.setAttribute('aria-hidden', expanded ? 'true' : 'false');
+      });
+      sync();
+    }
+
+    group.dataset.drawerGroupInitialized = 'true';
   });
 
   let restoreFocusTo = null;
