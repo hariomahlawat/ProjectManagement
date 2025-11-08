@@ -1,21 +1,139 @@
 ﻿/* ───────────────────────────────
-   Document cards
+   DOCUMENT REPOSITORY – LETTER CARDS
+   drop-in replacement for docrepo-ui.css
    ─────────────────────────────── */
+
+/* base card – letter look */
 .doc-card {
-    border: 1px solid rgba(0,0,0,.06);
-    border-radius: .75rem;
-    transition: box-shadow .15s ease, transform .15s ease;
+    position: relative;
+    background: #ffffff;
+    border: 1px solid rgba(15, 23, 42, 0.015);
+    border-radius: 18px;
+    box-shadow: 0 16px 38px rgba(15, 23, 42, 0.03);
+    min-height: 150px;
+    display: flex;
+    flex-direction: column;
+    overflow: visible; /* we want dropdowns to escape */
+    /* do NOT use isolation:isolate here, it traps dropdowns */
+    transition: transform .15s ease, box-shadow .15s ease;
 }
 
+    /* pale binder strip on the left */
+    .doc-card::before {
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: 54px;
+        background: linear-gradient(180deg, #f1f5ff 0%, #e3e8ff 100%);
+        border-right: 1px solid rgba(79, 70, 229, 0.05);
+        z-index: 1;
+    }
+
+    /* punch holes */
+    .doc-card::after {
+        content: "";
+        position: absolute;
+        left: 16px;
+        top: 24px;
+        width: 10px;
+        height: 64px;
+        background: radial-gradient(circle, rgba(15,23,42,0.06) 0, rgba(15,23,42,0.06) 38%, transparent 40%) 0 0/10px 22px repeat-y;
+        filter: drop-shadow(0 1px 1px rgba(15,23,42,0.05));
+        z-index: 2;
+    }
+
+    /* folded corner variant */
+    .doc-card.doc-corner > .doc-card__header::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 48px;
+        height: 48px;
+        background: linear-gradient(135deg, #ffffff 0%, #dfe6ff 85%);
+        clip-path: polygon(0 0, 100% 0, 100% 100%);
+        opacity: .4;
+        pointer-events: none;
+        z-index: 5;
+    }
+
+    /* hover */
     .doc-card:hover {
-        box-shadow: 0 0.5rem 1rem rgba(0,0,0,.08);
+        transform: translateY(-1px);
+        box-shadow: 0 18px 40px rgba(15, 23, 42, 0.045);
     }
 
-    .doc-card .card-body {
-        padding-bottom: .5rem;
-    }
+/* ── header band ───────────────── */
+.doc-card__header {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    gap: .5rem;
+    padding: .5rem 1.05rem .3rem 68px; /* match strip width */
+    background: radial-gradient(circle at top, #f8fafc 0%, #ffffff 60%);
+    border-bottom: 1px solid rgba(15, 23, 42, 0.015);
+    min-height: 40px;
+    z-index: 4;
+}
 
-/* clamp titles to 2 lines */
+.doc-card__path {
+    font-size: .67rem;
+    color: #6b7280;
+    line-height: 1.05rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.doc-card__crumb + .doc-card__crumb {
+    margin-left: .35rem;
+}
+
+/* OCR stamp */
+.doc-card__stamp {
+    align-self: flex-start;
+    font-size: .6rem;
+    text-transform: uppercase;
+    font-weight: 600;
+    padding: .22rem .55rem .26rem;
+    border-radius: 9999px;
+    background: rgba(226, 232, 240, .85);
+    border: 1px solid rgba(148, 163, 184, .38);
+    white-space: nowrap;
+}
+
+.doc-card__stamp--ok {
+    background: rgba(22, 163, 74, 0.11);
+    border-color: rgba(22, 163, 74, 0.28);
+    color: #166534;
+}
+
+.doc-card__stamp--fail {
+    background: rgba(248, 113, 113, 0.09);
+    border-color: rgba(248, 113, 113, 0.28);
+    color: #b91c1c;
+}
+
+.doc-card__stamp--pending {
+    background: rgba(252, 211, 77, 0.10);
+    border-color: rgba(252, 211, 77, 0.28);
+    color: #92400e;
+}
+
+/* ── body ───────────────── */
+.doc-card__body {
+    padding: .55rem 1.05rem .4rem 68px;
+    z-index: 4;
+}
+
+.doc-card__title {
+    font-size: .88rem;
+    font-weight: 600;
+    margin-bottom: .15rem;
+    line-height: 1.12rem;
+}
+
+/* clamp title to 2 lines */
 .text-truncate-2 {
     display: -webkit-box;
     -webkit-line-clamp: 2;
@@ -23,48 +141,59 @@
     overflow: hidden;
 }
 
-/* meta line */
-.doc-meta {
-    line-height: 1.25rem;
-}
-
-/* tags on the card */
-.doc-tags {
+/* tags inside card */
+.doc-card__tags {
     display: flex;
-    flex-wrap: wrap;
     gap: .25rem;
+    flex-wrap: wrap;
 }
 
-    .doc-tags .badge {
-        background: #f8f9fa;
-    }
-
-/* chip look (used on some cards) */
-.doc-chip {
-    background: #f3f4f6;
-    color: #111827;
-    border: 1px solid #e5e7eb;
+.doc-tag {
+    background: #f8fafc;
+    border: 1px solid rgba(148,163,184,.35);
+    color: #0f172a;
+    font-size: .6rem;
     border-radius: 9999px;
-    font-weight: 500;
-    padding: .15rem .6rem;
-    font-size: .7rem;
+    padding: .05rem .45rem .12rem;
 }
 
-/* footer should not stretch because of forms/buttons */
-.doc-card .card-footer {
-    overflow: hidden;
+/* ── footer / actions ───────────────── */
+.doc-card__actions {
+    margin-top: auto;
+    padding: .5rem 1.05rem .6rem 68px;
+    background: linear-gradient(180deg, rgba(248, 250, 252, 0.25) 0%, rgba(248, 250, 252, 0.95) 100%);
+    display: flex;
+    gap: .5rem;
+    align-items: center;
+    border-top: 1px solid rgba(15, 23, 42, 0.015);
+    z-index: 10; /* above decorative strips */
+    overflow: visible;
+    position: relative;
 }
 
-    .doc-card .card-footer form {
-        display: inline-block;
+    .doc-card__actions .btn {
+        border-radius: 12px;
     }
 
-/* don’t force a big width on buttons here; let them wrap on small cards */
-/* .doc-card .card-footer .btn { }  ← intentionally empty */
+.doc-card__more {
+    border-radius: 9999px;
+}
 
+/* ── dropdown fix ─────────────────
+   We must make sure the dropdown is above the card & not clipped
+*/
+.doc-card .dropdown {
+    position: relative;
+    z-index: 20;
+}
+
+.doc-card .dropdown-menu {
+    z-index: 9999;
+    margin-top: .4rem;
+}
 
 /* ───────────────────────────────
-   Document repository – search bar
+   SEARCH BAR (same style as earlier)
    ─────────────────────────────── */
 .docrepo-search-shell {
     display: flex;
@@ -118,9 +247,23 @@
 }
 
 /* ───────────────────────────────
-   Responsive
+   RESPONSIVE
    ─────────────────────────────── */
 @media (max-width: 768px) {
+    .doc-card::before {
+        width: 48px;
+    }
+
+    .doc-card__header,
+    .doc-card__body,
+    .doc-card__actions {
+        padding-left: 58px;
+    }
+
+    .doc-card__path {
+        max-width: 60%;
+    }
+
     .docrepo-searchbar {
         flex-wrap: wrap;
         border-radius: 1.25rem;
@@ -131,3 +274,17 @@
         justify-content: flex-end;
     }
 }
+/* lift the card above its siblings while interacting */
+.doc-card {
+    position: relative;
+}
+
+    .doc-card:hover,
+    .doc-card:focus-within {
+        z-index: 50; /* higher than other cards */
+    }
+
+    /* keep dropdown above card visuals */
+    .doc-card .dropdown-menu {
+        z-index: 2000;
+    }

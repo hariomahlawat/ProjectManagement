@@ -2,52 +2,56 @@
 @using Microsoft.AspNetCore.Authorization
 @inject IAuthorizationService AuthorizationService
 
-
-<div class="card h-100 shadow-sm">
-    <div class="card-body">
-        <div class="d-flex justify-content-between align-items-start">
-            <div>
-                <h6 class="card-title mb-1 text-truncate" title="@Model.Subject">@Model.Subject</h6>
-                <div class="text-muted small">
-                    @Model.OfficeCategory?.Name
-                    @if (Model.DocumentCategory != null)
-                    {
-                        <text> · @Model.DocumentCategory.Name</text>
-                    }
-                    @if (Model.DocumentDate.HasValue)
-                    {
-                        <text> · @Model.DocumentDate.Value.ToString("dd MMM yyyy")</text>
-                    }
-                </div>
-
-                @* Tags *@
-                @if (Model.DocumentTags?.Any() == true)
-                {
-                    <div class="mt-2">
-                        @foreach (var t in Model.DocumentTags.Select(x => x.Tag))
-                        {
-                            <span class="badge bg-light text-secondary border me-1">@t.Name</span>
-                        }
-                    </div>
-                }
-            </div>
-
-            <span class="badge @(Model.OcrStatus switch
-                  {
-                      ProjectManagement.Data.DocRepo.DocOcrStatus.Succeeded => "bg-success",
-                      ProjectManagement.Data.DocRepo.DocOcrStatus.Failed => "bg-danger",
-                      ProjectManagement.Data.DocRepo.DocOcrStatus.Pending => "bg-secondary",
-                      _ => "bg-light text-dark"
-                  })"
-                  title="@(Model.OcrStatus == ProjectManagement.Data.DocRepo.DocOcrStatus.Failed ? Model.OcrFailureReason : null)">
-                OCR: @Model.OcrStatus
-            </span>
+<div class="doc-card doc-corner h-100">
+    <!-- header strip -->
+    <div class="doc-card__header">
+        <div class="doc-card__path">
+            @if (Model.OfficeCategory is not null)
+            {
+                <span class="doc-card__crumb">@Model.OfficeCategory.Name</span>
+            }
+            @if (Model.DocumentCategory is not null)
+            {
+                <span class="doc-card__crumb">· @Model.DocumentCategory.Name</span>
+            }
+            @if (Model.DocumentDate.HasValue)
+            {
+                <span class="doc-card__crumb">· @Model.DocumentDate.Value.ToString("dd MMM yyyy")</span>
+            }
         </div>
+
+        <span class="doc-card__stamp @(Model.OcrStatus switch
+              {
+                  ProjectManagement.Data.DocRepo.DocOcrStatus.Succeeded => "doc-card__stamp--ok",
+                  ProjectManagement.Data.DocRepo.DocOcrStatus.Failed => "doc-card__stamp--fail",
+                  ProjectManagement.Data.DocRepo.DocOcrStatus.Pending => "doc-card__stamp--pending",
+                  _ => ""
+              })"
+              title="@(Model.OcrStatus == ProjectManagement.Data.DocRepo.DocOcrStatus.Failed ? Model.OcrFailureReason : null)">
+            OCR: @Model.OcrStatus
+        </span>
     </div>
 
-    <div class="card-footer d-flex gap-2 align-items-center">
+    <!-- body -->
+    <div class="doc-card__body">
+        <h6 class="doc-card__title text-truncate-2" title="@Model.Subject">
+            @Model.Subject
+        </h6>
 
-        @* PRIMARY: always available to signed-in users (DocRepo.View) *@
+        @* tags *@
+        @if (Model.DocumentTags?.Any() == true)
+        {
+            <div class="doc-card__tags mt-1">
+                @foreach (var t in Model.DocumentTags.Select(x => x.Tag))
+                {
+                    <span class="doc-tag">@t.Name</span>
+                }
+            </div>
+        }
+    </div>
+
+    <!-- footer / actions -->
+    <div class="doc-card__actions">
         <authorize policy="DocRepo.View">
             <a class="btn btn-sm btn-outline-primary"
                asp-page="./Reader" asp-route-id="@Model.Id" title="Open viewer">
@@ -56,7 +60,6 @@
             </a>
         </authorize>
 
-        @* SECONDARY: download available to DocRepo.View *@
         <authorize policy="DocRepo.View">
             <a class="btn btn-sm btn-outline-secondary"
                asp-page="./Download" asp-route-id="@Model.Id" title="Download PDF">
@@ -65,7 +68,6 @@
             </a>
         </authorize>
 
-        @* COMPACT ACTIONS: everything else goes into a kebab dropdown (icon-only), shown only if user has at least one of the extra capabilities *@
         @{
             var canEdit = await AuthorizationService.AuthorizeAsync(User, "DocRepo.EditMetadata");
             var canSoftDelete = await AuthorizationService.AuthorizeAsync(User, "DocRepo.SoftDelete");
@@ -74,12 +76,10 @@
         @if (canEdit.Succeeded || canSoftDelete.Succeeded)
         {
             <div class="ms-auto dropdown">
-                <button class="btn btn-sm btn-outline-dark" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="More actions">
+                <button class="btn btn-sm btn-light doc-card__more" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="More actions">
                     <i class="bi bi-three-dots-vertical"></i>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end">
-
-                    @* Edit metadata *@
                     <authorize policy="DocRepo.EditMetadata">
                         <li>
                             <a class="dropdown-item" asp-page="./Edit" asp-route-id="@Model.Id">
@@ -88,7 +88,6 @@
                         </li>
                     </authorize>
 
-                    @* Soft delete group *@
                     <authorize policy="DocRepo.SoftDelete">
                         <li><hr class="dropdown-divider" /></li>
 
