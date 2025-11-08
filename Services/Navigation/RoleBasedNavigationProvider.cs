@@ -49,16 +49,6 @@ public class RoleBasedNavigationProvider : INavigationProvider
         {
             new()
             {
-                Text = "Projects",
-                Page = "/Projects/Index"
-            },
-            new()
-            {
-                Text = "Process",
-                Page = "/Process/Index"
-            },
-            new()
-            {
                 Text = "Calendar",
                 Page = "/Calendar/Index"
             },
@@ -69,15 +59,35 @@ public class RoleBasedNavigationProvider : INavigationProvider
             },
             new()
             {
-                Text = "Analytics",
-                Page = "/Analytics/Index"
-            },
-            new()
-            {
                 Text = "Miscellaneous activities",
                 Page = "/Activities/Index"
             }
         };
+        var projectModuleChildren = new List<NavigationItem>
+        {
+            new()
+            {
+                Text = "Projects repository",
+                Page = "/Projects/Index"
+            },
+            new()
+            {
+                Text = "Process",
+                Page = "/Process/Index"
+            },
+            new()
+            {
+                Text = "Analytics",
+                Page = "/Analytics/Index"
+            },
+
+        };
+
+        items.Add(new NavigationItem
+        {
+            Text = "Projects",
+            Children = projectModuleChildren
+        });
 
         var documentRepositoryChildren = new List<NavigationItem>
         {
