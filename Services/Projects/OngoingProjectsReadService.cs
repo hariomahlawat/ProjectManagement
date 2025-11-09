@@ -4,6 +4,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Projects;
+using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Stages;
 using System;
 using System.Collections.Generic;
@@ -14,8 +15,8 @@ using System.Threading.Tasks;
 namespace ProjectManagement.Services.Projects
 {
     /// <summary>
-    /// Read-only service to fetch all active/ongoing projects with their stage/timeline info.
-    /// Supports filtering by Lead Project Officer (LeadPoUserId) and returns officer display name.
+    /// Read-only service to fetch all active/ongoing projects with their stage/timeline info
+    /// plus latest remarks.
     /// </summary>
     public sealed class OngoingProjectsReadService
     {
@@ -28,15 +29,15 @@ namespace ProjectManagement.Services.Projects
 
         public async Task<IReadOnlyList<OngoingProjectRowDto>> GetAsync(
             int? projectCategoryId,
-            string? leadPoUserId,     // filter by officer (user id)
+            string? leadPoUserId,
             string? search,
             CancellationToken cancellationToken)
         {
-            // 1. active / ongoing projects only
+            // base query – active projects only
             var q = _db.Projects
                 .AsNoTracking()
                 .Include(p => p.Category)
-                .Include(p => p.LeadPoUser)  // we need name
+                .Include(p => p.LeadPoUser)
                 .Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Active
                             && !p.IsArchived
                             && !p.IsDeleted);
@@ -67,8 +68,9 @@ namespace ProjectManagement.Services.Projects
                     p.CategoryId,
                     CategoryName = p.Category != null ? p.Category.Name : null,
                     p.LeadPoUserId,
-                    // 👇 change "FullName" below if your ApplicationUser uses another property
-                    LeadPoName = p.LeadPoUser != null ? p.LeadPoUser.FullName ?? p.LeadPoUser.UserName : null
+                    LeadPoName = p.LeadPoUser != null
+                        ? (p.LeadPoUser.FullName ?? p.LeadPoUser.UserName)
+                        : null
                 })
                 .ToListAsync(cancellationToken);
 
@@ -79,16 +81,31 @@ namespace ProjectManagement.Services.Projects
 
             var projectIds = projects.Select(p => p.Id).ToArray();
 
-            // 2. load all stage rows for these projects
+            // 1) stages for the selected projects
             var allStages = await _db.ProjectStages
                 .AsNoTracking()
                 .Where(s => projectIds.Contains(s.ProjectId))
+                .ToListAsync(cancellationToken);
+
+            // 2) remarks for the selected projects
+            // we fetch all and split in memory – easy and still OK for this screen
+            var nowUtc = DateTime.UtcNow;
+            var tenDaysAgoUtc = nowUtc.AddDays(-10);
+
+            var allRemarks = await _db.Remarks
+                .AsNoTracking()
+                .Where(r =>
+                    projectIds.Contains(r.ProjectId) &&
+                    !r.IsDeleted &&
+                    r.Scope == RemarkScope.General)
+                .OrderByDescending(r => r.CreatedAtUtc)
                 .ToListAsync(cancellationToken);
 
             var result = new List<OngoingProjectRowDto>(projects.Count);
 
             foreach (var proj in projects)
             {
+                // stages grouped by code
                 var stagesForProject = allStages
                     .Where(s => s.ProjectId == proj.Id)
                     .ToDictionary(s => s.StageCode, s => s);
@@ -132,7 +149,7 @@ namespace ProjectManagement.Services.Projects
                     stageDtos.Add(new OngoingProjectStageDto
                     {
                         Code = code,
-                        Name = code, // StageCodes has no GetDisplayName
+                        Name = code, // no display-name helper, keep code
                         Status = status,
                         ActualCompletedOn = actualCompleted,
                         PlannedDue = plannedDue,
@@ -141,7 +158,7 @@ namespace ProjectManagement.Services.Projects
                     });
                 }
 
-                // determine current
+                // pick "current" stage
                 int currentIndex;
                 if (inProgressIndex.HasValue)
                 {
@@ -166,20 +183,48 @@ namespace ProjectManagement.Services.Projects
                     lastCompletedDate = stageDtos[lastCompletedIndex].ActualCompletedOn;
                 }
 
+                // remarks for this project
+                var remarksForProject = allRemarks
+                    .Where(r => r.ProjectId == proj.Id)
+                    .ToList();
+
+                // last 10 INTERNAL in last 10 days
+                var recentInternal = remarksForProject
+                    .Where(r =>
+                        r.Type == RemarkType.Internal &&
+                        r.CreatedAtUtc >= tenDaysAgoUtc)
+                    .OrderByDescending(r => r.CreatedAtUtc)
+                    .Take(10)
+                    .Select(r => new OngoingProjectRemarkDto
+                    {
+                        CreatedAtUtc = r.CreatedAtUtc,
+                        Text = r.Body,
+                        ActorRole = r.AuthorRole
+                    })
+                    .ToArray();
+
+                // latest EXTERNAL (if any)
+                var latestExternal = remarksForProject
+                    .Where(r => r.Type == RemarkType.External)
+                    .OrderByDescending(r => r.CreatedAtUtc)
+                    .Select(r => r.Body)
+                    .FirstOrDefault();
+
                 result.Add(new OngoingProjectRowDto
                 {
                     ProjectId = proj.Id,
                     ProjectName = proj.Name,
                     ProjectCategoryId = proj.CategoryId,
                     ProjectCategoryName = proj.CategoryName,
-                    // officer
                     LeadPoUserId = proj.LeadPoUserId,
                     LeadPoName = proj.LeadPoName,
                     CurrentStageCode = stageDtos[currentIndex].Code,
                     CurrentStageName = stageDtos[currentIndex].Name,
                     LastCompletedStageName = lastCompletedName,
                     LastCompletedStageDate = lastCompletedDate,
-                    Stages = stageDtos
+                    Stages = stageDtos,
+                    RecentInternalRemarks = recentInternal,
+                    LatestExternalRemark = latestExternal
                 });
             }
 
@@ -188,7 +233,6 @@ namespace ProjectManagement.Services.Projects
 
         /// <summary>
         /// Build officer dropdown from all active projects that have a LeadPoUser.
-        /// Value = LeadPoUserId, Text = officer name.
         /// </summary>
         public async Task<IReadOnlyList<SelectListItem>> GetProjectOfficerOptionsAsync(
             string? selectedOfficerId,
@@ -204,8 +248,9 @@ namespace ProjectManagement.Services.Projects
                 .Select(p => new
                 {
                     p.LeadPoUserId,
-                    // 👇 change "FullName" here too if needed
-                    Name = p.LeadPoUser != null ? p.LeadPoUser.FullName ?? p.LeadPoUser.UserName : p.LeadPoUserId
+                    Name = p.LeadPoUser != null
+                        ? (p.LeadPoUser.FullName ?? p.LeadPoUser.UserName)
+                        : p.LeadPoUserId
                 })
                 .Distinct()
                 .OrderBy(x => x.Name)
@@ -235,7 +280,6 @@ namespace ProjectManagement.Services.Projects
         public int? ProjectCategoryId { get; init; }
         public string? ProjectCategoryName { get; init; }
 
-        // officer
         public string? LeadPoUserId { get; init; }
         public string? LeadPoName { get; init; }
 
@@ -245,6 +289,9 @@ namespace ProjectManagement.Services.Projects
         public DateOnly? LastCompletedStageDate { get; init; }
 
         public IReadOnlyList<OngoingProjectStageDto> Stages { get; init; } = Array.Empty<OngoingProjectStageDto>();
+
+        public IReadOnlyList<OngoingProjectRemarkDto> RecentInternalRemarks { get; init; } = Array.Empty<OngoingProjectRemarkDto>();
+        public string? LatestExternalRemark { get; init; }
     }
 
     public sealed class OngoingProjectStageDto
@@ -256,5 +303,12 @@ namespace ProjectManagement.Services.Projects
         public DateOnly? PlannedDue { get; init; }
         public bool IsDataMissing { get; init; }
         public bool IsCurrent { get; set; }
+    }
+
+    public sealed class OngoingProjectRemarkDto
+    {
+        public DateTime CreatedAtUtc { get; init; }
+        public string Text { get; init; } = "";
+        public RemarkActorRole ActorRole { get; init; }
     }
 }

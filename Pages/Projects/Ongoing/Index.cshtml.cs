@@ -36,7 +36,7 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         [BindProperty(SupportsGet = true)]
         public int? ProjectCategoryId { get; set; }
 
-        // officer is user id
+        // LeadPoUserId
         [BindProperty(SupportsGet = true)]
         public string? ProjectOfficerId { get; set; }
 
@@ -83,7 +83,7 @@ namespace ProjectManagement.Pages.Projects.Ongoing
 
             var now = _clock.UtcNow;
 
-            // your builder currently takes (items, now, categoryId, search)
+            // existing builder: (items, now, categoryId, search)
             var file = _excelBuilder.Build(
                 new OngoingProjectsExportContext(
                     items,

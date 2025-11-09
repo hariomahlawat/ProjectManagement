@@ -1,5 +1,4 @@
 ﻿@page
-@using ProjectManagement.Models.Execution
 @using ProjectManagement.Models.Stages
 @model ProjectManagement.Pages.Projects.Ongoing.IndexModel
 @{
@@ -45,7 +44,7 @@ else
     <div class="row g-3">
         @foreach (var item in Model.Items)
         {
-            // find current stage index
+            // locate current stage
             var currentIdx = -1;
             for (var i = 0; i < item.Stages.Count; i++)
             {
@@ -134,9 +133,8 @@ else
                         </p>
 
                         <!-- Timeline -->
-                        <div class="d-flex align-items-center flex-wrap gap-2">
+                        <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
                             @{
-                                // show stages from start up to current stage
                                 for (var i = 0; i <= currentIdx; i++)
                                 {
                                     var stage = item.Stages[i];
@@ -153,8 +151,7 @@ else
                                             <div class="small">
                                                 @if (stage.ActualCompletedOn.HasValue)
                                                 {
-                                                    @stage.ActualCompletedOn.Value.ToString("dd-MMM")
-                                                    <div class="text-muted" style="line-height:1;">actual</div>
+                                                    @stage.ActualCompletedOn.Value.ToString("dd-MMM-yyyy")
                                                 }
                                                 else
                                                 {
@@ -173,7 +170,7 @@ else
                                             <div class="small">
                                                 @if (stage.PlannedDue.HasValue)
                                                 {
-                                                    <span>PDC: @stage.PlannedDue.Value.ToString("dd-MMM")</span>
+                                                    <span>PDC: @stage.PlannedDue.Value.ToString("dd-MMM-yyyy")</span>
                                                 }
                                                 else
                                                 {
@@ -183,7 +180,6 @@ else
                                         </div>
                                     }
 
-                                    // connector + days between completed stages
                                     if (i < currentIdx)
                                     {
                                         var next = item.Stages[i + 1];
@@ -191,8 +187,10 @@ else
 
                                         if (stage.ActualCompletedOn.HasValue && next.ActualCompletedOn.HasValue)
                                         {
-                                            days = (next.ActualCompletedOn.Value.ToDateTime(TimeOnly.MinValue)
-                                            - stage.ActualCompletedOn.Value.ToDateTime(TimeOnly.MinValue)).Days;
+                                            days = (
+                                            next.ActualCompletedOn.Value.ToDateTime(TimeOnly.MinValue)
+                                            - stage.ActualCompletedOn.Value.ToDateTime(TimeOnly.MinValue)
+                                            ).Days;
                                         }
 
                                         <div class="d-flex align-items-center gap-1">
@@ -211,6 +209,38 @@ else
                                 }
                             }
                         </div>
+
+                        <!-- Recent internal remarks -->
+                        <div class="border rounded bg-light-subtle p-2">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="small text-uppercase text-muted">Recent internal remarks (last 10 days)</span>
+                                @if (!string.IsNullOrWhiteSpace(item.LatestExternalRemark))
+                                {
+                                    <span class="badge bg-secondary-subtle text-muted border-0 small">has external note</span>
+                                }
+                            </div>
+                            @if (item.RecentInternalRemarks.Count == 0)
+                            {
+                                <p class="small text-muted mb-0">No internal remarks in the last 10 days.</p>
+                            }
+                            else
+                            {
+                                <ul class="list-unstyled mb-0 small">
+                                    @foreach (var r in item.RecentInternalRemarks)
+                                    {
+                                        <li class="mb-1">
+                                            <span class="text-muted">@r.CreatedAtUtc.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</span>
+                                            @if (r.ActorRole != ProjectManagement.Models.Remarks.RemarkActorRole.Unknown)
+                                            {
+                                                <span class="text-muted">• @r.ActorRole</span>
+                                            }
+                                            <div>@r.Text</div>
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                        </div>
+
                     </div>
                 </div>
             </div>
