@@ -60,22 +60,27 @@ public sealed class EditModel : PageModel
 
     public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
+        // basic model binding errors
         if (!ModelState.IsValid)
         {
             await LoadAsync(Input.ProjectId, populateForm: false, cancellationToken);
             return Page();
         }
 
-        if (!string.IsNullOrWhiteSpace(Input.TechStatus) && Array.IndexOf(ProjectTechStatusCodes.All, Input.TechStatus) < 0)
+        // 1. validate tech status
+        if (!string.IsNullOrWhiteSpace(Input.TechStatus) &&
+            Array.IndexOf(ProjectTechStatusCodes.All, Input.TechStatus) < 0)
         {
             ModelState.AddModelError(nameof(Input.TechStatus), "Select a valid technology status.");
         }
 
+        // 2. validate production cost
         if (Input.ApproxProductionCost is < 0)
         {
             ModelState.AddModelError(nameof(Input.ApproxProductionCost), "Approximate production cost cannot be negative.");
         }
 
+        // 3. validate new LPP block
         var hasNewLppInput = Input.HasNewLppPayload();
 
         if (hasNewLppInput && !Input.NewLppAmount.HasValue)
@@ -94,6 +99,7 @@ public sealed class EditModel : PageModel
             return Page();
         }
 
+        // 4. fetch project
         var project = await _db.Projects
             .FirstOrDefaultAsync(p => p.Id == Input.ProjectId, cancellationToken);
 
@@ -105,6 +111,7 @@ public sealed class EditModel : PageModel
         var userId = _userManager.GetUserId(User) ?? "system";
         var now = _clock.UtcNow;
 
+        // 5. production cost fact
         var prod = await _db.ProjectProductionCostFacts
             .FirstOrDefaultAsync(x => x.ProjectId == Input.ProjectId, cancellationToken);
 
@@ -122,6 +129,7 @@ public sealed class EditModel : PageModel
         prod.UpdatedAtUtc = now;
         prod.UpdatedByUserId = userId;
 
+        // 6. tech status
         var tech = await _db.ProjectTechStatuses
             .FirstOrDefaultAsync(x => x.ProjectId == Input.ProjectId, cancellationToken);
 
@@ -136,11 +144,22 @@ public sealed class EditModel : PageModel
 
         tech.TechStatus = Input.TechStatus ?? ProjectTechStatusCodes.Current;
         tech.AvailableForProliferation = Input.AvailableForProliferation;
-        tech.NotAvailableReason = Normalize(Input.NotAvailableReason);
+
+        // IMPORTANT: clear reason when it becomes available
+        if (Input.AvailableForProliferation)
+        {
+            tech.NotAvailableReason = null;
+        }
+        else
+        {
+            tech.NotAvailableReason = Normalize(Input.NotAvailableReason);
+        }
+
         tech.Remarks = Normalize(Input.TechRemarks);
         tech.MarkedAtUtc = now;
         tech.MarkedByUserId = userId;
 
+        // 7. validate selected document (for new LPP)
         if (Input.NewProjectDocumentId.HasValue)
         {
             var documentExists = await _db.ProjectDocuments
@@ -163,6 +182,7 @@ public sealed class EditModel : PageModel
             return Page();
         }
 
+        // 8. create LPP record if amount is present
         if (Input.NewLppAmount.HasValue)
         {
             var lpp = new ProjectLppRecord

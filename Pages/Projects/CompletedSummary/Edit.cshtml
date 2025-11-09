@@ -4,14 +4,11 @@
     ViewData["Title"] = "Edit completed project cost and status";
 }
 
-<!-- SECTION: Page heading -->
 <h1 class="mb-3">Edit completed project</h1>
 <p class="text-muted mb-4">@Model.ProjectName</p>
 
-<!-- SECTION: Validation summary -->
 <div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
 
-<!-- SECTION: Edit form -->
 <form method="post" class="row g-3">
     @Html.AntiForgeryToken()
     <input type="hidden" asp-for="Input.ProjectId" />
@@ -53,7 +50,6 @@
         <span asp-validation-for="Input.TechRemarks" class="text-danger"></span>
     </div>
 
-    <!-- SECTION: Existing LPP records -->
     <div class="col-12">
         <h2 class="h5 mt-2">Existing LPP records</h2>
         <div class="table-responsive">
@@ -68,36 +64,35 @@
                     </tr>
                 </thead>
                 <tbody>
-                @if (Model.Input.LppRecords.Count == 0)
-                {
-                    <tr>
-                        <td colspan="5" class="text-center text-muted py-3">No LPP records captured yet.</td>
-                    </tr>
-                }
-                else
-                {
-                    foreach (var record in Model.Input.LppRecords)
+                    @if (Model.Input.LppRecords.Count == 0)
                     {
                         <tr>
-                            <td>@record.Amount.ToString("0.##")</td>
-                            <td>@(record.Date?.ToString("dd-MMM-yyyy"))</td>
-                            <td>
-                                @if (record.DocumentId.HasValue)
-                                {
-                                    <a asp-page="/Projects/Documents/Preview" asp-route-documentId="@record.DocumentId.Value">@record.DocumentTitle</a>
-                                }
-                            </td>
-                            <td>@record.SupplyOrderNumber</td>
-                            <td>@record.Remarks</td>
+                            <td colspan="5" class="text-center text-muted py-3">No LPP records captured yet.</td>
                         </tr>
                     }
-                }
+                    else
+                    {
+                        foreach (var record in Model.Input.LppRecords)
+                        {
+                            <tr>
+                                <td>@record.Amount.ToString("0.##")</td>
+                                <td>@(record.Date?.ToString("dd-MMM-yyyy"))</td>
+                                <td>
+                                    @if (record.DocumentId.HasValue)
+                                    {
+                                        <a asp-page="/Projects/Documents/Preview" asp-route-documentId="@record.DocumentId.Value">@record.DocumentTitle</a>
+                                    }
+                                </td>
+                                <td>@record.SupplyOrderNumber</td>
+                                <td>@record.Remarks</td>
+                            </tr>
+                        }
+                    }
                 </tbody>
             </table>
         </div>
     </div>
 
-    <!-- SECTION: Add new LPP -->
     <div class="col-12">
         <h2 class="h5">Add new LPP</h2>
     </div>
