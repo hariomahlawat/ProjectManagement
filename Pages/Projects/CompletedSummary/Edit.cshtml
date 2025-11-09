@@ -50,6 +50,7 @@
         <span asp-validation-for="Input.TechRemarks" class="text-danger"></span>
     </div>
 
+    <!-- SECTION: Existing LPP records -->
     <div class="col-12">
         <h2 class="h5 mt-2">Existing LPP records</h2>
         <div class="table-responsive">
@@ -93,6 +94,7 @@
         </div>
     </div>
 
+    <!-- SECTION: Add new LPP -->
     <div class="col-12">
         <h2 class="h5">Add new LPP</h2>
     </div>
@@ -112,7 +114,16 @@
         <span asp-validation-for="Input.NewSupplyOrderNumber" class="text-danger"></span>
     </div>
     <div class="col-12 col-md-3">
-        <label asp-for="Input.NewProjectDocumentId" class="form-label">Supporting document</label>
+        <label class="form-label d-flex align-items-center gap-1">
+            Supporting document
+            <button type="button"
+                    class="btn btn-link p-0 border-0"
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="top"
+                    title="First upload the PDF to this project's Documents and publish it. Then come back here and select it from this list.">
+                <i class="bi bi-info-circle"></i>
+            </button>
+        </label>
         <select asp-for="Input.NewProjectDocumentId" asp-items="Model.DocumentOptions" class="form-select"></select>
         <span asp-validation-for="Input.NewProjectDocumentId" class="text-danger"></span>
     </div>
@@ -127,3 +138,17 @@
         <a asp-page="./Index" class="btn btn-outline-secondary">Back to list</a>
     </div>
 </form>
+
+@section Scripts {
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.forEach(function (tooltipTriggerEl) {
+                // will work if Bootstrap JS is loaded on the layout
+                if (window.bootstrap && bootstrap.Tooltip) {
+                    new bootstrap.Tooltip(tooltipTriggerEl);
+                }
+            });
+        });
+    </script>
+}
