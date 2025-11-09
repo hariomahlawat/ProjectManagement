@@ -2,6 +2,7 @@
 @using System.Text.RegularExpressions
 @using ProjectManagement.Models.Execution
 @using ProjectManagement.Models.Stages
+@using ProjectManagement.Models.Remarks
 @model ProjectManagement.Pages.Projects.Ongoing.IndexModel
 @{
     ViewData["Title"] = "Ongoing projects – progress & timelines";
@@ -86,7 +87,9 @@ else
                         <header class="ongoing-card__header">
                             <div>
                                 <h2 class="ongoing-card__title mb-1">
-                                    <a asp-page="/Projects/Overview" asp-route-id="@item.ProjectId" class="text-decoration-none">
+                                    <a asp-page="/Projects/Overview"
+                                       asp-route-id="@item.ProjectId"
+                                       class="text-decoration-none">
                                         @item.ProjectName
                                     </a>
                                 </h2>
@@ -121,42 +124,107 @@ else
                             </div>
                         </header>
 
+                        @{
+                            // at top of the foreach (or just before this block) we can have:
+                            var today = DateOnly.FromDateTime(DateTime.UtcNow.Date);
+                        }
                         <!-- current stage line -->
                         <div class="ongoing-card__info">
+                            @{
+                                var cur = item.Stages[currentIdx];
+
+                                // 1. days spent in current stage = today - last completed date
+                                int? daysInCurrent = null;
+                                if (item.LastCompletedStageDate.HasValue)
+                                {
+                                    daysInCurrent = (today.ToDateTime(TimeOnly.MinValue) -
+                                    item.LastCompletedStageDate.Value.ToDateTime(TimeOnly.MinValue)).Days;
+                                    if (daysInCurrent < 0)
+                                    {
+                                        // defensive – if data is weird, don't show negative
+                                        daysInCurrent = 0;
+                                    }
+                                }
+
+                                // 2. days to PDC / overdue
+                                int? daysToPdc = null;
+                                bool isOverdue = false;
+                                if (cur.PlannedDue.HasValue)
+                                {
+                                    daysToPdc = (cur.PlannedDue.Value.ToDateTime(TimeOnly.MinValue) -
+                                    today.ToDateTime(TimeOnly.MinValue)).Days;
+                                    if (daysToPdc < 0)
+                                    {
+                                        isOverdue = true;
+                                        daysToPdc = Math.Abs(daysToPdc.Value);
+                                    }
+                                }
+                            }
                             <p class="mb-0">
                                 <span class="ongoing-card__label">Current stage</span>
-                                @{
-                                    var cur = item.Stages[currentIdx];
-                                    if (cur.Status == StageStatus.Completed)
+                                @if (cur.Status == StageStatus.Completed)
+                                {
+                                    <span class="fw-medium">@cur.Name</span>
+                                    @if (cur.ActualCompletedOn.HasValue)
                                     {
-                                        <span class="fw-medium">@cur.Name</span>
-                                        if (cur.ActualCompletedOn.HasValue)
+                                        @: (@cur.ActualCompletedOn.Value.ToString("dd-MMM-yyyy"))
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">date not available</span>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="fw-medium">@cur.Name</span>
+                                    @if (cur.PlannedDue.HasValue)
+                                    {
+                                        @: (PDC: @cur.PlannedDue.Value.ToString("dd-MMM-yyyy"))
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">PDC: N/A</span>
+                                    }
+                                }
+
+                                @* extra line for stage age *@
+                                <span class="ms-2 text-muted" style="font-size:.7rem;">
+                                    @if (daysInCurrent.HasValue)
+                                    {
+                                        @: • @daysInCurrent day@(daysInCurrent == 1 ? "" : "s") in this stage
+                                    }
+                                </span>
+
+                                @if (cur.Status != StageStatus.Completed)
+                                {
+                                    if (cur.PlannedDue.HasValue)
+                                    {
+                                        if (!isOverdue)
                                         {
-                                            @: (@cur.ActualCompletedOn.Value.ToString("dd-MMM-yyyy"))
+                                            <span class="ms-2 text-success" style="font-size:.7rem;">
+                                                @daysToPdc day@(daysToPdc == 1 ? "" : "s") to PDC
+                                            </span>
                                         }
                                         else
                                         {
-                                            <span class="text-muted">date not available</span>
+                                            <span class="ms-2 text-danger" style="font-size:.7rem;">
+                                                overdue by @daysToPdc day@(daysToPdc == 1 ? "" : "s")
+                                            </span>
                                         }
                                     }
                                     else
                                     {
-                                        <span class="fw-medium">@cur.Name</span>
-                                        if (cur.PlannedDue.HasValue)
-                                        {
-                                            @: (PDC: @cur.PlannedDue.Value.ToString("dd-MMM-yyyy"))
-                                        }
-                                        else
-                                        {
-                                            <span class="text-muted">PDC: N/A</span>
-                                        }
+                                        <span class="ms-2 text-muted" style="font-size:.7rem;">
+                                            • no PDC set
+                                        </span>
                                     }
                                 }
                             </p>
                         </div>
 
+
                         <!-- Timeline -->
-                        <div class="d-flex align-items-center flex-wrap gap-2">
+                        <div class="d-flex align-items-center flex-wrap gap-2 px-4 py-3 border-top">
                             @{
                                 // show stages from start up to current stage
                                 for (var i = 0; i <= currentIdx; i++)
@@ -217,7 +285,7 @@ else
                                         }
 
                                         <div class="d-flex align-items-center gap-1">
-                                            <div style="width:50px;height:2px;background:rgba(0,0,0,.15);"></div>
+                                            <div style="width:50px;height:2px;background:rgba(0,0,0,.08);"></div>
                                             <div class="badge bg-light text-muted border small">
                                                 @(days.HasValue ? $"{days.Value} days" : "—")
                                             </div>
@@ -233,9 +301,8 @@ else
                             }
                         </div>
 
-
                         <!-- remarks -->
-                        <section class="ongoing-remarks">
+                        <section class="ongoing-remarks border-top">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <span class="ongoing-remarks__title">Recent internal remarks (last 10 days)</span>
                                 @if (!string.IsNullOrWhiteSpace(item.LatestExternalRemark))
@@ -256,7 +323,7 @@ else
                                         <li class="ongoing-remarks__item">
                                             <div class="ongoing-remarks__meta">
                                                 @r.CreatedAtUtc.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")
-                                                @if (r.ActorRole != ProjectManagement.Models.Remarks.RemarkActorRole.Unknown)
+                                                @if (r.ActorRole != RemarkActorRole.Unknown)
                                                 {
                                                     @: • @r.ActorRole
                                                 }
