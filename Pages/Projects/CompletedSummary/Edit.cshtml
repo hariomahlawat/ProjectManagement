@@ -50,22 +50,22 @@
         <span asp-validation-for="Input.TechRemarks" class="text-danger"></span>
     </div>
 
-    <!-- SECTION: Existing LPP records -->
+    <!-- SECTION: Existing LPP records (editable) -->
     <div class="col-12">
         <h2 class="h5 mt-2">Existing LPP records</h2>
         <div class="table-responsive">
-            <table class="table table-sm table-bordered align-middle">
+            <table class="table table-sm table-bordered align-middle mb-0">
                 <thead>
                     <tr>
-                        <th scope="col">Amount (lakh)</th>
-                        <th scope="col">Date</th>
-                        <th scope="col">Document</th>
-                        <th scope="col">SO number</th>
+                        <th scope="col" style="width: 140px;">Amount (lakh)</th>
+                        <th scope="col" style="width: 145px;">Date</th>
+                        <th scope="col" style="width: 200px;">Document</th>
+                        <th scope="col" style="width: 200px;">SO number</th>
                         <th scope="col">Remarks</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @if (Model.Input.LppRecords.Count == 0)
+                    @if (Model.Input.LppRecords == null || Model.Input.LppRecords.Count == 0)
                     {
                         <tr>
                             <td colspan="5" class="text-center text-muted py-3">No LPP records captured yet.</td>
@@ -73,19 +73,32 @@
                     }
                     else
                     {
-                        foreach (var record in Model.Input.LppRecords)
+                        for (var i = 0; i < Model.Input.LppRecords.Count; i++)
                         {
                             <tr>
-                                <td>@record.Amount.ToString("0.##")</td>
-                                <td>@(record.Date?.ToString("dd-MMM-yyyy"))</td>
                                 <td>
-                                    @if (record.DocumentId.HasValue)
-                                    {
-                                        <a asp-page="/Projects/Documents/Preview" asp-route-documentId="@record.DocumentId.Value">@record.DocumentTitle</a>
-                                    }
+                                    <input asp-for="Input.LppRecords[i].Id" type="hidden" />
+                                    <input asp-for="Input.LppRecords[i].Amount" class="form-control form-control-sm" />
+                                    <span asp-validation-for="Input.LppRecords[i].Amount" class="text-danger"></span>
                                 </td>
-                                <td>@record.SupplyOrderNumber</td>
-                                <td>@record.Remarks</td>
+                                <td>
+                                    <input asp-for="Input.LppRecords[i].Date" type="date" class="form-control form-control-sm" />
+                                    <span asp-validation-for="Input.LppRecords[i].Date" class="text-danger"></span>
+                                </td>
+                                <td>
+                                    <select asp-for="Input.LppRecords[i].DocumentId"
+                                            asp-items="Model.DocumentOptions"
+                                            class="form-select form-select-sm"></select>
+                                    <span asp-validation-for="Input.LppRecords[i].DocumentId" class="text-danger"></span>
+                                </td>
+                                <td>
+                                    <input asp-for="Input.LppRecords[i].SupplyOrderNumber" class="form-control form-control-sm" />
+                                    <span asp-validation-for="Input.LppRecords[i].SupplyOrderNumber" class="text-danger"></span>
+                                </td>
+                                <td>
+                                    <input asp-for="Input.LppRecords[i].Remarks" class="form-control form-control-sm" />
+                                    <span asp-validation-for="Input.LppRecords[i].Remarks" class="text-danger"></span>
+                                </td>
                             </tr>
                         }
                     }
@@ -126,7 +139,7 @@
                 <i class="bi bi-info-circle"></i>
             </span>
         </div>
-        <select asp-for="Input.NewProjectDocumentId" asp-items="Model.DocumentOptions" class="form-select mt-1"></select>
+        <select asp-for="Input.NewProjectDocumentId" asp-items="Model.DocumentOptions" class="form-select"></select>
         <span asp-validation-for="Input.NewProjectDocumentId" class="text-danger"></span>
     </div>
     <div class="col-12">
