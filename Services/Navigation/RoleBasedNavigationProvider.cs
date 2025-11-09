@@ -67,33 +67,38 @@ public class RoleBasedNavigationProvider : INavigationProvider
             }
         };
         var projectModuleChildren = new List<NavigationItem>
-        {
-            new()
-            {
-                Text = "Projects repository",
-                Page = "/Projects/Index",
-                Icon = "bi-collection"
-            },
-            new()
-            {
-                Text = "Completed projects summary",
-                Page = "/Projects/CompletedSummary/Index",
-                Icon = "bi-clipboard-data"
-            },
-            new()
-            {
-                Text = "Process",
-                Page = "/Process/Index",
-                Icon = "bi-diagram-3"
-            },
-            new()
-            {
-                Text = "Analytics",
-                Page = "/Analytics/Index",
-                Icon = "bi-graph-up"
-            },
-
-        };
+{
+    new()
+    {
+        Text = "Projects repository",
+        Page = "/Projects/Index",
+        Icon = "bi-collection"
+    },
+    new()
+    {
+        Text = "Ongoing projects",
+        Page = "/Projects/Ongoing/Index",
+        Icon = "bi-clock-history"
+    },
+    new()
+    {
+        Text = "Completed projects summary",
+        Page = "/Projects/CompletedSummary/Index",
+        Icon = "bi-clipboard-data"
+    },
+    new()
+    {
+        Text = "Process",
+        Page = "/Process/Index",
+        Icon = "bi-diagram-3"
+    },
+    new()
+    {
+        Text = "Analytics",
+        Page = "/Analytics/Index",
+        Icon = "bi-graph-up"
+    },
+};
 
         items.Add(new NavigationItem
         {
@@ -101,6 +106,7 @@ public class RoleBasedNavigationProvider : INavigationProvider
             Children = projectModuleChildren,
             Icon = "bi-kanban"
         });
+
 
         var documentRepositoryChildren = new List<NavigationItem>
         {
