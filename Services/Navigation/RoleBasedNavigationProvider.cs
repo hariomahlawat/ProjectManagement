@@ -76,6 +76,12 @@ public class RoleBasedNavigationProvider : INavigationProvider
             },
             new()
             {
+                Text = "Completed projects summary",
+                Page = "/Projects/CompletedSummary/Index",
+                Icon = "bi-clipboard-data"
+            },
+            new()
+            {
                 Text = "Process",
                 Page = "/Process/Index",
                 Icon = "bi-diagram-3"

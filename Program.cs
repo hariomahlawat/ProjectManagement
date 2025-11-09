@@ -309,6 +309,7 @@ builder.Services.AddScoped<PlanCompareService>();
 builder.Services.AddScoped<ProjectFactsService>();
 builder.Services.AddScoped<ProjectFactsReadService>();
 builder.Services.AddScoped<ProjectProcurementReadService>();
+builder.Services.AddScoped<CompletedProjectsSummaryService>();
 builder.Services.AddScoped<ProjectTimelineReadService>();
 builder.Services.AddScoped<ProjectLifecycleService>();
 builder.Services.AddScoped<ProjectTotService>();
@@ -354,6 +355,7 @@ builder.Services.AddSingleton<ISocialMediaExcelWorkbookBuilder, SocialMediaExcel
 builder.Services.AddSingleton<ISocialMediaPdfReportBuilder, SocialMediaPdfReportBuilder>();
 builder.Services.AddSingleton<IProliferationExcelWorkbookBuilder, ProliferationExcelWorkbookBuilder>();
 builder.Services.AddSingleton<IIprExcelWorkbookBuilder, IprExcelWorkbookBuilder>();
+builder.Services.AddSingleton<ICompletedProjectsSummaryExcelBuilder, CompletedProjectsSummaryExcelBuilder>();
 builder.Services.AddScoped<VisitTypeService>();
 builder.Services.AddScoped<SocialMediaEventTypeService>();
 builder.Services.AddScoped<SocialMediaPlatformService>();
