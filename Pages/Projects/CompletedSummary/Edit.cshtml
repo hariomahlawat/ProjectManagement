@@ -114,17 +114,19 @@
         <span asp-validation-for="Input.NewSupplyOrderNumber" class="text-danger"></span>
     </div>
     <div class="col-12 col-md-3">
-        <label class="form-label d-flex align-items-center gap-1">
-            Supporting document
-            <button type="button"
-                    class="btn btn-link p-0 border-0 lpp-help"
-                    data-bs-toggle="tooltip"
-                    data-bs-placement="top"
-                    title="First upload the PDF to this project's Documents and publish it. Then come back here and select it from this list.">
+        <div class="d-flex align-items-center gap-2">
+            <label asp-for="Input.NewProjectDocumentId" class="form-label mb-0">Supporting document</label>
+            <span class="help-tooltip d-inline-flex align-items-center"
+                  role="button"
+                  tabindex="0"
+                  data-toggle="tooltip"
+                  data-bs-toggle="tooltip"
+                  data-placement="top"
+                  title="First upload the PDF to this project's Documents and publish it. Then come back here and select it from this list.">
                 <i class="bi bi-info-circle"></i>
-            </button>
-        </label>
-        <select asp-for="Input.NewProjectDocumentId" asp-items="Model.DocumentOptions" class="form-select"></select>
+            </span>
+        </div>
+        <select asp-for="Input.NewProjectDocumentId" asp-items="Model.DocumentOptions" class="form-select mt-1"></select>
         <span asp-validation-for="Input.NewProjectDocumentId" class="text-danger"></span>
     </div>
     <div class="col-12">
@@ -138,25 +140,3 @@
         <a asp-page="./Index" class="btn btn-outline-secondary">Back to list</a>
     </div>
 </form>
-
-@section Scripts {
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const helpButtons = document.querySelectorAll('.lpp-help');
-
-            // if Bootstrap is available, use real tooltips
-            if (window.bootstrap && bootstrap.Tooltip) {
-                helpButtons.forEach(function (btn) {
-                    new bootstrap.Tooltip(btn);
-                });
-            } else {
-                // fallback: show alert on click
-                helpButtons.forEach(function (btn) {
-                    btn.addEventListener('click', function () {
-                        alert("First upload the PDF to this project's Documents and publish it. Then come back here and select it from this list.");
-                    });
-                });
-            }
-        });
-    </script>
-}
