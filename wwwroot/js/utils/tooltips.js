@@ -34,7 +34,8 @@ function applyTooltips(root) {
 }
 
 function handleDynamicUpdate(event) {
-  applyTooltips(event?.target);
+  const target = event?.detail?.target ?? event?.target ?? document;
+  applyTooltips(target);
 }
 
 // SECTION: Public API
