@@ -89,9 +89,13 @@
       el.style.setProperty('--today-position', `${(progress * 100).toFixed(1)}%`);
     });
 
-    if (window.bootstrap && typeof window.bootstrap.Tooltip === 'function') {
+    // SECTION: Tooltip support
+    const globalTooltips = window.projectManagement?.tooltips;
+    if (globalTooltips?.refresh) {
+      globalTooltips.refresh(document);
+    } else if (window.bootstrap && typeof window.bootstrap.Tooltip === 'function') {
       document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach((el) => {
-        new window.bootstrap.Tooltip(el);
+        window.bootstrap.Tooltip.getOrCreateInstance(el);
       });
     }
   });
