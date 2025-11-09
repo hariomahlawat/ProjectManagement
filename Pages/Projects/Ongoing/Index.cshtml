@@ -3,7 +3,7 @@
 @{
     ViewData["Title"] = "Ongoing projects – progress & timelines";
 
-    // we'll compare by string to avoid enum namespace issues in Razor
+    // we'll compare by string, so we don't fight namespaces
     var completedStatus = "Completed";
 }
 
@@ -44,14 +44,63 @@ else if (Model.ViewMode == "card")
     <div class="row g-3">
         @foreach (var item in Model.Items)
         {
-            <div class="col-12 col-md-6">
+            // find current stage index
+            var currentIdx = -1;
+            for (var i = 0; i < item.Stages.Count; i++)
+            {
+                if (item.Stages[i].IsCurrent)
+                {
+                    currentIdx = i;
+                    break;
+                }
+            }
+            if (currentIdx == -1)
+            {
+                currentIdx = 0;
+            }
+
+            <div class="col-12">
                 <div class="card h-100">
                     <div class="card-body">
-                        <h2 class="h6 mb-1">
-                            <a asp-page="/Projects/Overview" asp-route-id="@item.ProjectId">@item.ProjectName</a>
-                        </h2>
-                        <p class="text-muted mb-2">@item.ProjectCategoryName</p>
-                        <p class="mb-1"><strong>Current stage:</strong> @item.CurrentStageName</p>
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <div>
+                                <h2 class="h6 mb-1">
+                                    <a asp-page="/Projects/Overview" asp-route-id="@item.ProjectId">@item.ProjectName</a>
+                                </h2>
+                                <p class="text-muted mb-0">@item.ProjectCategoryName</p>
+                            </div>
+                        </div>
+
+                        <p class="mb-1">
+                            <strong>Current stage:</strong>
+                            @{
+                                var cur = item.Stages[currentIdx];
+                                if (cur.Status.ToString() == completedStatus)
+                                {
+                                    @cur.Name
+                                    if (cur.ActualCompletedOn.HasValue)
+                                    {
+                                        @: (@cur.ActualCompletedOn.Value.ToString("dd-MMM-yyyy"))
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">date not available</span>
+                                    }
+                                }
+                                else
+                                {
+                                    @cur.Name
+                                    if (cur.PlannedDue.HasValue)
+                                    {
+                                        @: (PDC: @cur.PlannedDue.Value.ToString("dd-MMM-yyyy"))
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">PDC: N/A</span>
+                                    }
+                                }
+                            }
+                        </p>
                         <p class="mb-3">
                             <strong>Last completed:</strong>
                             @if (!string.IsNullOrEmpty(item.LastCompletedStageName))
@@ -68,52 +117,80 @@ else if (Model.ViewMode == "card")
                             }
                         </p>
 
-                        <div class="d-flex flex-wrap gap-1">
-                            @foreach (var stage in item.Stages)
-                            {
-                                var isCompleted = stage.Status.ToString() == completedStatus;
+                        <!-- TIMELINE -->
+                        <div class="d-flex align-items-center flex-wrap gap-2">
+                            @{
+                                // show from stage 0 up to current stage
+                                for (var i = 0; i <= currentIdx; i++)
+                                {
+                                    var stage = item.Stages[i];
+                                    var isCompleted = stage.Status.ToString() == completedStatus;
+                                    var isCurrent = i == currentIdx;
 
-                                if (isCompleted)
-                                {
-                                    <span class="badge bg-success">
-                                        @stage.Name
-                                        @if (stage.ActualCompletedOn.HasValue)
+                                    // circle
+                                    if (isCompleted)
+                                    {
+                                        <div class="d-flex align-items-center gap-1">
+                                            <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center" style="width:42px;height:42px;font-size:.7rem;">
+                                                @stage.Code
+                                            </div>
+                                            <div class="small">
+                                                @if (stage.ActualCompletedOn.HasValue)
+                                                {
+                                                    @stage.ActualCompletedOn.Value.ToString("dd-MMM")
+                                                    <div class="text-muted" style="line-height:1;">actual</div>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">date NA</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                    else if (isCurrent)
+                                    {
+                                        <div class="d-flex align-items-center gap-1">
+                                            <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width:42px;height:42px;font-size:.7rem;">
+                                                @stage.Code
+                                            </div>
+                                            <div class="small">
+                                                @if (stage.PlannedDue.HasValue)
+                                                {
+                                                    <span>PDC: @stage.PlannedDue.Value.ToString("dd-MMM")</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">PDC: N/A</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+
+                                    // connector with days (only between completed stages)
+                                    if (i < currentIdx)
+                                    {
+                                        var next = item.Stages[i + 1];
+                                        int? days = null;
+                                        if (stage.ActualCompletedOn.HasValue && next.ActualCompletedOn.HasValue)
                                         {
-                                            @: (@stage.ActualCompletedOn.Value.ToString("dd-MMM")) <span class="opacity-75">actual</span>
+                                            days = (next.ActualCompletedOn.Value.ToDateTime(TimeOnly.MinValue)
+                                            - stage.ActualCompletedOn.Value.ToDateTime(TimeOnly.MinValue)).Days;
                                         }
-                                        else
-                                        {
-                                            <span class="opacity-75">date not available</span>
-                                        }
-                                    </span>
+
+                                        <div class="d-flex align-items-center gap-1">
+                                            <div style="width:50px;height:2px;background:rgba(0,0,0,.15);"></div>
+                                            <div class="badge bg-light text-muted border small">
+                                                @(days.HasValue ? $"{days.Value} days" : "—")
+                                            </div>
+                                            <div style="width:4px;height:2px;"></div>
+                                        </div>
+                                    }
                                 }
-                                else if (stage.IsCurrent)
+
+                                // hint that there are more stages after current
+                                if (currentIdx < item.Stages.Count - 1)
                                 {
-                                    <span class="badge bg-primary">
-                                        @stage.Name
-                                        @if (stage.PlannedDue.HasValue)
-                                        {
-                                            @: (PDC: @stage.PlannedDue.Value.ToString("dd-MMM"))
-                                        }
-                                        else
-                                        {
-                                            <span class="opacity-75">PDC: N/A</span>
-                                        }
-                                    </span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-light text-muted border">
-                                        @stage.Name
-                                        @if (stage.PlannedDue.HasValue)
-                                        {
-                                            @: (PDC: @stage.PlannedDue.Value.ToString("dd-MMM"))
-                                        }
-                                        else
-                                        {
-                                            <span class="opacity-50">PDC: N/A</span>
-                                        }
-                                    </span>
+                                    <span class="text-muted small ms-1">… more stages</span>
                                 }
                             }
                         </div>
@@ -125,6 +202,7 @@ else if (Model.ViewMode == "card")
 }
 else
 {
+    <!-- list view stays as earlier version -->
     <div class="table-responsive">
         <table class="table table-sm table-striped align-middle">
             <thead>
@@ -200,10 +278,6 @@ else
                                             @if (stage.PlannedDue.HasValue)
                                             {
                                                 @: (PDC: @stage.PlannedDue.Value.ToString("dd-MMM"))
-                                            }
-                                            else
-                                            {
-                                                <span class="opacity-50">PDC: N/A</span>
                                             }
                                         </span>
                                     }
