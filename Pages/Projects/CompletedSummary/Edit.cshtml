@@ -1,0 +1,133 @@
+@page "{id:int}"
+@model ProjectManagement.Pages.Projects.CompletedSummary.EditModel
+@{
+    ViewData["Title"] = "Edit completed project cost and status";
+}
+
+<!-- SECTION: Page heading -->
+<h1 class="mb-3">Edit completed project</h1>
+<p class="text-muted mb-4">@Model.ProjectName</p>
+
+<!-- SECTION: Validation summary -->
+<div asp-validation-summary="ModelOnly" class="alert alert-danger" role="alert"></div>
+
+<!-- SECTION: Edit form -->
+<form method="post" class="row g-3">
+    <input type="hidden" asp-for="Input.ProjectId" />
+
+    <div class="col-12 col-md-4">
+        <label asp-for="Input.ApproxProductionCost" class="form-label">Approx production cost (lakh)</label>
+        <input asp-for="Input.ApproxProductionCost" class="form-control" />
+        <span asp-validation-for="Input.ApproxProductionCost" class="text-danger"></span>
+    </div>
+
+    <div class="col-12">
+        <label asp-for="Input.ProductionRemarks" class="form-label">Production remarks</label>
+        <textarea asp-for="Input.ProductionRemarks" rows="2" class="form-control"></textarea>
+        <span asp-validation-for="Input.ProductionRemarks" class="text-danger"></span>
+    </div>
+
+    <div class="col-12 col-md-4">
+        <label asp-for="Input.TechStatus" class="form-label">Technology status</label>
+        <select asp-for="Input.TechStatus" asp-items="Model.TechStatusOptions" class="form-select"></select>
+        <span asp-validation-for="Input.TechStatus" class="text-danger"></span>
+    </div>
+
+    <div class="col-12 col-md-4">
+        <div class="form-check mt-md-4 pt-md-2">
+            <input asp-for="Input.AvailableForProliferation" class="form-check-input" />
+            <label asp-for="Input.AvailableForProliferation" class="form-check-label">Available for proliferation</label>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <label asp-for="Input.NotAvailableReason" class="form-label">Reason if not available</label>
+        <textarea asp-for="Input.NotAvailableReason" rows="2" class="form-control"></textarea>
+        <span asp-validation-for="Input.NotAvailableReason" class="text-danger"></span>
+    </div>
+
+    <div class="col-12">
+        <label asp-for="Input.TechRemarks" class="form-label">Technology remarks</label>
+        <textarea asp-for="Input.TechRemarks" rows="2" class="form-control"></textarea>
+        <span asp-validation-for="Input.TechRemarks" class="text-danger"></span>
+    </div>
+
+    <!-- SECTION: Existing LPP records -->
+    <div class="col-12">
+        <h2 class="h5 mt-2">Existing LPP records</h2>
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered align-middle">
+                <thead>
+                    <tr>
+                        <th scope="col">Amount (lakh)</th>
+                        <th scope="col">Date</th>
+                        <th scope="col">Document</th>
+                        <th scope="col">SO number</th>
+                        <th scope="col">Remarks</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @if (Model.Input.LppRecords.Count == 0)
+                {
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-3">No LPP records captured yet.</td>
+                    </tr>
+                }
+                else
+                {
+                    foreach (var record in Model.Input.LppRecords)
+                    {
+                        <tr>
+                            <td>@record.Amount.ToString("0.##")</td>
+                            <td>@(record.Date?.ToString("dd-MMM-yyyy"))</td>
+                            <td>
+                                @if (record.DocumentId.HasValue)
+                                {
+                                    <a asp-page="/Projects/Documents/Preview" asp-route-documentId="@record.DocumentId.Value">@record.DocumentTitle</a>
+                                }
+                            </td>
+                            <td>@record.SupplyOrderNumber</td>
+                            <td>@record.Remarks</td>
+                        </tr>
+                    }
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- SECTION: Add new LPP -->
+    <div class="col-12">
+        <h2 class="h5">Add new LPP</h2>
+    </div>
+    <div class="col-12 col-md-3">
+        <label asp-for="Input.NewLppAmount" class="form-label">Amount (lakh)</label>
+        <input asp-for="Input.NewLppAmount" class="form-control" />
+        <span asp-validation-for="Input.NewLppAmount" class="text-danger"></span>
+    </div>
+    <div class="col-12 col-md-3">
+        <label asp-for="Input.NewLppDate" class="form-label">Date</label>
+        <input asp-for="Input.NewLppDate" type="date" class="form-control" />
+        <span asp-validation-for="Input.NewLppDate" class="text-danger"></span>
+    </div>
+    <div class="col-12 col-md-3">
+        <label asp-for="Input.NewSupplyOrderNumber" class="form-label">SO number</label>
+        <input asp-for="Input.NewSupplyOrderNumber" class="form-control" />
+        <span asp-validation-for="Input.NewSupplyOrderNumber" class="text-danger"></span>
+    </div>
+    <div class="col-12 col-md-3">
+        <label asp-for="Input.NewProjectDocumentId" class="form-label">Supporting document</label>
+        <select asp-for="Input.NewProjectDocumentId" asp-items="Model.DocumentOptions" class="form-select"></select>
+        <span asp-validation-for="Input.NewProjectDocumentId" class="text-danger"></span>
+    </div>
+    <div class="col-12">
+        <label asp-for="Input.NewLppRemarks" class="form-label">Remarks</label>
+        <textarea asp-for="Input.NewLppRemarks" rows="2" class="form-control"></textarea>
+        <span asp-validation-for="Input.NewLppRemarks" class="text-danger"></span>
+    </div>
+
+    <div class="col-12 mt-3 d-flex gap-2">
+        <button type="submit" class="btn btn-primary">Save changes</button>
+        <a asp-page="./Index" class="btn btn-outline-secondary">Back to list</a>
+    </div>
+</form>

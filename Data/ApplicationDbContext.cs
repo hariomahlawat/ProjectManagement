@@ -22,6 +22,7 @@ using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Notifications;
 using ProjectManagement.Helpers;
 using ProjectManagement.Data.DocRepo;
+using ProjectManagement.Models.Projects;
 
 namespace ProjectManagement.Data
 {
@@ -40,6 +41,9 @@ namespace ProjectManagement.Data
         public DbSet<ProjectCommercialFact> ProjectCommercialFacts => Set<ProjectCommercialFact>();
         public DbSet<ProjectPncFact> ProjectPncFacts => Set<ProjectPncFact>();
         public DbSet<ProjectSupplyOrderFact> ProjectSupplyOrderFacts => Set<ProjectSupplyOrderFact>();
+        public DbSet<ProjectProductionCostFact> ProjectProductionCostFacts => Set<ProjectProductionCostFact>();
+        public DbSet<ProjectLppRecord> ProjectLppRecords => Set<ProjectLppRecord>();
+        public DbSet<ProjectTechStatus> ProjectTechStatuses => Set<ProjectTechStatus>();
         public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
         public DbSet<TodoItem> TodoItems => Set<TodoItem>();
         public DbSet<Celebration> Celebrations => Set<Celebration>();
@@ -1578,6 +1582,58 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.ProjectId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // SECTION: Completed project cost and proliferation tables
+            builder.Entity<ProjectProductionCostFact>(e =>
+            {
+                e.HasKey(x => x.ProjectId);
+                e.Property(x => x.ApproxProductionCost).HasColumnType("numeric(18,2)");
+                e.Property(x => x.Remarks).HasMaxLength(500);
+                e.Property(x => x.UpdatedByUserId).HasMaxLength(64).IsRequired();
+                e.HasOne(x => x.Project)
+                    .WithOne()
+                    .HasForeignKey<ProjectProductionCostFact>(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<ProjectLppRecord>(e =>
+            {
+                e.HasIndex(x => new { x.ProjectId, x.LppDate, x.CreatedAtUtc });
+                e.Property(x => x.LppAmount).HasColumnType("numeric(18,2)");
+                e.Property(x => x.SupplyOrderNumber).HasMaxLength(64);
+                e.Property(x => x.Remarks).HasMaxLength(500);
+                e.Property(x => x.CreatedByUserId).HasMaxLength(64).IsRequired();
+                e.HasOne(x => x.Project)
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.HasOne(x => x.ProjectDocument)
+                    .WithMany()
+                    .HasForeignKey(x => x.ProjectDocumentId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            builder.Entity<ProjectTechStatus>(e =>
+            {
+                e.HasKey(x => x.ProjectId);
+                e.Property(x => x.TechStatus)
+                    .HasMaxLength(32)
+                    .HasDefaultValue(ProjectTechStatusCodes.Current)
+                    .IsRequired();
+                e.Property(x => x.NotAvailableReason).HasMaxLength(500);
+                e.Property(x => x.Remarks).HasMaxLength(500);
+                e.Property(x => x.MarkedByUserId).HasMaxLength(64).IsRequired();
+                e.HasOne(x => x.Project)
+                    .WithOne()
+                    .HasForeignKey<ProjectTechStatus>(x => x.ProjectId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                e.ToTable(tb =>
+                {
+                    tb.HasCheckConstraint(
+                        "ck_projecttechstatus_code",
+                        $"\"TechStatus\" IN ('{ProjectTechStatusCodes.Current}', '{ProjectTechStatusCodes.Outdated}', '{ProjectTechStatusCodes.Obsolete}')");
+                });
             });
 
             builder.Entity<AuditLog>(e =>

@@ -1,0 +1,107 @@
+@page
+@model ProjectManagement.Pages.Projects.CompletedSummary.IndexModel
+@{
+    ViewData["Title"] = "Completed projects cost and proliferation";
+}
+
+<!-- SECTION: Page heading -->
+<h1 class="mb-3">Completed projects &ndash; cost and proliferation</h1>
+
+<!-- SECTION: Filters -->
+<form method="get" class="row g-3 align-items-end mb-4" novalidate>
+    <div class="col-12 col-md-3">
+        <label asp-for="TechStatus" class="form-label">Technology status</label>
+        <select asp-for="TechStatus" asp-items="Model.TechStatusOptions" class="form-select form-select-sm"></select>
+    </div>
+    <div class="col-12 col-md-3">
+        <label asp-for="AvailableForProliferation" class="form-label">Available for proliferation</label>
+        <select asp-for="AvailableForProliferation" asp-items="Model.AvailabilityOptions" class="form-select form-select-sm"></select>
+    </div>
+    <div class="col-12 col-md-2">
+        <label asp-for="CompletedYear" class="form-label">Completion year</label>
+        <input asp-for="CompletedYear" class="form-control form-control-sm" inputmode="numeric" />
+    </div>
+    <div class="col-12 col-md-3">
+        <label asp-for="Search" class="form-label">Search by project name</label>
+        <input asp-for="Search" class="form-control form-control-sm" />
+    </div>
+    <div class="col-12 col-md-2 d-flex flex-column flex-md-row gap-2 justify-content-md-end">
+        <button type="submit" class="btn btn-sm btn-primary flex-fill">Filter</button>
+        <a asp-page="./Index"
+           asp-page-handler="Export"
+           asp-route-TechStatus="@Model.TechStatus"
+           asp-route-AvailableForProliferation="@Model.AvailableForProliferation"
+           asp-route-CompletedYear="@Model.CompletedYear"
+           asp-route-Search="@Model.Search"
+           class="btn btn-sm btn-outline-secondary flex-fill">Export</a>
+    </div>
+</form>
+
+<!-- SECTION: Results table -->
+<div class="table-responsive">
+    <table class="table table-sm table-striped align-middle">
+        <thead>
+            <tr>
+                <th scope="col">Project</th>
+                <th scope="col">R&amp;D / L1 cost (lakh)</th>
+                <th scope="col">Approx production cost (lakh)</th>
+                <th scope="col">Latest LPP</th>
+                <th scope="col">Tech status</th>
+                <th scope="col">Available</th>
+                <th scope="col">Remarks</th>
+                <th scope="col" class="text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+        @if (Model.Items.Count == 0)
+        {
+            <tr>
+                <td colspan="8" class="text-center text-muted py-4">No completed projects matched the selected filters.</td>
+            </tr>
+        }
+        else
+        {
+            foreach (var item in Model.Items)
+            {
+                <tr>
+                    <td>
+                        <a asp-page="/Projects/Overview" asp-route-id="@item.ProjectId">@item.Name</a>
+                    </td>
+                    <td>@(item.RdCostLakhs?.ToString("0.##"))</td>
+                    <td>@(item.ApproxProductionCost?.ToString("0.##"))</td>
+                    <td class="text-muted">
+                        @if (item.LatestLpp is { } latest)
+                        {
+                            var label = latest.Amount.ToString("0.##") + " lakh";
+                            if (latest.Date.HasValue)
+                            {
+                                label += " (" + latest.Date.Value.ToString("MMM yyyy") + ")";
+                            }
+                            @label
+                        }
+                        else
+                        {
+                            <span>No LPP recorded</span>
+                        }
+                    </td>
+                    <td>@item.TechStatus</td>
+                    <td>
+                        @if (item.AvailableForProliferation == true)
+                        {
+                            <span class="text-success">Yes</span>
+                        }
+                        else if (item.AvailableForProliferation == false)
+                        {
+                            <span class="text-danger">No</span>
+                        }
+                    </td>
+                    <td>@item.Remarks</td>
+                    <td class="text-end">
+                        <a asp-page="./Edit" asp-route-id="@item.ProjectId" class="btn btn-sm btn-outline-primary">Edit</a>
+                    </td>
+                </tr>
+            }
+        }
+        </tbody>
+    </table>
+</div>
