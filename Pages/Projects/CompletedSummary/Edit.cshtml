@@ -13,6 +13,7 @@
 
 <!-- SECTION: Edit form -->
 <form method="post" class="row g-3">
+    @Html.AntiForgeryToken()
     <input type="hidden" asp-for="Input.ProjectId" />
 
     <div class="col-12 col-md-4">
