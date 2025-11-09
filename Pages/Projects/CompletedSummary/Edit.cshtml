@@ -117,7 +117,7 @@
         <label class="form-label d-flex align-items-center gap-1">
             Supporting document
             <button type="button"
-                    class="btn btn-link p-0 border-0"
+                    class="btn btn-link p-0 border-0 lpp-help"
                     data-bs-toggle="tooltip"
                     data-bs-placement="top"
                     title="First upload the PDF to this project's Documents and publish it. Then come back here and select it from this list.">
@@ -142,13 +142,21 @@
 @section Scripts {
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-            tooltipTriggerList.forEach(function (tooltipTriggerEl) {
-                // will work if Bootstrap JS is loaded on the layout
-                if (window.bootstrap && bootstrap.Tooltip) {
-                    new bootstrap.Tooltip(tooltipTriggerEl);
-                }
-            });
+            const helpButtons = document.querySelectorAll('.lpp-help');
+
+            // if Bootstrap is available, use real tooltips
+            if (window.bootstrap && bootstrap.Tooltip) {
+                helpButtons.forEach(function (btn) {
+                    new bootstrap.Tooltip(btn);
+                });
+            } else {
+                // fallback: show alert on click
+                helpButtons.forEach(function (btn) {
+                    btn.addEventListener('click', function () {
+                        alert("First upload the PDF to this project's Documents and publish it. Then come back here and select it from this list.");
+                    });
+                });
+            }
         });
     </script>
 }
