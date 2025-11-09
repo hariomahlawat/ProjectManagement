@@ -54,10 +54,31 @@ function findTogglesForDrawer(drawerId) {
 
 function getFocusableElements(container) {
   return Array.from(container.querySelectorAll(FOCUSABLE_SELECTORS)).filter(
-    (element) =>
-      element instanceof HTMLElement &&
-      !element.hasAttribute('disabled') &&
-      element.getAttribute('aria-hidden') !== 'true'
+    (element) => {
+      if (!(element instanceof HTMLElement)) {
+        return false;
+      }
+
+      if (element.hasAttribute('disabled')) {
+        return false;
+      }
+
+      if (element.getAttribute('aria-hidden') === 'true') {
+        return false;
+      }
+
+      const hiddenAncestor = element.closest('[aria-hidden="true"]');
+      if (hiddenAncestor && hiddenAncestor !== element) {
+        return false;
+      }
+
+      const closedDetails = element.closest('details:not([open])');
+      if (closedDetails && !element.closest('summary')) {
+        return false;
+      }
+
+      return true;
+    }
   );
 }
 
