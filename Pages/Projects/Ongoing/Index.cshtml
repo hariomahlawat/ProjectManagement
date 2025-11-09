@@ -155,34 +155,44 @@ else
                             </p>
                         </div>
 
-                        <!-- timeline -->
-                        <section class="ongoing-timeline">
-                            <div class="ongoing-timeline__track">
-                                @for (var i = 0; i <= currentIdx; i++)
+                        <!-- Timeline -->
+                        <div class="d-flex align-items-center flex-wrap gap-2">
+                            @{
+                                // show stages from start up to current stage
+                                for (var i = 0; i <= currentIdx; i++)
                                 {
                                     var stage = item.Stages[i];
                                     var isCompleted = stage.Status == StageStatus.Completed;
                                     var isCurrent = i == currentIdx;
 
-                                    <div class="ongoing-timeline__item">
-                                        <div class="ongoing-timeline__node @(isCompleted ? "ongoing-timeline__node--done" : isCurrent ? "ongoing-timeline__node--current" : "")">
-                                            <span class="ongoing-timeline__code">@stage.Code</span>
-                                        </div>
-                                        <div class="ongoing-timeline__date small">
-                                            @if (isCompleted)
-                                            {
-                                                if (stage.ActualCompletedOn.HasValue)
+                                    if (isCompleted)
+                                    {
+                                        <div class="d-flex align-items-center gap-1">
+                                            <div class="rounded-circle bg-success text-white d-flex align-items-center justify-content-center"
+                                                 style="width:42px;height:42px;font-size:.7rem;">
+                                                @stage.Code
+                                            </div>
+                                            <div class="small">
+                                                @if (stage.ActualCompletedOn.HasValue)
                                                 {
                                                     @stage.ActualCompletedOn.Value.ToString("dd-MMM-yyyy")
                                                 }
                                                 else
                                                 {
-                                                    <span class="text-muted">date NA</span>
+                                                    <span class="text-muted">—</span>
                                                 }
-                                            }
-                                            else
-                                            {
-                                                if (stage.PlannedDue.HasValue)
+                                            </div>
+                                        </div>
+                                    }
+                                    else if (isCurrent)
+                                    {
+                                        <div class="d-flex align-items-center gap-1">
+                                            <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center"
+                                                 style="width:42px;height:42px;font-size:.7rem;">
+                                                @stage.Code
+                                            </div>
+                                            <div class="small">
+                                                @if (stage.PlannedDue.HasValue)
                                                 {
                                                     <span>PDC: @stage.PlannedDue.Value.ToString("dd-MMM-yyyy")</span>
                                                 }
@@ -190,38 +200,39 @@ else
                                                 {
                                                     <span class="text-muted">PDC: N/A</span>
                                                 }
-                                            }
+                                            </div>
                                         </div>
-                                    </div>
+                                    }
 
-                                    @* connector *@
+                                    // connector + days between completed stages
                                     if (i < currentIdx)
                                     {
                                         var next = item.Stages[i + 1];
                                         int? days = null;
+
                                         if (stage.ActualCompletedOn.HasValue && next.ActualCompletedOn.HasValue)
                                         {
-                                            days = (
-                                            next.ActualCompletedOn.Value.ToDateTime(TimeOnly.MinValue)
-                                            - stage.ActualCompletedOn.Value.ToDateTime(TimeOnly.MinValue)
-                                            ).Days;
+                                            days = (next.ActualCompletedOn.Value.ToDateTime(TimeOnly.MinValue)
+                                            - stage.ActualCompletedOn.Value.ToDateTime(TimeOnly.MinValue)).Days;
                                         }
 
-                                        <div class="ongoing-timeline__connector">
-                                            <div class="ongoing-timeline__line"></div>
-                                            <span class="ongoing-timeline__days">
+                                        <div class="d-flex align-items-center gap-1">
+                                            <div style="width:50px;height:2px;background:rgba(0,0,0,.15);"></div>
+                                            <div class="badge bg-light text-muted border small">
                                                 @(days.HasValue ? $"{days.Value} days" : "—")
-                                            </span>
+                                            </div>
+                                            <div style="width:4px;height:2px;"></div>
                                         </div>
                                     }
                                 }
 
-                                @if (currentIdx < item.Stages.Count - 1)
+                                if (currentIdx < item.Stages.Count - 1)
                                 {
                                     <span class="text-muted small ms-1">… more stages</span>
                                 }
-                            </div>
-                        </section>
+                            }
+                        </div>
+
 
                         <!-- remarks -->
                         <section class="ongoing-remarks">
