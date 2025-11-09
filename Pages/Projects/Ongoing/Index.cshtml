@@ -3,7 +3,8 @@
 @{
     ViewData["Title"] = "Ongoing projects – progress & timelines";
 
-    var stageStatusCompleted = ProjectManagement.Models.Stages.StageStatus.Completed;
+    // we'll compare by string to avoid enum namespace issues in Razor
+    var completedStatus = "Completed";
 }
 
 <h1 class="mb-3">Ongoing projects – progress & timelines</h1>
@@ -70,7 +71,9 @@ else if (Model.ViewMode == "card")
                         <div class="d-flex flex-wrap gap-1">
                             @foreach (var stage in item.Stages)
                             {
-                                if (stage.Status == stageStatusCompleted)
+                                var isCompleted = stage.Status.ToString() == completedStatus;
+
+                                if (isCompleted)
                                 {
                                     <span class="badge bg-success">
                                         @stage.Name
@@ -160,7 +163,9 @@ else
                             <div class="d-flex flex-wrap gap-1">
                                 @foreach (var stage in item.Stages)
                                 {
-                                    if (stage.Status == stageStatusCompleted)
+                                    var isCompleted = stage.Status.ToString() == completedStatus;
+
+                                    if (isCompleted)
                                     {
                                         <span class="badge bg-success">
                                             @stage.Name
