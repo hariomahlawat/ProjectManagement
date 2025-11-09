@@ -93,17 +93,24 @@ public sealed class EditModel : PageModel
             ModelState.AddModelError(nameof(Input.NewLppAmount), "LPP amount cannot be negative.");
         }
 
+        // optional: avoid future dates
+        if (Input.NewLppDate is { } d &&
+            d > DateOnly.FromDateTime(_clock.UtcNow.Date))
+        {
+            ModelState.AddModelError(nameof(Input.NewLppDate), "LPP date cannot be in the future.");
+        }
+
         if (!ModelState.IsValid)
         {
             await LoadAsync(Input.ProjectId, populateForm: false, cancellationToken);
             return Page();
         }
 
-        // 4. fetch project
-        var project = await _db.Projects
-            .FirstOrDefaultAsync(p => p.Id == Input.ProjectId, cancellationToken);
+        // 4. ensure project exists (we don't actually need the entity)
+        var projectExists = await _db.Projects
+            .AnyAsync(p => p.Id == Input.ProjectId, cancellationToken);
 
-        if (project == null)
+        if (!projectExists)
         {
             return NotFound();
         }
