@@ -5967,3 +5967,149 @@ body.has-project-photo-preview-dialog {
 .card-title {
     max-width: 28rem;
 }
+
+
+/* ongoing projects cards */
+.ongoing-card {
+    background: #fff;
+    border-radius: 0.85rem;
+}
+
+.ongoing-card__header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1.5rem;
+    padding: 1.25rem 1.25rem 0.75rem 1.25rem;
+}
+
+.ongoing-card__title {
+    font-weight: 600;
+}
+
+.ongoing-card__meta {
+    font-size: 0.78rem;
+    color: #6c757d;
+}
+
+.ongoing-card__label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    color: #6c757d;
+}
+
+.ongoing-card__last {
+    font-size: 0.8rem;
+}
+
+.ongoing-card__info {
+    padding: 0 1.25rem 0.75rem 1.25rem;
+    border-bottom: 1px solid rgba(0,0,0,.035);
+}
+
+.ongoing-timeline {
+    padding: 0.75rem 1.25rem 1rem 1.25rem;
+    background: #f8fafc;
+}
+
+.ongoing-timeline__track {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.ongoing-timeline__item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .25rem;
+}
+
+.ongoing-timeline__node {
+    width: 42px;
+    height: 42px;
+    border-radius: 999px;
+    background: #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .7rem;
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.ongoing-timeline__node--done {
+    background: #16a34a;
+    color: #fff;
+}
+
+.ongoing-timeline__node--current {
+    background: #2563eb;
+    color: #fff;
+}
+
+.ongoing-timeline__date {
+    min-height: 1rem;
+    text-align: center;
+}
+
+.ongoing-timeline__connector {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+}
+
+.ongoing-timeline__line {
+    width: 50px;
+    height: 2px;
+    background: rgba(0,0,0,.08);
+    border-radius: 999px;
+}
+
+.ongoing-timeline__days {
+    font-size: .65rem;
+    color: #6b7280;
+}
+
+.ongoing-remarks {
+    padding: 0.75rem 1.25rem 1.25rem 1.25rem;
+}
+
+.ongoing-remarks__title {
+    font-size: .65rem;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+    color: #6c757d;
+}
+
+.ongoing-remarks__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: .5rem;
+}
+
+.ongoing-remarks__item {
+    background: #fff;
+}
+
+.ongoing-remarks__meta {
+    font-size: .68rem;
+    color: #6c757d;
+    margin-bottom: .15rem;
+}
+
+.ongoing-remarks__body {
+    font-size: .78rem;
+}
+
+/* mention pill */
+.badge.remark-pill {
+    background: #e2e8f0;
+    color: #0f172a;
+    border: 1px solid rgba(15,23,42,.1);
+    font-weight: 500;
+}
+
