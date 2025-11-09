@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
@@ -14,6 +15,7 @@ namespace ProjectManagement.Services.Projects
 {
     /// <summary>
     /// Read-only service to fetch all active/ongoing projects with their stage/timeline info.
+    /// Supports filtering by Lead Project Officer (LeadPoUserId) and returns officer display name.
     /// </summary>
     public sealed class OngoingProjectsReadService
     {
@@ -26,12 +28,15 @@ namespace ProjectManagement.Services.Projects
 
         public async Task<IReadOnlyList<OngoingProjectRowDto>> GetAsync(
             int? projectCategoryId,
+            string? leadPoUserId,     // filter by officer (user id)
             string? search,
             CancellationToken cancellationToken)
         {
             // 1. active / ongoing projects only
             var q = _db.Projects
                 .AsNoTracking()
+                .Include(p => p.Category)
+                .Include(p => p.LeadPoUser)  // we need name
                 .Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Active
                             && !p.IsArchived
                             && !p.IsDeleted);
@@ -39,6 +44,12 @@ namespace ProjectManagement.Services.Projects
             if (projectCategoryId is { } catId && catId > 0)
             {
                 q = q.Where(p => p.CategoryId == catId);
+            }
+
+            if (!string.IsNullOrWhiteSpace(leadPoUserId))
+            {
+                var officerId = leadPoUserId.Trim();
+                q = q.Where(p => p.LeadPoUserId == officerId);
             }
 
             if (!string.IsNullOrWhiteSpace(search))
@@ -54,7 +65,10 @@ namespace ProjectManagement.Services.Projects
                     p.Id,
                     p.Name,
                     p.CategoryId,
-                    CategoryName = p.Category != null ? p.Category.Name : null
+                    CategoryName = p.Category != null ? p.Category.Name : null,
+                    p.LeadPoUserId,
+                    // 👇 change "FullName" below if your ApplicationUser uses another property
+                    LeadPoName = p.LeadPoUser != null ? p.LeadPoUser.FullName ?? p.LeadPoUser.UserName : null
                 })
                 .ToListAsync(cancellationToken);
 
@@ -118,8 +132,7 @@ namespace ProjectManagement.Services.Projects
                     stageDtos.Add(new OngoingProjectStageDto
                     {
                         Code = code,
-                        // your StageCodes doesn’t have GetDisplayName, so we fall back to code itself
-                        Name = code,
+                        Name = code, // StageCodes has no GetDisplayName
                         Status = status,
                         ActualCompletedOn = actualCompleted,
                         PlannedDue = plannedDue,
@@ -128,7 +141,7 @@ namespace ProjectManagement.Services.Projects
                     });
                 }
 
-                // pick current stage with your rule
+                // determine current
                 int currentIndex;
                 if (inProgressIndex.HasValue)
                 {
@@ -159,6 +172,9 @@ namespace ProjectManagement.Services.Projects
                     ProjectName = proj.Name,
                     ProjectCategoryId = proj.CategoryId,
                     ProjectCategoryName = proj.CategoryName,
+                    // officer
+                    LeadPoUserId = proj.LeadPoUserId,
+                    LeadPoName = proj.LeadPoName,
                     CurrentStageCode = stageDtos[currentIndex].Code,
                     CurrentStageName = stageDtos[currentIndex].Name,
                     LastCompletedStageName = lastCompletedName,
@@ -169,6 +185,47 @@ namespace ProjectManagement.Services.Projects
 
             return result;
         }
+
+        /// <summary>
+        /// Build officer dropdown from all active projects that have a LeadPoUser.
+        /// Value = LeadPoUserId, Text = officer name.
+        /// </summary>
+        public async Task<IReadOnlyList<SelectListItem>> GetProjectOfficerOptionsAsync(
+            string? selectedOfficerId,
+            CancellationToken cancellationToken)
+        {
+            var officers = await _db.Projects
+                .AsNoTracking()
+                .Include(p => p.LeadPoUser)
+                .Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Active
+                            && !p.IsArchived
+                            && !p.IsDeleted
+                            && p.LeadPoUserId != null)
+                .Select(p => new
+                {
+                    p.LeadPoUserId,
+                    // 👇 change "FullName" here too if needed
+                    Name = p.LeadPoUser != null ? p.LeadPoUser.FullName ?? p.LeadPoUser.UserName : p.LeadPoUserId
+                })
+                .Distinct()
+                .OrderBy(x => x.Name)
+                .ToListAsync(cancellationToken);
+
+            var items = new List<SelectListItem>
+            {
+                new("All officers", string.Empty)
+            };
+
+            foreach (var o in officers)
+            {
+                items.Add(new SelectListItem(
+                    o.Name ?? o.LeadPoUserId!,
+                    o.LeadPoUserId!,
+                    string.Equals(o.LeadPoUserId, selectedOfficerId, StringComparison.Ordinal)));
+            }
+
+            return items;
+        }
     }
 
     public sealed class OngoingProjectRowDto
@@ -177,6 +234,10 @@ namespace ProjectManagement.Services.Projects
         public string ProjectName { get; init; } = "";
         public int? ProjectCategoryId { get; init; }
         public string? ProjectCategoryName { get; init; }
+
+        // officer
+        public string? LeadPoUserId { get; init; }
+        public string? LeadPoName { get; init; }
 
         public string CurrentStageCode { get; init; } = "";
         public string? CurrentStageName { get; init; }

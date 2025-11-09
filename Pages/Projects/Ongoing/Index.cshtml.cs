@@ -36,13 +36,17 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         [BindProperty(SupportsGet = true)]
         public int? ProjectCategoryId { get; set; }
 
+        // officer is user id
+        [BindProperty(SupportsGet = true)]
+        public string? ProjectOfficerId { get; set; }
+
         [BindProperty(SupportsGet = true)]
         public string? Search { get; set; }
 
-        [BindProperty(SupportsGet = true)]
-        public string ViewMode { get; set; } = "list";
-
         public IReadOnlyList<SelectListItem> ProjectCategoryOptions { get; private set; }
+            = Array.Empty<SelectListItem>();
+
+        public IReadOnlyList<SelectListItem> ProjectOfficerOptions { get; private set; }
             = Array.Empty<SelectListItem>();
 
         public IReadOnlyList<OngoingProjectRowDto> Items { get; private set; }
@@ -52,30 +56,43 @@ namespace ProjectManagement.Pages.Projects.Ongoing
         {
             await LoadCategoriesAsync(cancellationToken);
 
+            var officerId = Normalize(ProjectOfficerId);
+            var search = Normalize(Search);
+
+            ProjectOfficerOptions = await _ongoingService.GetProjectOfficerOptionsAsync(
+                officerId,
+                cancellationToken);
+
             Items = await _ongoingService.GetAsync(
                 ProjectCategoryId,
-                Normalize(Search),
+                officerId,
+                search,
                 cancellationToken);
         }
 
         public async Task<IActionResult> OnGetExportAsync(CancellationToken cancellationToken)
         {
+            var officerId = Normalize(ProjectOfficerId);
+            var search = Normalize(Search);
+
             var items = await _ongoingService.GetAsync(
                 ProjectCategoryId,
-                Normalize(Search),
+                officerId,
+                search,
                 cancellationToken);
 
-            var now = _clock.UtcNow; // DateTimeOffset
+            var now = _clock.UtcNow;
 
-            var csv = _excelBuilder.Build(
+            // your builder currently takes (items, now, categoryId, search)
+            var file = _excelBuilder.Build(
                 new OngoingProjectsExportContext(
                     items,
                     now,
                     ProjectCategoryId,
-                    Normalize(Search)));
+                    search));
 
             var fileName = $"ongoing-projects-{now:yyyyMMddHHmmss}.csv";
-            return File(csv, "text/csv", fileName);
+            return File(file, "text/csv", fileName);
         }
 
         private async Task LoadCategoriesAsync(CancellationToken ct)
@@ -87,7 +104,7 @@ namespace ProjectManagement.Pages.Projects.Ongoing
 
             var list = new List<SelectListItem>
             {
-                new SelectListItem("All categories", string.Empty)
+                new("All categories", string.Empty)
             };
 
             foreach (var c in cats)
