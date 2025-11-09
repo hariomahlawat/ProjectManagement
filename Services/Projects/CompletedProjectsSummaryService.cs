@@ -10,10 +10,8 @@ using ProjectManagement.Models.Projects;
 
 namespace ProjectManagement.Services.Projects;
 
-// SECTION: Completed projects summary service
 public sealed class CompletedProjectsSummaryService
 {
-    // SECTION: Dependencies
     private readonly ApplicationDbContext _db;
 
     public CompletedProjectsSummaryService(ApplicationDbContext db)
@@ -21,104 +19,122 @@ public sealed class CompletedProjectsSummaryService
         _db = db ?? throw new ArgumentNullException(nameof(db));
     }
 
-    // SECTION: Query methods
     public async Task<IReadOnlyList<CompletedProjectSummaryDto>> GetAsync(
+        int? technicalCategoryId,
         string? techStatus,
         bool? availableForProliferation,
         int? completedYear,
         string? search,
         CancellationToken cancellationToken = default)
     {
-        var baseQuery = _db.Projects
+        var projects = await _db.Projects
             .AsNoTracking()
-            .Where(p => p.LifecycleStatus == ProjectLifecycleStatus.Completed);
+            .Where(p =>
+                p.LifecycleStatus == ProjectLifecycleStatus.Completed
+                && !p.IsDeleted
+                && !p.IsArchived)
+            .ToListAsync(cancellationToken);
 
-        if (completedYear.HasValue)
+        if (technicalCategoryId.HasValue)
         {
-            baseQuery = baseQuery.Where(p => p.CompletedYear == completedYear);
+            projects = projects
+                .Where(p => p.TechnicalCategoryId == technicalCategoryId.Value)
+                .ToList();
         }
 
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            var term = $"%{search.Trim()}%";
-            baseQuery = baseQuery.Where(p => EF.Functions.ILike(p.Name, term));
-        }
+        var projectIds = projects.Select(p => p.Id).ToList();
 
-        var projectionQuery =
-            from project in baseQuery
-            join productionCost in _db.ProjectProductionCostFacts.AsNoTracking()
-                on project.Id equals productionCost.ProjectId into productionCostJoin
-            from productionCost in productionCostJoin.DefaultIfEmpty()
-            join tech in _db.ProjectTechStatuses.AsNoTracking()
-                on project.Id equals tech.ProjectId into techJoin
-            from tech in techJoin.DefaultIfEmpty()
-            join lpp in _db.ProjectLppRecords.AsNoTracking()
-                on project.Id equals lpp.ProjectId into lppJoin
-            let latestLpp = lppJoin
-                .OrderByDescending(x => x.LppDate ?? DateOnly.MinValue)
-                .ThenByDescending(x => x.CreatedAtUtc)
-                .FirstOrDefault()
-            select new CompletedProjectSummaryDto
+        var costFacts = await _db.ProjectProductionCostFacts
+            .AsNoTracking()
+            .Where(c => projectIds.Contains(c.ProjectId))
+            .ToListAsync(cancellationToken);
+
+        var techStatuses = await _db.ProjectTechStatuses
+            .AsNoTracking()
+            .Where(t => projectIds.Contains(t.ProjectId))
+            .ToListAsync(cancellationToken);
+
+        var lppRecords = await _db.ProjectLppRecords
+            .AsNoTracking()
+            .Where(l => projectIds.Contains(l.ProjectId))
+            .ToListAsync(cancellationToken);
+
+        var result = new List<CompletedProjectSummaryDto>(projects.Count);
+
+        foreach (var p in projects)
+        {
+            var cost = costFacts.FirstOrDefault(x => x.ProjectId == p.Id);
+            var tech = techStatuses.FirstOrDefault(x => x.ProjectId == p.Id);
+
+            var latestLpp = lppRecords
+                .Where(l => l.ProjectId == p.Id)
+                .OrderByDescending(l => l.LppDate)
+                .ThenByDescending(l => l.CreatedAtUtc)
+                .FirstOrDefault();
+
+            var dto = new CompletedProjectSummaryDto
             {
-                ProjectId = project.Id,
-                Name = project.Name,
-                RdCostLakhs = project.CostLakhs,
-                ApproxProductionCost = productionCost != null ? productionCost.ApproxProductionCost : null,
-                TechStatus = tech != null ? tech.TechStatus : null,
-                AvailableForProliferation = tech != null ? tech.AvailableForProliferation : (bool?)null,
-                Remarks = tech != null && tech.Remarks != null
-                    ? tech.Remarks
-                    : productionCost != null
-                        ? productionCost.Remarks
-                        : null,
-                CompletedYear = project.CompletedYear,
-                LatestLpp = latestLpp == null
-                    ? null
-                    : new LatestLppViewModel
+                ProjectId = p.Id,
+                Name = p.Name,
+                RdCostLakhs = p.CostLakhs,
+                ApproxProductionCost = cost?.ApproxProductionCost,
+                TechStatus = tech?.TechStatus,
+                AvailableForProliferation = tech?.AvailableForProliferation,
+                Remarks = tech?.Remarks ?? cost?.Remarks,
+                CompletedYear = p.CompletedYear,
+                LatestLpp = latestLpp != null
+                    ? new LatestLppViewModel
                     {
                         Amount = latestLpp.LppAmount,
                         Date = latestLpp.LppDate
                     }
+                    : null
             };
+
+            result.Add(dto);
+        }
+
+        IEnumerable<CompletedProjectSummaryDto> filtered = result;
 
         if (!string.IsNullOrWhiteSpace(techStatus))
         {
-            projectionQuery = projectionQuery.Where(x => x.TechStatus == techStatus);
+            filtered = filtered.Where(r =>
+                string.Equals(r.TechStatus, techStatus, StringComparison.OrdinalIgnoreCase));
         }
 
         if (availableForProliferation.HasValue)
         {
-            projectionQuery = projectionQuery.Where(x => x.AvailableForProliferation == availableForProliferation);
+            filtered = filtered.Where(r =>
+                r.AvailableForProliferation == availableForProliferation);
         }
 
-        var items = await projectionQuery
-            .OrderBy(x => x.Name)
-            .ToListAsync(cancellationToken);
+        if (completedYear.HasValue)
+        {
+            filtered = filtered.Where(r => r.CompletedYear == completedYear);
+        }
 
-        return items;
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            filtered = filtered.Where(r =>
+                r.Name.Contains(search, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return filtered
+            .OrderBy(r => r.Name)
+            .ToList();
     }
 }
 
-// SECTION: DTOs
 public sealed class CompletedProjectSummaryDto
 {
-    // SECTION: Identity
     public int ProjectId { get; set; }
     public string Name { get; set; } = string.Empty;
-
-    // SECTION: Cost metadata
     public decimal? RdCostLakhs { get; set; }
     public decimal? ApproxProductionCost { get; set; }
-
-    // SECTION: Technology metadata
     public string? TechStatus { get; set; }
     public bool? AvailableForProliferation { get; set; }
     public string? Remarks { get; set; }
-
-    // SECTION: Completion metadata
     public int? CompletedYear { get; set; }
-
-    // SECTION: LPP metadata
     public LatestLppViewModel? LatestLpp { get; set; }
 }
 
