@@ -9,47 +9,83 @@
 }
 
 <ul class="@listClasses">
-@foreach (var node in Model.Nodes)
-{
-    var itemClasses = "pm-drawer__item";
-    var badgeName = node.BadgeViewComponentName;
-    var badgeParameters = node.BadgeViewComponentParameters ?? new { };
-    var hasChildren = node.Children.Count > 0;
-    var accentClass = string.IsNullOrEmpty(node.Accent)
+    @foreach (var node in Model.Nodes)
+    {
+        var itemClasses = "pm-drawer__item";
+        var badgeName = node.BadgeViewComponentName;
+        var badgeParameters = node.BadgeViewComponentParameters ?? new { };
+        var hasChildren = node.Children.Count > 0;
+        var accentClass = string.IsNullOrEmpty(node.Accent)
         ? string.Empty
         : $" pm-drawer__accent--{node.Accent}";
-    var collapseId = hasChildren ? $"pmDrawerGroup_{Model.Depth}_{Guid.NewGuid():N}" : string.Empty;
-    var isExpanded = hasChildren && (node.IsActive || node.HasActiveDescendant || Model.Depth == 0);
-    var isActive = node.IsActive || node.HasActiveDescendant;
-    var displayClasses = baseClass + accentClass;
-    var badgeName = node.BadgeViewComponentName;
-    var badgeParameters = node.BadgeViewComponentParameters ?? new { };
-    var hasChildren = node.Children.Count > 0;
-    var collapseId = hasChildren ? $"pmDrawerGroup_{Model.Depth}_{Guid.NewGuid():N}" : string.Empty;
-    var isExpanded = hasChildren && (node.IsActive || node.HasActiveDescendant || Model.Depth == 0);
+        var collapseId = hasChildren ? $"pmDrawerGroup_{Model.Depth}_{Guid.NewGuid():N}" : string.Empty;
+        var isExpanded = hasChildren && (node.IsActive || node.HasActiveDescendant || Model.Depth == 0);
+        var isActive = node.IsActive || node.HasActiveDescendant;
 
-    if (Model.Depth == 0 && hasChildren)
-    {
-        itemClasses += " pm-drawer__item--group";
-    }
-
-    var entryClasses = "pm-drawer__entry" + accentClass + (isActive ? " is-active" : string.Empty);
-
-    <li class="@itemClasses" data-drawer-item>
-        @* ---------- Drawer entry ---------- *@
-        @if (hasChildren)
+        if (Model.Depth == 0 && hasChildren)
         {
-            <details class="pm-drawer__group" data-drawer-group @(isExpanded ? "open" : null)>
-                <summary class="@($"pm-drawer__summary {entryClasses}")"
-                         data-drawer-group-summary
-                         aria-controls="@collapseId"
-                         aria-expanded="@(isExpanded.ToString().ToLowerInvariant())">
-    <li class="@itemClasses" data-drawer-item>
-        @* ---------- Drawer item header ---------- *@
-        <div class="pm-drawer__item-header">
-            @if (!string.IsNullOrEmpty(node.Url))
+            itemClasses += " pm-drawer__item--group";
+        }
+
+        var entryClasses = "pm-drawer__entry" + accentClass + (isActive ? " is-active" : string.Empty);
+
+        <li class="@itemClasses" data-drawer-item>
+            @* ---------- Drawer entry ---------- *@
+            @if (hasChildren)
             {
-                <a class="@displayClasses" href="@node.Url" @(node.IsActive ? "aria-current=\"page\"" : null)>
+                <details class="pm-drawer__group" data-drawer-group @(isExpanded ? "open" : null)>
+                    <summary class="@($"pm-drawer__summary {entryClasses}")"
+                             data-drawer-group-summary
+                             aria-controls="@collapseId"
+                             aria-expanded="@(isExpanded.ToString().ToLowerInvariant())">
+                        <span class="pm-drawer__content">
+                            @if (!string.IsNullOrEmpty(node.Icon))
+                            {
+                                <span class="pm-drawer__icon" aria-hidden="true">
+                                    <i class="bi @node.Icon"></i>
+                                </span>
+                            }
+
+                            @if (!string.IsNullOrEmpty(node.Url))
+                            {
+                                <a class="pm-drawer__summary-link" href="@node.Url" data-drawer-group-link @(node.IsActive ? "aria-current=\"page\"" : null)>
+                                    <span class="pm-drawer__text">@node.Text</span>
+                                </a>
+                            }
+                            else
+                            {
+                                <span class="pm-drawer__text">@node.Text</span>
+                            }
+                        </span>
+
+                        @if (!string.IsNullOrEmpty(badgeName))
+                        {
+                            <span class="pm-drawer__meta">@await Component.InvokeAsync(badgeName!, badgeParameters)</span>
+                        }
+
+                        <span class="pm-drawer__caret" aria-hidden="true">
+                            <i class="bi bi-chevron-down"></i>
+                        </span>
+                    </summary>
+
+                    @* ---------- Drawer child list ---------- *@
+                    <div class="pm-drawer__group-panel"
+                         id="@collapseId"
+                         data-drawer-group-panel
+                         aria-hidden="@(!isExpanded).ToString().ToLowerInvariant()">
+                        @await Html.PartialAsync(
+                        "~/Pages/Shared/Components/NavigationDrawer/_NavigationDrawerItems.cshtml",
+                                Model with
+                                {
+                            Nodes = node.Children,
+                                Depth = Model.Depth + 1
+                                })
+            </div>
+        </details>
+                }
+            else if (!string.IsNullOrEmpty(node.Url))
+            {
+                <a class="@($"pm-drawer__link {entryClasses}")" href="@node.Url" @(node.IsActive ? "aria-current=\"page\"" : null)>
                     <span class="pm-drawer__content">
                         @if (!string.IsNullOrEmpty(node.Icon))
                         {
@@ -58,74 +94,18 @@
                             </span>
                         }
 
-                        @if (!string.IsNullOrEmpty(node.Url))
-                        {
-                            <a class="pm-drawer__summary-link" href="@node.Url" data-drawer-group-link @(node.IsActive ? "aria-current=\"page\"" : null)>
-                                <span class="pm-drawer__text">@node.Text</span>
-                            </a>
-                        }
-                        else
-                        {
-                            <span class="pm-drawer__text">@node.Text</span>
-                        }
-                    </span>
-
-                    @if (!string.IsNullOrEmpty(badgeName))
-                    {
-                        <span class="pm-drawer__meta">@await Component.InvokeAsync(badgeName!, badgeParameters)</span>
-                    }
-
-                    <span class="pm-drawer__caret" aria-hidden="true">
-                        <i class="bi bi-chevron-down"></i>
-                    </span>
-                </summary>
-
-                @* ---------- Drawer child list ---------- *@
-                <div class="pm-drawer__group-panel"
-                     id="@collapseId"
-                     data-drawer-group-panel
-                     aria-hidden="@(!isExpanded).ToString().ToLowerInvariant()">
-                    @await Html.PartialAsync(
-                        "~/Pages/Shared/Components/NavigationDrawer/_NavigationDrawerItems.cshtml",
-                        Model with
-                    {
-                        Nodes = node.Children,
-                        Depth = Model.Depth + 1
-                    })
-                </div>
-            </details>
-        }
-        else if (!string.IsNullOrEmpty(node.Url))
-        {
-            <a class="@($"pm-drawer__link {entryClasses}")" href="@node.Url" @(node.IsActive ? "aria-current=\"page\"" : null)>
-                <span class="pm-drawer__content">
-                    @if (!string.IsNullOrEmpty(node.Icon))
                         <span class="pm-drawer__text">@node.Text</span>
                     </span>
+
                     @if (!string.IsNullOrEmpty(badgeName))
                     {
                         <span class="pm-drawer__meta">@await Component.InvokeAsync(badgeName!, badgeParameters)</span>
                     }
-
-                    <span class="pm-drawer__text">@node.Text</span>
-                </span>
-
-                @if (!string.IsNullOrEmpty(badgeName))
-                {
-                    <span class="pm-drawer__meta">@await Component.InvokeAsync(badgeName!, badgeParameters)</span>
-                }
-            </a>
-        }
-        else
-        {
-            <span class="@($"pm-drawer__label {entryClasses}")" @(node.IsActive ? "aria-current=\"page\"" : null)>
-                <span class="pm-drawer__content">
-                    @if (!string.IsNullOrEmpty(node.Icon))
                 </a>
             }
             else
             {
-                <span class="@displayClasses" @(node.IsActive ? "aria-current=\"page\"" : null)>
+                <span class="@($"pm-drawer__label {entryClasses}")" @(node.IsActive ? "aria-current=\"page\"" : null)>
                     <span class="pm-drawer__content">
                         @if (!string.IsNullOrEmpty(node.Icon))
                         {
@@ -133,55 +113,16 @@
                                 <i class="bi @node.Icon"></i>
                             </span>
                         }
+
                         <span class="pm-drawer__text">@node.Text</span>
                     </span>
+
                     @if (!string.IsNullOrEmpty(badgeName))
                     {
                         <span class="pm-drawer__meta">@await Component.InvokeAsync(badgeName!, badgeParameters)</span>
                     }
-
-                    <span class="pm-drawer__text">@node.Text</span>
-                </span>
-
-                @if (!string.IsNullOrEmpty(badgeName))
-                {
-                    <span class="pm-drawer__meta">@await Component.InvokeAsync(badgeName!, badgeParameters)</span>
-                }
-            </span>
                 </span>
             }
-
-            @if (hasChildren)
-            {
-                <button type="button"
-                        class="pm-drawer__collapse-toggle"
-                        data-drawer-collapse-toggle
-                        aria-controls="@collapseId"
-                        aria-expanded="@(isExpanded.ToString().ToLowerInvariant())">
-                    <span class="visually-hidden">Toggle @node.Text submenu</span>
-                    <i class="bi bi-chevron-down" aria-hidden="true"></i>
-                </button>
-            }
-        </div>
-
-        @if (hasChildren)
-        {
-            var regionClasses = "pm-drawer__collapse-region" + (isExpanded ? " is-open" : string.Empty);
-
-            @* ---------- Drawer child list ---------- *@
-            <div class="@regionClasses"
-                 id="@collapseId"
-                 data-drawer-collapse-region
-                 @(isExpanded ? null : "hidden")>
-                @await Html.PartialAsync(
-                    "~/Pages/Shared/Components/NavigationDrawer/_NavigationDrawerItems.cshtml",
-                    Model with
-                {
-                    Nodes = node.Children,
-                    Depth = Model.Depth + 1
-                })
-            </div>
-        }
-    </li>
-}
+        </li>
+    }
 </ul>
