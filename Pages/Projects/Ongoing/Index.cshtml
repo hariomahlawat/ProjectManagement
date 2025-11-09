@@ -1,9 +1,28 @@
 ﻿@page
-@using ProjectManagement.Models.Execution
+@using System.Text.RegularExpressions
 @using ProjectManagement.Models.Stages
 @model ProjectManagement.Pages.Projects.Ongoing.IndexModel
 @{
     ViewData["Title"] = "Ongoing projects – progress & timelines";
+
+    // helper to turn <span class="remark-mention" ...>Name</span>
+    // into a neat badge; everything else stays as-is
+    string RenderRemark(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+
+        const string pattern = "<span class=\"remark-mention\"[^>]*>(.*?)</span>";
+
+        var replaced = Regex.Replace(
+            text,
+            pattern,
+            m => $"<span class=\"badge bg-light text-dark border me-1\">{m.Groups[1].Value}</span>");
+
+        return replaced;
+    }
 }
 
 <h1 class="mb-3">Ongoing projects – progress & timelines</h1>
@@ -45,7 +64,7 @@ else
     <div class="row g-3">
         @foreach (var item in Model.Items)
         {
-            // locate current stage
+            // find current stage index
             var currentIdx = -1;
             for (var i = 0; i < item.Stages.Count; i++)
             {
@@ -61,16 +80,17 @@ else
             }
 
             <div class="col-12">
-                <div class="card h-100">
+                <div class="card h-100 shadow-sm border-0">
                     <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-start mb-2">
+                        <!-- header -->
+                        <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
                             <div>
-                                <h2 class="h6 mb-1">
-                                    <a asp-page="/Projects/Overview" asp-route-id="@item.ProjectId">
+                                <h2 class="h5 mb-1">
+                                    <a asp-page="/Projects/Overview" asp-route-id="@item.ProjectId" class="text-decoration-none">
                                         @item.ProjectName
                                     </a>
                                 </h2>
-                                <p class="text-muted mb-0">
+                                <p class="text-muted small mb-0">
                                     @item.ProjectCategoryName
                                     @if (!string.IsNullOrWhiteSpace(item.LeadPoName))
                                     {
@@ -80,60 +100,64 @@ else
                             </div>
                         </div>
 
-                        <!-- Current stage -->
-                        <p class="mb-1">
-                            <strong>Current stage:</strong>
-                            @{
-                                var cur = item.Stages[currentIdx];
-                                if (cur.Status == StageStatus.Completed)
-                                {
-                                    @cur.Name
-                                    if (cur.ActualCompletedOn.HasValue)
+                        <!-- current + last completed -->
+                        <div class="row mb-3">
+                            <div class="col-12 col-lg-6">
+                                <p class="mb-1">
+                                    <strong>Current stage:</strong>
+                                    @{
+                                        var cur = item.Stages[currentIdx];
+                                        if (cur.Status == StageStatus.Completed)
+                                        {
+                                            @cur.Name
+                                            if (cur.ActualCompletedOn.HasValue)
+                                            {
+                                                @: (@cur.ActualCompletedOn.Value.ToString("dd-MMM-yyyy"))
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">date not available</span>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            @cur.Name
+                                            if (cur.PlannedDue.HasValue)
+                                            {
+                                                @: (PDC: @cur.PlannedDue.Value.ToString("dd-MMM-yyyy"))
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted">PDC: N/A</span>
+                                            }
+                                        }
+                                    }
+                                </p>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <p class="mb-1">
+                                    <strong>Last completed:</strong>
+                                    @if (!string.IsNullOrEmpty(item.LastCompletedStageName))
                                     {
-                                        @: (@cur.ActualCompletedOn.Value.ToString("dd-MMM-yyyy"))
+                                        @item.LastCompletedStageName
+                                        if (item.LastCompletedStageDate.HasValue)
+                                        {
+                                            @: (@item.LastCompletedStageDate.Value.ToString("dd-MMM-yyyy"))
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted">date not available</span>
+                                        }
                                     }
                                     else
                                     {
-                                        <span class="text-muted">date not available</span>
+                                        <span class="text-muted">None</span>
                                     }
-                                }
-                                else
-                                {
-                                    @cur.Name
-                                    if (cur.PlannedDue.HasValue)
-                                    {
-                                        @: (PDC: @cur.PlannedDue.Value.ToString("dd-MMM-yyyy"))
-                                    }
-                                    else
-                                    {
-                                        <span class="text-muted">PDC: N/A</span>
-                                    }
-                                }
-                            }
-                        </p>
+                                </p>
+                            </div>
+                        </div>
 
-                        <!-- Last completed -->
-                        <p class="mb-3">
-                            <strong>Last completed:</strong>
-                            @if (!string.IsNullOrEmpty(item.LastCompletedStageName))
-                            {
-                                @item.LastCompletedStageName
-                                if (item.LastCompletedStageDate.HasValue)
-                                {
-                                    @: (@item.LastCompletedStageDate.Value.ToString("dd-MMM-yyyy"))
-                                }
-                                else
-                                {
-                                    <span class="text-muted">date not available</span>
-                                }
-                            }
-                            else
-                            {
-                                <span class="text-muted">None</span>
-                            }
-                        </p>
-
-                        <!-- Timeline -->
+                        <!-- timeline -->
                         <div class="d-flex align-items-center flex-wrap gap-2 mb-3">
                             @{
                                 for (var i = 0; i <= currentIdx; i++)
@@ -195,7 +219,7 @@ else
                                         }
 
                                         <div class="d-flex align-items-center gap-1">
-                                            <div style="width:50px;height:2px;background:rgba(0,0,0,.15);"></div>
+                                            <div style="width:50px;height:2px;background:rgba(0,0,0,.1);"></div>
                                             <div class="badge bg-light text-muted border small">
                                                 @(days.HasValue ? $"{days.Value} days" : "—")
                                             </div>
@@ -211,15 +235,17 @@ else
                             }
                         </div>
 
-                        <!-- Recent internal remarks -->
-                        <div class="border rounded bg-light-subtle p-2">
+                        <!-- recent internal remarks -->
+                        <div class="rounded border bg-body-tertiary p-2">
                             <div class="d-flex justify-content-between align-items-center mb-1">
                                 <span class="small text-uppercase text-muted">Recent internal remarks (last 10 days)</span>
+                                @* indicator that export will use the latest external remark *@
                                 @if (!string.IsNullOrWhiteSpace(item.LatestExternalRemark))
                                 {
-                                    <span class="badge bg-secondary-subtle text-muted border-0 small">has external note</span>
+                                    <span class="badge bg-secondary-subtle text-muted small">has external note</span>
                                 }
                             </div>
+
                             @if (item.RecentInternalRemarks.Count == 0)
                             {
                                 <p class="small text-muted mb-0">No internal remarks in the last 10 days.</p>
@@ -233,9 +259,11 @@ else
                                             <span class="text-muted">@r.CreatedAtUtc.ToLocalTime().ToString("dd-MMM-yyyy HH:mm")</span>
                                             @if (r.ActorRole != ProjectManagement.Models.Remarks.RemarkActorRole.Unknown)
                                             {
-                                                <span class="text-muted">• @r.ActorRole</span>
+                                                <span class="text-muted"> • @r.ActorRole</span>
                                             }
-                                            <div>@r.Text</div>
+                                            <div>
+                                                @Html.Raw(RenderRemark(r.Text))
+                                            </div>
                                         </li>
                                     }
                                 </ul>
