@@ -3098,9 +3098,11 @@ summary::marker {
     cursor: pointer;
 }
 
-.pm-drawer__summary::-webkit-details-marker {
-    display: none;
-}
+    /* hide marker in modern browsers */
+    .pm-drawer__summary::marker {
+        content: "";
+    }
+
 
 .pm-drawer__entry {
     display: flex;
