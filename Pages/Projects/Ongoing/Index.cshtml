@@ -1,9 +1,9 @@
 ﻿@page
 @model ProjectManagement.Pages.Projects.Ongoing.IndexModel
-@using ProjectManagement.Models.Execution
-@using ProjectManagement.Models.Stages
 @{
     ViewData["Title"] = "Ongoing projects – progress & timelines";
+
+    var stageStatusCompleted = ProjectManagement.Models.Stages.StageStatus.Completed;
 }
 
 <h1 class="mb-3">Ongoing projects – progress & timelines</h1>
@@ -70,13 +70,17 @@ else if (Model.ViewMode == "card")
                         <div class="d-flex flex-wrap gap-1">
                             @foreach (var stage in item.Stages)
                             {
-                                if (stage.Status == StageStatus.Completed)
+                                if (stage.Status == stageStatusCompleted)
                                 {
                                     <span class="badge bg-success">
                                         @stage.Name
                                         @if (stage.ActualCompletedOn.HasValue)
                                         {
-                                            @: (@stage.ActualCompletedOn.Value.ToString("dd-MMM"))
+                                            @: (@stage.ActualCompletedOn.Value.ToString("dd-MMM")) <span class="opacity-75">actual</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="opacity-75">date not available</span>
                                         }
                                     </span>
                                 }
@@ -86,11 +90,11 @@ else if (Model.ViewMode == "card")
                                         @stage.Name
                                         @if (stage.PlannedDue.HasValue)
                                         {
-                                            @: (@stage.PlannedDue.Value.ToString("dd-MMM"))
+                                            @: (PDC: @stage.PlannedDue.Value.ToString("dd-MMM"))
                                         }
                                         else
                                         {
-                                            <span class="opacity-75"> (no PDC)</span>
+                                            <span class="opacity-75">PDC: N/A</span>
                                         }
                                     </span>
                                 }
@@ -100,7 +104,11 @@ else if (Model.ViewMode == "card")
                                         @stage.Name
                                         @if (stage.PlannedDue.HasValue)
                                         {
-                                            @: (@stage.PlannedDue.Value.ToString("dd-MMM"))
+                                            @: (PDC: @stage.PlannedDue.Value.ToString("dd-MMM"))
+                                        }
+                                        else
+                                        {
+                                            <span class="opacity-50">PDC: N/A</span>
                                         }
                                     </span>
                                 }
@@ -126,75 +134,79 @@ else
                 </tr>
             </thead>
             <tbody>
-            @foreach (var item in Model.Items)
-            {
-                <tr>
-                    <td>
-                        <a asp-page="/Projects/Overview" asp-route-id="@item.ProjectId">@item.ProjectName</a>
-                    </td>
-                    <td>@item.ProjectCategoryName</td>
-                    <td>@item.CurrentStageName</td>
-                    <td>
-                        @if (!string.IsNullOrEmpty(item.LastCompletedStageName))
-                        {
-                            @item.LastCompletedStageName
-                            if (item.LastCompletedStageDate.HasValue)
+                @foreach (var item in Model.Items)
+                {
+                    <tr>
+                        <td>
+                            <a asp-page="/Projects/Overview" asp-route-id="@item.ProjectId">@item.ProjectName</a>
+                        </td>
+                        <td>@item.ProjectCategoryName</td>
+                        <td>@item.CurrentStageName</td>
+                        <td>
+                            @if (!string.IsNullOrEmpty(item.LastCompletedStageName))
                             {
-                                @: (@item.LastCompletedStageDate.Value.ToString("dd-MMM-yyyy"))
-                            }
-                        }
-                        else
-                        {
-                            <span class="text-muted">None</span>
-                        }
-                    </td>
-                    <td>
-                        <div class="d-flex flex-wrap gap-1">
-                            @foreach (var stage in item.Stages)
-                            {
-                                if (stage.Status == StageStatus.Completed)
+                                @item.LastCompletedStageName
+                                if (item.LastCompletedStageDate.HasValue)
                                 {
-                                    <span class="badge bg-success">
-                                        @stage.Name
-                                        @if (stage.ActualCompletedOn.HasValue)
-                                        {
-                                            @: (@stage.ActualCompletedOn.Value.ToString("dd-MMM"))
-                                        }
-                                        else
-                                        {
-                                            <span class="text-light opacity-75"> (date?)</span>
-                                        }
-                                    </span>
-                                }
-                                else if (stage.IsCurrent)
-                                {
-                                    <span class="badge bg-primary">
-                                        @stage.Name
-                                        @if (stage.PlannedDue.HasValue)
-                                        {
-                                            @: (@stage.PlannedDue.Value.ToString("dd-MMM"))
-                                        }
-                                        else
-                                        {
-                                            <span class="text-light opacity-75"> (no PDC)</span>
-                                        }
-                                    </span>
-                                }
-                                else
-                                {
-                                    <span class="badge bg-light text-muted border">
-                                        @stage.Name
-                                        @if (stage.PlannedDue.HasValue)
-                                        {
-                                            @: (@stage.PlannedDue.Value.ToString("dd-MMM"))
-                                        }
-                                    </span>
+                                    @: (@item.LastCompletedStageDate.Value.ToString("dd-MMM-yyyy"))
                                 }
                             }
-                        </div>
-                    </td>
-                </tr>
-            }
+                            else
+                            {
+                                <span class="text-muted">None</span>
+                            }
+                        </td>
+                        <td>
+                            <div class="d-flex flex-wrap gap-1">
+                                @foreach (var stage in item.Stages)
+                                {
+                                    if (stage.Status == stageStatusCompleted)
+                                    {
+                                        <span class="badge bg-success">
+                                            @stage.Name
+                                            @if (stage.ActualCompletedOn.HasValue)
+                                            {
+                                                @: (@stage.ActualCompletedOn.Value.ToString("dd-MMM")) <span class="opacity-75">actual</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="opacity-75">date not available</span>
+                                            }
+                                        </span>
+                                    }
+                                    else if (stage.IsCurrent)
+                                    {
+                                        <span class="badge bg-primary">
+                                            @stage.Name
+                                            @if (stage.PlannedDue.HasValue)
+                                            {
+                                                @: (PDC: @stage.PlannedDue.Value.ToString("dd-MMM"))
+                                            }
+                                            else
+                                            {
+                                                <span class="opacity-75">PDC: N/A</span>
+                                            }
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge bg-light text-muted border">
+                                            @stage.Name
+                                            @if (stage.PlannedDue.HasValue)
+                                            {
+                                                @: (PDC: @stage.PlannedDue.Value.ToString("dd-MMM"))
+                                            }
+                                            else
+                                            {
+                                                <span class="opacity-50">PDC: N/A</span>
+                                            }
+                                        </span>
+                                    }
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
             </tbody>
         </table>
     </div>
