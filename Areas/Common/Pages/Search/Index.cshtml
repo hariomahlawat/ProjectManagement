@@ -11,14 +11,22 @@
         <h1 class="fw-semibold mb-3">Search everything</h1>
         <p class="text-muted mb-4">Documents, attachments, FFC/IPR records — all in one place.</p>
 
-        <form method="get" class="w-100" style="max-width: 540px;">
+        <!-- hero search -->
+        <form method="get"
+              asp-area="Common"
+              asp-page="/Search/Index"
+              class="w-100"
+              style="max-width: 540px;">
             <div class="input-group input-group-lg shadow-sm rounded-pill overflow-hidden">
                 <span class="input-group-text bg-white border-0 ps-4">
                     <i class="bi bi-search text-muted"></i>
                 </span>
-                <input asp-for="Q"
+                <input type="text"
+                       name="q"
+                       value="@Model.Q"
                        class="form-control border-0"
-                       placeholder="Search documents, records, attachments..." autocomplete="off" />
+                       placeholder="Search documents, records, attachments..."
+                       autocomplete="off" />
                 <button class="btn btn-success px-4 d-none d-md-inline" type="submit">Search</button>
             </div>
         </form>
@@ -36,13 +44,19 @@
 }
 else
 {
+    <!-- top bar when query present -->
     <div class="bg-white border rounded-3 p-3 mb-3 d-flex justify-content-between align-items-center gap-3 shadow-sm">
-        <form method="get" class="flex-grow-1">
+        <form method="get"
+              asp-area="Common"
+              asp-page="/Search/Index"
+              class="flex-grow-1">
             <div class="input-group">
                 <span class="input-group-text bg-white border-end-0">
                     <i class="bi bi-search text-muted"></i>
                 </span>
-                <input asp-for="Q"
+                <input type="text"
+                       name="q"
+                       value="@Model.Q"
                        class="form-control border-start-0"
                        placeholder="Search documents, records, attachments..." />
                 <button type="submit" class="btn btn-primary">Search</button>
