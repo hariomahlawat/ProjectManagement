@@ -261,6 +261,8 @@ builder.Services.AddScoped<IGlobalDocRepoSearchService, GlobalDocRepoSearchServi
 builder.Services.AddScoped<IGlobalFfcSearchService, GlobalFfcSearchService>();
 builder.Services.AddScoped<IGlobalIprSearchService, GlobalIprSearchService>();
 builder.Services.AddScoped<IGlobalActivitiesSearchService, GlobalActivitiesSearchService>();
+builder.Services.AddScoped<IGlobalProjectSearchService, GlobalProjectSearchService>();
+builder.Services.AddScoped<IGlobalProjectReportsSearchService, GlobalProjectReportsSearchService>();
 builder.Services.AddScoped<IGlobalSearchService, GlobalSearchService>();
 
 if (builder.Configuration.GetValue("DocRepo:EnableOcrWorker", true))

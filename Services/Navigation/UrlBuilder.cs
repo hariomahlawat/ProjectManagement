@@ -1,5 +1,7 @@
 using System;
 using System.Globalization;
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
+using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 
 namespace ProjectManagement.Services.Navigation;
 
@@ -26,4 +28,28 @@ public sealed class UrlBuilder : IUrlBuilder
 
     public string ActivityDetails(int activityId)
         => $"/Activities/Details?id={activityId.ToString(CultureInfo.InvariantCulture)}";
+
+    public string ProjectOverview(int projectId)
+        => $"/Projects/Overview/{projectId.ToString(CultureInfo.InvariantCulture)}";
+
+    public string ProjectOfficeVisitDetails(Guid visitId)
+        => $"/ProjectOfficeReports/Visits/Details?id={visitId}";
+
+    public string ProjectOfficeSocialMediaDetails(Guid eventId)
+        => $"/ProjectOfficeReports/SocialMedia/Details?id={eventId}";
+
+    public string ProjectOfficeTrainingManage(Guid trainingId)
+        => $"/ProjectOfficeReports/Training/Manage?id={trainingId}";
+
+    public string ProjectOfficeTotTracker(int projectId)
+        => $"/ProjectOfficeReports/Tot/Index?selectedProjectId={projectId.ToString(CultureInfo.InvariantCulture)}";
+
+    public string ProjectOfficeProliferationManage(int projectId, ProliferationRecordKind kind, ProliferationSource source, int? year)
+    {
+        var yearPart = year.HasValue
+            ? $"&year={year.Value.ToString(CultureInfo.InvariantCulture)}"
+            : string.Empty;
+
+        return $"/ProjectOfficeReports/Proliferation/Manage?projectId={projectId.ToString(CultureInfo.InvariantCulture)}&kind={kind}&source={source}{yearPart}";
+    }
 }
