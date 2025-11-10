@@ -26,9 +26,23 @@ else
         <span>Draft plan compared against the current timeline.</span>
     </div>
 
+    @* show reason if this draft was auto created due to late completion *@
+    @if (TempData["RealignmentInfo"] is string ri)
+    {
+        <div class="alert alert-info mb-2">
+            @ri
+        </div>
+    }
+
     if (submittedOn is DateTimeOffset submitted)
     {
-        <div class="mb-2 text-muted small">Submitted on @submitted.ToLocalTime().ToString("dd MMM yyyy") @if (!string.IsNullOrWhiteSpace(submittedBy)){<text>by @submittedBy</text>}</div>
+        <div class="mb-2 text-muted small">
+            Submitted on @submitted.ToLocalTime().ToString("dd MMM yyyy")
+            @if (!string.IsNullOrWhiteSpace(submittedBy))
+            {
+                <text>by @submittedBy</text>
+            }
+        </div>
     }
 
     if (!isPending)
@@ -57,22 +71,22 @@ else
                 </tr>
             </thead>
             <tbody>
-            @foreach (var row in Model)
-            {
-                var changed = row.OldStart != row.NewStart || row.OldDue != row.NewDue;
-                <tr class="@(changed ? "table-warning" : "table-secondary")">
-                    <td>
-                        <span class="fw-semibold">@StageCodes.DisplayNameOf(row.StageCode)</span>
-                        <div class="text-muted small">@row.StageCode</div>
-                    </td>
-                    <td class="text-center">
-                        @((row.OldStart?.ToString("dd MMM yyyy") ?? "—") + " → " + (row.OldDue?.ToString("dd MMM yyyy") ?? "—"))
-                    </td>
-                    <td class="text-center">
-                        @((row.NewStart?.ToString("dd MMM yyyy") ?? "—") + " → " + (row.NewDue?.ToString("dd MMM yyyy") ?? "—"))
-                    </td>
-                </tr>
-            }
+                @foreach (var row in Model)
+                {
+                    var changed = row.OldStart != row.NewStart || row.OldDue != row.NewDue;
+                    <tr class="@(changed ? "table-warning" : "table-secondary")">
+                        <td>
+                            <span class="fw-semibold">@StageCodes.DisplayNameOf(row.StageCode)</span>
+                            <div class="text-muted small">@row.StageCode</div>
+                        </td>
+                        <td class="text-center">
+                            @((row.OldStart?.ToString("dd MMM yyyy") ?? "—") + " → " + (row.OldDue?.ToString("dd MMM yyyy") ?? "—"))
+                        </td>
+                        <td class="text-center">
+                            @((row.NewStart?.ToString("dd MMM yyyy") ?? "—") + " → " + (row.NewDue?.ToString("dd MMM yyyy") ?? "—"))
+                        </td>
+                    </tr>
+                }
             </tbody>
         </table>
     </div>

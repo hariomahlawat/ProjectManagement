@@ -8,6 +8,8 @@ using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Plans;
+
 
 namespace ProjectManagement.Services.Stages;
 
@@ -27,16 +29,20 @@ public sealed class StageDirectApplyService
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly IStageValidationService _validator;
+    private readonly IPlanRealignment _planRealignment; // <--- added
 
     public StageDirectApplyService(
         ApplicationDbContext db,
         IClock clock,
-        IStageValidationService validator)
+        IStageValidationService validator,
+        IPlanRealignment? planRealignment = null)   // <- optional
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _validator = validator ?? throw new ArgumentNullException(nameof(validator));
+        _planRealignment = planRealignment ?? new NullPlanRealignment(); // <- fallback
     }
+
 
     public async Task<DirectApplyResult> ApplyAsync(
         int projectId,
@@ -349,43 +355,43 @@ public sealed class StageDirectApplyService
                     stage.RequiresBackfill = false;
                     break;
                 case StageStatus.Completed:
-                {
-                    stage.Status = StageStatus.Completed;
-                    if (!date.HasValue)
                     {
-                        stage.ActualStart = null;
-                        stage.CompletedOn = null;
-                        adminCompletion = true;
-                        stage.RequiresBackfill = true;
+                        stage.Status = StageStatus.Completed;
+                        if (!date.HasValue)
+                        {
+                            stage.ActualStart = null;
+                            stage.CompletedOn = null;
+                            adminCompletion = true;
+                            stage.RequiresBackfill = true;
+                            break;
+                        }
+
+                        var completionDate = date.Value;
+
+                        if (!stage.ActualStart.HasValue && validation.SuggestedAutoStart.HasValue && completionDate >= validation.SuggestedAutoStart.Value)
+                        {
+                            stage.ActualStart = validation.SuggestedAutoStart.Value;
+                        }
+
+                        stage.CompletedOn = completionDate;
+
+                        if (!stage.ActualStart.HasValue)
+                        {
+                            stage.RequiresBackfill = true;
+                        }
+                        else if (stage.CompletedOn.Value < stage.ActualStart.Value)
+                        {
+                            stage.CompletedOn = stage.ActualStart.Value;
+                            stage.RequiresBackfill = false;
+                            warnings.Add(ClampWarning);
+                        }
+                        else
+                        {
+                            stage.RequiresBackfill = false;
+                        }
+
                         break;
                     }
-
-                    var completionDate = date.Value;
-
-                    if (!stage.ActualStart.HasValue && validation.SuggestedAutoStart.HasValue && completionDate >= validation.SuggestedAutoStart.Value)
-                    {
-                        stage.ActualStart = validation.SuggestedAutoStart.Value;
-                    }
-
-                    stage.CompletedOn = completionDate;
-
-                    if (!stage.ActualStart.HasValue)
-                    {
-                        stage.RequiresBackfill = true;
-                    }
-                    else if (stage.CompletedOn.Value < stage.ActualStart.Value)
-                    {
-                        stage.CompletedOn = stage.ActualStart.Value;
-                        stage.RequiresBackfill = false;
-                        warnings.Add(ClampWarning);
-                    }
-                    else
-                    {
-                        stage.RequiresBackfill = false;
-                    }
-
-                    break;
-                }
                 case StageStatus.Blocked:
                     stage.Status = StageStatus.Blocked;
                     stage.RequiresBackfill = false;
@@ -447,6 +453,23 @@ public sealed class StageDirectApplyService
         await _db.StageChangeLogs.AddAsync(directApplyLog, ct);
         await _db.StageChangeLogs.AddAsync(appliedLog, ct);
         await _db.SaveChangesAsync(ct);
+
+        // NEW: create realignment draft if this completion was late
+        if (stage.Status == StageStatus.Completed
+            && stage.PlannedDue.HasValue
+            && stage.CompletedOn.HasValue)
+        {
+            var delayDays = stage.CompletedOn.Value.DayNumber - stage.PlannedDue.Value.DayNumber;
+            if (delayDays > 0)
+            {
+                await _planRealignment.CreateRealignmentDraftAsync(
+                    projectId,
+                    stage.StageCode!,
+                    delayDays,
+                    hodUserId,
+                    ct);
+            }
+        }
 
         if (superseded)
         {

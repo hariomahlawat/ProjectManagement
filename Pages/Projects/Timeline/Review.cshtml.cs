@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore; // <- add
+using ProjectManagement.Data;        // <- add
 using ProjectManagement.Models;
 using ProjectManagement.Helpers;
 using ProjectManagement.Services.Plans;
@@ -22,13 +24,20 @@ public class ReviewModel : PageModel
     private readonly ProjectTimelineReadService _timeline;
     private readonly UserManager<ApplicationUser> _users;
     private readonly ILogger<ReviewModel> _logger;
+    private readonly ApplicationDbContext _db; // <- add
 
-    public ReviewModel(PlanApprovalService approval, ProjectTimelineReadService timeline, UserManager<ApplicationUser> users, ILogger<ReviewModel> logger)
+    public ReviewModel(
+        PlanApprovalService approval,
+        ProjectTimelineReadService timeline,
+        UserManager<ApplicationUser> users,
+        ILogger<ReviewModel> logger,
+        ApplicationDbContext db) // <- add
     {
         _approval = approval;
         _timeline = timeline;
         _users = users;
         _logger = logger;
+        _db = db; // <- add
     }
 
     public sealed class InputModel
@@ -55,6 +64,9 @@ public class ReviewModel : PageModel
         {
             return Forbid();
         }
+
+        // NEW: try to detect if the latest pending plan is an auto realignment and surface it
+        await LoadRealignmentInfoAsync(id, ct);
 
         try
         {
@@ -131,5 +143,31 @@ public class ReviewModel : PageModel
         }
 
         return RedirectToPage("/Projects/Overview", new { id });
+    }
+
+    // NEW helper
+    private async Task LoadRealignmentInfoAsync(int projectId, CancellationToken ct)
+    {
+        // get latest pending plan for this project
+        var plan = await _db.PlanVersions
+            .FirstOrDefaultAsync(p => p.ProjectId == projectId && p.Status == Models.Plans.PlanVersionStatus.PendingApproval,
+                                 ct);
+
+        if (plan is null)
+        {
+            return;
+        }
+
+        // see if there is a realignment audit attached to this version
+        var audit = await _db.PlanRealignmentAudits
+            .FirstOrDefaultAsync(a => a.ProjectId == projectId && a.PlanVersionNo == plan.VersionNo, ct);
+
+        if (audit is null)
+        {
+            return;
+        }
+
+        TempData["RealignmentInfo"] =
+            $"This plan was auto-generated because stage {audit.SourceStageCode} finished {audit.DelayDays} days late.";
     }
 }

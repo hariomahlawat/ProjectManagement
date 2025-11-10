@@ -62,6 +62,7 @@ namespace ProjectManagement.Data
         public DbSet<PlanApprovalLog> PlanApprovalLogs => Set<PlanApprovalLog>();
         public DbSet<ProjectPlanSnapshot> ProjectPlanSnapshots => Set<ProjectPlanSnapshot>();
         public DbSet<ProjectPlanSnapshotRow> ProjectPlanSnapshotRows => Set<ProjectPlanSnapshotRow>();
+        public DbSet<ProjectManagement.Models.Plans.PlanRealignmentAudit> PlanRealignmentAudits { get; set; } = default!;
         public DbSet<ProjectStage> ProjectStages => Set<ProjectStage>();
         public DbSet<ProjectPhoto> ProjectPhotos => Set<ProjectPhoto>();
         public DbSet<ProjectVideo> ProjectVideos => Set<ProjectVideo>();

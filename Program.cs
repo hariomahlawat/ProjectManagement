@@ -341,6 +341,8 @@ builder.Services.AddScoped<IDocumentRequestService, DocumentRequestService>();
 builder.Services.AddScoped<IDocumentDecisionService, DocumentDecisionService>();
 builder.Services.AddScoped<PlanReadService>();
 builder.Services.AddScoped<PlanGenerationService>();
+builder.Services.AddScoped<ProjectManagement.Services.Plans.IPlanRealignment, ProjectManagement.Services.Plans.PlanRealignmentService>();
+
 builder.Services.AddScoped<IScheduleEngine, ScheduleEngine>();
 builder.Services.AddScoped<IForecastWriter, ForecastWriter>();
 builder.Services.AddScoped<ForecastBackfillService>();
