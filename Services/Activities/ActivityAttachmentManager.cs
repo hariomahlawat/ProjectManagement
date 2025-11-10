@@ -1,10 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using ProjectManagement.Contracts.Activities;
 using ProjectManagement.Models.Activities;
+using ProjectManagement.Services.DocRepo;
+using ProjectManagement.Services.Storage;
 
 namespace ProjectManagement.Services.Activities;
 
@@ -16,16 +21,25 @@ public sealed class ActivityAttachmentManager : IActivityAttachmentManager
     private readonly IActivityAttachmentStorage _storage;
     private readonly IActivityAttachmentValidator _validator;
     private readonly IClock _clock;
+    private readonly IDocRepoIngestionService _docRepoIngestionService;
+    private readonly IUploadRootProvider _uploadRootProvider;
+    private readonly ILogger<ActivityAttachmentManager>? _logger;
 
     public ActivityAttachmentManager(IActivityRepository activityRepository,
                                      IActivityAttachmentStorage storage,
                                      IActivityAttachmentValidator validator,
-                                     IClock clock)
+                                     IClock clock,
+                                     IDocRepoIngestionService docRepoIngestionService,
+                                     IUploadRootProvider uploadRootProvider,
+                                     ILogger<ActivityAttachmentManager>? logger = null)
     {
         _activityRepository = activityRepository ?? throw new ArgumentNullException(nameof(activityRepository));
         _storage = storage ?? throw new ArgumentNullException(nameof(storage));
         _validator = validator ?? throw new ArgumentNullException(nameof(validator));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
+        _docRepoIngestionService = docRepoIngestionService ?? throw new ArgumentNullException(nameof(docRepoIngestionService));
+        _uploadRootProvider = uploadRootProvider ?? throw new ArgumentNullException(nameof(uploadRootProvider));
+        _logger = logger;
     }
 
     public async Task<ActivityAttachment> AddAsync(Activity activity,
@@ -58,6 +72,26 @@ public sealed class ActivityAttachmentManager : IActivityAttachmentManager
 
         await _activityRepository.AddAttachmentAsync(attachment, cancellationToken);
         activity.Attachments.Add(attachment);
+
+        if (string.Equals(upload.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                var absolutePath = ResolveAbsolutePath(storageResult.StorageKey);
+                await using var pdfStream = new FileStream(absolutePath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true);
+                await _docRepoIngestionService.IngestExternalPdfAsync(
+                    pdfStream,
+                    attachment.OriginalFileName,
+                    "Activities",
+                    attachment.Id.ToString(CultureInfo.InvariantCulture),
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Failed to ingest activity attachment {AttachmentId} for activity {ActivityId}.", attachment.Id, activity.Id);
+            }
+        }
+
         return attachment;
     }
 
@@ -134,5 +168,11 @@ public sealed class ActivityAttachmentManager : IActivityAttachmentManager
         };
 
         return new ActivityValidationException(errors);
+    }
+
+    private string ResolveAbsolutePath(string storageKey)
+    {
+        var relative = storageKey.Replace('/', Path.DirectorySeparatorChar).Replace('\\', Path.DirectorySeparatorChar);
+        return Path.Combine(_uploadRootProvider.RootPath, relative);
     }
 }

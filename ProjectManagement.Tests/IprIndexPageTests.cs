@@ -27,6 +27,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Tests.Fakes;
+using ProjectManagement.Services.DocRepo;
 
 namespace ProjectManagement.Tests;
 
@@ -305,7 +306,8 @@ public sealed class IprIndexPageTests
         });
 
         var storage = new IprAttachmentStorage(new TestUploadRootProvider(root));
-        var service = new IprWriteService(db, clock, storage, options, NullLogger<IprWriteService>.Instance);
+        var ingestion = new StubDocRepoIngestionService();
+        var service = new IprWriteService(db, clock, storage, options, NullLogger<IprWriteService>.Instance, ingestion);
         return (service, root);
     }
 
@@ -335,6 +337,14 @@ public sealed class IprIndexPageTests
 
         public void SaveTempData(HttpContext context, IDictionary<string, object?> values)
         {
+        }
+    }
+
+    private sealed class StubDocRepoIngestionService : IDocRepoIngestionService
+    {
+        public Task<Guid> IngestExternalPdfAsync(Stream pdfStream, string originalFileName, string sourceModule, string sourceItemId, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(Guid.NewGuid());
         }
     }
 

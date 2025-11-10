@@ -119,6 +119,7 @@ namespace ProjectManagement.Data
         public DbSet<ActivityAttachment> ActivityAttachments => Set<ActivityAttachment>();
         public DbSet<ActivityDeleteRequest> ActivityDeleteRequests => Set<ActivityDeleteRequest>();
         public DbSet<Document> Documents => Set<Document>();
+        public DbSet<DocRepoExternalLink> DocRepoExternalLinks => Set<DocRepoExternalLink>();
         public DbSet<Tag> Tags => Set<Tag>();
         public DbSet<DocumentTag> DocumentTags => Set<DocumentTag>();
         public DbSet<DocumentText> DocumentTexts => Set<DocumentText>();
@@ -236,6 +237,19 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => x.ReceivedFrom);
                 e.HasIndex(x => x.DocumentDate);
                 e.HasIndex(x => x.IsDeleted);
+                e.HasMany(x => x.ExternalLinks)
+                    .WithOne(x => x.Document)
+                    .HasForeignKey(x => x.DocumentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            builder.Entity<DocRepoExternalLink>(e =>
+            {
+                e.ToTable("DocRepoExternalLinks");
+                e.HasKey(x => x.Id);
+                e.Property(x => x.SourceModule).HasMaxLength(64).IsRequired();
+                e.Property(x => x.SourceItemId).HasMaxLength(128).IsRequired();
+                e.HasIndex(x => new { x.SourceModule, x.SourceItemId });
             });
 
             builder.Entity<DocumentText>(e =>

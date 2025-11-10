@@ -7,6 +7,12 @@ public class DocRepoOptions
 {
     public string RootPath { get; set; } = Path.Combine(AppContext.BaseDirectory, "App_Data", "DocRepo");
     public bool EnableOcrWorker { get; set; } = true;
+    public bool EnableIngestion { get; set; } = true;
+    public int? IngestionOfficeCategoryId { get; set; }
+        = null;
+    public int? IngestionDocumentCategoryId { get; set; }
+        = null;
+    public string IngestionUserId { get; set; } = "system";
     public long MaxFileSizeBytes { get; set; } = 52_428_800;
     public string? OcrWorkRoot { get; set; }
     public string OcrInput { get; set; } = "input";
