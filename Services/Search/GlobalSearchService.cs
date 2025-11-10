@@ -3,63 +3,90 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
 
-namespace ProjectManagement.Services.Search;
-
-// SECTION: Global search contract
-public interface IGlobalSearchService
+namespace ProjectManagement.Services.Search
 {
-    Task<IReadOnlyList<GlobalSearchHit>> SearchAsync(string query, CancellationToken cancellationToken);
-}
-
-// SECTION: Global search implementation
-public sealed class GlobalSearchService : IGlobalSearchService
-{
-    private readonly DocRepo.IGlobalDocRepoSearchService _docRepoSearchService;
-    private readonly IGlobalFfcSearchService _ffcSearchService;
-    private readonly IGlobalIprSearchService _iprSearchService;
-    private readonly IGlobalActivitiesSearchService _activitiesSearchService;
-
-    public GlobalSearchService(
-        DocRepo.IGlobalDocRepoSearchService docRepoSearchService,
-        IGlobalFfcSearchService ffcSearchService,
-        IGlobalIprSearchService iprSearchService,
-        IGlobalActivitiesSearchService activitiesSearchService)
+    // SECTION: Global search contract
+    public interface IGlobalSearchService
     {
-        _docRepoSearchService = docRepoSearchService ?? throw new ArgumentNullException(nameof(docRepoSearchService));
-        _ffcSearchService = ffcSearchService ?? throw new ArgumentNullException(nameof(ffcSearchService));
-        _iprSearchService = iprSearchService ?? throw new ArgumentNullException(nameof(iprSearchService));
-        _activitiesSearchService = activitiesSearchService ?? throw new ArgumentNullException(nameof(activitiesSearchService));
+        Task<IReadOnlyList<GlobalSearchHit>> SearchAsync(string query, CancellationToken cancellationToken);
     }
 
-    public async Task<IReadOnlyList<GlobalSearchHit>> SearchAsync(string query, CancellationToken cancellationToken)
+    // SECTION: Global search implementation
+    public sealed class GlobalSearchService : IGlobalSearchService
     {
-        if (string.IsNullOrWhiteSpace(query))
+        private readonly IServiceScopeFactory _scopeFactory;
+
+        public GlobalSearchService(IServiceScopeFactory scopeFactory)
         {
-            return Array.Empty<GlobalSearchHit>();
+            _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         }
 
-        var docRepoTask = _docRepoSearchService.SearchAsync(query, 30, cancellationToken);
-        var ffcTask = _ffcSearchService.SearchAsync(query, 20, cancellationToken);
-        var iprTask = _iprSearchService.SearchAsync(query, 20, cancellationToken);
-        var activitiesTask = _activitiesSearchService.SearchAsync(query, 20, cancellationToken);
-
-        await Task.WhenAll(docRepoTask, ffcTask, iprTask, activitiesTask);
-
-        var combined = docRepoTask.Result
-            .Concat(ffcTask.Result)
-            .Concat(iprTask.Result)
-            .Concat(activitiesTask.Result)
-            .ToList();
-
-        if (combined.Count == 0)
+        public async Task<IReadOnlyList<GlobalSearchHit>> SearchAsync(string query, CancellationToken cancellationToken)
         {
-            return Array.Empty<GlobalSearchHit>();
-        }
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return Array.Empty<GlobalSearchHit>();
+            }
 
-        return combined
-            .OrderByDescending(hit => hit.Score)
-            .ThenByDescending(hit => hit.Date)
-            .ToList();
+            // create separate scopes so each search gets its own DbContext
+            var docScope = _scopeFactory.CreateScope();
+            var ffcScope = _scopeFactory.CreateScope();
+            var iprScope = _scopeFactory.CreateScope();
+            var actScope = _scopeFactory.CreateScope();
+
+            try
+            {
+                var docService = docScope.ServiceProvider
+                    .GetRequiredService<DocRepo.IGlobalDocRepoSearchService>();
+                var ffcService = ffcScope.ServiceProvider
+                    .GetRequiredService<IGlobalFfcSearchService>();
+                var iprService = iprScope.ServiceProvider
+                    .GetRequiredService<IGlobalIprSearchService>();
+                var actService = actScope.ServiceProvider
+                    .GetRequiredService<IGlobalActivitiesSearchService>();
+
+                // run all 4 in parallel, each has its own scope/dbcontext now
+                var docTask = docService.SearchAsync(query, 30, cancellationToken);
+                var ffcTask = ffcService.SearchAsync(query, 20, cancellationToken);
+                var iprTask = iprService.SearchAsync(query, 20, cancellationToken);
+                var actTask = actService.SearchAsync(query, 20, cancellationToken);
+
+                await Task.WhenAll(docTask, ffcTask, iprTask, actTask);
+
+                var combined = docTask.Result
+                    .Concat(ffcTask.Result)
+                    .Concat(iprTask.Result)
+                    .Concat(actTask.Result)
+                    .ToList();
+
+                if (combined.Count == 0)
+                {
+                    return Array.Empty<GlobalSearchHit>();
+                }
+
+                // dedupe by Url and keep best scored
+                var distinct = combined
+                    .GroupBy(h => h.Url, StringComparer.OrdinalIgnoreCase)
+                    .Select(g => g
+                        .OrderByDescending(x => x.Score)
+                        .ThenByDescending(x => x.Date)
+                        .First())
+                    .OrderByDescending(h => h.Score)
+                    .ThenByDescending(h => h.Date)
+                    .ToList();
+
+                return distinct;
+            }
+            finally
+            {
+                // make sure we dispose all scopes
+                docScope.Dispose();
+                ffcScope.Dispose();
+                iprScope.Dispose();
+                actScope.Dispose();
+            }
+        }
     }
 }
