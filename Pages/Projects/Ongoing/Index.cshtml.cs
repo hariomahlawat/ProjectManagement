@@ -83,7 +83,6 @@ namespace ProjectManagement.Pages.Projects.Ongoing
 
             var now = _clock.UtcNow;
 
-            // existing builder: (items, now, categoryId, search)
             var file = _excelBuilder.Build(
                 new OngoingProjectsExportContext(
                     items,
@@ -91,8 +90,12 @@ namespace ProjectManagement.Pages.Projects.Ongoing
                     ProjectCategoryId,
                     search));
 
-            var fileName = $"ongoing-projects-{now:yyyyMMddHHmmss}.csv";
-            return File(file, "text/csv", fileName);
+            var fileName = $"ongoing-projects-{now:yyyyMMddHHmmss}.xlsx";
+
+            return File(
+                file,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                fileName);
         }
 
         private async Task LoadCategoriesAsync(CancellationToken ct)
