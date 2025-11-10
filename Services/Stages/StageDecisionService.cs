@@ -10,6 +10,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using ProjectManagement.Services;
+using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Utilities;
 
@@ -28,21 +29,25 @@ public sealed class StageDecisionService
     private const string CompletionClampedWarning =
         "Completion date was earlier than the actual start date and has been adjusted to match the start date.";
 
+    // SECTION: Dependencies
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly StageProgressService _stageProgressService;
     private readonly ILogger<StageDecisionService> _logger;
+    private readonly IPlanRealignment _planRealignment;
 
     public StageDecisionService(
         ApplicationDbContext db,
         IClock clock,
         StageProgressService stageProgressService,
-        ILogger<StageDecisionService> logger)
+        ILogger<StageDecisionService> logger,
+        IPlanRealignment? planRealignment = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _stageProgressService = stageProgressService ?? throw new ArgumentNullException(nameof(stageProgressService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _planRealignment = planRealignment ?? new NullPlanRealignment();
     }
 
     public async Task<StageDecisionResult> DecideAsync(StageDecisionInput input, string hodUserId, CancellationToken cancellationToken = default)
@@ -291,6 +296,23 @@ public sealed class StageDecisionService
         await _db.StageChangeLogs.AddAsync(approvedLog, cancellationToken);
         await _db.StageChangeLogs.AddAsync(appliedLog, cancellationToken);
         await _db.SaveChangesAsync(cancellationToken);
+
+        // SECTION: Realignment draft creation
+        if (stage.Status == StageStatus.Completed
+            && stage.PlannedDue.HasValue
+            && stage.CompletedOn.HasValue)
+        {
+            var delayDays = stage.CompletedOn.Value.DayNumber - stage.PlannedDue.Value.DayNumber;
+            if (delayDays > 0)
+            {
+                await _planRealignment.CreateRealignmentDraftAsync(
+                    stage.ProjectId,
+                    stage.StageCode!,
+                    delayDays,
+                    hodUserId,
+                    cancellationToken);
+            }
+        }
 
         _logger.LogInformation(
             "Stage decision approved. RequestId={RequestId}, ProjectId={ProjectId}, StageCode={StageCode}, UserId={UserId}, ConnHash={ConnHash}, Warnings={WarningCount}",

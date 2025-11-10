@@ -302,6 +302,8 @@ builder.Services.AddScoped<StageRulesService>();
 builder.Services.AddScoped<StageProgressService>();
 builder.Services.AddScoped<IStageValidationService, StageValidationService>();
 builder.Services.AddScoped<StageRequestService>();
+// SECTION: Plan realignment services
+builder.Services.AddScoped<IPlanRealignment, PlanRealignmentService>();
 builder.Services.AddScoped<StageDirectApplyService>();
 builder.Services.AddScoped<StageBackfillService>();
 builder.Services.AddScoped<StageDecisionService>();
@@ -341,7 +343,6 @@ builder.Services.AddScoped<IDocumentRequestService, DocumentRequestService>();
 builder.Services.AddScoped<IDocumentDecisionService, DocumentDecisionService>();
 builder.Services.AddScoped<PlanReadService>();
 builder.Services.AddScoped<PlanGenerationService>();
-builder.Services.AddScoped<ProjectManagement.Services.Plans.IPlanRealignment, ProjectManagement.Services.Plans.PlanRealignmentService>();
 
 builder.Services.AddScoped<IScheduleEngine, ScheduleEngine>();
 builder.Services.AddScoped<IForecastWriter, ForecastWriter>();

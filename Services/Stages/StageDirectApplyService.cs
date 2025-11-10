@@ -26,21 +26,22 @@ public sealed class StageDirectApplyService
     private const string AutoBackfillNoteTemplate = "Auto-backfilled (no dates) due to completion of {0}";
     private const string ClampWarning = "CompletedOn was clamped to ActualStart";
 
+    // SECTION: Dependencies
     private readonly ApplicationDbContext _db;
     private readonly IClock _clock;
     private readonly IStageValidationService _validator;
-    private readonly IPlanRealignment _planRealignment; // <--- added
+    private readonly IPlanRealignment _planRealignment;
 
     public StageDirectApplyService(
         ApplicationDbContext db,
         IClock clock,
         IStageValidationService validator,
-        IPlanRealignment? planRealignment = null)   // <- optional
+        IPlanRealignment? planRealignment = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _validator = validator ?? throw new ArgumentNullException(nameof(validator));
-        _planRealignment = planRealignment ?? new NullPlanRealignment(); // <- fallback
+        _planRealignment = planRealignment ?? new NullPlanRealignment();
     }
 
 
@@ -454,7 +455,7 @@ public sealed class StageDirectApplyService
         await _db.StageChangeLogs.AddAsync(appliedLog, ct);
         await _db.SaveChangesAsync(ct);
 
-        // NEW: create realignment draft if this completion was late
+        // SECTION: Realignment draft creation
         if (stage.Status == StageStatus.Completed
             && stage.PlannedDue.HasValue
             && stage.CompletedOn.HasValue)

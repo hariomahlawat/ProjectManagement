@@ -1,8 +1,9 @@
-﻿using System.Threading;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace ProjectManagement.Services.Plans
 {
+    // SECTION: Null-object implementation
     public sealed class NullPlanRealignment : IPlanRealignment
     {
         public Task CreateRealignmentDraftAsync(
@@ -12,7 +13,6 @@ namespace ProjectManagement.Services.Plans
             string triggeredByUserId,
             CancellationToken cancellationToken = default)
         {
-            // do nothing
             return Task.CompletedTask;
         }
     }
