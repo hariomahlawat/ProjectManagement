@@ -82,18 +82,19 @@ namespace ProjectManagement.Services.Projects
                     var stageDto = item.Stages.FirstOrDefault(s =>
                         string.Equals(s.Code, stageCode, StringComparison.OrdinalIgnoreCase));
 
-                    var text = string.Empty;
+                    string text = string.Empty;
 
                     if (stageDto != null)
                     {
-                        // your rule: completed ⇒ show actual date if we have it
                         if (stageDto.Status == StageStatus.Completed)
                         {
+                            // RULE: completed stage => show ONLY actual completion date
+                            // if actual is missing, leave it blank (do NOT show PDC)
                             text = stageDto.ActualCompletedOn?.ToString("dd-MMM-yyyy") ?? string.Empty;
                         }
                         else
                         {
-                            // future / not completed ⇒ show PDC if present
+                            // not completed => PDC is allowed
                             if (stageDto.PlannedDue.HasValue)
                             {
                                 text = $"PDC: {stageDto.PlannedDue.Value:dd-MMM-yyyy}";
@@ -103,6 +104,7 @@ namespace ProjectManagement.Services.Projects
 
                     ws.Cell(row, col++).Value = text;
                 }
+
 
                 row++;
             }
