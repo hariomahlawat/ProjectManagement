@@ -35,6 +35,8 @@ namespace ProjectManagement.Services.Search
             var ffcScope = _scopeFactory.CreateScope();
             var iprScope = _scopeFactory.CreateScope();
             var actScope = _scopeFactory.CreateScope();
+            var projectScope = _scopeFactory.CreateScope();
+            var reportsScope = _scopeFactory.CreateScope();
 
             try
             {
@@ -46,19 +48,27 @@ namespace ProjectManagement.Services.Search
                     .GetRequiredService<IGlobalIprSearchService>();
                 var actService = actScope.ServiceProvider
                     .GetRequiredService<IGlobalActivitiesSearchService>();
+                var projectService = projectScope.ServiceProvider
+                    .GetRequiredService<IGlobalProjectSearchService>();
+                var reportsService = reportsScope.ServiceProvider
+                    .GetRequiredService<IGlobalProjectReportsSearchService>();
 
-                // run all 4 in parallel, each has its own scope/dbcontext now
+                // run all module searches in parallel, each has its own scope/DbContext now
                 var docTask = docService.SearchAsync(query, 30, cancellationToken);
                 var ffcTask = ffcService.SearchAsync(query, 20, cancellationToken);
                 var iprTask = iprService.SearchAsync(query, 20, cancellationToken);
                 var actTask = actService.SearchAsync(query, 20, cancellationToken);
+                var projectTask = projectService.SearchAsync(query, 20, cancellationToken);
+                var reportsTask = reportsService.SearchAsync(query, 20, cancellationToken);
 
-                await Task.WhenAll(docTask, ffcTask, iprTask, actTask);
+                await Task.WhenAll(docTask, ffcTask, iprTask, actTask, projectTask, reportsTask);
 
                 var combined = docTask.Result
                     .Concat(ffcTask.Result)
                     .Concat(iprTask.Result)
                     .Concat(actTask.Result)
+                    .Concat(projectTask.Result)
+                    .Concat(reportsTask.Result)
                     .ToList();
 
                 if (combined.Count == 0)
@@ -86,6 +96,8 @@ namespace ProjectManagement.Services.Search
                 ffcScope.Dispose();
                 iprScope.Dispose();
                 actScope.Dispose();
+                projectScope.Dispose();
+                reportsScope.Dispose();
             }
         }
     }

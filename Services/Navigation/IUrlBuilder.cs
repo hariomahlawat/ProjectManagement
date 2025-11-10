@@ -1,4 +1,6 @@
 using System;
+using ProjectManagement.Areas.ProjectOfficeReports.Domain;
+using ProjectManagement.Areas.ProjectOfficeReports.Proliferation.ViewModels;
 
 namespace ProjectManagement.Services.Navigation;
 
@@ -12,4 +14,10 @@ public interface IUrlBuilder
     string IprRecordManage(int recordId);
     string IprAttachmentDownload(int recordId, int attachmentId);
     string ActivityDetails(int activityId);
+    string ProjectOverview(int projectId);
+    string ProjectOfficeVisitDetails(Guid visitId);
+    string ProjectOfficeSocialMediaDetails(Guid eventId);
+    string ProjectOfficeTrainingManage(Guid trainingId);
+    string ProjectOfficeTotTracker(int projectId);
+    string ProjectOfficeProliferationManage(int projectId, ProliferationRecordKind kind, ProliferationSource source, int? year);
 }
