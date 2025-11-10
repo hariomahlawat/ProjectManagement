@@ -1,8 +1,9 @@
-﻿using System.Threading;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace ProjectManagement.Services.Plans
 {
+    // SECTION: Interface definition
     public interface IPlanRealignment
     {
         Task CreateRealignmentDraftAsync(
