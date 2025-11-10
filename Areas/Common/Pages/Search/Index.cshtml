@@ -7,7 +7,6 @@
 
 @if (!hasQuery)
 {
-    <!-- Hero / empty state -->
     <div class="d-flex flex-column align-items-center justify-content-center py-5 my-4">
         <h1 class="fw-semibold mb-3">Search everything</h1>
         <p class="text-muted mb-4">Documents, attachments, FFC/IPR records — all in one place.</p>
@@ -24,7 +23,6 @@
             </div>
         </form>
 
-        @* optional filters when empty *@
         @if (Model.AvailableSources.Count > 0)
         {
             <div class="mt-4 d-flex gap-2 flex-wrap justify-content-center">
@@ -38,7 +36,6 @@
 }
 else
 {
-    <!-- Search bar pinned on top when we have results -->
     <div class="bg-white border rounded-3 p-3 mb-3 d-flex justify-content-between align-items-center gap-3 shadow-sm">
         <form method="get" class="flex-grow-1">
             <div class="input-group">
@@ -51,7 +48,6 @@ else
                 <button type="submit" class="btn btn-primary">Search</button>
             </div>
 
-            @* filters under the bar *@
             @if (Model.AvailableSources.Count > 0)
             {
                 <div class="mt-2 d-flex flex-wrap gap-3">
@@ -79,18 +75,27 @@ else
         <div class="d-flex flex-column gap-3 mb-5">
             @foreach (var hit in Model.Results)
             {
-                <a class="text-decoration-none"
-                   href="@hit.Url">
-                    <div class="card border-0 border-start border-4 shadow-sm hover-shadow-sm" style="border-color: rgba(13,110,253,.5) !important;">
+                <a class="text-decoration-none" href="@hit.Url">
+                    <div class="card border-0 border-start border-4 shadow-sm" style="border-color: rgba(13,110,253,.5) !important;">
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-start mb-1">
                                 <h2 class="h5 mb-0 text-primary">@hit.Title</h2>
                                 <span class="badge bg-secondary">@hit.Source</span>
                             </div>
+
                             @if (!string.IsNullOrWhiteSpace(hit.Snippet))
                             {
-                                <p class="mb-2 text-muted small">@hit.Snippet</p>
+                                var hasMarkup = hit.Snippet.Contains("<mark>", StringComparison.OrdinalIgnoreCase);
+                                if (hasMarkup)
+                                {
+                                    <p class="mb-2 text-muted small">@Html.Raw(hit.Snippet)</p>
+                                }
+                                else
+                                {
+                                    <p class="mb-2 text-muted small">@hit.Snippet</p>
+                                }
                             }
+
                             <div class="d-flex gap-3 small text-muted">
                                 @if (hit.Date.HasValue)
                                 {
