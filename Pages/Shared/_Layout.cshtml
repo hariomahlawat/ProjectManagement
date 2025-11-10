@@ -37,31 +37,31 @@
                     </li>
                 </ul>
                 <div class="ms-auto d-flex align-items-center gap-3">
+                    <!-- desktop search -->
                     <form method="get"
                           asp-area="Common"
                           asp-page="/Search/Index"
-                          class="pm-top-search d-none d-md-block">
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text bg-white border-end-0">
-                                <i class="bi bi-search"></i>
-                            </span>
+                          class="d-none d-md-block">
+                        <div class="pm-header-search d-flex align-items-center">
+                            <i class="bi bi-search pm-header-search-icon"></i>
                             <input type="text"
                                    name="q"
-                                   class="form-control border-start-0"
-                                   placeholder="Search..."
-                                   aria-label="Search" />
+                                   class="pm-header-search-input"
+                                   placeholder="Search..." />
                         </div>
                     </form>
+
+                    <!-- mobile icon fallback -->
                     <a asp-area="Common"
                        asp-page="/Search/Index"
                        class="d-inline-flex d-md-none text-muted align-items-center justify-content-center"
                        title="Search">
                         <i class="bi bi-search" style="font-size:1.1rem;"></i>
                     </a>
+
                     @await Component.InvokeAsync("NotificationBell")
                     <partial name="_LoginPartial" />
                 </div>
-
             </div>
         </nav>
     </header>
