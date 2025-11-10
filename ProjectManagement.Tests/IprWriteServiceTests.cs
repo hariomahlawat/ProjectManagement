@@ -179,7 +179,8 @@ public sealed class IprWriteServiceTests
         try
         {
             var storage = new IprAttachmentStorage(new TestUploadRootProvider(root));
-            var service = new IprWriteService(db, clock, storage, Options.Create(options), NullLogger<IprWriteService>.Instance);
+            var ingestion = new StubDocRepoIngestionService();
+            var service = new IprWriteService(db, clock, storage, Options.Create(options), ingestion, NullLogger<IprWriteService>.Instance);
 
             var record = new IprRecord
             {
@@ -231,7 +232,8 @@ public sealed class IprWriteServiceTests
         try
         {
             var storage = new IprAttachmentStorage(new TestUploadRootProvider(root));
-            var service = new IprWriteService(db, clock, storage, Options.Create(options), NullLogger<IprWriteService>.Instance);
+            var ingestion = new StubDocRepoIngestionService();
+            var service = new IprWriteService(db, clock, storage, Options.Create(options), ingestion, NullLogger<IprWriteService>.Instance);
 
             var record = new IprRecord
             {
@@ -273,7 +275,8 @@ public sealed class IprWriteServiceTests
         try
         {
             var storage = new IprAttachmentStorage(new TestUploadRootProvider(root));
-            var service = new IprWriteService(db, clock, storage, Options.Create(options), NullLogger<IprWriteService>.Instance);
+            var ingestion = new StubDocRepoIngestionService();
+            var service = new IprWriteService(db, clock, storage, Options.Create(options), ingestion, NullLogger<IprWriteService>.Instance);
 
             var record = new IprRecord
             {
@@ -341,7 +344,7 @@ public sealed class IprWriteServiceTests
         var root = CreateTempRoot();
         var storage = new IprAttachmentStorage(new TestUploadRootProvider(root));
         var ingestion = new StubDocRepoIngestionService();
-        var service = new IprWriteService(db, clock, storage, options, NullLogger<IprWriteService>.Instance, ingestion);
+        var service = new IprWriteService(db, clock, storage, options, ingestion, NullLogger<IprWriteService>.Instance);
         return (service, root);
     }
 

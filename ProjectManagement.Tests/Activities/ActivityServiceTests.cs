@@ -14,6 +14,7 @@ using ProjectManagement.Infrastructure.Activities;
 using ProjectManagement.Models.Activities;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Activities;
+using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.Storage;
 using Xunit;
 
@@ -206,7 +207,15 @@ public class ActivityServiceTests : IDisposable
         _userContext = new TestUserContext("owner");
         _uploadRoot = new TestUploadRootProvider();
         var storage = new FileSystemActivityAttachmentStorage(_uploadRoot, NullLogger<FileSystemActivityAttachmentStorage>.Instance);
-        _attachmentManager = new ActivityAttachmentManager(_activityRepository, storage, _attachmentValidator, _clock);
+        var ingestion = new StubDocRepoIngestionService();
+        _attachmentManager = new ActivityAttachmentManager(
+            _activityRepository,
+            storage,
+            _attachmentValidator,
+            _clock,
+            ingestion,
+            _uploadRoot,
+            NullLogger<ActivityAttachmentManager>.Instance);
         _service = new ActivityService(_activityRepository,
             _inputValidator,
             _attachmentManager,
@@ -538,6 +547,13 @@ internal sealed class TestUserContext : IUserContext
 internal sealed class TestClock : IClock
 {
     public DateTimeOffset UtcNow { get; set; } = DateTimeOffset.UtcNow;
+}
+
+// ===== Section: Doc Repo ingestion stub =====
+internal sealed class StubDocRepoIngestionService : IDocRepoIngestionService
+{
+    public Task<Guid> IngestExternalPdfAsync(Stream pdfStream, string originalFileName, string sourceModule, string sourceItemId, CancellationToken cancellationToken = default)
+        => Task.FromResult(Guid.NewGuid());
 }
 
 internal sealed class TestUploadRootProvider : IUploadRootProvider, IDisposable

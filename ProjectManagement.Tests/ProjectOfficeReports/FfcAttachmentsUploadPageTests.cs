@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
+using System.IO;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Abstractions;
@@ -19,6 +21,7 @@ using ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.Attachments
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Services;
+using ProjectManagement.Services.DocRepo;
 using Xunit;
 
 namespace ProjectManagement.Tests.ProjectOfficeReports;
@@ -52,7 +55,8 @@ public sealed class FfcAttachmentsUploadPageTests
     {
         var storage = new ThrowingAttachmentStorage();
         var options = Options.Create(new FfcAttachmentOptions { MaxFileSizeBytes = 10_000_000 });
-        return new UploadModel(db, storage, options, new StubAuditService(), NullLogger<UploadModel>.Instance);
+        var ingestion = new StubDocRepoIngestionService();
+        return new UploadModel(db, storage, options, new StubAuditService(), NullLogger<UploadModel>.Instance, ingestion);
     }
 
     private static ApplicationDbContext CreateDbContext()
@@ -100,6 +104,13 @@ public sealed class FfcAttachmentsUploadPageTests
 
         public Task DeleteAsync(FfcAttachment attachment)
             => throw new InvalidOperationException("Should not be called.");
+    }
+
+    // ===== Section: Doc Repo ingestion stub =====
+    private sealed class StubDocRepoIngestionService : IDocRepoIngestionService
+    {
+        public Task<Guid> IngestExternalPdfAsync(Stream pdfStream, string originalFileName, string sourceModule, string sourceItemId, CancellationToken cancellationToken = default)
+            => Task.FromResult(Guid.NewGuid());
     }
 
     private sealed class StubAuditService : IAuditService
