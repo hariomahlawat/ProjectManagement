@@ -47,7 +47,17 @@
                 </div>
                 @if (!string.IsNullOrWhiteSpace(hit.Snippet))
                 {
-                    <p class="mb-1 text-muted">@Html.Raw(hit.Snippet)</p>
+                    var allowHtmlSnippet = string.Equals(hit.Source, "Document Repository", System.StringComparison.OrdinalIgnoreCase);
+                    <p class="mb-1 text-muted">
+                        @if (allowHtmlSnippet)
+                        {
+                            @Html.Raw(hit.Snippet)
+                        }
+                        else
+                        {
+                            @hit.Snippet
+                        }
+                    </p>
                 }
                 <div class="d-flex justify-content-between small text-muted">
                     @if (hit.Date.HasValue)

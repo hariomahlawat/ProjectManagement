@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Services.Navigation;
+using ProjectManagement.Services;
 
 namespace ProjectManagement.Services.Search;
 
@@ -20,16 +21,25 @@ public sealed class GlobalFfcSearchService : IGlobalFfcSearchService
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly IUrlBuilder _urlBuilder;
+    private readonly IUserContext _userContext;
 
-    public GlobalFfcSearchService(ApplicationDbContext dbContext, IUrlBuilder urlBuilder)
+    public GlobalFfcSearchService(ApplicationDbContext dbContext, IUrlBuilder urlBuilder, IUserContext userContext)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _urlBuilder = urlBuilder ?? throw new ArgumentNullException(nameof(urlBuilder));
+        _userContext = userContext ?? throw new ArgumentNullException(nameof(userContext));
     }
 
     public async Task<IReadOnlyList<GlobalSearchHit>> SearchAsync(string query, int maxResults, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(query))
+        {
+            return Array.Empty<GlobalSearchHit>();
+        }
+
+        var user = _userContext.User;
+        var canViewFfc = user.IsInRole("Admin") || user.IsInRole("HoD");
+        if (!canViewFfc)
         {
             return Array.Empty<GlobalSearchHit>();
         }
@@ -82,8 +92,10 @@ public sealed class GlobalFfcSearchService : IGlobalFfcSearchService
             .ThenInclude(record => record.Country)
             .Where(attachment =>
                 attachment.ContentType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase) &&
+                attachment.Record != null &&
+                !attachment.Record.IsDeleted &&
                 (EF.Functions.ILike(attachment.Caption ?? string.Empty, pattern) ||
-                 EF.Functions.ILike(attachment.Record.Country.Name, pattern)))
+                 EF.Functions.ILike(attachment.Record.Country.Name ?? string.Empty, pattern)))
             .OrderByDescending(attachment => attachment.UploadedAt)
             .Take(attachmentLimit)
             .ToListAsync(cancellationToken);
