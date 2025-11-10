@@ -31,20 +31,21 @@ public sealed class IprWriteService : IIprWriteService
     private readonly ILogger<IprWriteService>? _logger;
 
     public IprWriteService(
-        ApplicationDbContext db,
-        IClock clock,
-        IprAttachmentStorage storage,
-        IOptions<IprAttachmentOptions> options,
-        ILogger<IprWriteService>? logger = null,
-        IDocRepoIngestionService docRepoIngestionService)
+    ApplicationDbContext db,
+    IClock clock,
+    IprAttachmentStorage storage,
+    IOptions<IprAttachmentOptions> options,
+    IDocRepoIngestionService docRepoIngestionService,
+    ILogger<IprWriteService>? logger = null)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _storage = storage ?? throw new ArgumentNullException(nameof(storage));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-        _logger = logger;
         _docRepoIngestionService = docRepoIngestionService ?? throw new ArgumentNullException(nameof(docRepoIngestionService));
+        _logger = logger;
     }
+
 
     public async Task<IprRecord> CreateAsync(IprRecord record, CancellationToken cancellationToken = default)
     {
