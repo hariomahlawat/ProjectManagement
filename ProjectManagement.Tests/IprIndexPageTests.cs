@@ -307,7 +307,7 @@ public sealed class IprIndexPageTests
 
         var storage = new IprAttachmentStorage(new TestUploadRootProvider(root));
         var ingestion = new StubDocRepoIngestionService();
-        var service = new IprWriteService(db, clock, storage, options, NullLogger<IprWriteService>.Instance, ingestion);
+        var service = new IprWriteService(db, clock, storage, options, ingestion, NullLogger<IprWriteService>.Instance);
         return (service, root);
     }
 
