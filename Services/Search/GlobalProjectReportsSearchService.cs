@@ -90,7 +90,8 @@ namespace ProjectManagement.Services.Search
                     Source: "Visits tracker",
                     Title: title,
                     Snippet: snippet,
-                    Url: _urlBuilder.ProjectOfficeVisitDetails(visit.Id),
+                    // <- actual razor page route uses a segment, not ?id=
+                    Url: $"/ProjectOfficeReports/Visits/Details/{visit.Id}",
                     Date: date,
                     Score: 0.55m,
                     FileType: null,
