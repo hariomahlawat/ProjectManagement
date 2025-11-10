@@ -79,9 +79,11 @@ namespace ProjectManagement.Services.Search
             foreach (var visit in visits)
             {
                 var date = visit.LastModifiedAtUtc ?? visit.CreatedAtUtc;
+
                 var title = string.IsNullOrWhiteSpace(visit.TypeName)
                     ? visit.VisitorName
                     : $"{visit.TypeName} · {visit.VisitorName}";
+
                 var snippet = string.IsNullOrWhiteSpace(visit.Remarks)
                     ? $"Visit on {visit.DateOfVisit.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)}"
                     : visit.Remarks;
@@ -90,8 +92,7 @@ namespace ProjectManagement.Services.Search
                     Source: "Visits tracker",
                     Title: title,
                     Snippet: snippet,
-                    // <- actual razor page route uses a segment, not ?id=
-                    Url: $"/ProjectOfficeReports/Visits/Details/{visit.Id}",
+                    Url: _urlBuilder.ProjectOfficeVisitDetails(visit.Id),
                     Date: date,
                     Score: 0.55m,
                     FileType: null,
@@ -133,6 +134,7 @@ namespace ProjectManagement.Services.Search
                     Source: "Social media tracker",
                     Title: title,
                     Snippet: socialMediaEvent.Description,
+                    // use builder – builder must return /ProjectOfficeReports/SocialMedia/Details/{id}
                     Url: _urlBuilder.ProjectOfficeSocialMediaDetails(socialMediaEvent.Id),
                     Date: date,
                     Score: 0.52m,
@@ -174,6 +176,7 @@ namespace ProjectManagement.Services.Search
             {
                 var date = training.LastModifiedAtUtc ?? training.CreatedAtUtc;
                 var titleParts = new List<string>(3);
+
                 if (!string.IsNullOrWhiteSpace(training.TrainingTypeName))
                 {
                     titleParts.Add(training.TrainingTypeName);
@@ -190,7 +193,7 @@ namespace ProjectManagement.Services.Search
                     {
                         training.StartDate?.ToString("dd MMM", CultureInfo.InvariantCulture),
                         training.EndDate?.ToString("dd MMM", CultureInfo.InvariantCulture)
-                    }.Where(value => !string.IsNullOrWhiteSpace(value)));
+                    }.Where(v => !string.IsNullOrWhiteSpace(v)));
 
                     if (!string.IsNullOrWhiteSpace(range))
                     {
@@ -204,6 +207,7 @@ namespace ProjectManagement.Services.Search
                     Source: "Training tracker",
                     Title: title,
                     Snippet: training.Notes,
+                    // use builder – builder must return /ProjectOfficeReports/Training/Manage/{id} (or whatever your app uses)
                     Url: _urlBuilder.ProjectOfficeTrainingManage(training.Id),
                     Date: date,
                     Score: 0.48m,
@@ -215,7 +219,6 @@ namespace ProjectManagement.Services.Search
         // SECTION: Transfer of Technology tracker search
         private async Task AppendTotAsync(string pattern, int limit, ICollection<GlobalSearchHit> hits, CancellationToken cancellationToken)
         {
-            // 1) EF-friendly query (no custom methods in OrderBy)
             var rawTots = await _dbContext.ProjectTots
                 .AsNoTracking()
                 .Include(t => t.Project)
@@ -227,11 +230,10 @@ namespace ProjectManagement.Services.Search
                         EF.Functions.ILike(t.Project.Name, pattern) ||
                         EF.Functions.ILike(t.MetDetails ?? string.Empty, pattern)
                     ))
-                .Take(limit * 3) // grab a bit more, we'll sort in memory
+                .Take(limit * 3)
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            // 2) sort in memory using the date preference we wanted
             var ordered = rawTots
                 .Select(t =>
                 {
@@ -239,14 +241,10 @@ namespace ProjectManagement.Services.Search
                         t.LastApprovedOnUtc.HasValue
                             ? new DateTimeOffset(DateTime.SpecifyKind(t.LastApprovedOnUtc.Value, DateTimeKind.Utc))
                             : ToDateTimeOffset(t.CompletedOn)
-                            ?? ToDateTimeOffset(t.StartedOn)
-                            ?? DateTimeOffset.MinValue;
+                              ?? ToDateTimeOffset(t.StartedOn)
+                              ?? DateTimeOffset.MinValue;
 
-                    return new
-                    {
-                        Tot = t,
-                        Date = pickedDate
-                    };
+                    return new { Tot = t, Date = pickedDate };
                 })
                 .OrderByDescending(x => x.Date)
                 .Take(limit)
@@ -261,6 +259,7 @@ namespace ProjectManagement.Services.Search
                     Source: "ToT tracker",
                     Title: title,
                     Snippet: tot.MetDetails,
+                    // use builder – builder must return /ProjectOfficeReports/ToT/{projectId} (your existing method)
                     Url: _urlBuilder.ProjectOfficeTotTracker(tot.ProjectId),
                     Date: item.Date,
                     Score: 0.46m,
@@ -312,6 +311,7 @@ namespace ProjectManagement.Services.Search
                     Source: "Proliferation tracker",
                     Title: title,
                     Snippet: snippet,
+                    // use builder – it already knows the yearly route signature
                     Url: _urlBuilder.ProjectOfficeProliferationManage(record.ProjectId, ProliferationRecordKind.Yearly, record.Source, record.Year),
                     Date: new DateTimeOffset(DateTime.SpecifyKind(record.LastUpdatedOnUtc, DateTimeKind.Utc)),
                     Score: 0.44m,
@@ -359,6 +359,7 @@ namespace ProjectManagement.Services.Search
                     Source: "Proliferation tracker",
                     Title: title,
                     Snippet: snippet,
+                    // use builder – it already knows the granular route signature
                     Url: _urlBuilder.ProjectOfficeProliferationManage(record.ProjectId, ProliferationRecordKind.Granular, record.Source, record.ProliferationDate.Year),
                     Date: date,
                     Score: 0.43m,
@@ -368,9 +369,6 @@ namespace ProjectManagement.Services.Search
         }
 
         // SECTION: Helper utilities
-        private static DateTime? ToDateTime(DateOnly? value)
-            => value?.ToDateTime(TimeOnly.MinValue);
-
         private static DateTimeOffset? ToDateTimeOffset(DateOnly? value)
             => value.HasValue
                 ? new DateTimeOffset(value.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc))
