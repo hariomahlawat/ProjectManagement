@@ -3,134 +3,133 @@ using ProjectManagement.Models.Execution;
 using ProjectManagement.Models.Stages;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 
 namespace ProjectManagement.Services.Projects
 {
     /// <summary>
     /// Builds an XLSX workbook for the "Ongoing projects" report.
-    /// One row per project, and one column per stage (from StageCodes.All).
+    /// One row per project.
+    /// Fixed columns + one column per stage (from StageCodes.All).
     /// Remarks column: only latest external remark.
     /// </summary>
     public sealed class OngoingProjectsExcelBuilder : IOngoingProjectsExcelBuilder
     {
         public byte[] Build(OngoingProjectsExportContext context)
         {
-            if (context == null)
-            {
-                throw new ArgumentNullException(nameof(context));
-            }
-
             using var wb = new XLWorkbook();
             var ws = wb.AddWorksheet("Ongoing projects");
 
-            // ----------------------
-            // 1. header
-            // ----------------------
-            var headers = new List<string>
-            {
-                "Project name",
-                "Project category",
-                "Project officer",
-                "Current stage",
-                "Current stage date / PDC",
-                "Last completed stage",
-                "Last completed date",
-                "Latest external remark"
-            };
+            var allStages = StageCodes.All; // your existing stage list
 
-            // dynamic stage columns
-            var allStages = StageCodes.All;
-            headers.AddRange(allStages.Select(c => $"Stage {c}"));
+            var col = 1;
+            ws.Cell(1, col++).Value = "Project name";
+            ws.Cell(1, col++).Value = "Project category";
+            ws.Cell(1, col++).Value = "Project officer";
+            ws.Cell(1, col++).Value = "Current stage";
+            ws.Cell(1, col++).Value = "Current stage date / PDC";
+            ws.Cell(1, col++).Value = "Last completed stage";
+            ws.Cell(1, col++).Value = "Last completed date";
+            ws.Cell(1, col++).Value = "Latest external remark";
 
-            for (var i = 0; i < headers.Count; i++)
+            // stage headers
+            foreach (var stageCode in allStages)
             {
-                ws.Cell(1, i + 1).Value = headers[i];
-                ws.Cell(1, i + 1).Style.Font.Bold = true;
+                ws.Cell(1, col++).Value = $"Stage {stageCode}";
             }
 
-            // ----------------------
-            // 2. rows
-            // ----------------------
             var row = 2;
             foreach (var item in context.Items)
             {
-                var col = 1;
-
+                col = 1;
                 ws.Cell(row, col++).Value = item.ProjectName;
-                ws.Cell(row, col++).Value = item.ProjectCategoryName ?? string.Empty;
-                ws.Cell(row, col++).Value = item.LeadPoName ?? string.Empty;
+                ws.Cell(row, col++).Value = item.ProjectCategoryName;
+                ws.Cell(row, col++).Value = item.LeadPoName;
 
-                // current stage
-                var current = item.Stages.FirstOrDefault(s => s.IsCurrent)
-                              ?? item.Stages.FirstOrDefault();
+                // current stage (name)
+                ws.Cell(row, col++).Value = item.CurrentStageName;
 
-                ws.Cell(row, col++).Value = current?.Name ?? string.Empty;
-                ws.Cell(row, col++).Value = GetCurrentStageDateText(current);
+                // current stage date / PDC
+                var currentStage = item.Stages.First(s => s.IsCurrent);
+                if (currentStage.Status == StageStatus.Completed)
+                {
+                    ws.Cell(row, col++).Value =
+                        currentStage.ActualCompletedOn?.ToString("dd-MMM-yyyy") ?? string.Empty;
+                }
+                else
+                {
+                    ws.Cell(row, col++).Value =
+                        currentStage.PlannedDue.HasValue
+                            ? $"PDC: {currentStage.PlannedDue.Value:dd-MMM-yyyy}"
+                            : "PDC: N/A";
+                }
 
                 // last completed
                 ws.Cell(row, col++).Value = item.LastCompletedStageName ?? string.Empty;
-                ws.Cell(row, col++).Value = item.LastCompletedStageDate?.ToString("dd-MMM-yyyy") ?? string.Empty;
+                ws.Cell(row, col++).Value =
+                    item.LastCompletedStageDate?.ToString("dd-MMM-yyyy") ?? string.Empty;
 
                 // latest external remark
                 ws.Cell(row, col++).Value = item.LatestExternalRemark ?? string.Empty;
 
-                // stage-by-stage columns
-                foreach (var stageCode in allStages)
+                //
+                // >>> FIXED SECTION BELOW <<<
+                //
+                // Find the index of the last *actually* completed stage in the DTO list.
+                // Everything BEFORE this index must be treated as completed for export.
+                var lastCompletedIndex = -1;
+                for (var i = 0; i < item.Stages.Count; i++)
                 {
+                    if (item.Stages[i].Status == StageStatus.Completed)
+                    {
+                        lastCompletedIndex = i;
+                    }
+                }
+
+                // now write every stage column
+                for (var stageIdx = 0; stageIdx < allStages.Length; stageIdx++)
+                {
+                    var stageCode = allStages[stageIdx];
                     var stageDto = item.Stages.FirstOrDefault(s =>
                         string.Equals(s.Code, stageCode, StringComparison.OrdinalIgnoreCase));
 
                     string text = string.Empty;
 
-                    if (stageDto != null)
+                    if (stageIdx <= lastCompletedIndex)
                     {
-                        if (stageDto.Status == StageStatus.Completed)
+                        // this stage is at or before the last completed one
+                        // => show actual date if we have it, otherwise blank
+                        if (stageDto?.ActualCompletedOn is { } doneOn)
                         {
-                            // RULE: completed stage => show ONLY actual completion date
-                            // if actual is missing, leave it blank (do NOT show PDC)
-                            text = stageDto.ActualCompletedOn?.ToString("dd-MMM-yyyy") ?? string.Empty;
+                            text = doneOn.ToString("dd-MMM-yyyy");
                         }
                         else
                         {
-                            // not completed => PDC is allowed
-                            if (stageDto.PlannedDue.HasValue)
-                            {
-                                text = $"PDC: {stageDto.PlannedDue.Value:dd-MMM-yyyy}";
-                            }
+                            // DO NOT show PDC for historical/completed path
+                            text = string.Empty;
+                        }
+                    }
+                    else
+                    {
+                        // future or current-but-not-completed
+                        if (stageDto is { Status: not StageStatus.Completed } &&
+                            stageDto.PlannedDue.HasValue)
+                        {
+                            text = $"PDC: {stageDto.PlannedDue.Value:dd-MMM-yyyy}";
                         }
                     }
 
                     ws.Cell(row, col++).Value = text;
                 }
 
-
                 row++;
             }
 
-            // ----------------------
-            // 3. tidy up
-            // ----------------------
             ws.Columns().AdjustToContents();
 
-            using var stream = new MemoryStream();
+            using var stream = new System.IO.MemoryStream();
             wb.SaveAs(stream);
             return stream.ToArray();
-        }
-
-        private static string GetCurrentStageDateText(OngoingProjectStageDto? stage)
-        {
-            if (stage == null)
-                return string.Empty;
-
-            if (stage.Status == StageStatus.Completed)
-                return stage.ActualCompletedOn?.ToString("dd-MMM-yyyy") ?? "date NA";
-
-            if (stage.PlannedDue.HasValue)
-                return $"PDC: {stage.PlannedDue.Value:dd-MMM-yyyy}";
-
-            return "PDC: N/A";
         }
     }
 }
