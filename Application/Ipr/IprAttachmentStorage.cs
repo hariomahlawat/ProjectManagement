@@ -82,6 +82,13 @@ public sealed class IprAttachmentStorage
         return new IprAttachmentStorageResult(storageKey, sanitizedName, totalBytes);
     }
 
+    public Task<Stream> OpenReadAsync(string storageKey, CancellationToken cancellationToken = default)
+    {
+        var absolutePath = ResolveAbsolutePath(storageKey);
+        Stream stream = new FileStream(absolutePath, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true);
+        return Task.FromResult(stream);
+    }
+
     public void Delete(string storageKey)
     {
         if (string.IsNullOrWhiteSpace(storageKey))

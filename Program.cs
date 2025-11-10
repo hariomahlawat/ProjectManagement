@@ -49,6 +49,7 @@ using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.Documents;
 using ProjectManagement.Services.Navigation;
 using ProjectManagement.Services.Notifications;
+using ProjectManagement.Services.Search;
 using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.ProjectOfficeReports.Training;
 using ProjectManagement.Services.Projects;
@@ -247,12 +248,19 @@ builder.Services.AddScoped<IAuditService, AuditService>();
 builder.Services.AddScoped<IUserContext, HttpUserContext>();
 builder.Services.AddScoped<IActivityRepository, ActivityRepository>();
 builder.Services.Configure<DocRepoOptions>(builder.Configuration.GetSection("DocRepo"));
-builder.Services.AddSingleton<IDocStorage, LocalDocStorageService>(); 
+builder.Services.AddSingleton<IDocStorage, LocalDocStorageService>();
+builder.Services.AddSingleton<IUrlBuilder, UrlBuilder>();
 builder.Services.AddScoped<DocumentOcrService>();
 builder.Services.AddScoped<IDocRepoAuditService, DocRepoAuditService>();
 builder.Services.AddScoped<IFileScanner, NoopFileScanner>();
 builder.Services.AddScoped<IDocumentOcrRunner, OcrmypdfDocumentOcrRunner>();
 builder.Services.AddScoped<IDocumentSearchService, DocumentSearchService>();
+builder.Services.AddScoped<IDocRepoIngestionService, DocRepoIngestionService>();
+builder.Services.AddScoped<DocRepo.IGlobalDocRepoSearchService, GlobalDocRepoSearchService>();
+builder.Services.AddScoped<IGlobalFfcSearchService, GlobalFfcSearchService>();
+builder.Services.AddScoped<IGlobalIprSearchService, GlobalIprSearchService>();
+builder.Services.AddScoped<IGlobalActivitiesSearchService, GlobalActivitiesSearchService>();
+builder.Services.AddScoped<IGlobalSearchService, GlobalSearchService>();
 
 if (builder.Configuration.GetValue("DocRepo:EnableOcrWorker", true))
 {

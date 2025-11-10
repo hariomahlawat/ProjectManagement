@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
+using System.Linq;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -14,6 +16,7 @@ using ProjectManagement.Areas.ProjectOfficeReports.Domain;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Services;
+using ProjectManagement.Services.DocRepo;
 
 namespace ProjectManagement.Areas.ProjectOfficeReports.Pages.FFC.Records.Attachments;
 
@@ -23,13 +26,15 @@ public class UploadModel(
     IFfcAttachmentStorage storage,
     IOptions<FfcAttachmentOptions> options,
     IAuditService audit,
-    ILogger<UploadModel> logger) : PageModel
+    ILogger<UploadModel> logger,
+    IDocRepoIngestionService docRepoIngestionService) : PageModel
 {
     private readonly ApplicationDbContext _db = db;
     private readonly IFfcAttachmentStorage _storage = storage;
     private readonly FfcAttachmentOptions _options = options.Value;
     private readonly IAuditService _audit = audit;
     private readonly ILogger<UploadModel> _logger = logger;
+    private readonly IDocRepoIngestionService _docRepoIngestionService = docRepoIngestionService;
 
     [FromQuery] public long RecordId { get; set; }
     public FfcRecord Record { get; private set; } = default!;
@@ -89,6 +94,24 @@ public class UploadModel(
                 ["SizeBytes"] = attachment.SizeBytes.ToString(CultureInfo.InvariantCulture),
                 ["OriginalFileName"] = UploadFile.FileName
             });
+
+            if (string.Equals(attachment.ContentType, "application/pdf", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    await using var pdfStream = System.IO.File.OpenRead(attachment.FilePath);
+                    await _docRepoIngestionService.IngestExternalPdfAsync(
+                        pdfStream,
+                        UploadFile.FileName,
+                        "FFC",
+                        attachment.Id.ToString(CultureInfo.InvariantCulture),
+                        HttpContext.RequestAborted);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to ingest FFC attachment {AttachmentId} into the document repository.", attachment.Id);
+                }
+            }
         }
 
         TempData["StatusMessage"] = "File uploaded.";

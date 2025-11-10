@@ -1,5 +1,6 @@
 using System;
 using System.Data.Common;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -12,6 +13,7 @@ using ProjectManagement.Configuration;
 using ProjectManagement.Data;
 using ProjectManagement.Infrastructure.Data;
 using ProjectManagement.Services;
+using ProjectManagement.Services.DocRepo;
 
 namespace ProjectManagement.Application.Ipr;
 
@@ -25,6 +27,7 @@ public sealed class IprWriteService : IIprWriteService
     private readonly IClock _clock;
     private readonly IprAttachmentStorage _storage;
     private readonly IprAttachmentOptions _options;
+    private readonly IDocRepoIngestionService _docRepoIngestionService;
     private readonly ILogger<IprWriteService>? _logger;
 
     public IprWriteService(
@@ -32,13 +35,15 @@ public sealed class IprWriteService : IIprWriteService
         IClock clock,
         IprAttachmentStorage storage,
         IOptions<IprAttachmentOptions> options,
-        ILogger<IprWriteService>? logger = null)
+        ILogger<IprWriteService>? logger = null,
+        IDocRepoIngestionService docRepoIngestionService)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _storage = storage ?? throw new ArgumentNullException(nameof(storage));
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _logger = logger;
+        _docRepoIngestionService = docRepoIngestionService ?? throw new ArgumentNullException(nameof(docRepoIngestionService));
     }
 
     public async Task<IprRecord> CreateAsync(IprRecord record, CancellationToken cancellationToken = default)
@@ -189,6 +194,24 @@ public sealed class IprWriteService : IIprWriteService
 
         _db.IprAttachments.Add(attachment);
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (string.Equals(normalizedContentType, "application/pdf", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                await using var pdfStream = await _storage.OpenReadAsync(storageResult.StorageKey, cancellationToken);
+                await _docRepoIngestionService.IngestExternalPdfAsync(
+                    pdfStream,
+                    attachment.OriginalFileName,
+                    "IPR",
+                    attachment.Id.ToString(CultureInfo.InvariantCulture),
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Failed to ingest IPR attachment {AttachmentId} into the document repository.", attachment.Id);
+            }
+        }
 
         return attachment;
     }

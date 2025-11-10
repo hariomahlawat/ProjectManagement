@@ -1683,6 +1683,35 @@ namespace ProjectManagement.Migrations
                     b.ToTable("Documents");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Data.DocRepo.DocRepoExternalLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DocumentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("SourceItemId")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("SourceModule")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DocumentId");
+
+                    b.HasIndex("SourceModule", "SourceItemId");
+
+                    b.ToTable("DocRepoExternalLinks");
+                });
+
             modelBuilder.Entity("ProjectManagement.Data.DocRepo.DocumentCategory", b =>
                 {
                     b.Property<int>("Id")
@@ -5809,6 +5838,17 @@ namespace ProjectManagement.Migrations
                     b.Navigation("OfficeCategory");
                 });
 
+            modelBuilder.Entity("ProjectManagement.Data.DocRepo.DocRepoExternalLink", b =>
+                {
+                    b.HasOne("ProjectManagement.Data.DocRepo.Document", "Document")
+                        .WithMany("ExternalLinks")
+                        .HasForeignKey("DocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Document");
+                });
+
             modelBuilder.Entity("ProjectManagement.Data.DocRepo.DocumentDeleteRequest", b =>
                 {
                     b.HasOne("ProjectManagement.Data.DocRepo.Document", "Document")
@@ -6778,6 +6818,8 @@ namespace ProjectManagement.Migrations
                     b.Navigation("DocumentTags");
 
                     b.Navigation("DocumentText");
+
+                    b.Navigation("ExternalLinks");
                 });
 
             modelBuilder.Entity("ProjectManagement.Data.DocRepo.Tag", b =>

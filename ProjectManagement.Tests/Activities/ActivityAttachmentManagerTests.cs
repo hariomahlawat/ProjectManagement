@@ -10,6 +10,8 @@ using ProjectManagement.Infrastructure.Activities;
 using ProjectManagement.Models.Activities;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Activities;
+using ProjectManagement.Services.DocRepo;
+using ProjectManagement.Services.Storage;
 using Xunit;
 
 namespace ProjectManagement.Tests.Activities;
@@ -22,12 +24,26 @@ public class ActivityAttachmentManagerTests : IDisposable
     private readonly FakeStorage _storage = new();
     private readonly ActivityAttachmentValidator _validator = new();
     private readonly FakeClock _clock = new();
+    private readonly StubDocRepoIngestionService _ingestion = new();
+    private readonly TestUploadRootProvider _uploadRootProvider;
+    private readonly string _rootPath;
 
     public ActivityAttachmentManagerTests()
     {
         _context = ActivityTestHelpers.CreateContext();
         _repository = new ActivityRepository(_context);
-        _manager = new ActivityAttachmentManager(_repository, _storage, _validator, _clock);
+        _rootPath = Path.Combine(Path.GetTempPath(), "activity-attachments", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(_rootPath);
+        _uploadRootProvider = new TestUploadRootProvider(_rootPath);
+        _storage.RootPath = _rootPath;
+        _manager = new ActivityAttachmentManager(
+            _repository,
+            _storage,
+            _validator,
+            _clock,
+            _ingestion,
+            _uploadRootProvider,
+            NullLogger<ActivityAttachmentManager>.Instance);
     }
 
     [Fact]
@@ -46,6 +62,7 @@ public class ActivityAttachmentManagerTests : IDisposable
 
         var stored = await _repository.GetAttachmentByIdAsync(attachment.Id, CancellationToken.None);
         Assert.NotNull(stored);
+        Assert.True(_ingestion.Called);
     }
 
     [Fact]
@@ -103,6 +120,10 @@ public class ActivityAttachmentManagerTests : IDisposable
     public void Dispose()
     {
         _context.Dispose();
+        if (Directory.Exists(_rootPath))
+        {
+            Directory.Delete(_rootPath, recursive: true);
+        }
     }
 
     private sealed class FakeStorage : IActivityAttachmentStorage
@@ -115,11 +136,25 @@ public class ActivityAttachmentManagerTests : IDisposable
         public bool DeleteCalled { get; private set; }
         public string? DeletedKey { get; private set; }
 
+        public string RootPath { get; set; } = Path.GetTempPath();
+
         public Task<ActivityAttachmentStorageResult> SaveAsync(int activityId,
                                                                ActivityAttachmentUpload upload,
                                                                CancellationToken cancellationToken = default)
         {
             SaveCalled = true;
+            var absolutePath = Path.Combine(RootPath, StorageKey.Replace('/', Path.DirectorySeparatorChar));
+            Directory.CreateDirectory(Path.GetDirectoryName(absolutePath)!);
+            if (upload.Content.CanSeek)
+            {
+                upload.Content.Seek(0, SeekOrigin.Begin);
+            }
+
+            using (var fileStream = new FileStream(absolutePath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                upload.Content.CopyTo(fileStream);
+            }
+
             return Task.FromResult(new ActivityAttachmentStorageResult(StorageKey, FileName, upload.Length));
         }
 
@@ -127,6 +162,12 @@ public class ActivityAttachmentManagerTests : IDisposable
         {
             DeleteCalled = true;
             DeletedKey = storageKey;
+            var absolutePath = Path.Combine(RootPath, storageKey.Replace('/', Path.DirectorySeparatorChar));
+            if (File.Exists(absolutePath))
+            {
+                File.Delete(absolutePath);
+            }
+
             return Task.CompletedTask;
         }
 
@@ -136,8 +177,24 @@ public class ActivityAttachmentManagerTests : IDisposable
         }
     }
 
-    private sealed class FakeClock : IClock
+    private sealed class StubDocRepoIngestionService : IDocRepoIngestionService
     {
-        public DateTimeOffset UtcNow { get; set; } = new DateTimeOffset(2024, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        public bool Called { get; private set; }
+
+        public Task<Guid> IngestExternalPdfAsync(Stream pdfStream, string originalFileName, string sourceModule, string sourceItemId, CancellationToken cancellationToken = default)
+        {
+            Called = true;
+            return Task.FromResult(Guid.NewGuid());
+        }
+    }
+
+    private sealed class TestUploadRootProvider : IUploadRootProvider
+    {
+        public TestUploadRootProvider(string rootPath)
+        {
+            RootPath = rootPath;
+        }
+
+        public string RootPath { get; }
     }
 }

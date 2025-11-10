@@ -1,0 +1,26 @@
+@page
+@model ProjectManagement.Areas.Admin.Pages.Documents.IngestExternalPdfsModel
+@{
+    ViewData["Title"] = "Ingest external PDFs";
+}
+
+<h1 class="mb-4">Ingest external PDFs</h1>
+
+<p class="text-muted">Run this tool to copy PDF attachments from other modules into the document repository for OCR and global search.</p>
+
+<form method="post" class="mb-4">
+    <button type="submit" class="btn btn-primary">Start ingestion</button>
+</form>
+
+@if (Model.Processed > 0 || Model.SkippedMissing > 0)
+{
+    <div class="alert alert-secondary">
+        <p class="mb-1">Processed: <strong>@Model.Processed</strong></p>
+        <p class="mb-0">Skipped (missing files): <strong>@Model.SkippedMissing</strong></p>
+    </div>
+}
+
+@if (TempData["StatusMessage"] is string status && !string.IsNullOrWhiteSpace(status))
+{
+    <div class="alert alert-info mt-3">@status</div>
+}

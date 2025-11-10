@@ -83,4 +83,7 @@ public class Document
     public DateTime? UpdatedAtUtc { get; set; }
 
     public ICollection<DocumentTag> DocumentTags { get; set; } = new List<DocumentTag>();
+
+    // SECTION: External link navigation
+    public ICollection<DocRepoExternalLink> ExternalLinks { get; set; } = new List<DocRepoExternalLink>();
 }

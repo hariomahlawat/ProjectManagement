@@ -1,0 +1,77 @@
+@page
+@model ProjectManagement.Areas.Common.Pages.Search.IndexModel
+@{
+    ViewData["Title"] = "Global Search";
+    var hasQuery = !string.IsNullOrWhiteSpace(Model.Q);
+}
+
+<h1 class="mb-4">Global Search</h1>
+
+<form method="get" class="mb-4">
+    <div class="mb-3">
+        <label class="form-label" asp-for="Q">Search the entire workspace</label>
+        <input asp-for="Q" class="form-control" placeholder="Search documents, records, attachments..." />
+    </div>
+    @if (Model.AvailableSources.Count > 0)
+    {
+        <fieldset class="mb-3">
+            <legend class="fs-6">Filter by source</legend>
+            <div class="d-flex flex-wrap gap-3">
+                @foreach (var source in Model.AvailableSources)
+                {
+                    var isChecked = Model.Source != null && Model.Source.Contains(source, System.StringComparer.OrdinalIgnoreCase);
+                    <div class="form-check form-check-inline">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               name="Source"
+                               value="@source"
+                               @(isChecked ? "checked" : null) />
+                        <label class="form-check-label">@source</label>
+                    </div>
+                }
+            </div>
+        </fieldset>
+    }
+    <button type="submit" class="btn btn-primary">Search</button>
+</form>
+
+@if (Model.Results.Count > 0)
+{
+    <div class="list-group shadow-sm">
+        @foreach (var hit in Model.Results)
+        {
+            <a class="list-group-item list-group-item-action" href="@hit.Url">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h2 class="h5 mb-1">@hit.Title</h2>
+                    <span class="badge bg-secondary">@hit.Source</span>
+                </div>
+                @if (!string.IsNullOrWhiteSpace(hit.Snippet))
+                {
+                    <p class="mb-1 text-muted">@Html.Raw(hit.Snippet)</p>
+                }
+                <div class="d-flex justify-content-between small text-muted">
+                    @if (hit.Date.HasValue)
+                    {
+                        <span>@hit.Date.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")</span>
+                    }
+                    else
+                    {
+                        <span>&nbsp;</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(hit.FileType))
+                    {
+                        <span>@hit.FileType</span>
+                    }
+                </div>
+            </a>
+        }
+    </div>
+}
+else if (hasQuery)
+{
+    <div class="alert alert-info" role="status">No results found for "@Model.Q".</div>
+}
+else
+{
+    <p class="text-muted">Start by entering a keyword above to search across documents, attachments, and structured records.</p>
+}
