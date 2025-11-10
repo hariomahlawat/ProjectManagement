@@ -7,106 +7,111 @@ using Microsoft.EntityFrameworkCore;
 using ProjectManagement.Data;
 using ProjectManagement.Services.Navigation;
 
-namespace ProjectManagement.Services.Search;
-
-// SECTION: Project global search contract
-public interface IGlobalProjectSearchService
+namespace ProjectManagement.Services.Search
 {
-    Task<IReadOnlyList<GlobalSearchHit>> SearchAsync(string query, int maxResults, CancellationToken cancellationToken);
-}
-
-// SECTION: Project global search implementation
-public sealed class GlobalProjectSearchService : IGlobalProjectSearchService
-{
-    private readonly ApplicationDbContext _dbContext;
-    private readonly IUrlBuilder _urlBuilder;
-
-    public GlobalProjectSearchService(ApplicationDbContext dbContext, IUrlBuilder urlBuilder)
+    // SECTION: Project global search contract
+    public interface IGlobalProjectSearchService
     {
-        _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
-        _urlBuilder = urlBuilder ?? throw new ArgumentNullException(nameof(urlBuilder));
+        Task<IReadOnlyList<GlobalSearchHit>> SearchAsync(string query, int maxResults, CancellationToken cancellationToken);
     }
 
-    public async Task<IReadOnlyList<GlobalSearchHit>> SearchAsync(string query, int maxResults, CancellationToken cancellationToken)
+    // SECTION: Project global search implementation
+    public sealed class GlobalProjectSearchService : IGlobalProjectSearchService
     {
-        if (string.IsNullOrWhiteSpace(query))
+        private readonly ApplicationDbContext _dbContext;
+        private readonly IUrlBuilder _urlBuilder;
+
+        public GlobalProjectSearchService(ApplicationDbContext dbContext, IUrlBuilder urlBuilder)
         {
-            return Array.Empty<GlobalSearchHit>();
+            _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+            _urlBuilder = urlBuilder ?? throw new ArgumentNullException(nameof(urlBuilder));
         }
 
-        var pattern = $"%{query.Trim()}%";
-        var limit = Math.Max(1, maxResults);
-
-        var projects = await _dbContext.Projects
-            .AsNoTracking()
-            .Include(project => project.SponsoringUnit)
-            .Include(project => project.SponsoringLineDirectorate)
-            .Where(project => !project.IsDeleted && !project.IsArchived && (
-                EF.Functions.ILike(project.Name, pattern) ||
-                EF.Functions.ILike(project.Description ?? string.Empty, pattern) ||
-                EF.Functions.ILike(project.CaseFileNumber ?? string.Empty, pattern) ||
-                (project.SponsoringUnit != null && EF.Functions.ILike(project.SponsoringUnit.Name, pattern)) ||
-                (project.SponsoringLineDirectorate != null && EF.Functions.ILike(project.SponsoringLineDirectorate.Name, pattern))))
-            .OrderByDescending(project => project.ArchivedAt ?? project.DeletedAt ?? (DateTimeOffset?)null)
-            .ThenByDescending(project => project.CreatedAt)
-            .Take(limit)
-            .Select(project => new
-            {
-                project.Id,
-                project.Name,
-                project.Description,
-                project.CreatedAt,
-                project.ArchivedAt,
-                project.DeletedAt,
-                SponsoringUnit = project.SponsoringUnit != null ? project.SponsoringUnit.Name : null,
-                LineDirectorate = project.SponsoringLineDirectorate != null ? project.SponsoringLineDirectorate.Name : null
-            })
-            .ToListAsync(cancellationToken);
-
-        if (projects.Count == 0)
+        public async Task<IReadOnlyList<GlobalSearchHit>> SearchAsync(string query, int maxResults, CancellationToken cancellationToken)
         {
-            return Array.Empty<GlobalSearchHit>();
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                return Array.Empty<GlobalSearchHit>();
+            }
+
+            var pattern = $"%{query.Trim()}%";
+            var limit = Math.Max(1, maxResults);
+
+            // 1) EF-friendly query only
+            var projects = await _dbContext.Projects
+                .AsNoTracking()
+                .Include(p => p.SponsoringUnit)
+                .Include(p => p.SponsoringLineDirectorate)
+                .Where(p =>
+                    !p.IsDeleted &&
+                    !p.IsArchived &&
+                    (
+                        EF.Functions.ILike(p.Name, pattern) ||
+                        EF.Functions.ILike(p.Description ?? string.Empty, pattern) ||
+                        EF.Functions.ILike(p.CaseFileNumber ?? string.Empty, pattern) ||
+                        (p.SponsoringUnit != null && EF.Functions.ILike(p.SponsoringUnit.Name, pattern)) ||
+                        (p.SponsoringLineDirectorate != null && EF.Functions.ILike(p.SponsoringLineDirectorate.Name, pattern))
+                    ))
+                // pull a few extra so sorting in-memory still has room
+                .Take(limit * 3)
+                .Select(p => new
+                {
+                    p.Id,
+                    p.Name,
+                    p.Description,
+                    p.CreatedAt,
+                    p.ArchivedAt,
+                    p.DeletedAt,
+                    SponsoringUnit = p.SponsoringUnit != null ? p.SponsoringUnit.Name : null,
+                    LineDirectorate = p.SponsoringLineDirectorate != null ? p.SponsoringLineDirectorate.Name : null
+                })
+                .ToListAsync(cancellationToken);
+
+            if (projects.Count == 0)
+            {
+                return Array.Empty<GlobalSearchHit>();
+            }
+
+            // 2) in-memory: pick the “best” date & sort
+            var ordered = projects
+                .Select(p =>
+                {
+                    // prefer archived, then deleted, then created
+                    var date = p.ArchivedAt
+                        ?? p.DeletedAt
+                        ?? new DateTimeOffset(DateTime.SpecifyKind(p.CreatedAt, DateTimeKind.Utc));
+
+                    var snippetParts = new List<string>(3);
+                    if (!string.IsNullOrWhiteSpace(p.Description))
+                        snippetParts.Add(p.Description);
+                    if (!string.IsNullOrWhiteSpace(p.SponsoringUnit))
+                        snippetParts.Add($"Sponsoring unit: {p.SponsoringUnit}");
+                    if (!string.IsNullOrWhiteSpace(p.LineDirectorate))
+                        snippetParts.Add($"Line directorate: {p.LineDirectorate}");
+
+                    var snippet = snippetParts.Count == 0 ? null : string.Join(" · ", snippetParts);
+
+                    return new
+                    {
+                        Date = date,
+                        Hit = new GlobalSearchHit(
+                            Source: "Projects",
+                            Title: p.Name,
+                            Snippet: snippet,
+                            Url: _urlBuilder.ProjectOverview(p.Id),
+                            Date: date,
+                            Score: 0.6m,
+                            FileType: null,
+                            Extra: null)
+                    };
+                })
+                .OrderByDescending(x => x.Date)
+                .ThenBy(x => x.Hit.Title)
+                .Take(limit)
+                .Select(x => x.Hit)
+                .ToList();
+
+            return ordered;
         }
-
-        var hits = new List<GlobalSearchHit>(projects.Count);
-        foreach (var project in projects)
-        {
-            var createdUtc = DateTime.SpecifyKind(project.CreatedAt, DateTimeKind.Utc);
-            var date = project.ArchivedAt
-                ?? project.DeletedAt
-                ?? new DateTimeOffset(createdUtc);
-
-            var snippetParts = new List<string>(3);
-            if (!string.IsNullOrWhiteSpace(project.Description))
-            {
-                snippetParts.Add(project.Description);
-            }
-
-            if (!string.IsNullOrWhiteSpace(project.SponsoringUnit))
-            {
-                snippetParts.Add($"Sponsoring unit: {project.SponsoringUnit}");
-            }
-
-            if (!string.IsNullOrWhiteSpace(project.LineDirectorate))
-            {
-                snippetParts.Add($"Line directorate: {project.LineDirectorate}");
-            }
-
-            var snippet = snippetParts.Count == 0
-                ? null
-                : string.Join(" · ", snippetParts);
-
-            hits.Add(new GlobalSearchHit(
-                Source: "Projects",
-                Title: project.Name,
-                Snippet: snippet,
-                Url: _urlBuilder.ProjectOverview(project.Id),
-                Date: date,
-                Score: 0.6m,
-                FileType: null,
-                Extra: null));
-        }
-
-        return hits;
     }
 }
