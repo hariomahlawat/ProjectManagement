@@ -105,37 +105,37 @@ namespace ProjectManagement.Services.Search
         {
             var events = await _dbContext.SocialMediaEvents
                 .AsNoTracking()
-                .Where(@event =>
-                    EF.Functions.ILike(@event.Title, pattern) ||
-                    EF.Functions.ILike(@event.Description ?? string.Empty, pattern) ||
-                    (@event.SocialMediaPlatform != null && EF.Functions.ILike(@event.SocialMediaPlatform.Name, pattern)))
-                .OrderByDescending(@event => @event.LastModifiedAtUtc ?? @event.CreatedAtUtc)
+                .Where(e =>
+                    EF.Functions.ILike(e.Title, pattern) ||
+                    EF.Functions.ILike(e.Description ?? string.Empty, pattern) ||
+                    (e.SocialMediaPlatform != null && EF.Functions.ILike(e.SocialMediaPlatform.Name, pattern)))
+                .OrderByDescending(e => e.LastModifiedAtUtc ?? e.CreatedAtUtc)
                 .Take(limit)
-                .Select(@event => new
+                .Select(e => new
                 {
-                    @event.Id,
-                    @event.Title,
-                    @event.Description,
-                    @event.CreatedAtUtc,
-                    @event.LastModifiedAtUtc,
-                    PlatformName = @event.SocialMediaPlatform != null ? @event.SocialMediaPlatform.Name : null
+                    e.Id,
+                    e.Title,
+                    e.Description,
+                    e.CreatedAtUtc,
+                    e.LastModifiedAtUtc,
+                    PlatformName = e.SocialMediaPlatform != null ? e.SocialMediaPlatform.Name : null
                 })
                 .ToListAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            foreach (var socialMediaEvent in events)
+            foreach (var ev in events)
             {
-                var date = socialMediaEvent.LastModifiedAtUtc ?? socialMediaEvent.CreatedAtUtc;
-                var title = socialMediaEvent.PlatformName is null
-                    ? socialMediaEvent.Title
-                    : $"{socialMediaEvent.Title} ({socialMediaEvent.PlatformName})";
+                var date = ev.LastModifiedAtUtc ?? ev.CreatedAtUtc;
+                var title = ev.PlatformName is null
+                    ? ev.Title
+                    : $"{ev.Title} ({ev.PlatformName})";
 
                 hits.Add(new GlobalSearchHit(
                     Source: "Social media tracker",
                     Title: title,
-                    Snippet: socialMediaEvent.Description,
-                    // use builder – builder must return /ProjectOfficeReports/SocialMedia/Details/{id}
-                    Url: _urlBuilder.ProjectOfficeSocialMediaDetails(socialMediaEvent.Id),
+                    Snippet: ev.Description,
+                    // your app uses /ProjectOfficeReports/SocialMedia/Details/{id}
+                    Url: $"/ProjectOfficeReports/SocialMedia/Details/{ev.Id}",
                     Date: date,
                     Score: 0.52m,
                     FileType: null,
