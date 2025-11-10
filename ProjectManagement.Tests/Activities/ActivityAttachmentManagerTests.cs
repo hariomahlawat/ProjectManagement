@@ -188,6 +188,11 @@ public class ActivityAttachmentManagerTests : IDisposable
         }
     }
 
+    private sealed class FakeClock : IClock
+    {
+        public DateTimeOffset UtcNow { get; set; } = DateTimeOffset.UtcNow;
+    }
+
     private sealed class TestUploadRootProvider : IUploadRootProvider
     {
         public TestUploadRootProvider(string rootPath)
@@ -196,5 +201,24 @@ public class ActivityAttachmentManagerTests : IDisposable
         }
 
         public string RootPath { get; }
+
+        // For tests we can just return subfolders under RootPath.
+        public string GetProjectRoot(int projectId)
+            => Path.Combine(RootPath, "projects", projectId.ToString());
+
+        public string GetProjectDocumentsRoot(int projectId)
+            => Path.Combine(GetProjectRoot(projectId), "documents");
+
+        public string GetProjectPhotosRoot(int projectId)
+            => Path.Combine(GetProjectRoot(projectId), "photos");
+
+        public string GetProjectVideosRoot(int projectId)
+            => Path.Combine(GetProjectRoot(projectId), "videos");
+
+        public string GetProjectCommentsRoot(int projectId)
+            => Path.Combine(GetProjectRoot(projectId), "comments");
+
+        public string GetSocialMediaRoot(string category, Guid id)
+            => Path.Combine(RootPath, "social", category, id.ToString("N"));
     }
 }

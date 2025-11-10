@@ -73,6 +73,7 @@ using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.RateLimiting;
 
+
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
 var runForecastBackfill = args.Any(a => string.Equals(a, "--backfill-forecast", StringComparison.OrdinalIgnoreCase));
@@ -256,7 +257,7 @@ builder.Services.AddScoped<IFileScanner, NoopFileScanner>();
 builder.Services.AddScoped<IDocumentOcrRunner, OcrmypdfDocumentOcrRunner>();
 builder.Services.AddScoped<IDocumentSearchService, DocumentSearchService>();
 builder.Services.AddScoped<IDocRepoIngestionService, DocRepoIngestionService>();
-builder.Services.AddScoped<DocRepo.IGlobalDocRepoSearchService, GlobalDocRepoSearchService>();
+builder.Services.AddScoped<IGlobalDocRepoSearchService, GlobalDocRepoSearchService>();
 builder.Services.AddScoped<IGlobalFfcSearchService, GlobalFfcSearchService>();
 builder.Services.AddScoped<IGlobalIprSearchService, GlobalIprSearchService>();
 builder.Services.AddScoped<IGlobalActivitiesSearchService, GlobalActivitiesSearchService>();
