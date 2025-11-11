@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Npgsql.EntityFrameworkCore.PostgreSQL;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Navigation;
