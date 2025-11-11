@@ -2364,6 +2364,9 @@ namespace ProjectManagement.Migrations
                     b.Property<DateTime?>("DisabledUtc")
                         .HasColumnType("timestamp without time zone");
 
+                    b.Property<string>("DefaultUserRoleId")
+                        .HasColumnType("text");
+
                     b.Property<string>("Email")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
