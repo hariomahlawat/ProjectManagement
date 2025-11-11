@@ -13,7 +13,6 @@ using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Services;
 using ProjectManagement.Services.Documents;
-using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Storage;
 using ProjectManagement.Tests.Fakes;
@@ -91,7 +90,8 @@ public sealed class DocumentServicesTests
             Assert.Equal(1, document.FileStamp);
             Assert.Equal("requestor", document.UploadedByUserId);
             Assert.Equal("Spec", document.Title);
-            Assert.True(document.DocRepoDocumentId.HasValue);
+            Assert.Equal(ProjectDocumentOcrStatus.Pending, document.OcrStatus);
+            Assert.Null(document.OcrFailureReason);
 
             var path = ResolvePath(root, document.StorageKey);
             Assert.True(File.Exists(path));
@@ -365,29 +365,11 @@ public sealed class DocumentServicesTests
             ContentRootPath = Path.Combine(Path.GetTempPath(), "pm-doc-tests")
         };
         var uploadRoot = new UploadRootProvider(photoOptions, documentOptions, environment, NullLogger<UploadRootProvider>.Instance);
-        var ingestion = new StubDocRepoIngestionService();
-        var documentService = new DocumentService(db, documentOptions, uploadRoot, clock, audit, new NullDocumentNotificationService(), ingestion, null, NullLogger<DocumentService>.Instance);
+        var storageResolver = new ProjectDocumentStorageResolver(uploadRoot);
+        var documentService = new DocumentService(db, documentOptions, uploadRoot, clock, audit, new NullDocumentNotificationService(), storageResolver, null, NullLogger<DocumentService>.Instance);
         var requestService = new DocumentRequestService(db, clock, audit);
         var decisionService = new DocumentDecisionService(db, documentService, clock, audit);
         return (documentService, requestService, decisionService, audit);
-    }
-
-    private sealed class StubDocRepoIngestionService : IDocRepoIngestionService
-    {
-        public Guid RepoIdToReturn { get; set; } = Guid.NewGuid();
-
-        public int CallCount { get; private set; }
-
-        public Task<Guid> IngestExternalPdfAsync(
-            Stream pdfStream,
-            string originalFileName,
-            string sourceModule,
-            string sourceItemId,
-            CancellationToken cancellationToken = default)
-        {
-            CallCount++;
-            return Task.FromResult(RepoIdToReturn);
-        }
     }
 
     private sealed class NullDocumentNotificationService : IDocumentNotificationService

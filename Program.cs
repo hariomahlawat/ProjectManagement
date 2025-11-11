@@ -263,11 +263,20 @@ builder.Services.AddScoped<IGlobalIprSearchService, GlobalIprSearchService>();
 builder.Services.AddScoped<IGlobalActivitiesSearchService, GlobalActivitiesSearchService>();
 builder.Services.AddScoped<IGlobalProjectSearchService, GlobalProjectSearchService>();
 builder.Services.AddScoped<IGlobalProjectReportsSearchService, GlobalProjectReportsSearchService>();
+builder.Services.Configure<ProjectDocumentOcrOptions>(builder.Configuration.GetSection("ProjectDocuments:Ocr"));
+builder.Services.AddSingleton<IProjectDocumentStorageResolver, ProjectDocumentStorageResolver>();
+builder.Services.AddScoped<IProjectDocumentOcrRunner, OcrmypdfProjectOcrRunner>();
+builder.Services.AddScoped<IGlobalProjectDocumentSearchService, GlobalProjectDocumentSearchService>();
 builder.Services.AddScoped<IGlobalSearchService, GlobalSearchService>();
 
 if (builder.Configuration.GetValue("DocRepo:EnableOcrWorker", true))
 {
     builder.Services.AddHostedService<DocRepoOcrWorker>();
+}
+
+if (builder.Configuration.GetValue("ProjectDocuments:Ocr:EnableWorker", true))
+{
+    builder.Services.AddHostedService<ProjectDocumentOcrWorker>();
 }
 
 builder.Services.AddScoped<IActivityTypeRepository, ActivityTypeRepository>();

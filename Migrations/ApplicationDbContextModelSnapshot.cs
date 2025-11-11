@@ -3841,6 +3841,20 @@ namespace ProjectManagement.Migrations
                     b.Property<Guid?>("DocRepoDocumentId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("OcrFailureReason")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<DateTimeOffset?>("OcrLastTriedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("OcrStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)")
+                        .HasDefaultValue("None");
+
                     b.Property<long>("FileSize")
                         .HasColumnType("bigint");
 
@@ -3885,6 +3899,9 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(260)
                         .HasColumnType("character varying(260)");
 
+                    b.Property<NpgsqlTsVector>("SearchVector")
+                        .HasColumnType("tsvector");
+
                     b.Property<string>("Title")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -3925,6 +3942,24 @@ namespace ProjectManagement.Migrations
                         {
                             t.HasCheckConstraint("ck_projectdocuments_filesize", "\"FileSize\" >= 0");
                         });
+                });
+
+            modelBuilder.Entity("ProjectManagement.Data.Projects.ProjectDocumentText", b =>
+                {
+                    b.Property<int>("ProjectDocumentId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("OcrText")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAtUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now() at time zone 'utc'");
+
+                    b.HasKey("ProjectDocumentId");
+
+                    b.ToTable("ProjectDocumentTexts");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectDocumentRequest", b =>
@@ -6405,6 +6440,8 @@ namespace ProjectManagement.Migrations
 
                     b.Navigation("ArchivedByUser");
 
+                    b.Navigation("DocumentText");
+
                     b.Navigation("DocRepoDocument");
 
                     b.Navigation("Project");
@@ -6414,6 +6451,17 @@ namespace ProjectManagement.Migrations
                     b.Navigation("Tot");
 
                     b.Navigation("UploadedByUser");
+                });
+
+            modelBuilder.Entity("ProjectManagement.Data.Projects.ProjectDocumentText", b =>
+                {
+                    b.HasOne("ProjectManagement.Models.ProjectDocument", "ProjectDocument")
+                        .WithOne("DocumentText")
+                        .HasForeignKey("ProjectManagement.Data.Projects.ProjectDocumentText", "ProjectDocumentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ProjectDocument");
                 });
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectDocumentRequest", b =>
@@ -6909,6 +6957,8 @@ namespace ProjectManagement.Migrations
 
             modelBuilder.Entity("ProjectManagement.Models.ProjectDocument", b =>
                 {
+                    b.Navigation("DocumentText");
+
                     b.Navigation("Request");
                 });
 

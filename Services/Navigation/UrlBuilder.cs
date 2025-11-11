@@ -29,6 +29,9 @@ public sealed class UrlBuilder : IUrlBuilder
     public string ActivityDetails(int activityId)
         => $"/Activities/Details?id={activityId.ToString(CultureInfo.InvariantCulture)}";
 
+    public string ProjectDocumentPreview(int documentId)
+        => $"/Projects/Documents/Preview?documentId={documentId.ToString(CultureInfo.InvariantCulture)}";
+
     public string ProjectOverview(int projectId)
         => $"/Projects/Overview/{projectId.ToString(CultureInfo.InvariantCulture)}";
 

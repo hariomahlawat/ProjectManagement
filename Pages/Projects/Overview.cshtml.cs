@@ -14,7 +14,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using ProjectManagement.Data;
-using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Features.Backfill;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
@@ -43,9 +42,6 @@ namespace ProjectManagement.Pages.Projects
         private readonly ProjectRemarksPanelService _remarksPanelService;
         private readonly ProjectLifecycleService _lifecycleService;
         private readonly ProjectMediaAggregator _mediaAggregator;
-
-        // SECTION: DocRepo linkage metadata
-        private const string ProjectDocRepoSourceModule = "Projects.Documents";
 
         public PlanCompareService PlanCompare { get; }
 
@@ -621,10 +617,6 @@ namespace ProjectManagement.Pages.Projects
                     .ToList();
             }
 
-            var docRepoOcrStatuses = await LoadDocRepoOcrStatusesAsync(
-                documents,
-                ct);
-
             foreach (var document in documents)
             {
                 if (document.TotId.HasValue)
@@ -701,8 +693,8 @@ namespace ProjectManagement.Pages.Projects
             var usingPending = string.Equals(normalizedStatus, ProjectDocumentListViewModel.PendingStatusValue, StringComparison.OrdinalIgnoreCase) && isApprover;
 
             var rows = usingPending
-                ? filteredRequests.Select(r => BuildPendingRow(r, tz, docRepoOcrStatuses)).ToList()
-                : filteredDocuments.Select(d => BuildDocumentRow(d, pendingByDocumentId, docRepoOcrStatuses, tz)).ToList();
+                ? filteredRequests.Select(r => BuildPendingRow(r, tz)).ToList()
+                : filteredDocuments.Select(d => BuildDocumentRow(d, pendingByDocumentId, tz)).ToList();
 
             var totalItems = rows.Count;
             var totalPages = Math.Max(1, (int)Math.Ceiling(totalItems / (double)ProjectDocumentListViewModel.DefaultPageSize));
@@ -1473,7 +1465,6 @@ namespace ProjectManagement.Pages.Projects
         private ProjectDocumentRowViewModel BuildDocumentRow(
             ProjectDocument document,
             IReadOnlyDictionary<int, ProjectDocumentRequest> pendingRequests,
-            IReadOnlyDictionary<int, DocRepoOcrStatusSnapshot> docRepoStatuses,
             TimeZoneInfo tz)
         {
             var stageCode = document.Stage?.StageCode;
@@ -1509,14 +1500,10 @@ namespace ProjectManagement.Pages.Projects
             var previewUrl = Url.Page("/Projects/Documents/Preview", new { documentId = document.Id });
             var totId = document.TotId;
 
-            DocOcrStatus? ocrStatus = null;
-            string? ocrFailureReason = null;
-
-            if (docRepoStatuses.TryGetValue(document.Id, out var docRepoStatus))
-            {
-                ocrStatus = docRepoStatus.Status;
-                ocrFailureReason = docRepoStatus.FailureReason;
-            }
+            ProjectDocumentOcrStatus? ocrStatus = document.OcrStatus == ProjectDocumentOcrStatus.None
+                ? null
+                : document.OcrStatus;
+            var ocrFailureReason = document.OcrFailureReason;
 
             return new ProjectDocumentRowViewModel(
                 stageCode,
@@ -1542,8 +1529,7 @@ namespace ProjectManagement.Pages.Projects
 
         private ProjectDocumentRowViewModel BuildPendingRow(
             ProjectDocumentRequest request,
-            TimeZoneInfo tz,
-            IReadOnlyDictionary<int, DocRepoOcrStatusSnapshot> docRepoStatuses)
+            TimeZoneInfo tz)
         {
             var stageCode = request.Stage?.StageCode;
             var stageDisplay = BuildStageDisplayName(stageCode);
@@ -1565,15 +1551,13 @@ namespace ProjectManagement.Pages.Projects
             var fileName = request.OriginalFileName ?? request.Document?.OriginalFileName;
             var totId = request.TotId ?? request.Document?.TotId;
 
-            DocOcrStatus? ocrStatus = null;
-            string? ocrFailureReason = null;
-
-            if (request.DocumentId.HasValue &&
-                docRepoStatuses.TryGetValue(request.DocumentId.Value, out var docRepoStatus))
+            ProjectDocumentOcrStatus? ocrStatus = request.Document?.OcrStatus switch
             {
-                ocrStatus = docRepoStatus.Status;
-                ocrFailureReason = docRepoStatus.FailureReason;
-            }
+                null => null,
+                ProjectDocumentOcrStatus.None => null,
+                var status => status
+            };
+            var ocrFailureReason = request.Document?.OcrFailureReason;
 
             return new ProjectDocumentRowViewModel(
                 stageCode,
@@ -1596,100 +1580,6 @@ namespace ProjectManagement.Pages.Projects
                 ocrStatus,
                 ocrFailureReason);
         }
-
-        private async Task<IReadOnlyDictionary<int, DocRepoOcrStatusSnapshot>> LoadDocRepoOcrStatusesAsync(
-            IReadOnlyCollection<ProjectDocument> documents,
-            CancellationToken cancellationToken)
-        {
-            if (documents is null || documents.Count == 0)
-            {
-                return new Dictionary<int, DocRepoOcrStatusSnapshot>();
-            }
-
-            var result = new Dictionary<int, DocRepoOcrStatusSnapshot>();
-
-            var repoMap = new Dictionary<Guid, List<int>>();
-            foreach (var document in documents)
-            {
-                if (document.DocRepoDocumentId is Guid repoId)
-                {
-                    if (!repoMap.TryGetValue(repoId, out var list))
-                    {
-                        list = new List<int>();
-                        repoMap[repoId] = list;
-                    }
-
-                    if (!list.Contains(document.Id))
-                    {
-                        list.Add(document.Id);
-                    }
-                }
-            }
-
-            if (repoMap.Count > 0)
-            {
-                var repoIds = repoMap.Keys.ToList();
-                var repoRows = await _db.Documents
-                    .AsNoTracking()
-                    .Where(d => repoIds.Contains(d.Id))
-                    .Select(d => new
-                    {
-                        d.Id,
-                        d.OcrStatus,
-                        d.OcrFailureReason
-                    })
-                    .ToListAsync(cancellationToken);
-
-                foreach (var row in repoRows)
-                {
-                    if (repoMap.TryGetValue(row.Id, out var documentIds))
-                    {
-                        foreach (var documentId in documentIds)
-                        {
-                            result[documentId] = new DocRepoOcrStatusSnapshot(row.OcrStatus, row.OcrFailureReason);
-                        }
-                    }
-                }
-            }
-
-            var fallbackDocumentIds = documents
-                .Select(d => d.Id)
-                .Where(id => !result.ContainsKey(id))
-                .Distinct()
-                .ToList();
-
-            if (fallbackDocumentIds.Count == 0)
-            {
-                return result;
-            }
-
-            var lookupKeys = fallbackDocumentIds
-                .Select(id => id.ToString(CultureInfo.InvariantCulture))
-                .ToList();
-
-            var ocrRows = await _db.DocRepoExternalLinks
-                .AsNoTracking()
-                .Where(link => link.SourceModule == ProjectDocRepoSourceModule && lookupKeys.Contains(link.SourceItemId))
-                .Select(link => new
-                {
-                    link.SourceItemId,
-                    link.Document.OcrStatus,
-                    link.Document.OcrFailureReason
-                })
-                .ToListAsync(cancellationToken);
-
-            foreach (var row in ocrRows)
-            {
-                if (int.TryParse(row.SourceItemId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var documentId))
-                {
-                    result[documentId] = new DocRepoOcrStatusSnapshot(row.OcrStatus, row.OcrFailureReason);
-                }
-            }
-
-            return result;
-        }
-
-        private sealed record DocRepoOcrStatusSnapshot(DocOcrStatus Status, string? FailureReason);
 
         private ProjectDocumentPendingRequestViewModel BuildPendingRequestSummary(int projectId, ProjectDocumentRequest request, TimeZoneInfo tz)
         {

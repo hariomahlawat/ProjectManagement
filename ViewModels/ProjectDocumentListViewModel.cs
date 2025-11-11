@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Models;
 
 namespace ProjectManagement.ViewModels;
@@ -73,7 +72,7 @@ public sealed record ProjectDocumentRowViewModel(
     ProjectDocumentRequestType? PendingRequestType,
     int? TotId,
     bool IsTotLinked,
-    DocOcrStatus? OcrStatus,
+    ProjectDocumentOcrStatus? OcrStatus,
     string? OcrFailureReason);
 
 public sealed record ProjectDocumentFilterOptionViewModel(string? Value, string Label, bool Selected);

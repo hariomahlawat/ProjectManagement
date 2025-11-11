@@ -1,6 +1,6 @@
 @using System.Globalization
 @using System.Linq
-@using ProjectManagement.Data.DocRepo
+@using ProjectManagement.Models
 @using ProjectManagement.Models
 @using ProjectManagement.ViewModels
 @model ProjectManagement.Pages.Projects.OverviewModel
@@ -239,10 +239,10 @@
                                                         {
                                                             var (variant, label) = ocrStatus switch
                                                             {
-                                                                DocOcrStatus.Succeeded => ("success", "Succeeded"),
-                                                                DocOcrStatus.Pending => ("warning", "Pending"),
-                                                                DocOcrStatus.Failed => ("danger", "Failed"),
-                                                                DocOcrStatus.None => ("secondary", "Not queued"),
+                                                                ProjectDocumentOcrStatus.Succeeded => ("success", "Succeeded"),
+                                                                ProjectDocumentOcrStatus.Pending => ("warning", "Pending"),
+                                                                ProjectDocumentOcrStatus.Failed => ("danger", "Failed"),
+                                                                ProjectDocumentOcrStatus.None => ("secondary", "Not queued"),
                                                                 _ => ("secondary", ocrStatus.ToString())
                                                             };
                                                             var failureTitle = string.IsNullOrWhiteSpace(item.OcrFailureReason)
