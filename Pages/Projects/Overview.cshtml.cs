@@ -606,8 +606,21 @@ namespace ProjectManagement.Pages.Projects
             var documents = await _db.ProjectDocuments
                 .AsNoTracking()
                 .Where(d => d.ProjectId == project.Id && !d.IsArchived)
-                .Include(d => d.Stage)
-                .Include(d => d.UploadedByUser)
+                .Select(d => new DocumentOverviewRow(
+                    d.Id,
+                    d.StageId,
+                    d.Stage != null ? d.Stage.StageCode : null,
+                    d.Title,
+                    d.OriginalFileName,
+                    d.Status,
+                    d.UploadedAtUtc,
+                    d.FileSize,
+                    d.TotId,
+                    d.OcrStatus,
+                    d.OcrFailureReason,
+                    d.UploadedByUser != null ? d.UploadedByUser.FullName : null,
+                    d.UploadedByUser != null ? d.UploadedByUser.UserName : null,
+                    d.UploadedByUser != null ? d.UploadedByUser.Email : null))
                 .ToListAsync(ct);
 
             if (!isApprover)
@@ -628,17 +641,36 @@ namespace ProjectManagement.Pages.Projects
             var pendingRequests = await _db.ProjectDocumentRequests
                 .AsNoTracking()
                 .Where(r => r.ProjectId == project.Id && r.Status == ProjectDocumentRequestStatus.Submitted)
-                .Include(r => r.Stage)
-                .Include(r => r.Document)
-                .Include(r => r.RequestedByUser)
+                .Select(r => new DocumentRequestOverviewRow(
+                    r.Id,
+                    r.DocumentId,
+                    r.StageId,
+                    r.Stage != null ? r.Stage.StageCode : null,
+                    r.Title,
+                    r.OriginalFileName,
+                    r.RequestType,
+                    r.Status,
+                    r.RequestedAtUtc,
+                    r.FileSize,
+                    r.TotId,
+                    r.Document != null ? r.Document.TotId : null,
+                    r.Document != null ? r.Document.OcrStatus : (ProjectDocumentOcrStatus?)null,
+                    r.Document != null ? r.Document.OcrFailureReason : null,
+                    r.RequestedByUser != null ? r.RequestedByUser.FullName : null,
+                    r.RequestedByUser != null ? r.RequestedByUser.UserName : null,
+                    r.RequestedByUser != null ? r.RequestedByUser.Email : null,
+                    r.Document != null ? r.Document.OriginalFileName : null,
+                    r.Document != null ? r.Document.FileSize : (long?)null,
+                    r.RowVersion))
                 .OrderByDescending(r => r.RequestedAtUtc)
                 .ToListAsync(ct);
 
             foreach (var request in pendingRequests)
             {
-                if (request.Document?.TotId is int requestTotId)
+                var requestTotId = request.TotId ?? request.DocumentTotId;
+                if (requestTotId.HasValue)
                 {
-                    availableTotIds.Add(requestTotId);
+                    availableTotIds.Add(requestTotId.Value);
                 }
             }
 
@@ -651,7 +683,7 @@ namespace ProjectManagement.Pages.Projects
                 : documents;
 
             var requestsForDisplay = selectedTotId.HasValue
-                ? pendingRequests.Where(r => r.Document?.TotId == selectedTotId.Value).ToList()
+                ? pendingRequests.Where(r => (r.TotId ?? r.DocumentTotId) == selectedTotId.Value).ToList()
                 : pendingRequests;
 
             DocumentPendingRequestCount = requestsForDisplay.Count;
@@ -677,15 +709,15 @@ namespace ProjectManagement.Pages.Projects
                 .ToDictionary(g => g.Key, g => g.First());
 
             var filteredDocuments = documentsForDisplay
-                .Where(d => StageMatches(d.Stage?.StageCode, normalizedStage))
-                .OrderBy(d => StageOrder(d.Stage?.StageCode))
+                .Where(d => StageMatches(d.StageCode, normalizedStage))
+                .OrderBy(d => StageOrder(d.StageCode))
                 .ThenByDescending(d => d.UploadedAtUtc)
                 .ThenBy(d => d.Id)
                 .ToList();
 
             var filteredRequests = requestsForDisplay
-                .Where(r => StageMatches(r.Stage?.StageCode, normalizedStage))
-                .OrderBy(r => StageOrder(r.Stage?.StageCode))
+                .Where(r => StageMatches(r.StageCode, normalizedStage))
+                .OrderBy(r => StageOrder(r.StageCode))
                 .ThenByDescending(r => r.RequestedAtUtc)
                 .ThenBy(r => r.Id)
                 .ToList();
@@ -1377,8 +1409,8 @@ namespace ProjectManagement.Pages.Projects
         }
 
         private IReadOnlyList<ProjectDocumentFilterOptionViewModel> BuildStageFilters(
-            IReadOnlyCollection<ProjectDocument> documents,
-            IReadOnlyCollection<ProjectDocumentRequest> pendingRequests,
+            IReadOnlyCollection<DocumentOverviewRow> documents,
+            IReadOnlyCollection<DocumentRequestOverviewRow> pendingRequests,
             string? selectedStage)
         {
             var filters = new List<ProjectDocumentFilterOptionViewModel>
@@ -1403,17 +1435,17 @@ namespace ProjectManagement.Pages.Projects
 
             foreach (var document in documents)
             {
-                if (!string.IsNullOrWhiteSpace(document.Stage?.StageCode))
+                if (!string.IsNullOrWhiteSpace(document.StageCode))
                 {
-                    stageCodes.Add(document.Stage.StageCode);
+                    stageCodes.Add(document.StageCode);
                 }
             }
 
             foreach (var request in pendingRequests)
             {
-                if (!string.IsNullOrWhiteSpace(request.Stage?.StageCode))
+                if (!string.IsNullOrWhiteSpace(request.StageCode))
                 {
-                    stageCodes.Add(request.Stage.StageCode);
+                    stageCodes.Add(request.StageCode);
                 }
             }
 
@@ -1463,13 +1495,13 @@ namespace ProjectManagement.Pages.Projects
         }
 
         private ProjectDocumentRowViewModel BuildDocumentRow(
-            ProjectDocument document,
-            IReadOnlyDictionary<int, ProjectDocumentRequest> pendingRequests,
+            DocumentOverviewRow document,
+            IReadOnlyDictionary<int, DocumentRequestOverviewRow> pendingRequests,
             TimeZoneInfo tz)
         {
-            var stageCode = document.Stage?.StageCode;
+            var stageCode = document.StageCode;
             var stageDisplay = BuildStageDisplayName(stageCode);
-            var uploadedBy = FormatUser(document.UploadedByUser);
+            var uploadedBy = FormatUser(document.UploadedByFullName, document.UploadedByUserName, document.UploadedByEmail) ?? "Unknown";
             var uploadedOn = TimeZoneInfo.ConvertTime(document.UploadedAtUtc, tz);
             var metadata = string.Format(CultureInfo.InvariantCulture, "Uploaded on {0:dd MMM yyyy} by {1}", uploadedOn, uploadedBy);
             var title = string.IsNullOrWhiteSpace(document.Title) ? document.OriginalFileName : document.Title;
@@ -1487,7 +1519,7 @@ namespace ProjectManagement.Pages.Projects
                 statusVariant = "warning";
                 pendingType = pending.RequestType;
                 requestId = pending.Id;
-                var pendingBy = FormatUser(pending.RequestedByUser);
+                var pendingBy = FormatUser(pending.RequestedByFullName, pending.RequestedByUserName, pending.RequestedByEmail) ?? "Unknown";
                 var pendingOn = TimeZoneInfo.ConvertTime(pending.RequestedAtUtc, tz);
                 secondarySummary = string.Format(
                     CultureInfo.InvariantCulture,
@@ -1528,16 +1560,16 @@ namespace ProjectManagement.Pages.Projects
         }
 
         private ProjectDocumentRowViewModel BuildPendingRow(
-            ProjectDocumentRequest request,
+            DocumentRequestOverviewRow request,
             TimeZoneInfo tz)
         {
-            var stageCode = request.Stage?.StageCode;
+            var stageCode = request.StageCode;
             var stageDisplay = BuildStageDisplayName(stageCode);
-            var requestedBy = FormatUser(request.RequestedByUser);
+            var requestedBy = FormatUser(request.RequestedByFullName, request.RequestedByUserName, request.RequestedByEmail) ?? "Unknown";
             var requestedOn = TimeZoneInfo.ConvertTime(request.RequestedAtUtc, tz);
             var metadata = string.Format(CultureInfo.InvariantCulture, "Requested on {0:dd MMM yyyy} by {1}", requestedOn, requestedBy);
             var title = string.IsNullOrWhiteSpace(request.Title)
-                ? (request.OriginalFileName ?? request.Document?.OriginalFileName ?? "Pending document")
+                ? (request.OriginalFileName ?? request.DocumentOriginalFileName ?? "Pending document")
                 : request.Title;
             var previewUrl = request.DocumentId.HasValue
                 ? Url.Page("/Projects/Documents/Preview", new { documentId = request.DocumentId.Value })
@@ -1548,16 +1580,16 @@ namespace ProjectManagement.Pages.Projects
                 "{0} request awaiting review",
                 DescribeRequestType(request.RequestType));
 
-            var fileName = request.OriginalFileName ?? request.Document?.OriginalFileName;
-            var totId = request.TotId ?? request.Document?.TotId;
+            var fileName = request.OriginalFileName ?? request.DocumentOriginalFileName;
+            var totId = request.TotId ?? request.DocumentTotId;
 
-            ProjectDocumentOcrStatus? ocrStatus = request.Document?.OcrStatus switch
+            ProjectDocumentOcrStatus? ocrStatus = request.DocumentOcrStatus switch
             {
                 null => null,
                 ProjectDocumentOcrStatus.None => null,
                 var status => status
             };
-            var ocrFailureReason = request.Document?.OcrFailureReason;
+            var ocrFailureReason = request.DocumentOcrFailureReason;
 
             return new ProjectDocumentRowViewModel(
                 stageCode,
@@ -1566,7 +1598,7 @@ namespace ProjectManagement.Pages.Projects
                 request.Id,
                 title,
                 fileName,
-                FormatFileSize(request.FileSize ?? request.Document?.FileSize),
+                FormatFileSize(request.FileSize ?? request.DocumentFileSize),
                 metadata,
                 "Pending",
                 "warning",
@@ -1581,12 +1613,12 @@ namespace ProjectManagement.Pages.Projects
                 ocrFailureReason);
         }
 
-        private ProjectDocumentPendingRequestViewModel BuildPendingRequestSummary(int projectId, ProjectDocumentRequest request, TimeZoneInfo tz)
+        private ProjectDocumentPendingRequestViewModel BuildPendingRequestSummary(int projectId, DocumentRequestOverviewRow request, TimeZoneInfo tz)
         {
-            var requestedBy = FormatUser(request.RequestedByUser);
+            var requestedBy = FormatUser(request.RequestedByFullName, request.RequestedByUserName, request.RequestedByEmail) ?? "Unknown";
             var requestedOn = TimeZoneInfo.ConvertTime(request.RequestedAtUtc, tz);
             var summary = string.Format(CultureInfo.InvariantCulture, "Requested on {0:dd MMM yyyy, HH:mm} by {1}", requestedOn, requestedBy);
-            var fileName = request.OriginalFileName ?? request.Document?.OriginalFileName ?? "—";
+            var fileName = request.OriginalFileName ?? request.DocumentOriginalFileName ?? "—";
             var reviewUrl = Url.Page("/Projects/Documents/Approvals/Review", new { id = projectId, requestId = request.Id }) ?? string.Empty;
             var rowVersion = request.RowVersion is { Length: > 0 }
                 ? Convert.ToBase64String(request.RowVersion)
@@ -1595,11 +1627,11 @@ namespace ProjectManagement.Pages.Projects
             return new ProjectDocumentPendingRequestViewModel(
                 request.Id,
                 string.IsNullOrWhiteSpace(request.Title) ? fileName : request.Title,
-                BuildStageDisplayName(request.Stage?.StageCode),
+                BuildStageDisplayName(request.StageCode),
                 string.Format(CultureInfo.InvariantCulture, "{0} request", DescribeRequestType(request.RequestType)),
                 summary,
                 fileName,
-                FormatFileSize(request.FileSize ?? request.Document?.FileSize),
+                FormatFileSize(request.FileSize ?? request.DocumentFileSize),
                 rowVersion,
                 reviewUrl,
                 request.RequestedAtUtc,
@@ -2183,5 +2215,45 @@ namespace ProjectManagement.Pages.Projects
             var index = Array.IndexOf(StageCodes.All, stageCode);
             return index >= 0 ? index : int.MaxValue;
         }
+
+        // SECTION: Document overview data records
+
+        private sealed record DocumentOverviewRow(
+            int Id,
+            int? StageId,
+            string? StageCode,
+            string? Title,
+            string? OriginalFileName,
+            ProjectDocumentStatus Status,
+            DateTimeOffset UploadedAtUtc,
+            long? FileSize,
+            int? TotId,
+            ProjectDocumentOcrStatus OcrStatus,
+            string? OcrFailureReason,
+            string? UploadedByFullName,
+            string? UploadedByUserName,
+            string? UploadedByEmail);
+
+        private sealed record DocumentRequestOverviewRow(
+            int Id,
+            int? DocumentId,
+            int? StageId,
+            string? StageCode,
+            string? Title,
+            string? OriginalFileName,
+            ProjectDocumentRequestType RequestType,
+            ProjectDocumentRequestStatus Status,
+            DateTimeOffset RequestedAtUtc,
+            long? FileSize,
+            int? TotId,
+            int? DocumentTotId,
+            ProjectDocumentOcrStatus? DocumentOcrStatus,
+            string? DocumentOcrFailureReason,
+            string? RequestedByFullName,
+            string? RequestedByUserName,
+            string? RequestedByEmail,
+            string? DocumentOriginalFileName,
+            long? DocumentFileSize,
+            byte[]? RowVersion);
     }
 }
