@@ -4,31 +4,29 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace ProjectManagement.Migrations
 {
-    /// <inheritdoc />
     public partial class AddDocRepoDocumentIsExternal : Migration
     {
-        /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.AddColumn<bool>(
                 name: "IsExternal",
                 table: "Documents",
-                type: "boolean",
+                type: "boolean",      // you're on Postgres, so this is fine
                 nullable: false,
                 defaultValue: false);
 
+            // mark existing docs that already have links as external
             migrationBuilder.Sql(@"
-                UPDATE \"Documents\" d
-                SET \"IsExternal\" = TRUE
+                UPDATE ""Documents"" d
+                SET ""IsExternal"" = TRUE
                 WHERE EXISTS (
                     SELECT 1
-                    FROM \"DocRepoExternalLinks\" l
-                    WHERE l.\"DocumentId\" = d.\"Id\"
+                    FROM ""DocRepoExternalLinks"" l
+                    WHERE l.""DocumentId"" = d.""Id""
                 );
             ");
         }
 
-        /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropColumn(
