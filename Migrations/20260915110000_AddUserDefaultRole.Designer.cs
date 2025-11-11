@@ -15,9 +15,18 @@ namespace ProjectManagement.Migrations
         // SECTION: Model snapshot bridge
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
+            new SnapshotInvoker().Build(modelBuilder);
+        }
+
+        // SECTION: Snapshot invoker helper
+        private sealed class SnapshotInvoker : ApplicationDbContextModelSnapshot
+        {
+            public void Build(ModelBuilder modelBuilder)
+            {
 #pragma warning disable 612, 618
-            new ApplicationDbContextModelSnapshot().BuildModel(modelBuilder);
+                BuildModel(modelBuilder);
 #pragma warning restore 612, 618
+            }
         }
     }
 }
