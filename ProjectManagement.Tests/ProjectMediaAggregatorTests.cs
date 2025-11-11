@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.ViewModels;
@@ -314,7 +315,9 @@ public sealed class ProjectMediaAggregatorTests
             SecondarySummary: null,
             PendingRequestType: null,
             TotId: totId,
-            IsTotLinked: totId.HasValue);
+            IsTotLinked: totId.HasValue,
+            OcrStatus: DocOcrStatus.Succeeded,
+            OcrFailureReason: null);
     }
 
     private static ProjectPhoto CreatePhoto(int id, int ordinal, int? totId, string caption)

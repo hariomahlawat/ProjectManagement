@@ -1,5 +1,6 @@
 @using System.Globalization
 @using System.Linq
+@using ProjectManagement.Data.DocRepo
 @using ProjectManagement.Models
 @using ProjectManagement.ViewModels
 @model ProjectManagement.Pages.Projects.OverviewModel
@@ -233,6 +234,23 @@
                                                         @if (!string.IsNullOrWhiteSpace(item.SecondarySummary))
                                                         {
                                                             <div class="text-muted small mt-1">@item.SecondarySummary</div>
+                                                        }
+                                                        @if (item.OcrStatus is { } ocrStatus)
+                                                        {
+                                                            var (variant, label) = ocrStatus switch
+                                                            {
+                                                                DocOcrStatus.Succeeded => ("success", "Succeeded"),
+                                                                DocOcrStatus.Pending => ("warning", "Pending"),
+                                                                DocOcrStatus.Failed => ("danger", "Failed"),
+                                                                DocOcrStatus.None => ("secondary", "Not queued"),
+                                                                _ => ("secondary", ocrStatus.ToString())
+                                                            };
+                                                            var failureTitle = string.IsNullOrWhiteSpace(item.OcrFailureReason)
+                                                                ? null
+                                                                : item.OcrFailureReason;
+                                                            <div class="mt-1">
+                                                                <span class="badge text-bg-@variant" title="@failureTitle">OCR: @label</span>
+                                                            </div>
                                                         }
                                                         @if (!string.IsNullOrWhiteSpace(item.FileName) && !string.Equals(item.FileName, item.Title, StringComparison.OrdinalIgnoreCase))
                                                         {
