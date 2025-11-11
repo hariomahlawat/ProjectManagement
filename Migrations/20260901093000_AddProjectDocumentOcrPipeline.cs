@@ -191,6 +191,12 @@ SET ""SearchVector"" = project_documents_build_search_vector(
     ""StageId"",
     ""OriginalFileName"");
 ");
+
+            migrationBuilder.Sql(@"
+CREATE INDEX idx_project_documents_search
+    ON ""ProjectDocuments""
+    USING GIN (""SearchVector"");
+");
         }
 
         /// <inheritdoc />
@@ -200,6 +206,10 @@ SET ""SearchVector"" = project_documents_build_search_vector(
             {
                 throw new NotSupportedException("Project document OCR pipeline requires PostgreSQL.");
             }
+
+            migrationBuilder.Sql(@"
+DROP INDEX IF EXISTS idx_project_documents_search;
+");
 
             migrationBuilder.Sql(@"
 DROP TRIGGER IF EXISTS project_document_texts_search_vector_after ON ""ProjectDocumentTexts"";
