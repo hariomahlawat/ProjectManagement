@@ -32,11 +32,11 @@ public sealed class UrlBuilder : IUrlBuilder
     public string ProjectOverview(int projectId)
         => $"/Projects/Overview/{projectId.ToString(CultureInfo.InvariantCulture)}";
 
-    public string ProjectOfficeVisitDetails(Guid visitId)
-        => $"/ProjectOfficeReports/Visits/Details?id={visitId}";
+    public string ProjectOfficeVisitDetails(Guid id)
+        => $"/ProjectOfficeReports/Visits/Details/{id}";
 
-    public string ProjectOfficeSocialMediaDetails(Guid eventId)
-        => $"/ProjectOfficeReports/SocialMedia/Details?id={eventId}";
+    public string ProjectOfficeSocialMediaDetails(Guid id)
+        => $"/ProjectOfficeReports/SocialMedia/Details/{id}";
 
     public string ProjectOfficeTrainingManage(Guid trainingId)
         => $"/ProjectOfficeReports/Training/Manage?id={trainingId}";
