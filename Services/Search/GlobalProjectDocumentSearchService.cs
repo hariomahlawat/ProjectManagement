@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
 using ProjectManagement.Data;
 using ProjectManagement.Models;
+using ProjectManagement.Models.Stages;
 using ProjectManagement.Services.Navigation;
 
 namespace ProjectManagement.Services.Search;
@@ -57,7 +58,7 @@ public sealed class GlobalProjectDocumentSearchService : IGlobalProjectDocumentS
                 document.Title,
                 document.OriginalFileName,
                 document.UploadedAtUtc,
-                StageName = document.Stage != null ? document.Stage.StageName : null,
+                StageCode = document.Stage != null ? document.Stage.StageCode : null,
                 Snippet = document.DocumentText != null
                     ? ApplicationDbContext.TsHeadline(
                         "english",
@@ -83,7 +84,9 @@ public sealed class GlobalProjectDocumentSearchService : IGlobalProjectDocumentS
             var snippet = string.IsNullOrWhiteSpace(row.Snippet) ? null : row.Snippet;
             var date = row.UploadedAtUtc;
             var score = row.Rank.HasValue ? Convert.ToDecimal(row.Rank.Value) : 0m;
-            var extra = string.IsNullOrWhiteSpace(row.StageName) ? null : row.StageName;
+            var extra = string.IsNullOrWhiteSpace(row.StageCode)
+                ? null
+                : StageCodes.DisplayNameOf(row.StageCode);
 
             hits.Add(new GlobalSearchHit(
                 Source: "Project documents",
