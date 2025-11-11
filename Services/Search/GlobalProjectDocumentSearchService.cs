@@ -49,7 +49,7 @@ public sealed class GlobalProjectDocumentSearchService : IGlobalProjectDocumentS
             .AsNoTracking()
             .Where(document => document.Status == ProjectDocumentStatus.Published && !document.IsArchived)
             .Where(document => document.SearchVector != null && document.SearchVector.Matches(tsQuery))
-            .OrderByDescending(document => EF.Functions.TsRankCd(document.SearchVector!, tsQuery))
+            .OrderByDescending(document => ApplicationDbContext.TsRankCd(document.SearchVector!, tsQuery))
             .ThenByDescending(document => document.UploadedAtUtc)
             .Select(document => new
             {
@@ -65,7 +65,7 @@ public sealed class GlobalProjectDocumentSearchService : IGlobalProjectDocumentS
                         tsQuery,
                         "StartSel=<mark>,StopSel=</mark>,MaxWords=25,MinWords=10,ShortWord=3,HighlightAll=FALSE,FragmentDelimiter=…")
                     : null,
-                Rank = EF.Functions.TsRankCd(document.SearchVector!, tsQuery)
+                Rank = ApplicationDbContext.TsRankCd(document.SearchVector!, tsQuery)
             })
             .Take(limit)
             .ToListAsync(cancellationToken);
