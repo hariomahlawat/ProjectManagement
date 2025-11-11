@@ -6422,6 +6422,11 @@ namespace ProjectManagement.Migrations
                         .HasForeignKey("DocRepoDocumentId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("ProjectManagement.Data.Projects.ProjectDocumentText", "DocumentText")
+                        .WithOne("ProjectDocument")
+                        .HasForeignKey("ProjectManagement.Data.Projects.ProjectDocumentText", "ProjectDocumentId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("ProjectManagement.Models.Execution.ProjectStage", "Stage")
                         .WithMany()
                         .HasForeignKey("StageId")
