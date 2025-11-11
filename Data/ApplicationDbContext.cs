@@ -224,6 +224,8 @@ namespace ProjectManagement.Data
                 e.Property(x => x.UpdatedByUserId).HasMaxLength(64);
                 e.Property(x => x.DocumentDate).HasColumnType("date");
                 e.Property(x => x.IsActive).HasDefaultValue(true);
+                // SECTION: Document ingestion configuration
+                e.Property(x => x.IsExternal).HasDefaultValue(false);
                 // SECTION: Document soft delete configuration
                 e.Property(x => x.IsDeleted).HasDefaultValue(false);
                 e.Property(x => x.DeletedByUserId).HasMaxLength(64);

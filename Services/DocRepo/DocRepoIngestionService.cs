@@ -153,6 +153,7 @@ public sealed class DocRepoIngestionService : IDocRepoIngestionService
             StoragePath = storagePath,
             MimeType = "application/pdf",
             IsActive = true,
+            IsExternal = true,
             CreatedByUserId = createdBy,
             CreatedAtUtc = nowUtc,
             UpdatedByUserId = createdBy,
