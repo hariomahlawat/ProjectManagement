@@ -48,6 +48,9 @@ public class Document
 
     public bool IsActive { get; set; } = true;
 
+    // SECTION: External ingestion metadata
+    public bool IsExternal { get; set; } = false;
+
     // SECTION: Soft delete metadata
     public bool IsDeleted { get; set; } = false;
 

@@ -68,9 +68,9 @@ namespace ProjectManagement.Areas.DocumentRepository.Pages.Documents
             }
 
             // SECTION: Base query
-            IQueryable<Document> query = _db.Documents
-                .AsNoTracking()
-                .Where(document => !document.IsDeleted);
+        IQueryable<Document> query = _db.Documents
+            .AsNoTracking()
+            .Where(document => !document.IsDeleted && !document.IsExternal);
 
             if (!IncludeInactive)
             {

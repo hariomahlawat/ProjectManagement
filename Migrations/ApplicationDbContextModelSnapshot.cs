@@ -1607,6 +1607,11 @@ namespace ProjectManagement.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
+                    b.Property<bool>("IsExternal")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("MimeType")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
