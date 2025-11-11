@@ -133,6 +133,8 @@ namespace ProjectManagement.Data
         // SECTION: PostgreSQL text search helpers
         public static string TsHeadline(string config, string text, NpgsqlTsQuery query, string options) => throw new NotSupportedException();
 
+        public static float? TsRankCd(NpgsqlTsVector vector, NpgsqlTsQuery query) => throw new NotSupportedException();
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             base.OnModelCreating(builder);
@@ -143,6 +145,10 @@ namespace ProjectManagement.Data
             builder
                 .HasDbFunction(typeof(ApplicationDbContext).GetMethod(nameof(TsHeadline))!)
                 .HasName("ts_headline");
+
+            builder
+                .HasDbFunction(typeof(ApplicationDbContext).GetMethod(nameof(TsRankCd))!)
+                .HasName("ts_rank_cd");
 
             builder.Entity<ApplicationUser>().HasData(
                 new ApplicationUser
