@@ -17,18 +17,21 @@ namespace ProjectManagement.Migrations
                 throw new NotSupportedException("Project document OCR pipeline requires PostgreSQL.");
             }
 
-            migrationBuilder.AddColumn<string>(
+            migrationBuilder.AlterColumn<string>(
                 name: "OcrFailureReason",
                 table: "ProjectDocuments",
                 type: "character varying(1024)",
                 maxLength: 1024,
-                nullable: true);
+                nullable: true,
+                oldClrType: typeof(string),
+                oldType: "character varying(512)",
+                oldMaxLength: 512,
+                oldNullable: true);
 
-            migrationBuilder.AddColumn<DateTimeOffset>(
-                name: "OcrLastTriedUtc",
+            migrationBuilder.RenameColumn(
+                name: "OcrStatus",
                 table: "ProjectDocuments",
-                type: "timestamp with time zone",
-                nullable: true);
+                newName: "OcrStatusLegacy");
 
             migrationBuilder.AddColumn<string>(
                 name: "OcrStatus",
@@ -37,6 +40,27 @@ namespace ProjectManagement.Migrations
                 maxLength: 32,
                 nullable: false,
                 defaultValue: "None");
+
+            migrationBuilder.Sql(@"
+UPDATE ""ProjectDocuments""
+SET ""OcrStatus"" = CASE ""OcrStatusLegacy""
+    WHEN 1 THEN 'Pending'
+    WHEN 2 THEN 'Succeeded'
+    WHEN 3 THEN 'Failed'
+    ELSE 'None'
+END;
+");
+
+            migrationBuilder.Sql(@"
+UPDATE ""ProjectDocuments""
+SET ""OcrStatus"" = CASE WHEN ""Status"" = 'Published' THEN 'Pending' ELSE 'None' END,
+    ""OcrFailureReason"" = NULL
+WHERE ""OcrStatus"" IN ('None', 'Pending');
+");
+
+            migrationBuilder.DropColumn(
+                name: "OcrStatusLegacy",
+                table: "ProjectDocuments");
 
             migrationBuilder.AddColumn<NpgsqlTsVector>(
                 name: "SearchVector",
@@ -189,20 +213,45 @@ DROP FUNCTION IF EXISTS project_documents_build_search_vector(integer, text, tex
                 name: "ProjectDocumentTexts");
 
             migrationBuilder.DropColumn(
-                name: "OcrFailureReason",
+                name: "SearchVector",
                 table: "ProjectDocuments");
 
-            migrationBuilder.DropColumn(
-                name: "OcrLastTriedUtc",
-                table: "ProjectDocuments");
+            migrationBuilder.AddColumn<int>(
+                name: "OcrStatusLegacy",
+                table: "ProjectDocuments",
+                type: "integer",
+                nullable: false,
+                defaultValue: 0);
+
+            migrationBuilder.Sql(@"
+UPDATE ""ProjectDocuments""
+SET ""OcrStatusLegacy"" = CASE ""OcrStatus""
+    WHEN 'Pending' THEN 1
+    WHEN 'Succeeded' THEN 2
+    WHEN 'Failed' THEN 3
+    ELSE 0
+END;
+");
 
             migrationBuilder.DropColumn(
                 name: "OcrStatus",
                 table: "ProjectDocuments");
 
-            migrationBuilder.DropColumn(
-                name: "SearchVector",
-                table: "ProjectDocuments");
+            migrationBuilder.RenameColumn(
+                name: "OcrStatusLegacy",
+                table: "ProjectDocuments",
+                newName: "OcrStatus");
+
+            migrationBuilder.AlterColumn<string>(
+                name: "OcrFailureReason",
+                table: "ProjectDocuments",
+                type: "character varying(512)",
+                maxLength: 512,
+                nullable: true,
+                oldClrType: typeof(string),
+                oldType: "character varying(1024)",
+                oldMaxLength: 1024,
+                oldNullable: true);
         }
     }
 }
