@@ -3833,6 +3833,9 @@ namespace ProjectManagement.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<Guid?>("DocRepoDocumentId")
+                        .HasColumnType("uuid");
+
                     b.Property<long>("FileSize")
                         .HasColumnType("bigint");
 
@@ -3898,6 +3901,8 @@ namespace ProjectManagement.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ArchivedByUserId");
+
+                    b.HasIndex("DocRepoDocumentId");
 
                     b.HasIndex("ProjectId");
 
@@ -6372,6 +6377,11 @@ namespace ProjectManagement.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("ProjectManagement.Data.DocRepo.Document", "DocRepoDocument")
+                        .WithMany()
+                        .HasForeignKey("DocRepoDocumentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("ProjectManagement.Models.Execution.ProjectStage", "Stage")
                         .WithMany()
                         .HasForeignKey("StageId")
@@ -6389,6 +6399,8 @@ namespace ProjectManagement.Migrations
                         .IsRequired();
 
                     b.Navigation("ArchivedByUser");
+
+                    b.Navigation("DocRepoDocument");
 
                     b.Navigation("Project");
 

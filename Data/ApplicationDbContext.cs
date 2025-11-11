@@ -1103,6 +1103,7 @@ namespace ProjectManagement.Data
                     .HasSentinel(ProjectDocumentStatus.Published)
                     .IsRequired();
                 e.Property(x => x.FileStamp).HasDefaultValue(0).IsRequired();
+                e.Property(x => x.DocRepoDocumentId).IsRequired(false);
                 e.Property(x => x.UploadedByUserId).HasMaxLength(450).IsRequired();
                 e.Property(x => x.IsArchived).HasDefaultValue(false);
                 e.Property(x => x.ArchivedAtUtc).IsRequired(false);
@@ -1110,6 +1111,7 @@ namespace ProjectManagement.Data
                 e.HasIndex(x => new { x.ProjectId, x.StageId, x.IsArchived });
                 e.HasIndex(x => x.ProjectId);
                 e.HasIndex(x => new { x.ProjectId, x.TotId });
+                e.HasIndex(x => x.DocRepoDocumentId);
                 e.HasOne(x => x.Project)
                     .WithMany()
                     .HasForeignKey(x => x.ProjectId)
@@ -1121,6 +1123,10 @@ namespace ProjectManagement.Data
                 e.HasOne(x => x.Request)
                     .WithOne(x => x.Document)
                     .HasForeignKey<ProjectDocument>(x => x.RequestId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                e.HasOne(x => x.DocRepoDocument)
+                    .WithMany()
+                    .HasForeignKey(x => x.DocRepoDocumentId)
                     .OnDelete(DeleteBehavior.SetNull);
                 e.HasOne(x => x.Tot)
                     .WithMany()

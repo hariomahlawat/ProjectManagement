@@ -622,7 +622,7 @@ namespace ProjectManagement.Pages.Projects
             }
 
             var docRepoOcrStatuses = await LoadDocRepoOcrStatusesAsync(
-                documents.Select(d => d.Id),
+                documents,
                 ct);
 
             foreach (var document in documents)
@@ -1598,24 +1598,72 @@ namespace ProjectManagement.Pages.Projects
         }
 
         private async Task<IReadOnlyDictionary<int, DocRepoOcrStatusSnapshot>> LoadDocRepoOcrStatusesAsync(
-            IEnumerable<int> documentIds,
+            IReadOnlyCollection<ProjectDocument> documents,
             CancellationToken cancellationToken)
         {
-            if (documentIds is null)
+            if (documents is null || documents.Count == 0)
             {
                 return new Dictionary<int, DocRepoOcrStatusSnapshot>();
             }
 
-            var distinctIds = documentIds
+            var result = new Dictionary<int, DocRepoOcrStatusSnapshot>();
+
+            var repoMap = new Dictionary<Guid, List<int>>();
+            foreach (var document in documents)
+            {
+                if (document.DocRepoDocumentId is Guid repoId)
+                {
+                    if (!repoMap.TryGetValue(repoId, out var list))
+                    {
+                        list = new List<int>();
+                        repoMap[repoId] = list;
+                    }
+
+                    if (!list.Contains(document.Id))
+                    {
+                        list.Add(document.Id);
+                    }
+                }
+            }
+
+            if (repoMap.Count > 0)
+            {
+                var repoIds = repoMap.Keys.ToList();
+                var repoRows = await _db.Documents
+                    .AsNoTracking()
+                    .Where(d => repoIds.Contains(d.Id))
+                    .Select(d => new
+                    {
+                        d.Id,
+                        d.OcrStatus,
+                        d.OcrFailureReason
+                    })
+                    .ToListAsync(cancellationToken);
+
+                foreach (var row in repoRows)
+                {
+                    if (repoMap.TryGetValue(row.Id, out var documentIds))
+                    {
+                        foreach (var documentId in documentIds)
+                        {
+                            result[documentId] = new DocRepoOcrStatusSnapshot(row.OcrStatus, row.OcrFailureReason);
+                        }
+                    }
+                }
+            }
+
+            var fallbackDocumentIds = documents
+                .Select(d => d.Id)
+                .Where(id => !result.ContainsKey(id))
                 .Distinct()
                 .ToList();
 
-            if (distinctIds.Count == 0)
+            if (fallbackDocumentIds.Count == 0)
             {
-                return new Dictionary<int, DocRepoOcrStatusSnapshot>();
+                return result;
             }
 
-            var lookupKeys = distinctIds
+            var lookupKeys = fallbackDocumentIds
                 .Select(id => id.ToString(CultureInfo.InvariantCulture))
                 .ToList();
 
@@ -1629,8 +1677,6 @@ namespace ProjectManagement.Pages.Projects
                     link.Document.OcrFailureReason
                 })
                 .ToListAsync(cancellationToken);
-
-            var result = new Dictionary<int, DocRepoOcrStatusSnapshot>();
 
             foreach (var row in ocrRows)
             {
