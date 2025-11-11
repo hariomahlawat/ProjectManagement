@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Models.Execution;
 
 namespace ProjectManagement.Models
@@ -54,6 +55,10 @@ namespace ProjectManagement.Models
 
         [Range(0, int.MaxValue)]
         public int FileStamp { get; set; }
+
+        public Guid? DocRepoDocumentId { get; set; }
+
+        public Document? DocRepoDocument { get; set; }
 
         public int? TotId { get; set; }
 

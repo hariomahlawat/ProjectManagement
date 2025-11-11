@@ -12,6 +12,7 @@ using ProjectManagement.Data;
 using ProjectManagement.Models;
 using ProjectManagement.Services;
 using ProjectManagement.Infrastructure;
+using ProjectManagement.Services.DocRepo;
 using ProjectManagement.Services.Storage;
 
 namespace ProjectManagement.Services.Documents;
@@ -24,9 +25,11 @@ public sealed class DocumentService : IDocumentService
     private readonly IClock _clock;
     private readonly IAuditService _audit;
     private readonly IDocumentNotificationService _notifications;
+    private readonly IDocRepoIngestionService _docRepoIngestionService;
     private readonly IVirusScanner? _virusScanner;
     private readonly ILogger<DocumentService>? _logger;
 
+    private const string DocRepoSourceModule = "Projects.Documents";
     private static readonly string[] PdfMagic = { "%PDF-" };
     private static int _tempRequestTokenSeed = (int)(DateTime.UtcNow.Ticks & 0x7FFFFFFF);
 
@@ -37,6 +40,7 @@ public sealed class DocumentService : IDocumentService
         IClock clock,
         IAuditService audit,
         IDocumentNotificationService notifications,
+        IDocRepoIngestionService docRepoIngestionService,
         IVirusScanner? virusScanner = null,
         ILogger<DocumentService>? logger = null)
     {
@@ -46,6 +50,7 @@ public sealed class DocumentService : IDocumentService
         _clock = clock ?? throw new ArgumentNullException(nameof(clock));
         _audit = audit ?? throw new ArgumentNullException(nameof(audit));
         _notifications = notifications ?? throw new ArgumentNullException(nameof(notifications));
+        _docRepoIngestionService = docRepoIngestionService ?? throw new ArgumentNullException(nameof(docRepoIngestionService));
         _virusScanner = virusScanner;
         _logger = logger;
     }
@@ -256,6 +261,8 @@ public sealed class DocumentService : IDocumentService
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
+        await LinkDocumentToRepositoryAsync(document, destinationPath, cancellationToken);
+
         await Audit.Events.ProjectDocumentPublished(projectId, document.Id, performedByUserId, document.FileStamp)
             .WriteAsync(_audit);
 
@@ -340,6 +347,8 @@ public sealed class DocumentService : IDocumentService
         await _db.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
+        await LinkDocumentToRepositoryAsync(document, destinationPath, cancellationToken);
+
         await Audit.Events.ProjectDocumentReplaced(document.ProjectId, document.Id, performedByUserId, document.FileStamp)
             .WriteAsync(_audit);
 
@@ -413,6 +422,9 @@ public sealed class DocumentService : IDocumentService
         document.ArchivedByUserId = null;
 
         await _db.SaveChangesAsync(cancellationToken);
+
+        var storagePath = ResolveAbsolutePath(document.StorageKey);
+        await LinkDocumentToRepositoryAsync(document, storagePath, cancellationToken);
 
         await Audit.Events.ProjectDocumentRestored(document.ProjectId, document.Id, performedByUserId)
             .WriteAsync(_audit);
@@ -507,6 +519,58 @@ public sealed class DocumentService : IDocumentService
             TryDeleteDirectoryIfEmpty(Path.GetDirectoryName(requestDirectory));
         }
         return Task.CompletedTask;
+    }
+
+    private async Task LinkDocumentToRepositoryAsync(
+        ProjectDocument document,
+        string absolutePath,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        if (string.IsNullOrWhiteSpace(absolutePath) || !File.Exists(absolutePath))
+        {
+            _logger?.LogWarning(
+                "Project document {DocumentId} could not be synced to DocRepo because the source file {Path} was not found.",
+                document.Id,
+                absolutePath);
+            return;
+        }
+
+        try
+        {
+            await using var stream = new FileStream(
+                absolutePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                bufferSize: 81920,
+                useAsync: true);
+
+            var repoId = await _docRepoIngestionService.IngestExternalPdfAsync(
+                stream,
+                document.OriginalFileName,
+                DocRepoSourceModule,
+                document.Id.ToString(CultureInfo.InvariantCulture),
+                cancellationToken);
+
+            if (repoId != Guid.Empty && document.DocRepoDocumentId != repoId)
+            {
+                document.DocRepoDocumentId = repoId;
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(
+                ex,
+                "Failed to ingest project document {DocumentId} into the document repository.",
+                document.Id);
+        }
     }
 
     private string BuildTempStorageKey(int requestId)
