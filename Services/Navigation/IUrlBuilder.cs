@@ -15,8 +15,8 @@ public interface IUrlBuilder
     string IprAttachmentDownload(int recordId, int attachmentId);
     string ActivityDetails(int activityId);
     string ProjectOverview(int projectId);
-    string ProjectOfficeVisitDetails(Guid visitId);
-    string ProjectOfficeSocialMediaDetails(Guid eventId);
+    string ProjectOfficeVisitDetails(Guid id);
+    string ProjectOfficeSocialMediaDetails(Guid id);
     string ProjectOfficeTrainingManage(Guid trainingId);
     string ProjectOfficeTotTracker(int projectId);
     string ProjectOfficeProliferationManage(int projectId, ProliferationRecordKind kind, ProliferationSource source, int? year);
