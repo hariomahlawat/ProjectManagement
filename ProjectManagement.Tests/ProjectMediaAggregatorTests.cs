@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Linq;
-using ProjectManagement.Data.DocRepo;
 using ProjectManagement.Models;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.ViewModels;
@@ -316,7 +315,7 @@ public sealed class ProjectMediaAggregatorTests
             PendingRequestType: null,
             TotId: totId,
             IsTotLinked: totId.HasValue,
-            OcrStatus: DocOcrStatus.Succeeded,
+            OcrStatus: ProjectDocumentOcrStatus.Succeeded,
             OcrFailureReason: null);
     }
 

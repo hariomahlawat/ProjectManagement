@@ -1,10 +1,21 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using NpgsqlTypes;
 using ProjectManagement.Data.DocRepo;
+using ProjectManagement.Data.Projects;
 using ProjectManagement.Models.Execution;
 
 namespace ProjectManagement.Models
 {
+    // SECTION: Project document OCR status enumeration
+    public enum ProjectDocumentOcrStatus
+    {
+        None = 0,
+        Pending = 1,
+        Succeeded = 2,
+        Failed = 3
+    }
+
     public enum ProjectDocumentStatus
     {
         Published = 1,
@@ -60,6 +71,14 @@ namespace ProjectManagement.Models
 
         public Document? DocRepoDocument { get; set; }
 
+        // SECTION: OCR metadata
+        public ProjectDocumentOcrStatus OcrStatus { get; set; } = ProjectDocumentOcrStatus.None;
+
+        [MaxLength(1024)]
+        public string? OcrFailureReason { get; set; }
+
+        public DateTimeOffset? OcrLastTriedUtc { get; set; }
+
         public int? TotId { get; set; }
 
         public ProjectTot? Tot { get; set; }
@@ -81,6 +100,11 @@ namespace ProjectManagement.Models
         public string? ArchivedByUserId { get; set; }
 
         public ApplicationUser? ArchivedByUser { get; set; }
+
+        // SECTION: Full-text search support
+        public NpgsqlTsVector? SearchVector { get; set; }
+
+        public ProjectDocumentText? DocumentText { get; set; }
 
         [Timestamp]
         public byte[] RowVersion { get; set; } = Array.Empty<byte>();

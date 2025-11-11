@@ -36,6 +36,7 @@ namespace ProjectManagement.Services.Search
             var iprScope = _scopeFactory.CreateScope();
             var actScope = _scopeFactory.CreateScope();
             var projectScope = _scopeFactory.CreateScope();
+            var projectDocumentScope = _scopeFactory.CreateScope();
             var reportsScope = _scopeFactory.CreateScope();
 
             try
@@ -50,6 +51,8 @@ namespace ProjectManagement.Services.Search
                     .GetRequiredService<IGlobalActivitiesSearchService>();
                 var projectService = projectScope.ServiceProvider
                     .GetRequiredService<IGlobalProjectSearchService>();
+                var projectDocumentService = projectDocumentScope.ServiceProvider
+                    .GetRequiredService<IGlobalProjectDocumentSearchService>();
                 var reportsService = reportsScope.ServiceProvider
                     .GetRequiredService<IGlobalProjectReportsSearchService>();
 
@@ -59,15 +62,17 @@ namespace ProjectManagement.Services.Search
                 var iprTask = iprService.SearchAsync(query, 20, cancellationToken);
                 var actTask = actService.SearchAsync(query, 20, cancellationToken);
                 var projectTask = projectService.SearchAsync(query, 20, cancellationToken);
+                var projectDocumentTask = projectDocumentService.SearchAsync(query, 20, cancellationToken);
                 var reportsTask = reportsService.SearchAsync(query, 20, cancellationToken);
 
-                await Task.WhenAll(docTask, ffcTask, iprTask, actTask, projectTask, reportsTask);
+                await Task.WhenAll(docTask, ffcTask, iprTask, actTask, projectTask, projectDocumentTask, reportsTask);
 
                 var combined = docTask.Result
                     .Concat(ffcTask.Result)
                     .Concat(iprTask.Result)
                     .Concat(actTask.Result)
                     .Concat(projectTask.Result)
+                    .Concat(projectDocumentTask.Result)
                     .Concat(reportsTask.Result)
                     .ToList();
 
@@ -97,6 +102,7 @@ namespace ProjectManagement.Services.Search
                 iprScope.Dispose();
                 actScope.Dispose();
                 projectScope.Dispose();
+                projectDocumentScope.Dispose();
                 reportsScope.Dispose();
             }
         }

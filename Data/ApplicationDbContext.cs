@@ -22,6 +22,7 @@ using ProjectManagement.Models.Remarks;
 using ProjectManagement.Models.Notifications;
 using ProjectManagement.Helpers;
 using ProjectManagement.Data.DocRepo;
+using ProjectManagement.Data.Projects;
 using ProjectManagement.Models.Projects;
 
 namespace ProjectManagement.Data
@@ -81,6 +82,7 @@ namespace ProjectManagement.Data
         public DbSet<UserProjectMute> UserProjectMutes => Set<UserProjectMute>();
         public DbSet<ProjectDocument> ProjectDocuments => Set<ProjectDocument>();
         public DbSet<ProjectDocumentRequest> ProjectDocumentRequests => Set<ProjectDocumentRequest>();
+        public DbSet<ProjectDocumentText> ProjectDocumentTexts => Set<ProjectDocumentText>();
         public DbSet<ProjectScheduleSettings> ProjectScheduleSettings => Set<ProjectScheduleSettings>();
         public DbSet<ProjectPlanDuration> ProjectPlanDurations => Set<ProjectPlanDuration>();
         public DbSet<Holiday> Holidays => Set<Holiday>();
@@ -1106,6 +1108,14 @@ namespace ProjectManagement.Data
                     .IsRequired();
                 e.Property(x => x.FileStamp).HasDefaultValue(0).IsRequired();
                 e.Property(x => x.DocRepoDocumentId).IsRequired(false);
+                e.Property(x => x.OcrStatus)
+                    .HasConversion<string>()
+                    .HasMaxLength(32)
+                    .HasDefaultValue(ProjectDocumentOcrStatus.None)
+                    .HasSentinel(ProjectDocumentOcrStatus.None)
+                    .IsRequired();
+                e.Property(x => x.OcrFailureReason).HasMaxLength(1024);
+                e.Property(x => x.OcrLastTriedUtc).IsRequired(false);
                 e.Property(x => x.UploadedByUserId).HasMaxLength(450).IsRequired();
                 e.Property(x => x.IsArchived).HasDefaultValue(false);
                 e.Property(x => x.ArchivedAtUtc).IsRequired(false);
@@ -1142,6 +1152,10 @@ namespace ProjectManagement.Data
                     .WithMany()
                     .HasForeignKey(x => x.ArchivedByUserId)
                     .OnDelete(DeleteBehavior.SetNull);
+                e.HasOne(x => x.DocumentText)
+                    .WithOne(x => x.ProjectDocument)
+                    .HasForeignKey<ProjectDocumentText>(x => x.ProjectDocumentId)
+                    .OnDelete(DeleteBehavior.Cascade);
 
                 if (Database.IsSqlServer())
                 {
@@ -1150,16 +1164,40 @@ namespace ProjectManagement.Data
                 else if (Database.IsNpgsql())
                 {
                     e.Property(x => x.UploadedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                    e.Property(x => x.SearchVector).HasColumnType("tsvector");
                 }
                 else
                 {
                     e.Property(x => x.UploadedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                    e.Ignore(x => x.SearchVector);
                 }
 
                 e.ToTable(tb =>
                 {
                     tb.HasCheckConstraint("ck_projectdocuments_filesize", "\"FileSize\" >= 0");
                 });
+            });
+
+            builder.Entity<ProjectDocumentText>(e =>
+            {
+                e.ToTable("ProjectDocumentTexts");
+                e.Property(x => x.OcrText);
+
+                if (Database.IsSqlServer())
+                {
+                    e.Property(x => x.OcrText).HasColumnType("nvarchar(max)");
+                    e.Property(x => x.UpdatedAtUtc).HasDefaultValueSql("GETUTCDATE()");
+                }
+                else if (Database.IsNpgsql())
+                {
+                    e.Property(x => x.OcrText).HasColumnType("text");
+                    e.Property(x => x.UpdatedAtUtc).HasDefaultValueSql("now() at time zone 'utc'");
+                }
+                else
+                {
+                    e.Property(x => x.OcrText).HasColumnType("text");
+                    e.Property(x => x.UpdatedAtUtc).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                }
             });
 
             builder.Entity<Notification>(e =>
