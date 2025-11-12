@@ -132,25 +132,16 @@ public sealed class OcrmypdfProjectOcrRunner : IProjectDocumentOcrRunner
 
             if (needForce)
             {
-                // SECTION: Forced OCR pass
-                var second = await RunOcrmypdfAsync(
-                    workingDir: _workRoot,
-                    cancellationToken: cancellationToken,
-                    "--force-ocr", "--sidecar", sidecar, inputPdf, outputPdf);
-
-                await File.AppendAllTextAsync(
+                // SECTION: Forced OCR pass (prior OCR detected)
+                return await RunForcedAsync(
                     logFile,
-                    $"{Environment.NewLine}SECOND RUN (force) exit={second.ExitCode}{Environment.NewLine}{second.Stdout}{Environment.NewLine}{second.Stderr}",
-                    cancellationToken);
-                MirrorLogToLatest(logFile, latestLog);
-
-                if (!File.Exists(sidecar))
-                {
-                    return ProjectDocumentOcrResult.Failure($"ocrmypdf (forced) did not produce a sidecar file. See {logFile}");
-                }
-
-                var forcedText = await File.ReadAllTextAsync(sidecar, cancellationToken);
-                return ProjectDocumentOcrResult.SuccessResult(forcedText);
+                    latestLog,
+                    sidecar,
+                    inputPdf,
+                    outputPdf,
+                    cancellationToken,
+                    runLabel: "SECOND RUN (force)",
+                    failureContext: "forced");
             }
 
             if (!File.Exists(sidecar))
@@ -159,7 +150,21 @@ public sealed class OcrmypdfProjectOcrRunner : IProjectDocumentOcrRunner
             }
 
             var text = await File.ReadAllTextAsync(sidecar, cancellationToken);
-            return ProjectDocumentOcrResult.SuccessResult(text);
+            if (HasUsefulText(text))
+            {
+                return ProjectDocumentOcrResult.SuccessResult(text);
+            }
+
+            // SECTION: Fallback when sidecar lacks useful text (native PDF)
+            return await RunForcedAsync(
+                logFile,
+                latestLog,
+                sidecar,
+                inputPdf,
+                outputPdf,
+                cancellationToken,
+                runLabel: "SECOND RUN (force after empty)",
+                failureContext: "force after empty");
         }
         catch (OperationCanceledException)
         {
@@ -218,6 +223,42 @@ public sealed class OcrmypdfProjectOcrRunner : IProjectDocumentOcrRunner
         var stderr = await stderrTask;
 
         return (process.ExitCode, stdout, stderr);
+    }
+
+    // SECTION: Forced OCR helper
+    private async Task<ProjectDocumentOcrResult> RunForcedAsync(
+        string logFile,
+        string latestLog,
+        string sidecar,
+        string inputPdf,
+        string outputPdf,
+        CancellationToken cancellationToken,
+        string runLabel,
+        string failureContext)
+    {
+        var forced = await RunOcrmypdfAsync(
+            workingDir: _workRoot,
+            cancellationToken: cancellationToken,
+            "--force-ocr", "--sidecar", sidecar, inputPdf, outputPdf);
+
+        await File.AppendAllTextAsync(
+            logFile,
+            $"{Environment.NewLine}{runLabel} exit={forced.ExitCode}{Environment.NewLine}{forced.Stdout}{Environment.NewLine}{forced.Stderr}",
+            cancellationToken);
+        MirrorLogToLatest(logFile, latestLog);
+
+        if (!File.Exists(sidecar))
+        {
+            return ProjectDocumentOcrResult.Failure($"ocrmypdf ({failureContext}) did not produce a sidecar file. See {logFile}");
+        }
+
+        var forcedText = await File.ReadAllTextAsync(sidecar, cancellationToken);
+        if (!HasUsefulText(forcedText))
+        {
+            return ProjectDocumentOcrResult.Failure($"ocrmypdf ({failureContext}) produced unusable text. See {logFile}");
+        }
+
+        return ProjectDocumentOcrResult.SuccessResult(forcedText);
     }
 
     // SECTION: Result helpers
