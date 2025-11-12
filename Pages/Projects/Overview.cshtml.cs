@@ -643,28 +643,30 @@ namespace ProjectManagement.Pages.Projects
             var pendingRequests = await _db.ProjectDocumentRequests
                 .AsNoTracking()
                 .Where(r => r.ProjectId == project.Id && r.Status == ProjectDocumentRequestStatus.Submitted)
-                .Select(r => new DocumentRequestOverviewRow(
-                    r.Id,
-                    r.DocumentId,
-                    r.StageId,
-                    null,
-                    r.Title,
-                    r.OriginalFileName,
-                    r.RequestType,
-                    r.Status,
-                    r.RequestedAtUtc,
-                    r.FileSize,
-                    r.TotId,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    r.RequestedByUserId,
-                    null,
-                    null,
-                    r.RowVersion))
+                .Select(r => new DocumentRequestOverviewRow
+                {
+                    Id = r.Id,
+                    DocumentId = r.DocumentId,
+                    StageId = r.StageId,
+                    StageCode = null,
+                    Title = r.Title,
+                    OriginalFileName = r.OriginalFileName,
+                    RequestType = r.RequestType,
+                    Status = r.Status,
+                    RequestedAtUtc = r.RequestedAtUtc,
+                    FileSize = r.FileSize,
+                    TotId = r.TotId,
+                    DocumentTotId = null,
+                    DocumentOcrStatus = null,
+                    DocumentOcrFailureReason = null,
+                    RequestedByFullName = null,
+                    RequestedByUserName = null,
+                    RequestedByEmail = null,
+                    RequestedByUserId = r.RequestedByUserId,
+                    DocumentOriginalFileName = null,
+                    DocumentFileSize = null,
+                    RowVersion = r.RowVersion
+                })
                 .OrderByDescending(r => r.RequestedAtUtc)
                 .ToListAsync(ct);
 
@@ -2345,28 +2347,50 @@ namespace ProjectManagement.Pages.Projects
             string? UploadedByUserName,
             string? UploadedByEmail);
 
-        private sealed record DocumentRequestOverviewRow(
-            int Id,
-            int? DocumentId,
-            int? StageId,
-            string? StageCode,
-            string? Title,
-            string? OriginalFileName,
-            ProjectDocumentRequestType RequestType,
-            ProjectDocumentRequestStatus Status,
-            DateTimeOffset RequestedAtUtc,
-            long? FileSize,
-            int? TotId,
-            int? DocumentTotId,
-            ProjectDocumentOcrStatus? DocumentOcrStatus,
-            string? DocumentOcrFailureReason,
-            string? RequestedByFullName,
-            string? RequestedByUserName,
-            string? RequestedByEmail,
-            string? RequestedByUserId,
-            string? DocumentOriginalFileName,
-            long? DocumentFileSize,
-            byte[]? RowVersion);
+        private sealed record DocumentRequestOverviewRow
+        {
+            public int Id { get; init; }
+
+            public int? DocumentId { get; init; }
+
+            public int? StageId { get; init; }
+
+            public string? StageCode { get; init; }
+
+            public string? Title { get; init; }
+
+            public string? OriginalFileName { get; init; }
+
+            public ProjectDocumentRequestType RequestType { get; init; }
+
+            public ProjectDocumentRequestStatus Status { get; init; }
+
+            public DateTimeOffset RequestedAtUtc { get; init; }
+
+            public long? FileSize { get; init; }
+
+            public int? TotId { get; init; }
+
+            public int? DocumentTotId { get; init; }
+
+            public ProjectDocumentOcrStatus? DocumentOcrStatus { get; init; }
+
+            public string? DocumentOcrFailureReason { get; init; }
+
+            public string? RequestedByFullName { get; init; }
+
+            public string? RequestedByUserName { get; init; }
+
+            public string? RequestedByEmail { get; init; }
+
+            public string? RequestedByUserId { get; init; }
+
+            public string? DocumentOriginalFileName { get; init; }
+
+            public long? DocumentFileSize { get; init; }
+
+            public byte[]? RowVersion { get; init; }
+        }
 
         private sealed record PendingRequestUser(
             string Id,
