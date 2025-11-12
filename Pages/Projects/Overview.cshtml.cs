@@ -623,6 +623,8 @@ namespace ProjectManagement.Pages.Projects
                     d.UploadedByUser != null ? d.UploadedByUser.Email : null))
                 .ToListAsync(ct);
 
+            var documentsById = documents.ToDictionary(d => d.Id);
+
             if (!isApprover)
             {
                 documents = documents
@@ -645,7 +647,7 @@ namespace ProjectManagement.Pages.Projects
                     r.Id,
                     r.DocumentId,
                     r.StageId,
-                    r.Stage != null ? r.Stage.StageCode : null,
+                    null,
                     r.Title,
                     r.OriginalFileName,
                     r.RequestType,
@@ -653,17 +655,84 @@ namespace ProjectManagement.Pages.Projects
                     r.RequestedAtUtc,
                     r.FileSize,
                     r.TotId,
-                    r.Document != null ? r.Document.TotId : null,
-                    r.Document != null ? r.Document.OcrStatus : (ProjectDocumentOcrStatus?)null,
-                    r.Document != null ? r.Document.OcrFailureReason : null,
+                    null,
+                    null,
+                    null,
                     r.RequestedByUser != null ? r.RequestedByUser.FullName : null,
                     r.RequestedByUser != null ? r.RequestedByUser.UserName : null,
                     r.RequestedByUser != null ? r.RequestedByUser.Email : null,
-                    r.Document != null ? r.Document.OriginalFileName : null,
-                    r.Document != null ? r.Document.FileSize : (long?)null,
+                    null,
+                    null,
                     r.RowVersion))
                 .OrderByDescending(r => r.RequestedAtUtc)
                 .ToListAsync(ct);
+
+            // SECTION: Document request enrichment
+            var stageCodeById = Stages
+                .Where(s => s.Id > 0 && !string.IsNullOrWhiteSpace(s.StageCode))
+                .ToDictionary(s => s.Id, s => s.StageCode!);
+
+            var requestDocumentIds = pendingRequests
+                .Where(r => r.DocumentId.HasValue)
+                .Select(r => r.DocumentId!.Value)
+                .ToHashSet();
+
+            var missingDocumentIds = requestDocumentIds
+                .Where(id => !documentsById.ContainsKey(id))
+                .ToList();
+
+            if (missingDocumentIds.Count > 0)
+            {
+                var additionalDocuments = await _db.ProjectDocuments
+                    .AsNoTracking()
+                    .Where(d => missingDocumentIds.Contains(d.Id))
+                    .Select(d => new DocumentOverviewRow(
+                        d.Id,
+                        d.StageId,
+                        d.Stage != null ? d.Stage.StageCode : null,
+                        d.Title,
+                        d.OriginalFileName,
+                        d.Status,
+                        d.UploadedAtUtc,
+                        d.FileSize,
+                        d.TotId,
+                        d.OcrStatus,
+                        d.OcrFailureReason,
+                        d.UploadedByUser != null ? d.UploadedByUser.FullName : null,
+                        d.UploadedByUser != null ? d.UploadedByUser.UserName : null,
+                        d.UploadedByUser != null ? d.UploadedByUser.Email : null))
+                    .ToListAsync(ct);
+
+                foreach (var document in additionalDocuments)
+                {
+                    documentsById[document.Id] = document;
+                }
+            }
+
+            pendingRequests = pendingRequests
+                .Select(r =>
+                {
+                    var stageCode = r.StageId.HasValue && stageCodeById.TryGetValue(r.StageId.Value, out var code)
+                        ? code
+                        : null;
+
+                    DocumentOverviewRow? document = null;
+                    if (r.DocumentId.HasValue)
+                    {
+                        documentsById.TryGetValue(r.DocumentId.Value, out document);
+                    }
+
+                    return r with
+                    {
+                        StageCode = stageCode,
+                        DocumentTotId = document?.TotId,
+                        DocumentOcrStatus = document?.OcrStatus,
+                        DocumentOcrFailureReason = document?.OcrFailureReason,
+                        DocumentOriginalFileName = document?.OriginalFileName,
+                        DocumentFileSize = document?.FileSize
+                    };
+                })
+                .ToList();
 
             foreach (var request in pendingRequests)
             {
