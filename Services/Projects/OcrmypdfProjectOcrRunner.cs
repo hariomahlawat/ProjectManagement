@@ -92,6 +92,12 @@ public sealed class OcrmypdfProjectOcrRunner : IProjectDocumentOcrRunner
                     cancellationToken);
                 MirrorLogToLatest(logFile, latestLog);
 
+                if (second.ExitCode != 0)
+                {
+                    return ProjectDocumentOcrResult.Failure(
+                        $"ocrmypdf (forced) exited with code {second.ExitCode}. See {logFile}");
+                }
+
                 if (!File.Exists(sidecar))
                 {
                     return ProjectDocumentOcrResult.Failure($"ocrmypdf (forced) did not produce a sidecar file. See {logFile}");
@@ -99,6 +105,12 @@ public sealed class OcrmypdfProjectOcrRunner : IProjectDocumentOcrRunner
 
                 var forcedText = await File.ReadAllTextAsync(sidecar, cancellationToken);
                 return ProjectDocumentOcrResult.SuccessResult(forcedText);
+            }
+
+            if (first.ExitCode != 0)
+            {
+                return ProjectDocumentOcrResult.Failure(
+                    $"ocrmypdf exited with code {first.ExitCode}. See {logFile}");
             }
 
             if (!File.Exists(sidecar))
