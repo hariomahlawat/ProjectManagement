@@ -67,6 +67,31 @@ namespace ProjectManagement.Services.DocRepo
                     ct);
                 MirrorLogToLatest(logFile, latestLog);
 
+                var isTaggedPdf = IsTaggedPdf(first);
+                if (isTaggedPdf)
+                {
+                    // SECTION: Second OCR pass (skip-text)
+                    var skipText = await RunOcrmypdfAsync(
+                        args: $"--skip-text --sidecar \"{sidecar}\" \"{inputPdf}\" \"{outputPdf}\"",
+                        workingDir: _rootDir,
+                        ct: ct);
+
+                    // SECTION: Append log for skip-text run
+                    await File.AppendAllTextAsync(
+                        logFile,
+                        $"{Environment.NewLine}SECOND RUN (skip-text) exit={skipText.ExitCode}{Environment.NewLine}{skipText.Stdout}{Environment.NewLine}{skipText.Stderr}",
+                        ct);
+                    MirrorLogToLatest(logFile, latestLog);
+
+                    if (!File.Exists(sidecar))
+                    {
+                        return OcrRunResult.Fail($"ocrmypdf (skip-text) did not produce a sidecar file. See {logFile}");
+                    }
+
+                    var skipTextContent = await File.ReadAllTextAsync(sidecar, ct);
+                    return OcrRunResult.Ok(skipTextContent);
+                }
+
                 var needForce =
                     first.ExitCode == 6 ||                             // PriorOcrFoundError
                     (first.Stderr?.IndexOf("PriorOcrFoundError", StringComparison.OrdinalIgnoreCase) >= 0);
@@ -142,6 +167,19 @@ namespace ProjectManagement.Services.DocRepo
             var stderr = await stderrTask;
 
             return (process.ExitCode, stdout, stderr);
+        }
+
+        // SECTION: Result helpers
+        private static bool IsTaggedPdf((int ExitCode, string Stdout, string Stderr) result)
+        {
+            if (result.ExitCode != 2)
+            {
+                return false;
+            }
+
+            var stderr = result.Stderr ?? string.Empty;
+            return stderr.IndexOf("TaggedPDFError", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                   stderr.IndexOf("This PDF is marked as a Tagged PDF", StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private static string EnsureDirectory(string path)

@@ -74,6 +74,30 @@ public sealed class OcrmypdfProjectOcrRunner : IProjectDocumentOcrRunner
                 cancellationToken);
             MirrorLogToLatest(logFile, latestLog);
 
+            var isTaggedPdf = IsTaggedPdf(first);
+            if (isTaggedPdf)
+            {
+                // SECTION: Skip-text OCR pass
+                var skipText = await RunOcrmypdfAsync(
+                    workingDir: _workRoot,
+                    cancellationToken: cancellationToken,
+                    "--skip-text", "--sidecar", sidecar, inputPdf, outputPdf);
+
+                await File.AppendAllTextAsync(
+                    logFile,
+                    $"{Environment.NewLine}SECOND RUN (skip-text) exit={skipText.ExitCode}{Environment.NewLine}{skipText.Stdout}{Environment.NewLine}{skipText.Stderr}",
+                    cancellationToken);
+                MirrorLogToLatest(logFile, latestLog);
+
+                if (!File.Exists(sidecar))
+                {
+                    return ProjectDocumentOcrResult.Failure($"ocrmypdf (skip-text) did not produce a sidecar file. See {logFile}");
+                }
+
+                var skipTextContent = await File.ReadAllTextAsync(sidecar, cancellationToken);
+                return ProjectDocumentOcrResult.SuccessResult(skipTextContent);
+            }
+
             var needForce =
                 first.ExitCode == 6 ||
                 (first.Stderr?.IndexOf("PriorOcrFoundError", StringComparison.OrdinalIgnoreCase) >= 0);
@@ -166,6 +190,19 @@ public sealed class OcrmypdfProjectOcrRunner : IProjectDocumentOcrRunner
         var stderr = await stderrTask;
 
         return (process.ExitCode, stdout, stderr);
+    }
+
+    // SECTION: Result helpers
+    private static bool IsTaggedPdf((int ExitCode, string Stdout, string Stderr) result)
+    {
+        if (result.ExitCode != 2)
+        {
+            return false;
+        }
+
+        var stderr = result.Stderr ?? string.Empty;
+        return stderr.IndexOf("TaggedPDFError", StringComparison.OrdinalIgnoreCase) >= 0 ||
+               stderr.IndexOf("This PDF is marked as a Tagged PDF", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     // SECTION: Directory helpers
