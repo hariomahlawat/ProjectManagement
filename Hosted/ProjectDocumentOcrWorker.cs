@@ -58,24 +58,50 @@ public sealed class ProjectDocumentOcrWorker : BackgroundService
 
                         if (result.Success)
                         {
-                            var text = document.DocumentText ?? new ProjectDocumentText
-                            {
-                                ProjectDocumentId = document.Id,
-                                UpdatedAtUtc = DateTimeOffset.UtcNow
-                            };
+                            // SECTION: Guard against ocrmypdf banner-only output
+                            var normalizedOcrText = result.Text?.Trim();
+                            var looksLikeBanner = !string.IsNullOrEmpty(normalizedOcrText) &&
+                                normalizedOcrText.IndexOf(
+                                    "OCR skipped on page",
+                                    StringComparison.OrdinalIgnoreCase) >= 0;
 
-                            if (document.DocumentText is null)
+                            if (looksLikeBanner)
                             {
-                                db.ProjectDocumentTexts.Add(text);
-                                document.DocumentText = text;
+                                document.OcrStatus = ProjectDocumentOcrStatus.Failed;
+                                document.OcrFailureReason = "OCR produced only a skip message.";
+
+                                if (document.DocumentText is not null)
+                                {
+                                    document.DocumentText.OcrText = null;
+                                    document.DocumentText.UpdatedAtUtc = DateTimeOffset.UtcNow;
+                                }
+
+                                refreshSearchVector = true;
+                                _logger.LogWarning(
+                                    "OCR result for project document {DocumentId} contained only skip banners",
+                                    document.Id);
                             }
+                            else
+                            {
+                                var text = document.DocumentText ?? new ProjectDocumentText
+                                {
+                                    ProjectDocumentId = document.Id,
+                                    UpdatedAtUtc = DateTimeOffset.UtcNow
+                                };
 
-                            text.OcrText = CapExtractedText(result.Text);
-                            text.UpdatedAtUtc = DateTimeOffset.UtcNow;
-                            document.OcrStatus = ProjectDocumentOcrStatus.Succeeded;
-                            document.OcrFailureReason = null;
-                            refreshSearchVector = true;
-                            _logger.LogInformation("OCR succeeded for project document {DocumentId}", document.Id);
+                                if (document.DocumentText is null)
+                                {
+                                    db.ProjectDocumentTexts.Add(text);
+                                    document.DocumentText = text;
+                                }
+
+                                text.OcrText = CapExtractedText(normalizedOcrText);
+                                text.UpdatedAtUtc = DateTimeOffset.UtcNow;
+                                document.OcrStatus = ProjectDocumentOcrStatus.Succeeded;
+                                document.OcrFailureReason = null;
+                                refreshSearchVector = true;
+                                _logger.LogInformation("OCR succeeded for project document {DocumentId}", document.Id);
+                            }
                         }
                         else
                         {
