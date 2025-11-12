@@ -270,7 +270,9 @@ public sealed class OcrmypdfProjectOcrRunner : IProjectDocumentOcrRunner
         }
 
         // SECTION: Inspect sidecar text line-by-line to ignore ocrmypdf status banners
-        foreach (var rawLine in text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+        var lines = text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var rawLine in lines)
         {
             var line = TrimLeadingBom(rawLine).Trim();
             if (line.Length == 0)
@@ -278,12 +280,23 @@ public sealed class OcrmypdfProjectOcrRunner : IProjectDocumentOcrRunner
                 continue;
             }
 
-            if (line.StartsWith("OCR skipped on page", StringComparison.OrdinalIgnoreCase))
+            if ((line.StartsWith("[", StringComparison.Ordinal) && line.EndsWith("]", StringComparison.Ordinal)) ||
+                (line.StartsWith("(", StringComparison.Ordinal) && line.EndsWith(")", StringComparison.Ordinal)))
+            {
+                line = line.TrimStart('[', '(').TrimEnd(']', ')').Trim();
+            }
+
+            if (line.Length == 0)
             {
                 continue;
             }
 
-            if (line.StartsWith("Prior OCR", StringComparison.OrdinalIgnoreCase))
+            if (line.IndexOf("OCR skipped on page", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                continue;
+            }
+
+            if (line.IndexOf("Prior OCR", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 continue;
             }
