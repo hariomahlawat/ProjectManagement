@@ -658,9 +658,10 @@ namespace ProjectManagement.Pages.Projects
                     null,
                     null,
                     null,
-                    r.RequestedByUser != null ? r.RequestedByUser.FullName : null,
-                    r.RequestedByUser != null ? r.RequestedByUser.UserName : null,
-                    r.RequestedByUser != null ? r.RequestedByUser.Email : null,
+                    null,
+                    null,
+                    null,
+                    r.RequestedByUserId,
                     null,
                     null,
                     r.RowVersion))
@@ -733,6 +734,47 @@ namespace ProjectManagement.Pages.Projects
                     };
                 })
                 .ToList();
+
+            // SECTION: Document request requester enrichment
+            var requestedByIds = pendingRequests
+                .Select(r => r.RequestedByUserId)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Select(id => id!)
+                .Distinct(StringComparer.Ordinal)
+                .ToList();
+
+            if (requestedByIds.Count > 0)
+            {
+                var users = await _db.Users
+                    .AsNoTracking()
+                    .Where(u => requestedByIds.Contains(u.Id))
+                    .Select(u => new PendingRequestUser(
+                        u.Id,
+                        u.FullName,
+                        u.UserName,
+                        u.Email))
+                    .ToListAsync(ct);
+
+                var userById = users.ToDictionary(u => u.Id, u => u, StringComparer.Ordinal);
+
+                pendingRequests = pendingRequests
+                    .Select(r =>
+                    {
+                        PendingRequestUser? requestedBy = null;
+                        if (!string.IsNullOrWhiteSpace(r.RequestedByUserId))
+                        {
+                            userById.TryGetValue(r.RequestedByUserId!, out requestedBy);
+                        }
+
+                        return r with
+                        {
+                            RequestedByFullName = requestedBy?.FullName,
+                            RequestedByUserName = requestedBy?.UserName,
+                            RequestedByEmail = requestedBy?.Email
+                        };
+                    })
+                    .ToList();
+            }
 
             foreach (var request in pendingRequests)
             {
@@ -2321,8 +2363,15 @@ namespace ProjectManagement.Pages.Projects
             string? RequestedByFullName,
             string? RequestedByUserName,
             string? RequestedByEmail,
+            string? RequestedByUserId,
             string? DocumentOriginalFileName,
             long? DocumentFileSize,
             byte[]? RowVersion);
+
+        private sealed record PendingRequestUser(
+            string Id,
+            string? FullName,
+            string? UserName,
+            string? Email);
     }
 }
