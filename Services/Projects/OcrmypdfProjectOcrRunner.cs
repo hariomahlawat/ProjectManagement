@@ -272,7 +272,7 @@ public sealed class OcrmypdfProjectOcrRunner : IProjectDocumentOcrRunner
         // SECTION: Inspect sidecar text line-by-line to ignore ocrmypdf status banners
         foreach (var rawLine in text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
         {
-            var line = rawLine.Trim();
+            var line = TrimLeadingBom(rawLine).Trim();
             if (line.Length == 0)
             {
                 continue;
@@ -292,6 +292,12 @@ public sealed class OcrmypdfProjectOcrRunner : IProjectDocumentOcrRunner
         }
 
         return false;
+    }
+
+    // SECTION: Text normalization helpers
+    private static string TrimLeadingBom(string value)
+    {
+        return value.Length > 0 ? value.TrimStart('\ufeff') : value;
     }
 
     private static bool IsTaggedPdf((int ExitCode, string Stdout, string Stderr) result)

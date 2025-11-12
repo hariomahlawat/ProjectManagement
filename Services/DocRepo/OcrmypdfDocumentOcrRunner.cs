@@ -205,7 +205,9 @@ namespace ProjectManagement.Services.DocRepo
                 return false;
             }
 
-            var trimmed = text.Trim();
+            // SECTION: Remove BOM artifacts before inspection
+            var normalized = TrimLeadingBom(text);
+            var trimmed = normalized.Trim();
 
             if (trimmed.StartsWith("OCR skipped on page", StringComparison.OrdinalIgnoreCase))
             {
@@ -218,6 +220,12 @@ namespace ProjectManagement.Services.DocRepo
             }
 
             return true;
+        }
+
+        // SECTION: Text normalization helpers
+        private static string TrimLeadingBom(string value)
+        {
+            return value.Length > 0 ? value.TrimStart('\ufeff') : value;
         }
 
         private static bool IsTaggedPdf((int ExitCode, string Stdout, string Stderr) result)
