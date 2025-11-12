@@ -5,10 +5,9 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 namespace ProjectManagement.Migrations
 {
-    // SECTION: Migration to restore project document OCR full-text search wiring
+    // Migration to restore project document OCR full-text search wiring
     public partial class RestoreProjectDocumentFullTextSearch : Migration
     {
-        // SECTION: Apply migration changes
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             if (ActiveProvider != "Npgsql.EntityFrameworkCore.PostgreSQL")
@@ -16,16 +15,16 @@ namespace ProjectManagement.Migrations
                 throw new NotSupportedException("RestoreProjectDocumentFullTextSearch migration requires PostgreSQL.");
             }
 
-            // SECTION: Remove legacy search vector helpers
+            // 1) Drop any old helpers/triggers we created while experimenting
             migrationBuilder.Sql(@"
 DROP TRIGGER IF EXISTS project_document_texts_search_vector_after ON ""ProjectDocumentTexts"";
 DROP FUNCTION IF EXISTS project_document_texts_search_vector_trigger();
 DROP TRIGGER IF EXISTS project_documents_search_vector_trigger ON ""ProjectDocuments"";
-DROP FUNCTION IF EXISTS project_documents_search_vector_update();
+DROP FUNCTION IF EXISTS project_documents_search_vector_trigger();
 DROP FUNCTION IF EXISTS project_documents_build_search_vector(integer, text, text, integer, text);
 ");
 
-            // SECTION: Recreate search vector builder that includes OCR text and metadata
+            // 2) Recreate builder function that includes OCR text + metadata
             migrationBuilder.Sql(@"
 CREATE OR REPLACE FUNCTION project_documents_build_search_vector(
     p_document_id integer,
@@ -41,10 +40,14 @@ DECLARE
     v_ocr text;
 BEGIN
     IF p_stage_id IS NOT NULL THEN
-        SELECT ""StageCode"" INTO v_stage_code FROM ""ProjectStages"" WHERE ""Id"" = p_stage_id;
+        SELECT ""StageCode"" INTO v_stage_code
+        FROM ""ProjectStages""
+        WHERE ""Id"" = p_stage_id;
     END IF;
 
-    SELECT ""OcrText"" INTO v_ocr FROM ""ProjectDocumentTexts"" WHERE ""ProjectDocumentId"" = p_document_id;
+    SELECT ""OcrText"" INTO v_ocr
+    FROM ""ProjectDocumentTexts""
+    WHERE ""ProjectDocumentId"" = p_document_id;
 
     RETURN
         setweight(to_tsvector('english', coalesce(p_title, '')), 'A') ||
@@ -56,7 +59,7 @@ END;
 $$;
 ");
 
-            // SECTION: Trigger to refresh search vector before document persistence
+            // 3) BEFORE trigger on ProjectDocuments to refresh vector when the doc itself changes
             migrationBuilder.Sql(@"
 CREATE OR REPLACE FUNCTION project_documents_search_vector_trigger()
 RETURNS trigger
@@ -68,7 +71,7 @@ BEGIN
         NEW.""Title"",
         NEW.""Description"",
         NEW.""StageId"",
-        NEW.""OriginalFileName"
+        NEW.""OriginalFileName""
     );
     RETURN NEW;
 END;
@@ -82,7 +85,7 @@ FOR EACH ROW
 EXECUTE FUNCTION project_documents_search_vector_trigger();
 ");
 
-            // SECTION: Trigger to refresh search vector after OCR text changes
+            // 4) AFTER trigger on ProjectDocumentTexts so that when OCR text changes we push it back
             migrationBuilder.Sql(@"
 CREATE OR REPLACE FUNCTION project_document_texts_search_vector_trigger()
 RETURNS trigger
@@ -103,7 +106,7 @@ BEGIN
         d.""Title"",
         d.""Description"",
         d.""StageId"",
-        d.""OriginalFileName"
+        d.""OriginalFileName""
     )
     WHERE d.""Id"" = v_document_id;
 
@@ -119,7 +122,7 @@ FOR EACH ROW
 EXECUTE FUNCTION project_document_texts_search_vector_trigger();
 ");
 
-            // SECTION: Backfill search vector using refreshed logic
+            // 5) Backfill existing docs
             migrationBuilder.Sql(@"
 UPDATE ""ProjectDocuments"" d
 SET ""SearchVector"" = project_documents_build_search_vector(
@@ -127,12 +130,11 @@ SET ""SearchVector"" = project_documents_build_search_vector(
     d.""Title"",
     d.""Description"",
     d.""StageId"",
-    d.""OriginalFileName"
+    d.""OriginalFileName""
 );
 ");
         }
 
-        // SECTION: Revert migration changes
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             if (ActiveProvider != "Npgsql.EntityFrameworkCore.PostgreSQL")
@@ -140,7 +142,7 @@ SET ""SearchVector"" = project_documents_build_search_vector(
                 throw new NotSupportedException("RestoreProjectDocumentFullTextSearch migration requires PostgreSQL.");
             }
 
-            // SECTION: Remove enhanced search vector helpers
+            // drop new triggers/functions
             migrationBuilder.Sql(@"
 DROP TRIGGER IF EXISTS project_document_texts_search_vector_after ON ""ProjectDocumentTexts"";
 DROP FUNCTION IF EXISTS project_document_texts_search_vector_trigger();
@@ -149,7 +151,7 @@ DROP FUNCTION IF EXISTS project_documents_search_vector_trigger();
 DROP FUNCTION IF EXISTS project_documents_build_search_vector(integer, text, text, integer, text);
 ");
 
-            // SECTION: Restore simplified trigger from prior state
+            // restore simple trigger (title + original file name)
             migrationBuilder.Sql(@"
 CREATE OR REPLACE FUNCTION project_documents_search_vector_update() RETURNS trigger AS $$
 BEGIN
@@ -164,10 +166,11 @@ $$ LANGUAGE plpgsql;
             migrationBuilder.Sql(@"
 CREATE TRIGGER project_documents_search_vector_trigger
 BEFORE INSERT OR UPDATE ON ""ProjectDocuments""
-FOR EACH ROW EXECUTE PROCEDURE project_documents_search_vector_update();
+FOR EACH ROW
+EXECUTE PROCEDURE project_documents_search_vector_update();
 ");
 
-            // SECTION: Backfill to simplified search vector
+            // backfill with the simple logic
             migrationBuilder.Sql(@"
 UPDATE ""ProjectDocuments""
 SET ""SearchVector"" =
