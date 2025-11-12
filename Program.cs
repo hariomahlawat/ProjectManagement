@@ -263,7 +263,15 @@ builder.Services.AddScoped<IGlobalIprSearchService, GlobalIprSearchService>();
 builder.Services.AddScoped<IGlobalActivitiesSearchService, GlobalActivitiesSearchService>();
 builder.Services.AddScoped<IGlobalProjectSearchService, GlobalProjectSearchService>();
 builder.Services.AddScoped<IGlobalProjectReportsSearchService, GlobalProjectReportsSearchService>();
-builder.Services.Configure<ProjectDocumentOcrOptions>(builder.Configuration.GetSection("ProjectDocuments:Ocr"));
+// SECTION: Project document OCR option binding
+builder.Services
+    .AddOptions<ProjectDocumentOcrOptions>()
+    .Bind(builder.Configuration.GetSection("ProjectDocuments:Ocr"))
+    .ValidateDataAnnotations()
+    .Validate(
+        options => !string.IsNullOrWhiteSpace(options.WorkRoot),
+        "ProjectDocuments:Ocr:WorkRoot must be configured.")
+    .ValidateOnStart();
 builder.Services.AddSingleton<IProjectDocumentStorageResolver, ProjectDocumentStorageResolver>();
 builder.Services.AddScoped<IProjectDocumentOcrRunner, OcrmypdfProjectOcrRunner>();
 builder.Services.AddScoped<IGlobalProjectDocumentSearchService, GlobalProjectDocumentSearchService>();
