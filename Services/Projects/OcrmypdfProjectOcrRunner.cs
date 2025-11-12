@@ -13,17 +13,28 @@ namespace ProjectManagement.Services.Projects;
 // SECTION: Project document OCR runner implementation
 public sealed class OcrmypdfProjectOcrRunner : IProjectDocumentOcrRunner
 {
+    // SECTION: Dependencies
     private readonly IProjectDocumentStorageResolver _storageResolver;
-    private readonly ProjectDocumentOcrOptions _options;
+    private readonly string _workRoot;
+    private readonly string _inputDir;
+    private readonly string _outputDir;
+    private readonly string _logsDir;
 
+    // SECTION: Constructor
     public OcrmypdfProjectOcrRunner(
         IProjectDocumentStorageResolver storageResolver,
         IOptions<ProjectDocumentOcrOptions> options)
     {
         _storageResolver = storageResolver ?? throw new ArgumentNullException(nameof(storageResolver));
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        var value = options?.Value ?? throw new ArgumentNullException(nameof(options));
+
+        _workRoot = EnsureDirectory(ResolveWorkRoot(value));
+        _inputDir = EnsureDirectory(Path.Combine(_workRoot, ResolveSubpath(value.InputSubpath, "input", nameof(value.InputSubpath))), _workRoot);
+        _outputDir = EnsureDirectory(Path.Combine(_workRoot, ResolveSubpath(value.OutputSubpath, "output", nameof(value.OutputSubpath))), _workRoot);
+        _logsDir = EnsureDirectory(Path.Combine(_workRoot, ResolveSubpath(value.LogsSubpath, "logs", nameof(value.LogsSubpath))), _workRoot);
     }
 
+    // SECTION: OCR entry point
     public async Task<ProjectDocumentOcrResult> RunAsync(ProjectDocument document, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(document);
@@ -34,52 +45,69 @@ public sealed class OcrmypdfProjectOcrRunner : IProjectDocumentOcrRunner
             return ProjectDocumentOcrResult.Failure($"Source file not found at '{sourcePath}'.");
         }
 
-        var workRoot = ResolveWorkRoot();
-        Directory.CreateDirectory(workRoot);
-
-        var runToken = $"{document.Id}-{DateTime.UtcNow:yyyyMMddHHmmssfff}";
-        var runDirectory = Path.Combine(workRoot, runToken);
-        Directory.CreateDirectory(runDirectory);
-
-        var sidecarPath = Path.Combine(runDirectory, "output.txt");
-        var outputPath = Path.Combine(runDirectory, "output.pdf");
-        var logsDirectory = Path.Combine(workRoot, "logs");
-        Directory.CreateDirectory(logsDirectory);
-        var logPath = Path.Combine(logsDirectory, $"{document.Id}.log");
+        var documentId = document.Id.ToString();
+        var runToken = GenerateRunToken();
+        var inputPdf = BuildTempPath(_inputDir, documentId, runToken, ".pdf");
+        var outputPdf = BuildTempPath(_outputDir, documentId, runToken, ".pdf");
+        var sidecar = BuildTempPath(_outputDir, documentId, runToken, ".txt");
+        var logFile = BuildTempPath(_logsDir, documentId, runToken, ".log");
+        var latestLog = Path.Combine(_logsDir, documentId + ".log");
 
         try
         {
-            var startInfo = new ProcessStartInfo
+            // SECTION: Copy source PDF to OCR work directory
+            await using (var source = File.OpenRead(sourcePath))
+            await using (var destination = File.Create(inputPdf))
             {
-                FileName = "ocrmypdf",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-            startInfo.ArgumentList.Add("--sidecar");
-            startInfo.ArgumentList.Add(sidecarPath);
-            startInfo.ArgumentList.Add(sourcePath);
-            startInfo.ArgumentList.Add(outputPath);
-
-            using var process = Process.Start(startInfo)
-                ?? throw new InvalidOperationException("Failed to start ocrmypdf process.");
-
-            var stdoutTask = process.StandardOutput.ReadToEndAsync();
-            var stderrTask = process.StandardError.ReadToEndAsync();
-
-            await process.WaitForExitAsync(cancellationToken);
-            await stdoutTask;
-            var stderr = await stderrTask;
-
-            if (process.ExitCode == 0 && File.Exists(sidecarPath))
-            {
-                var text = await File.ReadAllTextAsync(sidecarPath, cancellationToken);
-                return ProjectDocumentOcrResult.SuccessResult(text);
+                await source.CopyToAsync(destination, cancellationToken);
             }
 
-            await File.WriteAllTextAsync(logPath, stderr ?? string.Empty, cancellationToken);
-            return ProjectDocumentOcrResult.Failure($"ocrmypdf exited with code {process.ExitCode}. See {logPath} for details.");
+            // SECTION: First OCR pass
+            var first = await RunOcrmypdfAsync(
+                workingDir: _workRoot,
+                cancellationToken: cancellationToken,
+                "--sidecar", sidecar, inputPdf, outputPdf);
+
+            await File.WriteAllTextAsync(
+                logFile,
+                $"FIRST RUN exit={first.ExitCode}{Environment.NewLine}{first.Stdout}{Environment.NewLine}{first.Stderr}",
+                cancellationToken);
+            MirrorLogToLatest(logFile, latestLog);
+
+            var needForce =
+                first.ExitCode == 6 ||
+                (first.Stderr?.IndexOf("PriorOcrFoundError", StringComparison.OrdinalIgnoreCase) >= 0);
+
+            if (needForce)
+            {
+                // SECTION: Forced OCR pass
+                var second = await RunOcrmypdfAsync(
+                    workingDir: _workRoot,
+                    cancellationToken: cancellationToken,
+                    "--force-ocr", "--sidecar", sidecar, inputPdf, outputPdf);
+
+                await File.AppendAllTextAsync(
+                    logFile,
+                    $"{Environment.NewLine}SECOND RUN (force) exit={second.ExitCode}{Environment.NewLine}{second.Stdout}{Environment.NewLine}{second.Stderr}",
+                    cancellationToken);
+                MirrorLogToLatest(logFile, latestLog);
+
+                if (!File.Exists(sidecar))
+                {
+                    return ProjectDocumentOcrResult.Failure($"ocrmypdf (forced) did not produce a sidecar file. See {logFile}");
+                }
+
+                var forcedText = await File.ReadAllTextAsync(sidecar, cancellationToken);
+                return ProjectDocumentOcrResult.SuccessResult(forcedText);
+            }
+
+            if (!File.Exists(sidecar))
+            {
+                return ProjectDocumentOcrResult.Failure($"ocrmypdf did not produce a sidecar file. Exit {first.ExitCode}. See {logFile}");
+            }
+
+            var text = await File.ReadAllTextAsync(sidecar, cancellationToken);
+            return ProjectDocumentOcrResult.SuccessResult(text);
         }
         catch (OperationCanceledException)
         {
@@ -87,70 +115,176 @@ public sealed class OcrmypdfProjectOcrRunner : IProjectDocumentOcrRunner
         }
         catch (Exception ex)
         {
-            await File.WriteAllTextAsync(logPath, ex.ToString(), cancellationToken);
-            return ProjectDocumentOcrResult.Failure($"OCR failed: {ex.Message}. See {logPath} for details.");
+            await File.WriteAllTextAsync(logFile, ex.ToString(), cancellationToken);
+            MirrorLogToLatest(logFile, latestLog);
+            return ProjectDocumentOcrResult.Failure($"OCR failed: {ex.Message}. See {logFile}");
         }
         finally
         {
-            TryDeleteFile(sidecarPath);
-            TryDeleteFile(outputPath);
-            TryDeleteDirectory(runDirectory);
+            // SECTION: Cleanup temporary artifacts
+            TryDelete(inputPdf);
+            TryDelete(outputPdf);
+            TryDelete(sidecar);
         }
     }
 
-    private string ResolveWorkRoot()
+    // SECTION: ocrmypdf invocation helpers
+    private static async Task<(int ExitCode, string Stdout, string Stderr)> RunOcrmypdfAsync(
+        string workingDir,
+        CancellationToken cancellationToken,
+        params string[] arguments)
     {
-        var configured = _options.WorkRoot;
-        if (string.IsNullOrWhiteSpace(configured))
+        var startInfo = new ProcessStartInfo
         {
-            configured = Path.Combine(AppContext.BaseDirectory, "project-ocr");
+            FileName = "ocrmypdf",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WorkingDirectory = workingDir
+        };
+
+        if (arguments.Length == 0)
+        {
+            throw new ArgumentException("At least one argument must be provided.", nameof(arguments));
+        }
+
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("Failed to start ocrmypdf process.");
+
+        var stdoutTask = process.StandardOutput.ReadToEndAsync();
+        var stderrTask = process.StandardError.ReadToEndAsync();
+
+        await process.WaitForExitAsync(cancellationToken);
+
+        var stdout = await stdoutTask;
+        var stderr = await stderrTask;
+
+        return (process.ExitCode, stdout, stderr);
+    }
+
+    // SECTION: Directory helpers
+    private static string EnsureDirectory(string path, string? root = null)
+    {
+        var fullPath = Path.GetFullPath(path);
+
+        if (!string.IsNullOrEmpty(root))
+        {
+            var normalizedRoot = Path.GetFullPath(root);
+            if (!fullPath.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    $"The path '{fullPath}' must reside inside the configured work root '{normalizedRoot}'.");
+            }
+        }
+
+        Directory.CreateDirectory(fullPath);
+        return fullPath;
+    }
+
+    private static string ResolveWorkRoot(ProjectDocumentOcrOptions options)
+    {
+        var configured = (options.WorkRoot ?? string.Empty).Trim();
+        if (string.IsNullOrEmpty(configured))
+        {
+            throw new InvalidOperationException(
+                "ProjectDocumentOcrOptions.WorkRoot must be configured. " +
+                "Set the 'ProjectDocumentOcr:WorkRoot' configuration value to the desired directory.");
+        }
+
+        configured = Environment.ExpandEnvironmentVariables(configured);
+
+        if (configured.StartsWith("~", StringComparison.Ordinal))
+        {
+            var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            if (string.IsNullOrWhiteSpace(home))
+            {
+                throw new InvalidOperationException(
+                    "WorkRoot paths starting with '~' require a resolvable user profile directory.");
+            }
+
+            var remainder = configured[1..].TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            configured = Path.Combine(home, remainder);
         }
 
         if (!Path.IsPathRooted(configured))
         {
-            configured = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, configured));
+            configured = Path.GetFullPath(configured, AppContext.BaseDirectory);
         }
 
         return configured;
     }
 
-    private static void TryDeleteFile(string path)
+    private static string ResolveSubpath(string? configured, string fallback, string propertyName)
     {
-        if (string.IsNullOrWhiteSpace(path))
+        var trimmed = configured?.Trim();
+        var candidate = string.IsNullOrWhiteSpace(trimmed) ? fallback : trimmed;
+        var sanitized = candidate.Trim(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+        if (string.IsNullOrWhiteSpace(sanitized))
         {
-            return;
+            throw new InvalidOperationException($"The subpath for '{propertyName}' cannot be empty.");
         }
 
+        if (Path.IsPathRooted(sanitized))
+        {
+            throw new InvalidOperationException($"The subpath for '{propertyName}' must be relative.");
+        }
+
+        var separators = new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar };
+        foreach (var segment in sanitized.Split(separators, StringSplitOptions.RemoveEmptyEntries))
+        {
+            if (segment == "." || segment == "..")
+            {
+                throw new InvalidOperationException($"The subpath for '{propertyName}' cannot contain directory traversal segments.");
+            }
+        }
+
+        return sanitized;
+    }
+
+    // SECTION: Path helpers
+    private static string BuildTempPath(string directory, string documentId, string runToken, string extension)
+    {
+        return Path.Combine(directory, documentId + "-" + runToken + extension);
+    }
+
+    private static string GenerateRunToken()
+    {
+        return DateTime.UtcNow.ToString("yyyyMMddHHmmssfff") + "-" + Guid.NewGuid().ToString("N");
+    }
+
+    // SECTION: Cleanup helpers
+    private static void TryDelete(string path)
+    {
         try
         {
-            if (File.Exists(path))
+            if (!string.IsNullOrEmpty(path) && File.Exists(path))
             {
                 File.Delete(path);
             }
         }
         catch
         {
-            // best effort cleanup
+            // Best effort cleanup; ignore failures.
         }
     }
 
-    private static void TryDeleteDirectory(string path)
+    // SECTION: Log helpers
+    private static void MirrorLogToLatest(string source, string destination)
     {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return;
-        }
-
         try
         {
-            if (Directory.Exists(path))
-            {
-                Directory.Delete(path, recursive: true);
-            }
+            File.Copy(source, destination, overwrite: true);
         }
         catch
         {
-            // best effort cleanup
+            // Log mirroring is best-effort; ignore failures to avoid masking OCR results.
         }
     }
 }
