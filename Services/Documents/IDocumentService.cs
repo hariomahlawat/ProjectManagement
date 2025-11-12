@@ -49,6 +49,11 @@ public interface IDocumentService
         string performedByUserId,
         CancellationToken cancellationToken);
 
+    Task<ProjectDocument> RetryOcrAsync(
+        int documentId,
+        string performedByUserId,
+        CancellationToken cancellationToken);
+
     Task HardDeleteAsync(
         int documentId,
         string performedByUserId,

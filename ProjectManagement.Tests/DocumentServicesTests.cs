@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using ProjectManagement.Configuration;
 using ProjectManagement.Data;
+using ProjectManagement.Data.Projects;
 using ProjectManagement.Models;
 using ProjectManagement.Models.Execution;
 using ProjectManagement.Services;
@@ -230,6 +231,61 @@ public sealed class DocumentServicesTests
             await documentService.RestoreAsync(document.Id, "approver", CancellationToken.None);
             Assert.Equal(ProjectDocumentStatus.Published, document.Status);
             Assert.False(document.IsArchived);
+        }
+        finally
+        {
+            ResetUploadRoot();
+            CleanupTempRoot(root);
+        }
+    }
+
+    [Fact]
+    public async Task RetryOcrAsync_ResetsFailureState()
+    {
+        await using var db = CreateContext();
+        await SeedProjectAsync(db, 5, 50);
+        var options = CreateDocumentOptions();
+        var root = CreateTempRoot();
+        SetUploadRoot(root);
+        try
+        {
+            var (documentService, requestService, decisionService, audit) = CreateServices(db, options);
+            using var stream = CreatePdfStream(1024);
+            var temp = await documentService.SaveTempAsync(1, stream, "ocr.pdf", "application/pdf", CancellationToken.None);
+            var request = await requestService.CreateUploadRequestAsync(5, 50, "OCR Doc", null, temp, "requestor", CancellationToken.None);
+            await decisionService.ApproveAsync(request.Id, "approver", null, CancellationToken.None);
+
+            var document = await db.ProjectDocuments.SingleAsync();
+            document.OcrStatus = ProjectDocumentOcrStatus.Failed;
+            document.OcrFailureReason = "ocrmypdf exited with code 1";
+            document.OcrLastTriedUtc = new DateTimeOffset(2024, 10, 7, 10, 0, 0, TimeSpan.Zero);
+
+            var staleText = new ProjectDocumentText
+            {
+                ProjectDocumentId = document.Id,
+                OcrText = "stale",
+                UpdatedAtUtc = document.OcrLastTriedUtc.Value
+            };
+            document.DocumentText = staleText;
+            db.ProjectDocumentTexts.Add(staleText);
+            await db.SaveChangesAsync();
+
+            await documentService.RetryOcrAsync(document.Id, "admin", CancellationToken.None);
+
+            var reloaded = await db.ProjectDocuments
+                .Include(d => d.DocumentText)
+                .SingleAsync();
+
+            Assert.Equal(ProjectDocumentOcrStatus.Pending, reloaded.OcrStatus);
+            Assert.Null(reloaded.OcrFailureReason);
+            Assert.Null(reloaded.OcrLastTriedUtc);
+            Assert.NotNull(reloaded.DocumentText);
+            Assert.Null(reloaded.DocumentText!.OcrText);
+            var expectedTimestamp = new DateTimeOffset(2024, 10, 8, 12, 0, 0, TimeSpan.Zero);
+            Assert.Equal(expectedTimestamp, reloaded.DocumentText!.UpdatedAtUtc);
+            Assert.Contains(
+                audit.Entries,
+                entry => entry.Action == "Project.DocumentOcrRequeued" && entry.Data!["DocumentId"] == reloaded.Id.ToString());
         }
         finally
         {

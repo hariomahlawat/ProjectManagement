@@ -182,6 +182,9 @@ public sealed class ProjectDocumentUploadRequestPageTests
         public Task<ProjectDocument> RestoreAsync(int documentId, string performedByUserId, CancellationToken cancellationToken)
             => throw new NotSupportedException();
 
+        public Task<ProjectDocument> RetryOcrAsync(int documentId, string performedByUserId, CancellationToken cancellationToken)
+            => throw new NotSupportedException();
+
         public Task HardDeleteAsync(int documentId, string performedByUserId, CancellationToken cancellationToken)
             => throw new NotSupportedException();
 
