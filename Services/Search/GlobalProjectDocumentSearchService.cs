@@ -44,13 +44,14 @@ public sealed class GlobalProjectDocumentSearchService : IGlobalProjectDocumentS
 
         var trimmed = query.Trim();
         var limit = Math.Clamp(maxResults, 1, 50);
-        var tsQuery = EF.Functions.WebSearchToTsQuery("english", trimmed);
-
         var rows = await _dbContext.ProjectDocuments
             .AsNoTracking()
             .Where(document => document.Status == ProjectDocumentStatus.Published && !document.IsArchived)
-            .Where(document => document.SearchVector != null && document.SearchVector.Matches(tsQuery))
-            .OrderByDescending(document => ApplicationDbContext.TsRankCd(document.SearchVector!, tsQuery))
+            .Where(document => document.SearchVector != null &&
+                document.SearchVector.Matches(EF.Functions.WebSearchToTsQuery("english", trimmed)))
+            .OrderByDescending(document => ApplicationDbContext.TsRankCd(
+                document.SearchVector!,
+                EF.Functions.WebSearchToTsQuery("english", trimmed)))
             .ThenByDescending(document => document.UploadedAtUtc)
             .Select(document => new
             {
@@ -63,10 +64,12 @@ public sealed class GlobalProjectDocumentSearchService : IGlobalProjectDocumentS
                     ? ApplicationDbContext.TsHeadline(
                         "english",
                         document.DocumentText.OcrText ?? string.Empty,
-                        tsQuery,
+                        EF.Functions.WebSearchToTsQuery("english", trimmed),
                         "StartSel=<mark>,StopSel=</mark>,MaxWords=25,MinWords=10,ShortWord=3,HighlightAll=FALSE,FragmentDelimiter=…")
                     : null,
-                Rank = ApplicationDbContext.TsRankCd(document.SearchVector!, tsQuery)
+                Rank = ApplicationDbContext.TsRankCd(
+                    document.SearchVector!,
+                    EF.Functions.WebSearchToTsQuery("english", trimmed))
             })
             .Take(limit)
             .ToListAsync(cancellationToken);
