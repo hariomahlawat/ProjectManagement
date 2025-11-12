@@ -530,6 +530,8 @@ using (var scope = app.Services.CreateScope())
             app.Logger.LogCritical(message);
             throw new InvalidOperationException(message);
         }
+
+        await ProjectDocumentSearchVectorMaintenance.EnsureUpToDateAsync(db);
     }
 
     var isoSeeder = scope.ServiceProvider.GetRequiredService<IsoCountrySeeder>();
