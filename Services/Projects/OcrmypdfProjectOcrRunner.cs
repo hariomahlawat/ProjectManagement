@@ -269,19 +269,29 @@ public sealed class OcrmypdfProjectOcrRunner : IProjectDocumentOcrRunner
             return false;
         }
 
-        var trimmed = text.Trim();
-
-        if (trimmed.StartsWith("OCR skipped on page", StringComparison.OrdinalIgnoreCase))
+        // SECTION: Inspect sidecar text line-by-line to ignore ocrmypdf status banners
+        foreach (var rawLine in text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
         {
-            return false;
+            var line = rawLine.Trim();
+            if (line.Length == 0)
+            {
+                continue;
+            }
+
+            if (line.StartsWith("OCR skipped on page", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (line.StartsWith("Prior OCR", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            return true;
         }
 
-        if (trimmed.StartsWith("Prior OCR", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        return true;
+        return false;
     }
 
     private static bool IsTaggedPdf((int ExitCode, string Stdout, string Stderr) result)

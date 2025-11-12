@@ -50,6 +50,8 @@ public sealed class ProjectDocumentOcrWorker : BackgroundService
                 {
                     document.OcrLastTriedUtc = DateTimeOffset.UtcNow;
 
+                    var refreshSearchVector = false;
+
                     try
                     {
                         var result = await runner.RunAsync(document, stoppingToken);
@@ -72,6 +74,7 @@ public sealed class ProjectDocumentOcrWorker : BackgroundService
                             text.UpdatedAtUtc = DateTimeOffset.UtcNow;
                             document.OcrStatus = ProjectDocumentOcrStatus.Succeeded;
                             document.OcrFailureReason = null;
+                            refreshSearchVector = true;
                             _logger.LogInformation("OCR succeeded for project document {DocumentId}", document.Id);
                         }
                         else
@@ -83,6 +86,7 @@ public sealed class ProjectDocumentOcrWorker : BackgroundService
                             {
                                 document.DocumentText.OcrText = null;
                                 document.DocumentText.UpdatedAtUtc = DateTimeOffset.UtcNow;
+                                refreshSearchVector = true;
                             }
 
                             _logger.LogWarning(
@@ -104,6 +108,7 @@ public sealed class ProjectDocumentOcrWorker : BackgroundService
                         {
                             document.DocumentText.OcrText = null;
                             document.DocumentText.UpdatedAtUtc = DateTimeOffset.UtcNow;
+                            refreshSearchVector = true;
                         }
 
                         _logger.LogError(
@@ -113,6 +118,11 @@ public sealed class ProjectDocumentOcrWorker : BackgroundService
                     }
 
                     await db.SaveChangesAsync(stoppingToken);
+
+                    if (refreshSearchVector)
+                    {
+                        await RefreshSearchVectorAsync(db, document.Id, stoppingToken);
+                    }
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -146,5 +156,36 @@ public sealed class ProjectDocumentOcrWorker : BackgroundService
         }
 
         return text.Length > 200_000 ? text[..200_000] : text;
+    }
+
+    // SECTION: Full-text search maintenance helpers
+    private async Task RefreshSearchVectorAsync(ApplicationDbContext db, int documentId, CancellationToken cancellationToken)
+    {
+        if (!db.Database.IsNpgsql())
+        {
+            return;
+        }
+
+        try
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync($@"
+                UPDATE ""ProjectDocuments"" AS doc
+                SET ""SearchVector"" =
+                    setweight(to_tsvector('english', coalesce(doc.""Title"", '')), 'A') ||
+                    setweight(to_tsvector('english', coalesce(doc.""Description"", '')), 'B') ||
+                    setweight(to_tsvector('english', coalesce(doc.""OriginalFileName"", '')), 'C') ||
+                    setweight(to_tsvector('english', coalesce((
+                        SELECT ""StageCode"" FROM ""ProjectStages"" WHERE ""Id"" = doc.""StageId""
+                    ), '')), 'C') ||
+                    setweight(to_tsvector('english', coalesce((
+                        SELECT ""OcrText"" FROM ""ProjectDocumentTexts"" WHERE ""ProjectDocumentId"" = doc.""Id""
+                    ), '')), 'D')
+                WHERE doc.""Id"" = {documentId};
+            ", cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to refresh search vector for project document {DocumentId}", documentId);
+        }
     }
 }
