@@ -89,7 +89,35 @@ namespace ProjectManagement.Services.DocRepo
                     }
 
                     var skipTextContent = await File.ReadAllTextAsync(sidecar, ct);
-                    return OcrRunResult.Ok(skipTextContent);
+                    if (HasUsefulText(skipTextContent))
+                    {
+                        return OcrRunResult.Ok(skipTextContent);
+                    }
+
+                    // SECTION: Skip-text fallback (force OCR)
+                    var forcedAfterSkip = await RunOcrmypdfAsync(
+                        args: $"--force-ocr --sidecar \"{sidecar}\" \"{inputPdf}\" \"{outputPdf}\"",
+                        workingDir: _rootDir,
+                        ct: ct);
+
+                    await File.AppendAllTextAsync(
+                        logFile,
+                        $"{Environment.NewLine}THIRD RUN (force after skip-text) exit={forcedAfterSkip.ExitCode}{Environment.NewLine}{forcedAfterSkip.Stdout}{Environment.NewLine}{forcedAfterSkip.Stderr}",
+                        ct);
+                    MirrorLogToLatest(logFile, latestLog);
+
+                    if (!File.Exists(sidecar))
+                    {
+                        return OcrRunResult.Fail($"ocrmypdf (force after skip-text) did not produce a sidecar file. See {logFile}");
+                    }
+
+                    var forcedAfterSkipContent = await File.ReadAllTextAsync(sidecar, ct);
+                    if (!HasUsefulText(forcedAfterSkipContent))
+                    {
+                        return OcrRunResult.Fail($"ocrmypdf (force after skip-text) produced unusable text. See {logFile}");
+                    }
+
+                    return OcrRunResult.Ok(forcedAfterSkipContent);
                 }
 
                 var needForce =
@@ -170,6 +198,28 @@ namespace ProjectManagement.Services.DocRepo
         }
 
         // SECTION: Result helpers
+        private static bool HasUsefulText(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return false;
+            }
+
+            var trimmed = text.Trim();
+
+            if (trimmed.StartsWith("OCR skipped on page", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (trimmed.StartsWith("Prior OCR", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return true;
+        }
+
         private static bool IsTaggedPdf((int ExitCode, string Stdout, string Stderr) result)
         {
             if (result.ExitCode != 2)
