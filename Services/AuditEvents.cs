@@ -189,6 +189,17 @@ public static class Audit
             return new AuditEvent("Project.DocumentRestored", userId, data);
         }
 
+        public static AuditEvent ProjectDocumentOcrRequeued(int projectId, int documentId, string? userId)
+        {
+            var data = new Dictionary<string, string?>
+            {
+                ["ProjectId"] = projectId.ToString(),
+                ["DocumentId"] = documentId.ToString()
+            };
+
+            return new AuditEvent("Project.DocumentOcrRequeued", userId, data);
+        }
+
         public static AuditEvent ProjectDocumentHardDeleted(int projectId, int documentId, string? userId)
         {
             var data = new Dictionary<string, string?>

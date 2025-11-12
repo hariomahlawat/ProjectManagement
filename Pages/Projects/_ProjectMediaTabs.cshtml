@@ -200,8 +200,9 @@
                                                 var canReplaceDocument = item.DocumentId.HasValue && canUploadDocuments && !item.IsRemoved && !item.IsPending;
                                                 var canRequestDelete = item.DocumentId.HasValue && isThisProjectsPo && !item.IsRemoved && !item.IsPending;
                                                 var canDirectDelete = item.DocumentId.HasValue && (isAdmin || isThisProjectsHod) && !item.IsRemoved && !item.IsPending;
+                                                var canRetryOcr = item.DocumentId.HasValue && canUploadDocuments && !item.IsRemoved && !item.IsPending && item.OcrStatus == ProjectDocumentOcrStatus.Failed;
                                                 var canReviewRequest = Model.IsDocumentApprover && item.RequestId.HasValue;
-                                                var hasActions = canReplaceDocument || canRequestDelete || canDirectDelete || canReviewRequest;
+                                                var hasActions = canReplaceDocument || canRequestDelete || canDirectDelete || canRetryOcr || canReviewRequest;
                                                 <tr>
                                                     <td class="text-nowrap align-top">
                                                         <span class="text-muted">@group.StageDisplayName</span>
@@ -250,6 +251,12 @@
                                                             <div class="mt-1">
                                                                 <span class="badge text-bg-@variant" title="@failureTitle">OCR: @label</span>
                                                             </div>
+                                                            if (ocrStatus == ProjectDocumentOcrStatus.Failed && !string.IsNullOrWhiteSpace(item.OcrFailureReason))
+                                                            {
+                                                                <div class="text-danger small mt-1">
+                                                                    <span class="fw-semibold">OCR error:</span> @item.OcrFailureReason
+                                                                </div>
+                                                            }
                                                         }
                                                         @if (!string.IsNullOrWhiteSpace(item.FileName) && !string.Equals(item.FileName, item.Title, StringComparison.OrdinalIgnoreCase))
                                                         {
@@ -278,6 +285,18 @@
                                                                                asp-page="/Projects/Documents/ReplaceRequest"
                                                                                asp-route-id="@projectId"
                                                                                asp-route-documentId="@item.DocumentId">Replace</a>
+                                                                        </li>
+                                                                    }
+                                                                    @if (canRetryOcr)
+                                                                    {
+                                                                        <li>
+                                                                            <form method="post"
+                                                                                  asp-page="/Projects/Documents/RetryOcr"
+                                                                                  asp-route-id="@projectId"
+                                                                                  asp-route-documentId="@item.DocumentId"
+                                                                                  class="m-0">
+                                                                                <button type="submit" class="dropdown-item w-100 text-start">Retry OCR</button>
+                                                                            </form>
                                                                         </li>
                                                                     }
                                                                     @if (canRequestDelete)

@@ -440,6 +440,49 @@ public sealed class DocumentService : IDocumentService
         return document;
     }
 
+    // SECTION: OCR management helpers
+    public async Task<ProjectDocument> RetryOcrAsync(
+        int documentId,
+        string performedByUserId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(performedByUserId))
+        {
+            throw new ArgumentException("Performed by user id is required.", nameof(performedByUserId));
+        }
+
+        var document = await _db.ProjectDocuments
+            .Include(d => d.DocumentText)
+            .FirstOrDefaultAsync(x => x.Id == documentId, cancellationToken);
+
+        if (document == null)
+        {
+            throw new InvalidOperationException($"Document {documentId} was not found.");
+        }
+
+        if (document.Status != ProjectDocumentStatus.Published || document.IsArchived)
+        {
+            throw new InvalidOperationException("Only active project documents can be queued for OCR.");
+        }
+
+        document.OcrStatus = ProjectDocumentOcrStatus.Pending;
+        document.OcrFailureReason = null;
+        document.OcrLastTriedUtc = null;
+
+        if (document.DocumentText is not null)
+        {
+            document.DocumentText.OcrText = null;
+            document.DocumentText.UpdatedAtUtc = _clock.UtcNow;
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        await Audit.Events.ProjectDocumentOcrRequeued(document.ProjectId, document.Id, performedByUserId)
+            .WriteAsync(_audit);
+
+        return document;
+    }
+
     public async Task HardDeleteAsync(
         int documentId,
         string performedByUserId,
