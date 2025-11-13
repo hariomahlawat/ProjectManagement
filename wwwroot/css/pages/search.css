@@ -1,7 +1,5 @@
 ﻿/* ===================================================================
-   Global Search (Google-style) — edge-to-edge results state
-   No colors set for the page background so it stays consistent
-   with your app theme.
+   Global Search (Google–style) — single-outline pills
    =================================================================== */
 
 /* ---------- HERO (no-query) ---------- */
@@ -10,14 +8,14 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 5.5rem 1rem 4rem 1rem;
+    padding: 5.5rem 1rem 4rem
 }
 
 .pm-gs-hero__logo {
     font-weight: 800;
     font-size: 2.25rem;
     letter-spacing: .2px;
-    margin-bottom: .5rem;
+    margin-bottom: .5rem
 }
 
     .pm-gs-hero__logo span {
@@ -29,15 +27,26 @@
     margin-bottom: 1.75rem
 }
 
+/* Pill wrapper owns border + focus ring (no base shadow = no double outline) */
 .pm-gs-search {
     position: relative;
     display: flex;
     align-items: center;
-    gap: .5rem;
     width: 100%;
     max-width: 720px;
     margin: 0 auto;
+    height: 56px;
+    padding: 0 8px 0 40px;
+    background: #fff;
+    border: 1px solid #dadce0;
+    border-radius: 9999px;
+    box-shadow: none; /* removed */
 }
+
+    .pm-gs-search:focus-within {
+        border-color: #aecbfa;
+        box-shadow: 0 0 0 3px rgba(66,133,244,.18); /* single, clean ring */
+    }
 
 .pm-gs-search__icon {
     position: absolute;
@@ -45,28 +54,24 @@
     top: 50%;
     transform: translateY(-50%);
     font-size: 1rem;
-    color: #9ca3af;
+    color: #9ca3af
 }
 
 .pm-gs-search__input {
     flex: 1;
-    height: 52px;
-    border: 1px solid #e5e7eb;
-    border-radius: 999px;
-    padding: 0 3.75rem 0 2.25rem;
-    outline: none;
-    background: #fff;
-    box-shadow: 0 2px 10px rgba(0,0,0,.03);
+    height: 100%;
+    border: 0;
+    outline: 0;
+    box-shadow: none;
+    background: transparent;
+    padding: 0
 }
 
-    .pm-gs-search__input:focus {
-        border-color: #bfd0ff;
-        box-shadow: 0 6px 22px rgba(37,88,198,.07)
-    }
-
-.pm-gs-search__clear {
+/* Clear “x” inside pill */
+.pm-gs-search__clear,
+.pm-gs-top__clear {
     position: absolute;
-    right: 116px;
+    right: 112px;
     top: 50%;
     transform: translateY(-50%);
     width: 26px;
@@ -76,26 +81,37 @@
     background: #f3f4f6;
     color: #6b7280;
     line-height: 1;
-    cursor: pointer
+    cursor: pointer;
+    visibility: hidden;
+    z-index: 3; /* ensure clickable above input */
 }
 
-.pm-gs-search__btn {
-    height: 52px;
-    border-radius: 999px;
-    border: 0;
+.pm-gs-top__clear {
+    right: 8px;
+    width: 24px;
+    height: 24px
+}
+
+/* Submit button */
+.pm-gs-search__btn,
+.pm-gs-top__button {
+    height: 40px;
     padding: 0 18px;
+    border: 0;
+    border-radius: 999px;
     background: #216239;
     color: #fff;
     font-weight: 600;
-    box-shadow: 0 6px 22px rgba(0,0,0,.08)
+    box-shadow: none;
+    outline: 0
 }
 
-    .pm-gs-search__btn:focus {
-        outline: 2px solid #cde6d6;
-        outline-offset: 2px
-    }
+.pm-gs-top__button {
+    height: 44px;
+    background: #2d6cdf
+}
 
-/* ---------- TOP BAR (with results) ---------- */
+/* ---------- TOP BAR (results state) ---------- */
 .pm-gs-top {
     border-bottom: 1px solid #eef1f5
 }
@@ -103,7 +119,7 @@
 .pm-gs-top__inner {
     max-width: 1140px;
     margin: 0 auto;
-    padding: .75rem 16px 0 16px;
+    padding: .75rem 16px 0
 }
 
 .pm-gs-top__form {
@@ -113,11 +129,23 @@
     flex-wrap: wrap
 }
 
+/* Single pill wrapper (no base shadow) */
 .pm-gs-top__search {
     position: relative;
     flex: 1 1 680px;
-    min-width: 320px
+    min-width: 320px;
+    height: 44px;
+    padding: 0 36px 0 40px;
+    background: #fff;
+    border: 1px solid #dadce0;
+    border-radius: 9999px;
+    box-shadow: none;
 }
+
+    .pm-gs-top__search:focus-within {
+        border-color: #aecbfa;
+        box-shadow: 0 0 0 3px rgba(66,133,244,.18);
+    }
 
 .pm-gs-top__icon {
     position: absolute;
@@ -130,44 +158,15 @@
 
 .pm-gs-top__input {
     width: 100%;
-    height: 44px;
-    border: 1px solid #e5e7eb;
-    border-radius: 999px;
-    padding: 0 38px 0 2.25rem;
-    outline: none;
-    background: #fff
-}
-
-    .pm-gs-top__input:focus {
-        border-color: #bfd0ff;
-        box-shadow: 0 4px 16px rgba(37,88,198,.07)
-    }
-
-.pm-gs-top__clear {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    width: 24px;
-    height: 24px;
+    height: 100%;
     border: 0;
-    border-radius: 50%;
-    background: #f3f4f6;
-    color: #6b7280;
-    cursor: pointer
+    outline: 0;
+    box-shadow: none;
+    background: transparent;
+    padding: 0
 }
 
-.pm-gs-top__button {
-    height: 44px;
-    border-radius: 999px;
-    border: 0;
-    padding: 0 16px;
-    background: #2d6cdf;
-    color: #fff;
-    font-weight: 600
-}
-
-/* ---------- Tabs (source pills like Google nav) ---------- */
+/* ---------- Tabs (nav like Google) ---------- */
 .pm-gs-tabs {
     display: flex;
     gap: 6px;
@@ -201,7 +200,7 @@
 .pm-gs-body__inner {
     max-width: 760px;
     margin: 0 auto;
-    padding: 1.25rem 16px 3rem 16px
+    padding: 1.25rem 16px 3rem
 }
 
 .pm-gs-meta {
@@ -245,7 +244,7 @@
 }
 
 .pm-gs-hit__snippet {
-    margin: .35rem 0 0 0;
+    margin: .35rem 0 0;
     color: #374151;
     line-height: 1.55
 }
