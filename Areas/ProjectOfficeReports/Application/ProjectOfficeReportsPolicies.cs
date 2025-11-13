@@ -34,6 +34,15 @@ public static class ProjectOfficeReportsPolicies
         "Project Office"
     };
 
+    private static readonly string[] ProgressReviewRoles =
+    {
+        "Admin",
+        "HoD",
+        "ProjectOffice",
+        "Project Office",
+        "Comdt"
+    };
+
     private static readonly string[] TotTrackerSubmitterRoles =
     {
         "Admin",
@@ -58,6 +67,7 @@ public static class ProjectOfficeReportsPolicies
     public const string ViewTrainingTracker = "ProjectOfficeReports.ViewTrainingTracker";
     public const string ManageTrainingTracker = "ProjectOfficeReports.ManageTrainingTracker";
     public const string ApproveTrainingTracker = "ProjectOfficeReports.ApproveTrainingTracker";
+    public const string ViewProgressReview = "ProjectOfficeReports.ViewProgressReview";
 
     public static AuthorizationPolicyBuilder RequireProjectOfficeManager(this AuthorizationPolicyBuilder builder)
     {
@@ -167,5 +177,15 @@ public static class ProjectOfficeReportsPolicies
         }
 
         return builder.RequireRole(TotTrackerApproverRoles);
+    }
+
+    public static AuthorizationPolicyBuilder RequireProgressReviewViewer(this AuthorizationPolicyBuilder builder)
+    {
+        if (builder is null)
+        {
+            throw new ArgumentNullException(nameof(builder));
+        }
+
+        return builder.RequireRole(ProgressReviewRoles);
     }
 }
