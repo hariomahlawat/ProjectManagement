@@ -60,7 +60,7 @@
                         <li class="notification-menu__item border-bottom" data-notification-item data-notification-id="@item.Id"
                             data-project-id="@(item.ProjectId?.ToString() ?? string.Empty)" data-read="@(item.IsRead ? "true" : "false")">
                             <div class="d-flex align-items-start gap-2 px-3 py-3">
-                                <div class="flex-grow-1">
+                                <div class="flex-grow-1 position-relative">
                                     <a class="stretched-link text-decoration-none" href="@(string.IsNullOrWhiteSpace(item.Route) ? Model.NotificationCenterUrl : item.Route)"
                                        data-notification-link>
                                         <span class="d-block fw-semibold" data-notification-title>@(string.IsNullOrWhiteSpace(item.Title) ? "Notification" : item.Title)</span>
@@ -93,7 +93,7 @@
         <template data-notification-item-template>
             <li class="notification-menu__item border-bottom" data-notification-item>
                 <div class="d-flex align-items-start gap-2 px-3 py-3">
-                    <div class="flex-grow-1">
+                    <div class="flex-grow-1 position-relative">
                         <a class="stretched-link text-decoration-none" href="#" data-notification-link>
                             <span class="d-block fw-semibold" data-notification-title>Notification title</span>
                             <span class="d-block small text-muted mt-1" data-notification-summary>Summary</span>
