@@ -1,4 +1,5 @@
 @page
+@using System
 @using System.Net
 @using System.Text.RegularExpressions
 @using ProjectManagement.Services.Reports.ProgressReview
@@ -86,6 +87,8 @@
         ProjectActivityType.NoRecentActivity => "since last activity",
         _ => string.Empty
     };
+
+    string FormatStageStatus(string? status) => string.IsNullOrWhiteSpace(status) ? "–" : status!;
 
     string? BuildVisitPhotoUrl(Guid visitId, Guid? photoId)
     {
@@ -248,6 +251,8 @@
                                 var timelinePrimary = GetTimelinePrimary(row);
                                 var timelineSecondary = GetTimelineSecondary(row);
                                 var hasStageTransition = row.ActivityType == ProjectActivityType.StageMovement;
+                                var stageMovements = row.StageMovements ?? Array.Empty<ProjectStageMovementVm>();
+                                var hasStageTimeline = hasStageTransition && stageMovements.Any();
 
                                 <tr>
                                     <td>
@@ -259,13 +264,24 @@
                                     </td>
                                     <td>
                                         <div class="fw-semibold">@stageHeading</div>
-                                        @if (hasStageTransition)
+                                        @if (hasStageTimeline)
                                         {
-                                            <div class="text-muted small d-flex align-items-center gap-2 flex-wrap mt-1">
-                                                <span class="badge bg-primary-subtle text-primary">@(!string.IsNullOrWhiteSpace(row.FromStatus) ? row.FromStatus : "–")</span>
-                                                <span class="text-muted">→</span>
-                                                <span class="badge bg-success-subtle text-success">@(!string.IsNullOrWhiteSpace(row.ToStatus) ? row.ToStatus : "–")</span>
-                                            </div>
+                                            <ul class="progress-review__stage-list">
+                                                @foreach (var movement in stageMovements)
+                                                {
+                                                    <li class="progress-review__stage-list-item">
+                                                        <div class="progress-review__stage-list-header">
+                                                            <span class="fw-semibold">@movement.StageName</span>
+                                                            <span class="text-muted small">@movement.ChangeDate.ToString("dd MMM")</span>
+                                                        </div>
+                                                        <div class="progress-review__stage-statuses">
+                                                            <span class="progress-review__stage-status progress-review__stage-status--from">@FormatStageStatus(movement.FromStatus)</span>
+                                                            <span class="text-muted small">→</span>
+                                                            <span class="progress-review__stage-status progress-review__stage-status--to">@FormatStageStatus(movement.ToStatus)</span>
+                                                        </div>
+                                                    </li>
+                                                }
+                                            </ul>
                                         }
                                         else
                                         {
