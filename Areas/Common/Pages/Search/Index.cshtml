@@ -31,9 +31,12 @@
     bool IsSelected(string s) => selectedSources.Contains(s, StringComparer.OrdinalIgnoreCase);
 }
 
+@* 
 // ==============================
 // HERO (no query)
 // ==============================
+*@
+
 @if (!hasQuery)
 {
     <section class="pm-gs-hero">
@@ -166,5 +169,5 @@ else
 }
 
 @section Styles {
-    <link rel="stylesheet" href="~/css/search.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/search.css" asp-append-version="true" />
 }
