@@ -23,48 +23,54 @@
         ? "container-fluid analytics-shell px-3 px-lg-4 px-xxl-5"
         : "container";
     }
-    <header class="pm-header border-bottom">
-        <nav class="navbar navbar-expand-lg navbar-light bg-light shadow-sm">
-            <div class="container-fluid px-3 px-md-4 px-lg-5 d-flex align-items-center gap-3">
+    <header class="pm-topbar">
+        <div class="container-fluid px-3 px-md-4 px-lg-5 pm-topbar__inner">
+            <div class="pm-topbar__left">
                 @await Component.InvokeAsync("NavigationDrawer")
-                <a class="navbar-brand fw-semibold" asp-area="" asp-page="/Index">ProjectManagement</a>
-                <ul class="navbar-nav flex-row align-items-center gap-2 ms-4">
-                    <li class="nav-item">
-                        <a class="nav-link@(string.Equals(currentPage, "/Dashboard/Index", StringComparison.OrdinalIgnoreCase) ? " active" : string.Empty)" asp-page="/Dashboard/Index">Dashboard</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link@(string.Equals(currentPage, "/Analytics/Index", StringComparison.OrdinalIgnoreCase) ? " active" : string.Empty)" asp-page="/Analytics/Index">Analytics</a>
-                    </li>
-                </ul>
-                <div class="ms-auto d-flex align-items-center gap-3">
-                    <!-- desktop search -->
-                    <form method="get"
-                          asp-area="Common"
-                          asp-page="/Search/Index"
-                          class="d-none d-md-block">
-                        <div class="pm-header-search d-flex align-items-center">
-                            <i class="bi bi-search pm-header-search-icon"></i>
-                            <input type="text"
-                                   name="q"
-                                   class="pm-header-search-input"
-                                   placeholder="Global Search..." />
-                        </div>
-                    </form>
 
-                    <!-- mobile icon fallback -->
-                    <a asp-area="Common"
-                       asp-page="/Search/Index"
-                       class="d-inline-flex d-md-none text-muted align-items-center justify-content-center"
-                       title="Search">
-                        <i class="bi bi-search" style="font-size:1.1rem;"></i>
+                <a class="pm-brand" asp-area="" asp-page="/Index">
+                    ProjectManagement
+                </a>
+
+                <nav class="pm-top-tabs" aria-label="Primary">
+                    <a asp-page="/Dashboard/Index"
+                       class="pm-top-tabs__item @(string.Equals(currentPage, "/Dashboard/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
+                        Dashboard
                     </a>
-
-                    @await Component.InvokeAsync("NotificationBell")
-                    <partial name="_LoginPartial" />
-                </div>
+                    <a asp-page="/Calendar/Index"
+                       class="pm-top-tabs__item @(string.Equals(currentPage, "/Calendar/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
+                        Calendar
+                    </a>
+                </nav>
             </div>
-        </nav>
+
+            <div class="pm-topbar__right">
+                <form method="get"
+                      asp-area="Common"
+                      asp-page="/Search/Index"
+                      class="pm-top-search d-none d-md-flex">
+                    <i class="bi bi-search pm-top-search__icon"></i>
+                    <input type="text"
+                           name="q"
+                           class="pm-top-search__input"
+                           placeholder="Global Search..." />
+                </form>
+
+                <a asp-area="Common"
+                   asp-page="/Search/Index"
+                   class="d-inline-flex d-md-none text-muted align-items-center justify-content-center"
+                   title="Search">
+                    <i class="bi bi-search" style="font-size:1.05rem;"></i>
+                </a>
+
+                @await Component.InvokeAsync("NotificationBell")
+                <partial name="_LoginPartial" />
+            </div>
+        </div>
     </header>
+
+
+
 
     <main role="main" class="pb-5@(useFullWidth ? " analytics-main" : string.Empty)">
         <div class="@mainContainerClass">

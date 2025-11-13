@@ -3,98 +3,133 @@
 @{
     ViewData["Title"] = "Global Search";
     var hasQuery = !string.IsNullOrWhiteSpace(Model.Q);
+
+    // helpers to build querystring links for “tabs”
+    string BuildUrl(string? q, IEnumerable<string>? sources)
+    {
+        var qp = System.Web.HttpUtility.ParseQueryString(string.Empty);
+        if (!string.IsNullOrWhiteSpace(q)) qp["q"] = q;
+
+        if (sources != null)
+        {
+            foreach (var s in sources)
+                qp.Add("Source", s);
+        }
+
+        return $"?{qp}";
+    }
+
+    // work with distinct, case-insensitive sources
+    var allSources = Model.AvailableSources
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    var selectedSources = (Model.Source ?? Array.Empty<string>())
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    bool IsSelected(string s) => selectedSources.Contains(s, StringComparer.OrdinalIgnoreCase);
 }
 
+// ==============================
+// HERO (no query)
+// ==============================
 @if (!hasQuery)
 {
-    <div class="d-flex flex-column align-items-center justify-content-center py-5 my-4">
-        <h1 class="fw-semibold mb-3">Search everything</h1>
-        <p class="text-muted mb-4">Documents, projects, FFC/IPR records, and project office trackers — all in one place.</p>
+    <section class="pm-gs-hero">
+        <div class="pm-gs-hero__logo">Project<span>Management</span></div>
+        <div class="pm-gs-hero__tag">Search across documents, projects, FFC/IPR, and trackers.</div>
 
-        <!-- hero search -->
-        <form method="get"
-              asp-area="Common"
-              asp-page="/Search/Index"
-              class="w-100"
-              style="max-width: 540px;">
-            <div class="input-group input-group-lg shadow-sm rounded-pill overflow-hidden">
-                <span class="input-group-text bg-white border-0 ps-4">
-                    <i class="bi bi-search text-muted"></i>
-                </span>
-                <input type="text"
-                       name="q"
-                       value="@Model.Q"
-                       class="form-control border-0"
-                       placeholder="Search documents, records, attachments..."
-                       autocomplete="off" />
-                <button class="btn btn-success px-4 d-none d-md-inline" type="submit">Search</button>
-            </div>
+        <form method="get" asp-area="Common" asp-page="/Search/Index" class="pm-gs-search">
+            <i class="bi bi-search pm-gs-search__icon" aria-hidden="true"></i>
+            <input type="text"
+                   name="q"
+                   value="@Model.Q"
+                   class="pm-gs-search__input"
+                   placeholder="Search anything…"
+                   autocomplete="off" />
+            <button class="pm-gs-search__clear" type="reset" aria-label="Clear">×</button>
+            <button class="pm-gs-search__btn" type="submit">Search</button>
         </form>
-
-        @if (Model.AvailableSources.Count > 0)
-        {
-            <div class="mt-4 d-flex gap-2 flex-wrap justify-content-center">
-                @foreach (var source in Model.AvailableSources)
-                {
-                    <span class="badge bg-light text-dark border">@source</span>
-                }
-            </div>
-        }
-    </div>
+    </section>
 }
 else
 {
-    <!-- top bar when query present -->
-    <div class="bg-white border rounded-3 p-3 mb-3 d-flex justify-content-between align-items-center gap-3 shadow-sm">
-        <form method="get"
-              asp-area="Common"
-              asp-page="/Search/Index"
-              class="flex-grow-1">
-            <div class="input-group">
-                <span class="input-group-text bg-white border-end-0">
-                    <i class="bi bi-search text-muted"></i>
-                </span>
-                <input type="text"
-                       name="q"
-                       value="@Model.Q"
-                       class="form-control border-start-0"
-                       placeholder="Search documents, records, attachments..." />
-                <button type="submit" class="btn btn-primary">Search</button>
-            </div>
-
-            @if (Model.AvailableSources.Count > 0)
-            {
-                <div class="mt-2 d-flex flex-wrap gap-3 align-items-center">
-                    <span class="small text-muted">Filter sources:</span>
-                    @foreach (var source in Model.AvailableSources)
-                    {
-                        var isChecked = Model.Source != null && Model.Source.Contains(source, System.StringComparer.OrdinalIgnoreCase);
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input"
-                                   type="checkbox"
-                                   name="Source"
-                                   value="@source"
-                                   @(isChecked ? "checked" : null) />
-                            <label class="form-check-label small">@source</label>
-                        </div>
-                    }
+    // ==============================
+    // TOP BAR (edge-to-edge)
+    // ==============================
+    <header class="pm-gs-top">
+        <div class="pm-gs-top__inner">
+            <form method="get" asp-area="Common" asp-page="/Search/Index" class="pm-gs-top__form">
+                <div class="pm-gs-top__search">
+                    <i class="bi bi-search pm-gs-top__icon" aria-hidden="true"></i>
+                    <input type="text"
+                           name="q"
+                           value="@Model.Q"
+                           class="pm-gs-top__input"
+                           placeholder="Search anything…" />
+                    <button class="pm-gs-top__clear" type="reset" aria-label="Clear">×</button>
                 </div>
-            }
-        </form>
-        <span class="text-muted small">@Model.Results.Count result@(Model.Results.Count == 1 ? "" : "s")</span>
-    </div>
+                <button class="pm-gs-top__button" type="submit">Search</button>
+            </form>
 
-    @if (Model.Results.Count > 0)
-    {
-        <div class="d-flex flex-column gap-3 mb-5">
-            @foreach (var hit in Model.Results)
+            @if (allSources.Count > 0)
             {
-                <a class="text-decoration-none" href="@hit.Url">
-                    <div class="card border-0 border-start border-4 shadow-sm" style="border-color: rgba(13,110,253,.5) !important;">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-start mb-1">
-                                <h2 class="h5 mb-0 text-primary">@hit.Title</h2>
-                                <span class="badge bg-secondary">@hit.Source</span>
+                <nav class="pm-gs-tabs" aria-label="Result sources">
+                    <a class="pm-gs-tab @(selectedSources.Count == 0 ? "is-active" : "")"
+                       href="@BuildUrl(Model.Q, Enumerable.Empty<string>())">
+                        All
+                    </a>
+
+                    @foreach (var s in allSources)
+                    {
+                        var active = IsSelected(s);
+                        var newSelection = active
+                        ? selectedSources.Where(x => !string.Equals(x, s, StringComparison.OrdinalIgnoreCase))
+                        : selectedSources.Append(s);
+
+                        <a class="pm-gs-tab @(active ? "is-active" : "")"
+                           href="@BuildUrl(Model.Q, newSelection)">
+                            @s
+                        </a>
+                    }
+                </nav>
+            }
+        </div>
+    </header>
+
+    // ==============================
+    // RESULTS
+    // ==============================
+    <main class="pm-gs-body" role="main">
+        <div class="pm-gs-body__inner">
+            <div class="pm-gs-meta">@Model.Results.Count result@(Model.Results.Count == 1 ? "" : "s")</div>
+
+            @if (Model.Results.Count > 0)
+            {
+                <section class="pm-gs-results" aria-label="Search results">
+                    @foreach (var hit in Model.Results)
+                    {
+                        <article class="pm-gs-hit">
+                            <a class="pm-gs-hit__title" href="@hit.Url">@hit.Title</a>
+
+                            <div class="pm-gs-hit__meta">
+                                @if (!string.IsNullOrWhiteSpace(hit.Source))
+                                {
+                                    <span class="pm-gs-hit__source">@hit.Source</span>
+                                }
+                                @if (hit.Date.HasValue)
+                                {
+                                    <span class="pm-gs-hit__sep">·</span>
+                                    <time datetime="@hit.Date.Value.ToUniversalTime().ToString("u")">
+                                        @hit.Date.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")
+                                    </time>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(hit.FileType))
+                                {
+                                    <span class="pm-gs-hit__sep">·</span>
+                                    <span>@hit.FileType</span>
+                                }
                             </div>
 
                             @if (!string.IsNullOrWhiteSpace(hit.Snippet))
@@ -102,34 +137,34 @@ else
                                 var hasMarkup = hit.Snippet.Contains("<mark>", StringComparison.OrdinalIgnoreCase);
                                 if (hasMarkup)
                                 {
-                                    <p class="mb-2 text-muted small">@Html.Raw(hit.Snippet)</p>
+                                    <p class="pm-gs-hit__snippet">@Html.Raw(hit.Snippet)</p>
                                 }
                                 else
                                 {
-                                    <p class="mb-2 text-muted small">@hit.Snippet</p>
+                                    <p class="pm-gs-hit__snippet">@hit.Snippet</p>
                                 }
                             }
-
-                            <div class="d-flex gap-3 small text-muted">
-                                @if (hit.Date.HasValue)
-                                {
-                                    <span><i class="bi bi-clock"></i> @hit.Date.Value.ToLocalTime().ToString("dd MMM yyyy HH:mm")</span>
-                                }
-                                @if (!string.IsNullOrWhiteSpace(hit.FileType))
-                                {
-                                    <span><i class="bi bi-file-earmark"></i> @hit.FileType</span>
-                                }
-                            </div>
-                        </div>
+                        </article>
+                    }
+                </section>
+            }
+            else
+            {
+                <section class="pm-gs-nores">
+                    <div class="pm-gs-nores__box">
+                        <div class="pm-gs-nores__title">No results for “@Model.Q”.</div>
+                        <ul class="pm-gs-nores__tips">
+                            <li>Check spelling.</li>
+                            <li>Try fewer or different keywords.</li>
+                            <li>Switch or clear source tabs above.</li>
+                        </ul>
                     </div>
-                </a>
+                </section>
             }
         </div>
-    }
-    else
-    {
-        <div class="alert alert-info" role="status">
-            No results found for "<strong>@Model.Q</strong>".
-        </div>
-    }
+    </main>
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/search.css" asp-append-version="true" />
 }
