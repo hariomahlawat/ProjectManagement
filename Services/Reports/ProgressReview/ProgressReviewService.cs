@@ -654,12 +654,8 @@ public sealed class ProgressReviewService : IProgressReviewService
         DateOnly rangeTo,
         CancellationToken cancellationToken)
     {
-        var fromDateTime = rangeFrom.ToDateTime(TimeOnly.MinValue);
-        var toDateTime = rangeTo.ToDateTime(TimeOnly.MaxValue);
-
         var rows = await (from entry in _db.ProliferationGranularEntries.AsNoTracking()
-                          let entryDateTime = EF.Property<DateTime>(entry, nameof(ProliferationGranular.ProliferationDate))
-                          where entryDateTime >= fromDateTime && entryDateTime <= toDateTime
+                          where entry.ProliferationDate >= rangeFrom && entry.ProliferationDate <= rangeTo
                           join project in _db.Projects.AsNoTracking()
                               on entry.ProjectId equals project.Id into projectGroup
                           from project in projectGroup.DefaultIfEmpty()
@@ -673,11 +669,12 @@ public sealed class ProgressReviewService : IProgressReviewService
                               entry.ProliferationDate,
                               entry.Quantity,
                               entry.Remarks))
-            .OrderByDescending(row => row.Date)
-            .ThenBy(row => row.ProjectName)
             .ToListAsync(cancellationToken);
 
-        return new ProliferationSectionVm(rows);
+        return new ProliferationSectionVm(rows
+            .OrderByDescending(row => row.Date)
+            .ThenBy(row => row.ProjectName)
+            .ToList());
     }
 
     private async Task<FfcSectionVm> LoadFfcAsync(DateOnly from, DateOnly to, CancellationToken cancellationToken)
