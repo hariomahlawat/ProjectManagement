@@ -39,7 +39,7 @@
         <form method="get" asp-area="Common" asp-page="/Search/Index" class="pm-gs-search" role="search" aria-label="Global search">
             <i class="bi bi-search pm-gs-search__icon" aria-hidden="true"></i>
             <input type="text" name="q" value="@Model.Q" class="pm-gs-search__input" placeholder="Search anything…" autocomplete="off" />
-            <button class="pm-gs-search__clear" type="reset" aria-label="Clear">×</button>
+            <button class="pm-gs-search__clear" type="button" data-clear aria-label="Clear">×</button>
             <button class="pm-gs-search__btn" type="submit">Search</button>
         </form>
     </section>
@@ -53,7 +53,7 @@ else
                 <div class="pm-gs-top__search">
                     <i class="bi bi-search pm-gs-top__icon" aria-hidden="true"></i>
                     <input type="text" name="q" value="@Model.Q" class="pm-gs-top__input" placeholder="Search anything…" />
-                    <button class="pm-gs-top__clear" type="reset" aria-label="Clear">×</button>
+                    <button class="pm-gs-top__clear" type="button" data-clear aria-label="Clear">×</button>
                 </div>
                 <button class="pm-gs-top__button" type="submit">Search</button>
             </form>
