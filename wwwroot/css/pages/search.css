@@ -271,3 +271,61 @@
     padding-left: 1rem;
     color: #6b7280
 }
+
+/* ===== Left-leaned layout for results (Google-like) ===== */
+:root {
+    /* Left gutter clamps between 12px and 180px; adjust last value to move more/less left */
+    --gs-left-gutter: clamp(12px, 8vw, 180px);
+}
+
+/* Top bar container aligns to the same left gutter */
+.pm-gs-top__inner {
+    max-width: none; /* let it span the page */
+    padding-left: calc(var(--gs-left-gutter) + 16px);
+    padding-right: 16px;
+    padding-top: .75rem;
+}
+
+/* Tabs row sits on the same left edge */
+.pm-gs-tabs {
+    margin-top: .5rem;
+    padding-left: 0;
+    margin-left: var(--gs-left-gutter);
+}
+
+/* Results column: left anchored, fixed readable width */
+.pm-gs-body__inner {
+    max-width: 820px; /* was 760; a bit wider reads better */
+    margin-left: var(--gs-left-gutter);
+    margin-right: 16px; /* keep some breathing room on the right */
+    padding: 1.25rem 0 3rem; /* remove side padding since we control margins */
+}
+
+/* Keep the input pill comfortable on wide screens */
+.pm-gs-top__search {
+    flex: 0 1 720px; /* allow to grow up to ~Google width */
+}
+
+/* ---------- Responsive: recentre on smaller screens ---------- */
+@media (max-width: 992px) {
+    .pm-gs-top__inner {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .pm-gs-tabs {
+        margin-left: 16px;
+    }
+
+    .pm-gs-body__inner {
+        max-width: 760px;
+        margin-left: 16px;
+        margin-right: 16px;
+        padding-left: 0;
+        padding-right: 0;
+    }
+
+    .pm-gs-top__search {
+        flex: 1 1 100%;
+    }
+}
