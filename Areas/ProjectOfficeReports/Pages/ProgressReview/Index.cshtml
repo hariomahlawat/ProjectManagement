@@ -1,8 +1,115 @@
 @page
+@using System.Net
+@using System.Text.RegularExpressions
+@using ProjectManagement.Services.Reports.ProgressReview
 @model ProjectManagement.Areas.ProjectOfficeReports.Pages.ProgressReview.IndexModel
-@{ 
+@{
     ViewData["Title"] = "Progress Review";
     var vm = Model.Report;
+
+    string RenderRemarkHtml(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+
+        const string mentionPattern = "<span class=\"remark-mention\"[^>]*>(.*?)</span>";
+        var replaced = Regex.Replace(
+            text,
+            mentionPattern,
+            match => $"<span class=\"badge remark-pill\">{match.Groups[1].Value}</span>",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+        var looksHtml = replaced.Contains("<span", StringComparison.OrdinalIgnoreCase)
+                        || replaced.Contains("<mark", StringComparison.OrdinalIgnoreCase)
+                        || replaced.Contains("<a ", StringComparison.OrdinalIgnoreCase);
+
+        return looksHtml
+            ? replaced
+            : WebUtility.HtmlEncode(replaced)
+                .Replace("\r\n", "<br>")
+                .Replace("\n", "<br>");
+    }
+
+    string GetActivityBadgeClass(ProjectActivityType type) => type switch
+    {
+        ProjectActivityType.StageMovement => "progress-review__activity-pill--movement",
+        ProjectActivityType.RemarkOnly => "progress-review__activity-pill--remark",
+        ProjectActivityType.NoRecentActivity => "progress-review__activity-pill--idle",
+        _ => string.Empty
+    };
+
+    string GetActivityBadgeIcon(ProjectActivityType type) => type switch
+    {
+        ProjectActivityType.StageMovement => "bi-lightning-charge",
+        ProjectActivityType.RemarkOnly => "bi-chat-text",
+        ProjectActivityType.NoRecentActivity => "bi-pause-circle",
+        _ => "bi-dot"
+    };
+
+    string GetActivityBadgeLabel(ProjectActivityType type) => type switch
+    {
+        ProjectActivityType.StageMovement => "Stage movement",
+        ProjectActivityType.RemarkOnly => "Remark logged",
+        ProjectActivityType.NoRecentActivity => "No recent activity",
+        _ => "Update"
+    };
+
+    string GetStageHeading(ProjectProgressRowVm row) => row.ActivityType switch
+    {
+        ProjectActivityType.StageMovement => row.StageName ?? "Stage update",
+        ProjectActivityType.RemarkOnly => string.IsNullOrWhiteSpace(row.StageName) ? "Latest remark" : row.StageName!,
+        ProjectActivityType.NoRecentActivity => row.StageName ?? "Stage pending",
+        _ => "Update"
+    };
+
+    string GetStageDescription(ProjectProgressRowVm row) => row.ActivityType switch
+    {
+        ProjectActivityType.RemarkOnly => "No stage change recorded in this period.",
+        ProjectActivityType.NoRecentActivity => "Awaiting next milestone.",
+        _ => string.Empty
+    };
+
+    string GetTimelinePrimary(ProjectProgressRowVm row) => row.ActivityType switch
+    {
+        ProjectActivityType.NoRecentActivity when row.DaysSinceActivity.HasValue => $"{row.DaysSinceActivity.Value} days",
+        ProjectActivityType.NoRecentActivity => "N/A",
+        _ when row.ActivityDate.HasValue => row.ActivityDate.Value.ToString("dd MMM"),
+        _ => "Date N/A"
+    };
+
+    string GetTimelineSecondary(ProjectProgressRowVm row) => row.ActivityType switch
+    {
+        ProjectActivityType.StageMovement => "Stage updated",
+        ProjectActivityType.RemarkOnly => "Remark logged",
+        ProjectActivityType.NoRecentActivity => "since last activity",
+        _ => string.Empty
+    };
+
+    string? BuildVisitPhotoUrl(Guid visitId, Guid? photoId)
+    {
+        if (!photoId.HasValue)
+        {
+            return null;
+        }
+
+        return Url.Page(
+            "/ProjectOfficeReports/Visits/ViewPhoto",
+            new { area = "ProjectOfficeReports", id = visitId, photoId = photoId.Value, size = "xs" });
+    }
+
+    string? BuildSocialPhotoUrl(Guid eventId, Guid? photoId)
+    {
+        if (!photoId.HasValue)
+        {
+            return null;
+        }
+
+        return Url.Page(
+            "/ProjectOfficeReports/SocialMedia/ViewPhoto",
+            new { area = "ProjectOfficeReports", id = eventId, photoId = photoId.Value, size = "thumb" });
+    }
 }
 
 @section Styles {
@@ -26,10 +133,6 @@
                         }
                     </div>
                     <div class="d-flex flex-wrap gap-2 progress-review__quick-actions">
-                        <button class="btn btn-outline-secondary" type="button" data-action="copy-link" title="Copy link to this report">
-                            <i class="bi bi-link-45deg me-1"></i>
-                            Share link
-                        </button>
                         <button class="btn btn-outline-primary" type="button" data-action="export-pdf">
                             <i class="bi bi-printer me-1"></i>
                             Export / Print
@@ -120,108 +223,86 @@
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-header bg-white border-0">
                 <h2 class="h5 mb-0">Project progress review</h2>
-                <p class="text-muted small mb-0">Ongoing projects filtered by stage changes and remarks.</p>
+                <p class="text-muted small mb-0">Movement, remarks, and idle projects consolidated per project.</p>
             </div>
             <div class="card-body pt-0">
-                <div class="mb-4">
-                    <h3 class="h6 progress-review__section-title">Front runners</h3>
-                    <div class="table-responsive">
-                        <table class="table table-sm align-middle progress-review__table">
-                            <thead class="table-light">
-                                <tr>
-                                    <th scope="col">Project</th>
-                                    <th scope="col">Stage</th>
-                                    <th scope="col">Status</th>
-                                    <th scope="col">Changed on</th>
-                                    <th scope="col">Remarks</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var row in vm.Projects.FrontRunners)
-                                {
-                                    <tr>
-                                        <td>@row.ProjectName</td>
-                                        <td>@row.StageName</td>
-                                        <td>
-                                            <span class="badge bg-primary-subtle text-primary">@row.FromStatus</span>
-                                            <span class="mx-1">→</span>
-                                            <span class="badge bg-success-subtle text-success">@row.ToStatus</span>
-                                        </td>
-                                        <td>@row.ChangeDate.ToString("dd MMM")</td>
-                                        <td class="text-muted progress-review__cell-truncate">@row.RemarkSummary</td>
-                                    </tr>
-                                }
-                                @if (!vm.Projects.FrontRunners.Any())
-                                {
-                                    <tr>
-                                        <td colspan="5" class="text-muted text-center small">No stage changes recorded in this range.</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle progress-review__table">
+                        <thead class="table-light">
+                            <tr>
+                                <th scope="col">Project</th>
+                                <th scope="col">Stage / status</th>
+                                <th scope="col">Last update</th>
+                                <th scope="col">Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in vm.Projects.SummaryRows)
+                            {
+                                var remarkHtml = RenderRemarkHtml(row.RemarkSummary);
+                                var hasRemark = !string.IsNullOrWhiteSpace(row.RemarkSummary);
+                                var badgeClass = GetActivityBadgeClass(row.ActivityType);
+                                var badgeIcon = GetActivityBadgeIcon(row.ActivityType);
+                                var badgeLabel = GetActivityBadgeLabel(row.ActivityType);
+                                var stageHeading = GetStageHeading(row);
+                                var timelinePrimary = GetTimelinePrimary(row);
+                                var timelineSecondary = GetTimelineSecondary(row);
+                                var hasStageTransition = row.ActivityType == ProjectActivityType.StageMovement;
 
-                <div class="mb-4">
-                    <h3 class="h6 progress-review__section-title">Work under progress</h3>
-                    <div class="table-responsive">
-                        <table class="table table-sm align-middle progress-review__table">
-                            <thead class="table-light">
                                 <tr>
-                                    <th scope="col">Project</th>
-                                    <th scope="col">Latest remark</th>
-                                    <th scope="col">Summary</th>
+                                    <td>
+                                        <div class="progress-review__project-name">@row.ProjectName</div>
+                                        <span class="progress-review__activity-pill @badgeClass">
+                                            <i class="bi @badgeIcon" aria-hidden="true"></i>
+                                            <span>@badgeLabel</span>
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div class="fw-semibold">@stageHeading</div>
+                                        @if (hasStageTransition)
+                                        {
+                                            <div class="text-muted small d-flex align-items-center gap-2 flex-wrap mt-1">
+                                                <span class="badge bg-primary-subtle text-primary">@(!string.IsNullOrWhiteSpace(row.FromStatus) ? row.FromStatus : "–")</span>
+                                                <span class="text-muted">→</span>
+                                                <span class="badge bg-success-subtle text-success">@(!string.IsNullOrWhiteSpace(row.ToStatus) ? row.ToStatus : "–")</span>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            var stageDescription = GetStageDescription(row);
+                                            if (!string.IsNullOrWhiteSpace(stageDescription))
+                                            {
+                                                <div class="text-muted small mt-1">@stageDescription</div>
+                                            }
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="fw-semibold">@timelinePrimary</div>
+                                        @if (!string.IsNullOrWhiteSpace(timelineSecondary))
+                                        {
+                                            <div class="text-muted small">@timelineSecondary</div>
+                                        }
+                                    </td>
+                                    <td class="progress-review__cell-truncate">
+                                    @if (hasRemark)
+                                    {
+                                        <div class="progress-review__remark">@Html.Raw(remarkHtml)</div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted small">No remarks captured.</span>
+                                    }
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var row in vm.Projects.WorkInProgress)
-                                {
-                                    <tr>
-                                        <td>@row.ProjectName</td>
-                                        <td>@row.LatestRemarkDate.ToString("dd MMM")</td>
-                                        <td class="text-muted progress-review__cell-truncate">@row.RemarkSummary</td>
-                                    </tr>
-                                }
-                                @if (!vm.Projects.WorkInProgress.Any())
-                                {
-                                    <tr>
-                                        <td colspan="3" class="text-muted text-center small">No remarks logged without stage changes in this range.</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div>
-                    <h3 class="h6 progress-review__section-title">Non-movers</h3>
-                    <div class="table-responsive">
-                        <table class="table table-sm align-middle progress-review__table">
-                            <thead class="table-light">
+                            }
+                            @if (!vm.Projects.SummaryRows.Any())
+                            {
                                 <tr>
-                                    <th scope="col">Project</th>
-                                    <th scope="col">Current stage</th>
-                                    <th scope="col">Days since activity</th>
+                                    <td colspan="4" class="text-muted text-center small">No qualifying projects for the selected range.</td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var row in vm.Projects.NonMovers)
-                                {
-                                    <tr>
-                                        <td>@row.ProjectName</td>
-                                        <td>@row.StageName</td>
-                                        <td>@row.DaysSinceActivity</td>
-                                    </tr>
-                                }
-                                @if (!vm.Projects.NonMovers.Any())
-                                {
-                                    <tr>
-                                        <td colspan="3" class="text-muted text-center small">Every ongoing project recorded some activity.</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
+                            }
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -243,13 +324,29 @@
                         }
                         else
                         {
-                            <ul class="list-unstyled mb-0 progress-review__list">
+                            <ul class="list-unstyled mb-0 progress-review__media-list">
                                 @foreach (var visit in vm.Visits.Items.Take(6))
                                 {
-                                    <li class="mb-3">
-                                        <div class="fw-semibold">@visit.VisitorName <span class="text-muted fw-normal">(@visit.VisitType)</span></div>
-                                        <div class="small text-muted">@visit.Date.ToString("dd MMM") · Strength @visit.Strength</div>
-                                        <div class="text-muted small">@visit.Remarks</div>
+                                    var visitPhotoUrl = BuildVisitPhotoUrl(visit.Id, visit.CoverPhotoId);
+                                    <li class="progress-review__media-item">
+                                        @if (!string.IsNullOrWhiteSpace(visitPhotoUrl))
+                                        {
+                                            <div class="progress-review__media-thumb">
+                                                <img src="@visitPhotoUrl" alt="@($"{visit.VisitorName} visit photo")" loading="lazy" width="72" height="72" />
+                                            </div>
+                                        }
+                                        <div class="progress-review__media-body">
+                                            <div class="fw-semibold">@visit.VisitorName <span class="text-muted fw-normal">(@visit.VisitType)</span></div>
+                                            <div class="small text-muted">@visit.Date.ToString("dd MMM") · Strength @visit.Strength</div>
+                                            @if (!string.IsNullOrWhiteSpace(visit.Remarks))
+                                            {
+                                                <div class="text-muted small">@visit.Remarks</div>
+                                            }
+                                            else
+                                            {
+                                                <div class="text-muted small">No remarks shared.</div>
+                                            }
+                                        </div>
                                     </li>
                                 }
                             </ul>
@@ -272,13 +369,29 @@
                         }
                         else
                         {
-                            <ul class="list-unstyled mb-0 progress-review__list">
+                            <ul class="list-unstyled mb-0 progress-review__media-list">
                                 @foreach (var post in vm.SocialMedia.Items.Take(6))
                                 {
-                                    <li class="mb-3">
-                                        <div class="fw-semibold">@post.Title</div>
-                                        <div class="small text-muted">@post.Date.ToString("dd MMM") · @post.Platform</div>
-                                        <div class="text-muted small">@post.Description</div>
+                                    var postPhotoUrl = BuildSocialPhotoUrl(post.Id, post.CoverPhotoId);
+                                    <li class="progress-review__media-item">
+                                        @if (!string.IsNullOrWhiteSpace(postPhotoUrl))
+                                        {
+                                            <div class="progress-review__media-thumb">
+                                                <img src="@postPhotoUrl" alt="@($"{post.Title} social post")" loading="lazy" width="72" height="72" />
+                                            </div>
+                                        }
+                                        <div class="progress-review__media-body">
+                                            <div class="fw-semibold">@post.Title</div>
+                                            <div class="small text-muted">@post.Date.ToString("dd MMM") · @post.Platform</div>
+                                            @if (!string.IsNullOrWhiteSpace(post.Description))
+                                            {
+                                                <div class="text-muted small">@post.Description</div>
+                                            }
+                                            else
+                                            {
+                                                <div class="text-muted small">No caption provided.</div>
+                                            }
+                                        </div>
                                     </li>
                                 }
                             </ul>
@@ -548,9 +661,20 @@
                         {
                             <div class="col-md-6">
                                 <div class="border rounded p-3 h-100 progress-review__activity-card">
+                                    @if (!string.IsNullOrWhiteSpace(activity.PhotoUrl))
+                                    {
+                                        <img class="progress-review__activity-photo" src="@activity.PhotoUrl" alt="@($"{activity.Title} photo")" loading="lazy" />
+                                    }
                                     <div class="text-muted small">@activity.Date.ToString("dd MMM") · @activity.Location</div>
                                     <div class="fw-semibold">@activity.Title</div>
-                                    <div class="text-muted small">@activity.Summary</div>
+                                    @if (!string.IsNullOrWhiteSpace(activity.Summary))
+                                    {
+                                        <div class="text-muted small">@activity.Summary</div>
+                                    }
+                                    else
+                                    {
+                                        <div class="text-muted small">No description available.</div>
+                                    }
                                 </div>
                             </div>
                         }

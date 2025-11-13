@@ -43,38 +43,6 @@
     }
   };
 
-  const bindCopyLink = (form) => {
-    const button = form.querySelector('[data-action="copy-link"]');
-    if (!button) {
-      return;
-    }
-
-    button.addEventListener('click', async () => {
-      const url = new URL(window.location.href);
-      const from = form.querySelector('#from');
-      const to = form.querySelector('#to');
-      if (from && from.value) {
-        url.searchParams.set('from', from.value);
-      }
-      if (to && to.value) {
-        url.searchParams.set('to', to.value);
-      }
-
-      try {
-        await navigator.clipboard.writeText(url.toString());
-        button.classList.remove('btn-outline-secondary');
-        button.classList.add('btn-success');
-        setTimeout(() => {
-          button.classList.remove('btn-success');
-          button.classList.add('btn-outline-secondary');
-        }, 1200);
-      }
-      catch (error) {
-        console.warn('Copy failed', error);
-      }
-    });
-  };
-
   const bindExportButton = () => {
     const button = document.querySelector('[data-action="export-pdf"]');
     if (!button) {
@@ -93,7 +61,6 @@
     }
 
     ensureDefaultDates(form);
-    bindCopyLink(form);
     bindExportButton();
   });
 })();
