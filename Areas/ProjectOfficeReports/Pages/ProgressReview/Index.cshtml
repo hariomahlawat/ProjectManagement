@@ -1,0 +1,533 @@
+@page
+@model ProjectManagement.Areas.ProjectOfficeReports.Pages.ProgressReview.IndexModel
+@{
+    ViewData["Title"] = "Progress Review";
+    var vm = Model.Report;
+}
+
+<div class="container-xxl py-4 progress-review" data-page-id="progress-review">
+    @* SECTION: Header & filters *@
+    <div class="d-flex flex-column flex-lg-row align-items-lg-end justify-content-between gap-3 mb-4">
+        <div>
+            <h1 class="h3 mb-1">Progress Review</h1>
+            @if (vm is not null)
+            {
+                <p class="text-muted mb-0 small">
+                    Range: @vm.Range.From.ToString("dd MMM yyyy") – @vm.Range.To.ToString("dd MMM yyyy")
+                </p>
+            }
+        </div>
+        <form id="progress-review-filter" method="get" class="row gy-2 gx-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label form-label-sm text-muted" for="from">From</label>
+                <input class="form-control" id="from" name="from" type="date" value="@(Model.From?.ToString("yyyy-MM-dd"))" />
+            </div>
+            <div class="col-auto">
+                <label class="form-label form-label-sm text-muted" for="to">To</label>
+                <input class="form-control" id="to" name="to" type="date" value="@(Model.To?.ToString("yyyy-MM-dd"))" />
+            </div>
+            <div class="col-auto">
+                <button class="btn btn-primary" type="submit">Show</button>
+            </div>
+            <div class="col-auto d-flex gap-2">
+                <button class="btn btn-outline-secondary" type="button" data-action="copy-link" title="Copy link to this report">
+                    <i class="bi bi-link-45deg"></i>
+                </button>
+                <button class="btn btn-outline-primary" type="button" data-action="export-pdf">
+                    <i class="bi bi-printer"></i>
+                    <span class="ms-1">Export / Print</span>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    @if (vm is null)
+    {
+        <div class="alert alert-info">Unable to load progress data for the selected range.</div>
+    }
+    else
+    {
+        @* SECTION: KPI deck *@
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm h-100 border-0">
+                    <div class="card-body">
+                        <p class="text-muted text-uppercase small mb-1">Projects moved</p>
+                        <p class="fs-3 fw-semibold mb-0">@vm.Totals.ProjectsMoved</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm h-100 border-0">
+                    <div class="card-body">
+                        <p class="text-muted text-uppercase small mb-1">Remarks logged</p>
+                        <p class="fs-3 fw-semibold mb-0">@vm.Totals.ProjectsWithRemarks</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm h-100 border-0">
+                    <div class="card-body">
+                        <p class="text-muted text-uppercase small mb-1">Non-movers</p>
+                        <p class="fs-3 fw-semibold mb-0">@vm.Totals.NonMovers</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card shadow-sm h-100 border-0">
+                    <div class="card-body">
+                        <p class="text-muted text-uppercase small mb-1">Visits</p>
+                        <p class="fs-3 fw-semibold mb-0">@vm.Totals.VisitsCount</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* SECTION: Project progress buckets *@
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white border-0">
+                <h2 class="h5 mb-0">Project progress review</h2>
+                <p class="text-muted small mb-0">Ongoing projects filtered by stage changes and remarks.</p>
+            </div>
+            <div class="card-body pt-0">
+                <div class="mb-4">
+                    <h3 class="h6">Front runners</h3>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col">Project</th>
+                                    <th scope="col">Stage</th>
+                                    <th scope="col">Status</th>
+                                    <th scope="col">Changed on</th>
+                                    <th scope="col">Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in vm.Projects.FrontRunners)
+                                {
+                                    <tr>
+                                        <td>@row.ProjectName</td>
+                                        <td>@row.StageName</td>
+                                        <td>
+                                            <span class="badge bg-primary-subtle text-primary">@row.FromStatus</span>
+                                            <span class="mx-1">→</span>
+                                            <span class="badge bg-success-subtle text-success">@row.ToStatus</span>
+                                        </td>
+                                        <td>@row.ChangeDate.ToString("dd MMM")</td>
+                                        <td class="text-muted" style="max-width:300px;">@row.RemarkSummary</td>
+                                    </tr>
+                                }
+                                @if (!vm.Projects.FrontRunners.Any())
+                                {
+                                    <tr>
+                                        <td colspan="5" class="text-muted text-center small">No stage changes recorded in this range.</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <h3 class="h6">Work under progress</h3>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col">Project</th>
+                                    <th scope="col">Latest remark</th>
+                                    <th scope="col">Summary</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in vm.Projects.WorkInProgress)
+                                {
+                                    <tr>
+                                        <td>@row.ProjectName</td>
+                                        <td>@row.LatestRemarkDate.ToString("dd MMM")</td>
+                                        <td class="text-muted" style="max-width:360px;">@row.RemarkSummary</td>
+                                    </tr>
+                                }
+                                @if (!vm.Projects.WorkInProgress.Any())
+                                {
+                                    <tr>
+                                        <td colspan="3" class="text-muted text-center small">No remarks logged without stage changes in this range.</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="h6">Non-movers</h3>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th scope="col">Project</th>
+                                    <th scope="col">Current stage</th>
+                                    <th scope="col">Days since activity</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var row in vm.Projects.NonMovers)
+                                {
+                                    <tr>
+                                        <td>@row.ProjectName</td>
+                                        <td>@row.StageName</td>
+                                        <td>@row.DaysSinceActivity</td>
+                                    </tr>
+                                }
+                                @if (!vm.Projects.NonMovers.Any())
+                                {
+                                    <tr>
+                                        <td colspan="3" class="text-muted text-center small">Every ongoing project recorded some activity.</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* SECTION: Visits & social media *@
+        <div class="row g-3 mb-4">
+            <div class="col-lg-6">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="h6 mb-0">Visits</h3>
+                            <p class="text-muted small mb-0">@vm.Visits.TotalCount entries</p>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        @if (!vm.Visits.Items.Any())
+                        {
+                            <p class="text-muted mb-0">No visits recorded in this range.</p>
+                        }
+                        else
+                        {
+                            <ul class="list-unstyled mb-0">
+                                @foreach (var visit in vm.Visits.Items.Take(6))
+                                {
+                                    <li class="mb-3">
+                                        <div class="fw-semibold">@visit.VisitorName <span class="text-muted fw-normal">(@visit.VisitType)</span></div>
+                                        <div class="small text-muted">@visit.Date.ToString("dd MMM") · Strength @visit.Strength</div>
+                                        <div class="text-muted small">@visit.Remarks</div>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center">
+                        <div>
+                            <h3 class="h6 mb-0">Social media</h3>
+                            <p class="text-muted small mb-0">@vm.SocialMedia.TotalCount posts</p>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        @if (!vm.SocialMedia.Items.Any())
+                        {
+                            <p class="text-muted mb-0">No social media updates in this range.</p>
+                        }
+                        else
+                        {
+                            <ul class="list-unstyled mb-0">
+                                @foreach (var post in vm.SocialMedia.Items.Take(6))
+                                {
+                                    <li class="mb-3">
+                                        <div class="fw-semibold">@post.Title</div>
+                                        <div class="small text-muted">@post.Date.ToString("dd MMM") · @post.Platform</div>
+                                        <div class="text-muted small">@post.Description</div>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* SECTION: TOT & IPR *@
+        <div class="row g-3 mb-4">
+            <div class="col-lg-6">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-header bg-white border-0">
+                        <h3 class="h6 mb-0">Transfer of Technology</h3>
+                        <p class="text-muted small mb-0">Stage changes and remarks</p>
+                    </div>
+                    <div class="card-body">
+                        <h4 class="text-uppercase text-muted fw-semibold small">Stage changes</h4>
+                        <ul class="list-unstyled small">
+                            @foreach (var entry in vm.Tot.StageChanges.Take(8))
+                            {
+                                <li class="mb-2">
+                                    <strong>@entry.ProjectName</strong>
+                                    <span class="text-muted">(@entry.ChangeDate.ToString("dd MMM"))</span>
+                                    <div>@entry.StageName: @entry.FromStatus → @entry.ToStatus</div>
+                                </li>
+                            }
+                            @if (!vm.Tot.StageChanges.Any())
+                            {
+                                <li class="text-muted">No stage changes recorded.</li>
+                            }
+                        </ul>
+                        <h4 class="text-uppercase text-muted fw-semibold small mt-3">Remarks</h4>
+                        <ul class="list-unstyled small">
+                            @foreach (var entry in vm.Tot.Remarks.Take(8))
+                            {
+                                <li class="mb-2">
+                                    <strong>@entry.ProjectName</strong>
+                                    <span class="text-muted">(@entry.Date.ToString("dd MMM"))</span>
+                                    <div>@entry.Summary</div>
+                                </li>
+                            }
+                            @if (!vm.Tot.Remarks.Any())
+                            {
+                                <li class="text-muted">No remarks captured.</li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-header bg-white border-0">
+                        <h3 class="h6 mb-0">IPR updates</h3>
+                        <p class="text-muted small mb-0">Status changes and highlights</p>
+                    </div>
+                    <div class="card-body">
+                        <h4 class="text-uppercase text-muted fw-semibold small">Status changes</h4>
+                        <ul class="list-unstyled small">
+                            @foreach (var entry in vm.Ipr.StatusChanges.Take(8))
+                            {
+                                <li class="mb-2">
+                                    <strong>@entry.Title</strong>
+                                    <span class="text-muted">(@entry.EventDate.ToString("dd MMM"))</span>
+                                    <div>@entry.Status — @entry.Notes</div>
+                                </li>
+                            }
+                            @if (!vm.Ipr.StatusChanges.Any())
+                            {
+                                <li class="text-muted">No status transitions this period.</li>
+                            }
+                        </ul>
+                        <h4 class="text-uppercase text-muted fw-semibold small mt-3">Remarks</h4>
+                        <ul class="list-unstyled small">
+                            @foreach (var entry in vm.Ipr.Remarks.Take(8))
+                            {
+                                <li class="mb-2">
+                                    <strong>@entry.Title</strong>
+                                    <span class="text-muted">(@entry.EventDate.ToString("dd MMM"))</span>
+                                    <div>@entry.Summary</div>
+                                </li>
+                            }
+                            @if (!vm.Ipr.Remarks.Any())
+                            {
+                                <li class="text-muted">No remarks captured.</li>
+                            }
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* SECTION: Training *@
+        <div class="row g-3 mb-4">
+            <div class="col-lg-6">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-header bg-white border-0 d-flex justify-content-between">
+                        <div>
+                            <h3 class="h6 mb-0">Simulator training</h3>
+                            <p class="text-muted small mb-0">@vm.Training.Simulator.TotalPersons trainees</p>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th scope="col">Date</th>
+                                        <th scope="col">Title</th>
+                                        <th scope="col">Unit / Org</th>
+                                        <th scope="col">Persons</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var row in vm.Training.Simulator.Rows.Take(8))
+                                    {
+                                        <tr>
+                                            <td>@row.Date.ToString("dd MMM")</td>
+                                            <td>@row.Title</td>
+                                            <td>@row.UnitOrOrg</td>
+                                            <td>@row.Persons</td>
+                                        </tr>
+                                    }
+                                    @if (!vm.Training.Simulator.Rows.Any())
+                                    {
+                                        <tr>
+                                            <td colspan="4" class="text-muted text-center small">No simulator trainings recorded.</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-header bg-white border-0 d-flex justify-content-between">
+                        <div>
+                            <h3 class="h6 mb-0">Drone training</h3>
+                            <p class="text-muted small mb-0">@vm.Training.Drone.TotalPersons trainees</p>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th scope="col">Date</th>
+                                        <th scope="col">Title</th>
+                                        <th scope="col">Unit / Org</th>
+                                        <th scope="col">Persons</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var row in vm.Training.Drone.Rows.Take(8))
+                                    {
+                                        <tr>
+                                            <td>@row.Date.ToString("dd MMM")</td>
+                                            <td>@row.Title</td>
+                                            <td>@row.UnitOrOrg</td>
+                                            <td>@row.Persons</td>
+                                        </tr>
+                                    }
+                                    @if (!vm.Training.Drone.Rows.Any())
+                                    {
+                                        <tr>
+                                            <td colspan="4" class="text-muted text-center small">No drone trainings recorded.</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* SECTION: Proliferation & FFC *@
+        <div class="row g-3 mb-4">
+            <div class="col-lg-7">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-header bg-white border-0">
+                        <h3 class="h6 mb-0">Proliferation</h3>
+                        <p class="text-muted small mb-0">@vm.Proliferation.Rows.Count records</p>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th scope="col">Date</th>
+                                        <th scope="col">Project</th>
+                                        <th scope="col">Unit</th>
+                                        <th scope="col">Qty</th>
+                                        <th scope="col">Source</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var row in vm.Proliferation.Rows.Take(10))
+                                    {
+                                        <tr>
+                                            <td>@row.Date.ToString("dd MMM")</td>
+                                            <td>@row.ProjectName</td>
+                                            <td>@row.UnitOrCountry</td>
+                                            <td>@row.Quantity</td>
+                                            <td>@row.Source</td>
+                                        </tr>
+                                    }
+                                    @if (!vm.Proliferation.Rows.Any())
+                                    {
+                                        <tr>
+                                            <td colspan="5" class="text-muted text-center small">No proliferation entries for this range.</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-5">
+                <div class="card shadow-sm border-0 h-100">
+                    <div class="card-header bg-white border-0">
+                        <h3 class="h6 mb-0">FFC simulators</h3>
+                        <p class="text-muted small mb-0">@vm.Ffc.Rows.Count milestones</p>
+                    </div>
+                    <div class="card-body">
+                        @if (!vm.Ffc.Rows.Any())
+                        {
+                            <p class="text-muted mb-0">No milestones in this range.</p>
+                        }
+                        else
+                        {
+                            <ul class="list-unstyled small mb-0">
+                                @foreach (var row in vm.Ffc.Rows.Take(10))
+                                {
+                                    <li class="mb-2">
+                                        <strong>@row.Country</strong> — @row.Milestone
+                                        <span class="text-muted">(@row.Date.ToString("dd MMM"))</span>
+                                        <div class="text-muted">@row.Remarks</div>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* SECTION: Miscellaneous activities *@
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-white border-0">
+                <h3 class="h6 mb-0">Miscellaneous activities</h3>
+                <p class="text-muted small mb-0">@vm.Misc.Rows.Count highlights</p>
+            </div>
+            <div class="card-body">
+                @if (!vm.Misc.Rows.Any())
+                {
+                    <p class="text-muted mb-0">No activities captured in this range.</p>
+                }
+                else
+                {
+                    <div class="row g-3">
+                        @foreach (var activity in vm.Misc.Rows.Take(10))
+                        {
+                            <div class="col-md-6">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="text-muted small">@activity.Date.ToString("dd MMM") · @activity.Location</div>
+                                    <div class="fw-semibold">@activity.Title</div>
+                                    <div class="text-muted small">@activity.Summary</div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script src="~/js/pages/project-office-reports/progress-review.js" asp-append-version="true"></script>
+}

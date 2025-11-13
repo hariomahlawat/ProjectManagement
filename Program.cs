@@ -54,6 +54,7 @@ using ProjectManagement.Services.Plans;
 using ProjectManagement.Services.ProjectOfficeReports.Training;
 using ProjectManagement.Services.Projects;
 using ProjectManagement.Services.Remarks;
+using ProjectManagement.Services.Reports.ProgressReview;
 using ProjectManagement.Services.Scheduling;
 using ProjectManagement.Services.Stages;
 using ProjectManagement.Services.Startup;
@@ -165,6 +166,8 @@ builder.Services.AddAuthorization(options =>
         policy.RequireTrainingTrackerManager());
     options.AddPolicy(ProjectOfficeReportsPolicies.ApproveTrainingTracker, policy =>
         policy.RequireTrainingTrackerApprover());
+    options.AddPolicy(ProjectOfficeReportsPolicies.ViewProgressReview, policy =>
+        policy.RequireProgressReviewViewer());
     options.AddPolicy(ProjectOfficeReportsPolicies.ViewProliferationTracker, policy =>
         policy.RequireProliferationViewer());
     options.AddPolicy(ProjectOfficeReportsPolicies.SubmitProliferationTracker, policy =>
@@ -407,6 +410,7 @@ builder.Services.AddScoped<TrainingTrackerReadService>();
 builder.Services.AddScoped<TrainingWriteService>();
 builder.Services.AddScoped<ITrainingNotificationService, TrainingNotificationService>();
 builder.Services.AddScoped<ITrainingExportService, TrainingExportService>();
+builder.Services.AddScoped<IProgressReviewService, ProgressReviewService>();
 builder.Services.AddSingleton<ITrainingExcelWorkbookBuilder, TrainingExcelWorkbookBuilder>();
 builder.Services.AddOptions<ProjectPhotoOptions>()
     .Bind(builder.Configuration.GetSection("ProjectPhotos"));
