@@ -134,12 +134,12 @@ public sealed class ProgressReviewService : IProgressReviewService
     }
 
     private async Task<IReadOnlyList<StageChangeLogRow>> LoadStageChangeRowsAsync(
-        DateOnly from,
-        DateOnly to,
+        DateOnly rangeFrom,
+        DateOnly rangeTo,
         CancellationToken cancellationToken)
     {
-        var fromDateTime = from.ToDateTime(TimeOnly.MinValue);
-        var toDateTime = to.ToDateTime(EndOfDay);
+        var fromDateTime = rangeFrom.ToDateTime(TimeOnly.MinValue);
+        var toDateTime = rangeTo.ToDateTime(EndOfDay);
 
         var rows = await (from log in _db.StageChangeLogs.AsNoTracking()
                           join project in _db.Projects.AsNoTracking() on log.ProjectId equals project.Id
@@ -148,10 +148,10 @@ public sealed class ProgressReviewService : IProgressReviewService
                                 && !project.IsArchived
                                 && !project.IsDeleted
                           where
-                              (log.ToActualStart.HasValue && log.ToActualStart.Value >= from && log.ToActualStart.Value <= to)
-                              || (log.ToCompletedOn.HasValue && log.ToCompletedOn.Value >= from && log.ToCompletedOn.Value <= to)
-                              || (log.FromActualStart.HasValue && log.FromActualStart.Value >= from && log.FromActualStart.Value <= to)
-                              || (log.FromCompletedOn.HasValue && log.FromCompletedOn.Value >= from && log.FromCompletedOn.Value <= to)
+                              (log.ToActualStart.HasValue && log.ToActualStart.Value >= rangeFrom && log.ToActualStart.Value <= rangeTo)
+                              || (log.ToCompletedOn.HasValue && log.ToCompletedOn.Value >= rangeFrom && log.ToCompletedOn.Value <= rangeTo)
+                              || (log.FromActualStart.HasValue && log.FromActualStart.Value >= rangeFrom && log.FromActualStart.Value <= rangeTo)
+                              || (log.FromCompletedOn.HasValue && log.FromCompletedOn.Value >= rangeFrom && log.FromCompletedOn.Value <= rangeTo)
                               || (!log.ToActualStart.HasValue && !log.ToCompletedOn.HasValue
                                   && !log.FromActualStart.HasValue && !log.FromCompletedOn.HasValue
                                   && log.At >= fromDateTime && log.At <= toDateTime)
@@ -598,12 +598,12 @@ public sealed class ProgressReviewService : IProgressReviewService
     // SECTION: Proliferation / FFC / Misc
     // -----------------------------------------------------------------
     private async Task<ProliferationSectionVm> LoadProliferationAsync(
-        DateOnly from,
-        DateOnly to,
+        DateOnly rangeFrom,
+        DateOnly rangeTo,
         CancellationToken cancellationToken)
     {
         var rows = await (from entry in _db.ProliferationGranularEntries.AsNoTracking()
-                          where entry.ProliferationDate >= from && entry.ProliferationDate <= to
+                          where entry.ProliferationDate >= rangeFrom && entry.ProliferationDate <= rangeTo
                           join project in _db.Projects.AsNoTracking()
                               on entry.ProjectId equals project.Id into projectGroup
                           from project in projectGroup.DefaultIfEmpty()
