@@ -16,8 +16,11 @@
     @await RenderSectionAsync("Styles", required: false)
 </head>
 <body>
-    @{
+    @{ 
         var currentPage = ViewContext.RouteData.Values["page"]?.ToString();
+        var currentArea = ViewContext.RouteData.Values["area"]?.ToString();
+        var isProgressReviewPage = string.Equals(currentArea, "ProjectOfficeReports", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(currentPage, "/ProgressReview/Index", StringComparison.OrdinalIgnoreCase);
         var useFullWidth = (ViewData["UseFullWidth"] as bool?) == true;
         var mainContainerClass = useFullWidth
         ? "container-fluid analytics-shell px-3 px-lg-4 px-xxl-5"
@@ -32,6 +35,7 @@
                     ProjectManagement
                 </a>
 
+                @* ===== Top Navigation Tabs ===== *@
                 <nav class="pm-top-tabs" aria-label="Primary">
                     <a asp-page="/Dashboard/Index"
                        class="pm-top-tabs__item @(string.Equals(currentPage, "/Dashboard/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
@@ -40,6 +44,11 @@
                     <a asp-page="/Calendar/Index"
                        class="pm-top-tabs__item @(string.Equals(currentPage, "/Calendar/Index", StringComparison.OrdinalIgnoreCase) ? "is-active" : string.Empty)">
                         Calendar
+                    </a>
+                    <a asp-area="ProjectOfficeReports"
+                       asp-page="/ProgressReview/Index"
+                       class="pm-top-tabs__item @(isProgressReviewPage ? "is-active" : string.Empty)">
+                        Progress Review
                     </a>
                 </nav>
             </div>
