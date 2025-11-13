@@ -1,0 +1,41 @@
+/* =========================================================
+   SECTION: Global print overrides
+   ========================================================= */
+@media print {
+    @page {
+        margin: 12mm;
+    }
+
+    body {
+        background: #ffffff !important;
+        color: #000000;
+    }
+
+    header.pm-topbar,
+    .pm-footer,
+    .pm-top-tabs,
+    .pm-top-search,
+    .progress-review__filter-card,
+    .progress-review__quick-actions,
+    .progress-review__activity-photo,
+    .progress-review__media-thumb,
+    .progress-review__activity-card img,
+    .progress-review button,
+    .progress-review [data-action] {
+        display: none !important;
+    }
+
+    .progress-review .card {
+        box-shadow: none !important;
+        border: 1px solid #dfe5ef;
+        page-break-inside: avoid;
+    }
+
+    .progress-review__table {
+        font-size: 0.85rem;
+    }
+
+    .progress-review__table thead th {
+        background: #f5f7fb !important;
+    }
+}

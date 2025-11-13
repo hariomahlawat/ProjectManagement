@@ -50,6 +50,14 @@ public sealed class ProgressReviewService : IProgressReviewService
 
         var projectNonMovers = await LoadProjectNonMoversAsync(from, to, projectsWithMovement, cancellationToken);
         var projectSummaryRows = BuildProjectSummaryRows(projectFrontRunners, projectRemarksOnly, projectNonMovers);
+        var projectsWithAnyRemarks = new HashSet<int>(projectRemarksOnly.Select(p => p.ProjectId));
+        foreach (var runner in projectFrontRunners)
+        {
+            if (!string.IsNullOrWhiteSpace(runner.RemarkSummary))
+            {
+                projectsWithAnyRemarks.Add(runner.ProjectId);
+            }
+        }
 
         // SECTION: Visits & social media
         var visits = await LoadVisitsAsync(from, to, cancellationToken);
@@ -74,7 +82,7 @@ public sealed class ProgressReviewService : IProgressReviewService
 
         var totals = new TotalsVm(
             ProjectsMoved: projectFrontRunners.Count,
-            ProjectsWithRemarks: projectRemarksOnly.Count,
+            ProjectsWithRemarks: projectsWithAnyRemarks.Count,
             NonMovers: projectNonMovers.Count,
             VisitsCount: visits.TotalCount,
             SocialPostsCount: socialMedia.TotalCount,
@@ -502,8 +510,14 @@ public sealed class ProgressReviewService : IProgressReviewService
         DateOnly to,
         CancellationToken cancellationToken)
     {
+        var fromOffset = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        var toOffset = new DateTimeOffset(to.ToDateTime(EndOfDay), TimeSpan.Zero);
+
         var records = await _db.IprRecords
             .AsNoTracking()
+            .Where(record =>
+                (record.FiledAtUtc.HasValue && record.FiledAtUtc.Value >= fromOffset && record.FiledAtUtc.Value <= toOffset)
+                || (record.GrantedAtUtc.HasValue && record.GrantedAtUtc.Value >= fromOffset && record.GrantedAtUtc.Value <= toOffset))
             .Select(record => new
             {
                 record.Id,
@@ -558,9 +572,20 @@ public sealed class ProgressReviewService : IProgressReviewService
         DateOnly to,
         CancellationToken cancellationToken)
     {
+        var fromOffset = new DateTimeOffset(from.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+        var toOffset = new DateTimeOffset(to.ToDateTime(EndOfDay), TimeSpan.Zero);
+
         var records = await _db.IprRecords
             .AsNoTracking()
             .Where(record => !string.IsNullOrWhiteSpace(record.Notes))
+            .Where(record =>
+                (record.GrantedAtUtc.HasValue
+                    && record.GrantedAtUtc.Value >= fromOffset
+                    && record.GrantedAtUtc.Value <= toOffset)
+                || (!record.GrantedAtUtc.HasValue
+                    && record.FiledAtUtc.HasValue
+                    && record.FiledAtUtc.Value >= fromOffset
+                    && record.FiledAtUtc.Value <= toOffset))
             .Select(record => new
             {
                 record.Id,
@@ -608,9 +633,18 @@ public sealed class ProgressReviewService : IProgressReviewService
         Guid trainingTypeId,
         CancellationToken cancellationToken)
     {
+        var fromMonthIndex = (from.Year * 12) + from.Month;
+        var toMonthIndex = (to.Year * 12) + to.Month;
+
         var rows = await _db.Trainings
             .AsNoTracking()
             .Where(t => t.TrainingTypeId == trainingTypeId)
+            .Where(t =>
+                (t.StartDate.HasValue && t.StartDate.Value >= from && t.StartDate.Value <= to)
+                || (t.EndDate.HasValue && t.EndDate.Value >= from && t.EndDate.Value <= to)
+                || (!t.StartDate.HasValue && !t.EndDate.HasValue && t.TrainingYear.HasValue && t.TrainingMonth.HasValue
+                    && (t.TrainingYear.Value * 12 + t.TrainingMonth.Value) >= fromMonthIndex
+                    && (t.TrainingYear.Value * 12 + t.TrainingMonth.Value) <= toMonthIndex))
             .Select(t => new TrainingProjection(
                 t.Id,
                 t.TrainingType != null ? t.TrainingType.Name : string.Empty,
