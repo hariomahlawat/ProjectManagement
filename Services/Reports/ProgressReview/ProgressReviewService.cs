@@ -654,8 +654,12 @@ public sealed class ProgressReviewService : IProgressReviewService
         DateOnly rangeTo,
         CancellationToken cancellationToken)
     {
+        var fromDateTime = rangeFrom.ToDateTime(TimeOnly.MinValue);
+        var toDateTime = rangeTo.ToDateTime(TimeOnly.MaxValue);
+
         var rows = await (from entry in _db.ProliferationGranularEntries.AsNoTracking()
-                          where entry.ProliferationDate >= rangeFrom && entry.ProliferationDate <= rangeTo
+                          let entryDateTime = EF.Property<DateTime>(entry, nameof(ProliferationGranular.ProliferationDate))
+                          where entryDateTime >= fromDateTime && entryDateTime <= toDateTime
                           join project in _db.Projects.AsNoTracking()
                               on entry.ProjectId equals project.Id into projectGroup
                           from project in projectGroup.DefaultIfEmpty()
