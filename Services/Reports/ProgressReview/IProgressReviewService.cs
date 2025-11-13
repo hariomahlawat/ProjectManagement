@@ -33,7 +33,8 @@ public sealed record RangeVm(DateOnly From, DateOnly To);
 public sealed record ProjectSectionVm(
     IReadOnlyList<ProjectStageChangeVm> FrontRunners,
     IReadOnlyList<ProjectRemarkOnlyVm> WorkInProgress,
-    IReadOnlyList<ProjectNonMoverVm> NonMovers
+    IReadOnlyList<ProjectNonMoverVm> NonMovers,
+    IReadOnlyList<ProjectProgressRowVm> SummaryRows
 );
 
 public sealed record ProjectStageChangeVm(
@@ -62,6 +63,25 @@ public sealed record ProjectNonMoverVm(
     int DaysSinceActivity
 );
 
+public sealed record ProjectProgressRowVm(
+    int ProjectId,
+    string ProjectName,
+    ProjectActivityType ActivityType,
+    string? StageName,
+    string? FromStatus,
+    string? ToStatus,
+    DateOnly? ActivityDate,
+    int? DaysSinceActivity,
+    string? RemarkSummary
+);
+
+public enum ProjectActivityType
+{
+    StageMovement,
+    RemarkOnly,
+    NoRecentActivity
+}
+
 public sealed record VisitSectionVm(IReadOnlyList<VisitSummaryVm> Items, int TotalCount);
 
 public sealed record VisitSummaryVm(
@@ -70,7 +90,8 @@ public sealed record VisitSummaryVm(
     string VisitorName,
     string VisitType,
     int Strength,
-    string? Remarks
+    string? Remarks,
+    Guid? CoverPhotoId
 );
 
 public sealed record SocialMediaSectionVm(IReadOnlyList<SocialMediaPostVm> Items, int TotalCount);
@@ -80,7 +101,8 @@ public sealed record SocialMediaPostVm(
     DateOnly Date,
     string Title,
     string Platform,
-    string? Description
+    string? Description,
+    Guid? CoverPhotoId
 );
 
 public sealed record TotSectionVm(
@@ -174,7 +196,8 @@ public sealed record MiscActivityVm(
     DateOnly Date,
     string Title,
     string? Summary,
-    string? Location
+    string? Location,
+    string? PhotoUrl
 );
 
 public sealed record TotalsVm(

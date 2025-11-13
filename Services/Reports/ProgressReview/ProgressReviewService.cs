@@ -49,6 +49,7 @@ public sealed class ProgressReviewService : IProgressReviewService
         }
 
         var projectNonMovers = await LoadProjectNonMoversAsync(from, to, projectsWithMovement, cancellationToken);
+        var projectSummaryRows = BuildProjectSummaryRows(projectFrontRunners, projectRemarksOnly, projectNonMovers);
 
         // SECTION: Visits & social media
         var visits = await LoadVisitsAsync(from, to, cancellationToken);
@@ -87,7 +88,7 @@ public sealed class ProgressReviewService : IProgressReviewService
 
         return new ProgressReviewVm(
             Range: new RangeVm(from, to),
-            Projects: new ProjectSectionVm(projectFrontRunners, projectRemarksOnly, projectNonMovers),
+            Projects: new ProjectSectionVm(projectFrontRunners, projectRemarksOnly, projectNonMovers, projectSummaryRows),
             Visits: visits,
             SocialMedia: socialMedia,
             Tot: new TotSectionVm(totStage, totRemarks),
@@ -390,7 +391,8 @@ public sealed class ProgressReviewService : IProgressReviewService
                 v.VisitorName,
                 VisitTypeName = v.VisitType != null ? v.VisitType.Name : string.Empty,
                 v.Strength,
-                v.Remarks
+                v.Remarks,
+                v.CoverPhotoId
             })
             .ToListAsync(cancellationToken);
 
@@ -401,7 +403,8 @@ public sealed class ProgressReviewService : IProgressReviewService
                 v.VisitorName,
                 v.VisitTypeName,
                 v.Strength,
-                Truncate(v.Remarks, 240)))
+                Truncate(v.Remarks, 240),
+                v.CoverPhotoId))
             .ToList();
 
         return new VisitSectionVm(items, items.Count);
@@ -420,7 +423,8 @@ public sealed class ProgressReviewService : IProgressReviewService
                 e.DateOfEvent,
                 e.Title,
                 PlatformName = e.SocialMediaPlatform != null ? e.SocialMediaPlatform.Name : string.Empty,
-                e.Description
+                e.Description,
+                e.CoverPhotoId
             })
             .ToListAsync(cancellationToken);
 
@@ -430,7 +434,8 @@ public sealed class ProgressReviewService : IProgressReviewService
                 e.DateOfEvent,
                 e.Title,
                 e.PlatformName,
-                Truncate(e.Description, 240)))
+                Truncate(e.Description, 240),
+                e.CoverPhotoId))
             .ToList();
 
         return new SocialMediaSectionVm(posts, posts.Count);
@@ -728,7 +733,12 @@ public sealed class ProgressReviewService : IProgressReviewService
                 a.Description,
                 a.Location,
                 a.ScheduledStartUtc,
-                a.ScheduledEndUtc
+                a.ScheduledEndUtc,
+                PhotoStorageKey = a.Attachments
+                    .Where(att => att.ContentType != null && att.ContentType.StartsWith("image/"))
+                    .OrderByDescending(att => att.UploadedAtUtc)
+                    .Select(att => att.StorageKey)
+                    .FirstOrDefault()
             })
             .ToListAsync(cancellationToken);
 
@@ -739,6 +749,7 @@ public sealed class ProgressReviewService : IProgressReviewService
                 row.Title,
                 row.Description,
                 row.Location,
+                row.PhotoStorageKey,
                 Occurrence = ResolveActivityDate(row.ScheduledStartUtc, row.ScheduledEndUtc)
             })
             .Where(x => x.Occurrence.HasValue && x.Occurrence.Value >= from && x.Occurrence.Value <= to)
@@ -748,7 +759,8 @@ public sealed class ProgressReviewService : IProgressReviewService
                 x.Occurrence ?? from,
                 x.Title,
                 Truncate(x.Description, 240),
-                x.Location))
+                x.Location,
+                BuildAttachmentUrl(x.PhotoStorageKey)))
             .ToList();
 
         return new MiscSectionVm(result);
@@ -757,6 +769,87 @@ public sealed class ProgressReviewService : IProgressReviewService
     // -----------------------------------------------------------------
     // SECTION: Helpers
     // -----------------------------------------------------------------
+    private static IReadOnlyList<ProjectProgressRowVm> BuildProjectSummaryRows(
+        IReadOnlyList<ProjectStageChangeVm> frontRunners,
+        IReadOnlyList<ProjectRemarkOnlyVm> remarkOnly,
+        IReadOnlyList<ProjectNonMoverVm> nonMovers)
+    {
+        var rows = new Dictionary<int, ProjectProgressRowVm>();
+
+        foreach (var stageChange in frontRunners)
+        {
+            rows[stageChange.ProjectId] = new ProjectProgressRowVm(
+                stageChange.ProjectId,
+                stageChange.ProjectName,
+                ProjectActivityType.StageMovement,
+                stageChange.StageName,
+                stageChange.FromStatus,
+                stageChange.ToStatus,
+                stageChange.ChangeDate,
+                null,
+                stageChange.RemarkSummary);
+        }
+
+        foreach (var remark in remarkOnly)
+        {
+            if (rows.TryGetValue(remark.ProjectId, out var existing))
+            {
+                if (string.IsNullOrWhiteSpace(existing.RemarkSummary) && !string.IsNullOrWhiteSpace(remark.RemarkSummary))
+                {
+                    rows[remark.ProjectId] = existing with { RemarkSummary = remark.RemarkSummary };
+                }
+
+                continue;
+            }
+
+            rows[remark.ProjectId] = new ProjectProgressRowVm(
+                remark.ProjectId,
+                remark.ProjectName,
+                ProjectActivityType.RemarkOnly,
+                null,
+                null,
+                null,
+                remark.LatestRemarkDate,
+                null,
+                remark.RemarkSummary);
+        }
+
+        foreach (var idle in nonMovers)
+        {
+            if (rows.ContainsKey(idle.ProjectId))
+            {
+                continue;
+            }
+
+            rows[idle.ProjectId] = new ProjectProgressRowVm(
+                idle.ProjectId,
+                idle.ProjectName,
+                ProjectActivityType.NoRecentActivity,
+                idle.StageName,
+                null,
+                null,
+                null,
+                idle.DaysSinceActivity,
+                null);
+        }
+
+        return rows.Values
+            .OrderBy(r => r.ProjectName)
+            .ThenBy(r => r.ActivityType)
+            .ToList();
+    }
+
+    private static string? BuildAttachmentUrl(string? storageKey)
+    {
+        if (string.IsNullOrWhiteSpace(storageKey))
+        {
+            return null;
+        }
+
+        var normalized = storageKey.Replace('\\', '/').TrimStart('/');
+        return string.IsNullOrWhiteSpace(normalized) ? null : $"/files/{normalized}";
+    }
+
     private static (DateOnly From, DateOnly To) NormalizeRange(DateOnly from, DateOnly to)
     {
         return to < from ? (to, from) : (from, to);
